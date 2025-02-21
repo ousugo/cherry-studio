@@ -281,4 +281,10 @@ export interface TranslateHistory {
   createdAt: string
 }
 
+export interface MessageHistory {
+  id: string
+  content: string
+  createdAt: string
+}
+
 export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
