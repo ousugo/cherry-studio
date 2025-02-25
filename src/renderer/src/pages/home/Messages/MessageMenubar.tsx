@@ -26,7 +26,12 @@ import {
   removeTrailingDoubleSpaces,
   uuid
 } from '@renderer/utils'
-import { exportMarkdownToNotion, exportMessageAsMarkdown, messageToMarkdown } from '@renderer/utils/export'
+import {
+  exportMarkdownToNotion,
+  exportMessageAsMarkdown,
+  messageToMarkdown,
+  exportMarkdownToYuque
+} from '@renderer/utils/export'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
@@ -155,6 +160,11 @@ const MessageMenubar: FC<Props> = (props) => {
     resendMessage && onResend()
   }, [message, onEditMessage, onResend, t])
 
+  const onResendUserMessage = useCallback(async () => {
+    await onEditMessage?.({ ...message, content: message.content })
+    onResend && onResend()
+  }, [message, onEditMessage, onResend])
+
   const handleTranslate = useCallback(
     async (language: string) => {
       if (isTranslating) return
@@ -253,6 +263,15 @@ const MessageMenubar: FC<Props> = (props) => {
               const markdown = messageToMarkdown(message)
               exportMarkdownToNotion(title, markdown)
             }
+          },
+          {
+            label: t('chat.topics.export.yuque'),
+            key: 'yuque',
+            onClick: async () => {
+              const title = getMessageTitle(message)
+              const markdown = messageToMarkdown(message)
+              exportMarkdownToYuque(title, markdown)
+            }
           }
         ]
       }
@@ -263,7 +282,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
     e?.stopPropagation?.()
     await modelGenerating()
-    const selectedModel = isGrouped ? model : assistantModel
+    const selectedModel = message.model || (isGrouped ? model : assistantModel)
     const _message = resetAssistantMessage(message, selectedModel)
     onEditMessage?.(_message)
   }
@@ -293,6 +312,13 @@ const MessageMenubar: FC<Props> = (props) => {
 
   return (
     <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
+      {message.role === 'user' && (
+        <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+          <ActionButton className="message-action-button" onClick={onResendUserMessage}>
+            <SyncOutlined />
+          </ActionButton>
+        </Tooltip>
+      )}
       {message.role === 'user' && (
         <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
           <ActionButton className="message-action-button" onClick={onEdit}>
@@ -403,7 +429,6 @@ const MenusBar = styled.div`
   justify-content: flex-end;
   align-items: center;
   gap: 6px;
-  margin-left: -5px;
 `
 
 const ActionButton = styled.div`

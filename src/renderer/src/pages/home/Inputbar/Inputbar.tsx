@@ -5,9 +5,9 @@ import {
   FullscreenOutlined,
   GlobalOutlined,
   PauseCircleOutlined,
+  PicCenterOutlined,
   QuestionCircleOutlined
 } from '@ant-design/icons'
-import { PicCenterOutlined } from '@ant-design/icons'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
@@ -21,18 +21,22 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
+import WebSearchService from '@renderer/services/WebSearchService'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setGenerating, setSearching } from '@renderer/store/runtime'
 import { Assistant, FileType, KnowledgeBase, Message, MessageHistory, Model, Topic } from '@renderer/types'
 import { classNames, delay, getFileExtension, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
+import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Button, Popconfirm, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
+import Logger from 'electron-log/renderer'
 import { debounce, isEmpty } from 'lodash'
-import { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import NarrowLayout from '../Messages/NarrowLayout'
@@ -91,6 +95,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
   const currentMessageId = useRef<string>()
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
+  const navigate = useNavigate()
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
 
@@ -485,18 +490,22 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
     e.stopPropagation()
   }
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
 
-    const files = Array.from(e.dataTransfer.files)
-
-    files.forEach(async (file) => {
-      if (supportExts.includes(getFileExtension(file.path))) {
-        const selectedFile = await window.api.file.get(file.path)
-        selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-      }
+    const files = await getFilesFromDropEvent(e).catch((err) => {
+      Logger.error('[src/renderer/src/pages/home/Inputbar/Inputbar.tsx] handleDrop:', err)
+      return null
     })
+
+    if (files) {
+      files.forEach((file) => {
+        if (supportExts.includes(getFileExtension(file.path))) {
+          setFiles((prevFiles) => [...prevFiles, file])
+        }
+      })
+    }
   }
 
   const onTranslated = (translatedText: string) => {
@@ -585,6 +594,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
 
       setMentionModels((prev) => [...prev, model])
       setIsMentionPopupOpen(false)
+      setTimeout(() => {
+        textareaRef.current?.focus()
+      }, 0)
     }
   }
 
@@ -603,6 +615,31 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
       }))
     }
   }
+
+  const onEnableWebSearch = () => {
+    if (!isWebSearchModel(model)) {
+      if (!WebSearchService.isWebSearchEnabled()) {
+        window.modal.confirm({
+          title: t('chat.input.web_search.enable'),
+          content: t('chat.input.web_search.enable_content'),
+          centered: true,
+          okText: t('chat.input.web_search.button.ok'),
+          onOk: () => {
+            navigate('/settings/web-search')
+          }
+        })
+        return
+      }
+    }
+
+    updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })
+  }
+
+  useEffect(() => {
+    if (!isWebSearchModel(model) && !WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch) {
+      updateAssistant({ ...assistant, enableWebSearch: false })
+    }
+  }, [assistant, model, updateAssistant])
 
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
@@ -653,17 +690,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic }) => {
                 onMentionModel={onMentionModel}
                 ToolbarButton={ToolbarButton}
               />
-              {isWebSearchModel(model) && (
-                <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
-                  <ToolbarButton
-                    type="text"
-                    onClick={() => updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })}>
-                    <GlobalOutlined
-                      style={{ color: assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)' }}
-                    />
-                  </ToolbarButton>
-                </Tooltip>
-              )}
+              <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
+                <ToolbarButton type="text" onClick={onEnableWebSearch}>
+                  <GlobalOutlined
+                    style={{ color: assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)' }}
+                  />
+                </ToolbarButton>
+              </Tooltip>
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <Popconfirm
                   title={t('chat.input.clear.content')}

@@ -15,13 +15,14 @@ import FlowithAppLogo from '@renderer/assets/images/apps/flowith.svg?url'
 import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png?url'
 import GensparkLogo from '@renderer/assets/images/apps/genspark.jpg?url'
 import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?url'
-import GrokAppLogo from '@renderer/assets/images/apps/grok.webp?url'
+import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
 import HikaLogo from '@renderer/assets/images/apps/hika.webp?url'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
 import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
 import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
+import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
 import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
 import NamiAiSearchLogo from '@renderer/assets/images/apps/nm-search.webp?url'
 import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
@@ -362,6 +363,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Lambda Chat',
     logo: LambdaChatLogo,
     url: 'https://lambda.chat/',
+    bodered: true
+  },
+  {
+    id: 'monica',
+    name: 'Monica',
+    logo: MonicaLogo,
+    url: 'https://monica.im/home/',
     bodered: true
   }
 ]
