@@ -1,3 +1,4 @@
+import { DownOutlined, UpOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Model, Provider } from '@renderer/types'
@@ -6,6 +7,7 @@ import { Button, Flex, Form, FormProps, Input, Modal } from 'antd'
 import { find } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 interface ShowParams {
   title: string
@@ -25,6 +27,7 @@ type FieldType = {
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
   const [open, setOpen] = useState(true)
+  const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [form] = Form.useForm()
   const { addModel, models } = useProvider(provider.id)
   const { t } = useTranslation()
@@ -120,6 +123,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
+
         <Form.Item style={{ marginBottom: 15, textAlign: 'center' }}>
           <Flex justify="center" align="center" style={{ position: 'relative' }}>
             <div>
@@ -127,12 +131,58 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
                 {t('settings.models.add.add_model')}
               </Button>
             </div>
+            <MoreSettingsRow
+              onClick={() => setShowMoreSettings(!showMoreSettings)}
+              style={{ position: 'absolute', right: 0 }}>
+              {t('settings.moresetting')}
+              <ExpandIcon>{showMoreSettings ? <UpOutlined /> : <DownOutlined />}</ExpandIcon>
+            </MoreSettingsRow>
           </Flex>
         </Form.Item>
+
+        {showMoreSettings && (
+          <div>
+            <Divider style={{ margin: '0 0 15px 0' }} />
+            <Form.Item
+              name="apiUrl"
+              label={t('settings.provider.api_host')}
+              tooltip={t('settings.models.api_url.tooltip')}>
+              <Input placeholder={t('settings.models.api_url.placeholder')} />
+            </Form.Item>
+          </div>
+        )}
       </Form>
     </Modal>
   )
 }
+
+const MoreSettingsRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-3);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &:hover {
+    background-color: var(--color-background-soft);
+  }
+`
+
+const ExpandIcon = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const Divider = styled.div`
+  height: 1px;
+  background-color: var(--color-border);
+  margin: 16px 0;
+`
 
 export default class AddModelPopup {
   static topviewId = 0
