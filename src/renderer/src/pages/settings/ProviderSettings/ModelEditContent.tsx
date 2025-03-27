@@ -23,7 +23,8 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
       ...model,
       id: values.id || model.id,
       name: values.name || model.name,
-      group: values.group || model.group
+      group: values.group || model.group,
+      ...(model.apiHost ? { apiHost: values.apiHost } : {})
     }
     onUpdateModel(updatedModel)
     setShowModelTypes(false)
@@ -57,7 +58,8 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
         initialValues={{
           id: model.id,
           name: model.name,
-          group: model.group
+          group: model.group,
+          apiHost: model.apiHost
         }}
         onFinish={onFinish}>
         <Form.Item
@@ -107,6 +109,14 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
         {showModelTypes && (
           <div>
             <Divider style={{ margin: '0 0 15px 0' }} />
+            {model.apiHost && (
+              <Form.Item
+                name="apiHost"
+                label={t('settings.provider.api_host')}
+                tooltip={t('settings.models.api_url.tooltip')}>
+                <Input placeholder={t('settings.models.api_url.placeholder')} spellCheck={false} />
+              </Form.Item>
+            )}
             <TypeTitle>{t('models.type.select')}:</TypeTitle>
             {(() => {
               const defaultTypes = [
