@@ -58,10 +58,11 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
       provider: provider.id,
       name: values.name ? values.name : id.toUpperCase(),
       group: getDefaultGroupName(values.group || id),
-      ...(values.apiUrl ? { api_host: values.apiUrl.trim() } : {})
+      ...(values.apiUrl ? { apiHost: values.apiUrl.trim() } : {})
     }
 
     addModel(model)
+    console.log(`Model ${model.name} saved with API Host:`, model.apiHost || 'Not set')
 
     return true
   }

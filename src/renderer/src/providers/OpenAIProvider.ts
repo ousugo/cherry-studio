@@ -76,6 +76,13 @@ export default class OpenAIProvider extends BaseProvider {
     })
   }
 
+  private updateBaseURL(model?: Model) {
+    if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
+      return
+    }
+    this.sdk.baseURL = this.getBaseURL(model)
+  }
+
   /**
    * Check if the provider does not support files
    * @returns True if the provider does not support files, false otherwise
@@ -353,6 +360,9 @@ export default class OpenAIProvider extends BaseProvider {
   async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
+    // 更新 baseURL
+    this.updateBaseURL(model)
+    console.log('Current baseURL:', this.sdk.baseURL)
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
 
     let systemMessage = assistant.prompt ? { role: 'system', content: assistant.prompt } : undefined
@@ -646,6 +656,7 @@ export default class OpenAIProvider extends BaseProvider {
   async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
+    this.updateBaseURL(model)
     const messages = message.content
       ? [
           { role: 'system', content: assistant.prompt },
@@ -719,6 +730,7 @@ export default class OpenAIProvider extends BaseProvider {
    */
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
+    this.updateBaseURL(model)
 
     const userMessages = takeRight(messages, 5)
       .filter((message) => !message.isPreset)
@@ -768,6 +780,7 @@ export default class OpenAIProvider extends BaseProvider {
    */
   public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
     const model = assistant.model || getDefaultModel()
+    this.updateBaseURL(model)
 
     const systemMessage = {
       role: 'system',
@@ -807,6 +820,7 @@ export default class OpenAIProvider extends BaseProvider {
    */
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
     const model = getDefaultModel()
+    this.updateBaseURL(model)
 
     await this.checkIsCopilot()
 
@@ -869,6 +883,7 @@ export default class OpenAIProvider extends BaseProvider {
 
     try {
       await this.checkIsCopilot()
+      this.updateBaseURL(model)
       const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
 
       return {
@@ -890,6 +905,7 @@ export default class OpenAIProvider extends BaseProvider {
   public async models(): Promise<OpenAI.Models.Model[]> {
     try {
       await this.checkIsCopilot()
+      this.updateBaseURL()
 
       const response = await this.sdk.models.list()
 
@@ -942,6 +958,7 @@ export default class OpenAIProvider extends BaseProvider {
     signal,
     promptEnhancement
   }: GenerateImageParams): Promise<string[]> {
+    this.updateBaseURL()
     const response = (await this.sdk.request({
       method: 'post',
       path: '/images/generations',
@@ -969,6 +986,7 @@ export default class OpenAIProvider extends BaseProvider {
    */
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     await this.checkIsCopilot()
+    this.updateBaseURL(model)
 
     const data = await this.sdk.embeddings.create({
       model: model.id,

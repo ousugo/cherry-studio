@@ -43,8 +43,19 @@ export default abstract class BaseProvider {
   abstract generateImage(params: GenerateImageParams): Promise<string[]>
   abstract getEmbeddingDimensions(model: Model): Promise<number>
 
-  public getBaseURL(): string {
-    const host = this.provider.apiHost
+  public getBaseURL(model?: Model): string {
+    // 如果提供了模型，并且模型有自己的 apiHost，优先使用模型的 apiHost
+    console.log('Model Info:', {
+      id: model?.id,
+      provider: model?.provider,
+      name: model?.name,
+      group: model?.group,
+      owned_by: model?.owned_by,
+      description: model?.description,
+      type: model?.type,
+      apiHost: model?.apiHost
+    })
+    const host = model?.apiHost || this.provider.apiHost
     return formatApiHost(host)
   }
 
