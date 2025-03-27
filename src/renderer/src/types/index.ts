@@ -140,6 +140,7 @@ export type Model = {
   owned_by?: string
   description?: string
   type?: ModelType[]
+  apiHost?: string
 }
 
 export type Suggestion = {

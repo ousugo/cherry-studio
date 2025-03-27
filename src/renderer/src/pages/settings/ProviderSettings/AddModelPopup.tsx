@@ -23,6 +23,7 @@ type FieldType = {
   id: string
   name?: string
   group?: string
+  apiUrl?: string
 }
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
@@ -56,7 +57,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
       id,
       provider: provider.id,
       name: values.name ? values.name : id.toUpperCase(),
-      group: getDefaultGroupName(values.group || id)
+      group: getDefaultGroupName(values.group || id),
+      ...(values.apiUrl ? { api_host: values.apiUrl.trim() } : {})
     }
 
     addModel(model)
