@@ -140,6 +140,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
   const webSearchButtonRef = useRef<WebSearchButtonRef>(null)
+  const thinkingPanelRef = useRef<HTMLDivElement>(null)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -880,6 +881,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const isExpended = expended || !!textareaHeight
 
+  // 点击面板外部关闭思维面板
+  useEffect(() => {
+    if (!thinkingPanelVisible) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (thinkingPanelRef.current && !thinkingPanelRef.current.contains(event.target as Node)) {
+        setThinkingPanelVisible(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [thinkingPanelVisible])
+
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
       <NarrowLayout style={{ width: '100%' }}>
@@ -947,7 +962,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               />
               <ThinkingButtonContainer>
                 {thinkingPanelVisible && (
-                  <ThinkingPanelContainer>
+                  <ThinkingPanelContainer ref={thinkingPanelRef}>
                     <ThinkingPanel model={model} assistant={assistant} />
                   </ThinkingPanelContainer>
                 )}
