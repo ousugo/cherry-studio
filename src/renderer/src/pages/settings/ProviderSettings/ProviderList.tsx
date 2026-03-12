@@ -45,6 +45,8 @@ const getIsOvmsSupported = async (): Promise<boolean> => {
 }
 
 const ProviderList: FC = () => {
+  // TODO: Define validateSearch in routes/settings/provider.tsx and replace with Route.useSearch()
+  // for type-safe search params. Currently using untyped useSearch as a stopgap after removing react-router-dom.
   const search = useSearch({ strict: false }) as Record<string, string | undefined>
   const navigate = useNavigate()
   const providers = useAllProviders()
@@ -113,10 +115,13 @@ const ProviderList: FC = () => {
     }
 
     if (shouldUpdate) {
-      // Remove consumed params (filter, id) while preserving others
-      const { filter: _, id: __, ...restSearch } = search
+      // FIXME: Using navigate + Object.fromEntries to strip consumed params is a workaround.
+      // Ideal: define validateSearch on the route so navigate({ search }) is fully typed,
+      // and consumed params can be cleared without manual filtering or type casts.
+      const restSearch = Object.fromEntries(Object.entries(search).filter(([key]) => key !== 'filter' && key !== 'id'))
       navigate({ to: '/settings/provider', search: restSearch as Record<string, string>, replace: true })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers, search.filter, search.id, navigate, setSelectedProvider, setTimeoutTimer])
 
   // Handle provider add key from URL schema
