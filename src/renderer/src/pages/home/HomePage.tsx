@@ -7,12 +7,11 @@ import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant, Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { useNavigate } from '@tanstack/react-router'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
-import { useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
 import Chat from './Chat'
@@ -27,7 +26,7 @@ const HomePage: FC = () => {
   const { isLeftNavbar } = useNavbarPosition()
 
   const location = useLocation()
-  const state = location.state
+  const state = location.state as { assistant?: Assistant; topic?: Topic } | undefined
 
   const [activeAssistant, _setActiveAssistant] = useState<Assistant>(
     state?.assistant || _activeAssistant || assistants[0]
