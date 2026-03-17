@@ -2,7 +2,16 @@ import { Button } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
 import { PlusIcon } from 'lucide-react'
 
-const AddButton = ({ children, className, ...props }) => {
+const AddButton = ({
+  children,
+  className,
+  ...props
+}: {
+  children: React.ReactNode
+  className?: string
+  onClick?: () => void
+  disabled?: boolean
+}) => {
   return (
     <Button
       {...props}

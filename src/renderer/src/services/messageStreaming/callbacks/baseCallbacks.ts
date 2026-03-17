@@ -21,6 +21,7 @@ import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
+import store from '@renderer/store'
 import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { Assistant } from '@renderer/types'
 import { ERROR_I18N_KEY_REQUEST_TIMEOUT, ERROR_I18N_KEY_STREAM_PAUSED } from '@renderer/types/error'
@@ -52,7 +53,6 @@ const logger = loggerService.withContext('BaseCallbacks')
  * since StreamingService now handles state management and persistence.
  */
 interface BaseCallbacksDependencies {
-  dispatch: any // TODO: [v2] only use for toolPermissionsActions, remove this when toolPermissions is migrated
   blockManager: BlockManager
   topicId: string
   assistantMsgId: string
@@ -61,7 +61,7 @@ interface BaseCallbacksDependencies {
 }
 
 export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
-  const { blockManager, topicId, assistantMsgId, assistant, getCurrentThinkingInfo, dispatch } = deps
+  const { blockManager, topicId, assistantMsgId, assistant, getCurrentThinkingInfo } = deps
 
   const startTime = Date.now()
   const notificationService = NotificationService.getInstance()
@@ -218,7 +218,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
 
       // Clean up pending/submitting tool permission requests from this stream.
       // Preserve 'invoking' entries as they may belong to concurrent streams.
-      dispatch(toolPermissionsActions.clearPending())
+      store.dispatch(toolPermissionsActions.clearPending())
 
       // Create error block
       const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
