@@ -150,6 +150,9 @@ export function getWebSearchProviderLogo(providerId: WebSearchProviderId): Compo
       return Bing
     case 'local-baidu':
       return Baidu
+    // TODO: [v2] Add Querit CompoundIcon to @cherrystudio/ui/icons, then return it here
+    case 'querit':
+      return undefined
     default:
       return undefined
   }
