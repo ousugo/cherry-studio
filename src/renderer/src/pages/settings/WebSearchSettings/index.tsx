@@ -1,8 +1,18 @@
+import BaiduLogo from '@renderer/assets/images/search/baidu.svg'
+import BingLogo from '@renderer/assets/images/search/bing.svg'
+import BochaLogo from '@renderer/assets/images/search/bocha.webp'
+import ExaLogo from '@renderer/assets/images/search/exa.png'
+import GoogleLogo from '@renderer/assets/images/search/google.svg'
+import QueritLogo from '@renderer/assets/images/search/querit.png'
+import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
+import TavilyLogo from '@renderer/assets/images/search/tavily.png'
+import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import DividerWithText from '@renderer/components/DividerWithText'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getWebSearchProviderLogo } from '@renderer/config/webSearchProviders'
 import { useDefaultWebSearchProvider, useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
+import type { WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { Flex, Tag } from 'antd'
@@ -41,6 +51,33 @@ const WebSearchSettings: FC = () => {
   // Filter providers that have API settings (apiKey or apiHost)
   const apiProviders = providers.filter((p) => hasObjectKey(p, 'apiKey') || hasObjectKey(p, 'apiHost'))
   const localProviders = providers.filter((p) => p.id.startsWith('local'))
+
+  // Provider logos map
+  const getProviderLogo = (providerId: WebSearchProviderId): string | undefined => {
+    switch (providerId) {
+      case 'zhipu':
+        return ZhipuLogo
+      case 'tavily':
+        return TavilyLogo
+      case 'searxng':
+        return SearxngLogo
+      case 'exa':
+      case 'exa-mcp':
+        return ExaLogo
+      case 'bocha':
+        return BochaLogo
+      case 'querit':
+        return QueritLogo
+      case 'local-google':
+        return GoogleLogo
+      case 'local-bing':
+        return BingLogo
+      case 'local-baidu':
+        return BaiduLogo
+      default:
+        return undefined
+    }
+  }
 
   return (
     <Container>
