@@ -72,7 +72,7 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [setApiServerLoading, setApiServerRunning])
+  }, [apiServerConfig.enabled, setApiServerEnabled, setApiServerLoading, setApiServerRunning])
 
   const startApiServer = useCallback(async () => {
     if (apiServerLoading) return
