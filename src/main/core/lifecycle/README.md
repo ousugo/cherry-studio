@@ -40,6 +40,20 @@ await application.bootstrap()
 const dbService = application.get('DbService')
 ```
 
+## What Belongs in Lifecycle?
+
+The lifecycle system manages **infrastructure services** — services that own resources, require startup/shutdown ordering, or hold runtime state (e.g., database connections, caches, IPC adapters).
+
+**Do NOT register** stateless business-logic services (repositories, data-access wrappers) that simply encapsulate queries. These services have no initialization or cleanup needs — a direct-import singleton is simpler and sufficient.
+
+| | Infrastructure Service | Business Service |
+|---|---|---|
+| Examples | `DbService`, `CacheService`, `PreferenceService` | `MessageService`, `TopicService` |
+| Owns resources | Yes (connections, timers, caches) | No |
+| Needs init/cleanup | Yes (`onInit` / `onStop`) | No |
+| Requires startup ordering | Yes (`@DependsOn`) | No — infrastructure is already ready |
+| Recommended pattern | Lifecycle + `application.get()` | Manual singleton + direct import |
+
 ## Bootstrap Phases
 
 Services are initialized in three phases:
@@ -364,7 +378,7 @@ manager.on(LifecycleEvents.ALL_SERVICES_READY, () => {
 
 ## Migrating from Old Service Patterns
 
-This section guides you through converting existing services to the lifecycle system. Existing services typically use one of these patterns — all should be migrated to lifecycle-managed services.
+This section guides you through converting existing **infrastructure services** to the lifecycle system. Services that manage resources, require ordered initialization, or need cleanup belong here. Stateless business-logic services (repositories, data-access layers) should remain as simple singletons — see [What Belongs in Lifecycle?](#what-belongs-in-lifecycle) above.
 
 ### Old Patterns You'll Encounter
 
