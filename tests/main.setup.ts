@@ -9,37 +9,66 @@ vi.mock('@logger', async () => {
   }
 })
 
-// Mock PreferenceService globally for main tests
+// Mock service modules globally for main tests.
+// These mocks export both the class and instance names for backward compat.
 vi.mock('@main/data/PreferenceService', async () => {
   const { MockMainPreferenceServiceExport } = await import('./__mocks__/main/PreferenceService')
-  return MockMainPreferenceServiceExport
+  return {
+    ...MockMainPreferenceServiceExport,
+    PreferenceService: vi.fn() // Class export for serviceRegistry
+  }
 })
 
-// Mock DataApiService globally for main tests
 vi.mock('@main/data/DataApiService', async () => {
   const { MockMainDataApiServiceExport } = await import('./__mocks__/main/DataApiService')
-  return MockMainDataApiServiceExport
+  return {
+    ...MockMainDataApiServiceExport,
+    DataApiService: vi.fn() // Class export for serviceRegistry
+  }
 })
 
-// Mock CacheService globally for main tests
 vi.mock('@main/data/CacheService', async () => {
   const { MockMainCacheServiceExport } = await import('./__mocks__/main/CacheService')
-  return MockMainCacheServiceExport
+  return {
+    ...MockMainCacheServiceExport,
+    CacheService: vi.fn() // Class export for serviceRegistry
+  }
 })
 
-// Mock DbService globally for main tests (if exists)
-vi.mock('@main/data/db/DbService', async () => {
-  try {
-    const { MockDbService } = await import('./__mocks__/DbService')
-    return MockDbService
-  } catch {
-    // Return basic mock if DbService mock doesn't exist yet
-    return {
-      dbService: {
-        initialize: vi.fn(),
-        getDb: vi.fn()
-      }
+vi.mock('@main/data/db/DbService', () => {
+  return {
+    DbService: vi.fn(), // Class export for serviceRegistry
+    dbService: {
+      initialize: vi.fn(),
+      getDb: vi.fn()
     }
+  }
+})
+
+// Mock application globally - provides type-safe service access via application.get()
+vi.mock('@main/core/application', async () => {
+  const { MockMainPreferenceServiceExport } = await import('./__mocks__/main/PreferenceService')
+  const { MockMainCacheServiceExport } = await import('./__mocks__/main/CacheService')
+  const { MockMainDataApiServiceExport } = await import('./__mocks__/main/DataApiService')
+
+  const serviceInstances: Record<string, unknown> = {
+    PreferenceService: MockMainPreferenceServiceExport.preferenceService,
+    CacheService: MockMainCacheServiceExport.cacheService,
+    DataApiService: MockMainDataApiServiceExport.dataApiService,
+    DbService: { getDb: vi.fn(), isReady: true }
+  }
+
+  return {
+    application: {
+      get: vi.fn((name: string) => {
+        if (name in serviceInstances) return serviceInstances[name]
+        throw new Error(`[MockApplication] Unknown service: ${name}`)
+      }),
+      registerAll: vi.fn(),
+      bootstrap: vi.fn().mockResolvedValue(undefined),
+      isReady: vi.fn(() => true)
+    },
+    serviceList: []
   }
 })
 
