@@ -22,15 +22,12 @@ const mockDb = {
   transaction: vi.fn(async (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx))
 }
 
-vi.mock('@main/core/application', () => ({
-  application: {
-    get: vi.fn((name: string) => {
-      if (name === 'DbService') return { getDb: () => mockDb }
-      throw new Error(`Unknown service: ${name}`)
-    })
-  },
-  serviceList: []
-}))
+vi.mock('@main/core/application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    DbService: { getDb: () => mockDb }
+  })
+})
 
 const { TranslateLanguageService } = await import('../TranslateLanguageService')
 

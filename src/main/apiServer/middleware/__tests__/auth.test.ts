@@ -4,16 +4,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { authMiddleware } from '../auth'
 
 // Mock preferenceService via application.get()
-const mockPreferenceGet = vi.fn()
-
-vi.mock('@main/core/application', () => ({
-  application: {
-    get: vi.fn((name: string) => {
-      if (name === 'PreferenceService') return { get: mockPreferenceGet }
-      throw new Error(`Unknown service: ${name}`)
-    })
-  }
+const { mockPreferenceGet } = vi.hoisted(() => ({
+  mockPreferenceGet: vi.fn()
 }))
+
+vi.mock('@main/core/application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    PreferenceService: { get: mockPreferenceGet }
+  })
+})
 
 // Mock the logger
 vi.mock('@logger', () => ({

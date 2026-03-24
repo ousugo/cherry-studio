@@ -35,41 +35,18 @@ vi.mock('@main/data/CacheService', async () => {
   }
 })
 
-vi.mock('@main/data/db/DbService', () => {
+vi.mock('@main/data/db/DbService', async () => {
+  const { MockMainDbServiceExport } = await import('./__mocks__/main/DbService')
   return {
-    DbService: vi.fn(), // Class export for serviceRegistry
-    dbService: {
-      initialize: vi.fn(),
-      getDb: vi.fn()
-    }
+    ...MockMainDbServiceExport,
+    DbService: vi.fn() // Class export for serviceRegistry
   }
 })
 
 // Mock application globally - provides type-safe service access via application.get()
 vi.mock('@main/core/application', async () => {
-  const { MockMainPreferenceServiceExport } = await import('./__mocks__/main/PreferenceService')
-  const { MockMainCacheServiceExport } = await import('./__mocks__/main/CacheService')
-  const { MockMainDataApiServiceExport } = await import('./__mocks__/main/DataApiService')
-
-  const serviceInstances: Record<string, unknown> = {
-    PreferenceService: MockMainPreferenceServiceExport.preferenceService,
-    CacheService: MockMainCacheServiceExport.cacheService,
-    DataApiService: MockMainDataApiServiceExport.dataApiService,
-    DbService: { getDb: vi.fn(), isReady: true }
-  }
-
-  return {
-    application: {
-      get: vi.fn((name: string) => {
-        if (name in serviceInstances) return serviceInstances[name]
-        throw new Error(`[MockApplication] Unknown service: ${name}`)
-      }),
-      registerAll: vi.fn(),
-      bootstrap: vi.fn().mockResolvedValue(undefined),
-      isReady: vi.fn(() => true)
-    },
-    serviceList: []
-  }
+  const { mockApplicationFactory } = await import('./__mocks__/main/application')
+  return mockApplicationFactory()
 })
 
 // Mock electron modules that are commonly used in main process

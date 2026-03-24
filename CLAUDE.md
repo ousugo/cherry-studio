@@ -264,6 +264,7 @@ Several dependencies have patches in `patches/` — be careful when upgrading:
 - All tests run without CI dependency (fully local)
 - Coverage via v8 provider (`pnpm test:coverage`)
 - **Features without tests are not considered complete**
+- **Test Mocking**: Use the unified mock system — do NOT create ad-hoc mocks for `application`, services, or data layers. See [tests/__mocks__/README.md](tests/__mocks__/README.md) for available mocks, usage patterns, and best practices.
 
 ## Important Notes
 

@@ -18,17 +18,10 @@ vi.mock('@data/PreferenceService', async () => {
   return MockMainPreferenceServiceExport
 })
 
-// Mock application to return mock PreferenceService
+// Mock application using unified factory
 vi.mock('@main/core/application', async () => {
-  const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
-  return {
-    application: {
-      get: vi.fn((name: string) => {
-        if (name === 'PreferenceService') return MockMainPreferenceServiceExport.preferenceService
-        throw new Error(`Unknown service: ${name}`)
-      })
-    }
-  }
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
 })
 
 vi.mock('../WindowService', () => ({
