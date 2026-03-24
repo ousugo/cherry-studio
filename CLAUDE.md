@@ -117,9 +117,9 @@ All main-process services must use the lifecycle system. When creating or migrat
 ```typescript
 import { BaseService, Injectable, DependsOn, ServicePhase, Phase } from '@main/core/lifecycle'
 
-@Injectable()
+@Injectable('MyService')
 @ServicePhase(Phase.WhenReady)        // when to initialize (default: WhenReady)
-@DependsOn(['DatabaseService'])       // what must be ready first
+@DependsOn(['DbService'])             // what must be ready first
 export class MyService extends BaseService {
   protected async onInit() { /* setup */ }
   protected async onStop() { /* cleanup */ }
@@ -143,6 +143,8 @@ const myService = application.get('MyService')
 ```
 
 **Do NOT** instantiate services with `new` or use manual singleton patterns for new services — the lifecycle container manages instantiation, ordering, and shutdown automatically.
+
+> **Migrating old services?** See the step-by-step migration guide in [src/main/core/lifecycle/README.md § Migrating from Old Service Patterns](src/main/core/lifecycle/README.md#migrating-from-old-service-patterns).
 
 ### Key Patterns
 
