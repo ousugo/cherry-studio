@@ -1,3 +1,5 @@
+import type { ServiceConstructor } from '../lifecycle/types'
+
 /**
  * Centralized service registry.
  * Add services here for both runtime registration and type-safe resolution.
@@ -26,4 +28,4 @@ export type ServiceRegistry = {
 }
 
 /** Service list for Application.registerAll() */
-export const serviceList = Object.values(services)
+export const serviceList = Object.values(services) as ServiceConstructor[]
