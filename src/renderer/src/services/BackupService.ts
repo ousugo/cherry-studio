@@ -108,7 +108,7 @@ export async function restore() {
           await handleData(data)
         } else {
           // Direct backup was restored, app will relaunch
-          notificationService.send({
+          void notificationService.send({
             id: uuid(),
             type: 'success',
             title: i18n.t('common.success'),
@@ -127,7 +127,7 @@ export async function restore() {
         await handleData(data)
       }
 
-      notificationService.send({
+      void notificationService.send({
         id: uuid(),
         type: 'success',
         title: i18n.t('common.success'),
@@ -250,7 +250,7 @@ export async function backupToWebdav({
           lastSyncError: null
         })
       )
-      notificationService.send({
+      void notificationService.send({
         id: uuid(),
         type: 'success',
         title: i18n.t('common.success'),
@@ -320,7 +320,7 @@ export async function backupToWebdav({
     if (autoBackupProcess) {
       throw error
     }
-    notificationService.send({
+    void notificationService.send({
       id: uuid(),
       type: 'error',
       title: i18n.t('message.backup.failed'),
@@ -445,7 +445,7 @@ export async function backupToS3({
           lastSyncTime: Date.now()
         })
       )
-      notificationService.send({
+      void notificationService.send({
         id: uuid(),
         type: 'success',
         title: i18n.t('common.success'),
@@ -499,7 +499,7 @@ export async function backupToS3({
     if (autoBackupProcess) {
       throw error
     }
-    notificationService.send({
+    void notificationService.send({
       id: uuid(),
       type: 'error',
       title: i18n.t('message.backup.failed'),
@@ -1091,7 +1091,7 @@ export async function backupToLocal({
       )
 
       if (showMessage) {
-        notificationService.send({
+        void notificationService.send({
           id: uuid(),
           type: 'success',
           title: i18n.t('common.success'),

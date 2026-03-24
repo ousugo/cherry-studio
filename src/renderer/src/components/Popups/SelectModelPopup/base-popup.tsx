@@ -418,7 +418,7 @@ const SelectModelPopupView: React.FC<Props> = ({
             <PinIconWrapper
               onClick={(e) => {
                 e.stopPropagation()
-                togglePin(getModelUniqId(item.model))
+                void togglePin(getModelUniqId(item.model))
               }}
               data-pinned={item.isPinned}
               $isPinned={item.isPinned}>

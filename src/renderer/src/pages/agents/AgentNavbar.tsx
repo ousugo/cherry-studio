@@ -23,7 +23,7 @@ const AgentNavbar = () => {
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
   useShortcut('search_message', () => {
-    SearchPopup.show()
+    void SearchPopup.show()
   })
 
   const handleNarrowModeToggle = async () => {

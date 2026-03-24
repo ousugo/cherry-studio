@@ -20,7 +20,7 @@ function initAutoSync() {
       startAutoSync()
     }
     if (autoSyncStates.nutstore) {
-      startNutstoreAutoSync()
+      void startNutstoreAutoSync()
     }
   }, 8000)
 }

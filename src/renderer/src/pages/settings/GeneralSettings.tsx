@@ -97,14 +97,14 @@ const GeneralSettings: FC = () => {
   const onSelectLanguage = (value: LanguageVarious) => {
     // dispatch(setLanguage(value))
     // localStorage.setItem('language', value)
-    // window.api.setLanguage(value)
-    i18n.changeLanguage(value)
+    // void window.api.setLanguage(value)
+    void i18n.changeLanguage(value)
     setLanguage(value)
   }
 
   const handleSpellCheckChange = (checked: boolean) => {
     setEnableSpellCheck(checked)
-    window.api.setEnableSpellCheck(checked)
+    void window.api.setEnableSpellCheck(checked)
   }
 
   const onSetProxyUrl = () => {
@@ -171,7 +171,7 @@ const GeneralSettings: FC = () => {
         setTimeoutTimer(
           'handleHardwareAccelerationChange',
           () => {
-            window.api.relaunchApp()
+            void window.api.relaunchApp()
           },
           500
         )
@@ -350,7 +350,7 @@ const GeneralSettings: FC = () => {
             checked={enableDataCollection}
             onCheckedChange={(v) => {
               setEnableDataCollection(v)
-              window.api.config.set('enableDataCollection', v)
+              void window.api.config.set('enableDataCollection', v)
             }}
           />
         </SettingRow>

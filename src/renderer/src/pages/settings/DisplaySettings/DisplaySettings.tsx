@@ -94,7 +94,7 @@ const DisplaySettings: FC = () => {
         setTimeoutTimer(
           'handleUseSystemTitleBarChange',
           () => {
-            window.api.relaunchApp()
+            void window.api.relaunchApp()
           },
           500
         )
@@ -152,17 +152,17 @@ const DisplaySettings: FC = () => {
 
   useEffect(() => {
     // 初始化获取所有系统字体
-    window.api.getSystemFonts().then((fonts: string[]) => {
+    void window.api.getSystemFonts().then((fonts: string[]) => {
       setFontList(fonts)
     })
 
     // 初始化获取当前缩放值
-    window.api.handleZoomFactor(0).then((factor) => {
+    void window.api.handleZoomFactor(0).then((factor) => {
       setCurrentZoom(factor)
     })
 
     const handleResize = () => {
-      window.api.handleZoomFactor(0).then((factor) => {
+      void window.api.handleZoomFactor(0).then((factor) => {
         setCurrentZoom(factor)
       })
     }

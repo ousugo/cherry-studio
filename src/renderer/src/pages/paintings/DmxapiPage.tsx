@@ -533,7 +533,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     if (!dmxapiProvider.enabled) {
-      checkProviderEnabled(dmxapiProvider, t)
+      void checkProviderEnabled(dmxapiProvider, t)
       return
     }
 
@@ -717,7 +717,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   useEffect(() => {
-    loadModelData().then(() => {})
+    void loadModelData().then(() => {})
   }, [])
 
   useEffect(() => {

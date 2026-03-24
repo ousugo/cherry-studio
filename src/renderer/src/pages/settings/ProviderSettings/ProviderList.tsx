@@ -84,7 +84,7 @@ const ProviderList: FC = () => {
       setProviderLogos(logos)
     }
 
-    loadAllLogos()
+    void loadAllLogos()
   }, [providers])
 
   useEffect(() => {
@@ -166,7 +166,7 @@ const ProviderList: FC = () => {
         return
       }
 
-      handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
+      void handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
       window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
       navigate({ to: '/settings/provider' })

@@ -49,7 +49,7 @@ const ObsidianSettings: FC = () => {
       }
     }
 
-    fetchVaults()
+    void fetchVaults()
   }, [defaultObsidianVault, setDefaultObsidianVault, t])
 
   const handleChange = (value: string) => {

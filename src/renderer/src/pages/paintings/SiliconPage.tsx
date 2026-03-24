@@ -276,7 +276,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting('siliconflow_paintings', paintingToDelete)
+    void removePainting('siliconflow_paintings', paintingToDelete)
   }
 
   const onSelectPainting = (newPainting: Painting) => {
@@ -325,7 +325,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (spaceClickCount === 2) {
         setSpaceClickCount(0)
         setIsTranslating(true)
-        translate()
+        void translate()
       }
     }
   }

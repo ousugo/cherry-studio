@@ -49,7 +49,7 @@ const ApiServerSettings: FC = () => {
 
   const copyApiKey = () => {
     if (apiServerConfig.apiKey) {
-      navigator.clipboard.writeText(apiServerConfig.apiKey)
+      void navigator.clipboard.writeText(apiServerConfig.apiKey)
     }
     window.toast.success(t('apiServer.messages.apiKeyCopied'))
   }
