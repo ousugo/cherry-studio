@@ -80,6 +80,27 @@ export const services = {
 
 This gives you type-safe access via `application.get('NewService')`.
 
+## Service Access Rules
+
+Services managed by the lifecycle system must **not** export singleton instances. The service CLASS is exported for type references only (e.g., `ServiceRegistry`, `@DependsOn`). All runtime access goes through `application.get()`.
+
+### Assign to a local variable before use
+
+Do **not** chain `application.get('...')` with method calls directly. Assign the service to a local variable first, then use it:
+
+```typescript
+// ✗ BAD: chained calls
+application.get('PreferenceService').get('app.zoom_factor')
+application.get('PreferenceService').set('app.zoom_factor', 1)
+
+// ✓ GOOD: assign first, then use
+const preferenceService = application.get('PreferenceService')
+preferenceService.get('app.zoom_factor')
+preferenceService.set('app.zoom_factor', 1)
+```
+
+This improves readability, avoids repeated container lookups, and makes the code easier to refactor.
+
 ## Runtime Service Control
 
 Control individual services at runtime without restarting the app:
