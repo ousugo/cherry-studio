@@ -393,7 +393,7 @@ export class SelectionService {
     const preferenceService = application.get('PreferenceService')
     const newEnabled = enabled === undefined ? !preferenceService.get('feature.selection.enabled') : enabled
 
-    preferenceService.set('feature.selection.enabled', newEnabled)
+    void preferenceService.set('feature.selection.enabled', newEnabled)
   }
 
   /**

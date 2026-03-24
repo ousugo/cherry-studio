@@ -107,7 +107,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     active={enableSpellCheck}
                     onClick={() => {
                       const newValue = !enableSpellCheck
-                      setEnableSpellCheck(newValue)
+                      void setEnableSpellCheck(newValue)
                       void window.api.setEnableSpellCheck(newValue)
                     }}
                     icon={<SpellCheck size={18} />}>

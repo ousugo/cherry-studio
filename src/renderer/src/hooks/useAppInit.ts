@@ -63,7 +63,7 @@ export function useAppInit() {
   useEffect(() => {
     void window.api.getDataPathFromArgs().then((dataPath) => {
       if (dataPath) {
-        window.navigate({ to: '/settings/data', replace: true })
+        void window.navigate({ to: '/settings/data', replace: true })
       }
     })
   }, [])

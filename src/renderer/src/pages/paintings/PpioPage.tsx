@@ -170,7 +170,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const handleProviderChange = (providerId: string) => {
-    navigate({ to: '../' + providerId, replace: true })
+    void navigate({ to: '../' + providerId, replace: true })
   }
 
   const handleModeChange = (value: string) => {

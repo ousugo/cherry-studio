@@ -601,13 +601,13 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
     })
 
     if (webdavAutoSync && webdavHost) {
-      startAutoSync(immediate, 'webdav')
+      void startAutoSync(immediate, 'webdav')
     }
     if (s3Settings?.autoSync && s3Settings?.endpoint) {
-      startAutoSync(immediate, 's3')
+      void startAutoSync(immediate, 's3')
     }
     if (localBackupAutoSync && localBackupDir) {
-      startAutoSync(immediate, 'local')
+      void startAutoSync(immediate, 'local')
     }
     return
   }
@@ -630,7 +630,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     webdavAutoSyncStarted = true
     stopAutoSync('webdav')
-    scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 'webdav')
+    void scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 'webdav')
   } else if (type === 's3') {
     if (s3AutoSyncStarted) {
       return
@@ -648,7 +648,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     s3AutoSyncStarted = true
     stopAutoSync('s3')
-    scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 's3')
+    void scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 's3')
   } else if (type === 'local') {
     if (localAutoSyncStarted) {
       return
@@ -666,7 +666,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     localAutoSyncStarted = true
     stopAutoSync('local')
-    scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 'local')
+    void scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime', 'local')
   }
 
   async function scheduleNextBackup(
@@ -763,7 +763,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     if (isRunning || isManualBackupRunning) {
       logger.verbose(`${logPrefix} Backup already in progress, rescheduling`)
-      scheduleNextBackup('fromNow', backupType)
+      void scheduleNextBackup('fromNow', backupType)
       return
     }
 
@@ -773,7 +773,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
 
     if (anyTopicLoading) {
       logger.info(`${logPrefix} Streaming in progress, deferring backup`)
-      scheduleNextBackup('fromNow', backupType)
+      void scheduleNextBackup('fromNow', backupType)
       return
     }
 
@@ -831,7 +831,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
           isLocalAutoBackupRunning = false
         }
 
-        scheduleNextBackup('fromNow', backupType)
+        void scheduleNextBackup('fromNow', backupType)
         break
       } catch (error: any) {
         retryCount++
@@ -869,7 +869,7 @@ export async function startAutoSync(immediate = false, type?: BackupType) {
             content: `${logPrefix} ${new Date().toLocaleString()} ` + error.message
           })
 
-          scheduleNextBackup('fromNow', backupType)
+          void scheduleNextBackup('fromNow', backupType)
 
           // 重置运行状态
           if (backupType === 'webdav') {

@@ -221,7 +221,7 @@ const SelectModelPopupView: React.FC<Props> = ({
                 e.stopPropagation()
                 setOpen(false)
                 resolve(undefined)
-                window.navigate({ to: '/settings/provider', search: { id: provider.id } })
+                void window.navigate({ to: '/settings/provider', search: { id: provider.id } })
               }}
             />
           </Tooltip>

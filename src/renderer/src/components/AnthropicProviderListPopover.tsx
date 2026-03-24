@@ -61,7 +61,7 @@ const AnthropicProviderListPopover: FC<AnthropicProviderListPopoverProps> = ({
   const handleClick = (providerId: string) => {
     onProviderClick?.()
     if (useWindowNavigate) {
-      window.navigate({ to: '/settings/provider', search: { id: providerId } })
+      void window.navigate({ to: '/settings/provider', search: { id: providerId } })
     }
   }
 

@@ -109,7 +109,7 @@ const AboutSettings: FC = () => {
     if (testPlan && currentChannelByVersion !== UpgradeChannel.LATEST && value !== currentChannelByVersion) {
       window.toast.warning(t('settings.general.test_plan.version_channel_not_match'))
     }
-    setTestChannel(value)
+    void setTestChannel(value)
     // Clear update info when switching upgrade channel
     updateAppUpdateState({
       available: false,
@@ -138,7 +138,7 @@ const AboutSettings: FC = () => {
   }
 
   const handleSetTestPlan = (value: boolean) => {
-    setTestPlan(value)
+    void setTestPlan(value)
     updateAppUpdateState({
       available: false,
       info: null,
@@ -149,7 +149,7 @@ const AboutSettings: FC = () => {
     })
 
     if (value === true) {
-      setTestChannel(getTestChannel())
+      void setTestChannel(getTestChannel())
     }
   }
 
@@ -166,7 +166,7 @@ const AboutSettings: FC = () => {
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
     })
-    setAutoCheckUpdate(autoCheckUpdate)
+    void setAutoCheckUpdate(autoCheckUpdate)
   }, [autoCheckUpdate, setAutoCheckUpdate])
 
   const onOpenDocs = () => {

@@ -444,7 +444,7 @@ const BasicDataSettings: React.FC = () => {
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
-    setSkipBackupFile(value)
+    void setSkipBackupFile(value)
   }
 
   return (

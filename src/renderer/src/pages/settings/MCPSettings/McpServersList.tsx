@@ -115,7 +115,7 @@ const McpServersList: FC = () => {
       isActive: false
     }
     addMCPServer(newServer)
-    navigate({ to: `/settings/mcp/settings/${encodeURIComponent(newServer.id)}` })
+    void navigate({ to: `/settings/mcp/settings/${encodeURIComponent(newServer.id)}` })
     window.toast.success(t('settings.mcp.addSuccess'))
   }, [addMCPServer, navigate, t])
 

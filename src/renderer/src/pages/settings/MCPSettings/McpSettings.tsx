@@ -412,7 +412,7 @@ const McpSettings: React.FC = () => {
             await window.api.mcp.removeServer(server)
             deleteMCPServer(server.id)
             window.toast.success(t('settings.mcp.deleteSuccess'))
-            navigate({ to: '/settings/mcp' })
+            void navigate({ to: '/settings/mcp' })
           }
         })
       } catch (error: any) {

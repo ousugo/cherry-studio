@@ -39,7 +39,7 @@ const ObsidianSettings: FC = () => {
 
         // 如果没有设置默认vault，则选择第一个
         if (!defaultObsidianVault && vaultsData.length > 0) {
-          setDefaultObsidianVault(vaultsData[0].name)
+          void setDefaultObsidianVault(vaultsData[0].name)
         }
       } catch (error) {
         logger.error('获取Obsidian Vault失败:', error as Error)
@@ -53,7 +53,7 @@ const ObsidianSettings: FC = () => {
   }, [defaultObsidianVault, setDefaultObsidianVault, t])
 
   const handleChange = (value: string) => {
-    setDefaultObsidianVault(value)
+    void setDefaultObsidianVault(value)
   }
 
   return (

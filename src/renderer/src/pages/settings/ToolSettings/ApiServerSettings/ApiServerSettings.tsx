@@ -59,14 +59,14 @@ const ApiServerSettings: FC = () => {
   }
 
   const regenerateApiKey = () => {
-    setApiServerConfig({ apiKey: generateApiKey() })
+    void setApiServerConfig({ apiKey: generateApiKey() })
     window.toast.success(t('apiServer.messages.apiKeyRegenerated'))
   }
 
   const handlePortChange = (value: string) => {
     const port = parseInt(value) || API_SERVER_DEFAULTS.PORT
     if (port >= 1000 && port <= 65535) {
-      setApiServerConfig({ port })
+      void setApiServerConfig({ port })
     }
   }
 

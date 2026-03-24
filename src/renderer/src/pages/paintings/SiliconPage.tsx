@@ -333,7 +333,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate({ to: '../' + providerId, replace: true })
+      void navigate({ to: '../' + providerId, replace: true })
     }
   }
 

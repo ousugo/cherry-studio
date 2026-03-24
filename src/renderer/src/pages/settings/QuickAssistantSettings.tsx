@@ -54,13 +54,13 @@ const QuickAssistantSettings: FC = () => {
     }
 
     if (enable && clickTrayToShowQuickAssistant) {
-      setTray(true)
+      void setTray(true)
     }
   }
 
   const handleClickTrayToShowQuickAssistant = async (checked: boolean) => {
     await setClickTrayToShowQuickAssistant(checked)
-    checked && setTray(true)
+    if (checked) void setTray(true)
   }
 
   const handleClickReadClipboardAtStartup = async (checked: boolean) => {

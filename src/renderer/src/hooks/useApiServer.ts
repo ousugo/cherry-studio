@@ -53,7 +53,7 @@ export const useApiServer = () => {
 
   const setApiServerEnabled = useCallback(
     (enabled: boolean) => {
-      setApiServerConfig({ enabled })
+      void setApiServerConfig({ enabled })
     },
     [setApiServerConfig]
   )

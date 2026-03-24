@@ -209,7 +209,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     windows.forEach((window) => {
       window.webContents.session.setSpellCheckerLanguages(languages)
     })
-    application.get('PreferenceService').set('app.spell_check.languages', languages)
+    void application.get('PreferenceService').set('app.spell_check.languages', languages)
   })
 
   // launch on boot

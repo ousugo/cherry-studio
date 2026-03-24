@@ -350,7 +350,7 @@ const MinappPopupContainer: React.FC = () => {
 
   /** set the open external status */
   const handleToggleOpenExternal = () => {
-    setMinappsOpenLinkExternal(!minappsOpenLinkExternal)
+    void setMinappsOpenLinkExternal(!minappsOpenLinkExternal)
   }
 
   /** navigate back in webview history */
