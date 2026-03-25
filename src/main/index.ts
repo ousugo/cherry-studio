@@ -12,6 +12,13 @@
  * refactored once all services have been migrated.
  */
 
+// Boot config must be the first to load
+import { bootConfigService } from '@main/data/bootConfig'
+
+if (bootConfigService.get('app.disable_hardware_acceleration')) {
+  app.disableHardwareAcceleration()
+}
+
 // don't reorder this file, it's used to initialize the app data dir and
 // other which should be run before the main process is ready
 // eslint-disable-next-line
@@ -361,6 +368,10 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.on('will-quit', async () => {
+    // Flush boot config to ensure pending writes are saved
+    // FIXME：临时方案，等改造本文件时应在 application 中统一处理
+    bootConfigService.flush()
+
     // 简单的资源清理，不阻塞退出流程
     if (isOvmsSupported) {
       const { ovmsManager } = await import('./services/OvmsManager')
