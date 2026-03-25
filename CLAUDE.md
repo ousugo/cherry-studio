@@ -186,6 +186,22 @@ The v2 branch is undergoing a major refactoring effort:
 - **Adopting**: `@cherrystudio/ui` (located in `packages/ui`, Tailwind CSS + Shadcn UI)
 - **Prohibited**: antd, HeroUI, styled-components
 
+### Data Classification Toolchain
+
+The `v2-refactor-temp/tools/data-classify/` directory contains the code generation pipeline for the v2 data layer. `classification.json` is the single source of truth.
+
+**Rule**: After modifying `classification.json` or `target-key-definitions.json`, you **MUST** run:
+
+```bash
+cd v2-refactor-temp/tools/data-classify && npm run generate
+```
+
+This regenerates the following TypeScript files:
+- `packages/shared/data/preference/preferenceSchemas.ts`
+- `packages/shared/data/bootConfig/bootConfigSchemas.ts`
+- `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts`
+- `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts`
+
 ### File Naming Convention
 
 During migration, use `*.v2.ts` suffix for files not yet fully migrated:
