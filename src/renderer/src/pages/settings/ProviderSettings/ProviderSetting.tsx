@@ -559,7 +559,7 @@ const ProviderSetting: FC<Props> = ({ providerId, isOnboarding = false }) => {
                       <Selector
                         size={14}
                         value={activeHostField}
-                        onChange={(value) => setActiveHostField(value as HostField)}
+                        onChange={(value) => setActiveHostField(value)}
                         options={hostSelectorOptions}
                         style={{ paddingLeft: 1, fontWeight: 'bold' }}
                         placement="bottomLeft"
