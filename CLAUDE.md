@@ -108,7 +108,7 @@ Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migratio
 
 #### Main Process Services (Lifecycle)
 
-**MUST READ**: [src/main/core/application/README.md](src/main/core/application/README.md) and [src/main/core/lifecycle/README.md](src/main/core/lifecycle/README.md)
+**MUST READ**: [docs/en/references/lifecycle/README.md](docs/en/references/lifecycle/README.md) for architecture, decision guides, and usage patterns.
 
 All main-process services must use the lifecycle system. When creating or migrating a service:
 
@@ -144,7 +144,7 @@ const myService = application.get('MyService')
 
 **Do NOT** instantiate services with `new` or use manual singleton patterns for new services — the lifecycle container manages instantiation, ordering, and shutdown automatically.
 
-> **Migrating old services?** See the step-by-step migration guide in [src/main/core/lifecycle/README.md § Migrating from Old Service Patterns](src/main/core/lifecycle/README.md#migrating-from-old-service-patterns).
+> **Migrating old services?** See the step-by-step [Lifecycle Migration Guide](docs/en/references/lifecycle/lifecycle-migration-guide.md).
 
 #### Non-Lifecycle Services (Direct-Import Singleton)
 
@@ -161,7 +161,7 @@ Rules:
 - **Always use named export** (`export const x = new X()`), never `export default new X()` or `export default X.getInstance()`
 - Export both the class (for type references) and the instance (for runtime use)
 - Do not use manual singleton patterns (`private static instance` + `getInstance()`) — a module-level `const` is already a singleton
-- See [lifecycle README § What Belongs in Lifecycle?](src/main/core/lifecycle/README.md#what-belongs-in-lifecycle) for the decision criteria (main process only)
+- See [Lifecycle Decision Guide](docs/en/references/lifecycle/lifecycle-decision-guide.md) for the decision criteria (main process only)
 
 ### Key Patterns
 

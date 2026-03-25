@@ -159,7 +159,7 @@ if (!app.requestSingleInstanceLock()) {
   // BeforeReady services (DbService, CacheService, DataApiService, PreferenceService)
   // initialize in parallel with app.whenReady(). Bootstrap promise is awaited
   // in the whenReady callback to ensure all services are ready before proceeding.
-  // See: src/main/core/application/README.md
+  // See: docs/en/references/lifecycle/application-overview.md
   // ============================================================================
   application.registerAll(serviceList)
   const bootstrapPromise = application.bootstrap().catch((error) => {
