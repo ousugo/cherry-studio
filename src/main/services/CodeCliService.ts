@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
@@ -23,7 +24,7 @@ import semver from 'semver'
 import { promisify } from 'util'
 
 const execAsync = promisify(require('child_process').exec)
-const logger = loggerService.withContext('CodeToolsService')
+const logger = loggerService.withContext('CodeCliService')
 
 interface VersionInfo {
   installed: string | null
@@ -31,7 +32,9 @@ interface VersionInfo {
   needsUpdate: boolean
 }
 
-class CodeToolsService {
+@Injectable('CodeCliService')
+@ServicePhase(Phase.Background)
+export class CodeCliService extends BaseService {
   // Static properties for cleanup management (avoid listener accumulation)
   private static pendingBatCleanups = new Set<string>()
   private static exitCleanupRegistered = false
@@ -47,18 +50,22 @@ class CodeToolsService {
   private openCodeCleanupTimers: Map<string, NodeJS.Timeout> = new Map() // Track cleanup timers by directory for debounce
   private openCodeConfigBackups: Map<string, string | null> = new Map() // Store raw backup content of opencode.json
 
-  constructor() {
-    this.getBunPath = this.getBunPath.bind(this)
-    this.getPackageName = this.getPackageName.bind(this)
-    this.getCliExecutableName = this.getCliExecutableName.bind(this)
-    this.isPackageInstalled = this.isPackageInstalled.bind(this)
-    this.getVersionInfo = this.getVersionInfo.bind(this)
-    this.updatePackage = this.updatePackage.bind(this)
-    this.run = this.run.bind(this)
-
+  protected async onInit(): Promise<void> {
     if (isMac || isWin) {
       void this.preloadTerminals()
     }
+  }
+
+  protected async onStop(): Promise<void> {
+    for (const [configPath, timer] of this.openCodeCleanupTimers) {
+      clearTimeout(timer)
+      logger.info(`Cleared cleanup timer for: ${configPath}`)
+    }
+    this.openCodeCleanupTimers.clear()
+    this.openCodeConfigBackups.clear()
+    this.versionCache.clear()
+    this.terminalsCache = null
+    this.customTerminalPaths.clear()
   }
 
   /**
@@ -1142,13 +1149,13 @@ class CodeToolsService {
         }
 
         // Add to cleanup set
-        CodeToolsService.pendingBatCleanups.add(batFilePath)
+        CodeCliService.pendingBatCleanups.add(batFilePath)
 
         // Register exit handler only once (using process.once to avoid accumulation)
-        if (!CodeToolsService.exitCleanupRegistered) {
+        if (!CodeCliService.exitCleanupRegistered) {
           process.once('exit', () => {
             // Clean up all remaining bat files on process exit
-            for (const filePath of CodeToolsService.pendingBatCleanups) {
+            for (const filePath of CodeCliService.pendingBatCleanups) {
               try {
                 if (fs.existsSync(filePath)) {
                   fs.unlinkSync(filePath)
@@ -1158,9 +1165,9 @@ class CodeToolsService {
                 logger.warn(`Failed to cleanup temp bat file: ${error}`)
               }
             }
-            CodeToolsService.pendingBatCleanups.clear()
+            CodeCliService.pendingBatCleanups.clear()
           })
-          CodeToolsService.exitCleanupRegistered = true
+          CodeCliService.exitCleanupRegistered = true
         }
 
         // Set timeout for cleanup (normal case - file deleted after 60 seconds)
@@ -1171,7 +1178,7 @@ class CodeToolsService {
               logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
             }
             // Remove from pending set
-            CodeToolsService.pendingBatCleanups.delete(batFilePath)
+            CodeCliService.pendingBatCleanups.delete(batFilePath)
           } catch (error) {
             logger.warn(`Failed to cleanup temp bat file: ${error}`)
           }
@@ -1265,5 +1272,3 @@ class CodeToolsService {
     }
   }
 }
-
-export const codeToolsService = new CodeToolsService()

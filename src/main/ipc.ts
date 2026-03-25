@@ -47,7 +47,6 @@ import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import CherryINOAuthService from './services/CherryINOAuthService'
-import { codeToolsService } from './services/CodeToolsService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import DxtService from './services/DxtService'
@@ -984,17 +983,28 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 
-  // CodeTools
-  ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
-  ipcMain.handle(IpcChannel.CodeTools_GetAvailableTerminals, () => codeToolsService.getAvailableTerminalsForPlatform())
-  ipcMain.handle(IpcChannel.CodeTools_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
-    codeToolsService.setCustomTerminalPath(terminalId, path)
+  // CodeCli
+  const codeCliService = application.get('CodeCliService')
+  ipcMain.handle(
+    IpcChannel.CodeCli_Run,
+    (
+      event,
+      cliTool: string,
+      model: string,
+      directory: string,
+      env: Record<string, string>,
+      options?: { autoUpdateToLatest?: boolean; terminal?: string }
+    ) => codeCliService.run(event, cliTool, model, directory, env, options)
   )
-  ipcMain.handle(IpcChannel.CodeTools_GetCustomTerminalPath, (_, terminalId: string) =>
-    codeToolsService.getCustomTerminalPath(terminalId)
+  ipcMain.handle(IpcChannel.CodeCli_GetAvailableTerminals, () => codeCliService.getAvailableTerminalsForPlatform())
+  ipcMain.handle(IpcChannel.CodeCli_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
+    codeCliService.setCustomTerminalPath(terminalId, path)
   )
-  ipcMain.handle(IpcChannel.CodeTools_RemoveCustomTerminalPath, (_, terminalId: string) =>
-    codeToolsService.removeCustomTerminalPath(terminalId)
+  ipcMain.handle(IpcChannel.CodeCli_GetCustomTerminalPath, (_, terminalId: string) =>
+    codeCliService.getCustomTerminalPath(terminalId)
+  )
+  ipcMain.handle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
+    codeCliService.removeCustomTerminalPath(terminalId)
   )
 
   // OCR
