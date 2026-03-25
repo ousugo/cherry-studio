@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { migrate } from 'drizzle-orm/libsql/migrator'
 import { app } from 'electron'
+import fs from 'fs'
 import path from 'path'
 import { pathToFileURL } from 'url'
 
@@ -43,6 +44,7 @@ export class DbService extends BaseService {
   constructor() {
     super()
     try {
+      this.ensureDatabaseIntegrity()
       this.db = drizzle({
         connection: { url: pathToFileURL(path.join(app.getPath('userData'), DB_NAME)).href },
         casing: 'snake_case'
@@ -164,6 +166,37 @@ export class DbService extends BaseService {
     } else {
       // in dev/preview, __dirname maybe /out/main
       return path.join(__dirname, '../../', MIGRATIONS_BASE_PATH)
+    }
+  }
+
+  /**
+   * Ensure database file integrity before opening connection.
+   * Handles two scenarios that cause SQLITE_IOERR_SHORT_READ:
+   * 1. Main .db file is 0 bytes (corrupt) — remove so libsql recreates it
+   * 2. Main .db file missing but orphaned -wal/-shm remain — SQLite attempts
+   *    WAL recovery against an empty file and fails
+   */
+  private ensureDatabaseIntegrity(): void {
+    const dbPath = path.join(app.getPath('userData'), DB_NAME)
+
+    const dbExists = fs.existsSync(dbPath)
+
+    if (dbExists) {
+      const stats = fs.statSync(dbPath)
+      if (stats.size === 0) {
+        logger.warn('Database file is empty (0 bytes), removing')
+        fs.unlinkSync(dbPath)
+      } else {
+        return
+      }
+    }
+
+    for (const suffix of ['-wal', '-shm']) {
+      const auxPath = dbPath + suffix
+      if (fs.existsSync(auxPath)) {
+        logger.warn(`Removing orphaned auxiliary file: ${path.basename(auxPath)}`)
+        fs.unlinkSync(auxPath)
+      }
     }
   }
 }
