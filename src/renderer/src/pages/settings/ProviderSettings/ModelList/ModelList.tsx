@@ -111,7 +111,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   )
 
   const isLoading = useMemo(() => displayedModelGroups === null, [displayedModelGroups])
-  const isEmptyModels = useMemo(() => displayedModelGroups && isEmpty(displayedModelGroups), [displayedModelGroups])
+  const hasNoModels = useMemo(() => models.length === 0, [models.length])
 
   const actionButtons = (
     <Space.Compact>
@@ -136,12 +136,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         <HStack alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
           <HStack alignItems="center" gap={8}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
-            {modelCount > 0 && (
-              <CustomTag color="#8c8c8c" size={10}>
-                {modelCount}
-              </CustomTag>
-            )}
-            {!isEmptyModels && (
+            <CustomTag color="#8c8c8c" size={10}>
+              {modelCount}
+            </CustomTag>
+            {!hasNoModels && (
               <>
                 <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
                   <Button
@@ -164,10 +162,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               </>
             )}
           </HStack>
-          {!isEmptyModels && actionButtons}
+          {!hasNoModels && actionButtons}
         </HStack>
       </SettingSubtitle>
-      {isEmptyModels && <div style={{ marginBottom: 12 }}>{actionButtons}</div>}
+      {hasNoModels && <div style={{ marginBottom: 12 }}>{actionButtons}</div>}
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
         {displayedModelGroups && !isEmpty(displayedModelGroups) && (
           <Flex gap={12} vertical>
