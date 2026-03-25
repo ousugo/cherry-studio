@@ -89,6 +89,16 @@ const OPENCLAW_API_TYPES = {
 } as const
 
 /**
+ * Placeholder API keys for providers that don't require authentication.
+ * OpenClaw requires a non-empty apiKey value even for local providers.
+ * Keys are matched by provider id first, then by provider type.
+ */
+const NO_KEY_PLACEHOLDERS: Record<string, string> = {
+  ollama: 'ollama',
+  lmstudio: 'lmstudio'
+}
+
+/**
  * Providers that always use Anthropic API format
  */
 const ANTHROPIC_ONLY_PROVIDERS: ProviderType[] = ['anthropic', 'vertex-anthropic']
@@ -784,6 +794,13 @@ class OpenClawService {
         }
       }
 
+      // Providers like Ollama and LM Studio don't require real API keys,
+      // but OpenClaw needs a non-empty placeholder value
+      if (!apiKey) {
+        apiKey = NO_KEY_PLACEHOLDERS[provider.id] ?? NO_KEY_PLACEHOLDERS[provider.type] ?? 'no-key-required'
+      }
+
+      // Build OpenClaw provider config
       // Preserve existing model-level config that users may have modified in OpenClaw
       // (e.g., vision, custom context window, extra parameters)
       config.models = config.models || { mode: 'merge', providers: {} }
