@@ -1921,7 +1921,7 @@
           "type": "boolean",
           "defaultValue": false,
           "status": "classified",
-          "category": "preferences",
+          "category": "bootConfig",
           "targetKey": "app.disable_hardware_acceleration"
         },
         {
@@ -3306,7 +3306,7 @@
           "type": "unknown",
           "defaultValue": null,
           "status": "classified",
-          "category": "preferences",
+          "category": "bootConfig",
           "targetKey": "app.disable_hardware_acceleration"
         }
       ],

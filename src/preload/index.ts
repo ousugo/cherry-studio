@@ -18,10 +18,10 @@ import type {
 import type { MCPServerLogEntry } from '@shared/config/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
-  PreferenceDefaultScopeType,
-  PreferenceKeyType,
-  PreferenceMultipleResultType,
-  SelectionActionItem
+  SelectionActionItem,
+  UnifiedPreferenceKeyType,
+  UnifiedPreferenceMultipleResultType,
+  UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
@@ -631,18 +631,18 @@ const api = {
   // PreferenceService related APIs
   // DO NOT MODIFY THIS SECTION
   preference: {
-    get: <K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> =>
+    get: <K extends UnifiedPreferenceKeyType>(key: K): Promise<UnifiedPreferenceType[K]> =>
       ipcRenderer.invoke(IpcChannel.Preference_Get, key),
-    set: <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]): Promise<void> =>
+    set: <K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Preference_Set, key, value),
-    getMultipleRaw: <K extends PreferenceKeyType>(keys: K[]): Promise<PreferenceMultipleResultType<K>> =>
+    getMultipleRaw: <K extends UnifiedPreferenceKeyType>(keys: K[]): Promise<UnifiedPreferenceMultipleResultType<K>> =>
       ipcRenderer.invoke(IpcChannel.Preference_GetMultipleRaw, keys),
-    setMultiple: (updates: Partial<PreferenceDefaultScopeType>) =>
+    setMultiple: (updates: Partial<UnifiedPreferenceType>) =>
       ipcRenderer.invoke(IpcChannel.Preference_SetMultiple, updates),
-    getAll: (): Promise<PreferenceDefaultScopeType> => ipcRenderer.invoke(IpcChannel.Preference_GetAll),
-    subscribe: (keys: PreferenceKeyType[]) => ipcRenderer.invoke(IpcChannel.Preference_Subscribe, keys),
-    onChanged: (callback: (key: PreferenceKeyType, value: any) => void) => {
-      const listener = (_: any, key: PreferenceKeyType, value: any) => callback(key, value)
+    getAll: (): Promise<UnifiedPreferenceType> => ipcRenderer.invoke(IpcChannel.Preference_GetAll),
+    subscribe: (keys: UnifiedPreferenceKeyType[]) => ipcRenderer.invoke(IpcChannel.Preference_Subscribe, keys),
+    onChanged: (callback: (key: UnifiedPreferenceKeyType, value: any) => void) => {
+      const listener = (_: any, key: UnifiedPreferenceKeyType, value: any) => callback(key, value)
       ipcRenderer.on(IpcChannel.Preference_Changed, listener)
       return () => ipcRenderer.off(IpcChannel.Preference_Changed, listener)
     }

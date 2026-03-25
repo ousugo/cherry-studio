@@ -38,8 +38,6 @@ export interface PreferenceSchemas {
   default: {
     // redux/settings/enableDeveloperMode
     'app.developer_mode.enabled': boolean
-    // redux/settings/disableHardwareAcceleration
-    'app.disable_hardware_acceleration': boolean
     // redux/settings/autoCheckUpdate
     'app.dist.auto_update.enabled': boolean
     // redux/settings/testChannel
@@ -495,7 +493,6 @@ export interface PreferenceSchemas {
 export const DefaultPreferences: PreferenceSchemas = {
   default: {
     'app.developer_mode.enabled': false,
-    'app.disable_hardware_acceleration': false,
     'app.dist.auto_update.enabled': true,
     'app.dist.test_plan.channel': PreferenceTypes.UpgradeChannel.LATEST,
     'app.dist.test_plan.enabled': false,
@@ -784,9 +781,9 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 226
+ * - 总配置项: 225
  * - electronStore项: 1
- * - redux项: 206
+ * - redux项: 205
  * - localStorage项: 0
  * - dexieSettings项: 7
  */

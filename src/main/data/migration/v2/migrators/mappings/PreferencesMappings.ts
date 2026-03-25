@@ -75,10 +75,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'app.privacy.data_collection.enabled'
     },
     {
-      originalKey: 'disableHardwareAcceleration',
-      targetKey: 'app.disable_hardware_acceleration'
-    },
-    {
       originalKey: 'enableDeveloperMode',
       targetKey: 'app.developer_mode.enabled'
     },
