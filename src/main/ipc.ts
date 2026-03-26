@@ -66,7 +66,6 @@ import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
 import { openClawService } from './services/OpenClawService'
 import { isOvmsSupported } from './services/OvmsManager'
-import { powerMonitorService } from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
@@ -129,6 +128,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   const notificationService = new NotificationService()
 
   // Register shutdown handlers
+  const powerMonitorService = application.get('PowerMonitorService')
   powerMonitorService.registerShutdownHandler(() => {
     appUpdater.setAutoUpdate(false)
   })

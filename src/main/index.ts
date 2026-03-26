@@ -44,7 +44,6 @@ import { mcpService } from './services/MCPService'
 import { localTransferService } from './services/LocalTransferService'
 import { openClawService } from './services/OpenClawService'
 import { nodeTraceService } from './services/NodeTraceService'
-import { powerMonitorService } from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -316,7 +315,6 @@ if (!app.requestSingleInstanceLock()) {
     const mainWindow = windowService.createMainWindow()
 
     nodeTraceService.init()
-    powerMonitorService.init()
     analyticsService.init()
 
     app.on('activate', function () {
