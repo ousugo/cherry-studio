@@ -52,7 +52,6 @@ import {
   registerProtocolClient,
   setupAppImageDeepLink
 } from './services/ProtocolClient'
-import { selectionService, initSelectionService } from './services/SelectionService'
 import { registerShortcuts } from './services/ShortcutService'
 import { themeService } from './services/ThemeService'
 import { trayService } from './services/TrayService'
@@ -255,11 +254,6 @@ if (!app.requestSingleInstanceLock()) {
     app.on('before-quit', () => {
       application.markQuitting()
 
-      // quit selection service
-      if (selectionService) {
-        selectionService.quit()
-      }
-
       lanTransferClientService.dispose()
       localTransferService.dispose()
     })
@@ -358,9 +352,6 @@ if (!app.requestSingleInstanceLock()) {
         .then((name) => logger.info(`Added Extension:  ${name}`))
         .catch((err) => logger.error('An error occurred: ', err))
     }
-
-    //start selection assistant service
-    initSelectionService()
 
     void runAsyncFunction(async () => {
       // Start API server if enabled or if agents exist

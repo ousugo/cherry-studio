@@ -3,6 +3,7 @@ import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { SelectionService } from '@main/services/SelectionService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
 
@@ -34,7 +35,8 @@ export const services = {
   CacheService,
   DataApiService,
   PreferenceService,
-  CodeCliService
+  CodeCliService,
+  SelectionService
 } as const
 
 /** Auto-derived service name to instance type mapping */

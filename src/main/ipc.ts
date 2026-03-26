@@ -71,7 +71,6 @@ import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
-import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import {
   addEndMessage,
@@ -894,9 +893,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // store sync
   storeSyncService.registerIpcHandler()
-
-  // selection assistant
-  SelectionService.registerIpcHandler()
 
   ipcMain.handle(IpcChannel.App_QuoteToMain, (_, text: string) => windowService.quoteToMainWindow(text))
 

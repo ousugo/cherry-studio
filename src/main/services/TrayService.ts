@@ -7,7 +7,6 @@ import { Menu, nativeImage, nativeTheme, Tray } from 'electron'
 import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
 import iconLight from '../../../build/tray_icon_light.png?asset'
-import { selectionService } from './SelectionService'
 import { windowService } from './WindowService'
 export class TrayService {
   private tray: Tray | null = null
@@ -86,10 +85,8 @@ export class TrayService {
       (isWin || isMac) && {
         label: selectionLocale.name + (selectionAssistantEnabled ? ' - On' : ' - Off'),
         click: () => {
-          if (selectionService) {
-            selectionService.toggleEnabled()
-            this.updateContextMenu()
-          }
+          application.get('SelectionService').toggleEnabled()
+          this.updateContextMenu()
         }
       },
       { type: 'separator' },
