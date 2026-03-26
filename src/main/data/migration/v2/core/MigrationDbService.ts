@@ -57,10 +57,12 @@ export class MigrationDbService {
       : path.join(__dirname, '../../', MIGRATIONS_BASE_PATH)
     await migrate(db, { migrationsFolder })
 
-    // Drizzle's migrate() turns foreign_keys ON in its finally block.
-    // Turn it OFF for migration: bulk inserts with self-referencing FKs
-    // (message.parentId → message.id) need FK disabled to avoid ordering
-    // constraints. Migration validates data integrity in its validate phase.
+    // libsql is compiled with SQLITE_DEFAULT_FOREIGN_KEYS=1 (see libsql-ffi/build.rs),
+    // so every new connection has foreign_keys = ON by default. Drizzle's migrate()
+    // also forces foreign_keys = ON in its finally block. Turn it OFF for migration:
+    // bulk inserts with self-referencing FKs (message.parentId → message.id) need FK
+    // disabled. Migration validates data integrity via PRAGMA foreign_key_check after
+    // all migrators complete (see MigrationEngine.verifyForeignKeys).
     await db.run(sql`PRAGMA foreign_keys = OFF`)
 
     // Custom SQL (triggers, FTS, etc.) — all idempotent

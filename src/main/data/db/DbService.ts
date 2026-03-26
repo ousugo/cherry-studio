@@ -76,11 +76,12 @@ export class DbService extends BaseService {
    * `@libsql/client`'s `Sqlite3Client.transaction()` nullifies its internal
    * connection (`this.#db = null`) after opening a transaction. The next
    * non-transaction operation lazily creates a **new** `Database` connection
-   * with default PRAGMA values, so `synchronous = NORMAL` and
-   * `foreign_keys = ON` silently revert to their defaults (FULL / OFF).
-   *
-   * `journal_mode = WAL` is unaffected because it is persisted in the
-   * database file, not per-connection.
+   * whose PRAGMAs reset to libsql compile-time defaults:
+   * - `synchronous` reverts to FULL (standard SQLite default)
+   * - `foreign_keys` stays ON — libsql (turso's SQLite fork) is compiled with
+   *   `SQLITE_DEFAULT_FOREIGN_KEYS=1` (see libsql-ffi/build.rs), unlike
+   *   standard SQLite which defaults to OFF
+   * - `journal_mode = WAL` is unaffected (persisted in the database file)
    *
    * This is a known limitation with no upstream fix as of @libsql/client 0.17.2.
    * Related issues:
