@@ -109,17 +109,17 @@ Control individual services at runtime without restarting the app:
 
 ```typescript
 // Stop a service (cascades to dependents)
-await application.stopService('HeavyComputeService')
+await application.stop('HeavyComputeService')
 
 // Start a stopped service (re-runs onInit, cascades to dependents)
-await application.startService('HeavyComputeService')
+await application.start('HeavyComputeService')
 
 // Restart = stop + start
-await application.restartService('HeavyComputeService')
+await application.restart('HeavyComputeService')
 
 // Pause/Resume (service must implement Pausable interface)
-await application.pauseService('RealTimeService')
-await application.resumeService('RealTimeService')
+await application.pause('RealTimeService')
+await application.resume('RealTimeService')
 ```
 
 All operations cascade through the dependency graph automatically.
@@ -130,10 +130,10 @@ When pausing/stopping a service, all services that depend on it are automaticall
 
 ```typescript
 // If PreferenceService depends on DbService:
-await application.stopService('DbService')
+await application.stop('DbService')
 // → PreferenceService is stopped first, then DbService
 
-await application.startService('DbService')
+await application.start('DbService')
 // → DbService is started first, then PreferenceService
 ```
 

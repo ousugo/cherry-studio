@@ -181,7 +181,7 @@ export class Application {
     }
 
     logger.info(`User chose to restart after ${error.serviceName} initialization failure`)
-    this.relaunchApp()
+    this.relaunch()
   }
 
   /**
@@ -214,7 +214,7 @@ export class Application {
         bootConfigService.reset()
       }
       logger.info(`User chose to ${isParseError ? 'reset and restart' : 'restart'} after boot config error`)
-      this.relaunchApp()
+      this.relaunch()
       return
     }
 
@@ -231,7 +231,7 @@ export class Application {
   /**
    * Relaunch the app, with dev mode warning
    */
-  private relaunchApp(): void {
+  private relaunch(): void {
     if (isDev) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
       app.exit(0)
@@ -328,7 +328,7 @@ export class Application {
    * The service must implement the Pausable interface (onPause/onResume methods).
    * @param name - Service name from ServiceRegistry
    */
-  public async pauseService<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+  public async pause<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.pause(name)
   }
 
@@ -337,7 +337,7 @@ export class Application {
    * The service must implement the Pausable interface.
    * @param name - Service name from ServiceRegistry
    */
-  public async resumeService<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+  public async resume<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.resume(name)
   }
 
@@ -346,7 +346,7 @@ export class Application {
    * All services support stop (no special interface needed).
    * @param name - Service name from ServiceRegistry
    */
-  public async stopService<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+  public async stop<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.stop(name)
   }
 
@@ -355,7 +355,7 @@ export class Application {
    * Also starts any services that were cascade-stopped.
    * @param name - Service name from ServiceRegistry
    */
-  public async startService<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+  public async start<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.start(name)
   }
 
@@ -364,7 +364,7 @@ export class Application {
    * Convenience method that combines stop and start operations.
    * @param name - Service name from ServiceRegistry
    */
-  public async restartService<K extends keyof ServiceRegistry>(name: K): Promise<void> {
+  public async restart<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.restart(name)
   }
 }
