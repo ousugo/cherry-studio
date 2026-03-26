@@ -12,7 +12,7 @@ vi.mock('@main/services/WindowService', () => ({
 }))
 
 import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
-import mcpService from '@main/services/MCPService'
+import { mcpService } from '@main/services/MCPService'
 
 const baseInputSchema: { type: 'object'; properties: Record<string, unknown>; required: string[] } = {
   type: 'object',

@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import mcpService from '@main/services/MCPService'
+import { mcpService } from '@main/services/MCPService'
 import { reduxService } from '@main/services/ReduxService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js'

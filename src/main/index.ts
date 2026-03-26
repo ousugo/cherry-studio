@@ -41,21 +41,21 @@ import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
 import { lanTransferClientService } from './services/lanTransfer'
-import mcpService from './services/MCPService'
+import { mcpService } from './services/MCPService'
 import { localTransferService } from './services/LocalTransferService'
 import { openClawService } from './services/OpenClawService'
 import { nodeTraceService } from './services/NodeTraceService'
-import powerMonitorService from './services/PowerMonitorService'
+import { powerMonitorService } from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
   registerProtocolClient,
   setupAppImageDeepLink
 } from './services/ProtocolClient'
-import selectionService, { initSelectionService } from './services/SelectionService'
+import { selectionService, initSelectionService } from './services/SelectionService'
 import { registerShortcuts } from './services/ShortcutService'
 import { themeService } from './services/ThemeService'
-import { TrayService } from './services/TrayService'
+import { trayService } from './services/TrayService'
 import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
 import {
@@ -327,7 +327,7 @@ if (!app.requestSingleInstanceLock()) {
     // Create main window - migration has either completed or was not needed
     const mainWindow = windowService.createMainWindow()
 
-    new TrayService()
+    trayService.init()
 
     // Setup macOS application menu
     appMenuService?.setupApplicationMenu()
