@@ -158,7 +158,7 @@ if (!isDev) {
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
-  app.quit()
+  application.quit()
   process.exit(0)
 } else {
   // ============================================================================
@@ -186,7 +186,7 @@ if (!app.requestSingleInstanceLock()) {
         `Could not determine if data migration is completed.\n\nThis may indicate a database connectivity issue: ${(error as Error).message}\n\nThe application will now exit. Please check your installation and try again.`
       )
       logger.error('Exiting application due to migration status check failure')
-      app.quit()
+      application.quit()
       return
     }
 
@@ -208,7 +208,7 @@ if (!app.requestSingleInstanceLock()) {
           `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
         )
         logger.error('Exiting application due to failed migration startup')
-        app.quit()
+        application.quit()
       }
       return
     }
@@ -253,7 +253,7 @@ if (!app.requestSingleInstanceLock()) {
     })
 
     app.on('before-quit', () => {
-      app.isQuitting = true
+      application.markQuitting()
 
       // quit selection service
       if (selectionService) {

@@ -2,7 +2,7 @@ import { isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
 import { getI18n } from '@main/utils/language'
 import type { MenuItemConstructorOptions } from 'electron'
-import { app, Menu, nativeImage, nativeTheme, Tray } from 'electron'
+import { Menu, nativeImage, nativeTheme, Tray } from 'electron'
 
 import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
@@ -127,7 +127,7 @@ export class TrayService {
   }
 
   private quit() {
-    app.quit()
+    application.quit()
   }
 }
 

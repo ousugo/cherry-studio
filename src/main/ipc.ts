@@ -178,7 +178,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
-  ipcMain.handle(IpcChannel.App_Quit, () => app.quit())
+  ipcMain.handle(IpcChannel.App_Quit, () => application.quit())
   ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
 
   // Update
