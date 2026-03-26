@@ -10,8 +10,8 @@ import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import type {
   MigrationProgress,
   MigrationResult,
@@ -28,6 +28,7 @@ import path from 'path'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
+import { MigrationDbService } from './MigrationDbService'
 
 // TODO: Import these tables when they are created in user data schema
 // import { assistantTable } from '../../db/schemas/assistant'
@@ -41,8 +42,30 @@ const MIGRATION_V2_STATUS = 'migration_v2_status'
 export class MigrationEngine {
   private migrators: BaseMigrator[] = []
   private progressCallback?: (progress: MigrationProgress) => void
+  private migrationDb: MigrationDbService | null = null
 
-  constructor() {}
+  /**
+   * Initialize the migration engine by creating a bare DB connection.
+   * Must be called before needsMigration() or run().
+   */
+  async initialize(): Promise<void> {
+    this.migrationDb = await MigrationDbService.create()
+  }
+
+  /**
+   * Close the bare DB connection. Call when migration is not needed.
+   */
+  close(): void {
+    this.migrationDb?.close()
+    this.migrationDb = null
+  }
+
+  private getDb(): DbType {
+    if (!this.migrationDb) {
+      throw new Error('MigrationEngine not initialized — call initialize() first')
+    }
+    return this.migrationDb.getDb()
+  }
 
   /**
    * Register migrators in execution order
@@ -66,7 +89,7 @@ export class MigrationEngine {
    */
   //TODO 不能仅仅判断数据库，如果是全新安装，而不是升级上来的用户，其实并不需要迁移，但是按现在的逻辑，还是会进行迁移，这不正确
   async needsMigration(): Promise<boolean> {
-    const db = application.get('DbService').getDb()
+    const db = this.getDb()
     const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
 
     if (status?.value) {
@@ -103,7 +126,7 @@ export class MigrationEngine {
    * Get last migration error (for UI display)
    */
   async getLastError(): Promise<string | null> {
-    const db = application.get('DbService').getDb()
+    const db = this.getDb()
     const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
 
     if (status?.value) {
@@ -133,7 +156,7 @@ export class MigrationEngine {
       await this.verifyAndClearNewTables()
 
       // Create migration context
-      const context = await createMigrationContext(reduxData, dexieExportPath, localStorageExportPath)
+      const context = await createMigrationContext(this.getDb(), reduxData, dexieExportPath, localStorageExportPath)
 
       for (let i = 0; i < this.migrators.length; i++) {
         const migrator = this.migrators[i]
@@ -230,7 +253,7 @@ export class MigrationEngine {
    * Safety check: log if tables are not empty (may indicate previous failed migration)
    */
   private async verifyAndClearNewTables(): Promise<void> {
-    const db = application.get('DbService').getDb()
+    const db = this.getDb()
 
     // Tables to clear - add more as they are created
     // Order matters: child tables must be cleared before parent tables
@@ -363,7 +386,7 @@ export class MigrationEngine {
    * Mark migration as completed in app_state
    */
   private async markCompleted(): Promise<void> {
-    const db = application.get('DbService').getDb()
+    const db = this.getDb()
     const statusValue: MigrationStatusValue = {
       status: 'completed',
       completedAt: Date.now(),
@@ -390,7 +413,7 @@ export class MigrationEngine {
    * Mark migration as failed in app_state with error details
    */
   private async markFailed(error: string): Promise<void> {
-    const db = application.get('DbService').getDb()
+    const db = this.getDb()
     const statusValue: MigrationStatusValue = {
       status: 'failed',
       failedAt: Date.now(),
