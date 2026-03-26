@@ -1,5 +1,6 @@
 import { isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getI18n } from '@main/utils/language'
 import type { MenuItemConstructorOptions } from 'electron'
 import { Menu, nativeImage, nativeTheme, Tray } from 'electron'
@@ -8,13 +9,25 @@ import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
 import iconLight from '../../../build/tray_icon_light.png?asset'
 import { windowService } from './WindowService'
-export class TrayService {
+
+@Injectable('TrayService')
+@ServicePhase(Phase.WhenReady)
+export class TrayService extends BaseService {
   private tray: Tray | null = null
   private contextMenu: Menu | null = null
+  private unsubscribes: (() => void)[] = []
 
-  public init(): void {
+  protected async onInit() {
     this.watchConfigChanges()
     this.updateTray()
+  }
+
+  protected async onStop() {
+    for (const unsub of this.unsubscribes) {
+      unsub()
+    }
+    this.unsubscribes = []
+    this.destroyTray()
   }
 
   private createTray() {
@@ -117,15 +130,15 @@ export class TrayService {
 
   private watchConfigChanges() {
     const preferenceService = application.get('PreferenceService')
-    preferenceService.subscribeChange('app.tray.enabled', () => this.updateTray())
-    preferenceService.subscribeChange('app.language', () => this.updateContextMenu())
-    preferenceService.subscribeChange('feature.quick_assistant.enabled', () => this.updateContextMenu())
-    preferenceService.subscribeChange('feature.selection.enabled', () => this.updateContextMenu())
+    this.unsubscribes.push(
+      preferenceService.subscribeChange('app.tray.enabled', () => this.updateTray()),
+      preferenceService.subscribeChange('app.language', () => this.updateContextMenu()),
+      preferenceService.subscribeChange('feature.quick_assistant.enabled', () => this.updateContextMenu()),
+      preferenceService.subscribeChange('feature.selection.enabled', () => this.updateContextMenu())
+    )
   }
 
   private quit() {
     application.quit()
   }
 }
-
-export const trayService = new TrayService()

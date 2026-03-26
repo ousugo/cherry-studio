@@ -54,7 +54,6 @@ import {
 } from './services/ProtocolClient'
 import { registerShortcuts } from './services/ShortcutService'
 import { themeService } from './services/ThemeService'
-import { trayService } from './services/TrayService'
 import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
 import {
@@ -320,8 +319,6 @@ if (!app.requestSingleInstanceLock()) {
 
     // Create main window - migration has either completed or was not needed
     const mainWindow = windowService.createMainWindow()
-
-    trayService.init()
 
     // Setup macOS application menu
     appMenuService?.setupApplicationMenu()
