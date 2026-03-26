@@ -4,6 +4,7 @@ import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { SelectionService } from '@main/services/SelectionService'
+import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
@@ -38,6 +39,7 @@ export const services = {
   PreferenceService,
   CodeCliService,
   SelectionService,
+  ThemeService,
   TrayService
 } as const
 

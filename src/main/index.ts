@@ -53,7 +53,6 @@ import {
   setupAppImageDeepLink
 } from './services/ProtocolClient'
 import { registerShortcuts } from './services/ShortcutService'
-import { themeService } from './services/ThemeService'
 import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
 import {
@@ -313,9 +312,6 @@ if (!app.requestSingleInstanceLock()) {
     // Check for backup restore marker and complete restoration (highest priority, before window creation)
     const { BackupManager } = await import('./services/BackupManager')
     await BackupManager.handleStartupRestore()
-
-    // TODO: Remove manual init after ThemeService is migrated to lifecycle system
-    themeService.init()
 
     // Create main window - migration has either completed or was not needed
     const mainWindow = windowService.createMainWindow()
