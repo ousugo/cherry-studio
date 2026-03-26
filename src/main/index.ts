@@ -39,7 +39,6 @@ import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
-import { appMenuService } from './services/AppMenuService'
 import { lanTransferClientService } from './services/lanTransfer'
 import { mcpService } from './services/MCPService'
 import { localTransferService } from './services/LocalTransferService'
@@ -316,8 +315,6 @@ if (!app.requestSingleInstanceLock()) {
     // Create main window - migration has either completed or was not needed
     const mainWindow = windowService.createMainWindow()
 
-    // Setup macOS application menu
-    appMenuService?.setupApplicationMenu()
     nodeTraceService.init()
     powerMonitorService.init()
     analyticsService.init()
