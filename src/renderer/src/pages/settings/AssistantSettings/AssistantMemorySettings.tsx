@@ -49,7 +49,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
       logger.error('Failed to load memory stats:', error as Error)
       setMemoryStats({ count: 0, loading: false })
     }
-  }, [assistant.id, memoryService])
+  }, [assistant.id])
 
   useEffect(() => {
     void loadMemoryStats()

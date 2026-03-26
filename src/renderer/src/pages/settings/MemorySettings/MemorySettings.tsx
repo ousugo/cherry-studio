@@ -299,7 +299,7 @@ const MemorySettings = () => {
     } catch (error) {
       logger.error('Failed to load users list:', error as Error)
     }
-  }, [memoryService])
+  }, [])
 
   // Load memories function
   const loadMemories = useCallback(
@@ -325,7 +325,7 @@ const MemorySettings = () => {
         setLoading(false)
       }
     },
-    [currentUser, memoryService, t, loadUniqueUsers]
+    [currentUser, t, loadUniqueUsers]
   )
 
   // Sync memoryService with Redux store on mount and when currentUser changes

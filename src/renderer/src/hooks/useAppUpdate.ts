@@ -103,5 +103,5 @@ export function useAppUpdateHandler() {
       })
     ]
     return () => removers.forEach((remover) => remover())
-  }, [notificationService, t, updateAppUpdateState])
+  }, [t, updateAppUpdateState])
 }
