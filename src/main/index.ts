@@ -52,7 +52,6 @@ import {
 } from './services/ProtocolClient'
 import { registerShortcuts } from './services/ShortcutService'
 import { versionService } from './services/VersionService'
-import { windowService } from './services/WindowService'
 import {
   getAllMigrators,
   migrationEngine,
@@ -236,7 +235,7 @@ if (!app.requestSingleInstanceLock()) {
 
     // Listen for second instance
     app.on('second-instance', (_event, argv) => {
-      windowService.showMainWindow()
+      application.get('WindowService').showMainWindow()
 
       // Protocol handler for Windows/Linux
       // The commandLine is an array of strings where the last item might be the URL
@@ -312,17 +311,17 @@ if (!app.requestSingleInstanceLock()) {
     await BackupManager.handleStartupRestore()
 
     // Create main window - migration has either completed or was not needed
-    const mainWindow = windowService.createMainWindow()
+    const mainWindow = application.get('WindowService').createMainWindow()
 
     nodeTraceService.init()
     analyticsService.init()
 
     app.on('activate', function () {
-      const mainWindow = windowService.getMainWindow()
+      const mainWindow = application.get('WindowService').getMainWindow()
       if (!mainWindow || mainWindow.isDestroyed()) {
-        windowService.createMainWindow()
+        application.get('WindowService').createMainWindow()
       } else {
-        windowService.showMainWindow()
+        application.get('WindowService').showMainWindow()
       }
     })
 

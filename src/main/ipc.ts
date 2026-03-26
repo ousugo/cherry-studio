@@ -19,7 +19,6 @@ import {
 } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { LocalTransferConnectPayload } from '@shared/config/types'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -87,7 +86,6 @@ import {
 import { storeSyncService } from './services/StoreSyncService'
 import { vertexAIService } from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
-import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import {
@@ -134,17 +132,11 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   powerMonitorService.registerShutdownHandler(() => {
-    const mw = windowService.getMainWindow()
+    const mw = application.get('WindowService').getMainWindow()
     if (mw && !mw.isDestroyed()) {
       mw.webContents.send(IpcChannel.App_SaveData)
     }
   })
-
-  const checkMainWindow = () => {
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      throw new Error('Main window does not exist or has been destroyed')
-    }
-  }
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
@@ -690,63 +682,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Memory_GetUsersList, () => memoryService.getUsersList())
   ipcMain.handle(IpcChannel.Memory_MigrateMemoryDb, () => memoryService.migrateMemoryDb())
 
-  // window
-  ipcMain.handle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
-    checkMainWindow()
-    mainWindow.setMinimumSize(width, height)
-  })
-
-  ipcMain.handle(IpcChannel.Windows_ResetMinimumSize, () => {
-    checkMainWindow()
-
-    mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
-    const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
-    if (width < MIN_WINDOW_WIDTH) {
-      mainWindow.setSize(MIN_WINDOW_WIDTH, height)
-    }
-  })
-
-  ipcMain.handle(IpcChannel.Windows_GetSize, () => {
-    checkMainWindow()
-    const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
-    return [width, height]
-  })
-
-  // Window Controls
-  ipcMain.handle(IpcChannel.Windows_Minimize, () => {
-    checkMainWindow()
-    mainWindow.minimize()
-  })
-
-  ipcMain.handle(IpcChannel.Windows_Maximize, () => {
-    checkMainWindow()
-    mainWindow.maximize()
-  })
-
-  ipcMain.handle(IpcChannel.Windows_Unmaximize, () => {
-    checkMainWindow()
-    mainWindow.unmaximize()
-  })
-
-  ipcMain.handle(IpcChannel.Windows_Close, () => {
-    checkMainWindow()
-    mainWindow.close()
-  })
-
-  ipcMain.handle(IpcChannel.Windows_IsMaximized, () => {
-    checkMainWindow()
-    return mainWindow.isMaximized()
-  })
-
-  // Send maximized state changes to renderer
-  mainWindow.on('maximize', () => {
-    mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, true)
-  })
-
-  mainWindow.on('unmaximize', () => {
-    mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, false)
-  })
-
   // VertexAI
   ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
     return vertexAIService.getAuthHeaders(params)
@@ -759,13 +694,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.VertexAI_ClearAuthCache, async (_, projectId: string, clientEmail?: string) => {
     vertexAIService.clearAuthCache(projectId, clientEmail)
   })
-
-  // mini window
-  ipcMain.handle(IpcChannel.MiniWindow_Show, () => windowService.showMiniWindow())
-  ipcMain.handle(IpcChannel.MiniWindow_Hide, () => windowService.hideMiniWindow())
-  ipcMain.handle(IpcChannel.MiniWindow_Close, () => windowService.closeMiniWindow())
-  ipcMain.handle(IpcChannel.MiniWindow_Toggle, () => windowService.toggleMiniWindow())
-  ipcMain.handle(IpcChannel.MiniWindow_SetPin, (_, isPinned) => windowService.setPinMiniWindow(isPinned))
 
   // aes
   ipcMain.handle(IpcChannel.Aes_Encrypt, (_, text: string, secretKey: string, iv: string) =>
@@ -893,8 +821,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // store sync
   storeSyncService.registerIpcHandler()
-
-  ipcMain.handle(IpcChannel.App_QuoteToMain, (_, text: string) => windowService.quoteToMainWindow(text))
 
   // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
   //   configManager.setDisableHardwareAcceleration(isDisable)

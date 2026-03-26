@@ -59,7 +59,6 @@ import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
 import { ServerLogBuffer } from './mcp/ServerLogBuffer'
-import { windowService } from './WindowService'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
@@ -219,7 +218,7 @@ class McpService {
   private emitServerLog(server: MCPServer, entry: MCPServerLogEntry) {
     const serverKey = this.getServerKey(server)
     this.serverLogs.append(serverKey, entry)
-    const mainWindow = windowService.getMainWindow()
+    const mainWindow = application.get('WindowService').getMainWindow()
     if (mainWindow) {
       mainWindow.webContents.send(IpcChannel.Mcp_ServerLog, { ...entry, serverId: server.id })
     }
@@ -894,7 +893,7 @@ class McpService {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
               ratio: process.progress / (process.total || 1)
             })
-            const mainWindow = windowService.getMainWindow()
+            const mainWindow = application.get('WindowService').getMainWindow()
             if (mainWindow) {
               mainWindow.webContents.send(IpcChannel.Mcp_Progress, {
                 callId: toolCallId,

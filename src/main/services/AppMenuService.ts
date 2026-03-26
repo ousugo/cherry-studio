@@ -1,6 +1,5 @@
 import { application } from '@main/core/application'
 import { BaseService, ExcludePlatforms, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { windowService } from '@main/services/WindowService'
 import { getAppLanguage, locales } from '@main/utils/language'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MenuItemConstructorOptions } from 'electron'
@@ -36,10 +35,10 @@ export class AppMenuService extends BaseService {
           {
             label: appMenu.about + ' ' + app.name,
             click: () => {
-              const mainWindow = windowService.getMainWindow()
+              const mainWindow = application.get('WindowService').getMainWindow()
               if (mainWindow && !mainWindow.isDestroyed()) {
                 mainWindow.webContents.send(IpcChannel.Windows_NavigateToAbout)
-                windowService.showMainWindow()
+                application.get('WindowService').showMainWindow()
               }
             }
           },

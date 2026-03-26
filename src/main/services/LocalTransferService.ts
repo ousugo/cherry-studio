@@ -1,10 +1,9 @@
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import type { LocalTransferPeer, LocalTransferState } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Browser, Service } from 'bonjour-service'
 import Bonjour from 'bonjour-service'
-
-import { windowService } from './WindowService'
 
 const SERVICE_TYPE = 'cherrystudio'
 const SERVICE_PROTOCOL = 'tcp' as const
@@ -186,7 +185,7 @@ class LocalTransferService {
   }
 
   private broadcastState() {
-    const mainWindow = windowService.getMainWindow()
+    const mainWindow = application.get('WindowService').getMainWindow()
     if (!mainWindow || mainWindow.isDestroyed()) {
       return
     }

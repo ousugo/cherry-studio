@@ -8,6 +8,7 @@ import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { SelectionService } from '@main/services/SelectionService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
+import { WindowService } from '@main/services/WindowService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
 
@@ -44,7 +45,8 @@ export const services = {
   PowerMonitorService,
   SelectionService,
   ThemeService,
-  TrayService
+  TrayService,
+  WindowService
 } as const
 
 /** Auto-derived service name to instance type mapping */

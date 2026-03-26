@@ -8,9 +8,14 @@ vi.mock('@data/services/McpServerService', () => ({
   }
 }))
 
-vi.mock('@main/services/WindowService', () => ({
-  windowService: {
-    getMainWindow: vi.fn(() => null)
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'WindowService') {
+        return { getMainWindow: vi.fn(() => null) }
+      }
+      throw new Error(`[MockApplication] Unknown service: ${name}`)
+    })
   }
 }))
 
