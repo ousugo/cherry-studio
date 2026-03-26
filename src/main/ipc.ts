@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
-import { isLinux, isMac, isPortable, isWin } from '@main/constant'
+import { isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
@@ -464,25 +464,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // Relaunch app
   ipcMain.handle(IpcChannel.App_RelaunchApp, (_, options?: Electron.RelaunchOptions) => {
-    // Fix for .AppImage
-    if (isLinux && process.env.APPIMAGE) {
-      logger.info(`Relaunching app with options: ${process.env.APPIMAGE}`, options)
-      // On Linux, we need to use the APPIMAGE environment variable to relaunch
-      // https://github.com/electron-userland/electron-builder/issues/1727#issuecomment-769896927
-      options = options || {}
-      options.execPath = process.env.APPIMAGE
-      options.args = options.args || []
-      options.args.unshift('--appimage-extract-and-run')
-    }
-
-    if (isWin && isPortable) {
-      options = options || {}
-      options.execPath = process.env.PORTABLE_EXECUTABLE_FILE
-      options.args = options.args || []
-    }
-
-    app.relaunch(options)
-    app.exit(0)
+    application.relaunch(options)
   })
 
   // Reset all data (factory reset)

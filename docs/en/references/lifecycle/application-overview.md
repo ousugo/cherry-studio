@@ -139,6 +139,23 @@ await application.start('DbService')
 
 **Important**: For pause/resume, ALL services in the cascade chain must implement `Pausable`. If any dependent service doesn't, the operation is aborted with an error log.
 
+## App Relaunch
+
+Always use `application.relaunch()` instead of calling `app.relaunch()` directly. It handles:
+
+- **Dev mode detection**: Shows a dialog and exits gracefully (auto-relaunch is not possible in dev)
+- **Platform fixes**: Linux AppImage `execPath` rewrite, Windows Portable executable path
+
+```typescript
+import { application } from '@main/core/application'
+
+// Simple relaunch
+application.relaunch()
+
+// With custom options (forwarded to Electron's app.relaunch)
+application.relaunch({ args: ['--safe-mode'] })
+```
+
 ## The `application` Proxy
 
 The exported `application` constant is a lazy proxy — safe to import at module top level before `bootstrap()` is called. The actual `Application` instance is created on first property access.

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { isDev, isMac } from '@main/constant'
+import { isDev, isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { bootConfigService } from '@main/data/bootConfig'
 import { app, dialog } from 'electron'
 
@@ -231,13 +231,35 @@ export class Application {
   /**
    * Relaunch the app, with dev mode warning
    */
-  private relaunch(): void {
-    if (isDev) {
+  public relaunch(options?: Electron.RelaunchOptions): void {
+    if (isDev || !app.isPackaged) {
       logger.warn('Relaunch is not supported in dev mode. Please restart manually.')
+      dialog.showMessageBoxSync({
+        type: 'info',
+        title: 'Manual Restart Required',
+        message: 'Auto-relaunch is not available in development mode.',
+        detail: 'The app will now exit. Please run `pnpm dev` again to restart.',
+        buttons: ['OK']
+      })
       app.exit(0)
       return
     }
-    app.relaunch()
+
+    // Platform-specific fixes
+    if (isLinux && process.env.APPIMAGE) {
+      options = options || {}
+      options.execPath = process.env.APPIMAGE
+      options.args = options.args || []
+      options.args.unshift('--appimage-extract-and-run')
+    }
+
+    if (isWin && isPortable) {
+      options = options || {}
+      options.execPath = process.env.PORTABLE_EXECUTABLE_FILE
+      options.args = options.args || []
+    }
+
+    app.relaunch(options)
     app.exit(0)
   }
 
