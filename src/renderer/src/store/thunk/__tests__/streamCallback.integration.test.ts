@@ -14,8 +14,6 @@ import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { RootState } from '../../index'
-
 const { mockSavedFile } = vi.hoisted(() => ({
   mockSavedFile: {
     id: 'mock-image-id',
@@ -78,7 +76,7 @@ const getPersistedDataForMessage = (messageId: string) => {
 }
 
 vi.mock('@renderer/config/models', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
     qwen3Model: {
@@ -316,7 +314,7 @@ vi.mock('i18next', () => {
 })
 
 vi.mock('@renderer/utils/error', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
     formatErrorMessage: vi.fn((error) => error.message || 'Unknown error'),
@@ -392,7 +390,6 @@ const processChunks = async (chunks: Chunk[], callbacks: ReturnType<typeof creat
 
 describe('streamCallback Integration Tests', () => {
   let store: ReturnType<typeof createMockStore>
-  // dispatch and getState are no longer needed after StreamingService refactoring
 
   const mockTopicId = 'test-topic-id'
   const mockAssistantMsgId = 'test-assistant-msg-id'
@@ -416,8 +413,6 @@ describe('streamCallback Integration Tests', () => {
     MockCacheUtils.resetMocks()
     MockDataApiUtils.resetMocks()
     store = createMockStore()
-    dispatch = store.dispatch
-    getState = store.getState as () => ReturnType<typeof reducer> & RootState
 
     Object.defineProperty(window, 'api', {
       value: {
@@ -633,7 +628,7 @@ describe('streamCallback Integration Tests', () => {
 
     // 验证持久化数据
     const persistedData = getPersistedDataForMessage(mockAssistantMsgId) as {
-      data?: { blocks?: Array<{ type: string; url?: string }> }
+      data?: { blocks?: Array<{ type: string; url?: string; file?: any }> }
     }
     expect(persistedData).toBeDefined()
 

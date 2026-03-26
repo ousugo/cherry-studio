@@ -61,7 +61,7 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assista
         () => {
           setInputValue((prev) => {
             const triggerInfo = triggerInfoRef.current
-            const textArea = document.querySelector('.inputbar textarea')
+            const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
 
             const focusAndSelect = (start: number) => {
               setTimeoutTimer(

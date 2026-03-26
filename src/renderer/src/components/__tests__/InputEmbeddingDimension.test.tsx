@@ -235,7 +235,7 @@ describe('InputEmbeddingDimension', () => {
 
       render(<InputEmbeddingDimension model={mockModel} value={null} onChange={handleChange} />)
 
-      const input = screen.getByPlaceholderText('请输入维度大小')
+      const input = screen.getByPlaceholderText('请输入维度大小') as HTMLInputElement
       expect(input.value).toBe('')
 
       // Should allow typing new value

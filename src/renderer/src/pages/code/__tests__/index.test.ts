@@ -78,7 +78,7 @@ vi.mock('@renderer/utils/api', () => ({
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
     useTranslation: () => ({ t: (key: string) => key })
