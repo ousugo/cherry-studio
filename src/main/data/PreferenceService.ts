@@ -419,7 +419,7 @@ export class PreferenceService extends BaseService {
   public getMultiple<T extends Record<string, UnifiedPreferenceKeyType>>(
     keys: T
   ): { [P in keyof T]: UnifiedPreferenceType[T[P]] } {
-    const preferenceKeys = Object.values(keys) as UnifiedPreferenceKeyType[]
+    const preferenceKeys = Object.values(keys)
     const values = this.getMultipleRaw(preferenceKeys)
     const result = {} as { [P in keyof T]: UnifiedPreferenceType[T[P]] }
 

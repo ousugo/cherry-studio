@@ -338,7 +338,7 @@ export class PreferenceService {
     // and preserve the original values from first requests
     for (const key of keysToUpdate) {
       const existingState = this.optimisticValues.get(key)
-      originalValues[key] = existingState ? existingState.originalValue : this.cache[key as UnifiedPreferenceKeyType]
+      originalValues[key] = existingState ? existingState.originalValue : this.cache[key]
     }
 
     // Update cache immediately and track original values
@@ -354,7 +354,7 @@ export class PreferenceService {
       const isFirst = !existingState
 
       this.optimisticValues.set(key, {
-        value: updates[key as UnifiedPreferenceKeyType],
+        value: updates[key],
         originalValue: originalValues[key], // Use protected original value
         timestamp,
         requestId: `${batchRequestId}_${key}`, // Unique ID per key in batch

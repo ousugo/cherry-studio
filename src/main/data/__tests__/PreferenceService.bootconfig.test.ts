@@ -113,7 +113,7 @@ describe('PreferenceService BootConfig routing', () => {
           where: vi.fn().mockResolvedValue(undefined)
         })
       })
-      ;(service as any).db = { update: mockUpdate }
+      service.db = { update: mockUpdate }
 
       await service.set(PREFERENCE_KEY, 'zh-CN')
 
@@ -132,7 +132,7 @@ describe('PreferenceService BootConfig routing', () => {
           })
         })
       }
-      ;(service as any).db = {
+      service.db = {
         transaction: vi.fn(async (fn: any) => fn(mockTx))
       }
 
@@ -148,7 +148,7 @@ describe('PreferenceService BootConfig routing', () => {
     it('skips unchanged BootConfig values in batch', async () => {
       mockBootConfigGet.mockReturnValue(false)
 
-      ;(service as any).db = {
+      service.db = {
         transaction: vi.fn(async (fn: any) => fn({ update: vi.fn() }))
       }
 

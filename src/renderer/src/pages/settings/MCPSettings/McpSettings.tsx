@@ -69,7 +69,7 @@ type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
-  const params = useParams({ strict: false }) as { serverId?: string }
+  const params = useParams({ strict: false })
   const serverId = params.serverId
   const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
   const server = useMCPServer(decodedServerId).server as MCPServer

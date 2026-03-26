@@ -238,7 +238,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         setTimeoutTimer(
           'quickpanel_focus',
           () => {
-            const textareaEl = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+            const textareaEl = document.querySelector('.inputbar textarea')
             if (!textareaEl) return
             textareaEl.focus()
             textareaEl.setSelectionRange(clampedDeleteStart, clampedDeleteStart)

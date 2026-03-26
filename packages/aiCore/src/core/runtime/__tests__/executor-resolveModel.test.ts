@@ -15,7 +15,7 @@ import { RuntimeExecutor } from '../executor'
 
 // Mock AI SDK
 vi.mock('ai', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal()
   return {
     ...actual,
     generateText: vi.fn(),

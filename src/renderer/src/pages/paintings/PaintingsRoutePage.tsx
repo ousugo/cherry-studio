@@ -23,7 +23,7 @@ const logger = loggerService.withContext('PaintingsRoutePage')
 const BASE_OPTIONS: SystemProviderId[] = ['zhipu', 'aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'ovms', 'ppio']
 
 const PaintingsRoutePage: FC = () => {
-  const params = useParams({ strict: false }) as { _splat?: string }
+  const params = useParams({ strict: false })
   const provider = params._splat
   const dispatch = useAppDispatch()
   const providers = useAllProviders()

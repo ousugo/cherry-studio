@@ -20,7 +20,7 @@ import WebviewSearch from './components/WebviewSearch'
 const logger = loggerService.withContext('MinAppPage')
 
 const MinAppPage: FC = () => {
-  const { appId } = useParams({ strict: false }) as { appId: string }
+  const { appId } = useParams({ strict: false })
   const { isTopNavbar } = useNavbarPosition()
   const { openMinappKeepAlive, minAppsCache } = useMinappPopup()
   const { minapps } = useMinapps()
@@ -99,7 +99,7 @@ const MinAppPage: FC = () => {
   const attachWebview = useCallback(() => {
     if (!app) return true // 没有 app 不再继续监控
     const selector = `webview[data-minapp-id="${app.id}"]`
-    const el = document.querySelector(selector) as WebviewTag | null
+    const el = document.querySelector(selector)
     if (!el) return false
 
     if (webviewRef.current === el) return true // 已附着

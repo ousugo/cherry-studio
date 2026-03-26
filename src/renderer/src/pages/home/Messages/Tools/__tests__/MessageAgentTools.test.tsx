@@ -51,7 +51,7 @@ vi.mock('@logger', () => ({
 
 // Mock antd components
 vi.mock('antd', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal()
   return {
     ...actual,
     Collapse: ({ items, defaultActiveKey, className }: any) => (
@@ -96,7 +96,7 @@ vi.mock('antd', async (importOriginal) => {
 
 // Mock lucide-react icons
 vi.mock('lucide-react', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal()
   return {
     ...actual,
     Loader2: ({ className }: any) => <span data-testid="loader-icon" className={className} />,
