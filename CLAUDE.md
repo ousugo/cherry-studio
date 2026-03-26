@@ -83,11 +83,12 @@ If the skill is unavailable, directly read `.agents/skills/gh-create-issue/SKILL
 
 **MUST READ**: [docs/en/references/data/README.md](docs/en/references/data/README.md) for system selection, architecture, and patterns.
 
-| System     | Use Case                     | APIs                                            |
-| ---------- | ---------------------------- | ----------------------------------------------- |
-| Cache      | Temp data (can lose)         | `useCache`, `useSharedCache`, `usePersistCache` |
-| Preference | User settings                | `usePreference`                                 |
-| DataApi    | Business data (**critical**) | `useQuery`, `useMutation`                       |
+| System     | Use Case                        | APIs                                            |
+| ---------- | ------------------------------- | ----------------------------------------------- |
+| BootConfig | Early boot settings (pre-lifecycle) | `bootConfigService.get()`, `usePreference('BootConfig.*')` |
+| Cache      | Temp data (can lose)            | `useCache`, `useSharedCache`, `usePersistCache` |
+| Preference | User settings                   | `usePreference`                                 |
+| DataApi    | Business data (**critical**)    | `useQuery`, `useMutation`                       |
 
 Database: SQLite + Drizzle ORM, schemas in `src/main/data/db/schemas/`, migrations via `yarn db:migrations:generate`
 
