@@ -141,44 +141,6 @@ export class LifecycleManager extends EventEmitter {
   }
 
   /**
-   * Start all registered services in dependency order
-   * @deprecated Use startPhase() for phased initialization
-   */
-  public async startAll(): Promise<void> {
-    if (this.initialized) {
-      logger.warn('Services already initialized')
-      return
-    }
-
-    logger.info('Starting all services...')
-
-    // Validate phases first
-    this.validateAndAdjustPhases()
-
-    // Build dependency graph and resolve order
-    const graph = this.container.buildDependencyGraph()
-    const layers = this.resolver.resolveLayered(graph)
-
-    // Log initialization order
-    const orderStr = layers.map((layer) => `[${layer.join(', ')}]`).join(' -> ')
-    logger.info(`Initialization order: ${orderStr}`)
-
-    // Initialize services layer by layer, parallel within each layer
-    for (const layer of layers) {
-      const results = await Promise.allSettled(layer.map((serviceName) => this.initializeService(serviceName)))
-      for (const result of results) {
-        if (result.status === 'rejected') {
-          throw result.reason
-        }
-      }
-      this.initializationOrder.push(...layer)
-    }
-
-    this.initialized = true
-    logger.info('All services started successfully')
-  }
-
-  /**
    * Stop all services in reverse initialization order
    */
   public async stopAll(): Promise<void> {

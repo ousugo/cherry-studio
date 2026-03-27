@@ -102,9 +102,6 @@ export class Application {
       // If we reach here, user chose "Continue with Defaults"
     }
 
-    // Validate and adjust phases before starting
-    this.lifecycleManager.validateAndAdjustPhases()
-
     const bootstrapStart = performance.now()
 
     try {
