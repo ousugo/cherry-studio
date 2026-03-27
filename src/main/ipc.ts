@@ -18,7 +18,6 @@ import {
   validateGitBashPath
 } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
-import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
@@ -54,7 +53,6 @@ import FileService from './services/FileSystemService'
 import { knowledgeService } from './services/KnowledgeService'
 import { mcpService } from './services/MCPService'
 import { memoryService } from './services/memory/MemoryService'
-import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
@@ -66,19 +64,6 @@ import { pythonService } from './services/PythonService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
-import {
-  addEndMessage,
-  addStreamMessage,
-  bindTopic,
-  cleanHistoryTrace,
-  cleanLocalData,
-  cleanTopic,
-  getEntity,
-  getSpans,
-  saveEntity,
-  saveSpans,
-  tokenUsage
-} from './services/SpanCacheService'
 import { storeSyncService } from './services/StoreSyncService'
 import { vertexAIService } from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
@@ -824,34 +809,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // ipcMain.handle(IpcChannel.App_SetUseSystemTitleBar, (_, isActive: boolean) => {
   //   configManager.setUseSystemTitleBar(isActive)
   // })
-  ipcMain.handle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => saveSpans(topicId))
-  ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
-    getSpans(topicId, traceId, modelName)
-  )
-  ipcMain.handle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => saveEntity(entity))
-  ipcMain.handle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => getEntity(spanId))
-  ipcMain.handle(IpcChannel.TRACE_BIND_TOPIC, (_, topicId: string, traceId: string) => bindTopic(traceId, topicId))
-  ipcMain.handle(IpcChannel.TRACE_CLEAN_TOPIC, (_, topicId: string, traceId?: string) => cleanTopic(topicId, traceId))
-  ipcMain.handle(IpcChannel.TRACE_TOKEN_USAGE, (_, spanId: string, usage: TokenUsage) => tokenUsage(spanId, usage))
-  ipcMain.handle(IpcChannel.TRACE_CLEAN_HISTORY, (_, topicId: string, traceId: string, modelName?: string) =>
-    cleanHistoryTrace(topicId, traceId, modelName)
-  )
-  ipcMain.handle(
-    IpcChannel.TRACE_OPEN_WINDOW,
-    (_, topicId: string, traceId: string, autoOpen?: boolean, modelName?: string) =>
-      openTraceWindow(topicId, traceId, autoOpen, modelName)
-  )
-  ipcMain.handle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => setTraceWindowTitle(title))
-  ipcMain.handle(IpcChannel.TRACE_ADD_END_MESSAGE, (_, spanId: string, modelName: string, message: string) =>
-    addEndMessage(spanId, modelName, message)
-  )
-  ipcMain.handle(IpcChannel.TRACE_CLEAN_LOCAL_DATA, () => cleanLocalData())
-  ipcMain.handle(
-    IpcChannel.TRACE_ADD_STREAM_MESSAGE,
-    (_, spanId: string, modelName: string, context: string, msg: any) =>
-      addStreamMessage(spanId, modelName, context, msg)
-  )
-
   ipcMain.handle(IpcChannel.App_GetDiskInfo, async (_, directoryPath: string) => {
     try {
       const diskSpace = await checkDiskSpace(directoryPath) // { free, size } in bytes

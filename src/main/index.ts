@@ -40,7 +40,6 @@ import { agentService } from './services/agents'
 import { apiServerService } from './services/ApiServerService'
 import { mcpService } from './services/MCPService'
 import { openClawService } from './services/OpenClawService'
-import { nodeTraceService } from './services/NodeTraceService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -305,8 +304,6 @@ if (!app.requestSingleInstanceLock()) {
 
     // Create main window - migration has either completed or was not needed
     const mainWindow = application.get('WindowService').createMainWindow()
-
-    nodeTraceService.init()
 
     app.on('activate', function () {
       const mainWindow = application.get('WindowService').getMainWindow()
