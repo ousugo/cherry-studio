@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import { arch } from 'node:os'
 import path from 'node:path'
 
-import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
@@ -839,30 +838,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 
-  // CodeCli
-  const codeCliService = application.get('CodeCliService')
-  ipcMain.handle(
-    IpcChannel.CodeCli_Run,
-    (
-      event,
-      cliTool: string,
-      model: string,
-      directory: string,
-      env: Record<string, string>,
-      options?: { autoUpdateToLatest?: boolean; terminal?: string }
-    ) => codeCliService.run(event, cliTool, model, directory, env, options)
-  )
-  ipcMain.handle(IpcChannel.CodeCli_GetAvailableTerminals, () => codeCliService.getAvailableTerminalsForPlatform())
-  ipcMain.handle(IpcChannel.CodeCli_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
-    codeCliService.setCustomTerminalPath(terminalId, path)
-  )
-  ipcMain.handle(IpcChannel.CodeCli_GetCustomTerminalPath, (_, terminalId: string) =>
-    codeCliService.getCustomTerminalPath(terminalId)
-  )
-  ipcMain.handle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
-    codeCliService.removeCustomTerminalPath(terminalId)
-  )
-
   // OCR
   ipcMain.handle(IpcChannel.OCR_ocr, (_, file: SupportedOcrFile, provider: OcrProvider) =>
     ocrService.ocr(file, provider)
@@ -1015,9 +990,4 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.OpenClaw_GetChannels, openClawService.getChannelStatus)
   ipcMain.handle(IpcChannel.OpenClaw_CheckUpdate, openClawService.checkUpdate)
   ipcMain.handle(IpcChannel.OpenClaw_PerformUpdate, openClawService.performUpdate)
-
-  // Analytics
-  ipcMain.handle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) =>
-    application.get('AnalyticsService').trackTokenUsage(data)
-  )
 }

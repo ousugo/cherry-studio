@@ -39,7 +39,6 @@ export class NodeTraceService extends BaseService {
   }
 
   protected async onStop() {
-    this.unregisterIpcHandlers()
     this.destroyTraceWindow()
     this.restoreIpcMainHandle()
     await MCPNodeTracer.shutdown()
@@ -99,17 +98,12 @@ export class NodeTraceService extends BaseService {
   }
 
   private registerIpcHandlers() {
-    ipcMain.handle(
+    this.ipcHandle(
       IpcChannel.TRACE_OPEN_WINDOW,
       (_, topicId: string, traceId: string, autoOpen?: boolean, modelName?: string) =>
         this.openTraceWindow(topicId, traceId, autoOpen, modelName)
     )
-    ipcMain.handle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => this.setTraceWindowTitle(title))
-  }
-
-  private unregisterIpcHandlers() {
-    ipcMain.removeHandler(IpcChannel.TRACE_OPEN_WINDOW)
-    ipcMain.removeHandler(IpcChannel.TRACE_SET_TITLE)
+    this.ipcHandle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => this.setTraceWindowTitle(title))
   }
 
   private openTraceWindow(topicId: string, traceId: string, autoOpen = true, modelName?: string) {

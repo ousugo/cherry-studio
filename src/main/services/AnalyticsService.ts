@@ -5,6 +5,7 @@ import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { APP_NAME } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('AnalyticsService')
@@ -15,6 +16,8 @@ export class AnalyticsService extends BaseService {
   private client: AnalyticsClient | null = null
 
   protected async onInit() {
+    this.registerIpcHandlers()
+
     const clientId = getClientId()
 
     this.client = new AnalyticsClient({
@@ -36,6 +39,10 @@ export class AnalyticsService extends BaseService {
     })
 
     logger.info('Analytics service initialized')
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) => this.trackTokenUsage(data))
   }
 
   public trackTokenUsage(data: TokenUsageData): void {

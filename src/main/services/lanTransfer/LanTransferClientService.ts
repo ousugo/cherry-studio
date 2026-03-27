@@ -16,7 +16,6 @@ import type {
 } from '@shared/config/types'
 import { LAN_TRANSFER_GLOBAL_TIMEOUT_MS } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { ipcMain } from 'electron'
 
 import {
   abortTransfer,
@@ -70,7 +69,6 @@ export class LanTransferClientService extends BaseService {
   }
 
   protected async onStop() {
-    this.unregisterIpcHandlers()
     this.responseManager.rejectAll(new Error('LAN transfer client disposed'))
     cleanupTransfer(this.activeTransfer)
     this.activeTransfer = undefined
@@ -83,21 +81,14 @@ export class LanTransferClientService extends BaseService {
   }
 
   private registerIpcHandlers(): void {
-    ipcMain.handle(IpcChannel.LocalTransfer_Connect, (_, payload: LocalTransferConnectPayload) =>
+    this.ipcHandle(IpcChannel.LocalTransfer_Connect, (_, payload: LocalTransferConnectPayload) =>
       this.connectAndHandshake(payload)
     )
-    ipcMain.handle(IpcChannel.LocalTransfer_Disconnect, () => this.disconnect())
-    ipcMain.handle(IpcChannel.LocalTransfer_SendFile, (_, payload: { filePath: string }) =>
+    this.ipcHandle(IpcChannel.LocalTransfer_Disconnect, () => this.disconnect())
+    this.ipcHandle(IpcChannel.LocalTransfer_SendFile, (_, payload: { filePath: string }) =>
       this.sendFile(payload.filePath)
     )
-    ipcMain.handle(IpcChannel.LocalTransfer_CancelTransfer, () => this.cancelTransfer())
-  }
-
-  private unregisterIpcHandlers(): void {
-    ipcMain.removeHandler(IpcChannel.LocalTransfer_Connect)
-    ipcMain.removeHandler(IpcChannel.LocalTransfer_Disconnect)
-    ipcMain.removeHandler(IpcChannel.LocalTransfer_SendFile)
-    ipcMain.removeHandler(IpcChannel.LocalTransfer_CancelTransfer)
+    this.ipcHandle(IpcChannel.LocalTransfer_CancelTransfer, () => this.cancelTransfer())
   }
 
   /**

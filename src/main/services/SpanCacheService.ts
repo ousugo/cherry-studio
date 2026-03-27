@@ -7,7 +7,6 @@ import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { ipcMain } from 'electron'
 import fs from 'fs/promises'
 import * as os from 'os'
 import * as path from 'path'
@@ -27,53 +26,38 @@ export class SpanCacheService extends BaseService implements TraceCache {
   }
 
   protected async onStop() {
-    this.unregisterIpcHandlers()
     this.cache.clear()
     this.topicMap.clear()
   }
 
   private registerIpcHandlers() {
-    ipcMain.handle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => this.saveSpans(topicId))
-    ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
+    this.ipcHandle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => this.saveSpans(topicId))
+    this.ipcHandle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
       this.getSpans(topicId, traceId, modelName)
     )
-    ipcMain.handle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => this.saveEntity(entity))
-    ipcMain.handle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => this.getEntity(spanId))
-    ipcMain.handle(IpcChannel.TRACE_BIND_TOPIC, (_, topicId: string, traceId: string) =>
+    this.ipcHandle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => this.saveEntity(entity))
+    this.ipcHandle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => this.getEntity(spanId))
+    this.ipcHandle(IpcChannel.TRACE_BIND_TOPIC, (_, topicId: string, traceId: string) =>
       this.setTopicId(traceId, topicId)
     )
-    ipcMain.handle(IpcChannel.TRACE_CLEAN_TOPIC, (_, topicId: string, traceId?: string) =>
+    this.ipcHandle(IpcChannel.TRACE_CLEAN_TOPIC, (_, topicId: string, traceId?: string) =>
       this.cleanTopic(topicId, traceId)
     )
-    ipcMain.handle(IpcChannel.TRACE_TOKEN_USAGE, (_, spanId: string, usage: TokenUsage) =>
+    this.ipcHandle(IpcChannel.TRACE_TOKEN_USAGE, (_, spanId: string, usage: TokenUsage) =>
       this.updateTokenUsage(spanId, usage)
     )
-    ipcMain.handle(IpcChannel.TRACE_CLEAN_HISTORY, (_, topicId: string, traceId: string, modelName?: string) =>
+    this.ipcHandle(IpcChannel.TRACE_CLEAN_HISTORY, (_, topicId: string, traceId: string, modelName?: string) =>
       this.cleanHistoryTrace(topicId, traceId, modelName)
     )
-    ipcMain.handle(IpcChannel.TRACE_ADD_END_MESSAGE, (_, spanId: string, modelName: string, message: string) =>
+    this.ipcHandle(IpcChannel.TRACE_ADD_END_MESSAGE, (_, spanId: string, modelName: string, message: string) =>
       this.setEndMessage(spanId, modelName, message)
     )
-    ipcMain.handle(IpcChannel.TRACE_CLEAN_LOCAL_DATA, () => this.cleanLocalData())
-    ipcMain.handle(
+    this.ipcHandle(IpcChannel.TRACE_CLEAN_LOCAL_DATA, () => this.cleanLocalData())
+    this.ipcHandle(
       IpcChannel.TRACE_ADD_STREAM_MESSAGE,
       (_, spanId: string, modelName: string, context: string, msg: any) =>
         this.addStreamMessage(spanId, modelName, context, msg)
     )
-  }
-
-  private unregisterIpcHandlers() {
-    ipcMain.removeHandler(IpcChannel.TRACE_SAVE_DATA)
-    ipcMain.removeHandler(IpcChannel.TRACE_GET_DATA)
-    ipcMain.removeHandler(IpcChannel.TRACE_SAVE_ENTITY)
-    ipcMain.removeHandler(IpcChannel.TRACE_GET_ENTITY)
-    ipcMain.removeHandler(IpcChannel.TRACE_BIND_TOPIC)
-    ipcMain.removeHandler(IpcChannel.TRACE_CLEAN_TOPIC)
-    ipcMain.removeHandler(IpcChannel.TRACE_TOKEN_USAGE)
-    ipcMain.removeHandler(IpcChannel.TRACE_CLEAN_HISTORY)
-    ipcMain.removeHandler(IpcChannel.TRACE_ADD_END_MESSAGE)
-    ipcMain.removeHandler(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
-    ipcMain.removeHandler(IpcChannel.TRACE_ADD_STREAM_MESSAGE)
   }
 
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {

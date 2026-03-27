@@ -105,14 +105,19 @@ When a lifecycle service registers IPC handlers, it should use BaseService's bui
 
 > `ipcOnce()` is intentionally not provided — once-listeners fire once and auto-remove, so they do not need lifecycle tracking.
 
-### Example
+### Convention
+
+Extract all IPC registrations into a **`private registerIpcHandlers()`** method and call it from `onInit()` (or `onReady()`). This keeps the lifecycle hook focused on orchestration and makes the IPC surface easy to locate and review.
 
 ```typescript
 @Injectable('WindowService')
 @ServicePhase(Phase.WhenReady)
 export class WindowService extends BaseService {
   protected async onInit() {
-    // Handlers are tracked automatically
+    this.registerIpcHandlers()
+  }
+
+  private registerIpcHandlers() {
     this.ipcHandle(IpcChannel.Windows_Minimize, () => this.mainWindow!.minimize())
     this.ipcHandle(IpcChannel.Windows_Maximize, () => this.mainWindow!.maximize())
   }
@@ -123,6 +128,8 @@ export class WindowService extends BaseService {
   }
 }
 ```
+
+> **Naming**: Always use `registerIpcHandlers` (plural). Do not use `setupIpcHandlers`, `registerIpcHandler` (singular), or other variants.
 
 ### Cleanup Guarantees
 

@@ -8,7 +8,6 @@ import type { LocalTransferPeer, LocalTransferState } from '@shared/config/types
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Browser, Service } from 'bonjour-service'
 import Bonjour from 'bonjour-service'
-import { ipcMain } from 'electron'
 
 const SERVICE_TYPE = 'cherrystudio'
 const SERVICE_PROTOCOL = 'tcp' as const
@@ -36,7 +35,6 @@ export class LocalTransferService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    this.unregisterIpcHandlers()
     this.stopDiscovery()
     this.services.clear()
     this.browser?.removeAllListeners()
@@ -206,14 +204,8 @@ export class LocalTransferService extends BaseService {
   }
 
   private registerIpcHandlers(): void {
-    ipcMain.handle(IpcChannel.LocalTransfer_ListServices, () => this.getState())
-    ipcMain.handle(IpcChannel.LocalTransfer_StartScan, () => this.startDiscovery({ resetList: true }))
-    ipcMain.handle(IpcChannel.LocalTransfer_StopScan, () => this.stopDiscovery())
-  }
-
-  private unregisterIpcHandlers(): void {
-    ipcMain.removeHandler(IpcChannel.LocalTransfer_ListServices)
-    ipcMain.removeHandler(IpcChannel.LocalTransfer_StartScan)
-    ipcMain.removeHandler(IpcChannel.LocalTransfer_StopScan)
+    this.ipcHandle(IpcChannel.LocalTransfer_ListServices, () => this.getState())
+    this.ipcHandle(IpcChannel.LocalTransfer_StartScan, () => this.startDiscovery({ resetList: true }))
+    this.ipcHandle(IpcChannel.LocalTransfer_StopScan, () => this.stopDiscovery())
   }
 }

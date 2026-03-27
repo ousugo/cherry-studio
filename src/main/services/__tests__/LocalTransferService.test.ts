@@ -2,11 +2,7 @@ import { EventEmitter } from 'events'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 // Use vi.hoisted() so mock variables are available in hoisted vi.mock() factories
-const { mockLogger, mockIpcMain, mocks } = vi.hoisted(() => ({
-  mockIpcMain: {
-    handle: vi.fn(),
-    removeHandler: vi.fn()
-  },
+const { mockLogger, mocks } = vi.hoisted(() => ({
   mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -53,12 +49,10 @@ vi.mock('bonjour-service', () => ({
   default: vi.fn(() => mocks.bonjour)
 }))
 
-vi.mock('electron', () => ({
-  ipcMain: mockIpcMain
-}))
-
 vi.mock('@main/core/lifecycle', () => {
-  class MockBaseService {}
+  class MockBaseService {
+    ipcHandle = vi.fn()
+  }
   return {
     BaseService: MockBaseService,
     Injectable: () => (target: unknown) => target,
@@ -100,7 +94,7 @@ describe('LocalTransferService', () => {
       const service = createService()
       await (service as any).onInit()
 
-      expect(mockIpcMain.handle).toHaveBeenCalledTimes(3)
+      expect((service as any).ipcHandle).toHaveBeenCalledTimes(3)
       expect(mocks.bonjour!.find).toHaveBeenCalledWith({ type: 'cherrystudio', protocol: 'tcp' })
       expect(mocks.browser!.start).toHaveBeenCalled()
       expect(service.getState().isScanning).toBe(true)
@@ -439,7 +433,6 @@ describe('LocalTransferService', () => {
 
       await (service as any).onStop()
 
-      expect(mockIpcMain.removeHandler).toHaveBeenCalledTimes(3)
       expect(service.getState().services).toHaveLength(0)
       expect(service.getState().isScanning).toBe(false)
       expect(mocks.browser!.removeAllListeners).toHaveBeenCalled()
