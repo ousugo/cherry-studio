@@ -8,7 +8,7 @@ import { ServiceContainer } from '../lifecycle/ServiceContainer'
 import { LifecycleEvents, Phase, type ServiceConstructor, ServiceInitError } from '../lifecycle/types'
 import type { ServiceRegistry } from './serviceRegistry'
 
-const logger = loggerService.withContext('Application')
+const logger = loggerService.withContext('Lifecycle')
 
 /**
  * Application
@@ -92,6 +92,10 @@ export class Application {
 
     logger.info('Bootstrapping...')
 
+    // Log registration summary
+    const regSummary = this.container.getRegistrationSummary()
+    logger.info(`Registered ${regSummary.total} services (${regSummary.excluded} excluded)`)
+
     // Check for boot config corruption BEFORE starting any services
     if (bootConfigService.hasLoadError()) {
       await this.handleBootConfigError()
@@ -100,6 +104,8 @@ export class Application {
 
     // Validate and adjust phases before starting
     this.lifecycleManager.validateAndAdjustPhases()
+
+    const bootstrapStart = performance.now()
 
     try {
       // 1. Background phase - fire-and-forget, does not block BeforeReady/WhenReady
@@ -129,7 +135,9 @@ export class Application {
       throw error
     }
 
-    logger.info('Bootstrap complete')
+    const totalDuration = performance.now() - bootstrapStart
+    logger.info(`Bootstrap complete (${totalDuration.toFixed(3)}ms)`)
+    logger.info(`\n${this.lifecycleManager.getBootstrapSummary(totalDuration, regSummary.excluded)}`)
   }
 
   /**
@@ -145,13 +153,15 @@ export class Application {
     this.isShuttingDown = true
     logger.info('Shutting down...')
 
+    const start = performance.now()
+
     // Stop all services
     await this.lifecycleManager.stopAll()
 
     // Destroy all services
     await this.lifecycleManager.destroyAll()
 
-    logger.info('Shutdown complete')
+    logger.info(`Shutdown complete (${(performance.now() - start).toFixed(3)}ms)`)
   }
 
   /**

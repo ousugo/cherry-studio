@@ -12,7 +12,7 @@ import {
 import type { DependencyNode, Phase, ServiceConstructor, ServiceEntry, ServiceMetadata, ServiceToken } from './types'
 import { matchesPlatformTarget } from './types'
 
-const logger = loggerService.withContext('ServiceContainer')
+const logger = loggerService.withContext('Lifecycle')
 
 /**
  * ServiceContainer
@@ -80,7 +80,6 @@ export class ServiceContainer {
     }
 
     this.services.set(name, entry)
-    logger.debug(`Registered service: ${name}`)
   }
 
   /**
@@ -222,6 +221,22 @@ export class ServiceContainer {
           changed = true
         }
       }
+    }
+  }
+
+  /**
+   * Get a summary of registered services for logging
+   */
+  public getRegistrationSummary(): { total: number; excluded: number; byPhase: Record<string, number> } {
+    const byPhase: Record<string, number> = {}
+    for (const entry of this.services.values()) {
+      const phase = entry.provider.metadata.phase
+      byPhase[phase] = (byPhase[phase] || 0) + 1
+    }
+    return {
+      total: this.services.size,
+      excluded: this.platformExcluded.size,
+      byPhase
     }
   }
 
