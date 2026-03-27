@@ -193,8 +193,12 @@ export class LifecycleManager extends EventEmitter {
     try {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_INITIALIZING, serviceName, LifecycleState.Initializing)
 
-      // Get or create instance
-      const instance = this.container.get(serviceName)
+      // Get or create instance — use getOptional() for conditional services
+      const instance = metadata.conditions?.length
+        ? this.container.getOptional(serviceName)
+        : this.container.get(serviceName)
+
+      if (!instance) return
 
       // Call initialization with timing
       const start = performance.now()
@@ -309,7 +313,7 @@ export class LifecycleManager extends EventEmitter {
     const sep = (l: string, r: string) => `${l}${'─'.repeat(W)}${r}`
 
     lines.push(sep('┌', '┐'))
-    lines.push(row('        Bootstrap Summary'.padEnd(W)))
+    lines.push(row('               Bootstrap Summary'.padEnd(W)))
     lines.push(sep('├', '┤'))
     lines.push(row(`  Total: ${totalServices} services in ${fmt(totalDuration)}`))
 
@@ -327,17 +331,31 @@ export class LifecycleManager extends EventEmitter {
       list.push([name, ms])
     }
 
+    const excludedByPhase = this.container.getExcludedByPhase()
+
     for (const phase of phaseOrder) {
       const timing = this.phaseTiming.get(phase)
       const services = servicesByPhase.get(phase)
-      if (!timing || !services || services.length === 0) continue
+      const excludedServices = excludedByPhase.get(phase)
 
-      services.sort((a, b) => b[1] - a[1])
+      if ((!timing || !services || services.length === 0) && !excludedServices?.length) continue
+
       lines.push(row(''))
-      const title = `[${phase}] ${timing.serviceCount} services`
-      lines.push(row(`  ${title.padEnd(30)} ${fmt(timing.duration).padStart(12)}`))
-      for (const [name, ms] of services) {
-        lines.push(row(`    ${name.padEnd(28)} ${fmt(ms).padStart(12)}`))
+      if (timing && services && services.length > 0) {
+        services.sort((a, b) => b[1] - a[1])
+        const title = `[${phase}] ${timing.serviceCount} services`
+        lines.push(row(`  ${title.padEnd(30)} ${fmt(timing.duration).padStart(12)}`))
+        for (const [name, ms] of services) {
+          lines.push(row(`    ${name.padEnd(28)} ${fmt(ms).padStart(12)}`))
+        }
+      } else {
+        lines.push(row(`  [${phase}]`))
+      }
+
+      if (excludedServices && excludedServices.length > 0) {
+        for (const name of excludedServices) {
+          lines.push(row(`    ${name.padEnd(28)} ${'Excluded'.padStart(12)}`))
+        }
       }
     }
 
