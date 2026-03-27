@@ -137,6 +137,8 @@ export class MyService extends BaseService {
 
 > Use `this.ipcHandle()` / `this.ipcOn()` instead of `ipcMain.handle()` / `ipcMain.on()` for lifecycle-managed services — handlers are automatically removed on service stop/destroy. Always extract IPC registrations into a `private registerIpcHandlers()` method.
 
+> Use `Emitter<T>` / `Event<T>` for inter-service runtime communication (e.g., notifying other services when work completes after `onInit()`). Use `Signal<T>` for one-shot completion. Register subscriptions via `this.registerDisposable()` for automatic cleanup on stop/destroy. See [Lifecycle Usage Guide](docs/en/references/lifecycle/lifecycle-usage.md#service-events-emitter--event).
+
 2. **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`):
 
 ```typescript
