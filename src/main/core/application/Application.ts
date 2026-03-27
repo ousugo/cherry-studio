@@ -335,11 +335,22 @@ export class Application {
   }
 
   /**
-   * Get a service instance by registry key (type-safe)
+   * Get a service instance by registry key (type-safe).
+   * Throws if the service is conditional — use getOptional() for conditional services.
    * @param name - Service name from ServiceRegistry
    */
   public get<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] {
     return this.container.get(name)
+  }
+
+  /**
+   * Get an optional (conditional) service instance by registry key.
+   * Returns undefined if the service was excluded by @Conditional conditions.
+   * Throws if the service is NOT conditional — use get() for unconditional services.
+   * @param name - Service name from ServiceRegistry
+   */
+  public getOptional<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
+    return this.container.getOptional(name)
   }
 
   /**

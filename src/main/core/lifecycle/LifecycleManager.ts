@@ -297,7 +297,7 @@ export class LifecycleManager extends EventEmitter {
   /**
    * Generate a formatted bootstrap summary for logging
    * @param totalDuration - Total bootstrap duration in ms
-   * @param excludedCount - Number of platform-excluded services
+   * @param excludedCount - Number of excluded services
    */
   public getBootstrapSummary(totalDuration: number, excludedCount: number): string {
     const totalServices = this.initializationOrder.length
