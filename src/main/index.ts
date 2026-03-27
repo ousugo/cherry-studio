@@ -46,7 +46,6 @@ import {
   registerProtocolClient,
   setupAppImageDeepLink
 } from './services/ProtocolClient'
-import { registerShortcuts } from './services/ShortcutService'
 import { versionService } from './services/VersionService'
 import {
   getAllMigrators,
@@ -303,7 +302,6 @@ if (!app.requestSingleInstanceLock()) {
       }
     })
 
-    registerShortcuts(mainWindow)
     await registerIpc(mainWindow, app)
 
     replaceDevtoolsFont(mainWindow)

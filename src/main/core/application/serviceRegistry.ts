@@ -11,6 +11,7 @@ import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { SelectionService } from '@main/services/SelectionService'
+import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
@@ -53,6 +54,7 @@ export const services = {
   LocalTransferService,
   PowerMonitorService,
   SelectionService,
+  ShortcutService,
   ThemeService,
   SpanCacheService,
   NodeTraceService,

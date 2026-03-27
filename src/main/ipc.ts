@@ -27,7 +27,6 @@ import type {
   OcrProvider,
   PluginError,
   Provider,
-  Shortcut,
   SupportedOcrFile
 } from '@types'
 import checkDiskSpace from 'check-disk-space'
@@ -61,7 +60,6 @@ import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
-import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import { storeSyncService } from './services/StoreSyncService'
 import { vertexAIService } from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
@@ -626,16 +624,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // open path
   ipcMain.handle(IpcChannel.Open_Path, async (_, path: string) => {
     await shell.openPath(path)
-  })
-
-  // shortcuts
-  ipcMain.handle(IpcChannel.Shortcuts_Update, (_, shortcuts: Shortcut[]) => {
-    configManager.setShortcuts(shortcuts)
-    // Refresh shortcuts registration
-    if (mainWindow) {
-      unregisterAllShortcuts()
-      registerShortcuts(mainWindow)
-    }
   })
 
   ipcMain.handle(IpcChannel.KnowledgeBase_Create, knowledgeService.create.bind(knowledgeService))
