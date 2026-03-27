@@ -39,7 +39,6 @@ import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { apiServerService } from './services/ApiServerService'
 import { mcpService } from './services/MCPService'
-import { localTransferService } from './services/LocalTransferService'
 import { openClawService } from './services/OpenClawService'
 import { nodeTraceService } from './services/NodeTraceService'
 import {
@@ -246,8 +245,6 @@ if (!app.requestSingleInstanceLock()) {
 
     app.on('before-quit', () => {
       application.markQuitting()
-
-      localTransferService.dispose()
     })
 
     app.on('will-quit', async () => {
@@ -322,7 +319,6 @@ if (!app.requestSingleInstanceLock()) {
 
     registerShortcuts(mainWindow)
     await registerIpc(mainWindow, app)
-    localTransferService.startDiscovery({ resetList: true })
 
     replaceDevtoolsFont(mainWindow)
 

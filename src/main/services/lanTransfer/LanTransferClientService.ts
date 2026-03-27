@@ -1,3 +1,6 @@
+// TODO: Consider merging LanTransferClientService (TCP transfer) and LocalTransferService (mDNS discovery)
+// into a single service — they share the same IPC namespace (LocalTransfer_*) and the renderer
+// already treats them as one unified feature.
 import * as crypto from 'node:crypto'
 import { createConnection, type Socket } from 'node:net'
 
@@ -15,7 +18,6 @@ import { LAN_TRANSFER_GLOBAL_TIMEOUT_MS } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 
-import { localTransferService } from '../LocalTransferService'
 import {
   abortTransfer,
   buildHandshakeMessage,
@@ -49,7 +51,7 @@ const logger = loggerService.withContext('LanTransferClientService')
  */
 @Injectable('LanTransferClientService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['WindowService', 'LocalTransferService'])
 export class LanTransferClientService extends BaseService {
   private socket: Socket | null = null
   private currentPeer?: LocalTransferPeer
@@ -106,7 +108,7 @@ export class LanTransferClientService extends BaseService {
       throw new Error('LAN transfer client is busy')
     }
 
-    const peer = localTransferService.getPeerById(options.peerId)
+    const peer = application.get('LocalTransferService').getPeerById(options.peerId)
     if (!peer) {
       throw new Error('Selected LAN peer is no longer available')
     }

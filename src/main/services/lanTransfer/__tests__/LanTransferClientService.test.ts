@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockGetPeerById } = vi.hoisted(() => ({
+  mockGetPeerById: vi.fn()
+}))
+
 // Mock dependencies before importing the service
 vi.mock('node:net', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
@@ -20,12 +24,6 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../../LocalTransferService', () => ({
-  localTransferService: {
-    getPeerById: vi.fn()
-  }
-}))
-
 vi.mock('@main/core/application', () => ({
   application: {
     get: vi.fn((name: string) => {
@@ -36,6 +34,9 @@ vi.mock('@main/core/application', () => ({
             webContents: { send: vi.fn() }
           }))
         }
+      }
+      if (name === 'LocalTransferService') {
+        return { getPeerById: mockGetPeerById }
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     })
@@ -53,9 +54,6 @@ vi.mock('@main/core/lifecycle', () => {
     Phase: { Background: 'background', WhenReady: 'whenReady', BeforeReady: 'beforeReady' }
   }
 })
-
-// Import after mocks
-import { localTransferService } from '../../LocalTransferService'
 
 async function createService() {
   const { LanTransferClientService } = await import('../LanTransferClientService')
@@ -77,7 +75,7 @@ describe('LanTransferClientService', () => {
 
   describe('connectAndHandshake - validation', () => {
     it('should throw error when peer is not found', async () => {
-      vi.mocked(localTransferService.getPeerById).mockReturnValue(undefined)
+      mockGetPeerById.mockReturnValue(undefined)
 
       const service = await createService()
 
@@ -89,7 +87,7 @@ describe('LanTransferClientService', () => {
     })
 
     it('should throw error when peer has no port', async () => {
-      vi.mocked(localTransferService.getPeerById).mockReturnValue({
+      mockGetPeerById.mockReturnValue({
         id: 'test-peer',
         name: 'Test Peer',
         addresses: ['192.168.1.100'],
@@ -106,7 +104,7 @@ describe('LanTransferClientService', () => {
     })
 
     it('should throw error when no reachable host', async () => {
-      vi.mocked(localTransferService.getPeerById).mockReturnValue({
+      mockGetPeerById.mockReturnValue({
         id: 'test-peer',
         name: 'Test Peer',
         port: 12345,

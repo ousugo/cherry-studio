@@ -6,6 +6,7 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { LanTransferClientService } from '@main/services/lanTransfer'
+import { LocalTransferService } from '@main/services/LocalTransferService'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { SelectionService } from '@main/services/SelectionService'
 import { ThemeService } from '@main/services/ThemeService'
@@ -46,6 +47,7 @@ export const services = {
   AppMenuService,
   CodeCliService,
   LanTransferClientService,
+  LocalTransferService,
   PowerMonitorService,
   SelectionService,
   ThemeService,
