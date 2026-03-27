@@ -37,7 +37,6 @@ import process from 'node:process'
 
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
-import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import { lanTransferClientService } from './services/lanTransfer'
 import { mcpService } from './services/MCPService'
@@ -269,7 +268,6 @@ if (!app.requestSingleInstanceLock()) {
       }
 
       try {
-        await analyticsService.destroy()
         await openClawService.stopGateway()
         await mcpService.cleanup()
         await apiServerService.stop()
@@ -314,7 +312,6 @@ if (!app.requestSingleInstanceLock()) {
     const mainWindow = application.get('WindowService').createMainWindow()
 
     nodeTraceService.init()
-    analyticsService.init()
 
     app.on('activate', function () {
       const mainWindow = application.get('WindowService').getMainWindow()

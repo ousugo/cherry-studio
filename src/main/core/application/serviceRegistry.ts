@@ -2,6 +2,7 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
@@ -40,6 +41,7 @@ export const services = {
   CacheService,
   DataApiService,
   PreferenceService,
+  AnalyticsService,
   AppMenuService,
   CodeCliService,
   PowerMonitorService,

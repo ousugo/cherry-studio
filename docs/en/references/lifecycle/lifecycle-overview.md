@@ -93,7 +93,7 @@ Key points:
 - Starts immediately but runs completely independently, never blocking other phases.
 - Other phases' services **cannot** depend on Background services (and vice versa).
 - Background errors are caught and logged but never abort bootstrap.
-- Best for: telemetry reporting, analytics init, non-critical data pre-fetching, background cleanup tasks.
+- Best for: telemetry reporting, non-critical data pre-fetching, background cleanup tasks.
 - Use `onAllReady()` if a Background service needs to interact with services from other phases after bootstrap.
 
 ### Dependency Rules
@@ -153,11 +153,11 @@ After all phases complete:
 Called once after **all** services across all bootstrap phases have completed initialization. Unlike `onReady()` (which fires when the individual service is ready), `onAllReady()` fires when the entire system is ready — safe to access any service regardless of `@DependsOn` declarations.
 
 ```typescript
-@Injectable('AnalyticsService')
-class AnalyticsService extends BaseService {
+@Injectable('BackgroundReporterService')
+class BackgroundReporterService extends BaseService {
   protected onAllReady() {
     // Safe to access any service — the entire system is ready
-    const userService = application.get('UserService')
+    const preferenceService = application.get('PreferenceService')
   }
 }
 ```

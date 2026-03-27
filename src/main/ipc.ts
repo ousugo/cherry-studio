@@ -40,7 +40,6 @@ import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
 import { pluginService } from './services/agents/plugins/PluginService'
-import { analyticsService } from './services/AnalyticsService'
 import { apiServerService } from './services/ApiServerService'
 import { appService } from './services/AppService'
 import AppUpdater from './services/AppUpdater'
@@ -1077,6 +1076,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // Analytics
   ipcMain.handle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) =>
-    analyticsService.trackTokenUsage(data)
+    application.get('AnalyticsService').trackTokenUsage(data)
   )
 }
