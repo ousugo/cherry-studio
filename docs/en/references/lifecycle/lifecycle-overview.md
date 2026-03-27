@@ -148,6 +148,17 @@ After all phases complete:
 | `onPause()`    | When the service is being paused (requires `Pausable`)   | Yes          |
 | `onResume()`   | When the service is being resumed (requires `Pausable`)  | Yes          |
 
+### Automatic IPC Cleanup
+
+BaseService tracks IPC handlers registered via `this.ipcHandle()` and `this.ipcOn()`. These are automatically removed as part of the stop/destroy lifecycle:
+
+```
+onStop() → IPC handlers removed → state = Stopped
+onDestroy() → IPC handlers removed (safety net) → state = Destroyed
+```
+
+See [IPC Handler Management](./lifecycle-usage.md#ipc-handler-management) for usage details.
+
 ### onAllReady (System-wide Readiness)
 
 Called once after **all** services across all bootstrap phases have completed initialization. Unlike `onReady()` (which fires when the individual service is ready), `onAllReady()` fires when the entire system is ready — safe to access any service regardless of `@DependsOn` declarations.

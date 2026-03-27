@@ -44,7 +44,10 @@ vi.mock('@main/core/application', () => ({
 }))
 
 vi.mock('@main/core/lifecycle', () => {
-  class MockBaseService {}
+  class MockBaseService {
+    ipcHandle = vi.fn()
+    ipcOn = vi.fn()
+  }
 
   return {
     BaseService: MockBaseService,
