@@ -49,7 +49,6 @@ import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import { knowledgeService } from './services/KnowledgeService'
-import { mcpService } from './services/MCPService'
 import { memoryService } from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
@@ -669,26 +668,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   ipcMain.handle(IpcChannel.Aes_Decrypt, (_, encryptedData: string, iv: string, secretKey: string) =>
     decrypt(encryptedData, iv, secretKey)
   )
-
-  // Register MCP handlers
-  ipcMain.handle(IpcChannel.Mcp_RemoveServer, (_e, server) => mcpService.removeServer(server))
-  ipcMain.handle(IpcChannel.Mcp_RestartServer, (_e, server) => mcpService.restartServer(server))
-  ipcMain.handle(IpcChannel.Mcp_StopServer, (_e, server) => mcpService.stopServer(server))
-  ipcMain.handle(IpcChannel.Mcp_ListTools, (_e, server) => mcpService.listTools(server))
-  ipcMain.handle(IpcChannel.Mcp_CallTool, (_e, args) => mcpService.callTool(args))
-  ipcMain.handle(IpcChannel.Mcp_ListPrompts, (_e, server) => mcpService.listPrompts(server))
-  ipcMain.handle(IpcChannel.Mcp_GetPrompt, (_e, args) => mcpService.getPrompt(args))
-  ipcMain.handle(IpcChannel.Mcp_ListResources, (_e, server) => mcpService.listResources(server))
-  ipcMain.handle(IpcChannel.Mcp_GetResource, (_e, args) => mcpService.getResource(args))
-  ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, () => mcpService.getInstallInfo())
-  ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, (_e, server) => mcpService.checkMcpConnectivity(server))
-  ipcMain.handle(IpcChannel.Mcp_AbortTool, (_e, callId) => mcpService.abortTool(callId))
-  ipcMain.handle(IpcChannel.Mcp_ResolveHubTool, async (_event, nameOrId: string) => {
-    const { resolveHubToolName } = await import('@main/mcpServers/hub/mcp-bridge')
-    return resolveHubToolName(nameOrId)
-  })
-  ipcMain.handle(IpcChannel.Mcp_GetServerVersion, (_e, server) => mcpService.getServerVersion(server))
-  ipcMain.handle(IpcChannel.Mcp_GetServerLogs, (_e, server) => mcpService.getServerLogs(server))
 
   // DXT upload handler
   ipcMain.handle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {

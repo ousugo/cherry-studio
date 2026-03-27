@@ -38,7 +38,6 @@ import process from 'node:process'
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { apiServerService } from './services/ApiServerService'
-import { mcpService } from './services/MCPService'
 import { openClawService } from './services/OpenClawService'
 import {
   CHERRY_STUDIO_PROTOCOL,
@@ -251,7 +250,6 @@ if (!app.requestSingleInstanceLock()) {
 
       try {
         await openClawService.stopGateway()
-        await mcpService.cleanup()
         await apiServerService.stop()
       } catch (error) {
         logger.warn('Error cleaning up services:', error as Error)

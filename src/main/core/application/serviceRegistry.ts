@@ -7,6 +7,7 @@ import { AppMenuService } from '@main/services/AppMenuService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { LanTransferClientService } from '@main/services/lanTransfer'
 import { LocalTransferService } from '@main/services/LocalTransferService'
+import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
@@ -60,7 +61,8 @@ export const services = {
   NodeTraceService,
   OvmsManager,
   TrayService,
-  WindowService
+  WindowService,
+  MCPService
 } as const
 
 /** Auto-derived service name to instance type mapping */
