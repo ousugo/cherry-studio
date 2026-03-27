@@ -3,6 +3,7 @@ import { createConnection, type Socket } from 'node:net'
 
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type {
   LanClientEvent,
   LanFileCompleteMessage,
@@ -12,6 +13,7 @@ import type {
 } from '@shared/config/types'
 import { LAN_TRANSFER_GLOBAL_TIMEOUT_MS } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import { ipcMain } from 'electron'
 
 import { localTransferService } from '../LocalTransferService'
 import {
@@ -45,7 +47,10 @@ const logger = loggerService.withContext('LanTransferClientService')
  * Handles outgoing file transfers to LAN peers via TCP.
  * Protocol v1 with streaming mode (no per-chunk acknowledgment).
  */
-class LanTransferClientService {
+@Injectable('LanTransferClientService')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['WindowService'])
+export class LanTransferClientService extends BaseService {
   private socket: Socket | null = null
   private currentPeer?: LocalTransferPeer
   private dataHandler?: ReturnType<typeof createDataHandler>
@@ -57,8 +62,40 @@ class LanTransferClientService {
   private static readonly MAX_CONSECUTIVE_JSON_ERRORS = 3
   private reconnectPromise: Promise<void> | null = null
 
-  constructor() {
+  protected async onInit() {
     this.responseManager.setTimeoutCallback(() => void this.disconnect())
+    this.registerIpcHandlers()
+  }
+
+  protected async onStop() {
+    this.unregisterIpcHandlers()
+    this.responseManager.rejectAll(new Error('LAN transfer client disposed'))
+    cleanupTransfer(this.activeTransfer)
+    this.activeTransfer = undefined
+    if (this.socket) {
+      this.socket.destroy()
+      this.socket = null
+    }
+    this.dataHandler?.resetBuffer()
+    this.isConnecting = false
+  }
+
+  private registerIpcHandlers(): void {
+    ipcMain.handle(IpcChannel.LocalTransfer_Connect, (_, payload: LocalTransferConnectPayload) =>
+      this.connectAndHandshake(payload)
+    )
+    ipcMain.handle(IpcChannel.LocalTransfer_Disconnect, () => this.disconnect())
+    ipcMain.handle(IpcChannel.LocalTransfer_SendFile, (_, payload: { filePath: string }) =>
+      this.sendFile(payload.filePath)
+    )
+    ipcMain.handle(IpcChannel.LocalTransfer_CancelTransfer, () => this.cancelTransfer())
+  }
+
+  private unregisterIpcHandlers(): void {
+    ipcMain.removeHandler(IpcChannel.LocalTransfer_Connect)
+    ipcMain.removeHandler(IpcChannel.LocalTransfer_Disconnect)
+    ipcMain.removeHandler(IpcChannel.LocalTransfer_SendFile)
+    ipcMain.removeHandler(IpcChannel.LocalTransfer_CancelTransfer)
   }
 
   /**
@@ -202,21 +239,6 @@ class LanTransferClientService {
 
       socket.destroy()
     })
-  }
-
-  /**
-   * Dispose the service and clean up all resources.
-   */
-  public dispose(): void {
-    this.responseManager.rejectAll(new Error('LAN transfer client disposed'))
-    cleanupTransfer(this.activeTransfer)
-    this.activeTransfer = undefined
-    if (this.socket) {
-      this.socket.destroy()
-      this.socket = null
-    }
-    this.dataHandler?.resetBuffer()
-    this.isConnecting = false
   }
 
   /**
@@ -519,7 +541,4 @@ class LanTransferClientService {
   }
 }
 
-export const lanTransferClientService = new LanTransferClientService()
-
-// Re-export for backward compatibility
 export { HANDSHAKE_PROTOCOL_VERSION }

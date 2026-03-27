@@ -38,7 +38,6 @@ import process from 'node:process'
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { apiServerService } from './services/ApiServerService'
-import { lanTransferClientService } from './services/lanTransfer'
 import { mcpService } from './services/MCPService'
 import { localTransferService } from './services/LocalTransferService'
 import { openClawService } from './services/OpenClawService'
@@ -248,7 +247,6 @@ if (!app.requestSingleInstanceLock()) {
     app.on('before-quit', () => {
       application.markQuitting()
 
-      lanTransferClientService.dispose()
       localTransferService.dispose()
     })
 

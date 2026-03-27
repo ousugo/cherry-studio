@@ -13,6 +13,10 @@ vi.mock('electron', () => ({
   app: {
     getName: vi.fn(() => 'Cherry Studio'),
     getVersion: vi.fn(() => '1.0.0')
+  },
+  ipcMain: {
+    handle: vi.fn(),
+    removeHandler: vi.fn()
   }
 }))
 
@@ -38,8 +42,28 @@ vi.mock('@main/core/application', () => ({
   }
 }))
 
+vi.mock('@main/core/lifecycle', () => {
+  class MockBaseService {}
+
+  return {
+    BaseService: MockBaseService,
+    Injectable: () => (target: unknown) => target,
+    ServicePhase: () => (target: unknown) => target,
+    DependsOn: () => (target: unknown) => target,
+    Phase: { Background: 'background', WhenReady: 'whenReady', BeforeReady: 'beforeReady' }
+  }
+})
+
 // Import after mocks
 import { localTransferService } from '../../LocalTransferService'
+
+async function createService() {
+  const { LanTransferClientService } = await import('../LanTransferClientService')
+  const service = new LanTransferClientService()
+  // Manually invoke the init logic since lifecycle is mocked
+  await (service as unknown as { onInit(): Promise<void> }).onInit()
+  return service
+}
 
 describe('LanTransferClientService', () => {
   beforeEach(() => {
@@ -55,10 +79,10 @@ describe('LanTransferClientService', () => {
     it('should throw error when peer is not found', async () => {
       vi.mocked(localTransferService.getPeerById).mockReturnValue(undefined)
 
-      const { lanTransferClientService } = await import('../LanTransferClientService')
+      const service = await createService()
 
       await expect(
-        lanTransferClientService.connectAndHandshake({
+        service.connectAndHandshake({
           peerId: 'non-existent'
         })
       ).rejects.toThrow('Selected LAN peer is no longer available')
@@ -72,10 +96,10 @@ describe('LanTransferClientService', () => {
         updatedAt: Date.now()
       })
 
-      const { lanTransferClientService } = await import('../LanTransferClientService')
+      const service = await createService()
 
       await expect(
-        lanTransferClientService.connectAndHandshake({
+        service.connectAndHandshake({
           peerId: 'test-peer'
         })
       ).rejects.toThrow('Selected peer does not expose a TCP port')
@@ -90,10 +114,10 @@ describe('LanTransferClientService', () => {
         updatedAt: Date.now()
       })
 
-      const { lanTransferClientService } = await import('../LanTransferClientService')
+      const service = await createService()
 
       await expect(
-        lanTransferClientService.connectAndHandshake({
+        service.connectAndHandshake({
           peerId: 'test-peer'
         })
       ).rejects.toThrow('Unable to resolve a reachable host for the peer')
@@ -102,27 +126,27 @@ describe('LanTransferClientService', () => {
 
   describe('cancelTransfer', () => {
     it('should not throw when no active transfer', async () => {
-      const { lanTransferClientService } = await import('../LanTransferClientService')
+      const service = await createService()
 
       // Should not throw, just log warning
-      expect(() => lanTransferClientService.cancelTransfer()).not.toThrow()
+      expect(() => service.cancelTransfer()).not.toThrow()
     })
   })
 
-  describe('dispose', () => {
+  describe('onStop', () => {
     it('should clean up resources without throwing', async () => {
-      const { lanTransferClientService } = await import('../LanTransferClientService')
+      const service = await createService()
 
       // Should not throw
-      expect(() => lanTransferClientService.dispose()).not.toThrow()
+      await expect((service as unknown as { onStop(): Promise<void> }).onStop()).resolves.toBeUndefined()
     })
   })
 
   describe('sendFile', () => {
     it('should throw error when not connected', async () => {
-      const { lanTransferClientService } = await import('../LanTransferClientService')
+      const service = await createService()
 
-      await expect(lanTransferClientService.sendFile('/path/to/file.zip')).rejects.toThrow(
+      await expect(service.sendFile('/path/to/file.zip')).rejects.toThrow(
         'No active connection. Please connect to a peer first.'
       )
     })

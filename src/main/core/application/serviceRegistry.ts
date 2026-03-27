@@ -5,6 +5,7 @@ import { PreferenceService } from '@data/PreferenceService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { LanTransferClientService } from '@main/services/lanTransfer'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { SelectionService } from '@main/services/SelectionService'
 import { ThemeService } from '@main/services/ThemeService'
@@ -44,6 +45,7 @@ export const services = {
   AnalyticsService,
   AppMenuService,
   CodeCliService,
+  LanTransferClientService,
   PowerMonitorService,
   SelectionService,
   ThemeService,
