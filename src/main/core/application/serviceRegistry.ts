@@ -6,8 +6,7 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { CodeCliService } from '@main/services/CodeCliService'
-import { LanTransferClientService } from '@main/services/lanTransfer'
-import { LocalTransferService } from '@main/services/LocalTransferService'
+import { LanTransferService } from '@main/services/lanTransfer'
 import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OpenClawService } from '@main/services/OpenClawService'
@@ -54,8 +53,7 @@ export const services = {
   AnalyticsService,
   AppMenuService,
   CodeCliService,
-  LanTransferClientService,
-  LocalTransferService,
+  LanTransferService,
   PowerMonitorService,
   SelectionService,
   ShortcutService,
