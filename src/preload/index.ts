@@ -110,11 +110,9 @@ const api = {
   getDiskInfo: (directoryPath: string): Promise<{ free: number; size: number } | null> =>
     ipcRenderer.invoke(IpcChannel.App_GetDiskInfo, directoryPath),
   reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
-  quit: () => ipcRenderer.invoke(IpcChannel.App_Quit),
   setProxy: (proxy: string | undefined, bypassRules?: string) =>
     ipcRenderer.invoke(IpcChannel.App_Proxy, proxy, bypassRules),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
-  quitAndInstall: () => ipcRenderer.invoke(IpcChannel.App_QuitAndInstall),
   // setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
   setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
@@ -137,10 +135,16 @@ const api = {
   getDataPathFromArgs: () => ipcRenderer.invoke(IpcChannel.App_GetDataPathFromArgs),
   copy: (oldPath: string, newPath: string, occupiedDirs: string[] = []) =>
     ipcRenderer.invoke(IpcChannel.App_Copy, oldPath, newPath, occupiedDirs),
-  setStopQuitApp: (stop: boolean, reason: string) => ipcRenderer.invoke(IpcChannel.App_SetStopQuitApp, stop, reason),
+  quitAndInstall: () => ipcRenderer.invoke(IpcChannel.App_QuitAndInstall),
+  application: {
+    quit: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_Quit),
+    preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),
+    allowQuit: (holdId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_AllowQuit, holdId),
+    relaunch: (options?: Electron.RelaunchOptions): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Application_Relaunch, options)
+  },
   flushAppData: () => ipcRenderer.invoke(IpcChannel.App_FlushAppData),
   isNotEmptyDir: (path: string) => ipcRenderer.invoke(IpcChannel.App_IsNotEmptyDir, path),
-  relaunchApp: (options?: Electron.RelaunchOptions) => ipcRenderer.invoke(IpcChannel.App_RelaunchApp, options),
   resetData: () => ipcRenderer.invoke(IpcChannel.App_ResetData),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),

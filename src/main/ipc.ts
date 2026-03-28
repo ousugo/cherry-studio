@@ -144,7 +144,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
 
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
-  ipcMain.handle(IpcChannel.App_Quit, () => application.quit())
+  // Application_Quit is registered by Application.registerApplicationIpc()
   ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
 
   // Update
@@ -328,29 +328,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  let preventQuitListener: ((event: Electron.Event) => void) | null = null
-  ipcMain.handle(IpcChannel.App_SetStopQuitApp, (_, stop: boolean = false, reason: string = '') => {
-    if (stop) {
-      // Only add listener if not already added
-      if (!preventQuitListener) {
-        preventQuitListener = (event: Electron.Event) => {
-          event.preventDefault()
-          void notificationService.sendNotification({
-            title: reason,
-            message: reason
-          } as Notification)
-        }
-        app.on('before-quit', preventQuitListener)
-      }
-    } else {
-      // Remove listener if it exists
-      if (preventQuitListener) {
-        app.removeListener('before-quit', preventQuitListener)
-        preventQuitListener = null
-      }
-    }
-  })
-
   // Select app data path
   ipcMain.handle(IpcChannel.App_Select, async (_, options: Electron.OpenDialogOptions) => {
     try {
@@ -427,10 +404,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
 
-  // Relaunch app
-  ipcMain.handle(IpcChannel.App_RelaunchApp, (_, options?: Electron.RelaunchOptions) => {
-    application.relaunch(options)
-  })
+  // Application_Relaunch is registered by Application.registerApplicationIpc()
 
   // Reset all data (factory reset)
   ipcMain.handle(IpcChannel.App_ResetData, () => backupManager.resetData())

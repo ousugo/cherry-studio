@@ -236,26 +236,16 @@ if (!app.requestSingleInstanceLock()) {
       optimizer.watchWindowShortcuts(window)
     })
 
-    app.on('before-quit', () => {
-      application.markQuitting()
-    })
-
+    // Temporary: openClawService is not yet lifecycle-managed.
+    // Its cleanup runs concurrently with Application.shutdown() in will-quit.
+    // There is a known timing risk: app.exit(0) may fire before stopGateway() completes.
+    // TODO: Remove when openClawService is migrated to lifecycle (use onStop() instead).
     app.on('will-quit', async () => {
-      // Flush boot config to ensure pending writes are saved
-      // FIXME：临时方案，等改造本文件时应在 application 中统一处理
-      bootConfigService.flush()
-
       try {
         await openClawService.stopGateway()
       } catch (error) {
-        logger.warn('Error cleaning up services:', error as Error)
+        logger.warn('Error cleaning up OpenClaw:', error as Error)
       }
-
-      // v2 Refactoring: Shutdown lifecycle-managed services
-      await application.shutdown()
-
-      // finish the logger
-      logger.finish()
     })
 
     // This method will be called when Electron has finished
@@ -286,15 +276,6 @@ if (!app.requestSingleInstanceLock()) {
 
     // Create main window - migration has either completed or was not needed
     const mainWindow = application.get('WindowService').createMainWindow()
-
-    app.on('activate', function () {
-      const mainWindow = application.get('WindowService').getMainWindow()
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        application.get('WindowService').createMainWindow()
-      } else {
-        application.get('WindowService').showMainWindow()
-      }
-    })
 
     await registerIpc(mainWindow, app)
 

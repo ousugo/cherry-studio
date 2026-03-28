@@ -37,12 +37,19 @@ export class WindowService extends BaseService {
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
+  private activateHandler: (() => void) | null = null
 
   protected async onInit() {
     this.registerIpcHandlers()
+    this.registerActivateHandler()
   }
 
-  protected async onStop() {}
+  protected async onStop() {
+    if (this.activateHandler) {
+      app.removeListener('activate', this.activateHandler)
+      this.activateHandler = null
+    }
+  }
 
   protected async onDestroy() {
     this._onMainWindowCreated.dispose()
@@ -52,6 +59,18 @@ export class WindowService extends BaseService {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
       throw new Error('Main window does not exist or has been destroyed')
     }
+  }
+
+  private registerActivateHandler() {
+    this.activateHandler = () => {
+      const mainWindow = this.getMainWindow()
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        this.createMainWindow()
+      } else {
+        this.showMainWindow()
+      }
+    }
+    app.on('activate', this.activateHandler)
   }
 
   private registerIpcHandlers() {
