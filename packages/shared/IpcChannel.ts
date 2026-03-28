@@ -311,12 +311,6 @@ export enum IpcChannel {
   SearchWindow_Close = 'search-window:close',
   SearchWindow_OpenUrl = 'search-window:open-url',
 
-  //Store Sync
-  StoreSync_Subscribe = 'store-sync:subscribe',
-  StoreSync_Unsubscribe = 'store-sync:unsubscribe',
-  StoreSync_OnUpdate = 'store-sync:on-update',
-  StoreSync_BroadcastSync = 'store-sync:broadcast-sync',
-
   // Provider
   Provider_AddKey = 'provider:add-key',
 

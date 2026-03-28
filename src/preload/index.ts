@@ -514,11 +514,6 @@ const api = {
       }
     }
   },
-  storeSync: {
-    subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
-    unsubscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Unsubscribe),
-    onUpdate: (action: any) => ipcRenderer.invoke(IpcChannel.StoreSync_OnUpdate, action)
-  },
   selection: {
     hideToolbar: () => ipcRenderer.invoke(IpcChannel.Selection_ToolbarHide),
     writeToClipboard: (text: string) => ipcRenderer.invoke(IpcChannel.Selection_WriteToClipboard, text),
