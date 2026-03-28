@@ -5,6 +5,7 @@ import { PreferenceService } from '@data/PreferenceService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
+import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MCPService } from '@main/services/MCPService'
@@ -66,7 +67,8 @@ export const services = {
   WindowService,
   MCPService,
   OpenClawService,
-  ApiServerService
+  ApiServerService,
+  AppUpdaterService
 } as const
 
 /** Auto-derived service name to instance type mapping */
