@@ -95,14 +95,14 @@ function extractPluginError(error: unknown): PluginError | null {
 export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const notificationService = new NotificationService()
 
-  // Register shutdown handlers
-  const powerMonitorService = application.get('PowerMonitorService')
-  powerMonitorService.registerShutdownHandler(() => {
-    const mw = application.get('WindowService').getMainWindow()
-    if (mw && !mw.isDestroyed()) {
-      mw.webContents.send(IpcChannel.App_SaveData)
-    }
-  })
+  // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+  // const powerMonitorService = application.get('PowerMonitorService')
+  // powerMonitorService.registerShutdownHandler(() => {
+  //   const mw = application.get('WindowService').getMainWindow()
+  //   if (mw && !mw.isDestroyed()) {
+  //     mw.webContents.send(IpcChannel.App_SaveData)
+  //   }
+  // })
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),

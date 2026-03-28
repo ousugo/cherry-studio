@@ -38,7 +38,8 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
-  App_SaveData = 'app:save-data',
+  // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
+  // App_SaveData = 'app:save-data',
   App_GetDiskInfo = 'app:get-disk-info',
   App_SetFullScreen = 'app:set-full-screen',
   App_IsFullScreen = 'app:is-full-screen',
