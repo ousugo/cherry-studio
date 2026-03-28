@@ -10,6 +10,7 @@ import { LanTransferClientService } from '@main/services/lanTransfer'
 import { LocalTransferService } from '@main/services/LocalTransferService'
 import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
+import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { SelectionService } from '@main/services/SelectionService'
@@ -64,6 +65,7 @@ export const services = {
   TrayService,
   WindowService,
   MCPService,
+  OpenClawService,
   ApiServerService
 } as const
 

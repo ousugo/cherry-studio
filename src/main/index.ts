@@ -36,7 +36,6 @@ import { isDev, isLinux, isWin } from './constant'
 import process from 'node:process'
 
 import { registerIpc } from './ipc'
-import { openClawService } from './services/OpenClawService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -234,18 +233,6 @@ if (!app.requestSingleInstanceLock()) {
 
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)
-    })
-
-    // Temporary: openClawService is not yet lifecycle-managed.
-    // Its cleanup runs concurrently with Application.shutdown() in will-quit.
-    // There is a known timing risk: app.exit(0) may fire before stopGateway() completes.
-    // TODO: Remove when openClawService is migrated to lifecycle (use onStop() instead).
-    app.on('will-quit', async () => {
-      try {
-        await openClawService.stopGateway()
-      } catch (error) {
-        logger.warn('Error cleaning up OpenClaw:', error as Error)
-      }
     })
 
     // This method will be called when Electron has finished
