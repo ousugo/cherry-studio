@@ -18,6 +18,7 @@ import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
+import { WebviewService } from '@main/services/WebviewService'
 import { WindowService } from '@main/services/WindowService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
@@ -63,6 +64,7 @@ export const services = {
   NodeTraceService,
   OvmsManager,
   TrayService,
+  WebviewService,
   WindowService,
   MCPService,
   OpenClawService,

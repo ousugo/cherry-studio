@@ -59,7 +59,6 @@ import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
 import { storeSyncService } from './services/StoreSyncService'
 import { vertexAIService } from './services/VertexAIService'
-import { setOpenLinkExternal } from './services/WebviewService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import {
@@ -714,27 +713,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
   ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
     return await searchService.openUrlInSearchWindow(uid, url)
-  })
-
-  // webview
-  ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>
-    setOpenLinkExternal(webviewId, isExternal)
-  )
-  ipcMain.handle(IpcChannel.Webview_SetSpellCheckEnabled, (_, webviewId: number, isEnable: boolean) => {
-    const webview = webContents.fromId(webviewId)
-    if (!webview) return
-    webview.session.setSpellCheckerEnabled(isEnable)
-  })
-
-  // Webview print and save handlers
-  ipcMain.handle(IpcChannel.Webview_PrintToPDF, async (_, webviewId: number) => {
-    const { printWebviewToPDF } = await import('./services/WebviewService')
-    return await printWebviewToPDF(webviewId)
-  })
-
-  ipcMain.handle(IpcChannel.Webview_SaveAsHTML, async (_, webviewId: number) => {
-    const { saveWebviewAsHTML } = await import('./services/WebviewService')
-    return await saveWebviewAsHTML(webviewId)
   })
 
   // store sync
