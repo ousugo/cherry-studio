@@ -3,6 +3,7 @@ import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
+import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { LanTransferClientService } from '@main/services/lanTransfer'
@@ -62,7 +63,8 @@ export const services = {
   OvmsManager,
   TrayService,
   WindowService,
-  MCPService
+  MCPService,
+  ApiServerService
 } as const
 
 /** Auto-derived service name to instance type mapping */
