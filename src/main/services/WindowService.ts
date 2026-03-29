@@ -4,7 +4,7 @@ import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getFilesDir } from '@main/utils/file'
-import { getWindowsBackgroundMaterial } from '@main/utils/windowUtil'
+import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeImage, nativeTheme, screen, shell } from 'electron'
@@ -46,6 +46,18 @@ export class WindowService extends BaseService {
   protected async onInit() {
     this.registerIpcHandlers()
     this.registerActivateHandler()
+  }
+
+  protected async onReady() {
+    // Mac: hide dock icon before window creation when launch to tray is set.
+    // Dock icon is visible from app launch; must hide early.
+    // The ready-to-show handler's app.dock?.show() restores it for non-tray mode.
+    const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
+    if (isLaunchToTray) {
+      app.dock?.hide()
+    }
+
+    this.createMainWindow()
   }
 
   private checkMainWindow() {
@@ -206,6 +218,7 @@ export class WindowService extends BaseService {
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
     this.setupMainWindowMonitor(mainWindow)
+    replaceDevtoolsFont(mainWindow)
     this.loadMainWindowContent(mainWindow)
   }
 
