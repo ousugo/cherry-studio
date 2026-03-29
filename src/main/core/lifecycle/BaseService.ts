@@ -1,7 +1,10 @@
+import { loggerService } from '@logger'
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 
 import { type Disposable, toDisposable } from './event'
 import { type ErrorStrategy, isActivatable, isPausable, LifecycleState } from './types'
+
+const logger = loggerService.withContext('Lifecycle')
 
 /**
  * Abstract base class for all lifecycle-managed services
@@ -269,8 +272,11 @@ export abstract class BaseService {
     if (this._state !== LifecycleState.Ready) return false
     this._activating = true
     try {
+      const start = performance.now()
       await this.onActivate()
+      const duration = performance.now() - start
       this._activated = true
+      logger.info(`Service '${this.constructor.name}' activated (${duration.toFixed(3)}ms)`)
       return true
     } finally {
       this._activating = false
@@ -289,8 +295,11 @@ export abstract class BaseService {
     if (!this._activated || this._activating) return !this._activated
     this._activating = true
     try {
+      const start = performance.now()
       await this.onDeactivate()
+      const duration = performance.now() - start
       this._activated = false
+      logger.info(`Service '${this.constructor.name}' deactivated (${duration.toFixed(3)}ms)`)
       return true
     } finally {
       this._activating = false

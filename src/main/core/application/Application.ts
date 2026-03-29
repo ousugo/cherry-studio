@@ -147,7 +147,7 @@ export class Application {
 
     const totalDuration = performance.now() - bootstrapStart
     logger.info(`Bootstrap complete (${totalDuration.toFixed(3)}ms)`)
-    logger.info(`\n${this.lifecycleManager.getBootstrapSummary(totalDuration, regSummary.excluded)}`)
+    logger.debug(`\n${this.lifecycleManager.getBootstrapSummary(totalDuration, regSummary.excluded)}`)
   }
 
   /**

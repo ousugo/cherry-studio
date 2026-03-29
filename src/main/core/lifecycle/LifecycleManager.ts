@@ -206,6 +206,7 @@ export class LifecycleManager extends EventEmitter {
       await instance._doInit()
       const duration = performance.now() - start
       this.serviceTiming.set(serviceName, duration)
+      logger.info(`Service '${serviceName}' initialized (${duration.toFixed(3)}ms)`)
 
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, serviceName, LifecycleState.Ready)
     } catch (error) {
@@ -225,9 +226,11 @@ export class LifecycleManager extends EventEmitter {
 
     try {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPING, serviceName, LifecycleState.Stopping)
+      const start = performance.now()
       await instance._doStop()
+      const duration = performance.now() - start
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPED, serviceName, LifecycleState.Stopped)
-      logger.debug(`Service '${serviceName}' stopped`)
+      logger.info(`Service '${serviceName}' stopped (${duration.toFixed(3)}ms)`)
     } catch (error) {
       logger.error(`Error stopping service '${serviceName}':`, error as Error)
     }
@@ -241,9 +244,11 @@ export class LifecycleManager extends EventEmitter {
     if (!instance || instance.state === LifecycleState.Destroyed) return
 
     try {
+      const start = performance.now()
       await instance._doDestroy()
+      const duration = performance.now() - start
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_DESTROYED, serviceName, LifecycleState.Destroyed)
-      logger.debug(`Service '${serviceName}' destroyed`)
+      logger.info(`Service '${serviceName}' destroyed (${duration.toFixed(3)}ms)`)
     } catch (error) {
       logger.error(`Error destroying service '${serviceName}':`, error as Error)
     }
@@ -601,9 +606,11 @@ export class LifecycleManager extends EventEmitter {
     // Re-initialize the service (calls _doInit)
     try {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_INITIALIZING, name, LifecycleState.Initializing)
+      const start = performance.now()
       await instance._doInit()
+      const duration = performance.now() - start
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, name, LifecycleState.Ready)
-      logger.debug(`Service '${name}' started`)
+      logger.info(`Service '${name}' started (${duration.toFixed(3)}ms)`)
     } catch (error) {
       const metadata = this.container.getMetadata(name)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Stopped, error as Error)
@@ -621,9 +628,11 @@ export class LifecycleManager extends EventEmitter {
 
       try {
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_INITIALIZING, depName, LifecycleState.Initializing)
+        const depStart = performance.now()
         await depInstance._doInit()
+        const depDuration = performance.now() - depStart
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, depName, LifecycleState.Ready)
-        logger.debug(`Service '${depName}' started (cascade)`)
+        logger.info(`Service '${depName}' started (cascade) (${depDuration.toFixed(3)}ms)`)
       } catch (error) {
         const metadata = this.container.getMetadata(depName)
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, depName, LifecycleState.Stopped, error as Error)
@@ -677,10 +686,12 @@ export class LifecycleManager extends EventEmitter {
 
     try {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_PAUSING, serviceName, LifecycleState.Pausing)
+      const start = performance.now()
       const success = await instance._doPause()
+      const duration = performance.now() - start
       if (success) {
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_PAUSED, serviceName, LifecycleState.Paused)
-        logger.debug(`Service '${serviceName}' paused`)
+        logger.info(`Service '${serviceName}' paused (${duration.toFixed(3)}ms)`)
       }
     } catch (error) {
       logger.error(`Error pausing service '${serviceName}':`, error as Error)
@@ -699,10 +710,12 @@ export class LifecycleManager extends EventEmitter {
 
     try {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_RESUMING, serviceName, LifecycleState.Resuming)
+      const start = performance.now()
       const success = await instance._doResume()
+      const duration = performance.now() - start
       if (success) {
         this.emitLifecycleEvent(LifecycleEvents.SERVICE_RESUMED, serviceName, LifecycleState.Ready)
-        logger.debug(`Service '${serviceName}' resumed`)
+        logger.info(`Service '${serviceName}' resumed (${duration.toFixed(3)}ms)`)
       }
     } catch (error) {
       logger.error(`Error resuming service '${serviceName}':`, error as Error)
@@ -752,7 +765,6 @@ export class LifecycleManager extends EventEmitter {
     try {
       await instance._doActivate()
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ACTIVATED, name, LifecycleState.Ready)
-      logger.info(`Service '${name}' activated`)
     } catch (error) {
       logger.error(`Error activating '${name}':`, error as Error)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error as Error)
@@ -784,7 +796,6 @@ export class LifecycleManager extends EventEmitter {
     try {
       await instance._doDeactivate()
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_DEACTIVATED, name, LifecycleState.Ready)
-      logger.info(`Service '${name}' deactivated`)
     } catch (error) {
       logger.error(`Error deactivating '${name}':`, error as Error)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error as Error)
