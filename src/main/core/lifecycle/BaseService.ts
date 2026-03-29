@@ -1,6 +1,6 @@
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 
-import type { Disposable } from './event'
+import { type Disposable, toDisposable } from './event'
 import { type ErrorStrategy, isActivatable, isPausable, LifecycleState } from './types'
 
 /**
@@ -17,12 +17,6 @@ export abstract class BaseService {
 
   /** Guard flag to ensure onAllReady is called at most once per service instance */
   private _allReadyCalled = false
-
-  /** Channels registered via ipcHandle(), auto-cleaned on stop */
-  private _ipcHandleChannels: string[] = []
-
-  /** Listeners registered via ipcOn(), auto-cleaned on stop */
-  private _ipcOnListeners: { channel: string; listener: (...args: any[]) => void }[] = []
 
   /** Disposables registered via registerDisposable(), auto-cleaned on stop */
   private _disposables: Disposable[] = []
@@ -109,53 +103,51 @@ export abstract class BaseService {
   /**
    * Register an IPC handler (ipcMain.handle).
    * Automatically tracked and removed on service stop/destroy.
+   * Returns a Disposable to manually unregister before service stop if needed.
    */
   protected ipcHandle(
     channel: string,
     listener: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any> | any
-  ): void {
+  ): Disposable {
     ipcMain.handle(channel, listener)
-    this._ipcHandleChannels.push(channel)
+    return this.registerDisposable(() => ipcMain.removeHandler(channel))
   }
 
   /**
    * Register an IPC event listener (ipcMain.on).
    * Automatically tracked and removed on service stop/destroy.
+   * Returns a Disposable to manually unregister before service stop if needed.
    */
-  protected ipcOn(channel: string, listener: (event: IpcMainEvent, ...args: any[]) => void): void {
+  protected ipcOn(channel: string, listener: (event: IpcMainEvent, ...args: any[]) => void): Disposable {
     ipcMain.on(channel, listener)
-    this._ipcOnListeners.push({ channel, listener })
+    return this.registerDisposable(() => ipcMain.removeListener(channel, listener))
   }
 
   /**
    * Register a disposable for automatic cleanup on service stop/destroy.
-   * Use for event subscriptions, signals, or any resource implementing Disposable.
+   * Accepts either a Disposable object or a plain cleanup function.
+   * Returns the registered disposable for optional inline assignment.
    *
    * @example
+   * // Disposable object (e.g., Emitter subscription)
    * this.registerDisposable(windowService.onMainWindowCreated((win) => this.bind(win)))
+   *
+   * // Plain cleanup function (e.g., PreferenceService.subscribeChange)
+   * this.registerDisposable(preferenceService.subscribeChange('key', handler))
+   *
+   * // Inline assignment
+   * this.emitter = this.registerDisposable(new Emitter<void>())
    */
-  protected registerDisposable(disposable: Disposable): void {
+  protected registerDisposable<T extends Disposable>(disposable: T): T
+  protected registerDisposable(dispose: () => void): Disposable
+  protected registerDisposable<T extends Disposable>(disposableOrFn: T | (() => void)): T | Disposable {
+    const disposable = typeof disposableOrFn === 'function' ? toDisposable(disposableOrFn) : disposableOrFn
     this._disposables.push(disposable)
+    return disposable
   }
 
   /**
-   * Remove all tracked IPC handlers and listeners.
-   * Called automatically after onStop() and in _doDestroy().
-   * Safe to call multiple times (double-remove is a no-op).
-   */
-  private _cleanupIpc(): void {
-    for (const channel of this._ipcHandleChannels) {
-      ipcMain.removeHandler(channel)
-    }
-    for (const { channel, listener } of this._ipcOnListeners) {
-      ipcMain.removeListener(channel, listener)
-    }
-    this._ipcHandleChannels = []
-    this._ipcOnListeners = []
-  }
-
-  /**
-   * Dispose all tracked disposables (event subscriptions, signals, etc.).
+   * Dispose all tracked disposables (IPC handlers, event subscriptions, signals, etc.).
    * Called automatically after onStop() and in _doDestroy().
    */
   private _cleanupDisposables(): void {
@@ -237,7 +229,6 @@ export abstract class BaseService {
       }
       await this.onStop()
     } finally {
-      this._cleanupIpc()
       this._cleanupDisposables()
     }
     this._state = LifecycleState.Stopped
@@ -248,6 +239,9 @@ export abstract class BaseService {
    * Called by LifecycleManager
    */
   public async _doDestroy(): Promise<void> {
+    if (this._state === LifecycleState.Destroyed) {
+      return
+    }
     // Safety net: deactivate if still active (e.g., destroy without stop)
     if (this._activated && isActivatable(this)) {
       try {
@@ -258,7 +252,6 @@ export abstract class BaseService {
       this._activated = false
     }
     await this.onDestroy()
-    this._cleanupIpc()
     this._cleanupDisposables()
     this._state = LifecycleState.Destroyed
   }
@@ -329,9 +322,7 @@ export abstract class BaseService {
    * @returns True if pause was successful, false if service doesn't support pause
    */
   public async _doPause(): Promise<boolean> {
-    if (!isPausable(this)) {
-      return false
-    }
+    if (!isPausable(this)) return false
     this._state = LifecycleState.Pausing
     await this.onPause()
     this._state = LifecycleState.Paused
@@ -345,9 +336,7 @@ export abstract class BaseService {
    * @returns True if resume was successful, false if service doesn't support resume
    */
   public async _doResume(): Promise<boolean> {
-    if (!isPausable(this)) {
-      return false
-    }
+    if (!isPausable(this)) return false
     this._state = LifecycleState.Resuming
     await this.onResume()
     this._state = LifecycleState.Ready

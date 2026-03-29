@@ -116,7 +116,8 @@ All main-process services that own long-lived resources or register persistent s
 - **Extend `BaseService`**, apply `@Injectable`, `@ServicePhase`, `@DependsOn` decorators
 - **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`) — one line per service
 - **Access via `application.get('Name')`** (or `getOptional()` for `@Conditional` services)
-- **Use `this.ipcHandle()` / `this.ipcOn()`** for IPC — auto-cleaned on stop/destroy
+- **Use `this.ipcHandle()` / `this.ipcOn()`** for IPC — auto-cleaned on stop/destroy, returns `Disposable`
+- **Use `this.registerDisposable()`** for cleanup tracking — accepts `Disposable` objects or `() => void` cleanup functions
 - **Use `Emitter<T>` / `Event<T>`** for inter-service events, **`Signal<T>`** for one-shot completion
 - **Implement `Activatable`** for services with heavy on-demand resources (IPC stays registered, resources load/release via `onActivate()`/`onDeactivate()`)
 - **Do NOT** use `new` or manual singleton patterns — the container manages instantiation, ordering, and shutdown

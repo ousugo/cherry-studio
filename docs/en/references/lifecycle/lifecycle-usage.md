@@ -140,10 +140,10 @@ When a lifecycle service registers IPC handlers, it should use BaseService's bui
 
 ### API
 
-| Method | Wraps | Auto-cleanup via |
-|--------|-------|------------------|
-| `this.ipcHandle(channel, listener)` | `ipcMain.handle()` | `ipcMain.removeHandler()` |
-| `this.ipcOn(channel, listener)` | `ipcMain.on()` | `ipcMain.removeListener()` |
+| Method | Wraps | Auto-cleanup via | Returns |
+|--------|-------|------------------|---------|
+| `this.ipcHandle(channel, listener)` | `ipcMain.handle()` | `ipcMain.removeHandler()` | `Disposable` |
+| `this.ipcOn(channel, listener)` | `ipcMain.on()` | `ipcMain.removeListener()` | `Disposable` |
 
 > `ipcOnce()` is intentionally not provided — once-listeners fire once and auto-remove, so they do not need lifecycle tracking.
 
@@ -178,9 +178,9 @@ export class WindowService extends BaseService {
 1. **On stop**: All tracked handlers are removed **after** `onStop()` returns, so the service can still use IPC during its own shutdown if needed.
 2. **On stop failure**: If `onStop()` throws, IPC cleanup still executes (via try/finally).
 3. **On destroy**: Safety-net cleanup runs in `_doDestroy()` for edge cases where a service is destroyed without being stopped first (e.g., init failure).
-4. **On restart**: Tracking arrays are reset after cleanup, so `onInit()` can re-register handlers cleanly.
+4. **On restart**: Disposables array is reset after cleanup, so `onInit()` can re-register handlers cleanly.
 5. **Backward compatible**: Safe to mix with manual `ipcMain.removeHandler()` in `onStop()` — double-remove is a no-op.
-6. **Disposables**: Resources registered via `registerDisposable()` are disposed after `onStop()` returns, alongside IPC cleanup. Same guarantees apply (try/finally, safety-net in destroy, reset on restart).
+6. **Unified cleanup**: IPC handlers and other disposables (event subscriptions, cleanup functions) are tracked through a single `registerDisposable()` mechanism and cleaned up together.
 
 ### Phase Behavior
 
@@ -378,12 +378,12 @@ class SelectionService extends BaseService implements Activatable {
     // Set up trigger: subscribe to preference changes
     // Note: PreferenceService is Phase.BeforeReady — guaranteed ready before WhenReady services
     const prefService = application.get('PreferenceService')
-    this.registerDisposable({
-      dispose: prefService.subscribeChange('feature.selection.enabled', async (enabled) => {
+    this.registerDisposable(
+      prefService.subscribeChange('feature.selection.enabled', async (enabled) => {
         if (enabled) await this.activate()
         else await this.deactivate()
       })
-    })
+    )
   }
 
   protected async onReady() {
