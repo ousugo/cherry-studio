@@ -305,6 +305,9 @@ export class ProxyManager extends BaseService {
   }
 
   protected async onReady(): Promise<void> {
+    // direct is the constructor default — skip redundant reconfiguration
+    const mode = application.get('PreferenceService').get('app.proxy.mode')
+    if (mode === 'none') return
     await this.applyProxyFromPreferences()
   }
 
