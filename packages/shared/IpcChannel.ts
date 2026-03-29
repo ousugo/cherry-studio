@@ -10,7 +10,6 @@ export enum IpcChannel {
   App_Reload = 'app:reload',
   Application_Quit = 'application:quit',
   App_Info = 'app:info',
-  App_Proxy = 'app:proxy',
   App_SetLaunchToTray = 'app:set-launch-to-tray',
   App_SetTray = 'app:set-tray',
   App_SetTrayOnClose = 'app:set-tray-on-close',
