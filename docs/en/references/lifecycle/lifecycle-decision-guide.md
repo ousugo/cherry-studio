@@ -127,6 +127,7 @@ Once a service belongs in lifecycle, it may need optional behaviors:
 | Service only runs on specific platform/arch | `@Conditional` | Excluded at boot, zero overhead |
 | Service needs temporary suspend/resume (e.g., window inactive) | `Pausable` | Keeps instance and resources, just pauses execution |
 | Service always needs IPC, but heavy resources load on demand | `Activatable` | IPC always available, resources allocated only when needed |
+| Service has a runtime toggle (preference, feature flag) controlling on/off | `Activatable` | Unified activate/deactivate pattern, even for lightweight resources |
 | Service runs unconditionally with all resources | None | Default behavior |
 
 ### Decision Flow
@@ -136,10 +137,10 @@ Does the service need to be entirely excluded on some platforms?
   ├─ Yes, condition is known at boot and immutable
   │     → @Conditional (platform, arch, env var, etc.)
   └─ No
-       Does the service have heavy resources that should only load on demand?
+       Does the service have heavy resources OR a runtime toggle controlling on/off?
          ├─ Yes → Activatable
          │     IPC registered in onInit() (always available)
-         │     Heavy resources in onActivate()/onDeactivate()
+         │     Resources in onActivate()/onDeactivate()
          │     Service decides trigger (preference, event, IPC, etc.)
          └─ No
               Does the service need temporary pause/resume?
@@ -161,7 +162,7 @@ Does the service need to be entirely excluded on some platforms?
 
 ### When Activatable is NOT appropriate
 
-- **Lightweight resources** (Map, simple state) — not worth the split, load in `onInit()`
+- **Lightweight resources with no runtime toggle** (Map, simple state that is always needed) — not worth the split, load in `onInit()`
 - **No IPC needed when inactive** — consider `@Conditional` to exclude entirely
 - **Resources need coordinated release across services** — consider `Pausable` (supports cascade)
 

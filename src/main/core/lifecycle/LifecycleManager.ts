@@ -353,8 +353,7 @@ export class LifecycleManager extends EventEmitter {
         lines.push(row(`  ${title.padEnd(30)} ${fmt(timing.duration).padStart(12)}`))
         for (const [name, ms] of services) {
           const tags = this.getServiceTags(name)
-          const label = tags ? `${name} ${tags}` : name
-          lines.push(row(`    ${label.padEnd(28)} ${fmt(ms).padStart(12)}`))
+          lines.push(row(`    ${name.padEnd(26)} ${tags}  ${fmt(ms).padStart(10)}`))
         }
       } else {
         lines.push(row(`  [${phase}]`))
@@ -362,18 +361,23 @@ export class LifecycleManager extends EventEmitter {
 
       if (excludedServices && excludedServices.length > 0) {
         for (const name of excludedServices) {
-          const label = `${name} [C]`
-          lines.push(row(`    ${label.padEnd(28)} ${'Excluded'.padStart(12)}`))
+          lines.push(row(`    ${name.padEnd(26)} C   ${'Excluded'.padStart(10)}`))
         }
       }
     }
 
-    // Phase adjustments & exclusions
-    if (this.phaseAdjustments.length > 0 || excludedCount > 0) {
-      lines.push(sep('├', '┤'))
-      lines.push(row(`  Adjustments: ${this.phaseAdjustments.length}  |  Excluded: ${excludedCount}`))
+    // Count tags: initialized services + excluded (which are always Conditional)
+    let conditionalCount = excludedCount
+    let activatableCount = 0
+    for (const name of this.initializationOrder) {
+      const tags = this.getServiceTags(name)
+      if (tags[0] === 'C') conditionalCount++
+      if (tags[1] === 'A') activatableCount++
     }
 
+    lines.push(sep('├', '┤'))
+    lines.push(row(`  (C)onditional: ${conditionalCount}  |  (A)ctivatable: ${activatableCount}`))
+    lines.push(row(`  Adjustments: ${this.phaseAdjustments.length}  |  Excluded: ${excludedCount}`))
     lines.push(sep('└', '┘'))
     return lines.join('\n')
   }
@@ -725,15 +729,14 @@ export class LifecycleManager extends EventEmitter {
 
   /**
    * Build service annotation tags for bootstrap summary display.
-   * [C] = Conditional, [A] = Activatable. Order: C before A.
+   * Fixed 2-char string: position 0 = C (Conditional), position 1 = A (Activatable).
    */
   private getServiceTags(name: string): string {
     const metadata = this.container.getMetadata(name)
     const instance = this.container.getInstance(name)
-    const tags: string[] = []
-    if (metadata?.conditions?.length) tags.push('[C]')
-    if (instance && isActivatable(instance)) tags.push('[A]')
-    return tags.join('')
+    const c = metadata?.conditions?.length ? 'C' : ' '
+    const a = instance && isActivatable(instance) ? 'A' : ' '
+    return c + a
   }
 
   // ============================================================================
