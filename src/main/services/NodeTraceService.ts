@@ -38,9 +38,6 @@ export class NodeTraceService extends BaseService implements Activatable {
   private traceWin: BrowserWindow | null = null
   private unsubscribeLanguage: (() => void) | null = null
 
-  // Saved reference to the original ipcMain.handle, used to restore in onStop()
-  private originalHandle: typeof ipcMain.handle | null = null
-
   // Stored from dynamic import, needed for shutdown in onDeactivate()
   private nodeTracer: { shutdown(): Promise<void> } | null = null
 
@@ -88,11 +85,6 @@ export class NodeTraceService extends BaseService implements Activatable {
     }
   }
 
-  protected async onStop() {
-    // Auto-deactivation (destroyTraceWindow + MCPNodeTracer.shutdown) runs before this
-    this.restoreIpcMainHandle()
-  }
-
   /**
    * Initialize the OpenTelemetry tracer with a CacheBatchSpanProcessor
    * that feeds span data into SpanCacheService.
@@ -130,8 +122,7 @@ export class NodeTraceService extends BaseService implements Activatable {
    * context for the handler execution, enabling cross-process distributed tracing.
    */
   private patchIpcMainHandle() {
-    this.originalHandle = ipcMain.handle
-    const originalHandle = this.originalHandle
+    const originalHandle = ipcMain.handle
     ipcMain.handle = (channel: string, handler: (...args: any[]) => Promise<any>) => {
       return originalHandle.call(ipcMain, channel, async (event, ...args) => {
         const carray = args && args.length > 0 ? args[args.length - 1] : {}
@@ -145,16 +136,9 @@ export class NodeTraceService extends BaseService implements Activatable {
         return context.with(ctx, () => handler(event, ...newArgs))
       })
     }
-  }
-
-  /**
-   * Restore the original ipcMain.handle() to undo the monkey-patch on shutdown.
-   */
-  private restoreIpcMainHandle() {
-    if (this.originalHandle) {
-      ipcMain.handle = this.originalHandle
-      this.originalHandle = null
-    }
+    this.registerDisposable(() => {
+      ipcMain.handle = originalHandle
+    })
   }
 
   private registerIpcHandlers() {

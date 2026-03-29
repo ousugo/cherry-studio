@@ -14,7 +14,6 @@ import iconLight from '../../../build/tray_icon_light.png?asset'
 export class TrayService extends BaseService {
   private tray: Tray | null = null
   private contextMenu: Menu | null = null
-  private unsubscribes: (() => void)[] = []
 
   protected async onInit() {
     this.watchConfigChanges()
@@ -22,10 +21,6 @@ export class TrayService extends BaseService {
   }
 
   protected async onStop() {
-    for (const unsub of this.unsubscribes) {
-      unsub()
-    }
-    this.unsubscribes = []
     this.destroyTray()
   }
 
@@ -129,10 +124,12 @@ export class TrayService extends BaseService {
 
   private watchConfigChanges() {
     const preferenceService = application.get('PreferenceService')
-    this.unsubscribes.push(
-      preferenceService.subscribeChange('app.tray.enabled', () => this.updateTray()),
-      preferenceService.subscribeChange('app.language', () => this.updateContextMenu()),
-      preferenceService.subscribeChange('feature.quick_assistant.enabled', () => this.updateContextMenu()),
+    this.registerDisposable(preferenceService.subscribeChange('app.tray.enabled', () => this.updateTray()))
+    this.registerDisposable(preferenceService.subscribeChange('app.language', () => this.updateContextMenu()))
+    this.registerDisposable(
+      preferenceService.subscribeChange('feature.quick_assistant.enabled', () => this.updateContextMenu())
+    )
+    this.registerDisposable(
       preferenceService.subscribeChange('feature.selection.enabled', () => this.updateContextMenu())
     )
   }
