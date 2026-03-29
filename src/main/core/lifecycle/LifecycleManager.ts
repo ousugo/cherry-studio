@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
 import { ServiceContainer } from './ServiceContainer'
 import {
+  isActivatable,
   isPausable,
   type LifecycleEvent,
   type LifecycleEventPayload,
@@ -346,7 +347,9 @@ export class LifecycleManager extends EventEmitter {
         const title = `[${phase}] ${timing.serviceCount} services`
         lines.push(row(`  ${title.padEnd(30)} ${fmt(timing.duration).padStart(12)}`))
         for (const [name, ms] of services) {
-          lines.push(row(`    ${name.padEnd(28)} ${fmt(ms).padStart(12)}`))
+          const tags = this.getServiceTags(name)
+          const label = tags ? `${name} ${tags}` : name
+          lines.push(row(`    ${label.padEnd(28)} ${fmt(ms).padStart(12)}`))
         }
       } else {
         lines.push(row(`  [${phase}]`))
@@ -354,7 +357,8 @@ export class LifecycleManager extends EventEmitter {
 
       if (excludedServices && excludedServices.length > 0) {
         for (const name of excludedServices) {
-          lines.push(row(`    ${name.padEnd(28)} ${'Excluded'.padStart(12)}`))
+          const label = `${name} [C]`
+          lines.push(row(`    ${label.padEnd(28)} ${'Excluded'.padStart(12)}`))
         }
       }
     }
@@ -703,6 +707,87 @@ export class LifecycleManager extends EventEmitter {
     } catch (error) {
       logger.error(`Error resuming service '${serviceName}':`, error as Error)
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, serviceName, instance.state, error as Error)
+    }
+  }
+
+  /**
+   * Build service annotation tags for bootstrap summary display.
+   * [C] = Conditional, [A] = Activatable. Order: C before A.
+   */
+  private getServiceTags(name: string): string {
+    const metadata = this.container.getMetadata(name)
+    const instance = this.container.getInstance(name)
+    const tags: string[] = []
+    if (metadata?.conditions?.length) tags.push('[C]')
+    if (instance && isActivatable(instance)) tags.push('[A]')
+    return tags.join('')
+  }
+
+  // ============================================================================
+  // Feature Activation Operations
+  // ============================================================================
+
+  /**
+   * Activate a service's heavy resources.
+   * The service must implement Activatable (onActivate/onDeactivate).
+   * No cascade — activation is service-specific.
+   * @param name - Service name to activate
+   */
+  public async activate(name: string): Promise<void> {
+    const instance = this.container.getInstance(name)
+    if (!instance) {
+      logger.warn(`Cannot activate: service '${name}' not found`)
+      return
+    }
+    if (instance.state !== LifecycleState.Ready) {
+      logger.warn(`Cannot activate: '${name}' not Ready (${instance.state})`)
+      return
+    }
+    if (!isActivatable(instance)) {
+      logger.error(`Cannot activate: '${name}' does not implement Activatable`)
+      return
+    }
+    if (instance.isActivated) return
+
+    try {
+      await instance._doActivate()
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ACTIVATED, name, LifecycleState.Ready)
+      logger.info(`Service '${name}' activated`)
+    } catch (error) {
+      logger.error(`Error activating '${name}':`, error as Error)
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error as Error)
+    }
+  }
+
+  /**
+   * Deactivate a service, releasing heavy resources.
+   * The service must implement Activatable.
+   * No cascade — deactivation is service-specific.
+   * @param name - Service name to deactivate
+   */
+  public async deactivate(name: string): Promise<void> {
+    const instance = this.container.getInstance(name)
+    if (!instance) {
+      logger.warn(`Cannot deactivate: service '${name}' not found`)
+      return
+    }
+    if (!isActivatable(instance)) {
+      logger.error(`Cannot deactivate: '${name}' does not implement Activatable`)
+      return
+    }
+    if (!instance.isActivated) return
+    if (instance.state !== LifecycleState.Ready) {
+      logger.warn(`Cannot deactivate: '${name}' not Ready (${instance.state})`)
+      return
+    }
+
+    try {
+      await instance._doDeactivate()
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_DEACTIVATED, name, LifecycleState.Ready)
+      logger.info(`Service '${name}' deactivated`)
+    } catch (error) {
+      logger.error(`Error deactivating '${name}':`, error as Error)
+      this.emitLifecycleEvent(LifecycleEvents.SERVICE_ERROR, name, LifecycleState.Ready, error as Error)
     }
   }
 }

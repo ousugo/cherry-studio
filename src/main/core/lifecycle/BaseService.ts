@@ -1,7 +1,7 @@
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 
 import type { Disposable } from './event'
-import { type ErrorStrategy, isPausable, LifecycleState } from './types'
+import { type ErrorStrategy, isActivatable, isPausable, LifecycleState } from './types'
 
 /**
  * Abstract base class for all lifecycle-managed services
@@ -26,6 +26,12 @@ export abstract class BaseService {
 
   /** Disposables registered via registerDisposable(), auto-cleaned on stop */
   private _disposables: Disposable[] = []
+
+  /** Whether the service's heavy resources are currently activated (Activatable interface) */
+  private _activated = false
+
+  /** Guard flag to prevent concurrent activate/deactivate execution */
+  private _activating = false
 
   /** Error handling strategy for this service */
   static errorStrategy: ErrorStrategy = 'graceful'
@@ -89,6 +95,15 @@ export abstract class BaseService {
    */
   public get isStopped(): boolean {
     return this._state === LifecycleState.Stopped
+  }
+
+  /**
+   * Whether the service's heavy resources are currently activated.
+   * Only meaningful for services implementing the Activatable interface.
+   * Always false for non-Activatable services.
+   */
+  public get isActivated(): boolean {
+    return this._activated
   }
 
   /**
@@ -211,6 +226,15 @@ export abstract class BaseService {
   public async _doStop(): Promise<void> {
     this._state = LifecycleState.Stopping
     try {
+      // Auto-deactivate: independent try/catch, failure does not block onStop
+      if (this._activated && isActivatable(this)) {
+        try {
+          await this.onDeactivate()
+        } catch {
+          // best-effort — logged by service
+        }
+        this._activated = false
+      }
       await this.onStop()
     } finally {
       this._cleanupIpc()
@@ -224,10 +248,78 @@ export abstract class BaseService {
    * Called by LifecycleManager
    */
   public async _doDestroy(): Promise<void> {
+    // Safety net: deactivate if still active (e.g., destroy without stop)
+    if (this._activated && isActivatable(this)) {
+      try {
+        await this.onDeactivate()
+      } catch {
+        // best-effort
+      }
+      this._activated = false
+    }
     await this.onDestroy()
     this._cleanupIpc()
     this._cleanupDisposables()
     this._state = LifecycleState.Destroyed
+  }
+
+  /**
+   * Internal method to execute feature activation.
+   * Only works if the service implements Activatable and is in Ready state.
+   * Idempotent. Guarded against concurrent execution.
+   * Called by LifecycleManager or via protected activate().
+   * @returns True if activation succeeded or was already active
+   */
+  public async _doActivate(): Promise<boolean> {
+    if (!isActivatable(this)) return false
+    if (this._activated || this._activating) return this._activated
+    if (this._state !== LifecycleState.Ready) return false
+    this._activating = true
+    try {
+      await this.onActivate()
+      this._activated = true
+      return true
+    } finally {
+      this._activating = false
+    }
+  }
+
+  /**
+   * Internal method to execute feature deactivation.
+   * Only works if the service implements Activatable.
+   * Idempotent. Guarded against concurrent execution.
+   * Called by LifecycleManager or via protected deactivate().
+   * @returns True if deactivation succeeded or was already inactive
+   */
+  public async _doDeactivate(): Promise<boolean> {
+    if (!isActivatable(this)) return false
+    if (!this._activated || this._activating) return !this._activated
+    this._activating = true
+    try {
+      await this.onDeactivate()
+      this._activated = false
+      return true
+    } finally {
+      this._activating = false
+    }
+  }
+
+  /**
+   * Self-activate: load heavy resources.
+   * For use within the service itself (e.g., in onReady() or event handlers).
+   * External callers should use application.activate(name) instead.
+   */
+  protected async activate(): Promise<boolean> {
+    return this._doActivate()
+  }
+
+  /**
+   * Self-deactivate: release heavy resources.
+   * For use within the service itself.
+   * External callers should use application.deactivate(name) instead.
+   */
+  protected async deactivate(): Promise<boolean> {
+    return this._doDeactivate()
   }
 
   /**

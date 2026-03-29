@@ -118,8 +118,56 @@ export class ExportService {
 export const exportService = new ExportService()
 ```
 
+## Choosing Between @Conditional, Pausable, and Activatable
+
+Once a service belongs in lifecycle, it may need optional behaviors:
+
+| Scenario | Use | Reason |
+|----------|-----|--------|
+| Service only runs on specific platform/arch | `@Conditional` | Excluded at boot, zero overhead |
+| Service needs temporary suspend/resume (e.g., window inactive) | `Pausable` | Keeps instance and resources, just pauses execution |
+| Service always needs IPC, but heavy resources load on demand | `Activatable` | IPC always available, resources allocated only when needed |
+| Service runs unconditionally with all resources | None | Default behavior |
+
+### Decision Flow
+
+```
+Does the service need to be entirely excluded on some platforms?
+  ├─ Yes, condition is known at boot and immutable
+  │     → @Conditional (platform, arch, env var, etc.)
+  └─ No
+       Does the service have heavy resources that should only load on demand?
+         ├─ Yes → Activatable
+         │     IPC registered in onInit() (always available)
+         │     Heavy resources in onActivate()/onDeactivate()
+         │     Service decides trigger (preference, event, IPC, etc.)
+         └─ No
+              Does the service need temporary pause/resume?
+                ├─ Yes → Pausable
+                └─ No → No extra interface needed
+```
+
+### Activatable vs Pausable
+
+| | Activatable | Pausable |
+|---|------------|---------|
+| Purpose | On-demand resource loading/release | Temporary execution suspension |
+| State dimension | Orthogonal to LifecycleState | Changes LifecycleState |
+| IPC handlers | Always available (registered in onInit) | Retained while paused (removed on stop) |
+| Resources | Not allocated when inactive | Retained while paused |
+| Trigger | Service decides (self or external via `application.activate`) | LifecycleManager with cascade |
+| Cascade | No cascade | Cascades to dependents |
+| Cycles | Supports repeated activate/deactivate | Supports repeated pause/resume |
+
+### When Activatable is NOT appropriate
+
+- **Lightweight resources** (Map, simple state) — not worth the split, load in `onInit()`
+- **No IPC needed when inactive** — consider `@Conditional` to exclude entirely
+- **Resources need coordinated release across services** — consider `Pausable` (supports cascade)
+
 ## Common Mistakes
 
 1. **Empty hooks** — `extends BaseService` but no `onInit()` / `onStop()` override. If both would be empty, don't use lifecycle.
 2. **Request-scoped ≠ long-lived** — `BackupManager` creates S3 connections inside `backup()` and releases on return. That's request-scoped. No lifecycle needed.
 3. **"Depends on PreferenceService"** — not a lifecycle concern. Any code can call `application.get('PreferenceService')`. Only register if the service itself owns resources.
+4. **Using `@Conditional` for runtime conditions** — `@Conditional` is evaluated once at boot. For conditions that change at runtime (user preferences, events), use `Activatable` instead.

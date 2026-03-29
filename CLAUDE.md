@@ -139,6 +139,8 @@ export class MyService extends BaseService {
 
 > Use `Emitter<T>` / `Event<T>` for inter-service runtime communication (e.g., notifying other services when work completes after `onInit()`). Use `Signal<T>` for one-shot completion. Register subscriptions via `this.registerDisposable()` for automatic cleanup on stop/destroy. See [Lifecycle Usage Guide](docs/en/references/lifecycle/lifecycle-usage.md#service-events-emitter--event).
 
+> **On-demand resource loading**: Services with heavy resources (native modules, windows, caches) that should only load when a condition is met (e.g., user preference) can implement the `Activatable` interface (`onActivate()`/`onDeactivate()`). IPC handlers stay registered in `onInit()`; heavy resources are managed in the activate/deactivate hooks. See [Lifecycle Usage Guide — Activatable](docs/en/references/lifecycle/lifecycle-usage.md#activatable-optional--on-demand-resource-loading) and [Decision Guide](docs/en/references/lifecycle/lifecycle-decision-guide.md#choosing-between-conditional-pausable-and-activatable).
+
 2. **Register in `serviceRegistry.ts`** (`src/main/core/application/serviceRegistry.ts`):
 
 ```typescript

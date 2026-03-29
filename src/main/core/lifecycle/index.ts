@@ -31,9 +31,11 @@ export { LifecycleManager } from './LifecycleManager'
 export { ServiceContainer } from './ServiceContainer'
 export { Signal } from './signal'
 export {
+  type Activatable,
   type ConditionContext,
   type DependencyNode,
   type ErrorStrategy,
+  isActivatable,
   isPausable,
   type LifecycleEvent,
   type LifecycleEventPayload,
