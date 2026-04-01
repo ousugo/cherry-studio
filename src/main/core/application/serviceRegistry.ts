@@ -14,6 +14,7 @@ import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
 import { ProxyManager } from '@main/services/ProxyManager'
+import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/SelectionService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
@@ -69,6 +70,7 @@ export const services = {
   WindowService,
   MCPService,
   OpenClawService,
+  SearchService,
   ApiServerService,
   AppUpdaterService
 } as const
