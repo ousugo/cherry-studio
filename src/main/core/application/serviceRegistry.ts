@@ -10,6 +10,7 @@ import { CodeCliService } from '@main/services/CodeCliService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MCPService } from '@main/services/MCPService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
+import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { PowerMonitorService } from '@main/services/PowerMonitorService'
@@ -63,6 +64,7 @@ export const services = {
   ThemeService,
   SpanCacheService,
   NodeTraceService,
+  OcrService,
   OvmsManager,
   ProxyManager,
   TrayService,
