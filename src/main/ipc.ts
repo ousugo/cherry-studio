@@ -41,7 +41,6 @@ import { memoryService } from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
-import { pythonService } from './services/PythonService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { vertexAIService } from './services/VertexAIService'
 import { calculateDirectorySize, getResourcePath } from './utils'
@@ -600,14 +599,6 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
       }
     }
   })
-
-  // Register Python execution handler
-  ipcMain.handle(
-    IpcChannel.Python_Execute,
-    async (_, script: string, context?: Record<string, any>, timeout?: number) => {
-      return await pythonService.executeScript(script, context, timeout)
-    }
-  )
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
