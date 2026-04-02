@@ -539,23 +539,23 @@ class AssistantServer {
       const topicNamingModel = configManager.get<Record<string, unknown>>('topicNamingModel', {})
 
       const settings = {
-        language: configManager.getLanguage(),
-        theme: configManager.getTheme(),
+        language: configManager.get<string>('language', ''),
+        theme: configManager.get<string>('theme', 'system'),
         proxy: configManager.get<string>('proxy', ''),
-        zoomFactor: configManager.getZoomFactor(),
+        zoomFactor: configManager.get<number>('ZoomFactor', 1),
         defaultModel: defaultModel
           ? { id: defaultModel.id, name: defaultModel.name, provider: defaultModel.provider }
           : null,
         topicNamingModel: topicNamingModel ? { id: topicNamingModel.id, name: topicNamingModel.name } : null,
-        tray: configManager.getTray(),
-        trayOnClose: configManager.getTrayOnClose(),
-        launchToTray: configManager.getLaunchToTray(),
-        autoUpdate: configManager.getAutoUpdate(),
-        enableQuickAssistant: configManager.getEnableQuickAssistant(),
-        selectionAssistantEnabled: configManager.getSelectionAssistantEnabled(),
-        enableDeveloperMode: configManager.getEnableDeveloperMode(),
-        disableHardwareAcceleration: configManager.getDisableHardwareAcceleration(),
-        useSystemTitleBar: configManager.getUseSystemTitleBar()
+        tray: !!configManager.get<boolean>('tray', true),
+        trayOnClose: !!configManager.get<boolean>('trayOnClose', true),
+        launchToTray: !!configManager.get<boolean>('launchToTray', false),
+        autoUpdate: configManager.get<boolean>('autoUpdate', true),
+        enableQuickAssistant: configManager.get<boolean>('enableQuickAssistant', false),
+        selectionAssistantEnabled: configManager.get<boolean>('selectionAssistantEnabled', false),
+        enableDeveloperMode: configManager.get<boolean>('enableDeveloperMode', false),
+        disableHardwareAcceleration: configManager.get<boolean>('disableHardwareAcceleration', false),
+        useSystemTitleBar: configManager.get<boolean>('useSystemTitleBar', false)
       }
 
       return {

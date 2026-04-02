@@ -1,10 +1,10 @@
 import path from 'node:path'
 
+import { application } from '@main/core/application'
 import { getDataPath } from '@main/utils'
 import { IpcChannel } from '@shared/IpcChannel'
 import { parseDataUrl } from '@shared/utils'
 
-import { windowService } from '../../../../../WindowService'
 import {
   ChannelAdapter,
   type ChannelAdapterConfig,
@@ -121,7 +121,7 @@ class WeChatAdapter extends ChannelAdapter {
     status: 'pending' | 'confirmed' | 'expired' | 'disconnected',
     userId?: string
   ): void {
-    const mainWindow = windowService.getMainWindow()
+    const mainWindow = application.get('WindowService').getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IpcChannel.WeChat_QrLogin, {
         channelId: this.channelId,

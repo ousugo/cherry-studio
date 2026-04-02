@@ -2280,10 +2280,6 @@ export const setupChannelStream = (
   const assistant: Assistant = { id: agentId, name: '', prompt: '', topics: [], type: 'claude-code', model }
 
   const blockManager = new BlockManager({
-    dispatch,
-    getState,
-    saveUpdatedBlockToDB,
-    saveUpdatesToDB,
     assistantMsgId: assistantMessage.id,
     topicId,
     throttledBlockUpdate,
@@ -2292,11 +2288,8 @@ export const setupChannelStream = (
 
   const callbacks = createCallbacks({
     blockManager,
-    dispatch,
-    getState,
     topicId,
     assistantMsgId: assistantMessage.id,
-    saveUpdatesToDB,
     assistant
   })
 

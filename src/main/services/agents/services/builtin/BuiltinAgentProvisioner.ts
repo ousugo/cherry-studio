@@ -22,7 +22,7 @@ function resolveLocalizedField(value: unknown): string | undefined {
   if (typeof value !== 'object' || value === null) return undefined
 
   const map = value as Record<string, string>
-  const lang = configManager.getLanguage()
+  const lang = configManager.get<string>('language', 'en-US')
   const prefix = lang.split('-')[0]
   const prefixKey = Object.keys(map).find((k) => k.startsWith(prefix))
 
