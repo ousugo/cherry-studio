@@ -9,7 +9,7 @@
  * plugins from .claude/plugins.json, so no programmatic injection is needed.
  */
 import { loggerService } from '@logger'
-import { configManager } from '@main/services/ConfigManager'
+import { application } from '@main/core/application'
 import { getResourcePath } from '@main/utils'
 import fs from 'fs'
 import path from 'path'
@@ -22,7 +22,7 @@ function resolveLocalizedField(value: unknown): string | undefined {
   if (typeof value !== 'object' || value === null) return undefined
 
   const map = value as Record<string, string>
-  const lang = configManager.get<string>('language', 'en-US')
+  const lang = application.get('PreferenceService').get('app.language') ?? 'en-US'
   const prefix = lang.split('-')[0]
   const prefixKey = Object.keys(map).find((k) => k.startsWith(prefix))
 

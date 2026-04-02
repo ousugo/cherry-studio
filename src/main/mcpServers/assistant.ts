@@ -532,30 +532,32 @@ class AssistantServer {
 
   private async diagnoseConfig() {
     try {
+      // Default model info — still in electron-store (not yet migrated to v2)
       const { configManager } = await import('@main/services/ConfigManager')
-
-      // Default model info
       const defaultModel = configManager.get<Record<string, unknown>>('defaultModel', {})
       const topicNamingModel = configManager.get<Record<string, unknown>>('topicNamingModel', {})
 
+      const { application } = await import('@main/core/application')
+      const preferenceService = application.get('PreferenceService')
+
       const settings = {
-        language: configManager.get<string>('language', ''),
-        theme: configManager.get<string>('theme', 'system'),
-        proxy: configManager.get<string>('proxy', ''),
-        zoomFactor: configManager.get<number>('ZoomFactor', 1),
+        language: preferenceService.get('app.language'),
+        theme: preferenceService.get('ui.theme_mode'),
+        proxy: preferenceService.get('app.proxy.url'),
+        zoomFactor: preferenceService.get('app.zoom_factor'),
         defaultModel: defaultModel
           ? { id: defaultModel.id, name: defaultModel.name, provider: defaultModel.provider }
           : null,
         topicNamingModel: topicNamingModel ? { id: topicNamingModel.id, name: topicNamingModel.name } : null,
-        tray: !!configManager.get<boolean>('tray', true),
-        trayOnClose: !!configManager.get<boolean>('trayOnClose', true),
-        launchToTray: !!configManager.get<boolean>('launchToTray', false),
-        autoUpdate: configManager.get<boolean>('autoUpdate', true),
-        enableQuickAssistant: configManager.get<boolean>('enableQuickAssistant', false),
-        selectionAssistantEnabled: configManager.get<boolean>('selectionAssistantEnabled', false),
-        enableDeveloperMode: configManager.get<boolean>('enableDeveloperMode', false),
-        disableHardwareAcceleration: configManager.get<boolean>('disableHardwareAcceleration', false),
-        useSystemTitleBar: configManager.get<boolean>('useSystemTitleBar', false)
+        tray: preferenceService.get('app.tray.enabled'),
+        trayOnClose: preferenceService.get('app.tray.on_close'),
+        launchToTray: preferenceService.get('app.tray.on_launch'),
+        autoUpdate: preferenceService.get('app.dist.auto_update.enabled'),
+        enableQuickAssistant: preferenceService.get('feature.quick_assistant.enabled'),
+        selectionAssistantEnabled: preferenceService.get('feature.selection.enabled'),
+        enableDeveloperMode: preferenceService.get('app.developer_mode.enabled'),
+        disableHardwareAcceleration: preferenceService.get('BootConfig.app.disable_hardware_acceleration'),
+        useSystemTitleBar: preferenceService.get('app.use_system_title_bar')
       }
 
       return {
