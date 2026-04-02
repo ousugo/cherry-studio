@@ -48,10 +48,6 @@ import {
   registerProtocolClient,
   setupAppImageDeepLink
 } from './services/ProtocolClient'
-import { schedulerService } from './services/agents/services/SchedulerService'
-import { bootstrapBuiltinAgents } from './services/agents/services/builtin/BuiltinAgentBootstrap'
-import { channelManager } from './services/agents/services/channels'
-import { registerSessionStreamIpc } from './services/agents/services/channels/sessionStreamIpc'
 import { versionService } from './services/VersionService'
 import { extractRtkBinaries } from './utils/rtk'
 
@@ -273,20 +269,6 @@ const startApp = async () => {
 
   // Setup deep link for AppImage on Linux
   await setupAppImageDeepLink()
-
-  // ── Agent / Skill / Channel initialization (not yet lifecycle-managed) ──
-  await bootstrapBuiltinAgents()
-  await schedulerService.restoreSchedulers()
-  registerSessionStreamIpc()
-  await channelManager.start()
-
-  // Cleanup non-lifecycle agent services on quit
-  app.on('before-quit', () => {
-    schedulerService.stopAll()
-    channelManager.stop().catch((err) => {
-      logger.error('Error stopping channel manager:', err as Error)
-    })
-  })
 
   if (isDev) {
     installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
