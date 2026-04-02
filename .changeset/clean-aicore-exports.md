@@ -1,5 +1,5 @@
 ---
-'@cherrystudio/ai-core': minor
+'@cherrystudio/ai-core': major
 ---
 
 Remove unused exports, dead types, and over-engineered abstractions from aiCore
