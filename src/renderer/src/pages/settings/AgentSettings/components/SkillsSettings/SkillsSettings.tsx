@@ -1,8 +1,9 @@
+import { Switch } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { InstalledSkill, LocalSkill } from '@types'
 import type { CardProps } from 'antd'
-import { Card, Empty, Spin, Switch, Tag } from 'antd'
+import { Card, Empty, Spin, Tag } from 'antd'
 import { Puzzle } from 'lucide-react'
 import { type FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -54,7 +55,7 @@ const SkillCard = memo<{
             </div>
           </div>
           {skill.source !== 'builtin' && (
-            <Switch checked={skill.isEnabled} loading={toggling} onChange={handleChange} size="small" />
+            <Switch checked={skill.isEnabled} loading={toggling} onCheckedChange={handleChange} size="sm" />
           )}
         </div>
       }
