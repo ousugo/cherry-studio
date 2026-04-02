@@ -49,7 +49,7 @@ export class ProxyManager extends BaseService {
     logger.info(`configureProxy: ${config?.mode} ${config?.proxyRules} ${config?.proxyBypassRules}`)
 
     if (this.isSettingProxy) {
-      this.pendingReconfiguration = true
+      logger.info('Proxy configuration already in progress, skipping')
       return
     }
 
