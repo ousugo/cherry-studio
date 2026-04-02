@@ -11,7 +11,7 @@ import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
 import { MessagesContainer, ScrollContainer } from '@renderer/pages/home/Messages/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
-import store, { useAppDispatch } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import {
   addChannelUserMessage,
   type ChannelStreamController,
@@ -69,7 +69,6 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
       if (!streamCtrlRef.current) {
         streamCtrlRef.current = setupChannelStream(
           dispatch,
-          store.getState,
           sessionTopicId,
           agentId,
           sessionRef.current?.model ?? agentModelRef.current

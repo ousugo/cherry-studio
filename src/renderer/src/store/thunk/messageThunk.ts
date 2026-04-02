@@ -2253,7 +2253,6 @@ export const addChannelUserMessage = (
  */
 export const setupChannelStream = (
   dispatch: AppDispatch,
-  getState: () => RootState,
   topicId: string,
   agentId: string,
   modelId?: string
