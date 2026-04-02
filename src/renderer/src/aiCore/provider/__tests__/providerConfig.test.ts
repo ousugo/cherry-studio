@@ -898,7 +898,7 @@ describe('providerToAiSdkConfig', () => {
         makeModel('gpt-4', provider.id)
       )) as ProviderConfig<'openai-compatible'>
 
-      const settings = config.providerSettings as OpenAICompatibleProviderSettings
+      const settings = config.providerSettings
       expect(settings.headers).toBeDefined()
       expect(settings.headers!['HTTP-Referer']).toBe('https://cherry-ai.com')
       expect(settings.headers!['X-Title']).toBe('Cherry Studio')
@@ -917,7 +917,7 @@ describe('providerToAiSdkConfig', () => {
         makeModel('gpt-4', provider.id)
       )) as ProviderConfig<'openai-compatible'>
 
-      const settings = config.providerSettings as OpenAICompatibleProviderSettings
+      const settings = config.providerSettings
       expect(settings.headers).toBeDefined()
       expect(settings.headers!['X-Custom']).toBe('custom-value')
     })

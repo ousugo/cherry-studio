@@ -129,10 +129,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       })
       return aiStream
     }
-    if (
-      modelInfo.provider?.type !== 'anthropic' &&
-      (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')
-    ) {
+    const isAzureOpenAI = modelInfo.provider?.type === 'azure-openai'
+    const isAnthropicType = modelInfo.provider?.type === 'anthropic'
+    const hasAnthropicHost = modelInfo.provider?.anthropicApiHost?.trim()
+
+    if (!isAnthropicType && !isAzureOpenAI && !hasAnthropicHost) {
       logger.error('Anthropic provider configuration is missing', {
         modelInfo
       })
@@ -160,9 +161,15 @@ class ClaudeCodeService implements AgentServiceInterface {
     // Claude Agent SDK builds the final endpoint as `${ANTHROPIC_BASE_URL}/v1/messages`.
     // To avoid malformed URLs like `/v1/v1/messages`, we normalize the provider host
     // by stripping any trailing API version (e.g. `/v1`).
-    const anthropicBaseUrl = withoutTrailingApiVersion(
-      modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost
-    )
+    // For Azure OpenAI providers, the Anthropic endpoint lives under /anthropic.
+    const resolveAnthropicBaseUrl = (): string => {
+      if (isAzureOpenAI) {
+        const host = withoutTrailingApiVersion(modelInfo.provider.apiHost).replace(/\/openai$/, '')
+        return `${host}/anthropic`
+      }
+      return withoutTrailingApiVersion(modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost)
+    }
+    const anthropicBaseUrl = resolveAnthropicBaseUrl()
 
     const env = {
       ...loginShellEnv,
