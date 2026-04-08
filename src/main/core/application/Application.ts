@@ -1,5 +1,8 @@
+import path from 'node:path'
+
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/constant'
+import { type PathKey, PATHS } from '@main/core/paths'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, ipcMain } from 'electron'
@@ -565,6 +568,39 @@ export class Application {
    */
   public async deactivate<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.deactivate(name)
+  }
+
+  /**
+   * Get a registered application path.
+   *
+   * Sole entry point for all path lookups in the main process. Paths are
+   * registered in `src/main/core/paths/pathRegistry.ts`; see
+   * `src/main/core/paths/README.md` for naming conventions, namespace
+   * taxonomy, and usage guidelines.
+   *
+   * @param key      Dotted path key (e.g. 'feature.files.data', 'cherry.bin').
+   *                 Type-checked at compile time against the PATHS registry.
+   * @param filename Optional filename to join under the registered root.
+   *                 Should be a single relative segment (no absolute path,
+   *                 no '..', no path separators). If the constraint is
+   *                 violated, a warning is logged via loggerService and the
+   *                 path is joined anyway — the warning is a developer hint
+   *                 that you may want to register a new path key for the
+   *                 deeper path you're constructing.
+   */
+  public getPath(key: PathKey, filename?: string): string {
+    const base = PATHS[key]
+    if (filename === undefined) return base
+
+    if (path.isAbsolute(filename) || filename.includes('..') || filename.includes(path.sep)) {
+      logger.warn(
+        `Application.getPath: filename "${filename}" should be a single relative segment ` +
+          `(no absolute paths, no '..', no separators). Consider registering a new key in ` +
+          `pathRegistry.ts if you need a deeper path.`
+      )
+    }
+
+    return path.join(base, filename)
   }
 }
 
