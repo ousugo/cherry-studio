@@ -24,7 +24,7 @@ import path from 'node:path'
 
 import { app } from 'electron'
 
-import { CHERRY_HOME } from './constants'
+import { CHERRY_HOME, LOGS_DIR } from './constants'
 
 // ============================================================
 // Intermediate vars — hoisted to avoid repeated path.join and to
@@ -78,7 +78,7 @@ export const PATHS = Object.freeze({
   'app.root': app.getAppPath(),
   'app.exe_file': app.getPath('exe'),
   'app.install': path.dirname(app.getPath('exe')),
-  'app.logs': app.getPath('logs'),
+  'app.logs': LOGS_DIR,
   'app.crash_dumps': app.getPath('crashDumps'),
   'app.session': appSession,
   'app.resources': appResources,
