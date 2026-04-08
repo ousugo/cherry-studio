@@ -211,13 +211,6 @@ const startApp = async () => {
   // ── Normal path: no migration needed ──
   migrationEngine.close()
 
-  // Check for backup restore marker and complete restoration BEFORE bootstrap.
-  // BackupManager physically removes/replaces IndexedDB and Local Storage directories.
-  // Must run before bootstrap creates the main window (which starts the renderer),
-  // otherwise Chromium holds file handles causing EBUSY on Windows or data corruption on macOS/Linux.
-  const { BackupManager } = await import('./services/BackupManager')
-  await BackupManager.handleStartupRestore()
-
   // Extract bundled rtk binary to ~/.cherrystudio/bin/ on first run
   // TODO: v2 refactor to use lifecycle
   extractRtkBinaries().catch((error) => {
