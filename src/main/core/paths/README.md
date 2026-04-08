@@ -103,6 +103,107 @@ If a key refers to a **file** (not a directory), the key MUST clearly say so:
 If the key refers to a **directory**, do NOT use `_file` or `.file` —
 directories are the default.
 
+### Auto-ensure and the `file` suffix rule
+
+`Application.getPath()` automatically creates Cherry-owned directories on
+first access (lazy auto-ensure with caching — see the next section). It uses
+a single rule to decide whether a key refers to a file or a directory:
+
+> **A key is treated as a file IFF it ends with `file`.**
+
+This single rule covers all three file naming styles:
+
+- `_file` suffix: `app.exe_file`
+- `.file` last segment: `app.database.file`
+- any `*file` suffix: `feature.foo.profilefile` (discouraged but valid)
+
+**Critical constraint:** Directory keys **MUST NOT end with `file`**. Avoid:
+
+- `feature.user.profile` ❌ (would be misclassified as a file → only the
+  parent dir is ensured, never `profile/` itself)
+- `feature.build.compile` ❌ (same)
+
+If a directory's natural English name ends in `file`, append a
+disambiguating segment: `feature.user.profile_dir` or
+`feature.user.profiles`.
+
+The `data-schema-key` ESLint rule enforces the registration format. The
+`file` suffix collision is checked at PR review time (and may be enforced by
+a custom lint rule in the future).
+
+## Lazy Auto-ensure
+
+`Application.getPath()` automatically creates Cherry-owned directories on
+first access. Consumers receive a path that is **already on disk** and may
+read or write through it without an explicit `fs.mkdirSync` step.
+
+The behavior is:
+
+- **Directory key** → `mkdirSync(base, { recursive: true })` on first
+  access.
+- **File key** (ends with `file`) → `mkdirSync(path.dirname(base), {
+  recursive: true })`. The file itself is **not** created.
+- Each `PathKey` is ensured **at most once per process**. Subsequent
+  `getPath()` calls hit a cache and return immediately.
+- If `mkdirSync` throws (read-only FS, missing permissions), the failure
+  is logged via `loggerService.warn` and the path is returned anyway.
+  The cache records the attempt regardless of outcome — `getPath` does
+  not retry on every call (a perf trap on persistent failures).
+- The opt-out list lives in `pathRegistry.ts` as a single `NO_ENSURE`
+  array; see the next section for details.
+
+### Maintaining the `NO_ENSURE` list
+
+The unified `NO_ENSURE` array in `pathRegistry.ts` specifies which keys
+opt out of auto-ensure. Entries come in two forms:
+
+- **Namespace prefix** (ends with `.`): matches all keys under that
+  namespace. Currently: `'sys.'` (OS-managed) and `'external.'`
+  (third-party tools Cherry doesn't own).
+- **Exact `PathKey`**: matches a single key. Currently used for build
+  artifacts whose parent dirs are read-only in production
+  (`app.exe_file`, `app.resources`, `app.database.migrations`, …).
+
+**When to add a new entry:**
+
+1. The key points to a **read-only location** in production (asar
+   bundle, packaged resources, install directory, vendor binaries).
+2. The key belongs to a **third-party app** Cherry doesn't own (use
+   the `external.*` prefix when adding the key in the first place).
+3. The key is an **OS-managed directory** Cherry shouldn't create
+   (use the `sys.*` prefix; the `'sys.'` entry already covers it).
+
+**When NOT to add:**
+
+- The key is writable but a feature rarely uses it — **don't add**.
+  Lazy auto-ensure means unused keys never trigger `mkdir`, so there's
+  nothing to optimize.
+- `mkdir` *might* fail due to permissions — **don't add**. The
+  `try`/`catch` in `Application.getPath` handles that gracefully and
+  the warning is the developer signal to investigate.
+
+The `as const satisfies readonly NoEnsureEntry[]` clause guarantees
+every entry is either a valid `PathKey` or a valid top-level namespace
+prefix. Typos and stale references are caught at typecheck time, and
+deleting a key from the registry forces an update here too.
+
+### Known limitation: boot-time filesystem unavailability
+
+Lazy auto-ensure caches each key after its first access, skipping
+subsequent `mkdir` attempts. If the filesystem was temporarily
+unavailable at first access (e.g. macOS volume not yet mounted at very
+early boot), the cache will remember "tried to ensure" and won't retry
+even after the FS becomes available. In practice this is extremely
+rare because:
+
+1. `Application.bootstrap()` runs after Electron `app.whenReady()`.
+2. `getPath()` is first called by services in the lifecycle phases,
+   well after bootstrap.
+3. The underlying filesystems are mounted before Electron starts.
+
+If this becomes an issue in the wild, manual recovery is possible via
+a private helper — file a bug if you encounter it.
+
 ## The `.` Separator: Semantic, Not Always Physical
 
 The `.` represents a **namespace / semantic group**. It usually — but not

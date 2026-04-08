@@ -1,9 +1,10 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/constant'
 import type { PathKey, PathMap } from '@main/core/paths'
-import { buildPathRegistry } from '@main/core/paths/pathRegistry'
+import { buildPathRegistry, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, ipcMain } from 'electron'
@@ -47,6 +48,17 @@ export class Application {
    * during shutdown.
    */
   private pathMap: PathMap | null = null
+
+  /**
+   * Cache of PathKeys whose directory has already been auto-ensured.
+   * Each Cherry-owned key is `mkdirSync`'d at most once per process —
+   * subsequent `getPath()` calls hit this Set and return immediately.
+   *
+   * NOT cleared on shutdown (paths remain valid for cleanup code that
+   * runs after `stopAll()`). Cleared by `__setPathMapForTesting()` to
+   * allow test isolation.
+   */
+  private ensuredKeys = new Set<PathKey>()
 
   private constructor() {
     this.container = ServiceContainer.getInstance()
@@ -625,6 +637,35 @@ export class Application {
     }
 
     const base = this.pathMap[key]
+
+    // Lazy auto-ensure: on first access of an opt-in key, mkdir the
+    // relevant directory so callers can immediately read/write without
+    // an explicit `fs.mkdirSync` step.
+    //   - Directory keys: ensure `base` itself.
+    //   - File keys (key ends with 'file'): ensure `path.dirname(base)`
+    //     so the file's parent dir exists. The file itself is NOT
+    //     created — it remains the caller's responsibility.
+    // Opt-out lives in `pathRegistry.shouldAutoEnsure` (data-driven, see
+    // the NO_ENSURE list there). The result is cached in `ensuredKeys`
+    // so each key's directory is created at most once per process.
+    if (!this.ensuredKeys.has(key) && shouldAutoEnsure(key)) {
+      const dirToEnsure = key.endsWith('file') ? path.dirname(base) : base
+      try {
+        fs.mkdirSync(dirToEnsure, { recursive: true })
+      } catch (err) {
+        // Don't block path resolution if mkdir fails (read-only FS,
+        // missing permissions, etc.). Caller may still need the path
+        // for error reporting or read-only checks.
+        logger.warn(
+          `application.getPath: mkdir failed for key '${key}' at '${dirToEnsure}'. ` +
+            `Returning path anyway. Error: ${(err as Error).message}`
+        )
+      }
+      // Cache regardless of success — retrying on every call would be
+      // a perf trap. Failed-once is treated the same as succeeded-once.
+      this.ensuredKeys.add(key)
+    }
+
     if (filename === undefined) return base
 
     if (path.isAbsolute(filename) || filename.includes('..') || filename.includes(path.sep)) {
@@ -660,6 +701,11 @@ export class Application {
       throw new Error('__setPathMapForTesting may only be called in tests')
     }
     this.pathMap = map
+    // Clear the auto-ensure cache so each test starts from a clean state.
+    // Without this, a key that was already mkdir'd in a previous test
+    // would silently skip mkdir in the next test, breaking call-count
+    // assertions and hiding regressions.
+    this.ensuredKeys.clear()
   }
 }
 

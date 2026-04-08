@@ -23,6 +23,7 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import { isMac, isWin } from '@main/constant'
 import { app } from 'electron'
 
 import { CHERRY_HOME, LOGS_DIR } from './constants'
@@ -98,6 +99,7 @@ export function buildPathRegistry() {
     'app.temp': appTemp,
     'app.userdata': appUserData,
     'app.userdata.data': appUserDataData,
+    'app.userdata.cache': path.join(appUserData, 'Cache'),
     'app.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
     'app.database.migrations': migrationsDir,
 
@@ -109,6 +111,20 @@ export function buildPathRegistry() {
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
     'feature.mcp.workspace': path.join(appUserDataData, 'Workspace'),
+    // NOTE: feature.mcp.memory_file and feature.memory.db_file (registered
+    // further down) are TWO UNRELATED stores, not a typo. The former is the
+    // @modelcontextprotocol memory server's knowledge graph JSON
+    // (mcpServers/memory.ts); the latter is Cherry's native memory feature
+    // SQLite DB (services/memory/MemoryService.ts). Different namespaces,
+    // formats (JSON vs SQLite), and purposes (MCP tool state vs long-term
+    // conversation memory).
+    'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
+
+    // -- Anthropic OAuth credentials --
+    'feature.anthropic.oauth_file': path.join(CHERRY_HOME, 'config', 'oauth', 'anthropic.json'),
+
+    // -- Copilot token (dotfile .copilot_token) --
+    'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
 
     // -- Trace feature --
     'feature.trace': path.join(CHERRY_HOME, 'trace'),
@@ -122,6 +138,12 @@ export function buildPathRegistry() {
     // -- Agents feature --
     'feature.agents.skills': path.join(CHERRY_HOME, 'skills'),
     'feature.agents.skills.temp': path.join(appTemp, 'skill-install'),
+    // Claude Code config root directory (parent of feature.agents.claude.skills).
+    // Using '.root' suffix (NOT '.home') to distinguish from the 'user root'
+    // semantics of cherry.home / sys.home. This is Claude Code's config
+    // directory, equivalent to ~/.claude/ but relocated to userData/.claude/
+    // to avoid Windows non-ASCII path encoding issues.
+    'feature.agents.claude.root': path.join(appUserData, '.claude'),
     'feature.agents.claude.skills': path.join(appUserData, '.claude', 'skills'),
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
 
@@ -130,6 +152,17 @@ export function buildPathRegistry() {
     'feature.notes.data': path.join(appUserDataData, 'Notes'),
     'feature.knowledgebase.data': path.join(appUserDataData, 'KnowledgeBase'),
     'feature.memory.data': path.join(appUserDataData, 'Memory'),
+    // Memory feature SQLite DB (see note above re: feature.mcp.memory_file).
+    'feature.memory.db_file': path.join(appUserDataData, 'Memory', 'memories.db'),
+
+    // -- OCR Tesseract cache --
+    'feature.ocr.tesseract': path.join(appUserData, 'tesseract'),
+
+    // -- Version log (Cherry-owned audit trail of installed/updated versions) --
+    // Physical location is under userData (Electron's per-app data dir),
+    // but the namespace is feature.* because the file is owned by Cherry's
+    // version-tracking feature, not part of the userData layout itself.
+    'feature.version_log.file': path.join(appUserData, 'version.log'),
 
     // -- Feature-owned temp dirs (physical root: app.temp) --
     'feature.backup.temp': path.join(appTemp, 'backup'),
@@ -142,7 +175,19 @@ export function buildPathRegistry() {
     // E. external.* — third-party tool paths (Cherry is reader/writer,
     //                 NOT the owner; do not delete on uninstall)
     // ============================================================
-    'external.openclaw.config': path.join(os.homedir(), '.openclaw')
+    'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
+    // Obsidian's per-user JSON of registered vaults, located by Obsidian
+    // itself in a platform-specific directory. The Linux fallback uses
+    // `~/.config/obsidian/`; ObsidianVaultService still owns the
+    // XDG_CONFIG_HOME override path when present. We use a nested ternary
+    // (NOT an object literal) so the file-level "no object literals"
+    // constraint stays satisfied — the ESLint rule walks Property nodes,
+    // and a conditional expression has none.
+    'external.obsidian.config_file': isWin
+      ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')
+      : isMac
+        ? path.join(os.homedir(), 'Library', 'Application Support', 'obsidian', 'obsidian.json')
+        : path.join(os.homedir(), '.config', 'obsidian', 'obsidian.json')
   } as const)
 }
 
@@ -151,3 +196,83 @@ export type PathMap = ReturnType<typeof buildPathRegistry>
 
 /** String-literal union of all registered path keys. */
 export type PathKey = keyof PathMap
+
+// ============================================================
+// Auto-ensure configuration
+// ============================================================
+// `Application.getPath()` automatically creates directories on first
+// access (lazy auto-ensure with caching). The unified NO_ENSURE list
+// below specifies which keys opt out of auto-ensure.
+//
+// File vs directory detection uses a naming convention:
+//   - Keys ending with 'file' are files → caller code ensures
+//     `path.dirname(base)` so the parent directory exists.
+//   - Other keys are directories → ensure `base` itself.
+//
+// Constraint: directory keys MUST NOT end with 'file' (avoid terminal
+// segments like 'profile' / 'compile'). Enforced by convention + code
+// review. README has the full rationale.
+// ============================================================
+
+/**
+ * Top-level namespaces, auto-derived from PathKey via template literal
+ * type distribution. The `${infer Head}.${string}` pattern extracts the
+ * segment before the first dot.
+ *
+ * Given the current PathKey, this resolves to:
+ *   'cherry' | 'sys' | 'app' | 'feature' | 'external'
+ *
+ * Automatically updates if the registry adds a new top-level namespace.
+ */
+type TopNamespace = PathKey extends `${infer Head}.${string}` ? Head : never
+
+/**
+ * Valid entry in the NO_ENSURE list: either a precise PathKey, or a
+ * top-level namespace prefix like `'sys.'` / `'external.'` / `'app.'`.
+ */
+type NoEnsureEntry = PathKey | `${TopNamespace}.`
+
+/**
+ * Unified opt-out list for auto-ensure.
+ *
+ * Entry semantics:
+ *   - Ends with `.` → namespace prefix (matches all keys under it, e.g.
+ *     `'sys.'` matches `sys.home`, `sys.downloads`, etc.)
+ *   - Otherwise → exact PathKey (precise match)
+ *
+ * Categories currently excluded from auto-ensure:
+ *   - `sys.*`: OS-managed directories (home, downloads, appdata…).
+ *     Already exist or owned by the OS.
+ *   - `external.*`: third-party tool paths (Obsidian, openclaw…).
+ *     Cherry only reads/writes, never owns the directory.
+ *   - Individual build artifacts (asar bundle, packaged resources, install
+ *     dir, executable file): parent dirs are read-only in production;
+ *     attempting mkdir would emit a noisy warning.
+ *
+ * The `satisfies readonly NoEnsureEntry[]` clause enforces that every
+ * entry is either a valid PathKey or a valid top-level namespace prefix.
+ * Typos like `'app.typo'` or `'notanamespace.'` are caught at typecheck
+ * time. Deleting a key from the registry forces an update here too.
+ */
+const NO_ENSURE = [
+  // Namespace prefixes
+  'sys.',
+  'external.',
+  // Individual read-only keys (build artifacts)
+  'app.root',
+  'app.install',
+  'app.exe_file',
+  'app.resources',
+  'app.resources.scripts',
+  'app.resources.binaries',
+  'app.database.migrations'
+] as const satisfies readonly NoEnsureEntry[]
+
+/**
+ * Decide whether to auto-ensure a PathKey's directory on first access.
+ * Consumed by `Application.getPath()`. Co-located with the registry so
+ * all path-related data and metadata live in one file.
+ */
+export function shouldAutoEnsure(key: PathKey): boolean {
+  return !NO_ENSURE.some((entry) => (entry.endsWith('.') ? key.startsWith(entry) : key === entry))
+}
