@@ -31,8 +31,8 @@ resolveUserDataLocation()
 // [v2] DEPRECATED LEGACY IMPORT — to be removed in cleanup PR
 //
 // `@main/config` still adds the dev-mode `userData + 'Dev'` suffix and
-// exports legacy DATA_PATH / titleBarOverlay constants. It will be migrated
-// to `core/preboot/` (for the dev suffix) and dedicated module(s) (for the
+// exports legacy titleBarOverlay constants. It will be migrated to
+// `core/preboot/` (for the dev suffix) and dedicated module(s) (for the
 // other constants) in a follow-up PR. Don't extend this file in the
 // meantime.
 import '@main/config'

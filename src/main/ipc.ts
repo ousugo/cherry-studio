@@ -44,7 +44,7 @@ import ObsidianVaultService from './services/ObsidianVaultService'
 import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { isSafeExternalUrl } from './services/security'
 import { vertexAIService } from './services/VertexAIService'
-import { calculateDirectorySize, getDataPath, getResourcePath } from './utils'
+import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { hasWritePermission, isPathInside, untildify } from './utils/file'
 import { updateAppDataConfig } from './utils/init'
@@ -782,7 +782,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // WeChat
   ipcMain.handle(IpcChannel.WeChat_HasCredentials, async (_, channelId: string) => {
-    const tokenPath = path.join(getDataPath('Channels'), `weixin_bot_${channelId}.json`)
+    const tokenPath = application.getPath('feature.agents.channels', `weixin_bot_${channelId}.json`)
     try {
       const raw = await fs.promises.readFile(tokenPath, 'utf8')
       const parsed = JSON.parse(raw)
