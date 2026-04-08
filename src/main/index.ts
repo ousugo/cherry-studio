@@ -30,11 +30,13 @@ resolveUserDataLocation()
 
 // [v2] DEPRECATED LEGACY IMPORT — to be removed in cleanup PR
 //
-// `@main/config` still adds the dev-mode `userData + 'Dev'` suffix and
-// exports legacy titleBarOverlay constants. It will be migrated to
-// `core/preboot/` (for the dev suffix) and dedicated module(s) (for the
-// other constants) in a follow-up PR. Don't extend this file in the
-// meantime.
+// `@main/config` only contains the legacy titleBarOverlay constants and
+// the `global.CHERRYAI_CLIENT_SECRET` write at this point — the bare
+// import here keeps the global secret assignment running at startup,
+// before any consumer might read it. Both responsibilities will move to
+// dedicated v2 modules in a follow-up PR. Don't extend this file in the
+// meantime. (The dev-mode `userData + 'Dev'` suffix that used to live
+// here has been migrated to `core/preboot/userDataLocation.ts`.)
 import '@main/config'
 
 import process from 'node:process'
