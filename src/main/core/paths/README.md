@@ -4,8 +4,10 @@ The single source of truth for every filesystem path used by the Electron
 main process. Replaces ad-hoc `app.getPath()` / `os.homedir()` / `path.join`
 constructions scattered throughout the codebase.
 
-Every path the main process needs is registered once in `pathRegistry.ts` and
-accessed exclusively through `application.getPath()`.
+Every path the main process needs is registered once in `pathRegistry.ts`
+(inside the `buildPathRegistry()` function) and accessed exclusively through
+`application.getPath()`. The registry is **frozen at `Application.bootstrap()`
+time** — calling `application.getPath(...)` before bootstrap throws.
 
 ## Quick Start
 
@@ -34,17 +36,24 @@ application.getPath('invalid.key')
 
 ```
 src/main/core/paths/
-├── constants.ts          Zero-dependency constants (CHERRY_HOME, BOOT_CONFIG_PATH).
-│                         Importable from BootConfigService before Electron `app` is ready.
-├── pathRegistry.ts       The frozen PATHS object + PathKey type.
-│                         Constrained by ESLint data-schema-key/valid-key.
-├── index.ts              Public entry point. Re-exports PATHS + PathKey only.
+├── constants.ts          Earliest path constants (CHERRY_HOME, BOOT_CONFIG_PATH,
+│                         LOGS_DIR). Consumed directly by LoggerService and
+│                         BootConfigService — both run before the registry exists.
+├── pathRegistry.ts       The `buildPathRegistry()` function (called once from
+│                         Application.bootstrap()) plus the `PathKey` / `PathMap`
+│                         types. Constrained by ESLint data-schema-key/valid-key.
+├── index.ts              Public entry point. Re-exports `PathKey` and `PathMap`
+│                         types only. `buildPathRegistry` is intentionally NOT
+│                         re-exported — Application.ts imports it via the deeper
+│                         alias `@main/core/paths/pathRegistry`.
 └── README.md             This file.
 ```
 
-The `paths/` module exports only **data** (`PATHS`) and **types** (`PathKey`).
-The lookup/validation logic lives on `Application.getPath`. Consumers must go
-through `application.getPath(...)` rather than constructing paths themselves.
+The `paths/` module exports only **types** (`PathKey`, `PathMap`). The path
+**values** are produced by `buildPathRegistry()` and held privately by
+`Application.ts`. The lookup/validation logic lives on `Application.getPath`.
+Consumers must go through `application.getPath(...)` rather than constructing
+paths themselves.
 
 ## Top-Level Namespaces
 
@@ -187,23 +196,41 @@ constructing them ad-hoc on the fly.
 
 ## Bootstrap Order
 
-`pathRegistry.ts` reads `app.getPath('userData')` and other Electron paths at
-**module-import time** to compute the frozen `PATHS` object. Any code that
-overrides Electron paths via `app.setPath(...)` MUST run **before** this
-module is first imported.
+`buildPathRegistry()` reads `app.getPath('userData')` and other Electron
+paths inside its function body. It is called exactly once, from
+`Application.bootstrap()` at its entry point (after signal/quit handlers
+are installed, before any lifecycle phase starts).
 
-The project's bootstrap sequence already enforces this — `pathRegistry.ts` is
-loaded indirectly via `Application.ts`, which is imported only after all path
-overrides have been applied.
+This means:
+
+- `pathRegistry.ts` module evaluation has **no side effects** — importing
+  the file is safe at any time.
+- Any code that overrides Electron paths via `app.setPath(...)` MUST run
+  **before** `application.bootstrap()` is invoked. The natural place is
+  the top of `startApp()` in `src/main/index.ts`, eventually driven by
+  `BootConfigService`.
+- Calling `application.getPath(...)` before `bootstrap()` runs will throw
+  with a clear error message. There is no fallback or lazy initialization.
+- `LoggerService` and `BootConfigService` bypass this registry entirely:
+  they need paths *before* the registry exists, so they read `LOGS_DIR`
+  and `BOOT_CONFIG_PATH` directly from `paths/constants.ts`. This is by
+  design, not a code smell — they form the bootstrap "zero layer" that
+  the registry itself depends on.
+- Runtime `app.setPath('userData', ...)` calls (e.g. via the legacy
+  `App_SetAppDataPath` IPC handler) do **not** invalidate the frozen
+  registry. The current v1 path-change flow always relaunches the app
+  after such a call, so the divergence window never matters in practice;
+  the IPC handler is marked TODO for v2 redesign.
 
 ## File-Level Constraint: No Other Object Literals in `pathRegistry.ts`
 
-The ESLint rule `data-schema-key/valid-key` has no AST scope — it validates
-**every** property name with a string-literal key in the file. Defining a
-helper object like:
+The ESLint rule `data-schema-key/valid-key` walks **every** `Property` AST
+node in the file — including those inside function bodies. Defining a
+helper object **anywhere in the file, including inside `buildPathRegistry()`'s
+body**, would trip the rule. For example:
 
 ```ts
-// ❌ DO NOT do this in pathRegistry.ts:
+// ❌ DO NOT do this anywhere in pathRegistry.ts (top level OR inside the function):
 const PLATFORM_OVERRIDES = {
   darwin: '...',
   win32: '...',
@@ -218,27 +245,35 @@ file (e.g. a new `pathHelpers.ts`).
 
 ## Testing Patterns
 
-The `PATHS` object is computed at import time from Electron `app.getPath()`
-calls. The global Electron mock in `tests/main.setup.ts` only stubs a subset
-of `app` methods, so importing `pathRegistry.ts` in tests can fail at module
-load.
+`buildPathRegistry()` reads Electron `app.getPath()` at call time, so
+naively calling it in tests can fail because the global Electron mock in
+`tests/main.setup.ts` only stubs a subset of `app` methods.
 
-To test code that uses `application.getPath`, mock `@main/core/paths` with a
-minimal `PATHS` map containing just the keys your test touches:
+There are two supported patterns depending on whether your test wants to
+control the registry contents.
+
+### Pattern 1 — Mock the registry, inject via test helper
+
+If your test needs `application.getPath(...)` to return predictable values,
+mock `@main/core/paths/pathRegistry` (NOT the public `@main/core/paths`
+re-export) and inject the result via the `__setPathMapForTesting` helper:
 
 ```ts
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@main/core/paths', () => ({
-  PATHS: Object.freeze({
-    'feature.files.data': '/mock/userData/Data/Files'
-  })
+vi.mock('@main/core/paths/pathRegistry', () => ({
+  buildPathRegistry: () =>
+    Object.freeze({
+      'feature.files.data': '/mock/userData/Data/Files'
+    })
 }))
 
+import { buildPathRegistry } from '@main/core/paths/pathRegistry'
 import { Application } from '@main/core/application/Application'
 
 describe('my service', () => {
   const app = Application.getInstance()
+  app.__setPathMapForTesting(buildPathRegistry())
 
   it('uses the correct path', () => {
     expect(app.getPath('feature.files.data')).toBe('/mock/userData/Data/Files')
@@ -246,16 +281,33 @@ describe('my service', () => {
 })
 ```
 
-This bypasses the real `pathRegistry.ts` top-level evaluation and lets the
-test focus on the logic that consumes the path.
-
-Two things to note about this pattern:
+Two things to note:
 
 1. **Import `Application` from the file path**, not the directory. The global
    test setup mocks `@main/core/application` (the directory/index re-export);
    importing from `@main/core/application/Application` (the specific file)
    bypasses that mock and gives you the real class.
-2. **Compile-time `PathKey` enforcement** is verified by `pnpm typecheck`
-   (which runs `tsgo`). vitest's compile path uses esbuild and does not
-   enforce type-only directives like `@ts-expect-error`, so don't rely on
-   them inside test cases.
+2. **Mock the deep path `@main/core/paths/pathRegistry`**, not the public
+   `@main/core/paths` entry point. `Application.ts` imports `buildPathRegistry`
+   via the deep path; mocking the public entry has no effect on
+   `Application`'s view of the function.
+
+### Pattern 2 — Bypass the throw without specific values
+
+If your test doesn't care about specific path values but just needs `getPath`
+to not throw (e.g. you're testing some other method that incidentally calls
+it), you can pass an empty object cast to `PathMap`:
+
+```ts
+app.__setPathMapForTesting({} as PathMap) // values will be `undefined`
+```
+
+Prefer Pattern 1 in almost all cases.
+
+### Compile-time enforcement
+
+`PathKey` is a string-literal union derived from
+`ReturnType<typeof buildPathRegistry>`, so invalid keys are rejected by
+`tsgo` (`pnpm typecheck`). vitest's compile path uses esbuild and does NOT
+enforce type-only directives like `@ts-expect-error` inside test cases —
+rely on `pnpm typecheck` for type-level assertions.
