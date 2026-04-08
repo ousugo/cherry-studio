@@ -124,6 +124,7 @@ export class Application {
     // one-shot startup pipelines (migration, legacy backup restore) carry
     // their own ad-hoc path logic and do not consume the registry either.
     this.pathMap = buildPathRegistry()
+    logger.debug(`Path registry frozen with ${Object.keys(this.pathMap).length} entries`)
 
     logger.info('Bootstrapping...')
 
