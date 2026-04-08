@@ -46,15 +46,7 @@ import { isSafeExternalUrl } from './services/security'
 import { vertexAIService } from './services/VertexAIService'
 import { calculateDirectorySize, getDataPath, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import {
-  getCacheDir,
-  getConfigDir,
-  getFilesDir,
-  getNotesDir,
-  hasWritePermission,
-  isPathInside,
-  untildify
-} from './utils/file'
+import { hasWritePermission, isPathInside, untildify } from './utils/file'
 import { updateAppDataConfig } from './utils/init'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
@@ -83,9 +75,9 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     version: app.getVersion(),
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
-    filesPath: getFilesDir(),
-    notesPath: getNotesDir(),
-    configPath: getConfigDir(),
+    filesPath: application.getPath('feature.files.data'),
+    notesPath: application.getPath('feature.notes.data'),
+    configPath: application.getPath('cherry.config'),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
     logsPath: logger.getLogsDir(),
@@ -255,7 +247,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   // get cache size
   ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
-    const cachePath = getCacheDir()
+    const cachePath = application.getPath('app.userdata.cache')
     logger.info(`Calculating cache size for path: ${cachePath}`)
 
     try {
