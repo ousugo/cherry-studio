@@ -31,9 +31,9 @@ const VERSION_FILE = '.version'
  */
 // TODO: v2-backup
 export async function installBuiltinSkills(): Promise<void> {
-  const resourceSkillsPath = path.join(app.getAppPath(), 'resources', 'skills')
+  const resourceSkillsPath = application.getPath('feature.agents.skills.builtin')
   const globalSkillsPath = application.getPath('feature.agents.skills')
-  const linkBasePath = path.join(app.getPath('userData'), '.claude', 'skills')
+  const linkBasePath = application.getPath('feature.agents.claude.skills')
   const appVersion = app.getVersion()
 
   try {
