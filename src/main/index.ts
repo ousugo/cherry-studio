@@ -20,11 +20,15 @@ import '@main/data/bootConfig'
 // application.bootstrap() is called. See core/preboot/README.md for the
 // membership criteria and the preboot/bootstrap/running vocabulary.
 //
-// resolveUserDataLocation() is intentionally the ONLY preboot call here:
-// it internally handles both "normal startup" (read BootConfig → setPath)
-// and "execute a pending userData relocation" (copy the whole directory
-// tree, then setPath). There is no separate relaunch-time helper.
-import { resolveUserDataLocation } from '@main/core/preboot'
+// Each preboot module is imported from its concrete file (no barrel export)
+// so the timing contract of each call stays visible at this call site:
+//   - resolveUserDataLocation() must run before application.initPathRegistry()
+//     (handles both normal startup and pending userData relocation, then
+//     calls app.setPath('userData', ...))
+//   - configureChromiumFlags() must run before app.whenReady() (Chromium
+//     reads its command-line switches and GPU flags exactly once at startup)
+import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
+import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 
 resolveUserDataLocation()
 
@@ -50,11 +54,10 @@ import {
 } from '@data/migration/v2'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
-import { bootConfigService } from '@main/data/bootConfig'
 import { app, crashReporter, dialog } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
-import { isDev, isLinux, isWin } from './constant'
+import { isDev } from './constant'
 import { application, serviceList } from './core/application'
 import { registerIpc } from './ipc'
 import {
@@ -95,48 +98,18 @@ crashReporter.start({
   uploadToServer: false
 })
 
-/**
- * Disable hardware acceleration if setting is enabled
- */
-if (bootConfigService.get('app.disable_hardware_acceleration')) {
-  app.disableHardwareAcceleration()
-}
+// Configure Chromium startup flags. Must run before app.whenReady() fires.
+// See core/preboot/chromiumFlags.ts for the full list and rationale.
+configureChromiumFlags()
 
-/**
- * Disable chromium's window animations
- * main purpose for this is to avoid the transparent window flashing when it is shown
- * (especially on Windows for SelectionAssistant Toolbar)
- * Know Issue: https://github.com/electron/electron/issues/12130#issuecomment-627198990
- */
-if (isWin) {
-  app.commandLine.appendSwitch('wm-window-animations-disabled')
-}
+// Set the Windows app user model id before app.whenReady() so Windows groups
+// our windows under the correct taskbar entry from the first frame.
+electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
-/**
- * Enable GlobalShortcutsPortal for Linux Wayland Protocol
- * see: https://www.electronjs.org/docs/latest/api/global-shortcut
- */
-if (isLinux && process.env.XDG_SESSION_TYPE === 'wayland') {
-  app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
-}
-
-/**
- * Set window class and name for Linux
- * This ensures the window manager identifies the app correctly on both X11 and Wayland
- */
-if (isLinux) {
-  app.commandLine.appendSwitch('class', 'CherryStudio')
-  app.commandLine.appendSwitch('name', 'CherryStudio')
-}
-
-// DocumentPolicyIncludeJSCallStacksInCrashReports: Enable features for unresponsive renderer js call stacks
-// EarlyEstablishGpuChannel,EstablishGpuChannelAsync: Enable features for early establish gpu channel
-// speed up the startup time
-// https://github.com/microsoft/vscode/pull/241640/files
-app.commandLine.appendSwitch(
-  'enable-features',
-  'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync'
-)
+// Paired with the DocumentPolicyIncludeJSCallStacksInCrashReports feature
+// flag enabled in configureChromiumFlags(). The Document-Policy header below
+// opts every web contents into the JS-call-stack crash report policy so that
+// the 'unresponsive' listener can collect call stacks from stuck renderers.
 app.on('web-contents-created', (_, webContents) => {
   webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -278,9 +251,6 @@ const startApp = async () => {
   // Record current version for tracking
   // A preparation for v2 data refactoring
   versionService.recordCurrentVersion()
-
-  // Set app user model id for windows
-  electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
   // Main window was created by WindowService.onReady() during bootstrap.
   // registerIpc still needs the window reference for legacy IPC handlers.

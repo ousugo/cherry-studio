@@ -98,12 +98,31 @@ for the deprecated v1 constant.
 
 ```
 preboot/
-├── index.ts             named exports only — no top-level side effects
 ├── userDataLocation.ts  decides where userData lives (dev suffix or
 │                        BootConfig-driven), performs relaunch copy
-└── (future)             command-line flags, etc.
+├── chromiumFlags.ts     Chromium startup flags (command-line switches and
+│                        hardware-acceleration toggles) that must run
+│                        before app.whenReady()
+└── __tests__/           unit tests for each sibling module
 ```
 
 The directory is intentionally flat. New domains add a sibling file rather
 than a subdirectory. Subdirectories are reserved for the case where one
 domain genuinely needs multiple files.
+
+### No barrel export
+
+`preboot/` intentionally has no `index.ts` re-export. Consumers must import
+each function from its concrete module file:
+
+```ts
+import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
+import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
+```
+
+Each preboot module has its own timing contract (`userDataLocation` must run
+before `initPathRegistry`; `chromiumFlags` must run before `app.whenReady`).
+A barrel export would fold away which function lives in which module — and
+therefore which timing rules apply — making the preboot sequence in
+`main/index.ts` harder to reason about. Importing from concrete paths keeps
+the timing story visible at every call site.
