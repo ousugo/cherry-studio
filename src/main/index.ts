@@ -75,6 +75,18 @@ if (!app.requestSingleInstanceLock()) {
   process.exit(0)
 }
 
+// Initialize the path registry now that:
+//   (1) resolveUserDataLocation() above has finished all app.setPath('userData', ...)
+//       calls — buildPathRegistry() reads app.getPath('userData') and other
+//       Electron paths, so userData must be settled first.
+//   (2) the single-instance lock check has confirmed we're the live process —
+//       second instances quit before reaching this line, so we don't waste
+//       initialization on a process that's about to exit.
+// From this point on, application.getPath() is safe to call from any
+// preboot, migration, or service-startup code. application.bootstrap()
+// asserts this initialization happened — see Application.initPathRegistry().
+application.initPathRegistry()
+
 // enable local crash reports
 crashReporter.start({
   companyName: 'CherryHQ',
