@@ -32,17 +32,6 @@ import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 
 resolveUserDataLocation()
 
-// [v2] DEPRECATED LEGACY IMPORT — to be removed in cleanup PR
-//
-// `@main/config` only contains the legacy titleBarOverlay constants and
-// the `global.CHERRYAI_CLIENT_SECRET` write at this point — the bare
-// import here keeps the global secret assignment running at startup,
-// before any consumer might read it. Both responsibilities will move to
-// dedicated v2 modules in a follow-up PR. Don't extend this file in the
-// meantime. (The dev-mode `userData + 'Dev'` suffix that used to live
-// here has been migrated to `core/preboot/userDataLocation.ts`.)
-import '@main/config'
-
 import process from 'node:process'
 
 import {
@@ -78,6 +67,18 @@ if (!app.requestSingleInstanceLock()) {
   process.exit(0)
 }
 
+// Configure Chromium startup flags. Must run before app.whenReady() fires.
+// See core/preboot/chromiumFlags.ts for the full list and rationale.
+configureChromiumFlags()
+
+// enable local crash reports
+crashReporter.start({
+  companyName: 'CherryHQ',
+  productName: 'CherryStudio',
+  submitURL: '',
+  uploadToServer: false
+})
+
 // Initialize the path registry now that:
 //   (1) resolveUserDataLocation() above has finished all app.setPath('userData', ...)
 //       calls — buildPathRegistry() reads app.getPath('userData') and other
@@ -89,18 +90,6 @@ if (!app.requestSingleInstanceLock()) {
 // preboot, migration, or service-startup code. application.bootstrap()
 // asserts this initialization happened — see Application.initPathRegistry().
 application.initPathRegistry()
-
-// enable local crash reports
-crashReporter.start({
-  companyName: 'CherryHQ',
-  productName: 'CherryStudio',
-  submitURL: '',
-  uploadToServer: false
-})
-
-// Configure Chromium startup flags. Must run before app.whenReady() fires.
-// See core/preboot/chromiumFlags.ts for the full list and rationale.
-configureChromiumFlags()
 
 // Set the Windows app user model id before app.whenReady() so Windows groups
 // our windows under the correct taskbar entry from the first frame.
@@ -203,6 +192,10 @@ const startApp = async () => {
       error: error instanceof Error ? error.message : String(error)
     })
   })
+
+  // [v2] temporary code to set the CherryAI client secret (move from config.ts)
+  // TODO: should move to somewhere else
+  global.CHERRYAI_CLIENT_SECRET = import.meta.env.MAIN_VITE_CHERRYAI_CLIENT_SECRET
 
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)
