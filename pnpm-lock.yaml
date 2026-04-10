@@ -45,6 +45,9 @@ patchedDependencies:
   '@langchain/openai@1.0.0':
     hash: d6ed38e7008b7a6b45ee16826e31b0198ffb0cb581852fd8de532ddeca633334
     path: patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch
+  '@libsql/client@0.15.15':
+    hash: 735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78
+    path: patches/@libsql__client@0.15.15.patch
   '@napi-rs/system-ocr@1.0.2':
     hash: aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
     path: patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch
@@ -97,7 +100,7 @@ importers:
         version: 1.60.0
       '@libsql/client':
         specifier: ^0.15.15
-        version: 0.15.15
+        version: 0.15.15(patch_hash=735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78)
       '@napi-rs/canvas':
         specifier: 0.1.97
         version: 0.1.97
@@ -121,7 +124,7 @@ importers:
         version: 5.5.0
       drizzle-zod:
         specifier: ^0.8.3
-        version: 0.8.3(drizzle-orm@0.44.7(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0))(zod@4.3.4)
+        version: 0.8.3(drizzle-orm@0.44.7(@libsql/client@0.15.15(patch_hash=735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78))(@opentelemetry/api@1.9.0))(zod@4.3.4)
       express:
         specifier: 5.1.0
         version: 5.1.0
@@ -392,7 +395,7 @@ importers:
         version: 0.3.4
       '@langchain/community':
         specifier: ^1.0.0
-        version: 1.1.1(9b32df8fea10b7369f157d4e11bd59c1)
+        version: 1.1.1(12bf9caf4eb30e64e53e029eef2cd8c2)
       '@langchain/core':
         specifier: 1.0.2
         version: 1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.20.0)(zod@4.3.4))
@@ -794,7 +797,7 @@ importers:
         version: 0.31.8
       drizzle-orm:
         specifier: ^0.44.5
-        version: 0.44.7(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)
+        version: 0.44.7(@libsql/client@0.15.15(patch_hash=735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78))(@opentelemetry/api@1.9.0)
       electron:
         specifier: 40.8.0
         version: 40.8.0
@@ -1639,7 +1642,7 @@ importers:
     dependencies:
       '@libsql/client':
         specifier: ^0.15.15
-        version: 0.15.15
+        version: 0.15.15(patch_hash=735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78)
     devDependencies:
       '@vectorstores/core':
         specifier: ^0.1.8
@@ -17308,7 +17311,7 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/community@1.1.1(9b32df8fea10b7369f157d4e11bd59c1)':
+  '@langchain/community@1.1.1(12bf9caf4eb30e64e53e029eef2cd8c2)':
     dependencies:
       '@browserbasehq/stagehand': 1.14.0(@playwright/test@1.57.0)(deepmerge@4.3.1)(dotenv@16.6.1)(encoding@0.1.13)(openai@6.15.0(ws@8.20.0)(zod@4.3.4))(zod@4.3.4)
       '@ibm-cloud/watsonx-ai': 1.7.5
@@ -17328,7 +17331,7 @@ snapshots:
       '@aws-sdk/client-s3': 3.998.0
       '@aws-sdk/credential-provider-node': 3.972.13
       '@browserbasehq/sdk': 2.10.0(encoding@0.1.13)
-      '@libsql/client': 0.15.15
+      '@libsql/client': 0.15.15(patch_hash=735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78)
       '@mozilla/readability': 0.6.0
       '@notionhq/client': 2.3.0(encoding@0.1.13)
       '@smithy/util-utf8': 2.3.0
@@ -17551,7 +17554,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@libsql/client@0.15.15':
+  '@libsql/client@0.15.15(patch_hash=735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78)':
     dependencies:
       '@libsql/core': 0.15.15
       '@libsql/hrana-client': 0.7.0
@@ -23305,14 +23308,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  drizzle-orm@0.44.7(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0):
+  drizzle-orm@0.44.7(@libsql/client@0.15.15(patch_hash=735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78))(@opentelemetry/api@1.9.0):
     optionalDependencies:
-      '@libsql/client': 0.15.15
+      '@libsql/client': 0.15.15(patch_hash=735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78)
       '@opentelemetry/api': 1.9.0
 
-  drizzle-zod@0.8.3(drizzle-orm@0.44.7(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0))(zod@4.3.4):
+  drizzle-zod@0.8.3(drizzle-orm@0.44.7(@libsql/client@0.15.15(patch_hash=735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78))(@opentelemetry/api@1.9.0))(zod@4.3.4):
     dependencies:
-      drizzle-orm: 0.44.7(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)
+      drizzle-orm: 0.44.7(@libsql/client@0.15.15(patch_hash=735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78))(@opentelemetry/api@1.9.0)
       zod: 4.3.4
 
   dts-resolver@2.1.3: {}

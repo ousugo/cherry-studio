@@ -508,7 +508,8 @@
       "@openrouter/ai-sdk-provider": "patches/@openrouter__ai-sdk-provider.patch",
       "@opeoginni/github-copilot-openai-compatible@1.0.0": "patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch",
       "@ai-sdk/openai-compatible@2.0.37": "patches/@ai-sdk__openai-compatible@2.0.37.patch",
-      "@ai-sdk/google@3.0.55": "patches/@ai-sdk__google@3.0.55.patch"
+      "@ai-sdk/google@3.0.55": "patches/@ai-sdk__google@3.0.55.patch",
+      "@libsql/client@0.15.15": "patches/@libsql__client@0.15.15.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",
