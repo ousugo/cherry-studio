@@ -16,9 +16,11 @@ src/main/data/migration/v2/
 ## Core Contracts
 
 - `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and marks status in `app_state.key = 'migration_v2_status'`. It will clear new-schema tables before running and abort on any validation failure.
+- `core/MigrationPaths.ts` defines `MigrationPaths` (a frozen object of pre-computed paths) and `resolveMigrationPaths()` which detects v1 legacy userData directories from `~/.cherrystudio/config/config.json`. Called once at the migration gate entry, before engine initialization. All migration code uses these paths instead of `app.getPath()` — see the **Path safety** convention below.
 - `core/MigrationContext.ts` builds the shared context passed to every migrator:
   - `sources`: `ConfigManager` (ElectronStore), `ReduxStateReader` (parsed Redux Persist data), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `~/.cherrystudio/config/config.json` for the config-file migration path used by `BootConfigMigrator`)
   - `db`: current SQLite connection
+  - `paths`: `MigrationPaths` — pre-computed filesystem paths; migrators that need file paths use `ctx.paths` instead of `app.getPath()`
   - `sharedData`: `Map` for passing cross-cutting info between migrators
   - `logger`: `loggerService` scoped to migration
 - `@shared/data/migration/v2/types` defines stages, results, and validation stats used across main and renderer.
@@ -44,6 +46,7 @@ src/main/data/migration/v2/
   - **Foreign keys during bulk inserts**: libsql (turso's SQLite fork) is compiled with `SQLITE_DEFAULT_FOREIGN_KEYS=1`, so every new connection has `foreign_keys = ON` by default (unlike standard SQLite). Additionally, `@libsql/client`'s `transaction()` nullifies its internal connection after each transaction (`this.#db = null`), and the lazily-created replacement inherits the compile-time default (FK ON). If your migrator does batch inserts into tables with self-referencing FKs (e.g., `message.parentId → message.id`), you **must** run `await db.run(sql\`PRAGMA foreign_keys = OFF\`)` before **each** `db.transaction()` call — setting it once is not enough. The engine runs `PRAGMA foreign_key_check` after all migrators complete to verify referential integrity.
   - Count validation is mandatory; engine will fail the run if `targetCount < sourceCount - skippedCount` or if `ValidateResult.errors` is non-empty.
   - Keep migrations idempotent per run—engine clears target tables before it starts, but each migrator should tolerate retries within the same run.
+  - **Path safety**: All filesystem paths MUST come from `ctx.paths` (the `MigrationPaths` object). NEVER call `app.getPath('userData')` or construct paths with `path.join` from scratch. Doing so bypasses the v1 legacy userData detection and may cause data loss for users with custom `appDataPath` configurations. If you need a path not yet in `MigrationPaths`, add it to the interface — do not inline it.
 
 ## Utilities
 

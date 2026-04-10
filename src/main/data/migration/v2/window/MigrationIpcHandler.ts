@@ -34,12 +34,12 @@ let currentProgress: MigrationProgress = {
 /**
  * Register all migration IPC handlers
  */
-export function registerMigrationIpcHandlers(): void {
+export function registerMigrationIpcHandlers(userDataPath: string): void {
   logger.info('Registering migration IPC handlers')
 
   // Get user data path
   ipcMain.handle(MigrationIpcChannels.GetUserDataPath, () => {
-    return app.getPath('userData')
+    return userDataPath
   })
 
   // Check if migration is needed

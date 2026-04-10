@@ -33,9 +33,16 @@ const migrationWindowCreateMock = vi.fn()
 const migrationWindowWaitForReadyMock = vi.fn()
 const registerMigrationIpcHandlersMock = vi.fn()
 const unregisterMigrationIpcHandlersMock = vi.fn()
+const resolveMigrationPathsMock = vi.fn()
 const showErrorBoxMock = vi.fn()
+const showMessageBoxMock = vi.fn()
 const appQuitMock = vi.fn()
 const whenReadyMock = vi.fn().mockResolvedValue(undefined)
+const relaunchMock = vi.fn()
+const exitMock = vi.fn()
+
+const defaultMigrationPaths = { userData: '/mock/userData' }
+const defaultResolveResult = { paths: defaultMigrationPaths, userDataChanged: false, inaccessibleLegacyPath: null }
 
 function stubMigrationV2() {
   vi.doMock('@data/migration/v2', () => ({
@@ -51,7 +58,8 @@ function stubMigrationV2() {
       waitForReady: migrationWindowWaitForReadyMock
     },
     registerMigrationIpcHandlers: registerMigrationIpcHandlersMock,
-    unregisterMigrationIpcHandlers: unregisterMigrationIpcHandlersMock
+    unregisterMigrationIpcHandlers: unregisterMigrationIpcHandlersMock,
+    resolveMigrationPaths: resolveMigrationPathsMock
   }))
 }
 
@@ -59,10 +67,13 @@ function stubElectron() {
   vi.doMock('electron', () => ({
     __esModule: true,
     app: {
-      whenReady: whenReadyMock
+      whenReady: whenReadyMock,
+      relaunch: relaunchMock,
+      exit: exitMock
     },
     dialog: {
-      showErrorBox: showErrorBoxMock
+      showErrorBox: showErrorBoxMock,
+      showMessageBox: showMessageBoxMock
     }
   }))
 }
@@ -81,6 +92,7 @@ async function loadModule() {
 
 beforeEach(() => {
   vi.resetModules()
+  resolveMigrationPathsMock.mockReset().mockReturnValue(defaultResolveResult)
   initializeMock.mockReset().mockResolvedValue(undefined)
   registerMigratorsMock.mockReset()
   needsMigrationMock.mockReset()
@@ -91,8 +103,11 @@ beforeEach(() => {
   registerMigrationIpcHandlersMock.mockReset()
   unregisterMigrationIpcHandlersMock.mockReset()
   showErrorBoxMock.mockReset()
+  showMessageBoxMock.mockReset()
   appQuitMock.mockReset()
   whenReadyMock.mockReset().mockResolvedValue(undefined)
+  relaunchMock.mockReset()
+  exitMock.mockReset()
 })
 
 afterEach(() => {
@@ -130,6 +145,7 @@ describe('runV2MigrationGate', () => {
       await runV2MigrationGate()
 
       expect(initializeMock).toHaveBeenCalledTimes(1)
+      expect(initializeMock).toHaveBeenCalledWith(defaultMigrationPaths)
       expect(registerMigratorsMock).toHaveBeenCalledTimes(1)
       expect(registerMigratorsMock).toHaveBeenCalledWith(migrators)
     })
@@ -150,6 +166,7 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
+      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith('/mock/userData')
       expect(migrationWindowCreateMock).toHaveBeenCalledTimes(1)
       expect(migrationWindowWaitForReadyMock).toHaveBeenCalledTimes(1)
       // Success path should NOT unregister handlers — the migration window

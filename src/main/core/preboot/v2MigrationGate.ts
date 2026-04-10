@@ -3,6 +3,7 @@ import {
   migrationEngine,
   migrationWindowManager,
   registerMigrationIpcHandlers,
+  resolveMigrationPaths,
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
@@ -47,11 +48,41 @@ export type V2MigrationGateResult = 'handled' | 'skipped'
  * prefix in both file name and exported function name.
  */
 export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
+  // Step 0: Resolve all migration-critical paths, including v1 legacy
+  // userData detection. This MUST run before migrationEngine.initialize()
+  // so that all subsequent path-dependent operations use the correct
+  // directory. See MigrationPaths.ts for the full resolution logic.
+  const { paths, userDataChanged, inaccessibleLegacyPath } = resolveMigrationPaths()
+
+  // Legacy custom path found but inaccessible (e.g. external drive not
+  // mounted). Warn the user — silently falling back to the default path
+  // would cause an empty-data migration, making user data appear lost.
+  if (inaccessibleLegacyPath) {
+    logger.warn('Legacy userData path inaccessible, prompting user', { inaccessibleLegacyPath })
+    await app.whenReady()
+    const { response } = await dialog.showMessageBox({
+      type: 'warning',
+      title: 'Custom Data Directory Inaccessible',
+      message:
+        `Your previous data was stored at:\n${inaccessibleLegacyPath}\n\n` +
+        'This directory is currently inaccessible. Please ensure the drive is mounted and try again.',
+      buttons: ['Retry', 'Quit'],
+      defaultId: 0
+    })
+    if (response === 0) {
+      app.relaunch()
+      app.exit(0)
+      return 'handled'
+    }
+    application.quit()
+    return 'handled'
+  }
+
   let needsMigration = false
 
   try {
     logger.info('Checking if data migration v2 is needed')
-    await migrationEngine.initialize()
+    await migrationEngine.initialize(paths)
     migrationEngine.registerMigrators(getAllMigrators())
     needsMigration = await migrationEngine.needsMigration()
     logger.info('Migration status check result', { needsMigration })
@@ -69,7 +100,7 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
 
   if (needsMigration) {
     logger.info('Data Migration v2 needed, starting migration process')
-    registerMigrationIpcHandlers()
+    registerMigrationIpcHandlers(paths.userData)
 
     try {
       await app.whenReady()
@@ -93,5 +124,20 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   // Normal path: no migration needed. Release the bare DB handle so the
   // lifecycle DbService can open its own connection when bootstrap runs.
   migrationEngine.close()
+
+  // Edge case: userData was redirected from legacy config but migration is
+  // not needed (e.g. boot-config.json was manually deleted after a
+  // completed migration). The path registry was frozen with the Electron
+  // default during initPathRegistry(), creating an inconsistency with the
+  // app.setPath() call in resolveMigrationPaths(). Force a clean relaunch
+  // so resolveUserDataLocation() reads the pre-written boot-config.json
+  // and freezes the registry correctly.
+  if (userDataChanged) {
+    logger.info('Legacy userData resolved but migration not needed, relaunching for path consistency')
+    app.relaunch()
+    app.exit(0)
+    return 'handled'
+  }
+
   return 'skipped'
 }

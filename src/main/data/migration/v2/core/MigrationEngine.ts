@@ -31,6 +31,7 @@ import path from 'path'
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
+import type { MigrationPaths } from './MigrationPaths'
 
 // TODO: Import these tables when they are created in user data schema
 // import { assistantTable } from '../../db/schemas/assistant'
@@ -44,13 +45,22 @@ export class MigrationEngine {
   private migrators: BaseMigrator[] = []
   private progressCallback?: (progress: MigrationProgress) => void
   private migrationDb: MigrationDbService | null = null
+  private _paths: MigrationPaths | null = null
+
+  get paths(): MigrationPaths {
+    if (!this._paths) {
+      throw new Error('MigrationEngine not initialized — call initialize() first')
+    }
+    return this._paths
+  }
 
   /**
    * Initialize the migration engine by creating a bare DB connection.
    * Must be called before needsMigration() or run().
    */
-  async initialize(): Promise<void> {
-    this.migrationDb = await MigrationDbService.create()
+  async initialize(paths: MigrationPaths): Promise<void> {
+    this._paths = paths
+    this.migrationDb = await MigrationDbService.create(paths)
   }
 
   /**
@@ -116,7 +126,7 @@ export class MigrationEngine {
    * 后续引入 version history 后可用精确的版本记录替代这些启发式检测。
    */
   private hasLegacyData(): boolean {
-    const legacyStore = new Store()
+    const legacyStore = new Store({ cwd: this.paths.userData })
     const hasData = legacyStore.size > 0
 
     logger.info('Legacy data detection', { hasElectronStore: hasData })
@@ -161,7 +171,13 @@ export class MigrationEngine {
       await this.verifyAndClearNewTables()
 
       // Create migration context
-      const context = await createMigrationContext(this.getDb(), reduxData, dexieExportPath, localStorageExportPath)
+      const context = await createMigrationContext(
+        this.getDb(),
+        this.paths,
+        reduxData,
+        dexieExportPath,
+        localStorageExportPath
+      )
 
       for (let i = 0; i < this.migrators.length; i++) {
         const migrator = this.migrators[i]

@@ -1,10 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MigrationEngine } from '../MigrationEngine'
+import type { MigrationPaths } from '../MigrationPaths'
 
 vi.mock('../MigrationContext', () => ({
   createMigrationContext: vi.fn().mockResolvedValue({})
 }))
+
+const mockPaths: MigrationPaths = {
+  userData: '/tmp/test-userdata',
+  cherryHome: '/tmp/test-cherryhome',
+  databaseFile: '/tmp/test-userdata/cherrystudio.sqlite',
+  knowledgeBaseDir: '/tmp/test-userdata/Data/KnowledgeBase',
+  legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
+  migrationsFolder: '/tmp/test-migrations'
+}
 
 function createTestMigrator(id: string, order: number, events: string[]) {
   return {
@@ -41,6 +51,7 @@ describe('MigrationEngine', () => {
   beforeEach(() => {
     engine = new MigrationEngine()
 
+    ;(engine as any)._paths = mockPaths
     ;(engine as any).migrationDb = {
       getDb: vi.fn(() => ({})),
       close: vi.fn()
