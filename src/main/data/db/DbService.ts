@@ -10,7 +10,8 @@ import path from 'path'
 import { pathToFileURL } from 'url'
 
 import { CUSTOM_SQL_STATEMENTS } from './customSqls'
-import Seeding from './seeding'
+import { seeders } from './seeding'
+import { SeedRunner } from './seeding/SeedRunner'
 import type { DbType } from './types'
 
 const logger = loggerService.withContext('DbService')
@@ -61,9 +62,7 @@ export class DbService extends BaseService {
   protected async onInit(): Promise<void> {
     await this.configurePragmas()
     await this.migrateDb()
-    await this.migrateSeed('preference')
-    await this.migrateSeed('translateLanguage')
-    await this.migrateSeed('presetProvider')
+    await new SeedRunner(this.db).runAll(seeders)
   }
 
   /**
@@ -158,26 +157,6 @@ export class DbService extends BaseService {
       throw new Error('Database is not initialized, please call init() first!')
     }
     return this.db
-  }
-
-  /**
-   * Run seed data migration
-   * @param seedName - Name of the seed to run
-   */
-  private async migrateSeed(seedName: keyof typeof Seeding): Promise<void> {
-    try {
-      const Seed = Seeding[seedName]
-      if (!Seed) {
-        throw new Error(`Seed "${seedName}" not found`)
-      }
-
-      await new Seed().migrate(this.db)
-
-      logger.info('Seed migration completed successfully', { seedName })
-    } catch (error) {
-      logger.error('Seed migration failed', error as Error, { seedName })
-      throw error
-    }
   }
 
   /**
