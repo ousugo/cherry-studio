@@ -47,6 +47,8 @@ export interface MigrationPaths {
   readonly databaseFile: string
   /** {userData}/Data/KnowledgeBase */
   readonly knowledgeBaseDir: string
+  /** {userData}/version.log — v1 VersionService version history log. */
+  readonly versionLogFile: string
 
   // ── Derived from cherryHome ──
 
@@ -157,6 +159,7 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     cherryHome: CHERRY_HOME,
     databaseFile: path.join(currentUserData, DB_NAME),
     knowledgeBaseDir: path.join(currentUserData, 'Data', 'KnowledgeBase'),
+    versionLogFile: path.join(currentUserData, 'version.log'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)

@@ -119,11 +119,15 @@ export class MigrationEngine {
   }
 
   /**
-   * FIXME: 当前仅通过 electron-store 判断是否有旧数据，这是临时方案。
-   * electron-store (config.json) 在 v2 中也可能被写入，导致误判。
-   * localStorage 和 IndexedDB 的文件系统路径不可靠（UserData 路径问题待迁移后期统一处理），暂不检测。
-   * 宁可误触发迁移（空数据迁移可安全完成），也不漏掉真正的升级用户。
-   * 后续引入 version history 后可用精确的版本记录替代这些启发式检测。
+   * Heuristic fallback for fresh-install detection.
+   * Version-based upgrade path validation is enforced in
+   * v2MigrationGate.ts (via versionPolicy.ts) BEFORE this method
+   * is called. This heuristic only needs to distinguish "fresh
+   * install" from "upgrade with legacy data".
+   *
+   * Known limitation: electron-store (config.json) may be written
+   * by v2, causing false positives. Prefer to over-trigger (empty-
+   * data migration completes safely) rather than miss a real upgrade.
    */
   private hasLegacyData(): boolean {
     const legacyStore = new Store({ cwd: this.paths.userData })

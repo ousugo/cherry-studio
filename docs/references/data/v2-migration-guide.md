@@ -2,6 +2,60 @@
 
 Architecture for the new one-shot migration from the legacy Dexie + Redux Persist stores into the SQLite schema. This module owns orchestration, data access helpers, migrator plugins, and IPC entry points used by the renderer migration window.
 
+## Version Upgrade Requirements
+
+The v2 migration system enforces a **linear upgrade path** to ensure
+data integrity:
+
+```
+v1.old  →  v1.last (≥1.9.0)  →  v2.0.0  →  v2.x
+```
+
+### Why a linear path?
+
+v2.0.0 contains the one-shot data migration from Redux/Dexie to SQLite.
+Supporting migration from every v1 version would create an O(n²) test
+matrix. By requiring all users to be on the final v1 release first, the
+migration code only needs to handle a single source data format.
+
+### How it works
+
+1. **VersionService** has been embedded since v1.7. It writes a
+   `version.log` file to `{userData}/` on every launch where the
+   version changes.
+2. On v2 first launch, `v2MigrationGate.ts` reads `version.log` via
+   `MigrationPaths.versionLogFile` (using the resolved userData path
+   that accounts for v1 custom directories).
+3. If the previous version is too old, missing, or if the user skipped
+   v2.0.0, the gate shows an error dialog and quits.
+
+### Blocking rules
+
+| Scenario | Block reason | User action |
+|----------|-------------|-------------|
+| No `version.log` (v1 < 1.7 user) | `no_version_log` | Install v1.last, run once, then install v2.0.0 |
+| Previous version < 1.9.0 | `v1_too_old` | Upgrade to v1.last first |
+| Previous version is v1.x but current > v2.0.0 | `v2_gateway_skipped` | Install v2.0.0 first |
+
+### Pre-release versions
+
+v2.0.0 pre-releases (alpha/beta/rc) are treated as **before v2.0.0**
+per semver ordering. They are allowed as migration targets from v1.last
+(the gateway check coerces `currentVersion`, so `2.0.0-alpha` → `2.0.0`
+passes). Pre-release to pre-release upgrades work because migration
+status is `completed` after the first successful run.
+
+The gateway is **strictly v2.0.0** — v2.0.x patches are blocked from
+being a first migration target. This may be relaxed in a future release.
+
+### Relationship with the auto-updater
+
+The auto-updater (`AppUpdaterService`) controls which versions are
+offered via OTA using `minCompatibleVersion` in the remote config. The
+migration gate is a **separate safety net** for users who manually
+download and install a version. Both systems enforce compatible upgrade
+paths but operate independently.
+
 ## Directory Layout
 
 ```

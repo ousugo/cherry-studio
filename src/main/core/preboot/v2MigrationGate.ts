@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+
 import {
   getAllMigrators,
   migrationEngine,
@@ -6,6 +8,11 @@ import {
   resolveMigrationPaths,
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
+import {
+  checkUpgradePathCompatibility,
+  getBlockMessage,
+  readPreviousVersion
+} from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { app, dialog } from 'electron'
@@ -99,6 +106,32 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   }
 
   if (needsMigration) {
+    // Version compatibility gate: ensure the upgrade path is valid
+    // before showing the migration UI. This catches manual installs
+    // that bypassed the auto-updater's version filtering.
+    const versionLogExists = fs.existsSync(paths.versionLogFile)
+    const previousVersion = versionLogExists ? readPreviousVersion(paths.versionLogFile, app.getVersion()) : null
+
+    logger.info('Version compatibility check', { currentVersion: app.getVersion(), previousVersion, versionLogExists })
+
+    const versionCheck = checkUpgradePathCompatibility({
+      currentAppVersion: app.getVersion(),
+      previousVersion,
+      versionLogExists
+    })
+
+    if (versionCheck.outcome === 'block') {
+      logger.warn('Version compatibility check failed, blocking migration', {
+        reason: versionCheck.reason,
+        ...versionCheck.details
+      })
+      migrationEngine.close()
+      await app.whenReady()
+      dialog.showErrorBox('Version Upgrade Required', getBlockMessage(versionCheck.reason, versionCheck.details))
+      application.quit()
+      return 'handled'
+    }
+
     logger.info('Data Migration v2 needed, starting migration process')
     registerMigrationIpcHandlers(paths.userData)
 

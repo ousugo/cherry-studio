@@ -41,7 +41,12 @@ const whenReadyMock = vi.fn().mockResolvedValue(undefined)
 const relaunchMock = vi.fn()
 const exitMock = vi.fn()
 
-const defaultMigrationPaths = { userData: '/mock/userData' }
+const existsSyncMock = vi.fn()
+const checkUpgradePathMock = vi.fn()
+const readPreviousVersionMock = vi.fn()
+const getBlockMessageMock = vi.fn()
+
+const defaultMigrationPaths = { userData: '/mock/userData', versionLogFile: '/mock/version.log' }
 const defaultResolveResult = { paths: defaultMigrationPaths, userDataChanged: false, inaccessibleLegacyPath: null }
 
 function stubMigrationV2() {
@@ -50,7 +55,8 @@ function stubMigrationV2() {
       initialize: initializeMock,
       registerMigrators: registerMigratorsMock,
       needsMigration: needsMigrationMock,
-      close: closeMock
+      close: closeMock,
+      paths: { versionLogFile: '/fake/version.log', userData: '/fake/userData' }
     },
     getAllMigrators: getAllMigratorsMock,
     migrationWindowManager: {
@@ -69,7 +75,8 @@ function stubElectron() {
     app: {
       whenReady: whenReadyMock,
       relaunch: relaunchMock,
-      exit: exitMock
+      exit: exitMock,
+      getVersion: vi.fn().mockReturnValue('2.0.0')
     },
     dialog: {
       showErrorBox: showErrorBoxMock,
@@ -83,6 +90,21 @@ function stubApplication() {
     application: {
       quit: appQuitMock
     }
+  }))
+}
+
+function stubVersionPolicy() {
+  vi.doMock('@data/migration/v2/core/versionPolicy', () => ({
+    checkUpgradePathCompatibility: checkUpgradePathMock,
+    readPreviousVersion: readPreviousVersionMock,
+    getBlockMessage: getBlockMessageMock
+  }))
+}
+
+function stubFs() {
+  vi.doMock('node:fs', () => ({
+    __esModule: true,
+    default: { existsSync: existsSyncMock }
   }))
 }
 
@@ -108,6 +130,10 @@ beforeEach(() => {
   whenReadyMock.mockReset().mockResolvedValue(undefined)
   relaunchMock.mockReset()
   exitMock.mockReset()
+  existsSyncMock.mockReset()
+  checkUpgradePathMock.mockReset()
+  readPreviousVersionMock.mockReset()
+  getBlockMessageMock.mockReset()
 })
 
 afterEach(() => {
@@ -154,12 +180,17 @@ describe('runV2MigrationGate', () => {
   describe('handled path — migration runs', () => {
     it("returns 'handled' and leaves IPC handlers registered when the migration window starts", async () => {
       needsMigrationMock.mockResolvedValue(true)
+      existsSyncMock.mockReturnValue(true)
+      readPreviousVersionMock.mockReturnValue('1.9.0')
+      checkUpgradePathMock.mockReturnValue({ outcome: 'pass' })
       migrationWindowCreateMock.mockImplementation(() => {
         /* no-op — success */
       })
       stubMigrationV2()
       stubElectron()
       stubApplication()
+      stubVersionPolicy()
+      stubFs()
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
@@ -221,12 +252,17 @@ describe('runV2MigrationGate', () => {
   describe('handled path — migration window start fails', () => {
     it("returns 'handled', unregisters IPC handlers, and quits when migrationWindowManager.create() throws", async () => {
       needsMigrationMock.mockResolvedValue(true)
+      existsSyncMock.mockReturnValue(true)
+      readPreviousVersionMock.mockReturnValue('1.9.0')
+      checkUpgradePathMock.mockReturnValue({ outcome: 'pass' })
       migrationWindowCreateMock.mockImplementation(() => {
         throw new Error('window create failed')
       })
       stubMigrationV2()
       stubElectron()
       stubApplication()
+      stubVersionPolicy()
+      stubFs()
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
@@ -243,10 +279,15 @@ describe('runV2MigrationGate', () => {
 
     it("returns 'handled' when waitForReady() rejects after window create succeeds", async () => {
       needsMigrationMock.mockResolvedValue(true)
+      existsSyncMock.mockReturnValue(true)
+      readPreviousVersionMock.mockReturnValue('1.9.0')
+      checkUpgradePathMock.mockReturnValue({ outcome: 'pass' })
       migrationWindowWaitForReadyMock.mockRejectedValue(new Error('waitForReady rejected'))
       stubMigrationV2()
       stubElectron()
       stubApplication()
+      stubVersionPolicy()
+      stubFs()
 
       const { runV2MigrationGate } = await loadModule()
       const result = await runV2MigrationGate()
@@ -255,6 +296,91 @@ describe('runV2MigrationGate', () => {
       expect(unregisterMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
       expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
       expect(appQuitMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('handled path — version compatibility check fails', () => {
+    it("returns 'handled' and blocks when version check returns v1_too_old", async () => {
+      needsMigrationMock.mockResolvedValue(true)
+      existsSyncMock.mockReturnValue(true)
+      readPreviousVersionMock.mockReturnValue('1.5.0')
+      checkUpgradePathMock.mockReturnValue({
+        outcome: 'block',
+        reason: 'v1_too_old',
+        details: { previousVersion: '1.5.0', requiredVersion: '1.9.0' }
+      })
+      getBlockMessageMock.mockReturnValue('Your previous version (1.5.0) is too old to migrate directly.')
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+      stubVersionPolicy()
+      stubFs()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      const [title] = showErrorBoxMock.mock.calls[0]
+      expect(title).toBe('Version Upgrade Required')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(closeMock).toHaveBeenCalledTimes(1)
+      expect(migrationWindowCreateMock).not.toHaveBeenCalled()
+      expect(registerMigrationIpcHandlersMock).not.toHaveBeenCalled()
+    })
+
+    it("returns 'handled' and blocks when version check returns no_version_log", async () => {
+      needsMigrationMock.mockResolvedValue(true)
+      existsSyncMock.mockReturnValue(false)
+      readPreviousVersionMock.mockReturnValue(null)
+      checkUpgradePathMock.mockReturnValue({
+        outcome: 'block',
+        reason: 'no_version_log',
+        details: { requiredVersion: '1.9.0' }
+      })
+      getBlockMessageMock.mockReturnValue('Cannot determine your previous Cherry Studio version.')
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+      stubVersionPolicy()
+      stubFs()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      const [title] = showErrorBoxMock.mock.calls[0]
+      expect(title).toBe('Version Upgrade Required')
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(closeMock).toHaveBeenCalledTimes(1)
+      expect(migrationWindowCreateMock).not.toHaveBeenCalled()
+      expect(registerMigrationIpcHandlersMock).not.toHaveBeenCalled()
+    })
+
+    it('proceeds to migration window when version check passes', async () => {
+      needsMigrationMock.mockResolvedValue(true)
+      existsSyncMock.mockReturnValue(true)
+      readPreviousVersionMock.mockReturnValue('1.9.0')
+      checkUpgradePathMock.mockReturnValue({ outcome: 'pass' })
+      migrationWindowCreateMock.mockImplementation(() => {
+        /* no-op — success */
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+      stubVersionPolicy()
+      stubFs()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(migrationWindowCreateMock).toHaveBeenCalledTimes(1)
+      expect(migrationWindowWaitForReadyMock).toHaveBeenCalledTimes(1)
+      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
+      expect(closeMock).not.toHaveBeenCalled()
+      expect(appQuitMock).not.toHaveBeenCalled()
     })
   })
 })
