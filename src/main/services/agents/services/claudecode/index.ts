@@ -204,7 +204,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
       // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
       // This prevents the SDK from using the user's home directory which may have encoding problems
-      CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude'),
+      CLAUDE_CONFIG_DIR: application.getPath('feature.agents.claude.root'),
       ENABLE_TOOL_SEARCH: 'auto',
       CHERRY_STUDIO_BUN_PATH: bunPath,
       ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
