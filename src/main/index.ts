@@ -33,7 +33,7 @@ initCrashTelemetry()
 // everywhere; bootstrap() asserts this happened.
 application.initPathRegistry()
 
-import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { electronApp } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
@@ -70,10 +70,6 @@ const startApp = async () => {
   application.registerAll(serviceList)
   const bootstrapPromise = application.bootstrap().catch((error) => {
     logger.error('Application lifecycle bootstrap failed:', error)
-  })
-
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
   })
 
   // This method will be called when Electron has finished
