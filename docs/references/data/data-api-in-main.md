@@ -86,7 +86,7 @@ export const allHandlers: ApiImplementation = {
 ```typescript
 // services/TopicService.ts
 import { eq, desc, sql } from 'drizzle-orm'
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { topicTable } from '@data/db/schemas/topic'
 import { DataApiErrorFactory } from '@shared/data/api'
 

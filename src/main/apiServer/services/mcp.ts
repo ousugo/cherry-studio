@@ -1,6 +1,6 @@
+import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import type { Tool } from '@modelcontextprotocol/sdk/types'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 

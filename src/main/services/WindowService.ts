@@ -1,7 +1,7 @@
+import { application } from '@application'
 import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
-import { application } from '@main/core/application'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'

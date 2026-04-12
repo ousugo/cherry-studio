@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {

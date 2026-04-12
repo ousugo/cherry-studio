@@ -34,6 +34,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@main': resolve('src/main'),
+        '@application': resolve('src/main/core/application'),
         '@types': resolve('src/renderer/src/types'),
         '@data': resolve('src/main/data'),
         '@shared': resolve('packages/shared'),

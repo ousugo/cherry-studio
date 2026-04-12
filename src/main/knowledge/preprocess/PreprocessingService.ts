@@ -1,5 +1,5 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
 import type { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@types'
 
