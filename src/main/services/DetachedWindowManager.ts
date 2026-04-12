@@ -1,4 +1,5 @@
 import { is } from '@electron-toolkit/utils'
+import { loggerService } from '@logger'
 import { titleBarOverlayDark, titleBarOverlayLight } from '@main/config'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { application } from '@main/core/application'
@@ -8,7 +9,6 @@ import { BrowserWindow, nativeTheme, shell } from 'electron'
 import { join } from 'path'
 
 import icon from '../../../build/icon.png?asset'
-import { loggerService } from './LoggerService'
 
 const logger = loggerService.withContext('DetachedWindowManager')
 

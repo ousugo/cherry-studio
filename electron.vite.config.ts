@@ -37,7 +37,7 @@ export default defineConfig({
         '@types': resolve('src/renderer/src/types'),
         '@data': resolve('src/main/data'),
         '@shared': resolve('packages/shared'),
-        '@logger': resolve('src/main/services/LoggerService'),
+        '@logger': resolve('src/main/core/logger/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
         '@vectorstores/libsql': resolve('packages/vectorstores/libsql/src/index.ts'),
