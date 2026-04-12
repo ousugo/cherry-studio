@@ -60,10 +60,6 @@ const startApp = async () => {
     })
   })
 
-  // [v2] temporary code to set the CherryAI client secret (move from config.ts)
-  // TODO: should move to somewhere else
-  global.CHERRYAI_CLIENT_SECRET = import.meta.env.MAIN_VITE_CHERRYAI_CLIENT_SECRET
-
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)
   const bootstrapPromise = application.bootstrap().catch((error) => {
