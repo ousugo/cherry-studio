@@ -250,7 +250,7 @@ describe('WindowManager', () => {
     uuidCounter = 0
     createdWindows.length = 0
     wm = new WindowManager()
-    wm._doInit()
+    void wm._doInit()
   })
 
   afterEach(() => {

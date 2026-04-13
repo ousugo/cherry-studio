@@ -839,7 +839,7 @@ export class WindowManager extends BaseService {
     // Intercept external links: open in system browser
     window.webContents.setWindowOpenHandler(({ url }) => {
       if (url.startsWith('http:') || url.startsWith('https:')) {
-        shell.openExternal(url)
+        void shell.openExternal(url)
       }
       return { action: 'deny' }
     })
@@ -849,7 +849,7 @@ export class WindowManager extends BaseService {
         const currentURL = window.webContents.getURL()
         if (currentURL && new URL(url).origin !== new URL(currentURL).origin) {
           event.preventDefault()
-          shell.openExternal(url)
+          void shell.openExternal(url)
         }
       }
     })
@@ -1016,7 +1016,7 @@ export class WindowManager extends BaseService {
 
     if (hasVisibleDockWindow && !this.dockShouldBeVisible) {
       this.dockShouldBeVisible = true
-      app.dock?.show().then(() => {
+      void app.dock?.show().then(() => {
         if (!this.dockShouldBeVisible) app.dock?.hide()
       })
     } else if (!hasVisibleDockWindow && this.dockShouldBeVisible) {
