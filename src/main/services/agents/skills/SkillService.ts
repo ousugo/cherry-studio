@@ -396,7 +396,7 @@ export class SkillService {
     // Skills storage root, preserve its existing basename as folderName so the
     // destination resolves to the same path and SkillInstaller short-circuits the
     // copy. This avoids sanitize drift between caller-chosen names and metadata.
-    const skillsRoot = path.resolve(getDataPath('Skills'))
+    const skillsRoot = path.resolve(application.getPath('feature.agents.skills'))
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
     // INVARIANT: isInPlace assumes basename was already sanitized by getSkillDirectory()
     const folderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
