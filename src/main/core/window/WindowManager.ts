@@ -273,10 +273,16 @@ export class WindowManager extends BaseService {
    * to the renderer via `WindowManager_Reused` so the renderer can update
    * in-place without a round-trip.
    *
-   * No-op when `data === undefined` — never fire empty Reused events.
+   * When `data === undefined`, any previously stored init data for this window
+   * is cleared so the renderer does not observe a stale payload from an earlier
+   * open() on the same singleton/pooled instance. No Reused event is fired in
+   * that case.
    */
   private applyReusedInitData(managed: ManagedWindow, data: unknown): void {
-    if (data === undefined) return
+    if (data === undefined) {
+      this.initDataStore.delete(managed.id)
+      return
+    }
     this.setInitData(managed.id, data)
     if (!managed.window.isDestroyed()) {
       managed.window.webContents.send(IpcChannel.WindowManager_Reused, data)

@@ -787,6 +787,16 @@ describe('WindowManager', () => {
         const reusedCalls = win.webContents.send.mock.calls.filter((call) => call[0] === 'window-manager:reused')
         expect(reusedCalls).toHaveLength(0)
       })
+
+      it('clears stale initData on singleton re-open without initData', () => {
+        const id1 = wm.open('singleton' as never, { initData: { version: 1 } })
+        expect(wm.getInitData(id1)).toEqual({ version: 1 })
+
+        const id2 = wm.open('singleton' as never)
+
+        expect(id2).toBe(id1)
+        expect(wm.getInitData(id2)).toBeNull()
+      })
     })
   })
 
