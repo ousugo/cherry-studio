@@ -1197,6 +1197,25 @@ describe('WindowManager', () => {
 
       expect(event.preventDefault).not.toHaveBeenCalled()
     })
+
+    it('does not intercept close for pooled windows when app is quitting', async () => {
+      const { application } = (await import('@application')) as unknown as { application: { isQuitting: boolean } }
+      const previousQuitting = application.isQuitting
+      application.isQuitting = true
+      try {
+        wm.open('pooled' as never)
+        const win = createdWindows[createdWindows.length - 1]
+
+        const event = { preventDefault: vi.fn() }
+        win.emit('close', event)
+
+        // Close must proceed natively so app.quit()'s will-quit can fire.
+        expect(event.preventDefault).not.toHaveBeenCalled()
+        expect(win.hide).not.toHaveBeenCalled()
+      } finally {
+        application.isQuitting = previousQuitting
+      }
+    })
   })
 
   // ─── onDestroy cleanup ────────────────────────────────

@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev, isMac } from '@main/constant'
 import { BaseService, Emitter, type Event, Injectable, Phase, Priority, ServicePhase } from '@main/core/lifecycle'
@@ -709,6 +710,9 @@ export class WindowManager extends BaseService {
    * `suspendPool()` fires between scheduling and execution.
    */
   private replenishStandby(type: WindowType, state: PoolState, cfg: PoolConfig): void {
+    // Do not prewarm during app quit — otherwise newly created pooled windows
+    // would re-trigger the close intercept and stall app.quit().
+    if (application.isQuitting) return
     const target = cfg.standbySize ?? 0
     if (target <= 0 || state.suspended) return
     const shortfall = target - state.idle.length - state.inflightCreates
@@ -1159,6 +1163,10 @@ export class WindowManager extends BaseService {
 
     // Intercept native close for pooled windows — hide and return to pool
     window.on('close', (event) => {
+      // App is quitting — let native close proceed so app.quit() can complete.
+      // Without this, pooled windows' preventDefault stalls will-quit indefinitely.
+      if (application.isQuitting) return
+
       for (const [type, state] of this.pools) {
         if (state.managed.has(windowId)) {
           const metadata = getWindowTypeMetadata(type)
