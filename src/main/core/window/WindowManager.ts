@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { loggerService } from '@logger'
 import { isDev, isMac } from '@main/constant'
 import { BaseService, Emitter, type Event, Injectable, Phase, Priority, ServicePhase } from '@main/core/lifecycle'
+import { applyWindowQuirks } from '@main/core/window/quirks'
 import type { WindowType } from '@main/core/window/types'
 import {
   type ManagedWindow,
@@ -928,7 +929,7 @@ export class WindowManager extends BaseService {
     // 4a. Apply declarative platform quirks (method-slot monkey-patches).
     // Runs AFTER onWindowCreated so domain-service listeners attach first; the quirk
     // wrappers then transparently apply around any subsequent hide()/show()/close().
-    this.applyQuirks(managedWindow)
+    applyWindowQuirks(managedWindow.window, managedWindow.metadata.quirks)
 
     // 5. Store initData synchronously — renderer's cold-start `getInitData`
     //    invoke (fired after mount) is guaranteed to see the fresh value.
@@ -1048,94 +1049,6 @@ export class WindowManager extends BaseService {
         logger.error('Failed to load window content', { windowId, filePath, error: String(err) })
       })
     }
-  }
-
-  // ─── Platform quirks ──────────────────────────────────────────
-
-  /**
-   * Apply declarative OS quirks to a freshly-created window by monkey-patching
-   * the native instance methods. Consumers continue calling `window.hide()` /
-   * `window.show()` as usual; the wrappers transparently run the pre/post hooks.
-   *
-   * The native method is captured via `.bind(w)` so inner Electron C++ bindings
-   * still see the correct `this`; other properties (`webContents`, EventEmitter
-   * `.on/.once`, etc.) remain untouched.
-   */
-  private applyQuirks(managed: ManagedWindow): void {
-    const q = managed.metadata.quirks
-    if (!q) return
-    const w = managed.window
-
-    // [macOS] Exit-path methods (hide/close): preserve HEAD's ordering —
-    //   focus-down (begin guard) → native hide/close → sendInputEvent → 50ms restore (end guard)
-    if (isMac && (q.macRestoreFocusOnHide || q.macClearHoverOnHide)) {
-      const originalHide = w.hide.bind(w)
-      const originalClose = w.close.bind(w)
-
-      w.hide = () => {
-        const guard = q.macRestoreFocusOnHide ? this.beginMacFocusGuard() : null
-        originalHide()
-        if (q.macClearHoverOnHide && !w.isDestroyed()) {
-          // [macOS] hacky way — because the window may not be a FOCUSED window,
-          // the hover status remains on next show. Send a synthetic mouseMove
-          // at (-1, -1) to force the hover state off.
-          w.webContents.sendInputEvent({ type: 'mouseMove', x: -1, y: -1 })
-        }
-        if (guard) this.endMacFocusGuard(guard)
-      }
-
-      // close only wraps the focus dance; hover clearing would be meaningless
-      // because webContents is about to be destroyed.
-      if (q.macRestoreFocusOnHide) {
-        w.close = () => {
-          const guard = this.beginMacFocusGuard()
-          originalClose()
-          this.endMacFocusGuard(guard)
-        }
-      }
-    }
-
-    // [macOS] Show-path methods (show/showInactive): post-hook re-applies alwaysOnTop level.
-    if (isMac && q.macReapplyAlwaysOnTop) {
-      const level = q.macReapplyAlwaysOnTop === true ? 'floating' : q.macReapplyAlwaysOnTop
-      const originalShow = w.show.bind(w)
-      const originalShowInactive = w.showInactive.bind(w)
-      w.show = () => {
-        originalShow()
-        if (!w.isDestroyed()) w.setAlwaysOnTop(true, level)
-      }
-      w.showInactive = () => {
-        originalShowInactive()
-        if (!w.isDestroyed()) w.setAlwaysOnTop(true, level)
-      }
-    }
-  }
-
-  // [macOS] a HACKY way
-  // make sure other windows do not bring to front when the window is hidden
-  // get all focusable windows and set them to not focusable
-  private beginMacFocusGuard(): BrowserWindow[] {
-    const focusableWindows: BrowserWindow[] = []
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (!window.isDestroyed() && window.isVisible()) {
-        if (window.isFocusable()) {
-          focusableWindows.push(window)
-          window.setFocusable(false)
-        }
-      }
-    }
-    return focusableWindows
-  }
-
-  // set them back to focusable after 50ms
-  private endMacFocusGuard(focusableWindows: BrowserWindow[]): void {
-    setTimeout(() => {
-      for (const window of focusableWindows) {
-        if (!window.isDestroyed()) {
-          window.setFocusable(true)
-        }
-      }
-    }, 50)
   }
 
   // ─── macOS Dock visibility ────────────────────────────────────
