@@ -133,14 +133,14 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [readClipboard, focusInput])
 
   useEffect(() => {
-    void window.api.miniWindow.setPin(isPinned)
+    void window.api.quickAssistant.setPin(isPinned)
   }, [isPinned])
 
   useEffect(() => {
-    window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
+    window.electron.ipcRenderer.on(IpcChannel.QuickAssistant_Shown, onWindowShow)
 
     return () => {
-      window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
+      window.electron.ipcRenderer.removeAllListeners(IpcChannel.QuickAssistant_Shown)
     }
   }, [onWindowShow])
 
@@ -148,7 +148,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     void readClipboard()
   }, [readClipboard])
 
-  const handleCloseWindow = useCallback(() => window.api.miniWindow.hide(), [])
+  const handleCloseWindow = useCallback(() => window.api.quickAssistant.hide(), [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // 使用非直接输入法时（例如中文、日文输入法），存在输入法键入过程

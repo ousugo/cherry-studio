@@ -7,7 +7,7 @@ import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
  */
 export enum WindowType {
   Main = 'main',
-  Mini = 'mini',
+  QuickAssistant = 'quickAssistant',
   DetachedTab = 'detachedTab',
   SelectionToolbar = 'selectionToolbar',
   SelectionAction = 'selectionAction'

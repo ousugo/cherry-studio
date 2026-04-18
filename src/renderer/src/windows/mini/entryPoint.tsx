@@ -7,7 +7,7 @@ import { createRoot } from 'react-dom/client'
 
 import MiniWindowApp from './MiniWindowApp'
 
-loggerService.initWindowSource('MiniWindow')
+loggerService.initWindowSource('QuickAssistant')
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 root.render(<MiniWindowApp />)
