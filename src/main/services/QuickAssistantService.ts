@@ -70,6 +70,17 @@ export class QuickAssistantService extends BaseService implements Activatable {
     this.registerIpcHandlers()
     this.subscribeMainWindowLifecycle()
 
+    // Attach per-instance behavior to each fresh QuickAssistant window. Fires exactly
+    // once per BrowserWindow creation (never on singleton reopen) — pairs with
+    // wm.open() in createQuickWindow() so the setup covers both the primary path
+    // and any future re-creation path uniformly.
+    const wm = application.get('WindowManager')
+    this.registerDisposable(
+      wm.onWindowCreatedByType(WindowType.QuickAssistant, ({ window }) => {
+        this.setupQuickWindow(window)
+      })
+    )
+
     // Preference toggle drives activate/deactivate of heavy resources (BrowserWindow).
     // IPC handlers remain registered regardless, so the settings panel switch and global
     // shortcut continue to function; they simply become no-ops while deactivated.
@@ -124,8 +135,11 @@ export class QuickAssistantService extends BaseService implements Activatable {
 
   private releaseActivationResources(): void {
     if (this.windowId) {
+      // QuickAssistant is a singleton — wm.close() falls through to destroyWindow()
+      // just like wm.destroy() would, but stays in the Consumer API layer. The
+      // registered 'closed' listener clears this.windowId via onClosed in setupQuickWindow.
       const wm = application.get('WindowManager')
-      wm.destroy(this.windowId)
+      wm.close(this.windowId)
       this.windowId = null
     }
     // electron-window-state writes are debounced via resize/move/close listeners that
@@ -218,23 +232,15 @@ export class QuickAssistantService extends BaseService implements Activatable {
    * Idempotently ensure the quick window exists. Safe to call from any code path —
    * if the window is already alive (this.windowId set), this is a no-op.
    *
-   * Because we own the creation, there is no need to subscribe to `wm.onWindowCreated`
-   * — that extension point is for services that observe windows they didn't create.
-   * `wm.create()` is synchronous through to `_onWindowCreated.fire()` and quirk
-   * application, so by the time it returns, the BrowserWindow is fully tracked and
-   * ready for setup. Content load (`loadURL`/`loadFile`) is async and finishes
-   * later — none of our listeners can miss events that fire only after load.
+   * The windowStateKeeper is instantiated BEFORE wm.open() so its persisted
+   * x/y/w/h can be passed as constructor options. `state.manage()` (invoked in
+   * setupQuickWindow, which runs inside the onWindowCreatedByType subscription)
+   * only attaches outbound listeners — it does NOT retroactively apply persisted
+   * bounds, hence the up-front instantiation.
    *
-   * The windowStateKeeper is instantiated BEFORE the create call so its persisted
-   * x/y/w/h can be passed as constructor options. `state.manage()` (called inside
-   * setup) only attaches outbound listeners — it does NOT retroactively apply
-   * persisted bounds.
-   *
-   * Note on lifecycle modes: `wm.create()` throws on duplicate singleton creation,
-   * which serves as a defensive safety net behind our local `windowId` guard. We
-   * deliberately do NOT use `wm.open()` here — open() would return the existing
-   * windowId without re-running setup, leaving the window without our listeners on
-   * a singleton-reuse path.
+   * wm.open() fires _onWindowCreated synchronously during createWindow(), so by
+   * the time it returns both the BrowserWindow and our setup listeners (blur,
+   * closed, show) are attached. We then assign this.windowId and proceed.
    */
   private createQuickWindow() {
     if (this.windowId) return
@@ -248,7 +254,7 @@ export class QuickAssistantService extends BaseService implements Activatable {
     }
 
     const wm = application.get('WindowManager')
-    const windowId = wm.create(WindowType.QuickAssistant, {
+    this.windowId = wm.open(WindowType.QuickAssistant, {
       options: {
         x: this.quickWindowState.x,
         y: this.quickWindowState.y,
@@ -256,28 +262,15 @@ export class QuickAssistantService extends BaseService implements Activatable {
         height: this.quickWindowState.height
       }
     })
-    this.windowId = windowId
-
-    const window = wm.getWindow(windowId)
-    if (!window) {
-      // Defensive: wm.create() returning a windowId without a backing window would be
-      // a WindowManager bug. Bail loudly so the issue is visible instead of silent.
-      logger.error('WindowManager.create returned a windowId with no backing BrowserWindow', {
-        windowId
-      })
-      this.windowId = null
-      return
-    }
-
-    this.setupQuickWindow(window, windowId)
   }
 
   /**
    * Attach all quick-window-specific behavior to a freshly created BrowserWindow:
    * navigation safety, bounds persistence, OS workspace visibility, alwaysOnTop level,
-   * blur/closed/show listeners. Idempotent in scope (only called from createQuickWindow).
+   * blur/show listeners. Invoked once per fresh window from the onWindowCreatedByType
+   * subscription registered in onInit.
    */
-  private setupQuickWindow(window: BrowserWindow, windowId: string) {
+  private setupQuickWindow(window: BrowserWindow) {
     this.setupQuickWindowWebContents(window)
 
     // Outbound bounds persistence: resize/move/close listeners that write to disk.
@@ -297,13 +290,6 @@ export class QuickAssistantService extends BaseService implements Activatable {
         this.hideQuickWindow()
       }
     }
-    const onClosed = () => {
-      // Guard against a stale close event after re-creation: only clear windowId
-      // if it still points to THIS window instance.
-      if (this.windowId === windowId) {
-        this.windowId = null
-      }
-    }
     // Renderer-facing event: HomeWindow listens to this and re-reads clipboard
     // + focuses input on every show. The symmetric "Hidden" event used to exist
     // but had no listener anywhere — removed as dead code.
@@ -314,12 +300,10 @@ export class QuickAssistantService extends BaseService implements Activatable {
     }
 
     window.on('blur', onBlur)
-    window.on('closed', onClosed)
     window.on('show', onShow)
     this.registerDisposable(() => {
       if (window.isDestroyed()) return
       window.removeListener('blur', onBlur)
-      window.removeListener('closed', onClosed)
       window.removeListener('show', onShow)
     })
   }
