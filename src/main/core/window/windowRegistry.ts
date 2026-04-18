@@ -34,17 +34,15 @@ export const DEFAULT_WINDOW_CONFIG: WindowOptions = {
  * ```
  */
 export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata>> = {
-  // Quick Assistant ("mini") window — singleton floating panel.
+  // Quick Assistant window — singleton floating panel.
   // Managed by QuickAssistantService: stateKeeper bounds are injected via wm.create({ options }),
-  // visibility is driven by showQuickWindow() (cursor-follow, Windows opacity dance, macOS app.hide).
-  // Cross-process contract: html file `miniWindow.html` and bounds file `miniWindow-state.json`
-  // remain unchanged to preserve user-saved bounds across upgrades.
+  // visibility is driven by showQuickAssistant() (cursor-follow, Windows opacity dance, macOS app.hide).
   [WindowType.QuickAssistant]: {
     type: WindowType.QuickAssistant,
     lifecycle: 'singleton',
-    htmlPath: 'miniWindow.html',
+    htmlPath: 'quickAssistant.html',
     preload: 'standard',
-    // QuickAssistantService.showQuickWindow controls visibility; show: false also keeps singleton
+    // QuickAssistantService.showQuickAssistant controls visibility; show: false also keeps singleton
     // reopen (wm.open) from accidentally re-showing the window before reposition runs.
     show: false,
     // Quick window is a floating helper, not a primary surface — never touch the Dock.

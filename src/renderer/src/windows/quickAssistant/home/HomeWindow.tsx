@@ -514,9 +514,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   // Memoize placeholder text
   const inputPlaceholder = useMemo(() => {
     if (referenceText && route === 'home') {
-      return t('miniwindow.input.placeholder.title')
+      return t('quickAssistant.input.placeholder.title')
     }
-    return t('miniwindow.input.placeholder.empty', {
+    return t('quickAssistant.input.placeholder.empty', {
       model: quickAssistantId ? currentAssistant.name : currentAssistant.model.name
     })
   }, [referenceText, route, t, quickAssistantId, currentAssistant])
