@@ -28,10 +28,10 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/constant'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, type BrowserWindow, screen, shell } from 'electron'
+import { app, BrowserWindow, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
 
 import { isSafeExternalUrl } from './security'
@@ -51,7 +51,7 @@ const logger = loggerService.withContext('QuickAssistantService')
 @Injectable('QuickAssistantService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowService', 'WindowManager'])
-export class QuickAssistantService extends BaseService {
+export class QuickAssistantService extends BaseService implements Activatable {
   private windowId: string | null = null
   private isPinnedQuickWindow = false
   // Captured before each show; hideQuickWindow consults it to decide whether to call app.hide()
@@ -59,21 +59,80 @@ export class QuickAssistantService extends BaseService {
   private wasMainWindowFocused = false
   // Cached mainWindow reference — see file-level docstring for why this asymmetry exists.
   private mainWindowRef: BrowserWindow | null = null
-  // Lives across the service lifetime; instantiated in onReady BEFORE the BrowserWindow is
-  // created so its persisted x/y/width/height can be passed as constructor options. Calling
-  // `manage()` on it later (in onWindowCreated) only attaches resize/move/close listeners —
-  // it does NOT retroactively apply persisted bounds, hence the up-front instantiation.
+  // Instantiated in onActivate BEFORE the BrowserWindow is created so its persisted
+  // x/y/width/height can be passed as constructor options. Calling `manage()` on it later
+  // (inside setupQuickWindow) only attaches resize/move/close listeners — it does NOT
+  // retroactively apply persisted bounds, hence the up-front instantiation. Reset to null
+  // on deactivate so the next activation reloads the most recent bounds from disk.
   private quickWindowState: ReturnType<typeof windowStateKeeper> | null = null
 
   protected async onInit() {
     this.registerIpcHandlers()
     this.subscribeMainWindowLifecycle()
+
+    // Preference toggle drives activate/deactivate of heavy resources (BrowserWindow).
+    // IPC handlers remain registered regardless, so the settings panel switch and global
+    // shortcut continue to function; they simply become no-ops while deactivated.
+    const preferenceService = application.get('PreferenceService')
+    this.registerDisposable({
+      dispose: preferenceService.subscribeChange('feature.quick_assistant.enabled', (enabled: boolean) => {
+        if (enabled) void this.activate()
+        else void this.deactivate()
+      })
+    })
   }
 
   protected async onReady() {
-    const enabled = application.get('PreferenceService').get('feature.quick_assistant.enabled')
-    if (!enabled) return
-    this.createQuickWindow()
+    const preferenceService = application.get('PreferenceService')
+    if (preferenceService.get('feature.quick_assistant.enabled')) {
+      await this.activate()
+    }
+  }
+
+  /**
+   * Load heavy resources: the BrowserWindow and its bounds-tracking state. If creation
+   * fails partway, releaseActivationResources() cleans up so the next activate() starts
+   * from a clean slate (Activatable failure contract).
+   *
+   * Focus-steal workaround (macOS only): constructing a `type: 'panel'` BrowserWindow
+   * with `alwaysOnTop: true` briefly pulls the new NSPanel to the front even though
+   * `show: false` is set, causing the previously focused window (e.g. the main window
+   * from which the user just flipped the preference switch) to lose focus. We capture
+   * whichever BrowserWindow was focused before creation and restore focus afterwards.
+   */
+  async onActivate(): Promise<void> {
+    const focusedBefore = isMac ? BrowserWindow.getFocusedWindow() : null
+    try {
+      this.createQuickWindow()
+    } catch (error) {
+      this.releaseActivationResources()
+      throw error
+    }
+    if (focusedBefore && !focusedBefore.isDestroyed() && focusedBefore.id !== this.getQuickWindow()?.id) {
+      focusedBefore.focus()
+    }
+  }
+
+  /**
+   * Release heavy resources: destroy the BrowserWindow (ending its Chromium renderer
+   * process) and drop the windowStateKeeper reference. Also invoked automatically by
+   * BaseService._doStop() on service shutdown.
+   */
+  async onDeactivate(): Promise<void> {
+    this.releaseActivationResources()
+  }
+
+  private releaseActivationResources(): void {
+    if (this.windowId) {
+      const wm = application.get('WindowManager')
+      wm.destroy(this.windowId)
+      this.windowId = null
+    }
+    // electron-window-state writes are debounced via resize/move/close listeners that
+    // fire naturally on destroy — no manual flush needed. Drop the reference so the
+    // next activate() instantiates a fresh keeper that reloads persisted bounds.
+    this.quickWindowState = null
+    this.isPinnedQuickWindow = false
   }
 
   private registerIpcHandlers() {
@@ -274,21 +333,13 @@ export class QuickAssistantService extends BaseService {
   }
 
   public showQuickWindow() {
-    const enabled = application.get('PreferenceService').get('feature.quick_assistant.enabled')
-    if (!enabled) return
+    // Activation state is the single source of truth: when the feature preference is
+    // enabled, the service is activated and the window exists; when disabled, we simply
+    // bail. The preference subscription in onInit keeps these in lockstep.
+    if (!this.isActivated) return
 
-    let window = this.getQuickWindow()
-    if (!window) {
-      // Defensive: onReady should have created the window when feature is enabled.
-      // If we land here (e.g. preference toggled on at runtime), create it now and
-      // wait for ready-to-show before continuing — otherwise show() would flash an
-      // empty BrowserWindow before the renderer mounts.
-      this.createQuickWindow()
-      window = this.getQuickWindow()
-      if (!window) return
-      window.once('ready-to-show', () => this.proceedShow())
-      return
-    }
+    const window = this.getQuickWindow()
+    if (!window) return
 
     this.proceedShow()
   }
@@ -373,8 +424,9 @@ export class QuickAssistantService extends BaseService {
    * is a high-frequency toggle surface; destroy + recreate would cause a blank-flash
    * on next show (loadURL is async and ready-to-show races the show() call) and waste
    * the preload work. The two renderer call sites (settings panel toggles) only need
-   * the window to disappear — hide() satisfies that. Final teardown happens in
-   * WindowManager.onDestroy() at app quit.
+   * the window to disappear — hide() satisfies that. True teardown happens in
+   * onDeactivate() when the feature preference is turned off, and as a final fallback
+   * in WindowManager.onDestroy() at app quit.
    */
   public closeQuickWindow() {
     this.getQuickWindow()?.hide()
