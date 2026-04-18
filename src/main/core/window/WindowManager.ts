@@ -64,7 +64,7 @@ function defaultWarmup(cfg: PoolConfig): 'eager' | 'lazy' {
  * which fires synchronously BEFORE content is loaded — guaranteeing that all
  * event listeners are attached before `ready-to-show` can fire.
  *
- * @see README.md for architecture overview and usage guide
+ * @see docs/references/window-manager/README.md for architecture overview, usage guide, and API reference
  */
 @Injectable('WindowManager')
 @ServicePhase(Phase.WhenReady)
