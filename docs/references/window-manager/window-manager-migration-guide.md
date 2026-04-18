@@ -64,14 +64,13 @@ class MyService extends BaseService {
   protected override onInit(): void {
     const wm = application.get('WindowManager')
 
-    wm.onWindowCreated((managed) => {
-      if (managed.type !== WindowType.MyWindow) return
-      this.windowId = managed.id
-      // attach listeners here
+    wm.onWindowCreatedByType(WindowType.MyWindow, ({ window, id }) => {
+      this.windowId = id
+      // attach listeners here — use `window` directly, or switch to the `mw` shorthand
+      // if the callback body has inner closures (see Usage Guide → Callback styles).
     })
 
-    wm.onWindowDestroyed((managed) => {
-      if (managed.type !== WindowType.MyWindow) return
+    wm.onWindowDestroyedByType(WindowType.MyWindow, () => {
       this.windowId = undefined
     })
   }

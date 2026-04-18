@@ -10,7 +10,7 @@ Two layers: **Consumer** methods are the universal API and should be used by all
 |--------|-------|-----------|-------------|
 | `open` | **Consumer** | `(type: WindowType, args?: OpenWindowArgs) => string` | Lifecycle-aware open: singleton reuse, pool recycle, or fresh create per registry `lifecycle`. Returns window ID. |
 | `close` | **Consumer** | `(windowId: string) => boolean` | Lifecycle-aware release: destroys non-pooled windows, returns pooled windows to the pool (or destroys if over cap / pool suspended). |
-| `create` | Internal | `(type: WindowType, args?: OpenWindowArgs) => string` | Force fresh creation; throws if a singleton of this type already exists. Use only as a defensive assertion — consumer code should use `open()` + `onWindowCreated` instead. |
+| `create` | Internal | `(type: WindowType, args?: OpenWindowArgs) => string` | Force fresh creation; throws if a singleton of this type already exists. Use only as a defensive assertion — consumer code should use `open()` + `onWindowCreatedByType` instead. |
 | `destroy` | Internal | `(windowId: string) => boolean` | Force destroy via `window.destroy()`, which skips the `close` event — and therefore skips the pool's `close` interception, bypassing pool recycling. Non-pooled windows: identical to `close()`. Pooled windows: use `suspendPool(type)` for pool-wide shutdown instead of destroying individual pooled windows. |
 
 ## Window Operations
@@ -114,6 +114,8 @@ For non-pooled windows, the same two endpoints apply without any intermediate st
 |-------|------|-------------|
 | `onWindowCreated` | `Event<ManagedWindow>` | Fires when a new window is created (before content loads). Fresh-path only for pooled windows. |
 | `onWindowDestroyed` | `Event<ManagedWindow>` | Fires when a window is truly destroyed (not on pool release). |
+| `onWindowCreatedByType(type, listener)` | `(type, listener) => Disposable` | Convenience variant of `onWindowCreated` that filters to a single `WindowType`. Equivalent to `onWindowCreated` + an inline `if (managed.type === type)` guard, but avoids the boilerplate at every call site. Prefer this for single-type subscriptions (the typical consumer case). |
+| `onWindowDestroyedByType(type, listener)` | `(type, listener) => Disposable` | Type-filtered counterpart to `onWindowDestroyed`. Same filtering semantics as `onWindowCreatedByType`. |
 
 The intermediate Released and Recycled stages have no dedicated events — side effects on `hide` / `close` / `show` should be expressed as declarative [Platform Quirks](./window-manager-platform.md#platform-quirks), and per-session data on recycle is delivered via the `WindowManager_Reused` IPC payload (see [Init Data](#init-data)).
 

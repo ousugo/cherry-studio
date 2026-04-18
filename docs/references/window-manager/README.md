@@ -40,9 +40,9 @@ WindowManager's lifecycle methods are arranged in two layers. **Consumer code sh
 | Layer | Methods | Role |
 |---|---|---|
 | **Consumer** | `open(type, args?)`, `close(windowId)` | Lifecycle-aware; the only APIs business code should need |
-| Internal | `create(type, args?)`, `destroy(windowId)` | Defensive / escape-hatch primitives; prefer `open()` + `onWindowCreated` instead |
+| Internal | `create(type, args?)`, `destroy(windowId)` | Defensive / escape-hatch primitives; prefer `open()` + `onWindowCreatedByType` instead |
 
-Behavioral injection goes through **`onWindowCreated`** — see [Usage → Injecting behavior](./window-manager-usage.md#injecting-behavior-onwindowcreated-is-the-canonical-hook).
+Behavioral injection goes through **`onWindowCreated`** (or its type-filtered convenience variant **`onWindowCreatedByType`** for single-type subscriptions) — see [Usage → Injecting behavior](./window-manager-usage.md#injecting-behavior-onwindowcreated-is-the-canonical-hook).
 
 ---
 
@@ -50,10 +50,10 @@ Behavioral injection goes through **`onWindowCreated`** — see [Usage → Injec
 
 | Wrong Choice | Why It's Wrong | Correct Choice |
 |---|---|---|
-| Attaching listeners directly after `wm.open()` returns | Reused windows (singleton reopen, pool recycle) accumulate duplicate listeners; forces you off `open()` onto `create()` | Subscribe to **`onWindowCreated`**, filter by `managed.type` |
-| Using `wm.create()` in business code | Singleton uniqueness is already guaranteed by registry `lifecycle`; `onWindowCreated` handles "run setup on fresh" | Use `wm.open()` + `onWindowCreated` |
+| Attaching listeners directly after `wm.open()` returns | Reused windows (singleton reopen, pool recycle) accumulate duplicate listeners; forces you off `open()` onto `create()` | Subscribe to **`onWindowCreatedByType(type, listener)`** |
+| Using `wm.create()` in business code | Singleton uniqueness is already guaranteed by registry `lifecycle`; `onWindowCreatedByType` handles "run setup on fresh" | Use `wm.open()` + `onWindowCreatedByType` |
 | Using `wm.destroy()` in business code | On non-pooled windows, identical to `close()`. On pooled windows, bypasses pool — rarely desired | Use `wm.close()`; for pool-wide shutdown, use `suspendPool(type)` |
-| Attaching `resized` / per-window `closed` listeners at the `open()` call site for a pooled window | Pool recycle does not re-fire `onWindowCreated`, so reused windows miss them or double up on re-open | Attach inside `onWindowCreated` — it fires exactly once per `BrowserWindow` instance |
+| Attaching `resized` / per-window `closed` listeners at the `open()` call site for a pooled window | Pool recycle does not re-fire `onWindowCreated`, so reused windows miss them or double up on re-open | Attach inside `onWindowCreatedByType` — it fires exactly once per `BrowserWindow` instance |
 | Setting `paintWhenInitiallyHidden: false` on a pooled window to "delay show until content is ready" | Suppresses native `ready-to-show`, breaking the fresh-window auto-show path | Use `show: false` + consumer-driven `show()`, or rely on the `Reused` payload to ensure data arrives before `.show()` |
 
 ---
