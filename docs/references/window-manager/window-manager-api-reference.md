@@ -24,6 +24,17 @@ Two layers: **Consumer** methods are the universal API and should be used by all
 | `restore` | `(windowId: string) => boolean` | Restore a minimized window. |
 | `focus` | `(windowId: string) => boolean` | Focus a window. |
 
+## Behavior Runtime Setters
+
+These operate on the declarative `behavior` layer per instance. See [Platform Configuration → Declarative Behavior Layer](./window-manager-platform.md#declarative-behavior-layer) for field semantics.
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `setHideOnBlur` | `(windowId: string, enabled: boolean) => void` | Override the declared `behavior.hideOnBlur` at runtime. `enabled: true` keeps auto-hide on; `enabled: false` suppresses (effectively "pinned"). No-op when the window type does not declare `behavior.hideOnBlur` (no listener to override). Override is cleared on window destroy and on pool `releaseToPool`. |
+| `setAlwaysOnTop` | `(windowId: string, enabled: boolean) => void` | Toggle always-on-top using `level` / `relativeLevel` from `behavior.alwaysOnTop` (single source of truth). When neither is declared, `setAlwaysOnTop(enabled)` is called with no level — matching Electron's default. |
+
+> No WM-level `setVisibleOnAllWorkspaces` is provided: its options differ per call in real usage (e.g. SelectionAction's full-screen show sequence), and WM has no state to maintain. Consumers call `window.setVisibleOnAllWorkspaces(enabled, options)` directly on the `BrowserWindow` instance. See [README → When to Provide a Runtime Setter](./README.md#when-to-provide-a-runtime-setter) for the decision rule.
+
 ## Queries
 
 | Method | Signature | Description |
@@ -121,5 +132,5 @@ The intermediate Released and Recycled stages have no dedicated events — side 
 
 **Usage notes for pooled windows:**
 
-- **Do NOT set `paintWhenInitiallyHidden: false`** on pooled windows — it suppresses the native `ready-to-show` event, breaking the pool's fresh-window auto-show path (`showBehavior === 'auto'` listens for `ready-to-show`). It is NOT an acceptable workaround for "show only when content ready" — use `show: false` + consumer-driven show for that, or rely on the reuse-path `Reused` payload to ensure the renderer has data before `.show()` is called.
+- **Do NOT set `paintWhenInitiallyHidden: false`** on pooled windows — it suppresses the native `ready-to-show` event, breaking the pool's fresh-window auto-show path (`showMode === 'auto'` listens for `ready-to-show`). It is NOT an acceptable workaround for "show only when content ready" — use `showMode: 'manual'` + consumer-driven show for that, or rely on the reuse-path `Reused` payload to ensure the renderer has data before `.show()` is called.
 - **macOS focus / hover / always-on-top workarounds** are declarative — see [Platform Quirks](./window-manager-platform.md#platform-quirks).

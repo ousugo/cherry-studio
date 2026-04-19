@@ -13,6 +13,7 @@ import {
   Priority,
   ServicePhase
 } from '@main/core/lifecycle'
+import { applyWindowBehavior } from '@main/core/window/behavior'
 import { applyWindowQuirks } from '@main/core/window/quirks'
 import type { WindowType } from '@main/core/window/types'
 import {
@@ -24,7 +25,7 @@ import {
   type WindowInfo,
   type WindowOptions
 } from '@main/core/window/types'
-import { getWindowTypeMetadata, mergeWindowConfig, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
+import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, screen, shell, type TitleBarOverlayOptions } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
@@ -57,7 +58,7 @@ type PoolOp =
 /**
  * Default warmup mode when not explicitly set: 'eager' when the user has
  * expressed an intent to keep windows pre-warmed (`standbySize` or
- * `initialSize` set), otherwise 'lazy' (legacy behavior).
+ * `initialSize` set), otherwise 'lazy'.
  */
 function defaultWarmup(cfg: PoolConfig): 'eager' | 'lazy' {
   return (cfg.standbySize ?? 0) > 0 || (cfg.initialSize ?? 0) > 0 ? 'eager' : 'lazy'
@@ -90,6 +91,20 @@ export class WindowManager extends BaseService {
 
   /** One-time initialization data per window (consumed by renderer via getInitData IPC) */
   private initDataStore = new Map<string, unknown>()
+
+  /**
+   * Runtime override for `behavior.hideOnBlur`. Unset → use declared default;
+   * `true` → force hide-on-blur on; `false` → suppress (pinned). Consulted by
+   * the blur listener installed by `applyWindowBehavior`.
+   *
+   * Cleanup timing (strict):
+   *   1. Window destroy — cleared in `cleanupWindowTracking`.
+   *   2. Pool release — cleared in `releaseToPool` before `window.hide()`,
+   *      so the next `open()` for a different consumer sees a clean default.
+   * Consumers that need to override on reuse MUST call `setHideOnBlur` after
+   * their own `onWindowCreatedByType` listener fires.
+   */
+  private hideOnBlurOverride = new Map<string, boolean>()
 
   /** Single GC timer shared across all pools (null when no idle windows exist) */
   private poolGcTimer: ReturnType<typeof setInterval> | null = null
@@ -305,9 +320,9 @@ export class WindowManager extends BaseService {
         // UI updates in the same frame the window is re-activated.
         this.applyReusedInitData(existing, args?.initData)
 
-        // Respect show: false — consumer manages visibility itself.
-        // Only show/focus when show is 'auto' (default) or true.
-        if (metadata.show !== false) {
+        // Respect showMode: 'manual' — consumer manages visibility itself.
+        // Only show/focus when showMode is 'auto' (default) or 'immediate'.
+        if (metadata.showMode !== 'manual') {
           existing.window.show()
           existing.window.focus()
         }
@@ -537,16 +552,75 @@ export class WindowManager extends BaseService {
     return this.windows.size
   }
 
+  // ─── Public API: Behavior runtime overrides ───────────────────
+
+  /**
+   * Override the declarative `behavior.hideOnBlur` at runtime for a single
+   * window instance. Used by consumers to implement "pin"-style toggles
+   * without mutating the registry default.
+   *
+   * Semantics:
+   *   - `enabled: true` — window auto-hides on blur (same as declared default)
+   *   - `enabled: false` — blur is ignored (effectively pinned)
+   *   - Not called — the declared `behavior.hideOnBlur` is used as-is
+   *
+   * Lifetime: cleared on window destroy and on pool `releaseToPool` so the
+   * next `open()` for a different consumer sees a clean slate. Consumers
+   * using pooled windows that need a non-default value should re-apply it
+   * from their `onWindowCreatedByType` / reuse callback.
+   *
+   * No-op when the window doesn't exist or the type's registry metadata
+   * does not declare `behavior.hideOnBlur` (no listener was ever installed).
+   */
+  public setHideOnBlur(windowId: string, enabled: boolean): void {
+    const managed = this.windows.get(windowId)
+    if (!managed) return
+    if (!managed.metadata.behavior?.hideOnBlur) {
+      // No listener was installed by applyWindowBehavior for this window — the
+      // override would have no effect. Skip silently rather than create a
+      // false impression of capability.
+      return
+    }
+    this.hideOnBlurOverride.set(windowId, enabled)
+  }
+
+  /**
+   * Set the always-on-top flag for a single window instance, using the
+   * `level` and `relativeLevel` declared in `behavior.alwaysOnTop` as the
+   * single source of truth (no hardcoded level in consumer code).
+   *
+   * When `behavior.alwaysOnTop` is unset, the underlying
+   * `window.setAlwaysOnTop(enabled)` is called with `level` / `relativeLevel`
+   * both undefined — matching Electron's default. Consumers that need a
+   * per-call level should drive `window.setAlwaysOnTop` directly.
+   *
+   * Note: Electron ignores `level` when `enabled === false`.
+   */
+  public setAlwaysOnTop(windowId: string, enabled: boolean): void {
+    const managed = this.windows.get(windowId)
+    if (!managed || managed.window.isDestroyed()) return
+    const { level, relativeLevel } = managed.metadata.behavior?.alwaysOnTop ?? {}
+    // Pass only the arguments actually declared — avoids trailing `undefined`s
+    // that would change the call signature observed by spies or future overloads.
+    if (level !== undefined && relativeLevel !== undefined) {
+      managed.window.setAlwaysOnTop(enabled, level, relativeLevel)
+    } else if (level !== undefined) {
+      managed.window.setAlwaysOnTop(enabled, level)
+    } else {
+      managed.window.setAlwaysOnTop(enabled)
+    }
+  }
+
   // ─── Public API: Title bar overlay ────────────────────────────
 
   /**
    * Update title bar overlay colors on all windows that have overlay configured.
-   * Only affects window types whose defaultConfig includes titleBarOverlay.
+   * Only affects window types whose windowOptions includes titleBarOverlay.
    */
   public setTitleBarOverlay(options: TitleBarOverlayOptions): void {
     for (const [type, windowIds] of this.windowsByType) {
       const metadata = getWindowTypeMetadata(type)
-      if (!metadata.defaultConfig.titleBarOverlay) continue
+      if (!metadata.windowOptions.titleBarOverlay) continue
       for (const id of windowIds) {
         const managed = this.windows.get(id)
         if (managed && !managed.window.isDestroyed()) {
@@ -699,9 +773,11 @@ export class WindowManager extends BaseService {
       // No-op when initData is undefined — we never fire empty Reused events.
       this.applyReusedInitData(candidate, args?.initData)
 
-      // Show recycled window based on metadata
-      const showBehavior = getWindowTypeMetadata(type).show ?? 'auto'
-      if (showBehavior === 'auto' || showBehavior === true) {
+      // Show recycled window based on metadata. 'manual' opts out entirely;
+      // both 'auto' and 'immediate' show + focus on recycle (the immediate vs
+      // ready-to-show distinction only applies to fresh construction).
+      const showMode = getWindowTypeMetadata(type).showMode ?? 'auto'
+      if (showMode !== 'manual') {
         candidate.window.show()
         candidate.window.focus()
       }
@@ -778,7 +854,7 @@ export class WindowManager extends BaseService {
     if (window.isMaximized()) window.unmaximize()
     if (window.isMinimized()) window.restore()
 
-    const config = mergeWindowConfig(type, options)
+    const config = mergeWindowOptions(type, options)
     const { width, height } = config
     const setBoundsMethod = config.useContentSize
       ? (b: Electron.Rectangle) => window.setContentBounds(b)
@@ -823,12 +899,21 @@ export class WindowManager extends BaseService {
       return
     }
 
+    // Clear runtime overrides before the window goes hidden/idle. The three
+    // branches below all call `window.hide()` on this window before either
+    // destroying it or pushing it back to the idle queue — clearing here
+    // ensures (a) no stale override leaks through destroy→cleanupWindowTracking
+    // (already clears, but this is a belt-and-suspenders), and (b) a pool
+    // window reopened later for a different consumer starts from the
+    // registry-declared defaults rather than the previous consumer's pin.
+    this.hideOnBlurOverride.delete(windowId)
+
     const recycleMax = poolConfig.recycleMaxSize ?? 0
     const standby = poolConfig.standbySize ?? 0
 
     // Recycling disabled (recycleMaxSize not configured): destroy the closing window.
-    // In pure standby mode (scenario ②), this preserves the legacy "close destroys,
-    // async replenish keeps one warm" behavior.
+    // In pure standby mode (scenario ②) this still yields "close destroys, async
+    // replenish keeps one warm" because `replenishStandby` fires on the next open.
     if (recycleMax <= 0) {
       if (!managed.window.isDestroyed()) {
         managed.window.hide()
@@ -1080,22 +1165,19 @@ export class WindowManager extends BaseService {
   private createWindow<T>(type: WindowType, args?: OpenWindowArgs<T>, suppressAutoShow = false): string {
     const metadata = getWindowTypeMetadata(type)
     const windowId = uuidv4()
-    const config = mergeWindowConfig(type, args?.options)
-    const showBehavior = metadata.show ?? 'auto'
+    const config = mergeWindowOptions(type, args?.options)
+    const showMode = metadata.showMode ?? 'auto'
 
-    // Resolve preload path
-    const preloadVariant = metadata.preload ?? 'standard'
-    const preloadPath =
-      preloadVariant === 'standard'
-        ? join(__dirname, '../preload/index.js')
-        : preloadVariant === 'simplest'
-          ? join(__dirname, '../preload/simplest.js')
-          : undefined
+    // Resolve preload path. `metadata.preload` mirrors `htmlPath`'s three-state
+    // encoding: omitted → default file, non-empty string → that file, empty
+    // string → no preload (for nodeIntegration:true cases).
+    const preloadName = metadata.preload ?? 'index.js'
+    const preloadPath = preloadName ? join(__dirname, '../preload/', preloadName) : undefined
 
     // 1. Create BrowserWindow
     const window = new BrowserWindow({
       ...config,
-      show: showBehavior === true,
+      show: showMode === 'immediate',
       webPreferences: {
         ...(preloadPath ? { preload: preloadPath } : {}),
         ...config.webPreferences
@@ -1124,9 +1206,11 @@ export class WindowManager extends BaseService {
     this.setupWindowListeners(windowId, window)
 
     // Auto-show on ready-to-show (suppressed for pool idle windows).
-    // Windows with show: false opt out entirely — their owner drives visibility
+    // Windows with showMode: 'manual' opt out entirely — their owner drives visibility
     // on its own schedule (see e.g. SelectionService.processAction).
-    if (showBehavior === 'auto' && !suppressAutoShow) {
+    // 'immediate' also skips this path: the window was already shown by the
+    // `show: true` above, and ready-to-show will fire after content loads.
+    if (showMode === 'auto' && !suppressAutoShow) {
       window.once('ready-to-show', () => {
         if (!window.isDestroyed()) window.show()
       })
@@ -1150,10 +1234,24 @@ export class WindowManager extends BaseService {
     // 4. Fire event — domain services inject behavior HERE (before content loads)
     this._onWindowCreated.fire(managedWindow)
 
-    // 4a. Apply declarative platform quirks (method-slot monkey-patches).
+    // 4a. Apply the declarative behavior layer (non-hacky: initial alwaysOnTop
+    // level, initial setVisibleOnAllWorkspaces, blur→hide listener). Pass a
+    // closure that reads the runtime override map for hideOnBlur, so the
+    // behavior module stays free of a reverse WindowManager reference.
+    applyWindowBehavior(
+      managedWindow.window,
+      managedWindow.metadata.behavior,
+      windowId,
+      (id) => this.hideOnBlurOverride.get(id),
+      config
+    )
+
+    // 4b. Apply declarative platform quirks (method-slot monkey-patches).
     // Runs AFTER onWindowCreated so domain-service listeners attach first; the quirk
     // wrappers then transparently apply around any subsequent hide()/show()/close().
-    applyWindowQuirks(managedWindow.window, managedWindow.metadata.quirks)
+    // Also runs AFTER applyWindowBehavior so the behavior layer's initial setter
+    // calls do not trigger the monkey-patched show/showInactive.
+    applyWindowQuirks(managedWindow.window, managedWindow.metadata.quirks, managedWindow.metadata.behavior)
 
     // 5. Store initData synchronously — renderer's cold-start `getInitData`
     //    invoke (fired after mount) is guaranteed to see the fresh value.
@@ -1258,6 +1356,10 @@ export class WindowManager extends BaseService {
     }
     this.windows.delete(windowId)
     this.initDataStore.delete(windowId)
+    // Hidden runtime state must not survive the underlying BrowserWindow —
+    // any future open() allocates a fresh windowId anyway, but guarding here
+    // is cheap and keeps the map bounded.
+    this.hideOnBlurOverride.delete(windowId)
   }
 
   // ─── Content loading ──────────────────────────────────────────
@@ -1284,14 +1386,14 @@ export class WindowManager extends BaseService {
 
   /**
    * Update macOS Dock icon visibility based on visible windows.
-   * Windows with showInDock: false do not affect Dock visibility.
+   * Windows with `behavior.macShowInDock: false` do not affect Dock visibility.
    */
   private updateDockVisibility(): void {
     if (!isMac) return
 
     const hasVisibleDockWindow = Array.from(this.windows.values()).some(
       (managed) =>
-        managed.metadata.showInDock !== false &&
+        managed.metadata.behavior?.macShowInDock !== false &&
         !managed.window.isDestroyed() &&
         (managed.window.isVisible() || managed.window.isMinimized())
     )
