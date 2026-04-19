@@ -13,7 +13,7 @@ import {
   Priority,
   ServicePhase
 } from '@main/core/lifecycle'
-import { applyWindowBehavior } from '@main/core/window/behavior'
+import { applyWindowBehavior, BehaviorController } from '@main/core/window/behavior'
 import { applyWindowQuirks } from '@main/core/window/quirks'
 import type { WindowType } from '@main/core/window/types'
 import {
@@ -93,18 +93,18 @@ export class WindowManager extends BaseService {
   private initDataStore = new Map<string, unknown>()
 
   /**
-   * Runtime override for `behavior.hideOnBlur`. Unset → use declared default;
-   * `true` → force hide-on-blur on; `false` → suppress (pinned). Consulted by
-   * the blur listener installed by `applyWindowBehavior`.
+   * Runtime overrides and setters for the declarative `behavior` layer
+   * (`hideOnBlur`, `alwaysOnTop`, `macShowInDock`). Exposed as `wm.behavior`;
+   * see {@link BehaviorController} for the full API.
    *
-   * Cleanup timing (strict):
-   *   1. Window destroy — cleared in `cleanupWindowTracking`.
-   *   2. Pool release — cleared in `releaseToPool` before `window.hide()`,
-   *      so the next `open()` for a different consumer sees a clean default.
-   * Consumers that need to override on reuse MUST call `setHideOnBlur` after
-   * their own `onWindowCreatedByType` listener fires.
+   * The host callbacks wire controller ↔ WM in one direction: the controller
+   * can resolve a `ManagedWindow` by id and trigger a Dock recompute, but
+   * knows nothing else about WM internals.
    */
-  private hideOnBlurOverride = new Map<string, boolean>()
+  public readonly behavior = new BehaviorController({
+    getManagedWindow: (id) => this.windows.get(id),
+    updateDockVisibility: () => this.updateDockVisibility()
+  })
 
   /** Single GC timer shared across all pools (null when no idle windows exist) */
   private poolGcTimer: ReturnType<typeof setInterval> | null = null
@@ -553,63 +553,11 @@ export class WindowManager extends BaseService {
   }
 
   // ─── Public API: Behavior runtime overrides ───────────────────
-
-  /**
-   * Override the declarative `behavior.hideOnBlur` at runtime for a single
-   * window instance. Used by consumers to implement "pin"-style toggles
-   * without mutating the registry default.
-   *
-   * Semantics:
-   *   - `enabled: true` — window auto-hides on blur (same as declared default)
-   *   - `enabled: false` — blur is ignored (effectively pinned)
-   *   - Not called — the declared `behavior.hideOnBlur` is used as-is
-   *
-   * Lifetime: cleared on window destroy and on pool `releaseToPool` so the
-   * next `open()` for a different consumer sees a clean slate. Consumers
-   * using pooled windows that need a non-default value should re-apply it
-   * from their `onWindowCreatedByType` / reuse callback.
-   *
-   * No-op when the window doesn't exist or the type's registry metadata
-   * does not declare `behavior.hideOnBlur` (no listener was ever installed).
-   */
-  public setHideOnBlur(windowId: string, enabled: boolean): void {
-    const managed = this.windows.get(windowId)
-    if (!managed) return
-    if (!managed.metadata.behavior?.hideOnBlur) {
-      // No listener was installed by applyWindowBehavior for this window — the
-      // override would have no effect. Skip silently rather than create a
-      // false impression of capability.
-      return
-    }
-    this.hideOnBlurOverride.set(windowId, enabled)
-  }
-
-  /**
-   * Set the always-on-top flag for a single window instance, using the
-   * `level` and `relativeLevel` declared in `behavior.alwaysOnTop` as the
-   * single source of truth (no hardcoded level in consumer code).
-   *
-   * When `behavior.alwaysOnTop` is unset, the underlying
-   * `window.setAlwaysOnTop(enabled)` is called with `level` / `relativeLevel`
-   * both undefined — matching Electron's default. Consumers that need a
-   * per-call level should drive `window.setAlwaysOnTop` directly.
-   *
-   * Note: Electron ignores `level` when `enabled === false`.
-   */
-  public setAlwaysOnTop(windowId: string, enabled: boolean): void {
-    const managed = this.windows.get(windowId)
-    if (!managed || managed.window.isDestroyed()) return
-    const { level, relativeLevel } = managed.metadata.behavior?.alwaysOnTop ?? {}
-    // Pass only the arguments actually declared — avoids trailing `undefined`s
-    // that would change the call signature observed by spies or future overloads.
-    if (level !== undefined && relativeLevel !== undefined) {
-      managed.window.setAlwaysOnTop(enabled, level, relativeLevel)
-    } else if (level !== undefined) {
-      managed.window.setAlwaysOnTop(enabled, level)
-    } else {
-      managed.window.setAlwaysOnTop(enabled)
-    }
-  }
+  //
+  // Exposed on `this.behavior` (a {@link BehaviorController} instance);
+  // see behavior.ts for the full API surface. Kept off the flat WindowManager
+  // namespace so the declarative three-layer split (windowOptions / behavior
+  // / quirks) is visible at the call site.
 
   // ─── Public API: Title bar overlay ────────────────────────────
 
@@ -906,7 +854,7 @@ export class WindowManager extends BaseService {
     // (already clears, but this is a belt-and-suspenders), and (b) a pool
     // window reopened later for a different consumer starts from the
     // registry-declared defaults rather than the previous consumer's pin.
-    this.hideOnBlurOverride.delete(windowId)
+    this.behavior.clearForWindow(windowId)
 
     const recycleMax = poolConfig.recycleMaxSize ?? 0
     const standby = poolConfig.standbySize ?? 0
@@ -1242,7 +1190,7 @@ export class WindowManager extends BaseService {
       managedWindow.window,
       managedWindow.metadata.behavior,
       windowId,
-      (id) => this.hideOnBlurOverride.get(id),
+      (id) => this.behavior.getHideOnBlurOverride(id),
       config
     )
 
@@ -1268,8 +1216,9 @@ export class WindowManager extends BaseService {
 
     // 7. Reconcile macOS Dock visibility. A fresh window added to `this.windows`
     // changes the set of contributing windows; any pre-set per-type override (e.g.
-    // tray-on-launch having called setMacShowInDockByType(Main, false) before the
-    // first open) is applied here without requiring a separate arg on createWindow.
+    // tray-on-launch having called wm.behavior.setMacShowInDockByType(Main, false)
+    // before the first open) is applied here without requiring a separate arg on
+    // createWindow.
     this.updateDockVisibility()
 
     logger.debug('Window created', { windowId, type })
@@ -1298,7 +1247,7 @@ export class WindowManager extends BaseService {
     // Dock state tracks window EXISTENCE + per-type override, not visibility — matching
     // macOS native semantics where Cmd+W (hide) keeps the dock icon, Cmd+Q (destroy) removes it.
     // The 'closed' handler below triggers updateDockVisibility on destruction; type-override
-    // changes via setMacShowInDockByType do so explicitly.
+    // changes via wm.behavior.setMacShowInDockByType do so explicitly.
 
     // Intercept native close for pooled windows — hide and return to pool
     window.on('close', (event) => {
@@ -1366,7 +1315,7 @@ export class WindowManager extends BaseService {
     // Hidden runtime state must not survive the underlying BrowserWindow —
     // any future open() allocates a fresh windowId anyway, but guarding here
     // is cheap and keeps the map bounded.
-    this.hideOnBlurOverride.delete(windowId)
+    this.behavior.clearForWindow(windowId)
   }
 
   // ─── Content loading ──────────────────────────────────────────
@@ -1388,20 +1337,11 @@ export class WindowManager extends BaseService {
   }
 
   // ─── macOS Dock visibility ────────────────────────────────────
-
-  /**
-   * Runtime per-type overrides for `behavior.macShowInDock`. Services toggle these
-   * around tray-mode transitions (tray-on-launch, close-to-tray) to express app-level
-   * intent that the registry default cannot: "this window type currently does / does
-   * not contribute to Dock visibility". When a type has no entry here, the registry
-   * default is used.
-   *
-   * Keyed by WindowType so consumers can set the override BEFORE the first instance
-   * is created — e.g. `setMacShowInDockByType(Main, false)` right before the first
-   * `wm.open(Main)` under tray-on-launch suppresses the Dock icon from the start
-   * without requiring a window id.
-   */
-  private macShowInDockOverrideByType = new Map<WindowType, boolean>()
+  //
+  // Per-type runtime override for `behavior.macShowInDock` lives on
+  // {@link BehaviorController} (see `this.behavior`). Services call
+  // `wm.behavior.setMacShowInDockByType(type, value)` to express tray-mode
+  // intent; `windowContributesToDock` reads the override via the controller.
 
   /**
    * Tracks the Dock icon visibility that WM has committed to, so repeated calls
@@ -1422,11 +1362,11 @@ export class WindowManager extends BaseService {
    * This predicate is existence-based, not visibility-based — consistent with
    * native macOS semantics where hiding a window does not remove its app from
    * the Dock. Apps opt into tray-style "hide Dock when hidden" behavior
-   * explicitly via `setMacShowInDockByType`.
+   * explicitly via `wm.behavior.setMacShowInDockByType`.
    */
   private windowContributesToDock(managed: ManagedWindow): boolean {
     if (managed.window.isDestroyed()) return false
-    const typeOverride = this.macShowInDockOverrideByType.get(managed.type)
+    const typeOverride = this.behavior.getMacShowInDockOverride(managed.type)
     if (typeOverride !== undefined) return typeOverride
     return managed.metadata.behavior?.macShowInDock !== false
   }
@@ -1437,7 +1377,7 @@ export class WindowManager extends BaseService {
    * Triggered by lifecycle events that change the set of contributing windows:
    *   - window creation (in `createWindow`)
    *   - window destruction (in the 'closed' listener)
-   *   - per-type override changes (in `setMacShowInDockByType`)
+   *   - per-type override changes (in `wm.behavior.setMacShowInDockByType`)
    *
    * NOT triggered by show/hide/minimize/restore — see `setupWindowListeners` comment.
    */
@@ -1455,25 +1395,5 @@ export class WindowManager extends BaseService {
       this.dockShouldBeVisible = false
       app.dock?.hide()
     }
-  }
-
-  /**
-   * Override the Dock-contribution flag for a window type at runtime.
-   *
-   * Typical use: a service enters or exits a "tray mode" where its window type
-   * should disappear from the Dock. For example, `MainWindowService` sets
-   * `(Main, false)` when handling close-to-tray, and `(Main, true)` when the user
-   * reopens the window from the tray.
-   *
-   * Safe to call BEFORE any instance of the type exists — the override is stored
-   * by type, so it takes effect the moment the first window of that type is
-   * created (see `createWindow`'s trailing `updateDockVisibility` call).
-   *
-   * Idempotent: repeated calls with the same value only re-run the native
-   * show/hide path when the aggregate decision actually changes.
-   */
-  public setMacShowInDockByType(type: WindowType, value: boolean): void {
-    this.macShowInDockOverrideByType.set(type, value)
-    this.updateDockVisibility()
   }
 }

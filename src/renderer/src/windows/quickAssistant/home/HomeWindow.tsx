@@ -535,7 +535,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       setIsPinned,
       isPinned
     }),
-    [route, isLoading, handleEsc, isPinned]
+    [route, isLoading, handleEsc, setIsPinned, isPinned]
   )
 
   switch (route) {

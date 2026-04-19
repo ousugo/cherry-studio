@@ -1389,7 +1389,7 @@ export class SelectionService extends BaseService implements Activatable {
     const wm = application.get('WindowManager')
     const id = wm.getWindowId(actionWindow)
     if (id !== undefined) {
-      wm.setAlwaysOnTop(id, isPinned)
+      wm.behavior.setAlwaysOnTop(id, isPinned)
     } else {
       // Untracked window (shouldn't happen in the normal pooled flow).
       actionWindow.setAlwaysOnTop(isPinned)

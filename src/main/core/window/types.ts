@@ -160,7 +160,7 @@ export type AlwaysOnTopLevel = NonNullable<Parameters<BrowserWindow['setAlwaysOn
 export interface WindowBehavior {
   /**
    * Auto-hide the window on the `blur` event. Runtime override via
-   * `WindowManager.setHideOnBlur(id, enabled)` — the override suppresses
+   * `wm.behavior.setHideOnBlur(id, enabled)` — the override suppresses
    * (or enables) the declared behavior for this instance only.
    */
   hideOnBlur?: boolean
@@ -170,7 +170,7 @@ export interface WindowBehavior {
    * `new BrowserWindow` cannot accept a level, this block is the single source
    * of truth for `level` / `relativeLevel`. Consumed at three points:
    *   1. Initial application after window create (when `windowOptions.alwaysOnTop` is true).
-   *   2. `WindowManager.setAlwaysOnTop(id, enabled)` runtime calls.
+   *   2. `wm.behavior.setAlwaysOnTop(id, enabled)` runtime calls.
    *   3. `quirks.macReapplyAlwaysOnTop` re-application after show/showInactive.
    */
   alwaysOnTop?: {

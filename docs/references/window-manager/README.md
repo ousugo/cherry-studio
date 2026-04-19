@@ -51,32 +51,32 @@ WindowManager therefore **exposes orthogonal primitives, not a `pin` abstraction
 
 ```typescript
 // QuickAssistant (pin = suppress blur-hide only)
-wm.setHideOnBlur(id, !isPinned)
+wm.behavior.setHideOnBlur(id, !isPinned)
 
 // SelectionAction (pin = toggle alwaysOnTop only)
-wm.setAlwaysOnTop(id, isPinned)
+wm.behavior.setAlwaysOnTop(id, isPinned)
 
 // SelectionAction (auto_close + pin composed in renderer)
-wm.setHideOnBlur(id, isAutoClose && !isPinned)
+wm.behavior.setHideOnBlur(id, isAutoClose && !isPinned)
 ```
 
 ### When to Provide a Runtime Setter
 
-WindowManager provides `setHideOnBlur`, `setAlwaysOnTop`, and `setMacShowInDockByType` but deliberately does **not** provide `setVisibleOnAllWorkspaces`. A `behavior` field deserves a runtime setter only when at least one of:
+Runtime setters for the declarative behavior layer live on `wm.behavior` (the {@link BehaviorController} instance). WindowManager provides `setHideOnBlur`, `setAlwaysOnTop`, and `setMacShowInDockByType` there but deliberately does **not** provide `setVisibleOnAllWorkspaces`. A `behavior` field deserves a runtime setter only when at least one of:
 
 1. **WM must maintain state** — e.g. `hideOnBlur` needs an override map the blur listener reads; `macShowInDock` needs a per-type override map the Dock predicate reads.
 2. **WM can derive parameters from the registry** — e.g. `setAlwaysOnTop` auto-fills `level` / `relativeLevel`.
 
 `visibleOnAllWorkspaces` satisfies neither (no state; options differ per call, as in SelectionAction's full-screen show sequence) — consumers drive it directly on the `BrowserWindow` instance.
 
-**Note on `setMacShowInDockByType`**: uniquely keyed by window TYPE (not windowId), because Dock visibility is an app-level UI decision — two instances of the same type should contribute identically, and services routinely need to flip the override BEFORE any instance exists (e.g. tray-on-launch calls `setMacShowInDockByType(Main, false)` before the first `open(Main)`). See [Platform → Declarative Behavior Layer](./window-manager-platform.md#declarative-behavior-layer) for semantics.
+**Note on `wm.behavior.setMacShowInDockByType`**: uniquely keyed by window TYPE (not windowId), because Dock visibility is an app-level UI decision — two instances of the same type should contribute identically, and services routinely need to flip the override BEFORE any instance exists (e.g. tray-on-launch calls `wm.behavior.setMacShowInDockByType(Main, false)` before the first `open(Main)`). See [Platform → Declarative Behavior Layer](./window-manager-platform.md#declarative-behavior-layer) for semantics.
 
 ### Consumer Decision Guide
 
 | Situation | Do |
 |---|---|
 | Only want initial state on create | Declare in registry `behavior.*` |
-| Single driver, runtime toggle | Use `wm.setHideOnBlur` / `wm.setAlwaysOnTop` (or `window.*` if no setter exists) |
+| Single driver, runtime toggle | Use `wm.behavior.setHideOnBlur` / `wm.behavior.setAlwaysOnTop` (or `window.*` if no setter exists) |
 | Multiple independent drivers (pin + auto_close) | Compute final target state on the consumer side, then call setters once. **Do NOT** store intermediate state in WM. |
 | Call-specific options that differ per call | Drive directly on `BrowserWindow` (e.g. SelectionAction's show sequence) |
 
@@ -136,10 +136,10 @@ Behavioral injection goes through **`onWindowCreated`** (or its type-filtered co
 
 ### Core Infrastructure
 
-- `src/main/core/window/WindowManager.ts` — Service implementation, including the `setHideOnBlur` / `setAlwaysOnTop` runtime setters
+- `src/main/core/window/WindowManager.ts` — Service implementation; runtime behavior setters live on `wm.behavior` (see `behavior.ts`)
+- `src/main/core/window/behavior.ts` — Initial `applyWindowBehavior` + `BehaviorController` (runtime setters: `setHideOnBlur`, `setAlwaysOnTop`, `setMacShowInDockByType`)
 - `src/main/core/window/windowRegistry.ts` — Per-type metadata (lifecycle, pool config, `windowOptions`, `behavior`, `quirks`, platform overrides)
 - `src/main/core/window/types.ts` — `WindowType`, `WindowTypeMetadata`, `WindowBehavior`, `WindowQuirks`, `PoolConfig`, `ManagedWindow`
-- `src/main/core/window/behavior.ts` — Cross-platform declarative behavior (blur listener, initial alwaysOnTop, initial setVisibleOnAllWorkspaces)
 - `src/main/core/window/quirks.ts` — macOS method-slot monkey-patches
 
 ### Renderer Integration

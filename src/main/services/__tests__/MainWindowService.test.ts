@@ -17,7 +17,11 @@ const { platformState, prefValues, applicationMock, windowManagerMock } = vi.hoi
   }
   const windowManagerMock = {
     getWindow: vi.fn(),
-    setMacShowInDockByType: vi.fn(),
+    // Mirrors the real shape: runtime behavior setters live on `wm.behavior`
+    // (see BehaviorController in src/main/core/window/behavior.ts).
+    behavior: {
+      setMacShowInDockByType: vi.fn()
+    },
     onWindowCreatedByType: vi.fn(() => vi.fn()),
     onWindowDestroyedByType: vi.fn(() => vi.fn()),
     open: vi.fn(() => 'mock-window-id')
@@ -159,7 +163,7 @@ describe('MainWindowService', () => {
     applicationMock.isQuitting = false
     applicationMock.quit.mockReset()
     applicationMock.forceExit.mockReset()
-    windowManagerMock.setMacShowInDockByType.mockReset()
+    windowManagerMock.behavior.setMacShowInDockByType.mockReset()
 
     svc = new MainWindowService()
     win = createMockWindow()
@@ -238,7 +242,7 @@ describe('MainWindowService', () => {
       // Critical: must NOT suppress Dock on standard mac close. Previous regression
       // hid the Dock icon along with the window, breaking macOS native semantics
       // (Dock tracks app liveness, not window visibility).
-      expect(windowManagerMock.setMacShowInDockByType).not.toHaveBeenCalled()
+      expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
     })
 
     it('does not preventDefault when window is fullscreen on macOS+tray (lets native close exit fullscreen)', () => {
@@ -265,9 +269,9 @@ describe('MainWindowService', () => {
 
       win.emit('close', event)
 
-      // WM.setMacShowInDockByType(Main, false) must be called BEFORE hide so the
+      // wm.behavior.setMacShowInDockByType(Main, false) must be called BEFORE hide so the
       // Dock update resolves to hidden before the window transition lands.
-      expect(windowManagerMock.setMacShowInDockByType).toHaveBeenCalledWith('main', false)
+      expect(windowManagerMock.behavior.setMacShowInDockByType).toHaveBeenCalledWith('main', false)
       expect(event.preventDefault).toHaveBeenCalledTimes(1)
       expect(win.hide).toHaveBeenCalledTimes(1)
     })
@@ -281,7 +285,7 @@ describe('MainWindowService', () => {
 
       win.emit('close', event)
 
-      expect(windowManagerMock.setMacShowInDockByType).not.toHaveBeenCalled()
+      expect(windowManagerMock.behavior.setMacShowInDockByType).not.toHaveBeenCalled()
     })
   })
 

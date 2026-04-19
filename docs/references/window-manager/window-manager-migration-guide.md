@@ -33,11 +33,11 @@ WINDOW_TYPE_REGISTRY[WindowType.MyWindow] = {
   },
   behavior: {
     // Declarative WM-level behaviors (all optional). See the README "Configuration Layers" section.
-    // hideOnBlur: true,                    // auto-hide on blur (runtime override: wm.setHideOnBlur)
-    // alwaysOnTop: { level: 'floating' },  // level/relativeLevel for setAlwaysOnTop
+    // hideOnBlur: true,                    // auto-hide on blur (runtime override: wm.behavior.setHideOnBlur)
+    // alwaysOnTop: { level: 'floating' },  // level/relativeLevel for setAlwaysOnTop (runtime override: wm.behavior.setAlwaysOnTop)
     // visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true },
     // macShowInDock: false,                // do not contribute to Dock visibility (macOS helper windows only; default true)
-    //                                      // runtime override: wm.setMacShowInDockByType(type, value) for tray-mode transitions
+    //                                      // runtime override: wm.behavior.setMacShowInDockByType(type, value) for tray-mode transitions
   },
   // quirks: { ... },                       // OS hacks — see Platform Configuration
 }
@@ -123,7 +123,7 @@ If your window needs custom show timing, set `showMode: 'manual'` in the registr
 - [ ] Chose the correct lifecycle mode (`default` / `singleton` / `pooled`)
 - [ ] Set `preload` filename if not using the default (`'index.js'`)
 - [ ] Set `showMode` behavior (`'auto'` / `'immediate'` / `'manual'`)
-- [ ] Set `behavior.macShowInDock: false` ONLY for helper windows (floating panels, selection overlays); primary app windows leave it at the default `true`. Use `wm.setMacShowInDockByType(type, value)` for runtime tray-mode transitions, not a different registry default.
+- [ ] Set `behavior.macShowInDock: false` ONLY for helper windows (floating panels, selection overlays); primary app windows leave it at the default `true`. Use `wm.behavior.setMacShowInDockByType(type, value)` for runtime tray-mode transitions, not a different registry default.
 - [ ] Declared `behavior.hideOnBlur` / `behavior.alwaysOnTop` / `behavior.visibleOnAllWorkspaces` as needed
 - [ ] Moved domain logic from constructor to `onWindowCreated` hook
 - [ ] Replaced direct `BrowserWindow` references with WindowManager API calls

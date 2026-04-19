@@ -66,18 +66,20 @@ The domain service carries none of this code.
 
 | Field | Type | What it does |
 |---|---|---|
-| `hideOnBlur` | `boolean` | Installs a blur listener that calls `window.hide()` (with optional runtime override via `wm.setHideOnBlur(id, enabled)`). |
-| `alwaysOnTop` | `{ level?: AlwaysOnTopLevel, relativeLevel?: number }` | Supplies the `level` / `relativeLevel` to `setAlwaysOnTop` calls — the single source of truth, read by: (1) the initial application after create (when `windowOptions.alwaysOnTop` is `true`), (2) `wm.setAlwaysOnTop(id, enabled)` runtime calls, (3) the `macReapplyAlwaysOnTop` quirk. |
+| `hideOnBlur` | `boolean` | Installs a blur listener that calls `window.hide()` (with optional runtime override via `wm.behavior.setHideOnBlur(id, enabled)`). |
+| `alwaysOnTop` | `{ level?: AlwaysOnTopLevel, relativeLevel?: number }` | Supplies the `level` / `relativeLevel` to `setAlwaysOnTop` calls — the single source of truth, read by: (1) the initial application after create (when `windowOptions.alwaysOnTop` is `true`), (2) `wm.behavior.setAlwaysOnTop(id, enabled)` runtime calls, (3) the `macReapplyAlwaysOnTop` quirk. |
 | `visibleOnAllWorkspaces` | `{ enabled: boolean } & VisibleOnAllWorkspacesOptions` | Runs `window.setVisibleOnAllWorkspaces(enabled, options)` once on create. Windows whose true/false options differ per call should *not* declare this (e.g. SelectionAction) — drive directly on `BrowserWindow` instead. |
-| `macShowInDock` | `boolean` | macOS-only default for whether a window of this type CONTRIBUTES to Dock visibility (Dock shown iff any alive window contributes). Existence-based, not visibility-based: hiding a contributing window does NOT hide the Dock (Cmd+W semantics). When omitted, defaults to `true`. `false` is for helper windows (floating panels, menu-bar style overlays) that should never affect the Dock. Runtime override via `wm.setMacShowInDockByType(type, value)` — set it to `false` before `window.hide()` to enter tray mode, `true` before `window.show()` to leave. No-op on Windows/Linux. |
+| `macShowInDock` | `boolean` | macOS-only default for whether a window of this type CONTRIBUTES to Dock visibility (Dock shown iff any alive window contributes). Existence-based, not visibility-based: hiding a contributing window does NOT hide the Dock (Cmd+W semantics). When omitted, defaults to `true`. `false` is for helper windows (floating panels, menu-bar style overlays) that should never affect the Dock. Runtime override via `wm.behavior.setMacShowInDockByType(type, value)` — set it to `false` before `window.hide()` to enter tray mode, `true` before `window.show()` to leave. No-op on Windows/Linux. |
 
 ### Runtime Setters
 
+Runtime setters for the behavior layer live on `wm.behavior` (a `BehaviorController` instance defined in `src/main/core/window/behavior.ts`). Grouping them under this sub-namespace mirrors the three-layer `windowOptions` / `behavior` / `quirks` split at the API surface.
+
 | Setter | Purpose |
 |---|---|
-| `wm.setHideOnBlur(id, enabled)` | Override the declared `behavior.hideOnBlur` per instance. Cleared on destroy and on pool `releaseToPool` — pool consumers that need a non-default value must re-apply after `open()` / reuse. No-op when the window does not declare `behavior.hideOnBlur`. |
-| `wm.setAlwaysOnTop(id, enabled)` | Toggle always-on-top using the `level` / `relativeLevel` declared in `behavior.alwaysOnTop`. When neither is declared, calls `setAlwaysOnTop(enabled)` with no level. |
-| `wm.setMacShowInDockByType(type, value)` | Override `behavior.macShowInDock` for an entire window type (not a single instance). Use for app-level tray-mode transitions: `(Main, false)` then `hide()` pulls the Dock icon down; `(Main, true)` then `show()` brings it back. Keyed by type so it can be set BEFORE the first instance exists (tray-on-launch). Multi-window safe: with `Main + DetachedTab` both contributing, a `setMacShowInDockByType(Main, false)` alone does NOT hide the Dock while any DetachedTab is alive. |
+| `wm.behavior.setHideOnBlur(id, enabled)` | Override the declared `behavior.hideOnBlur` per instance. Cleared on destroy and on pool `releaseToPool` — pool consumers that need a non-default value must re-apply after `open()` / reuse. No-op when the window does not declare `behavior.hideOnBlur`. |
+| `wm.behavior.setAlwaysOnTop(id, enabled)` | Toggle always-on-top using the `level` / `relativeLevel` declared in `behavior.alwaysOnTop`. When neither is declared, calls `setAlwaysOnTop(enabled)` with no level. |
+| `wm.behavior.setMacShowInDockByType(type, value)` | Override `behavior.macShowInDock` for an entire window type (not a single instance). Use for app-level tray-mode transitions: `(Main, false)` then `hide()` pulls the Dock icon down; `(Main, true)` then `show()` brings it back. Keyed by type so it can be set BEFORE the first instance exists (tray-on-launch). Multi-window safe: with `Main + DetachedTab` both contributing, a `wm.behavior.setMacShowInDockByType(Main, false)` alone does NOT hide the Dock while any DetachedTab is alive. |
 
 `setVisibleOnAllWorkspaces` intentionally has **no** WM-level setter — consumers call it directly on the `BrowserWindow` when needed. See [README → When to Provide a Runtime Setter](./README.md#when-to-provide-a-runtime-setter).
 
@@ -120,7 +122,7 @@ The layers are composable: Selection's toolbar uses all three (`windowOptions.pl
 
 ## Electron Edge Cases
 
-- `setAlwaysOnTop(false, level)` — Electron ignores `level` when `enabled` is false. The WM `setAlwaysOnTop(id, false)` preserves the registry-declared `level` arg only for signature symmetry; the effect is identical.
+- `setAlwaysOnTop(false, level)` — Electron ignores `level` when `enabled` is false. The WM `wm.behavior.setAlwaysOnTop(id, false)` preserves the registry-declared `level` arg only for signature symmetry; the effect is identical.
 - `VisibleOnAllWorkspacesOptions` — both `visibleOnFullScreen` and `skipTransformProcessType` are documented as `@platform darwin` in Electron. They are silently ignored on Windows / Linux.
 - **Linux Wayland "phantom popup" bug** — `setVisibleOnAllWorkspaces` can put windows into a broken "floating popup" state on KDE Wayland. See `MainWindowService.ts:573` for context. WM does not intervene; consumers using `behavior.visibleOnAllWorkspaces` on Linux should guard via runtime display-protocol checks if they see the regression.
 - **`Parameters<>` type derivation** — `AlwaysOnTopLevel` is derived from `Parameters<BrowserWindow['setAlwaysOnTop']>[1]`. If Electron adds method overloads to `setAlwaysOnTop`, this derivation resolves against the last overload only and may silently narrow. Re-verify after Electron upgrades.

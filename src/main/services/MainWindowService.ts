@@ -78,7 +78,7 @@ export class MainWindowService extends BaseService {
     // from the moment the app finishes launching.
     const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
     if (isLaunchToTray) {
-      application.get('WindowManager').setMacShowInDockByType(WindowType.Main, false)
+      application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
     }
 
     this.openMainWindow()
@@ -516,7 +516,7 @@ export class MainWindowService extends BaseService {
       // window) is still alive, it will keep the Dock visible. The override is lifted
       // in showMainWindow/toggleMainWindow when the user brings Main back.
       if (isMac && isTrayOnClose) {
-        application.get('WindowManager').setMacShowInDockByType(WindowType.Main, false)
+        application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
       }
 
       mainWindow.hide()
@@ -528,7 +528,7 @@ export class MainWindowService extends BaseService {
     // Lift any close-to-tray override so the Dock icon reappears as the user
     // brings the main window back. Idempotent when the app is not currently
     // in tray mode — WM deduplicates via its dockShouldBeVisible flag.
-    application.get('WindowManager').setMacShowInDockByType(WindowType.Main, true)
+    application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, true)
 
     const mainWindow = this.getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -610,7 +610,7 @@ export class MainWindowService extends BaseService {
           // toward Dock visibility BEFORE hiding, so the Dock coordinates with
           // whatever else is alive (e.g. a DetachedTab) rather than blindly hiding.
           if (isMac) {
-            application.get('WindowManager').setMacShowInDockByType(WindowType.Main, false)
+            application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
           }
           mainWindow.hide()
         }

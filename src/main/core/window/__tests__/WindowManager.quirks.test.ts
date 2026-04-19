@@ -611,7 +611,7 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       const id = wm.open('blurHider' as never)
       const win = firstWindow()
 
-      wm.setHideOnBlur(id, false)
+      wm.behavior.setHideOnBlur(id, false)
       win.emit('blur')
 
       expect(win.hide).not.toHaveBeenCalled()
@@ -621,7 +621,7 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       const id = wm.open('blurHider' as never)
       const win = firstWindow()
 
-      wm.setHideOnBlur(id, true)
+      wm.behavior.setHideOnBlur(id, true)
       win.emit('blur')
 
       expect(win.hide).toHaveBeenCalledTimes(1)
@@ -632,20 +632,20 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       const win = firstWindow()
 
       // Should not throw; should not install a listener just because override is set
-      wm.setHideOnBlur(id, false)
+      wm.behavior.setHideOnBlur(id, false)
       win.emit('blur')
 
       expect(win.hide).not.toHaveBeenCalled()
     })
 
     it('is a no-op for unknown window ids', () => {
-      expect(() => wm.setHideOnBlur('bogus-id', false)).not.toThrow()
+      expect(() => wm.behavior.setHideOnBlur('bogus-id', false)).not.toThrow()
     })
 
     it('pool releaseToPool resets the override for the next consumer', () => {
       const id1 = wm.open('pooledBlurHider' as never)
       const win = firstWindow()
-      wm.setHideOnBlur(id1, false)
+      wm.behavior.setHideOnBlur(id1, false)
 
       // Release to idle pool
       wm.close(id1)
@@ -666,7 +666,7 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       const win = firstWindow()
       win.setAlwaysOnTop.mockClear()
 
-      wm.setAlwaysOnTop(id, true)
+      wm.behavior.setAlwaysOnTop(id, true)
 
       expect(win.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
     })
@@ -676,7 +676,7 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       const win = firstWindow()
       win.setAlwaysOnTop.mockClear()
 
-      wm.setAlwaysOnTop(id, true)
+      wm.behavior.setAlwaysOnTop(id, true)
 
       expect(win.setAlwaysOnTop).toHaveBeenCalledWith(true)
     })
@@ -686,13 +686,13 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
       const win = firstWindow()
       win.setAlwaysOnTop.mockClear()
 
-      wm.setAlwaysOnTop(id, false)
+      wm.behavior.setAlwaysOnTop(id, false)
 
       expect(win.setAlwaysOnTop).toHaveBeenCalledWith(false, 'screen-saver')
     })
 
     it('is a no-op for unknown window ids', () => {
-      expect(() => wm.setAlwaysOnTop('bogus-id', true)).not.toThrow()
+      expect(() => wm.behavior.setAlwaysOnTop('bogus-id', true)).not.toThrow()
     })
   })
 
