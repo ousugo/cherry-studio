@@ -56,7 +56,7 @@ type StartDiscoveryOptions = {
  */
 @Injectable('LanTransferService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['MainWindowService'])
 export class LanTransferService extends BaseService {
   // =============================================================================
   // Discovery State
@@ -293,7 +293,7 @@ export class LanTransferService extends BaseService {
   }
 
   private broadcastState() {
-    const mainWindow = application.get('WindowService').getMainWindow()
+    const mainWindow = application.get('MainWindowService').getMainWindow()
     if (!mainWindow || mainWindow.isDestroyed()) {
       return
     }
@@ -735,7 +735,7 @@ export class LanTransferService extends BaseService {
   }
 
   private broadcastClientEvent(event: LanClientEvent): void {
-    const mainWindow = application.get('WindowService').getMainWindow()
+    const mainWindow = application.get('MainWindowService').getMainWindow()
     if (!mainWindow || mainWindow.isDestroyed()) {
       return
     }

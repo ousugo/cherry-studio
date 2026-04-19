@@ -39,7 +39,7 @@ type DetachedWindowState = {
 
 @Injectable('DetachedWindowManager')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['MainWindowService'])
 export class DetachedWindowManager extends BaseService {
   private windows: Map<string, BrowserWindow> = new Map()
   private windowState: Map<string, DetachedWindowState> = new Map()
@@ -49,8 +49,8 @@ export class DetachedWindowManager extends BaseService {
     this.registerIpcHandlers()
   }
 
-  private getWindowService() {
-    return application.get('WindowService')
+  private getMainWindowService() {
+    return application.get('MainWindowService')
   }
 
   private registerIpcHandlers() {
@@ -59,7 +59,7 @@ export class DetachedWindowManager extends BaseService {
     })
 
     this.ipcHandle(IpcChannel.Tab_Attach, (event, payload) => {
-      const mainWindow = this.getWindowService().getMainWindow()
+      const mainWindow = this.getMainWindowService().getMainWindow()
       if (!mainWindow || mainWindow.isDestroyed()) {
         logger.warn('Tab_Attach failed: main window not available')
         return false
@@ -107,7 +107,7 @@ export class DetachedWindowManager extends BaseService {
     this.ipcHandle(
       IpcChannel.Tab_TryAttach,
       (_, payload: { tab: { id: string }; screenX: number; screenY: number }) => {
-        const mainWindow = this.getWindowService().getMainWindow()
+        const mainWindow = this.getMainWindowService().getMainWindow()
         if (!mainWindow || mainWindow.isDestroyed()) {
           logger.warn('Tab_TryAttach failed: main window not available')
           return false

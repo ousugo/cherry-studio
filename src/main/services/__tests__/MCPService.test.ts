@@ -11,7 +11,7 @@ vi.mock('@data/services/McpServerService', () => ({
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
-      if (name === 'WindowService') {
+      if (name === 'MainWindowService') {
         return { getMainWindow: vi.fn(() => null) }
       }
       if (name === 'CacheService') {

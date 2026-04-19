@@ -31,7 +31,7 @@ class PreprocessingService {
         fileToProcess = processedFile
 
         // Notify the UI
-        const mainWindow = application.get('WindowService').getMainWindow()
+        const mainWindow = application.get('MainWindowService').getMainWindow()
         mainWindow?.webContents.send('file-preprocess-finished', {
           itemId: item.id
         })

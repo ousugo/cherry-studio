@@ -1,5 +1,6 @@
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { type WindowOptions, WindowType, type WindowTypeMetadata } from '@main/core/window/types'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 
 /**
  * Default window configuration.
@@ -33,6 +34,56 @@ export const DEFAULT_WINDOW_CONFIG: WindowOptions = {
  * ```
  */
 export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata>> = {
+  // Main application window — singleton primary surface.
+  // Managed by MainWindowService: dynamic options (window-state position/size, theme-driven
+  // backgroundColor / titleBarOverlay / backgroundMaterial / frame / icon / zoomFactor) are
+  // injected via wm.open({ options }). showMode 'manual' lets MainWindowService decide first
+  // show in the ready-to-show handler (so tray-on-launch can suppress it).
+  [WindowType.Main]: {
+    type: WindowType.Main,
+    lifecycle: 'singleton',
+    htmlPath: 'index.html',
+    // preload omitted → defaults to 'index.js' (full API preload).
+    showMode: 'manual',
+    windowOptions: {
+      width: MIN_WINDOW_WIDTH,
+      height: MIN_WINDOW_HEIGHT,
+      minWidth: MIN_WINDOW_WIDTH,
+      minHeight: MIN_WINDOW_HEIGHT,
+      autoHideMenuBar: true,
+      transparent: false,
+      vibrancy: 'sidebar',
+      visualEffectState: 'active',
+      platformOverrides: {
+        mac: {
+          titleBarStyle: 'hidden',
+          trafficLightPosition: { x: 13, y: 16 }
+          // titleBarOverlay is theme-dependent → injected via args.options
+        }
+        // win: backgroundMaterial is runtime-computed (may be undefined) → args.options
+        // linux: frame depends on `app.use_system_title_bar` preference, icon is nativeImage
+        //        → both injected via args.options
+      },
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        webSecurity: false,
+        webviewTag: true,
+        allowRunningInsecureContent: true,
+        backgroundThrottling: false
+        // zoomFactor depends on PreferenceService → injected via args.options
+      }
+    },
+    behavior: {
+      // Main window is the primary surface — always reflected in the macOS Dock.
+      // WindowManager.updateDockVisibility uses this to drive Dock show/hide on
+      // every show/hide/minimize/restore, replacing the manual app.dock?.show()
+      // / app.dock?.hide() calls that used to live in the close handler.
+      macShowInDock: true
+    }
+  },
+
   // Quick Assistant window — singleton floating panel.
   // Managed by QuickAssistantService: stateKeeper bounds are injected via wm.create({ options }),
   // visibility is driven by showQuickAssistant() (cursor-follow, Windows opacity dance, macOS app.hide).

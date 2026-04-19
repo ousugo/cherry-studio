@@ -62,12 +62,14 @@ wm.setHideOnBlur(id, isAutoClose && !isPinned)
 
 ### When to Provide a Runtime Setter
 
-WindowManager provides `setHideOnBlur` and `setAlwaysOnTop` but deliberately does **not** provide `setVisibleOnAllWorkspaces`. A `behavior` field deserves a runtime setter only when at least one of:
+WindowManager provides `setHideOnBlur`, `setAlwaysOnTop`, and `setMacShowInDockByType` but deliberately does **not** provide `setVisibleOnAllWorkspaces`. A `behavior` field deserves a runtime setter only when at least one of:
 
-1. **WM must maintain state** — e.g. `hideOnBlur` needs an override map the blur listener reads.
+1. **WM must maintain state** — e.g. `hideOnBlur` needs an override map the blur listener reads; `macShowInDock` needs a per-type override map the Dock predicate reads.
 2. **WM can derive parameters from the registry** — e.g. `setAlwaysOnTop` auto-fills `level` / `relativeLevel`.
 
 `visibleOnAllWorkspaces` satisfies neither (no state; options differ per call, as in SelectionAction's full-screen show sequence) — consumers drive it directly on the `BrowserWindow` instance.
+
+**Note on `setMacShowInDockByType`**: uniquely keyed by window TYPE (not windowId), because Dock visibility is an app-level UI decision — two instances of the same type should contribute identically, and services routinely need to flip the override BEFORE any instance exists (e.g. tray-on-launch calls `setMacShowInDockByType(Main, false)` before the first `open(Main)`). See [Platform → Declarative Behavior Layer](./window-manager-platform.md#declarative-behavior-layer) for semantics.
 
 ### Consumer Decision Guide
 
@@ -89,7 +91,7 @@ WindowManager provides `setHideOnBlur` and `setAlwaysOnTop` but deliberately doe
 
 - `setAlwaysOnTop(false, level)`: `level` is **ignored by Electron** when `enabled` is false. Safe, but document the intent at the call site.
 - `setVisibleOnAllWorkspaces`: both options (`visibleOnFullScreen`, `skipTransformProcessType`) are `@platform darwin`. Electron silently ignores them elsewhere.
-- Linux / KDE Wayland has a "phantom popup" bug with `setVisibleOnAllWorkspaces` — see `WindowService.ts` for context. Consumers must guard this platform themselves; WM does not intervene.
+- Linux / KDE Wayland has a "phantom popup" bug with `setVisibleOnAllWorkspaces` — see `MainWindowService.ts` for context. Consumers must guard this platform themselves; WM does not intervene.
 
 ---
 

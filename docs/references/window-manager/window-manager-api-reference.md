@@ -17,8 +17,8 @@ Two layers: **Consumer** methods are the universal API and should be used by all
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `show` | `(windowId: string) => boolean` | Show a window. Updates Dock visibility on macOS. |
-| `hide` | `(windowId: string) => boolean` | Hide a window. Updates Dock visibility on macOS. |
+| `show` | `(windowId: string) => boolean` | Show a window. Does NOT change macOS Dock state — the Dock tracks window existence + per-type override, not visibility (matching native macOS: Cmd+W hiding a window does not remove the app from the Dock). |
+| `hide` | `(windowId: string) => boolean` | Hide a window. Does NOT change macOS Dock state — same reason as `show`. If callers want the Dock to disappear too (tray-mode UX), use `setMacShowInDockByType` BEFORE `hide`. |
 | `minimize` | `(windowId: string) => boolean` | Minimize a window. |
 | `maximize` | `(windowId: string) => boolean` | Toggle maximize/unmaximize. |
 | `restore` | `(windowId: string) => boolean` | Restore a minimized window. |
@@ -32,6 +32,7 @@ These operate on the declarative `behavior` layer per instance. See [Platform Co
 |--------|-----------|-------------|
 | `setHideOnBlur` | `(windowId: string, enabled: boolean) => void` | Override the declared `behavior.hideOnBlur` at runtime. `enabled: true` keeps auto-hide on; `enabled: false` suppresses (effectively "pinned"). No-op when the window type does not declare `behavior.hideOnBlur` (no listener to override). Override is cleared on window destroy and on pool `releaseToPool`. |
 | `setAlwaysOnTop` | `(windowId: string, enabled: boolean) => void` | Toggle always-on-top using `level` / `relativeLevel` from `behavior.alwaysOnTop` (single source of truth). When neither is declared, `setAlwaysOnTop(enabled)` is called with no level — matching Electron's default. |
+| `setMacShowInDockByType` | `(type: WindowType, value: boolean) => void` | Override `behavior.macShowInDock` for an entire type at runtime. Use this to express "app is entering / leaving tray mode": `(Main, false)` before `window.hide()` makes the Dock track the transition; `(Main, true)` before `window.show()` lifts the suppression. Keyed by type (not windowId) so it can be set BEFORE the first instance exists (e.g. tray-on-launch path). When multiple window types contribute (e.g. Main + DetachedTab), the Dock stays visible as long as any contributing type is alive — `setMacShowInDockByType(Main, false)` will not hide the Dock if a DetachedTab window is still present. |
 
 > No WM-level `setVisibleOnAllWorkspaces` is provided: its options differ per call in real usage (e.g. SelectionAction's full-screen show sequence), and WM has no state to maintain. Consumers call `window.setVisibleOnAllWorkspaces(enabled, options)` directly on the `BrowserWindow` instance. See [README → When to Provide a Runtime Setter](./README.md#when-to-provide-a-runtime-setter) for the decision rule.
 

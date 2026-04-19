@@ -157,7 +157,7 @@ class ChannelManager {
   }
 
   private sendToRenderer(channel: string, data: unknown): void {
-    const mainWindow = application.get('WindowService').getMainWindow()
+    const mainWindow = application.get('MainWindowService').getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(channel, data)
     }

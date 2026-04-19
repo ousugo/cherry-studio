@@ -379,7 +379,7 @@ class KnowledgeService {
     let processedFiles = 0
 
     const sendDirectoryProcessingPercent = (totalFiles: number, processedFiles: number) => {
-      const mainWindow = application.get('WindowService').getMainWindow()
+      const mainWindow = application.get('MainWindowService').getMainWindow()
       mainWindow?.webContents.send(IpcChannel.DirectoryProcessingPercent, {
         itemId: item.id,
         percent: (processedFiles / totalFiles) * 100
@@ -761,7 +761,7 @@ class KnowledgeService {
         logger.debug(`Starting preprocess processing for scanned PDF: ${filePath}`)
         const { processedFile } = await provider.parseFile(item.id, file)
         fileToProcess = processedFile
-        const mainWindow = application.get('WindowService').getMainWindow()
+        const mainWindow = application.get('MainWindowService').getMainWindow()
         mainWindow?.webContents.send('file-preprocess-finished', {
           itemId: item.id
         })

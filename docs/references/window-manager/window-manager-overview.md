@@ -125,7 +125,7 @@ See [Pool Mechanics](./window-manager-pool-mechanics.md) for the full pool confi
 | `broadcast()` / `broadcastToType()` | IPC fan-out to all or type-filtered windows |
 | `open({ initData })` / `create({ initData })` / `setInitData()` / `getInitData()` | Init payload passed atomically on open/create; automatically pushed to renderer via `WindowManager_Reused` on reuse paths |
 | `suspendPool()` / `resumePool()` | Pause pool tracking without destroying in-use windows |
-| macOS Dock visibility management | Automatic based on visible windows and `behavior.macShowInDock` metadata |
+| macOS Dock visibility management | Existence-based: Dock is visible while any window with `behavior.macShowInDock !== false` is alive (not destroyed). Services express tray-mode intent via `setMacShowInDockByType(type, value)` to temporarily opt a type out of Dock contribution. Matches native macOS semantics where Cmd+W does not remove the app from the Dock. |
 | `setTitleBarOverlay()` | Batch update overlay on all applicable windows |
 
 ## Event Timing Contract

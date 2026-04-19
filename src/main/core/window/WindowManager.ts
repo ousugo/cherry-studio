@@ -1266,6 +1266,12 @@ export class WindowManager extends BaseService {
       this.loadWindowContent(windowId, window, metadata.htmlPath)
     }
 
+    // 7. Reconcile macOS Dock visibility. A fresh window added to `this.windows`
+    // changes the set of contributing windows; any pre-set per-type override (e.g.
+    // tray-on-launch having called setMacShowInDockByType(Main, false) before the
+    // first open) is applied here without requiring a separate arg on createWindow.
+    this.updateDockVisibility()
+
     logger.debug('Window created', { windowId, type })
     return windowId
   }
@@ -1288,10 +1294,11 @@ export class WindowManager extends BaseService {
   // ─── Window event listeners ───────────────────────────────────
 
   private setupWindowListeners(windowId: string, window: BrowserWindow): void {
-    window.on('show', () => this.updateDockVisibility())
-    window.on('hide', () => this.updateDockVisibility())
-    window.on('minimize', () => this.updateDockVisibility())
-    window.on('restore', () => this.updateDockVisibility())
+    // Intentionally no show/hide/minimize/restore triggers for updateDockVisibility.
+    // Dock state tracks window EXISTENCE + per-type override, not visibility — matching
+    // macOS native semantics where Cmd+W (hide) keeps the dock icon, Cmd+Q (destroy) removes it.
+    // The 'closed' handler below triggers updateDockVisibility on destruction; type-override
+    // changes via setMacShowInDockByType do so explicitly.
 
     // Intercept native close for pooled windows — hide and return to pool
     window.on('close', (event) => {
@@ -1382,30 +1389,91 @@ export class WindowManager extends BaseService {
 
   // ─── macOS Dock visibility ────────────────────────────────────
 
-  private dockShouldBeVisible = false
+  /**
+   * Runtime per-type overrides for `behavior.macShowInDock`. Services toggle these
+   * around tray-mode transitions (tray-on-launch, close-to-tray) to express app-level
+   * intent that the registry default cannot: "this window type currently does / does
+   * not contribute to Dock visibility". When a type has no entry here, the registry
+   * default is used.
+   *
+   * Keyed by WindowType so consumers can set the override BEFORE the first instance
+   * is created — e.g. `setMacShowInDockByType(Main, false)` right before the first
+   * `wm.open(Main)` under tray-on-launch suppresses the Dock icon from the start
+   * without requiring a window id.
+   */
+  private macShowInDockOverrideByType = new Map<WindowType, boolean>()
 
   /**
-   * Update macOS Dock icon visibility based on visible windows.
-   * Windows with `behavior.macShowInDock: false` do not affect Dock visibility.
+   * Tracks the Dock icon visibility that WM has committed to, so repeated calls
+   * deduplicate native Dock show/hide invocations. Initialized to `true` because
+   * macOS Electron apps start with the Dock icon visible; the first
+   * `updateDockVisibility()` will correctly transition to `false` when needed
+   * (e.g. tray-on-launch sets the Main override to `false` before window creation).
+   */
+  private dockShouldBeVisible = true
+
+  /**
+   * Whether a managed window currently contributes to "app wants the Dock icon".
+   * Checks, in order:
+   *   - window not destroyed (destroyed windows never contribute)
+   *   - per-type override (if set, wins over registry default)
+   *   - registry's `behavior.macShowInDock` (defaults to true when omitted)
+   *
+   * This predicate is existence-based, not visibility-based — consistent with
+   * native macOS semantics where hiding a window does not remove its app from
+   * the Dock. Apps opt into tray-style "hide Dock when hidden" behavior
+   * explicitly via `setMacShowInDockByType`.
+   */
+  private windowContributesToDock(managed: ManagedWindow): boolean {
+    if (managed.window.isDestroyed()) return false
+    const typeOverride = this.macShowInDockOverrideByType.get(managed.type)
+    if (typeOverride !== undefined) return typeOverride
+    return managed.metadata.behavior?.macShowInDock !== false
+  }
+
+  /**
+   * Recompute and sync the macOS Dock icon visibility.
+   *
+   * Triggered by lifecycle events that change the set of contributing windows:
+   *   - window creation (in `createWindow`)
+   *   - window destruction (in the 'closed' listener)
+   *   - per-type override changes (in `setMacShowInDockByType`)
+   *
+   * NOT triggered by show/hide/minimize/restore — see `setupWindowListeners` comment.
    */
   private updateDockVisibility(): void {
     if (!isMac) return
 
-    const hasVisibleDockWindow = Array.from(this.windows.values()).some(
-      (managed) =>
-        managed.metadata.behavior?.macShowInDock !== false &&
-        !managed.window.isDestroyed() &&
-        (managed.window.isVisible() || managed.window.isMinimized())
-    )
+    const shouldShow = Array.from(this.windows.values()).some((managed) => this.windowContributesToDock(managed))
 
-    if (hasVisibleDockWindow && !this.dockShouldBeVisible) {
+    if (shouldShow && !this.dockShouldBeVisible) {
       this.dockShouldBeVisible = true
       void app.dock?.show().then(() => {
         if (!this.dockShouldBeVisible) app.dock?.hide()
       })
-    } else if (!hasVisibleDockWindow && this.dockShouldBeVisible) {
+    } else if (!shouldShow && this.dockShouldBeVisible) {
       this.dockShouldBeVisible = false
       app.dock?.hide()
     }
+  }
+
+  /**
+   * Override the Dock-contribution flag for a window type at runtime.
+   *
+   * Typical use: a service enters or exits a "tray mode" where its window type
+   * should disappear from the Dock. For example, `MainWindowService` sets
+   * `(Main, false)` when handling close-to-tray, and `(Main, true)` when the user
+   * reopens the window from the tray.
+   *
+   * Safe to call BEFORE any instance of the type exists — the override is stored
+   * by type, so it takes effect the moment the first window of that type is
+   * created (see `createWindow`'s trailing `updateDockVisibility` call).
+   *
+   * Idempotent: repeated calls with the same value only re-run the native
+   * show/hide path when the aggregate decision actually changes.
+   */
+  public setMacShowInDockByType(type: WindowType, value: boolean): void {
+    this.macShowInDockOverrideByType.set(type, value)
+    this.updateDockVisibility()
   }
 }

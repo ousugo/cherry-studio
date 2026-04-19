@@ -1,8 +1,9 @@
 import { application } from '@application'
-import { is, optimizer } from '@electron-toolkit/utils'
+import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -16,18 +17,19 @@ import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { contextMenu } from './ContextMenu'
 import { isSafeExternalUrl } from './security'
 
-const logger = loggerService.withContext('WindowService')
+const logger = loggerService.withContext('MainWindowService')
 
 // Create nativeImage for Linux window icon (required for Wayland)
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 
-@Injectable('WindowService')
+@Injectable('MainWindowService')
 @ServicePhase(Phase.WhenReady)
-export class WindowService extends BaseService {
+export class MainWindowService extends BaseService {
   private readonly _onMainWindowCreated: Emitter<BrowserWindow>
   public readonly onMainWindowCreated: Event<BrowserWindow>
 
-  private mainWindow: BrowserWindow | null = null
+  private mainWindowId: string | undefined
+  private stateKeeper: ReturnType<typeof windowStateKeeper> | undefined
   private lastRendererProcessCrashTime: number = 0
 
   constructor() {
@@ -37,6 +39,23 @@ export class WindowService extends BaseService {
   }
 
   protected async onInit() {
+    const windowManager = application.get('WindowManager')
+
+    // Wire business listeners onto fresh main windows. Reuse paths (singleton reopen)
+    // do not fire onWindowCreatedByType — by design, since listeners are already attached.
+    this.registerDisposable(
+      windowManager.onWindowCreatedByType(WindowType.Main, ({ window, id }) => {
+        this.mainWindowId = id
+        this.setupMainWindow(window)
+        this._onMainWindowCreated.fire(window)
+      })
+    )
+    this.registerDisposable(
+      windowManager.onWindowDestroyedByType(WindowType.Main, () => {
+        this.mainWindowId = undefined
+      })
+    )
+
     this.registerWindowShortcuts()
     this.registerIpcHandlers()
     this.registerActivateHandler()
@@ -52,15 +71,17 @@ export class WindowService extends BaseService {
   }
 
   protected async onReady() {
-    // Mac: hide dock icon before window creation when launch to tray is set.
-    // Dock icon is visible from app launch; must hide early.
-    // The ready-to-show handler's app.dock?.show() restores it for non-tray mode.
+    // Mac: when launching into tray, suppress the Dock icon up-front by telling
+    // WindowManager that Main-type windows do not contribute to Dock visibility.
+    // WindowManager reads this override when the first Main window is created
+    // (in createWindow's trailing updateDockVisibility), so the Dock is hidden
+    // from the moment the app finishes launching.
     const isLaunchToTray = application.get('PreferenceService').get('app.tray.on_launch')
     if (isLaunchToTray) {
-      app.dock?.hide()
+      application.get('WindowManager').setMacShowInDockByType(WindowType.Main, false)
     }
 
-    this.createMainWindow()
+    this.openMainWindow()
 
     // Install React Developer Tools extension for debugging in development mode
     if (isDev) {
@@ -70,21 +91,18 @@ export class WindowService extends BaseService {
     }
   }
 
-  private checkMainWindow() {
-    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+  private requireMainWindow(): BrowserWindow {
+    const mainWindow = this.getMainWindow()
+    if (!mainWindow || mainWindow.isDestroyed()) {
       throw new Error('Main window does not exist or has been destroyed')
     }
+    return mainWindow
   }
 
   private registerActivateHandler() {
-    const handler = () => {
-      const mainWindow = this.getMainWindow()
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        this.createMainWindow()
-      } else {
-        this.showMainWindow()
-      }
-    }
+    // showMainWindow's fallback re-opens via WindowManager when the previous window
+    // has been destroyed; reuse path falls through to focus + restore.
+    const handler = () => this.showMainWindow()
     app.on('activate', handler)
     this.registerDisposable(() => app.removeListener('activate', handler))
   }
@@ -92,7 +110,7 @@ export class WindowService extends BaseService {
   private registerSecondInstanceHandler() {
     // Protocol URL dispatch is handled by ProtocolService on the same event.
     // Multiple listeners on 'second-instance' are intentional: ProtocolService
-    // dispatches the URL, WindowService restores the window.
+    // dispatches the URL, MainWindowService restores the window.
     const handler = () => this.showMainWindow()
     app.on('second-instance', handler)
     this.registerDisposable(() => app.removeListener('second-instance', handler))
@@ -109,27 +127,25 @@ export class WindowService extends BaseService {
     if (win && !win.isDestroyed()) {
       return win
     }
-    throw new Error('WindowService: could not resolve a live BrowserWindow from IPC sender')
+    throw new Error('MainWindowService: could not resolve a live BrowserWindow from IPC sender')
   }
 
   private registerIpcHandlers() {
     this.ipcHandle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
-      this.checkMainWindow()
-      this.mainWindow!.setMinimumSize(width, height)
+      this.requireMainWindow().setMinimumSize(width, height)
     })
 
     this.ipcHandle(IpcChannel.Windows_ResetMinimumSize, () => {
-      this.checkMainWindow()
-      this.mainWindow!.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
-      const [width, height] = this.mainWindow!.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+      const mainWindow = this.requireMainWindow()
+      mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+      const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
       if (width < MIN_WINDOW_WIDTH) {
-        this.mainWindow!.setSize(MIN_WINDOW_WIDTH, height)
+        mainWindow.setSize(MIN_WINDOW_WIDTH, height)
       }
     })
 
     this.ipcHandle(IpcChannel.Windows_GetSize, () => {
-      this.checkMainWindow()
-      const [width, height] = this.mainWindow!.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+      const [width, height] = this.requireMainWindow().getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
       return [width, height]
     })
 
@@ -156,78 +172,65 @@ export class WindowService extends BaseService {
     this.ipcHandle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
   }
 
-  public createMainWindow(): BrowserWindow {
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.show()
-      this.mainWindow.focus()
-      return this.mainWindow
+  /**
+   * Open the main window via WindowManager.
+   * Singleton lifecycle: reuses an existing main window if present (show + focus),
+   * otherwise constructs a fresh one. Dynamic options (windowStateKeeper bounds,
+   * theme-driven backgroundColor / titleBarOverlay / backgroundMaterial / Linux
+   * frame and icon, zoom factor) are injected here at the call site, since the
+   * registry only carries static defaults.
+   */
+  private openMainWindow(): void {
+    const preferenceService = application.get('PreferenceService')
+    const windowManager = application.get('WindowManager')
+
+    // stateKeeper is initialized once per service lifetime. The internal window
+    // listeners are (re)attached in setupMainWindow via stateKeeper.manage(window),
+    // and old listeners die with the previous BrowserWindow on destroy.
+    if (!this.stateKeeper) {
+      this.stateKeeper = windowStateKeeper({
+        defaultWidth: MIN_WINDOW_WIDTH,
+        defaultHeight: MIN_WINDOW_HEIGHT,
+        fullScreen: false,
+        maximize: false
+      })
     }
 
-    const preferenceService = application.get('PreferenceService')
-
-    const mainWindowState = windowStateKeeper({
-      defaultWidth: MIN_WINDOW_WIDTH,
-      defaultHeight: MIN_WINDOW_HEIGHT,
-      fullScreen: false,
-      maximize: false
-    })
     const windowsBackgroundMaterial = getWindowsBackgroundMaterial()
     let mainWindowBackgroundColor: string | undefined
-
     if (!isMac && !windowsBackgroundMaterial) {
       mainWindowBackgroundColor = nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF'
     }
 
-    this.mainWindow = new BrowserWindow({
-      x: mainWindowState.x,
-      y: mainWindowState.y,
-      width: mainWindowState.width,
-      height: mainWindowState.height,
-      minWidth: MIN_WINDOW_WIDTH,
-      minHeight: MIN_WINDOW_HEIGHT,
-      show: false,
-      autoHideMenuBar: true,
-      transparent: false,
-      vibrancy: 'sidebar',
-      visualEffectState: 'active',
-      // For Windows and Linux, we use frameless window with custom controls
-      // For Mac, we keep the native title bar style
-      ...(isMac
-        ? {
-            titleBarStyle: 'hidden',
-            titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
-            trafficLightPosition: { x: 13, y: 16 }
-          }
-        : {
-            // On Linux, allow using system title bar if setting is enabled
-            frame: isLinux && preferenceService.get('app.use_system_title_bar')
-          }),
-      ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
-      ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
-      darkTheme: nativeTheme.shouldUseDarkColors,
-      ...(isLinux ? { icon: linuxIcon } : {}),
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        sandbox: false,
-        webSecurity: false,
-        webviewTag: true,
-        allowRunningInsecureContent: true,
-        zoomFactor: preferenceService.get('app.zoom_factor'),
-        backgroundThrottling: false
+    this.mainWindowId = windowManager.open(WindowType.Main, {
+      options: {
+        x: this.stateKeeper.x,
+        y: this.stateKeeper.y,
+        width: this.stateKeeper.width,
+        height: this.stateKeeper.height,
+        darkTheme: nativeTheme.shouldUseDarkColors,
+        ...(isMac && {
+          titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight
+        }),
+        ...(isLinux && {
+          frame: preferenceService.get('app.use_system_title_bar'),
+          icon: linuxIcon
+        }),
+        ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
+        ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
+        webPreferences: {
+          zoomFactor: preferenceService.get('app.zoom_factor')
+        }
       }
     })
-
-    this.setupMainWindow(this.mainWindow, mainWindowState)
-
-    this._onMainWindowCreated.fire(this.mainWindow)
-
-    return this.mainWindow
   }
 
-  private setupMainWindow(mainWindow: BrowserWindow, mainWindowState: any) {
-    mainWindowState.manage(mainWindow)
+  private setupMainWindow(mainWindow: BrowserWindow) {
+    if (this.stateKeeper) {
+      this.stateKeeper.manage(mainWindow)
+      this.setupMaximize(mainWindow, this.stateKeeper.isMaximized)
+    }
 
-    this.setupMaximize(mainWindow, mainWindowState.isMaximized)
     this.setupContextMenu(mainWindow)
     this.setupSpellCheck(mainWindow)
     this.setupWindowEvents(mainWindow)
@@ -235,7 +238,7 @@ export class WindowService extends BaseService {
     this.setupWindowLifecycleEvents(mainWindow)
     this.setupMainWindowMonitor(mainWindow)
     replaceDevtoolsFont(mainWindow)
-    this.loadMainWindowContent(mainWindow)
+    // Content loading is handled by WindowManager via the registry's htmlPath.
   }
 
   private setupSpellCheck(mainWindow: BrowserWindow) {
@@ -298,7 +301,8 @@ export class WindowService extends BaseService {
       const preferenceService = application.get('PreferenceService')
       mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
 
-      // show window only when laucn to tray not set
+      // showMode is 'manual' for the main window — first show is owned here.
+      // tray-on-launch suppresses the initial show; otherwise restore Dock and show.
       const isLaunchToTray = preferenceService.get('app.tray.on_launch')
       if (!isLaunchToTray) {
         //[mac]hacky-fix: quickAssistant set visibleOnFullScreen:true will cause dock icon disappeared
@@ -468,28 +472,14 @@ export class WindowService extends BaseService {
     })
   }
 
-  private loadMainWindowContent(mainWindow: BrowserWindow) {
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-      // mainWindow.webContents.openDevTools()
-    } else {
-      void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-    }
-  }
-
   public getMainWindow(): BrowserWindow | null {
-    return this.mainWindow
+    if (!this.mainWindowId) return null
+    const windowManager = application.get('WindowManager')
+    return windowManager.getWindow(this.mainWindowId) ?? null
   }
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
-      // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
-      // try {
-      //   mainWindow.webContents.send(IpcChannel.App_SaveData)
-      // } catch (error) {
-      //   logger.error('Failed to save data:', error as Error)
-      // }
-
       // 如果已经触发退出，直接放行窗口关闭
       if (application.isQuitting) {
         return
@@ -519,29 +509,31 @@ export class WindowService extends BaseService {
         event.preventDefault()
       }
 
-      mainWindow.hide()
-
-      //for mac users, should hide dock icon if close to tray
+      // macOS close-to-tray: opt Main windows out of Dock contribution BEFORE hiding.
+      // This tells WindowManager "the app is now in tray mode" so the Dock icon goes
+      // away too. Unlike the previous hard-coded app.dock?.hide(), this cooperates
+      // with multi-window scenarios: if a DetachedTab (or any other Dock-contributing
+      // window) is still alive, it will keep the Dock visible. The override is lifted
+      // in showMainWindow/toggleMainWindow when the user brings Main back.
       if (isMac && isTrayOnClose) {
-        app.dock?.hide()
-
-        mainWindow.once('show', () => {
-          //restore the window can hide by cmd+h when the window is shown again
-          // https://github.com/electron/electron/pull/47970
-          void app.dock?.show()
-        })
+        application.get('WindowManager').setMacShowInDockByType(WindowType.Main, false)
       }
-    })
 
-    mainWindow.on('closed', () => {
-      this.mainWindow = null
+      mainWindow.hide()
     })
+    // No 'closed' handler — WM emits onWindowDestroyedByType which clears mainWindowId.
   }
 
   public showMainWindow() {
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      if (this.mainWindow.isMinimized()) {
-        this.mainWindow.restore()
+    // Lift any close-to-tray override so the Dock icon reappears as the user
+    // brings the main window back. Idempotent when the app is not currently
+    // in tray mode — WM deduplicates via its dockShouldBeVisible flag.
+    application.get('WindowManager').setMacShowInDockByType(WindowType.Main, true)
+
+    const mainWindow = this.getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
         return
       }
 
@@ -551,12 +543,13 @@ export class WindowService extends BaseService {
        * is not enough to bring it to the front. We need to hide it first, then show it again.
        * This mimics the "close to tray and reopen" behavior which works correctly.
        */
-      if (isLinux && this.mainWindow.isVisible() && !this.mainWindow.isFocused()) {
-        this.mainWindow.hide()
+      if (isLinux && mainWindow.isVisible() && !mainWindow.isFocused()) {
+        mainWindow.hide()
         setImmediate(() => {
-          if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-            this.mainWindow.show()
-            this.mainWindow.focus()
+          const w = this.getMainWindow()
+          if (w && !w.isDestroyed()) {
+            w.show()
+            w.focus()
           }
         })
         return
@@ -574,7 +567,7 @@ export class WindowService extends BaseService {
        *  因此在 Linux 环境下不执行这两行代码
        */
       if (!isLinux) {
-        this.mainWindow.setVisibleOnAllWorkspaces(true)
+        mainWindow.setVisibleOnAllWorkspaces(true)
       }
 
       /**
@@ -584,37 +577,45 @@ export class WindowService extends BaseService {
        *
        *  Check if window is visible to prevent interrupting fullscreen state when clicking dock icon
        */
-      if (this.mainWindow.isFullScreen() && !this.mainWindow.isVisible()) {
-        this.mainWindow.setFullScreen(false)
+      if (mainWindow.isFullScreen() && !mainWindow.isVisible()) {
+        mainWindow.setFullScreen(false)
       }
 
-      this.mainWindow.show()
-      this.mainWindow.focus()
+      mainWindow.show()
+      mainWindow.focus()
       if (!isLinux) {
-        this.mainWindow.setVisibleOnAllWorkspaces(false)
+        mainWindow.setVisibleOnAllWorkspaces(false)
       }
     } else {
-      this.mainWindow = this.createMainWindow()
+      // Singleton: WM creates a fresh window when none exists; openMainWindow re-injects
+      // the dynamic options (windowState bounds, theme, zoom) since the registry only carries statics.
+      this.openMainWindow()
     }
   }
 
   public toggleMainWindow() {
+    const mainWindow = this.getMainWindow()
     // should not toggle main window when in full screen
     // but if the main window is close to tray when it's in full screen, we can show it again
     // (it's a bug in macos, because we can close the window when it's in full screen, and the state will be remained)
-    if (this.mainWindow?.isFullScreen() && this.mainWindow?.isVisible()) {
+    if (mainWindow?.isFullScreen() && mainWindow?.isVisible()) {
       return
     }
 
-    if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
-      if (this.mainWindow.isFocused()) {
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+      if (mainWindow.isFocused()) {
         // if tray is enabled, hide the main window, else do nothing
         if (application.get('PreferenceService').get('app.tray.on_close')) {
-          this.mainWindow.hide()
-          app.dock?.hide()
+          // Same pattern as the close handler: tell WM to stop counting Main
+          // toward Dock visibility BEFORE hiding, so the Dock coordinates with
+          // whatever else is alive (e.g. a DetachedTab) rather than blindly hiding.
+          if (isMac) {
+            application.get('WindowManager').setMacShowInDockByType(WindowType.Main, false)
+          }
+          mainWindow.hide()
         }
       } else {
-        this.mainWindow.focus()
+        mainWindow.focus()
       }
       return
     }

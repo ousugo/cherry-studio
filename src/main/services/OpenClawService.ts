@@ -127,7 +127,7 @@ function isVertexProvider(provider: Provider): provider is VertexProvider {
 
 @Injectable('OpenClawService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['MainWindowService'])
 export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
@@ -195,7 +195,7 @@ export class OpenClawService extends BaseService {
    * Send install progress to renderer
    */
   private sendInstallProgress(message: string, type: 'info' | 'warn' | 'error' = 'info') {
-    const win = application.get('WindowService').getMainWindow()
+    const win = application.get('MainWindowService').getMainWindow()
     win?.webContents.send(IpcChannel.OpenClaw_InstallProgress, { message, type })
   }
 

@@ -82,7 +82,7 @@ export default abstract class BasePreprocessProvider {
   }
 
   public async sendPreprocessProgress(sourceId: string, progress: number): Promise<void> {
-    const mainWindow = application.get('WindowService').getMainWindow()
+    const mainWindow = application.get('MainWindowService').getMainWindow()
     mainWindow?.webContents.send('file-preprocess-progress', {
       itemId: sourceId,
       progress: progress

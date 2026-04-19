@@ -28,7 +28,7 @@ const getShortcutAccelerator = (key: ShortcutPreferenceKey): string | undefined 
 }
 
 const getMainWindows = (): Electron.BrowserWindow[] =>
-  [application.get('WindowService').getMainWindow()].filter(Boolean) as Electron.BrowserWindow[]
+  [application.get('MainWindowService').getMainWindow()].filter(Boolean) as Electron.BrowserWindow[]
 
 @Injectable('AppMenuService')
 @ServicePhase(Phase.WhenReady)
@@ -60,10 +60,10 @@ export class AppMenuService extends BaseService {
           {
             label: appMenu.about + ' ' + app.name,
             click: () => {
-              const mainWindow = application.get('WindowService').getMainWindow()
+              const mainWindow = application.get('MainWindowService').getMainWindow()
               if (mainWindow && !mainWindow.isDestroyed()) {
                 mainWindow.webContents.send(IpcChannel.Windows_NavigateToAbout)
-                application.get('WindowService').showMainWindow()
+                application.get('MainWindowService').showMainWindow()
               }
             }
           },

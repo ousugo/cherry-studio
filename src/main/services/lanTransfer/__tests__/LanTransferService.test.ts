@@ -38,7 +38,7 @@ vi.mock('@logger', () => ({
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
-      if (name === 'WindowService') {
+      if (name === 'MainWindowService') {
         return { getMainWindow: vi.fn(() => mocks.mainWindow) }
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)

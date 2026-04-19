@@ -22,7 +22,7 @@ interface PythonExecutionResponse {
  */
 @Injectable('PythonService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['MainWindowService'])
 export class PythonService extends BaseService {
   private pendingRequests = new Map<
     string,
@@ -71,7 +71,7 @@ export class PythonService extends BaseService {
     context: Record<string, any> = {},
     timeout: number = 60000
   ): Promise<string> {
-    if (!application.get('WindowService').getMainWindow()) {
+    if (!application.get('MainWindowService').getMainWindow()) {
       throw new Error('Main window not found')
     }
 
@@ -96,7 +96,7 @@ export class PythonService extends BaseService {
       })
 
       const request: PythonExecutionRequest = { id: requestId, script, context, timeout }
-      application.get('WindowService').getMainWindow()?.webContents.send('python-execution-request', request)
+      application.get('MainWindowService').getMainWindow()?.webContents.send('python-execution-request', request)
     })
   }
 }

@@ -99,7 +99,7 @@ const broadcastToRenderer = (
   channel: IpcChannel,
   payload: RendererPermissionRequestPayload | RendererPermissionResultPayload
 ): boolean => {
-  const mainWindow = application.get('WindowService').getMainWindow()
+  const mainWindow = application.get('MainWindowService').getMainWindow()
 
   if (!mainWindow) {
     logger.warn('Unable to send agent tool permission payload – main window unavailable', {
@@ -239,7 +239,7 @@ export async function promptForToolApproval(
     return { behavior: 'deny', message: 'Tool request was cancelled before prompting the user' }
   }
 
-  const mainWindow = application.get('WindowService').getMainWindow()
+  const mainWindow = application.get('MainWindowService').getMainWindow()
 
   if (!mainWindow) {
     logger.warn('Denying tool usage because no renderer window is available to obtain approval', { toolName })

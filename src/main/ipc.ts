@@ -62,7 +62,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
   // const powerMonitorService = application.get('PowerMonitorService')
   // powerMonitorService.registerShutdownHandler(() => {
-  //   const mw = application.get('WindowService').getMainWindow()
+  //   const mw = application.get('MainWindowService').getMainWindow()
   //   if (mw && !mw.isDestroyed()) {
   //     mw.webContents.send(IpcChannel.App_SaveData)
   //   }

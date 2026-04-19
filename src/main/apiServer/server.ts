@@ -43,7 +43,7 @@ export class ApiServer {
         logger.info('API server started', { host, port })
 
         // Notify renderer that API server is ready
-        const mainWindow = application.get('WindowService').getMainWindow()
+        const mainWindow = application.get('MainWindowService').getMainWindow()
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send(IpcChannel.ApiServer_Ready)
         }

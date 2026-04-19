@@ -119,7 +119,7 @@ class WeChatAdapter extends ChannelAdapter {
     status: 'pending' | 'confirmed' | 'expired' | 'disconnected',
     userId?: string
   ): void {
-    const mainWindow = application.get('WindowService').getMainWindow()
+    const mainWindow = application.get('MainWindowService').getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IpcChannel.WeChat_QrLogin, {
         channelId: this.channelId,

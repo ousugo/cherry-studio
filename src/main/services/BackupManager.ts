@@ -813,7 +813,7 @@ class BackupManager {
    */
   private onProgress = (channel: IpcChannel, shouldLog: boolean) => {
     return (processData: { stage: string; progress: number; total: number }) => {
-      const mainWindow = application.get('WindowService').getMainWindow()
+      const mainWindow = application.get('MainWindowService').getMainWindow()
       mainWindow?.webContents.send(channel, processData)
       // Never log copying_files as it generates too many log entries
       if (shouldLog && processData.stage !== 'copying_files') {

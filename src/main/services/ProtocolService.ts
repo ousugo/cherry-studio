@@ -18,9 +18,9 @@ const logger = loggerService.withContext('ProtocolService')
 
 @Injectable('ProtocolService')
 @ServicePhase(Phase.Background)
-// IMPORTANT: do NOT add @DependsOn(['WindowService']). WindowService is WhenReady,
+// IMPORTANT: do NOT add @DependsOn(['MainWindowService']). MainWindowService is WhenReady,
 // and auto-adjust would bump this service to WhenReady, causing macOS cold-start
-// open-url events to fire before our listener attaches. WindowService is resolved
+// open-url events to fire before our listener attaches. MainWindowService is resolved
 // at call time inside listener callbacks — safe because OS events fire post-bootstrap.
 export class ProtocolService extends BaseService {
   protected async onInit() {
@@ -40,8 +40,8 @@ export class ProtocolService extends BaseService {
     this.registerDisposable(() => app.removeListener('open-url', openUrlHandler))
 
     // 3) Windows/Linux second-instance: URL-dispatch only.
-    //    WindowService attaches a SEPARATE listener on the same event for showMainWindow().
-    //    Both fire; EventEmitter supports multiple listeners. See WindowService.onInit.
+    //    MainWindowService attaches a SEPARATE listener on the same event for showMainWindow().
+    //    Both fire; EventEmitter supports multiple listeners. See MainWindowService.onInit.
     const secondInstanceHandler = (_event: Electron.Event, argv: string[]) => {
       this.handleArgvForUrl(argv)
     }
@@ -82,7 +82,7 @@ export class ProtocolService extends BaseService {
         return
     }
 
-    const mainWindow = application.get('WindowService').getMainWindow()
+    const mainWindow = application.get('MainWindowService').getMainWindow()
 
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('protocol-data', {

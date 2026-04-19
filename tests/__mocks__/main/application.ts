@@ -23,8 +23,8 @@ import { MockMainPreferenceServiceExport } from './PreferenceService'
  *   })
  */
 
-/** Minimal WindowService mock for tests that access application.get('WindowService') */
-const mockWindowService = {
+/** Minimal MainWindowService mock for tests that access application.get('MainWindowService') */
+const mockMainWindowService = {
   getMainWindow: vi.fn(() => null),
   showMainWindow: vi.fn()
 }
@@ -35,7 +35,7 @@ export const defaultServiceInstances = {
   CacheService: MockMainCacheServiceExport.cacheService,
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
-  WindowService: mockWindowService
+  MainWindowService: mockMainWindowService
 } as const
 
 /** Type for per-service overrides */

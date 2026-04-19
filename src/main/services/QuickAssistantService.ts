@@ -15,7 +15,7 @@
  *   - bounds persistence via electron-window-state
  *
  * Notes for future maintainers:
- *   - `mainWindowRef` caches the BrowserWindow directly because WindowService is
+ *   - `mainWindowRef` caches the BrowserWindow directly because MainWindowService is
  *     not yet under WindowManager. Once it is, replace the cache with
  *     `wm.getWindowsByType(WindowType.Main)[0]`.
  *   - `wasMainWindowFocused` is captured exactly once per show, inside
@@ -105,7 +105,7 @@ const logger = loggerService.withContext('QuickAssistantService')
 
 @Injectable('QuickAssistantService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService', 'WindowManager'])
+@DependsOn(['MainWindowService', 'WindowManager'])
 export class QuickAssistantService extends BaseService implements Activatable {
   private windowId: string | null = null
   private isPinnedQuickAssistant = false
@@ -225,15 +225,15 @@ export class QuickAssistantService extends BaseService implements Activatable {
   }
 
   /**
-   * Subscribe to mainWindow lifecycle through WindowService's event API (loose coupling).
+   * Subscribe to mainWindow lifecycle through MainWindowService's event API (loose coupling).
    *   - Hide quickWindow when mainWindow becomes visible ('show') or is restored from
-   *     minimized ('restore'). Both are required: WindowService.showMainWindow calls
+   *     minimized ('restore'). Both are required: MainWindowService.showMainWindow calls
    *     mainWindow.restore() for the minimized branch, which does NOT fire 'show'.
    *   - Cache the mainWindow reference so isFocused() can be read locally, without
-   *     calling WindowService methods at runtime.
+   *     calling MainWindowService methods at runtime.
    */
   private subscribeMainWindowLifecycle() {
-    const windowService = application.get('WindowService')
+    const windowService = application.get('MainWindowService')
 
     const attach = (mainWindow: BrowserWindow) => {
       this.mainWindowRef = mainWindow

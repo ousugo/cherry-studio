@@ -146,7 +146,7 @@ function withCache<T extends unknown[], R>(
 
 @Injectable('MCPService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['MainWindowService'])
 export class MCPService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
@@ -258,7 +258,7 @@ export class MCPService extends BaseService {
   private emitServerLog(server: MCPServer, entry: MCPServerLogEntry) {
     const serverKey = this.getServerKey(server)
     this.serverLogs.append(serverKey, entry)
-    const mainWindow = application.get('WindowService').getMainWindow()
+    const mainWindow = application.get('MainWindowService').getMainWindow()
     if (mainWindow) {
       mainWindow.webContents.send(IpcChannel.Mcp_ServerLog, { ...entry, serverId: server.id })
     }
@@ -942,7 +942,7 @@ export class MCPService extends BaseService {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
               ratio: process.progress / (process.total || 1)
             })
-            const mainWindow = application.get('WindowService').getMainWindow()
+            const mainWindow = application.get('MainWindowService').getMainWindow()
             if (mainWindow) {
               mainWindow.webContents.send(IpcChannel.Mcp_Progress, {
                 callId: toolCallId,

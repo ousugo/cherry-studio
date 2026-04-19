@@ -11,8 +11,8 @@ class NotificationService {
     })
 
     electronNotification.on('click', () => {
-      application.get('WindowService').getMainWindow()?.show()
-      application.get('WindowService').getMainWindow()?.webContents.send('notification-click', notification)
+      application.get('MainWindowService').getMainWindow()?.show()
+      application.get('MainWindowService').getMainWindow()?.webContents.send('notification-click', notification)
     })
 
     electronNotification.show()

@@ -57,7 +57,7 @@ const startApp = async () => {
   // Legacy monolithic IPC registration — causes timing coupling between
   // bootstrap and IPC readiness. TODO(v2): decompose into per-service
   // ipcHandle/ipcOn inside lifecycle services.
-  const mainWindow = application.get('WindowService').getMainWindow()!
+  const mainWindow = application.get('MainWindowService').getMainWindow()!
   await registerIpc(mainWindow, app)
 }
 

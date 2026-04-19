@@ -58,7 +58,7 @@ interface ChannelConfig {
 
 @Injectable('AppUpdaterService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowService'])
+@DependsOn(['MainWindowService'])
 export class AppUpdaterService extends BaseService {
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
@@ -94,7 +94,7 @@ export class AppUpdaterService extends BaseService {
   private registerAutoUpdaterListeners(): void {
     const onError = (error: Error) => {
       logger.error('update error', error)
-      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateError, error)
+      application.get('MainWindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateError, error)
     }
     autoUpdater.on('error', onError)
     this.registerDisposable(() => autoUpdater.removeListener('error', onError))
@@ -103,7 +103,7 @@ export class AppUpdaterService extends BaseService {
       logger.info('update available', releaseInfo)
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
       application
-        .get('WindowService')
+        .get('MainWindowService')
         .getMainWindow()
         ?.webContents.send(IpcChannel.UpdateAvailable, processedReleaseInfo)
     }
@@ -111,13 +111,13 @@ export class AppUpdaterService extends BaseService {
     this.registerDisposable(() => autoUpdater.removeListener('update-available', onUpdateAvailable))
 
     const onUpdateNotAvailable = () => {
-      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateNotAvailable)
+      application.get('MainWindowService').getMainWindow()?.webContents.send(IpcChannel.UpdateNotAvailable)
     }
     autoUpdater.on('update-not-available', onUpdateNotAvailable)
     this.registerDisposable(() => autoUpdater.removeListener('update-not-available', onUpdateNotAvailable))
 
     const onDownloadProgress = (progress: ProgressInfo) => {
-      application.get('WindowService').getMainWindow()?.webContents.send(IpcChannel.DownloadProgress, progress)
+      application.get('MainWindowService').getMainWindow()?.webContents.send(IpcChannel.DownloadProgress, progress)
     }
     autoUpdater.on('download-progress', onDownloadProgress)
     this.registerDisposable(() => autoUpdater.removeListener('download-progress', onDownloadProgress))
@@ -125,7 +125,7 @@ export class AppUpdaterService extends BaseService {
     const onUpdateDownloaded = (releaseInfo: UpdateInfo) => {
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
       application
-        .get('WindowService')
+        .get('MainWindowService')
         .getMainWindow()
         ?.webContents.send(IpcChannel.UpdateDownloaded, processedReleaseInfo)
       logger.info('update downloaded', processedReleaseInfo)

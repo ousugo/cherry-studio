@@ -18,7 +18,7 @@ vi.mock('@main/core/lifecycle', () => {
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
-      if (name === 'WindowService') {
+      if (name === 'MainWindowService') {
         return {
           getMainWindow: vi.fn(() => ({
             webContents: { send: vi.fn() }
