@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
 interface PythonExecutionRequest {
@@ -22,7 +23,7 @@ interface PythonExecutionResponse {
  */
 @Injectable('PythonService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['MainWindowService'])
+@DependsOn(['WindowManager'])
 export class PythonService extends BaseService {
   private pendingRequests = new Map<
     string,
@@ -71,7 +72,7 @@ export class PythonService extends BaseService {
     context: Record<string, any> = {},
     timeout: number = 60000
   ): Promise<string> {
-    if (!application.get('MainWindowService').getMainWindow()) {
+    if (application.get('WindowManager').getWindowsByType(WindowType.Main).length === 0) {
       throw new Error('Main window not found')
     }
 
@@ -96,10 +97,7 @@ export class PythonService extends BaseService {
       })
 
       const request: PythonExecutionRequest = { id: requestId, script, context, timeout }
-      application
-        .get('MainWindowService')
-        .getMainWindow()
-        ?.webContents.send(IpcChannel.Python_ExecutionRequest, request)
+      application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Python_ExecutionRequest, request)
     })
   }
 }

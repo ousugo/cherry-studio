@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { WindowType } from '@main/core/window/types'
 import { app } from 'electron'
 
 import { handleProvidersProtocolUrl } from './urlschema/handle-providers'
@@ -82,14 +83,10 @@ export class ProtocolService extends BaseService {
         return
     }
 
-    const mainWindow = application.get('MainWindowService').getMainWindow()
-
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('protocol-data', {
-        url,
-        params: Object.fromEntries(params.entries())
-      })
-    }
+    application.get('WindowManager').broadcastToType(WindowType.Main, 'protocol-data', {
+      url,
+      params: Object.fromEntries(params.entries())
+    })
   }
 
   private handleArgvForUrl(args: string[]) {

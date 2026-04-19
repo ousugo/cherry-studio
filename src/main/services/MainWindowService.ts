@@ -28,7 +28,12 @@ export class MainWindowService extends BaseService {
   private readonly _onMainWindowCreated: Emitter<BrowserWindow>
   public readonly onMainWindowCreated: Event<BrowserWindow>
 
-  private mainWindowId: string | undefined
+  // Direct BrowserWindow reference, kept in sync with WindowManager's lifecycle
+  // events (onWindowCreatedByType / onWindowDestroyedByType). External callers
+  // should NOT touch this field — use WindowManager.broadcastToType() / showMainWindow()
+  // / getWindowsByType(). The public getMainWindow() below is a deprecated
+  // escape hatch that logs a warn on every call.
+  private mainWindow: BrowserWindow | null = null
   private stateKeeper: ReturnType<typeof windowStateKeeper> | undefined
   private lastRendererProcessCrashTime: number = 0
 
@@ -44,15 +49,15 @@ export class MainWindowService extends BaseService {
     // Wire business listeners onto fresh main windows. Reuse paths (singleton reopen)
     // do not fire onWindowCreatedByType — by design, since listeners are already attached.
     this.registerDisposable(
-      windowManager.onWindowCreatedByType(WindowType.Main, ({ window, id }) => {
-        this.mainWindowId = id
+      windowManager.onWindowCreatedByType(WindowType.Main, ({ window }) => {
+        this.mainWindow = window
         this.setupMainWindow(window)
         this._onMainWindowCreated.fire(window)
       })
     )
     this.registerDisposable(
       windowManager.onWindowDestroyedByType(WindowType.Main, () => {
-        this.mainWindowId = undefined
+        this.mainWindow = null
       })
     )
 
@@ -92,7 +97,7 @@ export class MainWindowService extends BaseService {
   }
 
   private requireMainWindow(): BrowserWindow {
-    const mainWindow = this.getMainWindow()
+    const mainWindow = this.mainWindow
     if (!mainWindow || mainWindow.isDestroyed()) {
       throw new Error('Main window does not exist or has been destroyed')
     }
@@ -131,11 +136,11 @@ export class MainWindowService extends BaseService {
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
+    this.ipcHandle(IpcChannel.MainWindow_SetMinimumSize, (_, width: number, height: number) => {
       this.requireMainWindow().setMinimumSize(width, height)
     })
 
-    this.ipcHandle(IpcChannel.Windows_ResetMinimumSize, () => {
+    this.ipcHandle(IpcChannel.MainWindow_ResetMinimumSize, () => {
       const mainWindow = this.requireMainWindow()
       mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
       const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
@@ -144,7 +149,7 @@ export class MainWindowService extends BaseService {
       }
     })
 
-    this.ipcHandle(IpcChannel.Windows_GetSize, () => {
+    this.ipcHandle(IpcChannel.MainWindow_GetSize, () => {
       const [width, height] = this.requireMainWindow().getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
       return [width, height]
     })
@@ -170,6 +175,39 @@ export class MainWindowService extends BaseService {
     })
 
     this.ipcHandle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
+
+    // ─── Main-window-specific handlers migrated from src/main/ipc.ts ───
+    // Each reads `this.mainWindow` at call time, so a main window that was
+    // destroyed and rebuilt (singleton reopen path) is handled correctly.
+
+    this.ipcHandle(IpcChannel.MainWindow_Reload, () => {
+      this.mainWindow?.reload()
+    })
+
+    this.ipcHandle(IpcChannel.MainWindow_SetFullScreen, (_, value: boolean): void => {
+      this.mainWindow?.setFullScreen(value)
+    })
+
+    this.ipcHandle(IpcChannel.MainWindow_IsFullScreen, (): boolean => {
+      return this.mainWindow?.isFullScreen() ?? false
+    })
+
+    // Renderer tells main that a notification was clicked → broadcast the
+    // click back to all main-window consumers. Distinct from the Electron
+    // native-notification click path in NotificationService, which also
+    // broadcasts 'notification-click'; both share the same bare-string
+    // channel on the receiver side.
+    this.ipcHandle(IpcChannel.Notification_OnClick, (_, notification) => {
+      application.get('WindowManager').broadcastToType(WindowType.Main, 'notification-click', notification)
+    })
+
+    // Dev-only: force a renderer crash to test render-process-gone recovery
+    // (see the render-process-gone handler in setupMainWindowMonitor).
+    if (isDev) {
+      this.ipcHandle(IpcChannel.MainWindow_CrashRenderProcess, () => {
+        this.mainWindow?.webContents.forcefullyCrashRenderer()
+      })
+    }
   }
 
   /**
@@ -202,7 +240,9 @@ export class MainWindowService extends BaseService {
       mainWindowBackgroundColor = nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF'
     }
 
-    this.mainWindowId = windowManager.open(WindowType.Main, {
+    // onWindowCreatedByType fires synchronously during open() on fresh-create,
+    // and does nothing on singleton reuse (where this.mainWindow is already set).
+    windowManager.open(WindowType.Main, {
       options: {
         x: this.stateKeeper.x,
         y: this.stateKeeper.y,
@@ -330,7 +370,7 @@ export class MainWindowService extends BaseService {
     //
     mainWindow.on('will-resize', () => {
       mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
-      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
+      mainWindow.webContents.send(IpcChannel.MainWindow_Resize, mainWindow.getSize())
     })
 
     // set the zoom factor again when the window is going to restore
@@ -345,18 +385,18 @@ export class MainWindowService extends BaseService {
     if (isLinux) {
       mainWindow.on('resize', () => {
         mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
-        mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
+        mainWindow.webContents.send(IpcChannel.MainWindow_Resize, mainWindow.getSize())
       })
     }
 
     mainWindow.on('unmaximize', () => {
-      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
-      mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, false)
+      mainWindow.webContents.send(IpcChannel.MainWindow_Resize, mainWindow.getSize())
+      mainWindow.webContents.send(IpcChannel.MainWindow_MaximizedChanged, false)
     })
 
     mainWindow.on('maximize', () => {
-      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
-      mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, true)
+      mainWindow.webContents.send(IpcChannel.MainWindow_Resize, mainWindow.getSize())
+      mainWindow.webContents.send(IpcChannel.MainWindow_MaximizedChanged, true)
     })
 
     // 添加Escape键退出全屏的支持
@@ -472,10 +512,26 @@ export class MainWindowService extends BaseService {
     })
   }
 
+  /**
+   * @deprecated External callers are almost always misusing this. For IPC use
+   * `WindowManager.broadcastToType(WindowType.Main, channel, data)`; for
+   * visibility use `showMainWindow()`; for existence checks use
+   * `WindowManager.getWindowsByType(WindowType.Main)`. Slated for removal once
+   * the remaining legacy callers (executeJavaScript deep links, ReduxService,
+   * etc.) are rewritten in v2.
+   *
+   * Every call logs a warn — this is intentional, to keep pressure on
+   * migration. Do NOT call this from within MainWindowService itself; use the
+   * `this.mainWindow` field directly.
+   */
   public getMainWindow(): BrowserWindow | null {
-    if (!this.mainWindowId) return null
-    const windowManager = application.get('WindowManager')
-    return windowManager.getWindow(this.mainWindowId) ?? null
+    logger.warn(
+      'MainWindowService.getMainWindow() is deprecated. ' +
+        'External callers should use WindowManager.broadcastToType() / showMainWindow() instead; ' +
+        'grabbing a BrowserWindow instance from outside is almost always a misuse.'
+    )
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return null
+    return this.mainWindow
   }
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
@@ -521,7 +577,7 @@ export class MainWindowService extends BaseService {
 
       mainWindow.hide()
     })
-    // No 'closed' handler — WM emits onWindowDestroyedByType which clears mainWindowId.
+    // No 'closed' handler — WM emits onWindowDestroyedByType which clears this.mainWindow.
   }
 
   public showMainWindow() {
@@ -530,7 +586,7 @@ export class MainWindowService extends BaseService {
     // in tray mode — WM deduplicates via its dockShouldBeVisible flag.
     application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, true)
 
-    const mainWindow = this.getMainWindow()
+    const mainWindow = this.mainWindow
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore()
@@ -546,7 +602,9 @@ export class MainWindowService extends BaseService {
       if (isLinux && mainWindow.isVisible() && !mainWindow.isFocused()) {
         mainWindow.hide()
         setImmediate(() => {
-          const w = this.getMainWindow()
+          // Re-check through the field — the window may have been destroyed
+          // between hide() and this tick (e.g. user quit via tray).
+          const w = this.mainWindow
           if (w && !w.isDestroyed()) {
             w.show()
             w.focus()
@@ -594,7 +652,7 @@ export class MainWindowService extends BaseService {
   }
 
   public toggleMainWindow() {
-    const mainWindow = this.getMainWindow()
+    const mainWindow = this.mainWindow
     // should not toggle main window when in full screen
     // but if the main window is close to tray when it's in full screen, we can show it again
     // (it's a bug in macos, because we can close the window when it's in full screen, and the state will be remained)
@@ -631,7 +689,7 @@ export class MainWindowService extends BaseService {
     try {
       this.showMainWindow()
 
-      const mainWindow = this.getMainWindow()
+      const mainWindow = this.mainWindow
       if (mainWindow && !mainWindow.isDestroyed()) {
         setTimeout(() => {
           mainWindow.webContents.send(IpcChannel.App_QuoteToMain, text)

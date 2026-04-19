@@ -14,6 +14,9 @@ vi.mock('@application', () => ({
       if (name === 'MainWindowService') {
         return { getMainWindow: vi.fn(() => null) }
       }
+      if (name === 'WindowManager') {
+        return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []), getAllWindows: vi.fn(() => []) }
+      }
       if (name === 'CacheService') {
         return { has: vi.fn(() => false), get: vi.fn(), set: vi.fn(), delete: vi.fn() }
       }

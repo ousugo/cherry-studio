@@ -25,6 +25,9 @@ vi.mock('@application', () => ({
           }))
         }
       }
+      if (name === 'WindowManager') {
+        return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []), getAllWindows: vi.fn(() => []) }
+      }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     })
   }

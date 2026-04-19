@@ -73,7 +73,7 @@ export function handleMcpProtocolUrl(url: URL) {
         }
       }
 
-      application.get('MainWindowService').getMainWindow()?.show()
+      application.get('MainWindowService').showMainWindow()
 
       break
     }

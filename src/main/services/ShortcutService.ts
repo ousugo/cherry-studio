@@ -75,7 +75,7 @@ export class ShortcutService extends BaseService {
 
       const navigateToSettings = () => {
         if (!targetWindow || targetWindow.isDestroyed()) return
-        targetWindow.webContents.send(IpcChannel.Windows_NavigateToSettings)
+        targetWindow.webContents.send(IpcChannel.MainWindow_NavigateToSettings)
       }
 
       if (targetWindow.webContents.isLoadingMainFrame()) {

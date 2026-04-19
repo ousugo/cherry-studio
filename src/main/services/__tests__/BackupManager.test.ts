@@ -93,6 +93,9 @@ vi.mock('@application', () => ({
       if (name === 'MainWindowService') {
         return { getMainWindow: vi.fn() }
       }
+      if (name === 'WindowManager') {
+        return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []), getAllWindows: vi.fn(() => []) }
+      }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
     // Mirrors tests/__mocks__/main/application.ts so that BackupManager methods
