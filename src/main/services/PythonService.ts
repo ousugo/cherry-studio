@@ -42,7 +42,7 @@ export class PythonService extends BaseService {
   }
 
   private registerIpcHandlers() {
-    this.ipcOn('python-execution-response', (_, response: PythonExecutionResponse) => {
+    this.ipcOn(IpcChannel.Python_ExecutionResponse, (_, response: PythonExecutionResponse) => {
       const request = this.pendingRequests.get(response.id)
       if (request) {
         clearTimeout(request.timeoutId)
@@ -96,7 +96,10 @@ export class PythonService extends BaseService {
       })
 
       const request: PythonExecutionRequest = { id: requestId, script, context, timeout }
-      application.get('MainWindowService').getMainWindow()?.webContents.send('python-execution-request', request)
+      application
+        .get('MainWindowService')
+        .getMainWindow()
+        ?.webContents.send(IpcChannel.Python_ExecutionRequest, request)
     })
   }
 }
