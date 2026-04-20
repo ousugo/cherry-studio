@@ -343,6 +343,17 @@ export function useQuery<TPath extends ApiPath>(
  * `params` triggered on the same hook instance. Don't trigger different ids
  * concurrently from one hook — use per-row instances bound to concrete paths
  * (e.g., `useMutation('PATCH', providerPath(id))`) when you need parallel writes.
+ *
+ * @remarks
+ * Callback / side-effect ordering after a successful mutation:
+ * 1. Server response resolves.
+ * 2. `refresh` keys are invalidated via `globalMutate`.
+ * 3. `onSuccess` callback runs. Any `useQuery` the callback touches will be
+ *    in "stale, pending revalidation" state — avoid manual optimistic
+ *    `mutate(...)` here as it races with the pending revalidation.
+ * 4. If `optimisticData` was set, the mutated cache key is re-validated.
+ * A thrown `refresh` callback is caught and logged; it does not cause the
+ * `trigger` promise to reject or skip `onSuccess`.
  */
 export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
   method: TMethod,
@@ -463,11 +474,24 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
       // Run refresh after the mutation resolves. We do this in `trigger`
       // itself (not SWR's onSuccess) so args/result are closure-captured
       // and tied to this specific call.
+      //
+      // Refresh is an after-success side effect, not part of the mutation's
+      // success contract. If a user-provided function-form refresh throws
+      // (e.g. dereferences a missing arg), or if SWR revalidation surfaces
+      // an error, we must NOT propagate it — the server-side mutation has
+      // already succeeded and the caller's `await trigger()` must resolve
+      // accordingly. Log and continue instead.
       const refreshOpt = opts?.refresh
       if (refreshOpt) {
-        const keys = typeof refreshOpt === 'function' ? refreshOpt({ args: capturedArgs, result }) : refreshOpt
-        if (keys.length > 0) {
-          await globalMutate(createMultiKeyMatcher(keys))
+        try {
+          const keys = typeof refreshOpt === 'function' ? refreshOpt({ args: capturedArgs, result }) : refreshOpt
+          if (keys.length > 0) {
+            await globalMutate(createMultiKeyMatcher(keys))
+          }
+        } catch (refreshErr) {
+          logger.warn(`Refresh failed after successful ${method} ${String(path)}; cache may be stale`, {
+            error: refreshErr
+          })
         }
       }
 
@@ -559,14 +583,19 @@ export function useInvalidateCache() {
  * await prefetch('/messages', { query: { topicId: 'abc', limit: 20 } })
  * // Later, this will be instant:
  * const { data } = useQuery('/messages', { query: { topicId: 'abc', limit: 20 } })
+ *
+ * @example
+ * // Template path + params — produces the same cache key as useQuery('/providers/:id', {...})
+ * await prefetch('/providers/:providerId', { params: { providerId } })
  */
-export function prefetch<TPath extends ConcreteApiPaths>(
+export function prefetch<TPath extends ApiPath>(
   path: TPath,
-  options?: {
+  options?: ParamsOption<TPath, 'GET'> & {
     query?: QueryParamsForPath<TPath, 'GET'>
   }
 ): Promise<ResponseForPath<TPath, 'GET'>> {
-  const key = buildSWRKey(path, options?.query as Record<string, any> | undefined)
+  const resolvedPath = resolveTemplate(path, options?.params as Record<string, string | number> | undefined)
+  const key = buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined)
   return preload(key, getFetcher)
 }
 
