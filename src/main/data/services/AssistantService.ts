@@ -18,6 +18,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 
 import { tagService } from './TagService'
+import { timestampToISOOrUndefined } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
 
@@ -43,8 +44,8 @@ function rowToAssistant(row: AssistantRow, relations: AssistantRelationIds = cre
     modelId: (row.modelId ?? null) as UniqueModelId | null,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
-    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
-    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : new Date().toISOString()
+    createdAt: timestampToISOOrUndefined(row.createdAt) ?? new Date().toISOString(),
+    updatedAt: timestampToISOOrUndefined(row.updatedAt) ?? new Date().toISOString()
   }
 }
 

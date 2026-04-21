@@ -159,6 +159,75 @@ export class TopicService {
 export const topicService = TopicService.getInstance()
 ```
 
+### Row → Entity Mapping
+
+Each Entity Service provides a `rowToEntity` function that bridges a Drizzle row to its domain entity. Use `nullsToUndefined` (from `services/utils/rowMappers.ts`) for the SQLite NULL → TypeScript `undefined` translation.
+
+**Standard skeleton:**
+
+```ts
+import { nullsToUndefined, timestampToISOOrUndefined } from './utils/rowMappers'
+
+function rowToMCPServer(row: typeof mcpServerTable.$inferSelect): MCPServer {
+  const clean = nullsToUndefined(row)
+  return {
+    ...clean,
+    type: clean.type as MCPServer['type'], // narrow enum
+    installSource: clean.installSource as MCPServer['installSource'],
+    // MCPServer declares createdAt/updatedAt as optional — absence stays absent
+    createdAt: timestampToISOOrUndefined(row.createdAt),
+    updatedAt: timestampToISOOrUndefined(row.updatedAt)
+  }
+}
+```
+
+For services whose domain type declares `createdAt: string` (non-optional), append the "synthesize now" fallback at the call site:
+
+```ts
+createdAt: timestampToISOOrUndefined(row.createdAt) ?? new Date().toISOString(),
+updatedAt: timestampToISOOrUndefined(row.updatedAt) ?? new Date().toISOString()
+```
+
+**Advanced skeleton — preserving `T | null` fields:**
+
+When the domain type declares a field as `T | null` (e.g. `KnowledgeBaseSchema.embeddingModelId: z.string().nullable()`), bypass `clean` for that field and reference `row` directly. `nullsToUndefined` narrows all top-level `null`s to `undefined` and would break the `T | null` contract if the field came from `clean`.
+
+```ts
+function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): KnowledgeBase {
+  const clean = nullsToUndefined(row)
+  return {
+    ...clean,
+    // Preserve `string | null` contract — bypass clean (which would narrow null → undefined)
+    embeddingModelId: row.embeddingModelId,
+    createdAt: timestampToISOOrUndefined(row.createdAt) ?? new Date().toISOString(),
+    updatedAt: timestampToISOOrUndefined(row.updatedAt) ?? new Date().toISOString()
+  }
+}
+```
+
+Rule of thumb: **domain field typed `T | null` → use `row.x`; domain field typed `T?` or `T` → use `clean.x` (or `...clean`).**
+
+**When `nullsToUndefined + spread` is NOT a fit:**
+
+Some `rowToEntity` functions do too much to benefit from spread. Keep them hand-written when any of the following apply:
+
+- **Field renaming**: `row.parameters → domain parameterSupport` (ModelService)
+- **Non-`undefined` fallbacks**: `?? []`, `?? true`, `?? false`, `?? anotherField` — these need per-field logic anyway
+- **Computed / merged fields**: `authType` derivation, `apiFeatures` merging from defaults (ProviderService)
+- **Sensitive data sanitization**: `apiKeys` stripping — `...clean` would leak unsanitized values
+
+**Conventions:**
+
+1. **DB NULL ↔ domain `undefined` boundary.** Domain types under `@shared/data/types/*` use optional fields (`?:`) rather than `T | null`, aligning with the [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html) and keeping `null` from leaking to the renderer via IPC. `nullsToUndefined(row)` is the only place this translation happens.
+2. **Batch vs single-field null handling.** For processing an entire row, always use `nullsToUndefined(row)` + spread — do NOT hand-write per-field `?? undefined`. For single values that are NOT from a row (DTO fields, computed values, function returns), inline `value ?? undefined` is enough — TypeScript narrows `T | null` to `T | undefined` automatically at the `??` expression. Do NOT wrap the single-field case in a helper.
+3. **Date fields: two helpers, explicit fallback.** Two siblings cover the spectrum:
+   - `timestampToISO(value: number | Date): string` — for inputs already narrowed to non-null (e.g. `.notNull()` columns, post-validation values)
+   - `timestampToISOOrUndefined(value: number | Date | null | undefined): string | undefined` — for nullable columns; returns `undefined` on absence
+
+   When the domain contract requires a non-null string but the column is still nullable, append `?? new Date().toISOString()` at the call site. Keeping the "synthesize now" semantics greppable lets a future PR sweep them out in one pass once `createUpdateTimestamps` gains `.notNull()` — at which point call sites migrate to `timestampToISO`.
+
+For function signature details and design-decision history (e.g. why shallow-not-recursive, why not `dnull`), see [services/utils/README.md](../../../src/main/data/services/utils/README.md).
+
 ### Service with Transaction
 
 ```typescript
@@ -274,3 +343,4 @@ export type ApiSchemas = AssertValidSchemas<TopicSchemas & MessageSchemas>
 5. **Support transactions**: Accept optional `tx` parameter in service methods
 6. **Validate in services**: Business validation belongs in the service layer
 7. **Use error factory**: Consistent error creation with `DataApiErrorFactory`
+8. **Use `nullsToUndefined` in `rowToEntity`**: Canonical SQLite NULL → `undefined` translation; shallow, not recursive (see [Row → Entity Mapping](#row--entity-mapping))
