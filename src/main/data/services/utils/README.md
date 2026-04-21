@@ -79,6 +79,28 @@ timestampToISOOrUndefined(1700000000000)            // "2023-11-14T22:13:20.000Z
 timestampToISOOrUndefined(undefined)                // undefined (e.g. builtin with no preference row)
 ```
 
+### `orderKey.ts` — `order_key` column runtime operations
+
+Backs every Service's reorder write path and POST-create. Encapsulates the `fractional-indexing` library, transactional SQL, and scope filtering behind a small set of wrappers. Required in all service POST-create and reorder paths; migrator helpers and migration scripts re-import from here.
+
+**Exports:**
+
+- `generateOrderKeySequence(count)` / `generateOrderKeyBetween(before, after)` / `generateOrderKeySequenceBetween(before, after, count)` — the ONLY wrappers around `fractional-indexing` in this codebase. Migrator helpers and migration scripts re-import from here.
+- `insertWithOrderKey(tx, table, values, { pkColumn, position?, scope? })` — the only correct entry for POST-create endpoints on sortable tables; never write `tx.insert(table).values(...)` directly.
+- `insertManyWithOrderKey(tx, table, valuesList, { pkColumn, position?, scope? })` — batch variant. Does ONE boundary-key lookup and ONE bulk `INSERT .. RETURNING` for N rows. Preferred whenever creating ≥2 rows at once (bulk imports, multi-row service ops). `insertWithOrderKey` internally delegates to it.
+- `applyMoves(tx, table, moves, { pkColumn, scope? })` — the only correct entry for reorder operations (batch + single). Dedups duplicate ids (keeps last, warns). Throws on missing target / missing anchor / anchor === own id.
+- `resetOrder(tx, table, orderedRows, { pkColumn })` — paired with `POST /:res/order:reset`; rewrites `orderKey` with a fresh evenly-spaced sequence in the given order.
+- `computeNewOrderKey(tx, table, request, { pkColumn, scope? })` — exported only for unit tests.
+
+**Design boundaries:**
+
+- **Only operates on `order_key`**: business validation (does `:id` exist in the resource sense) lives in the service/handler layer, not here.
+- **Must run inside an outer transaction**: helpers take `tx` and never open their own transaction.
+- **`scope?` (SQL)**: constrains neighbor queries to a subset for partial ordering (e.g. `topic.groupId`, `userModel.providerId`). Scope applies to BOTH the target lookup and the anchor lookup — anchoring across scopes throws.
+- **`pkColumn` is required**: tables have heterogeneous primary-key column names (`miniapp.appId`, `mcpServer.id`, `topic.id`, `group.id`). Helpers make zero assumptions.
+- **External imports of `fractional-indexing` are forbidden**: always go through the three generator wrappers above.
+- **Character set is locked to base62** (library default); no `digits` parameter is exposed. Changing the alphabet requires a whole-database migration, and the source-of-truth constant lives at the top of `orderKey.ts`.
+
 ## Criteria for Adding a New Utility
 
 Before adding a new utility to this directory, confirm:
