@@ -44,16 +44,16 @@ export function timestampToISO(value: number | Date): string {
 }
 
 /**
- * Convert a DB timestamp to an ISO string, preserving absence as `undefined`.
+ * Convert an optional timestamp to an ISO string, preserving absence as
+ * `undefined`.
  *
- * Use at call sites where the input may actually be null (nullable columns
- * that haven't been tightened with `.notNull()` yet). Callers that need a
- * non-null contract should append `?? new Date().toISOString()` at the call
- * site, making the "synthesize current time" fallback explicit and greppable.
+ * Reserved for construction paths where the ENTIRE source row may not exist —
+ * not "this column might be null". The audit columns produced by
+ * `createUpdateTimestamps` are DB-level `.notNull()`, so a row selected from
+ * the DB always has a real value; use `timestampToISO` there.
  *
- * When a future migration adds `.notNull()` to `createUpdateTimestamps`, the
- * input type narrows to `number`, those `??` fallbacks become unreachable, and
- * call sites can switch to `timestampToISO` in a single sweep.
+ * The canonical use case is merging a builtin/preset definition with an
+ * optional DB preference row — see `MiniAppService.builtinToMiniApp`.
  */
 export function timestampToISOOrUndefined(value: number | Date | null | undefined): string | undefined {
   return value ? new Date(value).toISOString() : undefined

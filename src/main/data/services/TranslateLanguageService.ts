@@ -13,7 +13,7 @@ import type { CreateTranslateLanguageDto, UpdateTranslateLanguageDto } from '@sh
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { asc, eq } from 'drizzle-orm'
 
-import { timestampToISOOrUndefined } from './utils/rowMappers'
+import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TranslateLanguageService')
 
@@ -22,8 +22,8 @@ function rowToTranslateLanguage(row: typeof translateLanguageTable.$inferSelect)
     langCode: row.langCode,
     value: row.value,
     emoji: row.emoji,
-    createdAt: timestampToISOOrUndefined(row.createdAt) ?? new Date().toISOString(),
-    updatedAt: timestampToISOOrUndefined(row.updatedAt) ?? new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 

@@ -44,7 +44,19 @@ Convert a guaranteed-present timestamp (millisecond epoch) to an ISO string. Use
 
 #### `timestampToISOOrUndefined(value: number | Date | null | undefined): string | undefined`
 
-Convert a DB timestamp to an ISO string, preserving absence as `undefined`. Use at call sites where the input may actually be `null` (nullable columns not yet tightened with `.notNull()`).
+Convert an optional DB timestamp to an ISO string, preserving absence as `undefined`. Reserved for construction paths where the **entire source row may not exist** — not "this column might be null". The audit columns `createdAt` / `updatedAt` are DB-level `NOT NULL` (see `createUpdateTimestamps` in `_columnHelpers.ts`), so a row read from the DB always has real values.
+
+The canonical use case is a merge between a builtin/preset definition and an optional DB preference row:
+
+```ts
+function builtinToMiniApp(def: BuiltinMiniAppDefinition, dbRow?: MiniAppSelect): MiniApp {
+  return {
+    /* ... builtin fields ... */
+    createdAt: timestampToISOOrUndefined(dbRow?.createdAt), // undefined when builtin has no preference row yet
+    updatedAt: timestampToISOOrUndefined(dbRow?.updatedAt)
+  }
+}
+```
 
 **Behavioral note on `0`:** the helper treats `0` as falsy (matching the prior `row.x ? ... : undefined` idiom). Zero is not a valid business timestamp in this codebase.
 
@@ -52,26 +64,19 @@ Convert a DB timestamp to an ISO string, preserving absence as `undefined`. Use 
 
 | Scenario | Call-site pattern |
 | --- | --- |
-| Input type is already `number` / `Date` (e.g. `.notNull()` column, post-validation) | `timestampToISO(row.x)` |
-| Domain field typed `createdAt?: string` (truly optional) | `timestampToISOOrUndefined(row.createdAt)` |
-| Domain field typed `createdAt: string` (guaranteed present) — but DB column is still nullable | `timestampToISOOrUndefined(row.createdAt) ?? new Date().toISOString()` |
-
-Writing the `?? new Date().toISOString()` fallback at the call site (rather than inside a helper) has two benefits:
-
-1. **Greppable**: when a future PR adds `.notNull()` to `createUpdateTimestamps`, every fallback becomes unreachable and can be swept in a single pass — typically replaced with `timestampToISO(row.x)`
-2. **Honest**: the synthesized-now semantics is visible exactly where it is relied upon, not hidden inside a utility name
+| Standard `rowToEntity` reading a DB row (audit columns are `.notNull()`) | `timestampToISO(row.createdAt)` |
+| Merge path where the source row itself may be absent (e.g. builtin + optional preference) | `timestampToISOOrUndefined(dbRow?.createdAt)` |
 
 **Example:**
 
 ```ts
 import { timestampToISO, timestampToISOOrUndefined } from './rowMappers'
 
-timestampToISO(1700000000000)                                           // "2023-11-14T22:13:20.000Z"
-timestampToISO(0)                                                       // "1970-01-01T00:00:00.000Z" (passes through)
+timestampToISO(1700000000000)                       // "2023-11-14T22:13:20.000Z"
+timestampToISO(0)                                   // "1970-01-01T00:00:00.000Z" (passes through)
 
-timestampToISOOrUndefined(1700000000000)                                // "2023-11-14T22:13:20.000Z"
-timestampToISOOrUndefined(null)                                         // undefined
-timestampToISOOrUndefined(null) ?? new Date().toISOString()             // current time as ISO string
+timestampToISOOrUndefined(1700000000000)            // "2023-11-14T22:13:20.000Z"
+timestampToISOOrUndefined(undefined)                // undefined (e.g. builtin with no preference row)
 ```
 
 ## Criteria for Adding a New Utility

@@ -18,7 +18,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 
 import { messageService } from './MessageService'
 import { tagService } from './TagService'
-import { timestampToISOOrUndefined } from './utils/rowMappers'
+import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TopicService')
 
@@ -33,8 +33,8 @@ function rowToTopic(row: typeof topicTable.$inferSelect): Topic {
     sortOrder: row.sortOrder ?? 0,
     isPinned: row.isPinned ?? false,
     pinnedOrder: row.pinnedOrder ?? 0,
-    createdAt: timestampToISOOrUndefined(row.createdAt) ?? new Date().toISOString(),
-    updatedAt: timestampToISOOrUndefined(row.updatedAt) ?? new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 

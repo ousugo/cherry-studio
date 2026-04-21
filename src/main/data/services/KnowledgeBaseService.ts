@@ -17,7 +17,7 @@ import {
 import type { KnowledgeBase, KnowledgeSearchMode } from '@shared/data/types/knowledge'
 import { desc, eq, sql } from 'drizzle-orm'
 
-import { nullsToUndefined, timestampToISOOrUndefined } from './utils/rowMappers'
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
@@ -104,8 +104,8 @@ function rowToKnowledgeBase(row: typeof knowledgeBaseTable.$inferSelect): Knowle
     ...clean,
     // Preserve `string | null` contract — bypass clean (which would narrow null → undefined)
     embeddingModelId: row.embeddingModelId,
-    createdAt: timestampToISOOrUndefined(row.createdAt) ?? new Date().toISOString(),
-    updatedAt: timestampToISOOrUndefined(row.updatedAt) ?? new Date().toISOString()
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 

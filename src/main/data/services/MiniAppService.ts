@@ -24,7 +24,7 @@ import { type BuiltinMiniAppDefinition, ORIGIN_DEFAULT_MIN_APPS } from '@shared/
 import type { MiniApp } from '@shared/data/types/miniapp'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
-import { nullsToUndefined, timestampToISOOrUndefined } from './utils/rowMappers'
+import { nullsToUndefined, timestampToISO, timestampToISOOrUndefined } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
 
@@ -46,8 +46,8 @@ function rowToMiniApp(row: MiniAppSelect): MiniApp {
     status: clean.status,
     sortOrder: clean.sortOrder ?? 0,
     supportedRegions: clean.supportedRegions as ('CN' | 'Global')[] | undefined,
-    createdAt: timestampToISOOrUndefined(clean.createdAt),
-    updatedAt: timestampToISOOrUndefined(clean.updatedAt)
+    createdAt: timestampToISO(clean.createdAt),
+    updatedAt: timestampToISO(clean.updatedAt)
   }
 }
 

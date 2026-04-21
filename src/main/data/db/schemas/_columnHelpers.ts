@@ -5,6 +5,14 @@
  * - DO NOT manually set id, createdAt, or updatedAt - they are auto-generated
  * - Use .returning() to get inserted/updated rows instead of re-querying
  * - See db/README.md for detailed field generation rules
+ *
+ * TIMESTAMP SEMANTICS:
+ * - `createUpdateTimestamps.createdAt` / `.updatedAt` are DB-level NOT NULL.
+ *   The `$defaultFn` / `$onUpdateFn` hooks fill them at insert/update time, so
+ *   application code can still omit them in `.values({...})`.
+ * - `createUpdateDeleteTimestamps.deletedAt` stays nullable by design: NULL
+ *   encodes "not soft-deleted". Setting it to a timestamp marks the row as
+ *   soft-deleted.
  */
 
 import { integer, text } from 'drizzle-orm/sqlite-core'
@@ -33,12 +41,12 @@ const createTimestamp = () => {
 }
 
 export const createUpdateTimestamps = {
-  createdAt: integer().$defaultFn(createTimestamp),
-  updatedAt: integer().$defaultFn(createTimestamp).$onUpdateFn(createTimestamp)
+  createdAt: integer().notNull().$defaultFn(createTimestamp),
+  updatedAt: integer().notNull().$defaultFn(createTimestamp).$onUpdateFn(createTimestamp)
 }
 
 export const createUpdateDeleteTimestamps = {
-  createdAt: integer().$defaultFn(createTimestamp),
-  updatedAt: integer().$defaultFn(createTimestamp).$onUpdateFn(createTimestamp),
+  createdAt: integer().notNull().$defaultFn(createTimestamp),
+  updatedAt: integer().notNull().$defaultFn(createTimestamp).$onUpdateFn(createTimestamp),
   deletedAt: integer()
 }

@@ -14,7 +14,7 @@ import type { CreateMCPServerDto, ListMCPServersQuery, UpdateMCPServerDto } from
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
 
-import { nullsToUndefined, timestampToISOOrUndefined } from './utils/rowMappers'
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MCPServerService')
 
@@ -27,8 +27,8 @@ function rowToMCPServer(row: typeof mcpServerTable.$inferSelect): MCPServer {
     ...clean,
     type: clean.type as MCPServer['type'],
     installSource: clean.installSource as MCPServer['installSource'],
-    createdAt: timestampToISOOrUndefined(row.createdAt),
-    updatedAt: timestampToISOOrUndefined(row.updatedAt)
+    createdAt: timestampToISO(row.createdAt),
+    updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
