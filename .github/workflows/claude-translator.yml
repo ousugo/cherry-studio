@@ -36,15 +36,6 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Generate Cherry AI Bot token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ vars.CHERRY_AI_BOT_CLIENT_ID }}
-          private-key: ${{ secrets.CHERRY_AI_BOT_PRIVATE_KEY }}
-          permission-issues: write
-          permission-pull-requests: write
-
       - name: Run Claude for translation
         uses: anthropics/claude-code-action@main
         id: claude
@@ -52,7 +43,7 @@ jobs:
           # Warning: Permissions should have been controlled by workflow permission.
           # Now `contents: read` is safe for files, but we could make a fine-grained token to control it.
           # See: https://github.com/anthropics/claude-code-action/blob/main/docs/security.md
-          github_token: ${{ steps.app-token.outputs.token }}
+          github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
           allowed_non_write_users: "*"
           anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
           claude_args: "--allowed-tools Bash(gh issue:*),Bash(gh api:repos/*/issues:*),Bash(gh api:repos/*/pulls/*/reviews/*),Bash(gh api:repos/*/pulls/comments/*)"
