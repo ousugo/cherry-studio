@@ -149,8 +149,10 @@ Moves apply **sequentially in one transaction**; each anchor resolves against th
 
 - **Column**: `order_key TEXT NOT NULL`. Always injected via `...orderKeyColumns`; the spread locks the TS field name to `orderKey`.
 - **Index**: required. Use `orderKeyIndex(tableName)(t)` for whole-table or `scopedOrderKeyIndex(tableName, scopeColumn)(t)` for partitioned tables.
-- **Known partition dimensions** in the codebase: `topic.groupId`, `group.entityType`, `user_model.providerId`, `miniapp.status`, `user_provider.isEnabled`.
-- **No secondary order axes**. Secondary semantics like topic pinned are modelled as **scope values** (e.g. a reserved `groupId = '__pinned__'` bucket), not a second column. One axis, one API.
+- **Known partition dimensions** in the codebase:
+  - Live (active consumers): `group.entityType`, `pin.entityType`, `user_model.providerId`, `miniapp.status`, `user_provider.isEnabled`.
+  - Planned / hypothetical: `topic.groupId` (adopted when `topic` migrates to the spec).
+- **No secondary order axes**. Each sortable table exposes exactly one `order_key`. Orthogonal user intents — e.g. "in a group" vs "pinned" — are modelled as separate tables, not as overloaded scope values on a shared column. Resource-specific design (polymorphic shape, purge contracts, concurrency semantics) lives in each schema / service's JSDoc, not here — this guide scopes to the ordering mechanism only.
 
 ---
 
@@ -163,6 +165,7 @@ All runtime `order_key` reads and writes go through `src/main/data/services/util
 | `insertWithOrderKey(tx, table, values, { pkColumn, position?, scope? })` | Single-row POST create on a sortable table. |
 | `insertManyWithOrderKey(tx, table, valuesList, { pkColumn, position?, scope? })` | Batch/seed create (≥2 rows). One boundary lookup + one bulk insert; `insertWithOrderKey` delegates to it internally. |
 | `applyMoves(tx, table, moves, { pkColumn, scope? })` | Reorder path for both `PATCH /:id/order` (wrapped as a single move) and `PATCH /order:batch`. |
+| `applyScopedMoves(tx, table, moves, { pkColumn, scopeColumn })` | Reorder path for tables partitioned by a discriminator column. Infers scope from the target row, enforces single-scope batches, and delegates to `applyMoves`. See §3.1. |
 | `resetOrder(tx, table, orderedRows, { pkColumn })` | `POST /order:reset` — caller sorts by preset, helper rewrites every key. |
 | `computeNewOrderKey(...)` | Internal to `applyMoves`; exported only for tests. |
 | `generateOrderKeySequence` / `generateOrderKeyBetween` / `generateOrderKeySequenceBetween` | The ONLY sanctioned wrappers around `fractional-indexing`. Services, migrators, and custom-migration scripts all re-import from here. |
@@ -187,6 +190,27 @@ await insertWithOrderKey(tx, topicTable, values, {
 await applyMoves(tx, userModelTable, moves, {
   pkColumn: userModelTable.id,
   scope: eq(userModelTable.providerId, providerId),
+})
+```
+
+---
+
+## 3.1 Scoped Reorder Pattern
+
+Scope inference is a **service-layer** responsibility. The HTTP client sends `{ before: X }` / `{ after: X }` / `{ position: 'first' | 'last' }` — it never names the scope. The handler validates the body with `OrderRequestSchema` and forwards the id and anchor verbatim; it does not read the row or resolve the scope. The service SELECTs the target row, reads its scope column, and applies `eq(scopeColumn, value)` to `applyMoves`.
+
+`applyScopedMoves` (`src/main/data/services/utils/orderKey.ts`) is the infra-level helper that encodes this pattern. `GroupService` and `PinService` are its first two consumers; any future table scoped by a discriminator column should prefer it over hand-rolling `SELECT → applyMoves` boilerplate.
+
+**Contract**:
+
+- A batch that spans more than one distinct scope value is rejected with `VALIDATION_ERROR`. Scoped reorders must stay within one partition; cross-scope moves are a row update (`PATCH /:id`), not a reorder.
+- A target id missing from the table is reported as `NOT_FOUND`. The missing-id check runs before the multi-scope check.
+- Empty `moves` is a no-op (no DB access).
+
+```ts
+await applyScopedMoves(tx, pinTable, moves, {
+  pkColumn: pinTable.id,
+  scopeColumn: pinTable.entityType
 })
 ```
 
@@ -263,12 +287,15 @@ Complete in one PR:
 
 1. **Schema**: `...orderKeyColumns` + `orderKeyIndex(tableName)(t)` or `scopedOrderKeyIndex(tableName, scopeColumn)(t)`.
 2. **Endpoints**: `& OrderEndpoints<'/{res}'>` on the resource's schema type. Add `POST /{res}/order:reset` inline if needed. Handlers validate bodies with `OrderRequestSchema` / `OrderBatchRequestSchema`.
-3. **Service**: `insertWithOrderKey` for create, `applyMoves` for reorder, `resetOrder` for reset. For partitioned tables, pass the right `scope`:
-   - `topic`: `topic.groupId ? eq(topicTable.groupId, groupId) : isNull(topicTable.groupId)`
-   - `group`: `eq(groupTable.entityType, entityType)`
-   - `user_model`: `eq(userModelTable.providerId, providerId)`
-   - `miniapp`: `eq(miniappTable.status, status)`
-   - `user_provider` / `mcp_server`: whole-table (`scope: undefined`)
+3. **Service**: `insertWithOrderKey` for create, `applyMoves` (or `applyScopedMoves` for discriminator-partitioned tables) for reorder, `resetOrder` for reset. For partitioned tables, the relevant scope predicate is:
+   - `group`: `eq(groupTable.entityType, entityType)` — live (`GroupService.reorder` / `reorderBatch` via `applyScopedMoves`).
+   - `pin`: `eq(pinTable.entityType, entityType)` — live (`PinService.reorder` / `reorderBatch` via `applyScopedMoves`).
+   - `user_model`: `eq(userModelTable.providerId, providerId)`.
+   - `miniapp`: `eq(miniappTable.status, status)`.
+   - `topic`: `topic.groupId ? eq(topicTable.groupId, groupId) : isNull(topicTable.groupId)` — hypothetical, pending `topic` migration.
+   - `user_provider` / `mcp_server`: whole-table (`scope: undefined`).
+
+   New scoped consumers should prefer `applyScopedMoves` (which handles scope lookup and rejects cross-scope batches) over composing `applyMoves` with a manually assembled `eq(...)` scope.
 4. **Migrator**: replace legacy `sortOrder = index` with `assignOrderKeysByScope` (or `assignOrderKeysInSequence` for whole-table). Drop `index` / `sortOrder` parameters from `transform*` functions.
 5. **Renderer**: `useReorder(collectionUrl)`, or `useReorder(collectionUrl, { idKey: 'appId' })` for non-`id` pk.
 6. **Drizzle custom migration** (runs when the consuming resource's PR lands, not part of the base-infrastructure PR): add `order_key` nullable → backfill bucket-by-bucket via `generateOrderKeySequence` imported from `@data/services/utils/orderKey` (never from `fractional-indexing` directly) → promote to `NOT NULL` → drop the old `sort_order` column → create the index. Until this step runs, the production schema keeps the legacy `sort_order INT` column — the base infrastructure never touches existing tables.
@@ -289,12 +316,16 @@ Complete in one PR:
 
 ---
 
-## 9. Group Ordering (Future Extension)
+## 9. Group Ordering
 
-Placeholder. When the first resource that needs group-level ordering adopts the spec (most likely `topic`), this section will cover:
+`group` table — `src/main/data/db/schemas/group.ts`. Partition column: `entityType`. Each entityType owns an independent `orderKey` sequence. `GroupService.reorder` / `reorderBatch` delegate to `applyScopedMoves` with `scopeColumn: groupTable.entityType`; see §3.1.
 
-- Extending `OrderRequestSchema` with an optional `groupId` field.
-- Cross-group move semantics — a `groupId` change is a **row update** (regular `PATCH /:id`), not a reorder. The `/order` endpoint only moves rows within their current scope.
-- `scope` interaction when a row changes groups in adjacent operations.
+Resource design (API shape, consumer-side `groupId` linkage) is documented on `GroupService` and consumer migrations — not here.
 
-No speculative `groupId` field, helper variants, or UI code is added before a real consumer drives the design.
+---
+
+## 10. Pin Ordering
+
+`pin` table — `src/main/data/db/schemas/pin.ts`. Partition column: `entityType`. Pin order is scoped per entityType via `scopedOrderKeyIndex('pin', 'entityType')`. `PinService.reorder` / `reorderBatch` delegate to `applyScopedMoves` with `scopeColumn: pinTable.entityType`; see §3.1.
+
+Resource design (polymorphic `(entityType, entityId)` shape, idempotent concurrent-safe `pin()`, `purgeForEntity` delete contract, hard-delete-on-unpin) is documented on `pin.ts` schema and `PinService` — not here.
