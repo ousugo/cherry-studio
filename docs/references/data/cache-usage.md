@@ -140,11 +140,57 @@ cacheService.deleteShared("window.layout");
 
 **Note**: SharedCache supports both fixed and template keys on Main and Renderer (aligned with Memory cache). Casual (schema-bypassing) access is not supported on SharedCache — if you need a dynamic key that isn't worth schematising, use Memory `getCasual` / `setCasual` instead.
 
+### Subscribing to Changes (Main Only)
+
+Main-process services can react to cache changes via `subscribeChange` (internal) and `subscribeSharedChange` (shared). Return values are unsubscribe functions compatible with `BaseService.registerDisposable`.
+
+```typescript
+import { application } from '@application'
+
+const cacheService = application.get('CacheService')
+
+// Internal cache (exact key only)
+this.registerDisposable(
+  cacheService.subscribeChange<number>('myService.counter', (newValue, oldValue) => {
+    logger.info('counter changed', { oldValue, newValue })
+  })
+)
+
+// Shared cache — exact key
+this.registerDisposable(
+  cacheService.subscribeSharedChange('web_search.provider.last_used_key.google', (newValue, oldValue, concreteKey) => {
+    logger.info('google key rotation', { concreteKey, oldValue, newValue })
+  })
+)
+
+// Shared cache — template key (reacts to every matching concrete instance)
+const tpl = 'web_search.provider.last_used_key.${providerId}' as const
+this.registerDisposable(
+  cacheService.subscribeSharedChange(tpl, (newValue, oldValue, concreteKey) => {
+    logger.info('provider rotation', { concreteKey, newValue })
+  })
+)
+```
+
+**Fire semantics**:
+
+- Fires only on explicit `set`/`delete`/`setShared`/`deleteShared` and IPC-origin writes from renderers. TTL lazy cleanup, GC sweeps, and `onStop` cleanup do **not** fire subscribers.
+- Value equality is decided via `lodash.isEqual`. Writing the same deep-equal value is a no-op: no broadcast, no fire. TTL-only refresh (same value, new `expireAt`) also does **not** fire.
+- Subscription does not immediately fire with the current value. If you need initial state, call `get()` / `getShared()` yourself after subscribing.
+- Re-entrance is allowed: callbacks may write back into the same key. Infinite loops are naturally terminated by the `isEqual` short-circuit — just make sure recursive writes eventually converge on a stable value.
+- Callback errors are caught and logged; other subscribers still fire.
+
+**Placeholder / character-set rules**:
+
+- `${...}` placeholder names are ignored at runtime. `${providerId}` and `${foo}` are equivalent; aligning with the schema is a readability convention, not a constraint.
+- Concrete dynamic segments must match `[A-Za-z0-9_\-]+`. Non-ASCII characters, dots, and colons are rejected — this mirrors the cache key naming convention enforced by the ESLint rule `data-schema-key/valid-key`.
+
 ### Sync Strategy
 
 - **Renderer → Main**: When Renderer calls `setShared()`, it broadcasts to Main via IPC. Main updates its SharedCache and relays to other windows.
 - **Main → Renderer**: When Main calls `setShared()`, it broadcasts to all Renderer windows.
 - **New Window Initialization**: New windows fetch complete SharedCache state from Main via `getAllShared()`. Uses Main-priority override strategy for conflicts.
+- **Same-value short-circuit**: Repeated `setShared(key, sameValue)` does not re-broadcast or re-fire main-process subscribers. Equality is determined via `lodash.isEqual`.
 
 ## Type-Safe vs Casual Methods
 
@@ -271,6 +317,26 @@ setActiveFile(selectedFile);
 // Window B: Reacts to change automatically
 const [activeFile] = useSharedCache("editor.activeFile", null);
 // activeFile updates when Window A changes it
+```
+
+### Subscribing to All Instances of a Template Key (Main Only)
+
+Observe every provider's round-robin rotation state with a single subscription. Without template subscriptions, consumers would have to enumerate every provider id and subscribe once each — new providers registered at runtime would be missed.
+
+```typescript
+// src/main/someService.ts
+import { application } from '@application'
+
+const cacheService = application.get('CacheService')
+
+const tpl = 'web_search.provider.last_used_key.${providerId}' as const
+this.registerDisposable(
+  cacheService.subscribeSharedChange(tpl, (newValue, oldValue, concreteKey) => {
+    // `concreteKey` is e.g. 'web_search.provider.last_used_key.google'
+    const providerId = concreteKey.split('.').pop()!
+    logger.info(`provider "${providerId}" rotated`, { from: oldValue, to: newValue })
+  })
+)
 ```
 
 ### Recent Items with Limit

@@ -49,6 +49,7 @@ cacheService.set('temp.calculation', result, 30000)
 - Shared and Persist caches sync across all windows
 - Uses IPC broadcast for real-time updates
 - Main process resolves conflicts
+- Redundant broadcasts are skipped when the value hasn't changed (deep equality via `lodash.isEqual`)
 
 ### Type Safety
 - **Fixed keys**: Schema-based keys for compile-time checking (e.g., `'app.user.avatar'`)
@@ -110,6 +111,8 @@ Note: Template keys follow the same dot-separated naming pattern as fixed keys. 
 - Provides `getAllShared()` for new window initialization sync
 - Handles IPC requests from renderers and broadcasts updates to all windows
 - Manages TTL expiration using absolute timestamps (`expireAt`) for precise cross-window sync
+- Supports subscription via `subscribeChange` (internal) and `subscribeSharedChange` (shared); shared subscriptions fire for both main-origin and renderer-origin writes and support template keys (Main-only API)
+- Skips redundant broadcasts and subscription fires when the new value deep-equals the existing value (`lodash.isEqual`); TTL-only refresh does not fire subscribers
 
 Access in main process via lifecycle:
 
@@ -148,3 +151,5 @@ For detailed code examples and API usage, see [Cache Usage Guide](./cache-usage.
 | `getCasual` / `setCasual`                       | Memory  | Dynamic keys only (schema keys blocked) |
 | `useSharedCache` / `getShared` / `setShared`    | Shared  | Fixed + Template keys                   |
 | `usePersistCache` / `getPersist` / `setPersist` | Persist | Fixed keys only                         |
+| `subscribeChange` (Main only)                   | Memory  | Fixed string keys                       |
+| `subscribeSharedChange` (Main only)             | Shared  | Fixed + Template keys                   |

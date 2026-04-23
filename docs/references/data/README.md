@@ -98,6 +98,7 @@ Use CacheService when:
 - Data can be **regenerated or lost without user impact**
 - No backup or cross-device synchronization needed
 - Lifecycle is tied to component, window, or app session
+- You need other main-process services to react to cache changes (`subscribeChange` / `subscribeSharedChange`)
 
 **Two sub-categories**:
 1. **Performance cache**: Computed results, API responses, expensive calculations
