@@ -186,7 +186,14 @@ export enum IpcChannel {
   MainWindow_Resize = 'main-window:resize',
   MainWindow_GetSize = 'main-window:get-size',
   MainWindow_MaximizedChanged = 'main-window:maximized-changed',
+  /**
+   * @deprecated Point-to-point navigation IPC.
+   * Slated for removal in v2 — planned replacement is a unified
+   * `MainWindow_Navigate(path)` channel (or v2 router-level protocol).
+   * Do not add more single-route channels of this shape.
+   */
   MainWindow_NavigateToAbout = 'main-window:navigate-to-about',
+  /** @deprecated See MainWindow_NavigateToAbout above. */
   MainWindow_NavigateToSettings = 'main-window:navigate-to-settings',
 
   // ──────────────────────────────────────────────────────────────
