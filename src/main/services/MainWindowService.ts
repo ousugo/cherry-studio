@@ -136,11 +136,6 @@ export class MainWindowService extends BaseService {
       }
     })
 
-    this.ipcHandle(IpcChannel.MainWindow_GetSize, () => {
-      const [width, height] = this.requireMainWindow().getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
-      return [width, height]
-    })
-
     this.ipcHandle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
 
     // ─── Main-window-specific handlers migrated from src/main/ipc.ts ───
@@ -310,42 +305,25 @@ export class MainWindowService extends BaseService {
       }
     })
 
-    // set the zoom factor again when the window is going to resize
-    //
-    // this is a workaround for the known bug that
-    // the zoom factor is reset to cached value when window is resized after routing to other page
-    // see: https://github.com/electron/electron/issues/10572
-    //
-    // and resize ipc
-    //
+    // Workaround for electron#10572: zoom factor resets to the cached value when
+    // the main window is resized after navigating to a new route. Re-apply the
+    // user-configured zoom factor on every resize / restore so the page does not
+    // visibly snap to the wrong scale.
     mainWindow.on('will-resize', () => {
       mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
-      mainWindow.webContents.send(IpcChannel.MainWindow_Resize, mainWindow.getSize())
     })
 
-    // set the zoom factor again when the window is going to restore
-    // minimize and restore will cause zoom reset
     mainWindow.on('restore', () => {
       mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
-    // ARCH: as `will-resize` is only for Win & Mac,
-    // linux has the same problem, use `resize` listener instead
-    // but `resize` will fliker the ui
+    // `will-resize` only fires on Win & Mac; Linux uses `resize` instead (which
+    // can cause UI flicker but is the only available signal).
     if (isLinux) {
       mainWindow.on('resize', () => {
         mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
-        mainWindow.webContents.send(IpcChannel.MainWindow_Resize, mainWindow.getSize())
       })
     }
-
-    mainWindow.on('unmaximize', () => {
-      mainWindow.webContents.send(IpcChannel.MainWindow_Resize, mainWindow.getSize())
-    })
-
-    mainWindow.on('maximize', () => {
-      mainWindow.webContents.send(IpcChannel.MainWindow_Resize, mainWindow.getSize())
-    })
 
     // 添加Escape键退出全屏的支持
     // mainWindow.webContents.on('before-input-event', (event, input) => {
