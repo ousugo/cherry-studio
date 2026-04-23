@@ -574,8 +574,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Selection_ToolbarDetermineSize, width, height),
     processAction: (actionItem: SelectionActionItem, isFullScreen: boolean = false) =>
       ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem, isFullScreen),
-    closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
-    minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned),
     getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo)
   },

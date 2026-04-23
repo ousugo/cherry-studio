@@ -336,8 +336,6 @@ export enum IpcChannel {
   Selection_ToolbarVisibilityChange = 'selection:toolbar-visibility-change',
   Selection_ToolbarDetermineSize = 'selection:toolbar-determine-size',
   Selection_WriteToClipboard = 'selection:write-to-clipboard',
-  Selection_ActionWindowClose = 'selection:action-window-close',
-  Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
   Selection_ProcessAction = 'selection:process-action',
   Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
