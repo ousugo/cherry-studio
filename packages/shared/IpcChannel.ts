@@ -464,13 +464,10 @@ export enum IpcChannel {
   // WindowManager
   WindowManager_Open = 'window-manager:open',
   WindowManager_Close = 'window-manager:close',
-  WindowManager_Show = 'window-manager:show',
-  WindowManager_Hide = 'window-manager:hide',
   WindowManager_Minimize = 'window-manager:minimize',
   WindowManager_Maximize = 'window-manager:maximize',
   WindowManager_Unmaximize = 'window-manager:unmaximize',
   WindowManager_SetFullScreen = 'window-manager:set-full-screen',
-  WindowManager_Focus = 'window-manager:focus',
   WindowManager_IsMaximized = 'window-manager:is-maximized',
   WindowManager_IsFullScreen = 'window-manager:is-full-screen',
   WindowManager_GetInitData = 'window-manager:get-init-data',
