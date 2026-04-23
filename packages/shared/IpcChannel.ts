@@ -178,14 +178,11 @@ export enum IpcChannel {
   // so the prefix can evolve without any hardcoded-string drift.
   // ──────────────────────────────────────────────────────────────
   MainWindow_Reload = 'main-window:reload',
-  MainWindow_SetFullScreen = 'main-window:set-full-screen',
-  MainWindow_IsFullScreen = 'main-window:is-full-screen',
   MainWindow_CrashRenderProcess = 'main-window:crash-render-process',
   MainWindow_ResetMinimumSize = 'main-window:reset-minimum-size',
   MainWindow_SetMinimumSize = 'main-window:set-minimum-size',
   MainWindow_Resize = 'main-window:resize',
   MainWindow_GetSize = 'main-window:get-size',
-  MainWindow_MaximizedChanged = 'main-window:maximized-changed',
   /**
    * @deprecated Point-to-point navigation IPC.
    * Slated for removal in v2 — planned replacement is a unified
@@ -196,26 +193,6 @@ export enum IpcChannel {
   /** @deprecated See MainWindow_NavigateToAbout above. */
   MainWindow_NavigateToSettings = 'main-window:navigate-to-settings',
 
-  // ──────────────────────────────────────────────────────────────
-  // Window-self-operation channels.
-  //
-  // These target whichever BrowserWindow originated the IPC call
-  // (resolved via BrowserWindow.fromWebContents(event.sender) in
-  // MainWindowService.resolveIpcSenderWindow). Both the Main window
-  // and Detached Tab windows (which share the same preload) use these
-  // for their own titlebar buttons.
-  //
-  // TODO(v2): these overlap with WindowManager_Minimize / Maximize /
-  // Hide / Show / Focus (which also use sender resolution). Consolidate
-  // onto WindowManager_* as a separate migration task — requires
-  // updating preload API targets and removing the MainWindowService
-  // handlers.
-  // ──────────────────────────────────────────────────────────────
-  Windows_Minimize = 'window:minimize',
-  Windows_Maximize = 'window:maximize',
-  Windows_Unmaximize = 'window:unmaximize',
-  Windows_Close = 'window:close',
-  Windows_IsMaximized = 'window:is-maximized',
   Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
 
   // Tab
@@ -361,8 +338,6 @@ export enum IpcChannel {
   DownloadUpdate = 'download-update',
 
   DirectoryProcessingPercent = 'directory-processing-percent',
-
-  FullscreenStatusChanged = 'fullscreen-status-changed',
 
   // Search Window
   SearchWindow_Open = 'search-window:open',
@@ -510,8 +485,22 @@ export enum IpcChannel {
   WindowManager_Hide = 'window-manager:hide',
   WindowManager_Minimize = 'window-manager:minimize',
   WindowManager_Maximize = 'window-manager:maximize',
+  WindowManager_Unmaximize = 'window-manager:unmaximize',
+  WindowManager_SetFullScreen = 'window-manager:set-full-screen',
   WindowManager_Focus = 'window-manager:focus',
+  WindowManager_IsMaximized = 'window-manager:is-maximized',
+  WindowManager_IsFullScreen = 'window-manager:is-full-screen',
   WindowManager_GetInitData = 'window-manager:get-init-data',
+  // Fired when the host window's OS-level maximize state changes (Win/Linux).
+  // macOS does not reliably emit BrowserWindow 'maximize'/'unmaximize' events
+  // (electron#3325, #28699); on macOS use WindowManager_FullscreenChanged instead.
+  // Sent only to the originating window's webContents.
+  WindowManager_MaximizedChanged = 'window-manager:maximized-changed',
+  // Fired when the host window's OS-level native fullscreen state changes.
+  // Does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen —
+  // useFullscreen / useFullScreenNotice semantics are OS-level fullscreen only.
+  // Sent only to the originating window's webContents.
+  WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
   // Fired when a managed window is re-used (pooled recycle or singleton reopen).
   // Event payload: the optional initData passed to open() — present only when the
   // caller supplied it; main never fires this event for fresh window creation or

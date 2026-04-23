@@ -178,8 +178,6 @@ export async function registerIpc() {
     })
   }
 
-  // MainWindow_SetFullScreen / MainWindow_IsFullScreen handlers moved into MainWindowService.
-
   // Get System Fonts
   ipcMain.handle(IpcChannel.App_GetSystemFonts, async () => {
     try {
