@@ -2,17 +2,12 @@ export enum IpcChannel {
   App_GetCacheSize = 'app:get-cache-size',
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
-  // App_SetLanguage = 'app:set-language',
   App_SetEnableSpellCheck = 'app:set-enable-spell-check',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_CheckForUpdate = 'app:check-for-update',
   App_QuitAndInstall = 'app:quit-and-install',
   Application_Quit = 'application:quit',
   App_Info = 'app:info',
-  App_SetLaunchToTray = 'app:set-launch-to-tray',
-  App_SetTray = 'app:set-tray',
-  App_SetTrayOnClose = 'app:set-tray-on-close',
-  // App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
   App_SetTestPlan = 'app:set-test-plan',
   App_SetTestChannel = 'app:set-test-channel',
@@ -36,8 +31,6 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
-  // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
-  // App_SaveData = 'app:save-data',
   App_GetDiskInfo = 'app:get-disk-info',
   App_GetSystemFonts = 'app:get-system-fonts',
   App_GetIpCountry = 'app:get-ip-country',
@@ -46,8 +39,6 @@ export enum IpcChannel {
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
 
   App_QuoteToMain = 'app:quote-to-main',
-  // App_SetDisableHardwareAcceleration = 'app:set-disable-hardware-acceleration',
-  // App_SetUseSystemTitleBar = 'app:set-use-system-title-bar',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
@@ -170,13 +161,7 @@ export enum IpcChannel {
   VertexAI_GetAccessToken = 'vertexai:get-access-token',
   VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
 
-  // ──────────────────────────────────────────────────────────────
-  // Main-window-specific channels. Handlers live in MainWindowService
-  // and only operate on the main window instance. Wire values use the
-  // `main-window:*` prefix to match the TypeScript symbol semantics —
-  // both main and renderer reference these via the IpcChannel enum,
-  // so the prefix can evolve without any hardcoded-string drift.
-  // ──────────────────────────────────────────────────────────────
+  // MainWindow: handlers in MainWindowService, operate on main window only.
   MainWindow_Reload = 'main-window:reload',
   MainWindow_CrashRenderProcess = 'main-window:crash-render-process',
   MainWindow_ResetMinimumSize = 'main-window:reset-minimum-size',
@@ -489,20 +474,12 @@ export enum IpcChannel {
   WindowManager_IsMaximized = 'window-manager:is-maximized',
   WindowManager_IsFullScreen = 'window-manager:is-full-screen',
   WindowManager_GetInitData = 'window-manager:get-init-data',
-  // Fired when the host window's OS-level maximize state changes (Win/Linux).
-  // macOS does not reliably emit BrowserWindow 'maximize'/'unmaximize' events
-  // (electron#3325, #28699); on macOS use WindowManager_FullscreenChanged instead.
-  // Sent only to the originating window's webContents.
+  // All three below are sent only to the originating window's webContents.
+  // macOS unreliable for maximize/unmaximize (electron#3325, #28699) — use FullscreenChanged on macOS.
   WindowManager_MaximizedChanged = 'window-manager:maximized-changed',
-  // Fired when the host window's OS-level native fullscreen state changes.
-  // Does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen —
-  // useFullscreen / useFullScreenNotice semantics are OS-level fullscreen only.
-  // Sent only to the originating window's webContents.
+  // OS-level only; does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen.
   WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
-  // Fired when a managed window is re-used (pooled recycle or singleton reopen).
-  // Event payload: the optional initData passed to open() — present only when the
-  // caller supplied it; main never fires this event for fresh window creation or
-  // when reuse happens without new initData.
+  // Payload = the initData passed to open(); omitted if none supplied, not fired on fresh creation.
   WindowManager_Reused = 'window-manager:reused'
 
   // ──────────────────────────────────────────────────────────────
