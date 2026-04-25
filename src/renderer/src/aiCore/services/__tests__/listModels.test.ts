@@ -283,8 +283,16 @@ function mockVertexPublisherResponses(
   const pageIndexByPublisher = new Map<string, number>()
 
   mockGetFromApi.mockImplementation(({ url }: { url: string }) => {
-    const publisher = url.match(/\/publishers\/([^/]+)\/models/)?.[1]
-    const response = publisher ? responsesByPublisher[publisher] : undefined
+    const match = url.match(/\/publishers\/([^/]+)\/models/)
+    const publisher = match?.[1]
+
+    if (!publisher) {
+      return Promise.resolve({
+        value: { publisherModels: [] }
+      })
+    }
+
+    const response = responsesByPublisher[publisher]
 
     if (response instanceof Error) {
       return Promise.reject(response)
