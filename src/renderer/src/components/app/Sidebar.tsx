@@ -138,12 +138,14 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const path = getMenuPath(menuId, defaultPaintingProvider)
       if (!path) return
 
+      if (activeTab?.url === path) return
+
       if (activeTab?.isPinned) {
         openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
         return
       }
 
-      if (activeTab && activeTab.id !== 'home') {
+      if (activeTab) {
         // Reusing the active tab — clear any per-entity icon (e.g. a mini-app
         // logo carried over from /app/mini-app/<id>) so the new top-level
         // route falls back to its default Lucide icon.
