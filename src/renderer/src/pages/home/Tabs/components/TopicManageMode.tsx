@@ -1,5 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
+import { useTopicMutations } from '@renderer/hooks/useTopic'
 import type { Topic } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import { CheckSquare, Search, Square, Trash2, XIcon } from 'lucide-react'

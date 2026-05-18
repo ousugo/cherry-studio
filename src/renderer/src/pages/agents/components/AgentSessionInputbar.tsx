@@ -4,10 +4,10 @@ import { loggerService } from '@logger'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
-import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
-import { useSession } from '@renderer/hooks/agents/useSessionDataApi'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
+import { useSession } from '@renderer/hooks/agents/useSession'
 import { useInputText } from '@renderer/hooks/useInputText'
-import { useProviders } from '@renderer/hooks/useProvider'
+import { useModels } from '@renderer/hooks/useModel'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { isSoulModeEnabled } from '@renderer/pages/agents/AgentSettings/shared'
@@ -23,14 +23,15 @@ import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
 import type { ToolContext } from '@renderer/pages/home/Inputbar/types'
 import { TopicType } from '@renderer/pages/home/Inputbar/types'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Assistant, Model, ThinkingOption } from '@renderer/types'
+import type { Assistant, ThinkingOption } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { getBuiltinSlashCommands } from '@shared/data/types/agentSlashCommands'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { createUniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -66,7 +67,7 @@ const AgentSessionInputbar = ({
   const { t } = useTranslation()
   const { session } = useSession(sessionId)
   const { agent } = useAgent(agentId)
-  const { providers } = useProviders()
+  const { models } = useModels()
   // FIXME: 不应该使用ref将action传到context提供给tool，权宜之计
   const actionsRef = useRef({
     resizeTextArea: () => {},
@@ -75,14 +76,16 @@ const AgentSessionInputbar = ({
     toggleExpanded: () => {}
   })
 
-  // Resolve the v1-shape model the InputbarTools / model checks need.
+  // Resolve the v2 model the InputbarTools / model checks need.
   // Model now lives on the parent agent, not the session.
   const sessionModel = useMemo<Model | undefined>(() => {
     if (!agent?.model) return undefined
     const [providerId, actualModelId] = agent.model.split(':')
     if (!providerId || !actualModelId) return undefined
-    return providers.flatMap((p) => p.models).find((m) => m.id === actualModelId && m.provider === providerId)
-  }, [agent?.model, providers])
+    return models.find(
+      (m) => m.providerId === providerId && (m.apiModelId ?? parseUniqueModelId(m.id).modelId) === actualModelId
+    )
+  }, [agent?.model, models])
 
   // v2-shape Assistant stub for tools that expect a real assistant record.
   const assistantStub = useMemo<Assistant | null>(() => {
@@ -95,7 +98,7 @@ const AgentSessionInputbar = ({
       emoji: '🌟',
       description: '',
       settings: DEFAULT_ASSISTANT_SETTINGS,
-      modelId: sessionModel ? createUniqueModelId(sessionModel.provider, sessionModel.id) : null,
+      modelId: sessionModel ? sessionModel.id : null,
       modelName: sessionModel?.name ?? null,
       orderKey: '',
       mcpServerIds: [],

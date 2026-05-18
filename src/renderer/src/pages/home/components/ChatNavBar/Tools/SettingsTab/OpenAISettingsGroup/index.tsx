@@ -2,7 +2,7 @@ import { isSupportedReasoningEffortOpenAIModel, isSupportVerbosityModel } from '
 import { SettingGroup } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
 import { SettingDivider } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
-import type { Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider, ProviderSettings, ServiceTier } from '@shared/data/types/provider'
 import type { OpenAIVerbosity } from '@shared/types/aiSdk'
@@ -31,10 +31,7 @@ const OPENAI_PROTOCOL_ENDPOINTS = new Set<string>([
 const GROQ_PROVIDER_ID = 'groq'
 
 function modelHasEndpoint(model: Model, endpoints: Set<string>): boolean {
-  return (
-    (model.endpoint_type ? endpoints.has(model.endpoint_type) : false) ||
-    model.supported_endpoint_types?.some((endpointType) => endpoints.has(endpointType)) === true
-  )
+  return model.endpointTypes?.some((endpointType) => endpoints.has(endpointType)) === true
 }
 
 function providerHasEndpoint(provider: Provider, endpoints: Set<string>): boolean {

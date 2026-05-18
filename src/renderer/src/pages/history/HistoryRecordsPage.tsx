@@ -2,17 +2,17 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
-import { useAgents } from '@renderer/hooks/agents/useAgentDataApi'
+import { useAgents } from '@renderer/hooks/agents/useAgent'
 import {
   type AgentSessionStreamState,
   useAgentSessionStreamStatuses
 } from '@renderer/hooks/agents/useAgentSessionStreamStatuses'
-import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSessionDataApi'
+import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
-import { mapApiTopicToRendererTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
+import { mapApiTopicToRendererTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopic'
 import type { SessionActionContext } from '@renderer/pages/agents/components/sessionItemActions'
 import {
   createSessionActionContext,

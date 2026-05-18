@@ -50,7 +50,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   }
 })
 
-vi.mock('@renderer/hooks/agents/useAgentDataApi', () => ({
+vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useAgents: () => ({
     agents: [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
   })

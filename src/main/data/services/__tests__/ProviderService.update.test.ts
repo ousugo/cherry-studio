@@ -12,6 +12,7 @@ describe('ProviderService.update', () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'openai',
       name: 'OpenAI',
+      orderKey: 'a0',
       providerSettings: {
         serviceTier: 'auto',
         verbosity: 'low'
@@ -44,6 +45,7 @@ describe('ProviderService.update', () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'p-null',
       name: 'P',
+      orderKey: 'a0',
       providerSettings: null
     })
 
@@ -59,6 +61,7 @@ describe('ProviderService.update', () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'p-noop',
       name: 'P',
+      orderKey: 'a0',
       providerSettings: { serviceTier: 'auto' }
     })
 

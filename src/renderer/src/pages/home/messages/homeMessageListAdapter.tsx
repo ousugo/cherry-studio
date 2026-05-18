@@ -19,7 +19,7 @@ import {
 } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ModelSelector } from '@renderer/components/Selector'
 import { isVisionModel } from '@renderer/config/models'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
+import { toSharedCompatModel } from '@renderer/config/models/_bridge'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
@@ -45,7 +45,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { translateInputText } from '@renderer/services/TranslateCommandService'
 import { translateText } from '@renderer/services/TranslateService'
 import type { Topic, TranslateLangCode } from '@renderer/types'
-import { abortCompletion } from '@renderer/utils/abortController'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { updateCodeBlock } from '@renderer/utils/markdown'
@@ -64,8 +63,6 @@ import { use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
-
-const createTranslationAbortKey = (messageId: string) => `translation-abort-key:${messageId}`
 
 interface HomeMessageListParams {
   topic: Topic
@@ -124,6 +121,7 @@ export function useHomeMessageListProviderValue({
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
   const partsByMessageIdRef = useRef(partsByMessageId)
+  const translationAbortControllersRef = useRef(new Map<string, AbortController>())
 
   useEffect(() => {
     messagesRef.current = messageItems
@@ -313,8 +311,7 @@ export function useHomeMessageListProviderValue({
   const getMessageEditorCapabilities = useCallback(
     (message: MessageListItem) => {
       const messageModel = getMessageListItemModel(message)
-      const fallbackModel = model ? fromSharedModel(model) : undefined
-      const editorModel = messageModel ?? fallbackModel
+      const editorModel = messageModel ? toSharedCompatModel(messageModel) : model
 
       return {
         canAddImageFile: editorModel ? isVisionModel(editorModel) : false,
@@ -427,18 +424,26 @@ export function useHomeMessageListProviderValue({
     async (messageId, language, sourceText) => {
       if (!sourceText.trim()) return
 
+      const controller = new AbortController()
       try {
+        translationAbortControllersRef.current.get(messageId)?.abort()
+        translationAbortControllersRef.current.set(messageId, controller)
+
         const translationUpdater = await createTranslationUpdater(messageId, language.langCode)
         if (!translationUpdater) {
           window.toast.error(t('message.error.unknown'))
           return
         }
 
-        await translateText(sourceText, language, translationUpdater, createTranslationAbortKey(messageId))
+        await translateText(sourceText, language, translationUpdater, controller.signal)
       } catch (error) {
         if (!isAbortError(error)) {
           logger.error('Message translation failed', error as Error)
           window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
+        }
+      } finally {
+        if (translationAbortControllersRef.current.get(messageId) === controller) {
+          translationAbortControllersRef.current.delete(messageId)
         }
       }
     },
@@ -447,7 +452,7 @@ export function useHomeMessageListProviderValue({
 
   const abortMessageTranslation = useCallback<NonNullable<MessageListActions['abortMessageTranslation']>>(
     (messageId) => {
-      abortCompletion(createTranslationAbortKey(messageId))
+      translationAbortControllersRef.current.get(messageId)?.abort()
     },
     []
   )

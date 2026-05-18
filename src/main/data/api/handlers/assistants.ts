@@ -55,8 +55,8 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
 
   '/assistants/:id/order': {
     PATCH: async ({ params, body }) => {
-      const anchor = OrderRequestSchema.parse(body)
-      await assistantDataService.reorder(params.id, anchor)
+      const parsed = OrderRequestSchema.parse(body)
+      await assistantDataService.reorder(params.id, parsed)
       return undefined
     }
   },

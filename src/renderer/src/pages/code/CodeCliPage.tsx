@@ -1,24 +1,33 @@
-import { Button, Checkbox, EmptyState, Input, Label, SelectDropdown, Textarea } from '@cherrystudio/ui'
+import { Button, Checkbox, Label, SelectDropdown, Textarea } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { isMac, isWin } from '@renderer/config/constant'
-import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
-import { useProviders } from '@renderer/hooks/useProvider'
+import { useModels } from '@renderer/hooks/useModel'
+import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
-import type { EndpointType, Model, Provider } from '@renderer/types'
-import { getFancyProviderName } from '@renderer/utils/naming'
-import { getRotatedProviderApiKey } from '@renderer/utils/providerAuth'
-import { formatProviderApiHost } from '@renderer/utils/providerHost'
+import { EFFORT_RATIO } from '@renderer/types'
+import { getThinkingBudget } from '@shared/ai/reasoningBudget'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeCLI, terminalApps } from '@shared/config/constant'
 import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
-import { createUniqueModelId } from '@shared/data/types/model'
-import { Check, Code2, Download, FolderOpen, Search, X } from 'lucide-react'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
+import {
+  isEmbeddingModel,
+  isReasoningModel,
+  isRerankModel,
+  isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenClaudeModel,
+  isTextToImageModel
+} from '@shared/utils/model'
+import { isAnthropicProvider, isOpenAIProvider } from '@shared/utils/provider'
+import { Check, FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,9 +39,9 @@ import {
   OPENAI_CODEX_SUPPORTED_PROVIDERS,
   parseEnvironmentVariables
 } from '.'
-import { CodeToolDrawer } from './components/CodeToolDrawer'
+import { CodeToolDialog } from './components/CodeToolDialog'
+import { CodeToolGallery } from './components/CodeToolGallery'
 import { FieldLabel } from './components/FieldLabel'
-import { ToolGrid } from './components/ToolGrid'
 import type { CodeToolMeta } from './components/types'
 
 const logger = loggerService.withContext('CodeCliPage')
@@ -59,6 +68,8 @@ interface TerminalItem {
 const CodeCliPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
+  const { models } = useModels()
+  const providerMap = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers])
   const [isBunInstalled, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
   const {
     selectedCliTool,
@@ -88,8 +99,9 @@ const CodeCliPage: FC = () => {
   const [availableTerminals, setAvailableTerminals] = useState<TerminalConfig[]>([])
   const [terminalCustomPaths, setTerminalCustomPaths] = useState<Record<string, string>>({})
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+
+  const rawModelId = useCallback((m: Model) => m.apiModelId ?? parseUniqueModelId(m.id).modelId, [])
 
   const modelPredicate = useCallback(
     (m: Model) => {
@@ -97,42 +109,46 @@ const CodeCliPage: FC = () => {
         return false
       }
 
-      if (m.provider === 'cherryai') {
+      if (m.providerId === 'cherryai') {
         return false
       }
 
+      const provider = providerMap.get(m.providerId)
+      if (!provider) {
+        return false
+      }
+
+      const eps = m.endpointTypes ?? []
+      const id = rawModelId(m)
+
       if (selectedCliTool === codeCLI.claudeCode) {
-        if (m.supported_endpoint_types) {
-          return m.supported_endpoint_types.includes('anthropic')
+        if (eps.length) {
+          return eps.includes('anthropic-messages')
         }
-        if (m.provider === 'silicon') {
-          return isSiliconAnthropicCompatibleModel(m.id)
+        if (m.providerId === 'silicon') {
+          return isSiliconAnthropicCompatibleModel(id)
         }
-        const modelProvider = providers.find((p) => p.id === m.provider)
-        if (modelProvider?.type === 'anthropic' || modelProvider?.anthropicApiHost) {
+        if (isAnthropicProvider(provider)) {
           return true
         }
-        return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
+        return id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.providerId)
       }
 
       if (selectedCliTool === codeCLI.geminiCli) {
-        if (m.supported_endpoint_types) {
-          return m.supported_endpoint_types.includes('gemini')
+        if (eps.length) {
+          return eps.includes('google-generate-content')
         }
-        return m.id.includes('gemini')
+        return id.includes('gemini')
       }
 
       if (selectedCliTool === codeCLI.openaiCodex) {
-        if (m.supported_endpoint_types) {
-          return ['openai', 'openai-response'].some((type) =>
-            m.supported_endpoint_types?.includes(type as EndpointType)
-          )
+        if (eps.length) {
+          return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
         }
-        const openaiProvider = providers.find((p) => p.id === m.provider)
-        if (openaiProvider?.type === 'openai-response') {
+        if (isOpenAIProvider(provider)) {
           return true
         }
-        return m.id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.provider)
+        return id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.providerId)
       }
 
       if (selectedCliTool === codeCLI.githubCopilotCli) {
@@ -140,27 +156,26 @@ const CodeCliPage: FC = () => {
       }
 
       if (selectedCliTool === codeCLI.qwenCode || selectedCliTool === codeCLI.iFlowCli) {
-        if (m.supported_endpoint_types) {
-          return ['openai', 'openai-response'].some((type) =>
-            m.supported_endpoint_types?.includes(type as EndpointType)
-          )
+        if (eps.length) {
+          return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
         }
         return true
       }
 
       if (selectedCliTool === codeCLI.openCode) {
-        if (m.supported_endpoint_types) {
-          return ['openai', 'openai-response', 'anthropic'].some((type) =>
-            m.supported_endpoint_types?.includes(type as EndpointType)
+        if (eps.length) {
+          return (
+            eps.includes('openai-chat-completions') ||
+            eps.includes('openai-responses') ||
+            eps.includes('anthropic-messages')
           )
         }
-        const provider = providers.find((p) => p.id === m.provider)
-        return !!['openai', 'openai-response', 'anthropic'].includes(provider?.type ?? '')
+        return isOpenAIProvider(provider) || isAnthropicProvider(provider)
       }
 
       return true
     },
-    [selectedCliTool, providers]
+    [selectedCliTool, providerMap, rawModelId]
   )
 
   const availableProviders = useMemo(() => {
@@ -169,15 +184,17 @@ const CodeCliPage: FC = () => {
   }, [providers, selectedCliTool])
 
   const modelItems = useMemo<ModelItem[]>(() => {
+    const allowed = new Set(availableProviders.map((p) => p.id))
     const items: ModelItem[] = []
-    for (const provider of availableProviders) {
-      for (const m of provider.models || []) {
-        if (!modelPredicate(m)) continue
-        items.push({ id: createUniqueModelId(m.provider, m.id), model: m, provider })
-      }
+    for (const m of models) {
+      if (!allowed.has(m.providerId)) continue
+      const provider = providerMap.get(m.providerId)
+      if (!provider) continue
+      if (!modelPredicate(m)) continue
+      items.push({ id: m.id, model: m, provider })
     }
     return items
-  }, [availableProviders, modelPredicate])
+  }, [availableProviders, models, providerMap, modelPredicate])
 
   const terminalItems = useMemo<TerminalItem[]>(
     () => availableTerminals.map((terminal) => ({ id: terminal.id, name: terminal.name })),
@@ -188,14 +205,12 @@ const CodeCliPage: FC = () => {
 
   const resolveModel = useCallback(
     (modelIdStr: string): Model | null => {
-      for (const provider of providers || []) {
-        const model = provider.models.find((m) => createUniqueModelId(m.provider, m.id) === modelIdStr)
-        if (model) return model
-      }
+      const model = models.find((m) => m.id === modelIdStr)
+      if (model) return model
       logger.warn(`Model not found for ID: ${modelIdStr}`)
       return null
     },
-    [providers]
+    [models]
   )
 
   const handleModelChange = (value: string) => {
@@ -279,22 +294,48 @@ const CodeCliPage: FC = () => {
     const resolvedModel = resolveModel(selectedModel)
     if (!resolvedModel) return null
 
-    const modelProvider = getProviderByModel(resolvedModel)
+    const modelProvider = providerMap.get(resolvedModel.providerId)
     if (!modelProvider) {
       logger.warn(`Provider not found for model: ${resolvedModel.id}`)
       return null
     }
-    const actualProvider = formatProviderApiHost(modelProvider)
-    const baseUrl = actualProvider.apiHost
-    const apiKey = getRotatedProviderApiKey(actualProvider)
+
+    const isAnthropic = isAnthropicProvider(modelProvider)
+    const defaultEndpoint = modelProvider.defaultChatEndpoint ?? 'openai-chat-completions'
+    const baseUrl = modelProvider.endpointConfigs?.[defaultEndpoint]?.baseUrl ?? ''
+    const anthropicBaseUrl = modelProvider.endpointConfigs?.['anthropic-messages']?.baseUrl
+
+    let apiKey = ''
+    try {
+      const { keys } = (await dataApiService.get(`/providers/${modelProvider.id}/api-keys`)) as {
+        keys: ApiKeyEntry[]
+      }
+      apiKey = keys.find((k) => k.isEnabled)?.key ?? keys[0]?.key ?? ''
+    } catch (error) {
+      logger.error(`Failed to load api keys for provider: ${modelProvider.id}`, error as Error)
+    }
+
+    const id = resolvedModel.apiModelId ?? parseUniqueModelId(resolvedModel.id).modelId
+    const reasoning = {
+      isReasoning: isReasoningModel(resolvedModel),
+      supportsReasoningEffort: isSupportedReasoningEffortModel(resolvedModel),
+      budgetTokens: isSupportedThinkingTokenClaudeModel(resolvedModel)
+        ? getThinkingBudget(maxTokens, reasoning_effort, id, EFFORT_RATIO, { fallbackOnUnknown: true })
+        : undefined
+    }
 
     const { env: toolEnv } = generateToolEnvironment({
       tool: selectedCliTool,
-      model: resolvedModel,
-      modelProvider,
+      rawModelId: id,
+      modelName: resolvedModel.name,
+      endpointType: resolvedModel.endpointTypes?.[0],
+      providerId: modelProvider.id,
+      fancyProviderName: getProviderDisplayName(modelProvider),
+      isAnthropic,
+      anthropicBaseUrl,
       apiKey,
       baseUrl,
-      context: { maxTokens, reasoningEffort: reasoning_effort }
+      reasoning
     })
 
     const userEnv = parseEnvironmentVariables(environmentVariables)
@@ -309,7 +350,10 @@ const CodeCliPage: FC = () => {
       window.toast.error(t('code.model_required'))
       return
     }
-    const modelId = selectedCliTool === codeCLI.githubCopilotCli ? '' : (resolvedModel?.id ?? '')
+    const modelId =
+      selectedCliTool === codeCLI.githubCopilotCli || !resolvedModel
+        ? ''
+        : (resolvedModel.apiModelId ?? parseUniqueModelId(resolvedModel.id).modelId)
 
     const runOptions = {
       autoUpdateToLatest,
@@ -399,33 +443,14 @@ const CodeCliPage: FC = () => {
         return
       }
     }
-    setDrawerOpen(true)
+    setDialogOpen(true)
   }
-
-  const filteredTools = useMemo(() => {
-    if (!searchTerm) return CLI_TOOLS
-    const q = searchTerm.toLowerCase()
-    return CLI_TOOLS.filter((ti) => ti.label.toLowerCase().includes(q))
-  }, [searchTerm])
 
   const activeTool = useMemo<CliToolOption | undefined>(
     () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
     [selectedCliTool]
   )
   const activeMeta = activeTool ? toMeta(activeTool) : null
-
-  const summaryTerminalLabel = useMemo(
-    () => availableTerminals.find((ti) => ti.id === selectedTerminal)?.name ?? selectedTerminal,
-    [availableTerminals, selectedTerminal]
-  )
-  const summaryModelLabel = useMemo(() => {
-    if (!selectedModel) return undefined
-    const resolved = resolveModel(selectedModel)
-    const full = resolved?.name ?? resolved?.id ?? selectedModel
-    // Match design: show last segment of model id (e.g. "claude-sonnet-4")
-    const parts = full.split('/')
-    return parts[parts.length - 1]
-  }, [selectedModel, resolveModel])
 
   const needsWindowsCustomPath =
     isWin &&
@@ -434,7 +459,7 @@ const CodeCliPage: FC = () => {
     selectedTerminal !== terminalApps.powershell &&
     selectedTerminal !== terminalApps.windowsTerminal
 
-  const activeToolValue = drawerOpen ? selectedCliTool : undefined
+  const activeToolValue = dialogOpen ? selectedCliTool : undefined
 
   return (
     <div className="flex flex-1 flex-col text-foreground">
@@ -443,207 +468,148 @@ const CodeCliPage: FC = () => {
       </Navbar>
 
       <div className="relative flex min-h-0 flex-1 flex-col">
-        {!isBunInstalled && (
-          <div className="mx-6 mt-3 flex items-center justify-between gap-3 rounded-3xs border border-warning/30 bg-warning/10 px-3 py-2 text-foreground text-xs">
-            <span>{t('code.bun_required_message')}</span>
-            <Button size="sm" onClick={handleInstallBun} disabled={isInstallingBun}>
-              <Download size={14} />
-              {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
-            </Button>
-          </div>
-        )}
+        <CodeToolGallery
+          tools={CLI_TOOLS}
+          isBunInstalled={!!isBunInstalled}
+          isInstallingBun={isInstallingBun}
+          handleInstallBun={handleInstallBun}
+          activeToolValue={activeToolValue}
+          handleSelectTool={handleSelectTool}
+          toMeta={toMeta}
+        />
 
-        <div className="flex h-11 shrink-0 items-center px-4">
-          <div className="flex items-center gap-1.5 text-xs">
-            <Code2 size={13} className="text-muted-foreground" strokeWidth={1.6} />
-            <span className="text-foreground">{t('code.title')}</span>
-            <span className="ml-1 text-[10px] text-muted-foreground/40">
-              {t('code.count', { count: filteredTools.length })}
-            </span>
-          </div>
-        </div>
-
-        <div className="px-6 py-2">
-          <div className="relative mx-auto max-w-md">
-            <Search size={13} className="-translate-y-1/2 absolute top-1/2 left-3 z-10 text-muted-foreground/40" />
-            <Input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={t('code.search_placeholder')}
-              className="h-auto rounded-3xs border-border/50 bg-muted/20 py-1.5 pr-7 pl-8 text-xs shadow-none placeholder:text-muted-foreground/30 focus-visible:border-primary/30 focus-visible:ring-0"
-            />
-            {searchTerm && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setSearchTerm('')}
-                aria-label={t('common.clear')}
-                className="-translate-y-1/2 absolute top-1/2 right-1 text-muted-foreground shadow-none hover:text-foreground">
-                <X size={12} />
-              </Button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-4 [&::-webkit-scrollbar]:hidden">
-          <div className="mx-auto max-w-3xl space-y-5">
-            {filteredTools.length === 0 ? (
-              <EmptyState
-                preset={searchTerm ? 'no-result' : 'no-code-tool'}
-                title={searchTerm ? t('code.empty.no_match.title') : t('code.empty.no_tool.title')}
-                description={searchTerm ? t('code.empty.no_match.description') : t('code.empty.no_tool.description')}
-              />
-            ) : (
-              <ToolGrid
-                title={t('code.official_tools')}
-                tools={filteredTools}
-                activeValue={activeToolValue}
-                onSelect={handleSelectTool}
-                toMeta={toMeta}
-              />
-            )}
-          </div>
-        </div>
-
-        <CodeToolDrawer
-          open={drawerOpen}
-          tool={activeMeta}
-          summary={{ model: summaryModelLabel, terminal: summaryTerminalLabel || undefined }}
-          canLaunch={canLaunch && !!isBunInstalled}
-          launching={isLaunching}
-          launchSuccess={launchSuccess}
-          infoTag={t('code.official_tag')}
-          onClose={() => setDrawerOpen(false)}
-          onLaunch={handleLaunch}>
-          {selectedCliTool !== codeCLI.githubCopilotCli && (
-            <div>
-              <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
-              <SelectDropdown
-                items={modelItems}
-                virtualize
-                itemHeight={32}
-                selectedId={selectedModel}
-                onSelect={handleModelChange}
-                placeholder={t('code.model_placeholder')}
-                renderSelected={(item) => (
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <ModelAvatar model={item.model} size={12} />
-                    <span className="truncate text-foreground">{item.model.name || item.model.id}</span>
-                  </div>
-                )}
-                renderItem={(item, isSelected) => (
-                  <div className="flex items-center gap-2">
-                    <ModelAvatar model={item.model} size={12} />
-                    <span className="flex-1 truncate">{item.model.name || item.model.id}</span>
-                    <span className="shrink-0 text-[9px] text-muted-foreground/30">
-                      {getFancyProviderName(item.provider)}
-                    </span>
-                    {isSelected && <Check size={11} className="ml-0.5 shrink-0 text-primary" />}
-                  </div>
-                )}
-              />
-            </div>
-          )}
-
-          <div>
-            <FieldLabel hint={t('code.working_directory_hint')}>{t('code.working_directory')}</FieldLabel>
-            <div className="flex items-center gap-2">
-              <div className="min-w-0 flex-1">
+        {activeMeta && (
+          <CodeToolDialog
+            open={dialogOpen}
+            tool={activeMeta}
+            canLaunch={canLaunch && !!isBunInstalled}
+            status={launchSuccess ? 'success' : isLaunching ? 'launching' : 'idle'}
+            onClose={() => setDialogOpen(false)}
+            onLaunch={handleLaunch}>
+            {selectedCliTool !== codeCLI.githubCopilotCli && (
+              <div>
+                <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
                 <SelectDropdown
-                  items={directoryItems}
-                  selectedId={currentDirectory || null}
-                  onSelect={(id) => void setCurrentDir(id)}
-                  onRemove={handleRemoveDirectory}
-                  removeLabel={t('common.delete')}
-                  emptyText={t('common.none')}
-                  placeholder={t('code.folder_placeholder')}
-                  renderTriggerLeading={<FolderOpen size={11} className="shrink-0 text-muted-foreground/40" />}
-                  renderSelected={(item) => <span className="truncate font-mono text-foreground">{item.id}</span>}
+                  items={modelItems}
+                  virtualize
+                  selectedId={selectedModel}
+                  onSelect={handleModelChange}
+                  placeholder={t('code.model_placeholder')}
+                  renderSelected={(item) => (
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <ModelAvatar model={item.model} size={18} />
+                      <span className="truncate text-foreground">{item.model.name || item.model.id}</span>
+                    </div>
+                  )}
                   renderItem={(item, isSelected) => (
-                    <>
-                      <FolderOpen
-                        size={11}
-                        className={isSelected ? 'shrink-0 text-primary' : 'shrink-0 text-muted-foreground/40'}
-                      />
-                      <span className="flex-1 truncate font-mono">{item.id}</span>
-                      {isSelected && <Check size={11} className="shrink-0 text-primary" />}
-                    </>
+                    <div className="flex items-center gap-2">
+                      <ModelAvatar model={item.model} size={18} />
+                      <span className="flex-1 truncate">{item.model.name || item.model.id}</span>
+                      <span className="shrink-0 text-muted-foreground text-xs">
+                        {getProviderDisplayName(item.provider)}
+                      </span>
+                      {isSelected && <Check size={11} className="ml-0.5 shrink-0 text-foreground" />}
+                    </div>
                   )}
                 />
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void selectFolder()}
-                className="shrink-0 rounded-3xs border-border/40 bg-transparent px-3 py-1.5 text-[10px] text-muted-foreground/60 shadow-none hover:bg-accent/40 hover:text-foreground">
-                {t('code.select_folder')}
-              </Button>
-            </div>
-          </div>
+            )}
 
-          {(isMac || isWin) && terminalItems.length > 0 && (
             <div>
-              <FieldLabel hint={t('code.terminal_hint')}>{t('code.terminal')}</FieldLabel>
-              <SelectDropdown
-                items={terminalItems}
-                selectedId={selectedTerminal}
-                onSelect={setTerminal}
-                placeholder={t('code.terminal_placeholder')}
-                renderSelected={(item) => <span className="truncate text-foreground">{item.name}</span>}
-                renderItem={(item, isSelected) => (
-                  <div className="flex items-center gap-2">
-                    <span className="flex-1">{item.name}</span>
-                    {isSelected && <Check size={11} className="shrink-0 text-primary" />}
+              <FieldLabel hint={t('code.working_directory_hint')}>{t('code.working_directory')}</FieldLabel>
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <SelectDropdown
+                    items={directoryItems}
+                    selectedId={currentDirectory || null}
+                    onSelect={(id) => void setCurrentDir(id)}
+                    onRemove={handleRemoveDirectory}
+                    removeLabel={t('common.delete')}
+                    emptyText={t('common.none')}
+                    placeholder={t('code.folder_placeholder')}
+                    renderTriggerLeading={<FolderOpen size={11} className="shrink-0 text-muted-foreground" />}
+                    renderSelected={(item) => <span className="truncate font-mono text-foreground">{item.id}</span>}
+                    renderItem={(item, isSelected) => (
+                      <>
+                        <FolderOpen
+                          size={11}
+                          className={isSelected ? 'shrink-0 text-foreground' : 'shrink-0 text-muted-foreground'}
+                        />
+                        <span className="flex-1 truncate font-mono">{item.id}</span>
+                        {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
+                      </>
+                    )}
+                  />
+                </div>
+                <Button variant="secondary" size="lg" onClick={() => void selectFolder()} className="shrink-0">
+                  {t('code.select_folder')}
+                </Button>
+              </div>
+            </div>
+
+            {(isMac || isWin) && terminalItems.length > 0 && (
+              <div>
+                <FieldLabel hint={t('code.terminal_hint')}>{t('code.terminal')}</FieldLabel>
+                <SelectDropdown
+                  items={terminalItems}
+                  selectedId={selectedTerminal}
+                  onSelect={setTerminal}
+                  placeholder={t('code.terminal_placeholder')}
+                  renderSelected={(item) => <span className="truncate text-foreground">{item.name}</span>}
+                  renderItem={(item, isSelected) => (
+                    <div className="flex items-center gap-2">
+                      <span className="flex-1">{item.name}</span>
+                      {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
+                    </div>
+                  )}
+                />
+                {needsWindowsCustomPath && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleSetCustomPath(selectedTerminal)}
+                      className="text-muted-foreground shadow-none hover:text-foreground">
+                      <FolderOpen size={10} />
+                      {t('code.set_custom_path')}
+                    </Button>
+                    <span className="truncate text-muted-foreground text-xs">
+                      {terminalCustomPaths[selectedTerminal]
+                        ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
+                        : t('code.custom_path_required')}
+                    </span>
                   </div>
                 )}
+              </div>
+            )}
+
+            <div>
+              <FieldLabel hint={t('code.env_vars_help')}>{t('code.environment_variables')}</FieldLabel>
+              <Textarea.Input
+                value={environmentVariables}
+                onValueChange={setEnvVars}
+                rows={4}
+                placeholder={'KEY1=value1\nKEY2=value2'}
+                className="min-h-24 resize-none rounded-md border-input px-3 py-2 font-mono text-xs shadow-none placeholder:text-muted-foreground focus-visible:border-foreground focus-visible:ring-2 focus-visible:ring-foreground/10 md:text-xs [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75"
               />
-              {needsWindowsCustomPath && (
-                <div className="mt-1 flex items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleSetCustomPath(selectedTerminal)}
-                    className="text-muted-foreground shadow-none hover:text-foreground">
-                    <FolderOpen size={10} />
-                    {t('code.set_custom_path')}
-                  </Button>
-                  <span className="truncate text-[10px] text-muted-foreground/50">
-                    {terminalCustomPaths[selectedTerminal]
-                      ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
-                      : t('code.custom_path_required')}
-                  </span>
-                </div>
-              )}
             </div>
-          )}
 
-          <div>
-            <FieldLabel hint={t('code.env_vars_help')}>{t('code.environment_variables')}</FieldLabel>
-            <Textarea.Input
-              value={environmentVariables}
-              onValueChange={setEnvVars}
-              rows={2}
-              placeholder={'KEY1=value1\nKEY2=value2'}
-              className="min-h-0 resize-none rounded-3xs border-border/30 px-2.5 py-1.5 font-mono text-[11px] shadow-none placeholder:text-muted-foreground/20 focus-visible:border-border/50 focus-visible:ring-0 md:text-[11px] [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="code-cli-auto-update"
-              size="sm"
-              checked={autoUpdateToLatest}
-              onCheckedChange={(v) => setAutoUpdateToLatest(v === true)}
-              className="size-3.5 rounded-4xs shadow-none"
-            />
-            <Label
-              htmlFor="code-cli-auto-update"
-              className="cursor-pointer text-[10px] text-muted-foreground/40 hover:text-foreground/50">
-              {t('code.auto_update_to_latest')}
-            </Label>
-          </div>
-        </CodeToolDrawer>
+            <div className="flex items-center gap-2 pt-1">
+              <Checkbox
+                id="code-cli-auto-update"
+                size="sm"
+                checked={autoUpdateToLatest}
+                onCheckedChange={(v) => setAutoUpdateToLatest(v === true)}
+                className="border-input hover:bg-accent data-[state=checked]:border-foreground data-[state=checked]:bg-foreground data-[state=checked]:text-background [&_[data-slot=checkbox-indicator]>svg]:stroke-background [&_[data-slot=checkbox-indicator]>svg]:text-background"
+              />
+              <Label
+                htmlFor="code-cli-auto-update"
+                className="cursor-pointer font-normal text-muted-foreground text-sm hover:text-foreground">
+                {t('code.auto_update_to_latest')}
+              </Label>
+            </div>
+          </CodeToolDialog>
+        )}
       </div>
     </div>
   )

@@ -76,7 +76,7 @@ vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTopicDataApi', () => ({
+vi.mock('@renderer/hooks/useTopic', () => ({
   useTopicMutations: () => ({
     refreshTopics: homeMocks.refreshTopics
   })

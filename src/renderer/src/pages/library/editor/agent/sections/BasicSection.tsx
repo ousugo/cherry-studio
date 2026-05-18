@@ -17,7 +17,7 @@ import {
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import type { AgentType } from '@shared/data/types/agent'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -235,7 +235,7 @@ function ModelField({
   allowClear?: boolean
   errorMessage?: string
   filter?: (model: Model) => boolean
-  onSelect: (modelId: string | null) => void
+  onSelect: (modelId: UniqueModelId | null) => void
 }) {
   return (
     <ModelSelectorField

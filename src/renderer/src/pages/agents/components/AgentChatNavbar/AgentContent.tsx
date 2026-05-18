@@ -4,19 +4,18 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { AgentSelector, ModelSelector } from '@renderer/components/Selector'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
-import { useUpdateAgent } from '@renderer/hooks/agents/useAgentDataApi'
+import { useUpdateAgent } from '@renderer/hooks/agents/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
-import { useActiveSession, useUpdateSession } from '@renderer/hooks/agents/useSessionDataApi'
-import { useModelById } from '@renderer/hooks/useModels'
+import { useActiveSession, useUpdateSession } from '@renderer/hooks/agents/useSession'
+import { useModelById } from '@renderer/hooks/useModel'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useProviderDisplayName } from '@renderer/hooks/useProviders'
+import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { AgentLabel } from '@renderer/pages/agents/AgentSettings/shared'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model as SharedModel, UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, Menu, PanelLeftClose, PanelRightClose } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentSidePanelDrawer from '../AgentSidePanelDrawer'
@@ -42,10 +41,6 @@ const AgentContent = ({ activeAgent, onOpenSettings, onDraftAgentChange, creatin
   const modelFilter = useAgentModelFilter(activeAgent?.type)
 
   const { model: currentSharedModel } = useModelById((activeAgent?.model ?? '') as UniqueModelId)
-  const currentRendererModel = useMemo(
-    () => (currentSharedModel ? fromSharedModel(currentSharedModel) : undefined),
-    [currentSharedModel]
-  )
   const providerName = useProviderDisplayName(currentSharedModel?.providerId)
 
   const handleAgentChange = useCallback(
@@ -136,9 +131,9 @@ const AgentContent = ({ activeAgent, onOpenSettings, onDraftAgentChange, creatin
                   mountStrategy="lazy-keep"
                   trigger={
                     <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs">
-                      <ModelAvatar model={currentRendererModel} size={20} />
+                      <ModelAvatar model={currentSharedModel} size={20} />
                       <span className="max-w-60 truncate">
-                        {currentRendererModel ? currentRendererModel.name : t('button.select_model')}
+                        {currentSharedModel ? currentSharedModel.name : t('button.select_model')}
                         {providerName ? ` | ${providerName}` : ''}
                       </span>
                       <ChevronDown size={14} className="text-muted-foreground" />

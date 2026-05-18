@@ -27,7 +27,6 @@ import fontList from 'font-list'
 import { skillService } from './services/agents/skills/SkillService'
 import { appService } from './services/AppService'
 import BackupManager from './services/BackupManager'
-import { cherryINOAuthService } from './services/CherryINOAuthService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
 import { ExportService } from './services/ExportService'
@@ -451,13 +450,9 @@ export async function registerIpc() {
     await shell.openPath(path)
   })
 
-  ipcMain.handle(IpcChannel.KnowledgeBase_Create, knowledgeService.create.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, knowledgeService.reset.bind(knowledgeService))
+  // v1 renderer knowledge IPC retired (T4.2); only base deletion remains,
+  // used by the v1 Redux store/knowledge slice until it is removed.
   ipcMain.handle(IpcChannel.KnowledgeBase_Delete, knowledgeService.delete.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Add, knowledgeService.add.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, knowledgeService.remove.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Search, knowledgeService.search.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, knowledgeService.rerank.bind(knowledgeService))
 
   // memory
   // VertexAI
@@ -505,14 +500,6 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Copilot_GetToken, copilotService.getToken.bind(copilotService))
   ipcMain.handle(IpcChannel.Copilot_Logout, copilotService.logout.bind(copilotService))
   ipcMain.handle(IpcChannel.Copilot_GetUser, copilotService.getUser.bind(copilotService))
-
-  // CherryIN OAuth
-  ipcMain.handle(IpcChannel.CherryIN_SaveToken, cherryINOAuthService.saveToken.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_HasToken, cherryINOAuthService.hasToken.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_GetBalance, cherryINOAuthService.getBalance.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_Logout, cherryINOAuthService.logout.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_StartOAuthFlow, cherryINOAuthService.startOAuthFlow.bind(cherryINOAuthService))
-  ipcMain.handle(IpcChannel.CherryIN_ExchangeToken, cherryINOAuthService.exchangeToken.bind(cherryINOAuthService))
 
   // Obsidian service
   ipcMain.handle(IpcChannel.Obsidian_GetVaults, () => {

@@ -1,4 +1,5 @@
 import { BaseService } from '@main/core/lifecycle'
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type {
   ResolvedWebSearchProvider,
   WebSearchExecutionConfig,
@@ -44,12 +45,11 @@ const runtimeConfig: WebSearchExecutionConfig = {
   excludeDomains: [],
   compression: {
     method: 'none',
-    cutoffLimit: 2000,
-    cutoffUnit: 'char'
+    cutoffLimit: 2000
   }
 }
 
-const providerOverrides: ResolvedWebSearchProvider[] = [
+const providerOverrides: WebSearchProvider[] = [
   {
     id: 'tavily',
     name: 'Tavily',
@@ -62,10 +62,10 @@ const providerOverrides: ResolvedWebSearchProvider[] = [
   },
   {
     id: 'fetch',
-    name: 'Fetch',
+    name: 'fetch',
     type: 'api',
     apiKeys: [],
-    capabilities: [{ feature: 'fetchUrls', apiHost: '' }],
+    capabilities: [{ feature: 'fetchUrls' }],
     engines: [],
     basicAuthUsername: '',
     basicAuthPassword: ''
@@ -86,7 +86,7 @@ const providerOverrides: ResolvedWebSearchProvider[] = [
 ]
 
 function response(
-  providerId: ResolvedWebSearchProvider['id'],
+  providerId: WebSearchProvider['id'],
   capability: WebSearchResponse['capability'],
   input: string,
   results: Array<{ title: string; content: string; url: string; sourceInput?: string }>
@@ -105,8 +105,8 @@ function response(
 
 function setWebSearchPreferences(
   values: Partial<{
-    defaultSearchKeywordsProvider: ResolvedWebSearchProvider['id'] | null
-    defaultFetchUrlsProvider: ResolvedWebSearchProvider['id'] | null
+    defaultSearchKeywordsProvider: WebSearchProvider['id'] | null
+    defaultFetchUrlsProvider: WebSearchProvider['id'] | null
     runtimeConfig: Partial<WebSearchExecutionConfig>
   }> = {}
 ) {
@@ -120,8 +120,6 @@ function setWebSearchPreferences(
     'chat.web_search.compression.method': values.runtimeConfig?.compression?.method ?? runtimeConfig.compression.method,
     'chat.web_search.compression.cutoff_limit':
       values.runtimeConfig?.compression?.cutoffLimit ?? runtimeConfig.compression.cutoffLimit,
-    'chat.web_search.compression.cutoff_unit':
-      values.runtimeConfig?.compression?.cutoffUnit ?? runtimeConfig.compression.cutoffUnit,
     'chat.web_search.provider_overrides': Object.fromEntries(
       providerOverrides.map((provider) => [
         provider.id,
@@ -399,8 +397,7 @@ describe('WebSearchService', () => {
         excludeDomains: ['https://blocked.example/*'],
         compression: {
           method: 'cutoff',
-          cutoffLimit: 5,
-          cutoffUnit: 'char'
+          cutoffLimit: 5
         }
       }
     })
@@ -418,7 +415,7 @@ describe('WebSearchService', () => {
     expect(result.results).toEqual([
       {
         title: 'Allowed',
-        content: '12345...',
+        content: '1234567890',
         url: 'https://allowed.example/post',
         sourceInput: 'hello'
       }
@@ -485,13 +482,13 @@ describe('WebSearchService', () => {
 
   it('logs and throws when a provider does not implement the requested capability', async () => {
     await expect(webSearchService.searchKeywords({ providerId: 'fetch', keywords: ['hello'] })).rejects.toThrow(
-      'Web search provider fetch does not implement capability searchKeywords'
+      'Web search provider fetch does not support capability searchKeywords'
     )
 
     expect(loggerErrorMock).toHaveBeenCalledWith(
       'Web search failed',
       expect.objectContaining({
-        message: 'Web search provider fetch does not implement capability searchKeywords'
+        message: 'Web search provider fetch does not support capability searchKeywords'
       }),
       {
         providerId: 'fetch',

@@ -48,7 +48,7 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [false]
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentDataApi', () => ({
+vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useAgent: () => ({
     agent: { id: 'agent-1', model: 'provider:model-1' },
     isLoading: false
@@ -59,7 +59,7 @@ vi.mock('@renderer/hooks/agents/useAgentDataApi', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agents/useSessionDataApi', () => ({
+vi.mock('@renderer/hooks/agents/useSession', () => ({
   useActiveSession: () => ({
     session: { id: 'session-1', agentId: 'agent-1' },
     isLoading: false

@@ -24,9 +24,9 @@
 
 import type { Modality } from '@cherrystudio/provider-registry'
 import { MODALITY } from '@cherrystudio/provider-registry'
-import type { EndpointType as RendererEndpointType, Model, ModelPricing } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import type { Model as SharedModel, ModelCapability, RuntimeReasoning, UniqueModelId } from '@shared/data/types/model'
-import { MODEL_CAPABILITY, parseUniqueModelId, UNIQUE_MODEL_ID_SEPARATOR } from '@shared/data/types/model'
+import { MODEL_CAPABILITY, UNIQUE_MODEL_ID_SEPARATOR } from '@shared/data/types/model'
 import {
   findTokenLimit,
   getLowerBaseModelName,
@@ -36,8 +36,7 @@ import {
   inferReasoningFromModelId,
   inferRerankFromModelId,
   inferVisionFromModelId,
-  inferWebSearchFromModelId,
-  isNotSupportTextDeltaModel
+  inferWebSearchFromModelId
 } from '@shared/utils/model'
 
 export function toSharedCompatModel(v1: Model): SharedModel {
@@ -69,8 +68,6 @@ function inferCapabilities(v1: Model): ModelCapability[] {
   // Capability inference runs on `id` only. Running it on `name` would
   // conflate unrelated strings — e.g. a Hunyuan model whose display name
   // happens to be "gpt-4o" would get WEB_SEARCH via OpenAI heuristics.
-  // Name-based fallback for legacy v1 data lives in `checkByIdOrName`
-  // for the handful of specific checks that need it.
   const set = new Set<ModelCapability>()
   const id = v1.id
   if (!id) return []
@@ -143,41 +140,4 @@ function inferSupportedEfforts(lowerId: string, lowerName: string): string[] | u
   // Perplexity deep-research
   if (id.includes('sonar-deep-research')) return ['medium']
   return undefined
-}
-
-/**
- * Preserve renderer's legacy "check id, fall back to checking name" pattern
- * (originally `withModelIdAndNameAsId`). Used by the small handful of checks
- * where v1 data historically stored the real model id under `model.name`.
- */
-export function checkByIdOrName(model: Model | null | undefined, check: (m: SharedModel) => boolean): boolean {
-  if (!model) return false
-  if (check(toSharedCompatModel(model))) return true
-  return check(toSharedCompatModel({ ...model, id: model.name }))
-}
-
-export function fromSharedModel(api: SharedModel): Model {
-  const { providerId, modelId } = parseUniqueModelId(api.id)
-  return {
-    id: modelId,
-    provider: providerId,
-    name: api.name,
-    group: api.group ?? '',
-    owned_by: api.ownedBy,
-    description: api.description,
-    pricing: api.pricing ? toRendererPricing(api.pricing) : undefined,
-    supported_endpoint_types: api.endpointTypes as RendererEndpointType[] | undefined,
-    supported_text_delta: !isNotSupportTextDeltaModel(api)
-  }
-}
-
-function toRendererPricing(api: NonNullable<SharedModel['pricing']>): ModelPricing | undefined {
-  const input = api.input?.perMillionTokens
-  const output = api.output?.perMillionTokens
-  if (input == null || output == null) return undefined
-  return {
-    input_per_million_tokens: input,
-    output_per_million_tokens: output,
-    currencySymbol: api.input?.currency
-  }
 }

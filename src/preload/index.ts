@@ -50,6 +50,7 @@ import type {
   KnowledgeSearchResult as KnowledgeVectorSearchResult,
   RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
+import type { Model } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import type {
   WebSearchCheckProviderRequest,
@@ -66,9 +67,6 @@ import type {
   FileMetadata,
   FileUploadResponse,
   GetApiServerStatusResult,
-  KnowledgeBaseParams,
-  KnowledgeItem,
-  KnowledgeSearchResult,
   MCPServer,
   Notification,
   OcrProvider,
@@ -329,52 +327,10 @@ const api = {
   },
   openPath: (path: string) => ipcRenderer.invoke(IpcChannel.Open_Path, path),
   knowledgeBase: {
-    create: (base: KnowledgeBaseParams, context?: SpanContext) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
-    reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Reset, base),
-    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id),
-    add: ({
-      base,
-      item,
-      userId,
-      forceReload = false
-    }: {
-      base: KnowledgeBaseParams
-      item: KnowledgeItem
-      userId?: string
-      forceReload?: boolean
-    }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Add, {
-        base,
-        item,
-        forceReload,
-        userId
-      }),
-    remove: ({ uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }) =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeBase_Remove, {
-        uniqueId,
-        uniqueIds,
-        base
-      }),
-    search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Search, context, { search, base }),
-    rerank: (
-      {
-        search,
-        base,
-        results
-      }: {
-        search: string
-        base: KnowledgeBaseParams
-        results: KnowledgeSearchResult[]
-      },
-      context?: SpanContext
-    ) =>
-      tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, {
-        search,
-        base,
-        results
-      })
+    // v1 renderer knowledge path retired (T4.2). Only base deletion remains,
+    // still invoked by the v1 Redux store/knowledge slice until that slice is
+    // removed in the unified step. v2 knowledge runs via window.api.knowledgeRuntime.*.
+    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id)
   },
   knowledgeRuntime: {
     createBase: (base: CreateKnowledgeBaseDto): Promise<KnowledgeBase> =>
@@ -527,7 +483,18 @@ const api = {
     logout: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_Logout, apiHost),
     startOAuthFlow: (oauthServer: string, apiHost?: string) =>
       ipcRenderer.invoke(IpcChannel.CherryIN_StartOAuthFlow, oauthServer, apiHost),
-    exchangeToken: (code: string, state: string) => ipcRenderer.invoke(IpcChannel.CherryIN_ExchangeToken, code, state)
+    onOAuthResult: (
+      callback: (result: { state: string; apiKeys: string } | { state: string; error: string }) => void
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        result: { state: string; apiKeys: string } | { state: string; error: string }
+      ) => callback(result)
+      ipcRenderer.on(IpcChannel.CherryIN_OAuthResult, listener)
+      return () => {
+        ipcRenderer.off(IpcChannel.CherryIN_OAuthResult, listener)
+      }
+    }
   },
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
@@ -916,8 +883,8 @@ const api = {
     listModels: (request: {
       providerId?: string
       assistantId?: string
-    }): Promise<Array<{ id: string; name: string; provider: string; group: string; [key: string]: unknown }>> =>
-      ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
+      throwOnError?: boolean
+    }): Promise<Partial<Model>[]> => ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
 
     // ── Tool approval (v6 ToolUIPart native flow) ──
     toolApproval: {
@@ -930,6 +897,16 @@ const api = {
         anchorId?: string
       }): Promise<{ ok: boolean }> => ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
     }
+  },
+  translate: {
+    open: (req: {
+      streamId: string
+      text: string
+      targetLangCode: string
+      /** Optional — when present, main persists the translation onto this message's parts on stream success. */
+      messageId?: string
+      sourceLangCode?: string
+    }): Promise<{ streamId: string }> => ipcRenderer.invoke(IpcChannel.Ai_Translate_Open, req)
   },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),

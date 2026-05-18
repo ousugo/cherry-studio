@@ -9,6 +9,7 @@
 import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -234,13 +235,27 @@ export class AssistantDataService {
 
     const whereClause = and(...conditions)
 
+    // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
+    // the top (sorted by pin.orderKey ASC), then unpinned rows sorted by the
+    // assistant's own orderKey. Tests that never pin rows see the same order
+    // as before because the CASE evaluates to 1 for every row and falls
+    // through to the secondary sort untouched.
     const [rows, [{ count }]] = await Promise.all([
       this.db
-        .select({ assistant: assistantTable, modelName: userModelTable.name })
+        .select({ assistant: assistantTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
         .from(assistantTable)
         .leftJoin(userModelTable, eq(assistantTable.modelId, userModelTable.id))
+        .leftJoin(pinTable, and(eq(pinTable.entityType, 'assistant'), eq(pinTable.entityId, assistantTable.id)))
         .where(whereClause)
-        .orderBy(asc(assistantTable.orderKey), asc(assistantTable.id))
+        .orderBy(
+          sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+          asc(pinTable.orderKey),
+          asc(assistantTable.orderKey),
+          // Production orderKeys are unique so this tiebreaker is rarely hit;
+          // tests that seed multiple rows with the same default key fall back
+          // to insertion-ordered createdAt instead of SQLite ROWID order.
+          asc(assistantTable.createdAt)
+        )
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)
@@ -280,8 +295,10 @@ export class AssistantDataService {
 
       // Split relation/tag fields from columns. Service owns emoji/settings
       // defaults; prompt/description stay omitted when undefined so DB DEFAULTs apply.
+      // orderKey is omitted — `insertWithOrderKey` computes the next fractional
+      // key from the existing max and injects it before the DB write.
       const { mcpServerIds, knowledgeBaseIds, tagIds, ...columnDto } = dto
-      const insertValues = {
+      const insertValues: Omit<typeof assistantTable.$inferInsert, 'orderKey'> = {
         ...columnDto,
         modelId,
         emoji: dto.emoji ?? '🌟',

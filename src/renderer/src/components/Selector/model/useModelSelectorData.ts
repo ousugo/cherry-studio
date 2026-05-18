@@ -1,6 +1,6 @@
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { sortBy } from 'lodash'
@@ -51,7 +51,7 @@ function getDuplicateModelNames<T extends Pick<Model, 'name'>>(models: T[]): Set
 }
 
 function sortModels(models: Model[]) {
-  return sortBy(models, [(model) => model.sortOrder ?? Number.MAX_SAFE_INTEGER, 'group', 'name'])
+  return sortBy(models, ['group', 'name'])
 }
 
 function getModelIdentifier(model: Model) {

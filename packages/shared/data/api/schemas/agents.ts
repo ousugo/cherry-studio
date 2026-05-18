@@ -6,16 +6,17 @@
  * a response payload and an entity). DTOs are derived via .pick().
  */
 
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
 // Field atoms (shared validators reused across entity and DTO schemas)
 // ============================================================================
 
 export const AgentNameAtomSchema = z.string().min(1)
-export const ModelIdAtomSchema = z.string().min(1)
 export const ScheduleTypeAtomSchema = z.enum(['cron', 'interval', 'once'])
 export const ScheduleValueAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
@@ -111,7 +112,7 @@ export const AgentBaseSchema = z.strictObject({
   name: AgentNameAtomSchema,
   description: z.string().optional(),
   instructions: z.string().optional(),
-  model: ModelIdAtomSchema,
+  model: UniqueModelIdSchema,
   planModel: z.string().optional(),
   smallModel: z.string().optional(),
   mcps: z.array(z.string()).optional(),
@@ -136,7 +137,7 @@ export const AGENT_MUTABLE_FIELDS = {
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   type: z.enum(['claude-code']),
-  model: ModelIdAtomSchema.optional(),
+  model: UniqueModelIdSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   /**
@@ -218,7 +219,7 @@ export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 
 // `model` re-required because the picked entity field is optional (FK SET NULL).
 export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
-  model: ModelIdAtomSchema
+  model: UniqueModelIdSchema
 })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
@@ -387,4 +388,4 @@ export type AgentSchemas = {
       response: OffsetPaginationResponse<TaskRunLogEntity>
     }
   }
-}
+} & OrderEndpoints<'/agents'>

@@ -3,8 +3,10 @@
  *
  * Supports both old types (provider.type) and v2 types (provider.presetProviderId).
  *
- * Will be replaced by `@cherrystudio/provider-registry` capability inference
- * once PR #14011 is merged.
+ * Capability predicates: serviceTier/verbosity read the v2 Provider's
+ * registry-sourced `apiFeatures`; urlContext/enableThinking derive from
+ * v2 provider identity (no registry apiFeatures flag exists for those),
+ * faithfully porting the former v1 `@renderer/utils/provider` semantics.
  * @see https://github.com/CherryHQ/cherry-studio/pull/14011
  */
 
@@ -31,14 +33,6 @@ export function isAzureOpenAIProvider(provider: Provider): boolean {
   return provider.id === 'azure-openai' || t === 'azure-openai'
 }
 
-/** Check if provider uses Azure responses endpoint */
-export function isAzureResponsesEndpoint(provider: Provider): boolean {
-  // v2: check settings.apiVersion for 'preview' or 'v1'
-  const settings = (provider as unknown as Record<string, unknown>).settings as Record<string, unknown> | undefined
-  const apiVersion = (settings?.apiVersion as string)?.trim()
-  return isAzureOpenAIProvider(provider) && !!apiVersion && ['preview', 'v1'].includes(apiVersion)
-}
-
 /** Check if provider is AWS Bedrock */
 export function isAwsBedrockProvider(provider: Provider): boolean {
   return provider.id === 'aws-bedrock' || getProviderType(provider) === 'aws-bedrock'
@@ -55,30 +49,110 @@ export function isAIGatewayProvider(provider: Provider): boolean {
   return provider.presetProviderId === 'gateway' || provider.id === 'gateway'
 }
 
-/** Check if provider supports URL context */
-// oxlint-disable-next-line no-unused-vars
-export function isSupportUrlContextProvider(_provider: Provider): boolean {
-  // TODO: derive from provider-registry capabilities
-  return false
+/**
+ * Check if provider supports URL context (Gemini/Vertex/Anthropic/
+ * Azure-OpenAI/new-api family, plus cherryin). The provider-registry has
+ * no urlContext apiFeature flag, so this is derived from provider identity
+ * — a faithful v2 port of the former v1 SUPPORT_URL_CONTEXT_PROVIDER_TYPES.
+ */
+export function isSupportUrlContextProvider(provider: Provider): boolean {
+  return (
+    isGeminiProvider(provider) ||
+    isVertexProvider(provider) ||
+    isAnthropicProvider(provider) ||
+    isAzureOpenAIProvider(provider) ||
+    isNewApiProvider(provider) ||
+    provider.id === 'cherryin'
+  )
 }
 
-/** Check if provider supports service tier */
-// oxlint-disable-next-line no-unused-vars
-export function isSupportServiceTierProvider(_provider: Provider): boolean {
-  // TODO: derive from provider-registry capabilities
-  return false
+/** Check if provider supports service tier (registry-sourced apiFeatures). */
+export function isSupportServiceTierProvider(provider: Provider): boolean {
+  return provider.apiFeatures?.serviceTier ?? false
 }
 
-/** Check if provider supports verbosity */
-// oxlint-disable-next-line no-unused-vars
-export function isSupportVerbosityProvider(_provider: Provider): boolean {
-  // TODO: derive from provider-registry capabilities
-  return false
+/** Check if provider supports verbosity (registry-sourced apiFeatures). */
+export function isSupportVerbosityProvider(provider: Provider): boolean {
+  return provider.apiFeatures?.verbosity ?? false
 }
 
-/** Check if provider supports enabling thinking mode */
-// oxlint-disable-next-line no-unused-vars
-export function isSupportEnableThinkingProvider(_provider: Provider): boolean {
-  // TODO: derive from provider-registry capabilities
-  return false
+/**
+ * Providers that do NOT support the Qwen3 `enable_thinking` parameter
+ * (OpenAI Chat Completions API only). No registry apiFeature flag exists
+ * for this; faithful v2 port of the former v1 exclusion list.
+ */
+const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDERS = ['ollama', 'lmstudio', 'nvidia', 'gpustack'] as const
+
+/** Check if provider supports enabling thinking mode. */
+export function isSupportEnableThinkingProvider(provider: Provider): boolean {
+  return !NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDERS.some((id) => id === provider.id)
+}
+
+// ── Additional v2 predicates (T1.2: single source of truth) ───────────────
+// Keyed on presetProviderId / id / defaultChatEndpoint — never v1 `provider.type`.
+
+/** Check if provider is Anthropic/Claude. */
+export function isAnthropicProvider(provider: Provider): boolean {
+  return (
+    provider.presetProviderId === 'anthropic' ||
+    provider.id === 'anthropic' ||
+    provider.defaultChatEndpoint === 'anthropic-messages'
+  )
+}
+
+/** Check if provider is OpenAI (responses endpoint). */
+export function isOpenAIProvider(provider: Provider): boolean {
+  return provider.defaultChatEndpoint === 'openai-responses'
+}
+
+/** Check if provider is Perplexity. */
+export function isPerplexityProvider(provider: Provider): boolean {
+  return provider.id === 'perplexity' || provider.presetProviderId === 'perplexity'
+}
+
+/** Check if provider is the Cherry-hosted aggregator. */
+export function isCherryAIProvider(provider: Provider): boolean {
+  return provider.id === 'cherryai' || provider.presetProviderId === 'cherryai'
+}
+
+/** Check if provider routes through a new-api compatible gateway. */
+export function isNewApiProvider(provider: Provider): boolean {
+  return ['new-api', 'cherryin', 'aionly'].includes(provider.id) || provider.presetProviderId === 'new-api'
+}
+
+/** Check if provider speaks the OpenAI Chat Completions wire format. */
+export function isOpenAICompatibleProvider(provider: Provider): boolean {
+  return (
+    provider.defaultChatEndpoint === 'openai-chat-completions' ||
+    provider.presetProviderId === 'new-api' ||
+    provider.presetProviderId === 'mistral'
+  )
+}
+
+/** Gemini providers that use the native Google web-search tool. */
+export function isGeminiWebSearchProvider(provider: Provider): boolean {
+  return isGeminiProvider(provider) || isVertexProvider(provider)
+}
+
+/** Filter to providers that can serve Claude models (native or compatible host). */
+export function getClaudeSupportedProviders<T extends Provider>(providers: T[]): T[] {
+  return providers.filter(
+    (p) =>
+      isAnthropicProvider(p) ||
+      isNewApiProvider(p) ||
+      p.id === 'aihubmix' ||
+      p.id === 'openrouter' ||
+      isAzureOpenAIProvider(p)
+  )
+}
+
+/** Anthropic prompt-cache (1h) support. */
+export function isSupportAnthropicPromptCacheProvider(provider: Provider): boolean {
+  return (
+    isAnthropicProvider(provider) ||
+    isNewApiProvider(provider) ||
+    provider.id === 'aihubmix' ||
+    provider.id === 'openrouter' ||
+    isAzureOpenAIProvider(provider)
+  )
 }

@@ -1,9 +1,7 @@
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { useProviders } from '@renderer/hooks/useProvider'
-import type { Model } from '@renderer/types'
-import { getFancyProviderName } from '@renderer/utils'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
+import type { Model } from '@shared/data/types/model'
 import type { FC } from 'react'
 
 const MentionModelsInput: FC<{
@@ -13,8 +11,8 @@ const MentionModelsInput: FC<{
   const { providers } = useProviders()
 
   const getProviderName = (model: Model) => {
-    const provider = providers.find((p) => p.id === model?.provider)
-    return provider ? getFancyProviderName(provider) : ''
+    const provider = providers.find((p) => p.id === model?.providerId)
+    return provider ? getProviderDisplayName(provider) : ''
   }
 
   return (
@@ -24,7 +22,7 @@ const MentionModelsInput: FC<{
           <CustomTag
             icon={<i className="iconfont icon-at" />}
             color="#1677ff"
-            key={createUniqueModelId(model.provider, model.id)}
+            key={model.id}
             closable
             onClose={() => onRemoveModel(model)}>
             {model.name} ({getProviderName(model)})

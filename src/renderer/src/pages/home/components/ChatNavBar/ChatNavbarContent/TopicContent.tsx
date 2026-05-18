@@ -3,10 +3,9 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { AssistantSelector, ModelSelector } from '@renderer/components/Selector'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useProviderDisplayName } from '@renderer/hooks/useProviders'
-import { useTopicMutations } from '@renderer/hooks/useTopicDataApi'
+import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { getLeadingEmoji } from '@renderer/utils'
 import type { Model as SharedModel } from '@shared/data/types/model'
 import { isNonChatModel, isWebSearchModel } from '@shared/utils/model'
@@ -30,10 +29,6 @@ const TopicContent = ({ assistantId, topicId, onOpenSettings }: TopicContentProp
   const { assistant, model: currentSharedModel, setModel } = useAssistant(assistantId)
   const { updateTopic } = useTopicMutations()
   const assistantName = useMemo(() => assistant?.name || t('chat.default.name'), [assistant?.name, t])
-  const currentRendererModel = useMemo(
-    () => (currentSharedModel ? fromSharedModel(currentSharedModel) : undefined),
-    [currentSharedModel]
-  )
   const providerName = useProviderDisplayName(currentSharedModel?.providerId)
 
   const handleAssistantChange = useCallback(
@@ -48,8 +43,7 @@ const TopicContent = ({ assistantId, topicId, onOpenSettings }: TopicContentProp
     (model: SharedModel | undefined) => {
       if (!model || !assistant) return
       const enabledWebSearch = isWebSearchModel(model)
-      const next = fromSharedModel(model)
-      setModel(next, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
+      setModel(model, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
     },
     [assistant, setModel]
   )
@@ -79,9 +73,9 @@ const TopicContent = ({ assistantId, topicId, onOpenSettings }: TopicContentProp
             shortcut="chat.select_model"
             trigger={
               <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs">
-                <ModelAvatar model={currentRendererModel} size={20} />
+                <ModelAvatar model={currentSharedModel} size={20} />
                 <span className="max-w-60 truncate">
-                  {currentRendererModel ? currentRendererModel.name : t('button.select_model')}
+                  {currentSharedModel ? currentSharedModel.name : t('button.select_model')}
                   {providerName ? ` | ${providerName}` : ''}
                 </span>
                 <ChevronDown size={14} className="text-muted-foreground" />

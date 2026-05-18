@@ -1,8 +1,7 @@
 import { Alert } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
-import { useDefaultModel, useModelById } from '@renderer/hooks/useModels'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useDefaultModel, useModelById } from '@renderer/hooks/useModel'
+import { useProvider } from '@renderer/hooks/useProvider'
 import type { ChatPreferenceSectionsFeatures } from '@renderer/pages/chat-settings/ChatPreferenceSections'
 import ChatPreferenceSections from '@renderer/pages/chat-settings/ChatPreferenceSections'
 import { SettingDivider } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
@@ -10,7 +9,7 @@ import type { Assistant } from '@renderer/types'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ProviderSettings } from '@shared/data/types/provider'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import GroqSettingsGroup from './GroqSettingsGroup'
@@ -32,9 +31,8 @@ const AssistantSettingsTab: FC<Props> = (props) => {
   const { t } = useTranslation()
   const { model: apiModel } = useModelById(props.assistant.modelId as UniqueModelId)
   const { defaultModel: apiDefaultModel } = useDefaultModel()
-  const selectedApiModel = apiModel ?? (props.assistant.modelId ? undefined : apiDefaultModel)
-  const model = useMemo(() => (selectedApiModel ? fromSharedModel(selectedApiModel) : undefined), [selectedApiModel])
-  const { provider, updateProvider, isUpdating, updateError } = useProvider(model?.provider)
+  const model = apiModel ?? (props.assistant.modelId ? undefined : apiDefaultModel)
+  const { provider, updateProvider, isUpdating, updateError } = useProvider(model?.providerId)
 
   const updateProviderSettings = useCallback(
     async (providerSettings: Partial<ProviderSettings>) => {

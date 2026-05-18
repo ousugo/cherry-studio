@@ -73,7 +73,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: vi.fn() })
 }))
 
-vi.mock('@renderer/hooks/useTopicDataApi', () => ({
+vi.mock('@renderer/hooks/useTopic', () => ({
   useTopicMutations: () => ({ updateTopic: vi.fn() })
 }))
 

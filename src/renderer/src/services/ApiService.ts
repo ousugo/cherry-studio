@@ -4,7 +4,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import type { Assistant, Model, Provider } from '@renderer/types'
+import type { Assistant, Provider } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
@@ -13,7 +13,7 @@ import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
-import { createUniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isEmpty, takeRight } from 'lodash'
 
 import { readDefaultModel, readQuickModel } from './ModelService'
@@ -50,7 +50,7 @@ export async function fetchMessagesSummary({
 
   try {
     const { text } = await window.api.ai.generateText({
-      uniqueModelId: createUniqueModelId(model.provider, model.id),
+      uniqueModelId: model.id,
       system: prompt,
       prompt: conversation
     })
@@ -80,7 +80,7 @@ export async function fetchNoteSummary({ content }: { content: string; assistant
 
   try {
     const { text } = await window.api.ai.generateText({
-      uniqueModelId: createUniqueModelId(model.provider, model.id),
+      uniqueModelId: model.id,
       system: prompt,
       prompt: purifiedContent
     })
@@ -106,7 +106,7 @@ export async function fetchGenerate({
       return ''
     }
     const { text } = await window.api.ai.generateText({
-      uniqueModelId: createUniqueModelId(resolvedModel.provider, resolvedModel.id),
+      uniqueModelId: resolvedModel.id,
       system: prompt,
       prompt: content
     })
@@ -117,13 +117,13 @@ export async function fetchGenerate({
   }
 }
 
-export async function fetchModels(provider: Provider): Promise<Model[]> {
+export async function fetchModels(provider: { id: string; name?: string }): Promise<Partial<Model>[]> {
   try {
     return await window.api.ai.listModels({ providerId: provider.id })
   } catch (error) {
     logger.error('Failed to fetch models from provider', {
       providerId: provider.id,
-      providerName: provider.name,
+      providerName: provider.name ?? provider.id,
       error: error instanceof Error ? error.message : String(error)
     })
     return []
@@ -160,10 +160,13 @@ export function checkApiProvider(provider: Provider): void {
  * api key / host / models) and IPC forwarding. Probe dispatch (embedding vs
  * chat), timeout handling, and latency measurement all happen in Main.
  */
-export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<{ latency: number }> {
-  checkApiProvider(provider)
+export async function checkApi(
+  uniqueModelId: UniqueModelId,
+  options?: { timeout?: number; signal?: AbortSignal }
+): Promise<{ latency: number }> {
+  options?.signal?.throwIfAborted()
   return await window.api.ai.checkModel({
-    uniqueModelId: createUniqueModelId(provider.id, model.id),
-    timeout
+    uniqueModelId,
+    timeout: options?.timeout ?? 15000
   })
 }
