@@ -25,9 +25,6 @@ const HISTORY_HEADER_GRID_CLASS =
   'grid min-w-[760px] grid-cols-[minmax(320px,1fr)_160px_92px] gap-3 px-5 py-2.5 font-medium text-foreground-muted text-xs leading-4'
 const HISTORY_ROW_GRID_CLASS =
   'grid w-full min-w-[736px] grid-cols-[minmax(320px,1fr)_160px_92px] items-center gap-3 rounded-md px-3 text-sm leading-5'
-const HISTORY_CONTEXT_MENU_CLASS = 'z-50'
-const HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS = 'z-40'
-const HISTORY_CONFIRM_DIALOG_CONTENT_CLASS = 'z-50'
 const TopicHistoryResourceProvider = ResourceList.Provider<Topic>
 const SessionHistoryResourceProvider = ResourceList.Provider<AgentSessionEntity>
 
@@ -244,9 +241,6 @@ const HistoryTopicRow = ({
       <ResourceList.ContextMenu
         item={topic}
         actions={menuActions}
-        menuClassName={HISTORY_CONTEXT_MENU_CLASS}
-        confirmDialogOverlayClassName={HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS}
-        confirmDialogContentClassName={HISTORY_CONFIRM_DIALOG_CONTENT_CLASS}
         onAction={(action) => menuPreset.onAction(topic, action, menuContextOverride)}>
         {row}
       </ResourceList.ContextMenu>
@@ -284,7 +278,7 @@ const HistorySessionRow = ({
   const context = useResourceList<AgentSessionEntity>()
   const avatar = agent?.configuration?.avatar?.trim()
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
-  const startEdit = useCallback((_: string) => setRenameDialogOpen(true), [])
+  const startEdit = useCallback(() => setRenameDialogOpen(true), [])
   const submitRenameDialog = useCallback(
     (name: string) => context.actions.commitRename(session.id, name),
     [context.actions, session.id]
@@ -324,9 +318,6 @@ const HistorySessionRow = ({
       <ResourceList.ContextMenu
         item={session}
         actions={menuActions}
-        menuClassName={HISTORY_CONTEXT_MENU_CLASS}
-        confirmDialogOverlayClassName={HISTORY_CONFIRM_DIALOG_OVERLAY_CLASS}
-        confirmDialogContentClassName={HISTORY_CONFIRM_DIALOG_CONTENT_CLASS}
         onAction={(action) => menuPreset.onAction(session, action, menuContextOverride)}>
         {row}
       </ResourceList.ContextMenu>

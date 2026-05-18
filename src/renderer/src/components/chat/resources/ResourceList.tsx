@@ -721,7 +721,7 @@ function HeaderItem({ actions, className, icon, label, ref, variant = 'ghost', .
         ref={ref}
         variant={variant}
         className={cn(
-          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1.5 text-sm outline-none shadow-none transition-all duration-150 hover:bg-accent focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-3.5 [&_svg]:shrink-0',
+          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1.5 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-3.5 [&_svg]:shrink-0',
           className
         )}
         {...props}>
@@ -1283,6 +1283,7 @@ function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
 }: ContextMenuProps<T, TActionContext>) {
   const { actions, meta } = useResourceList<T>()
   const contentClass = cn(CONTEXT_MENU_CONTENT_CLASS, contentClassName)
+  const actionMenuClass = cn(contentClassName, menuClassName)
   const handleOpenChange = useCallback(
     (open: boolean) => {
       if (open) actions.openContextMenu(meta.getItemId(item))
@@ -1297,7 +1298,7 @@ function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
       {menuActions ? (
         <ActionMenu
           actions={menuActions}
-          className={cn(contentClass, menuClassName)}
+          className={actionMenuClass}
           confirmDialogContentClassName={confirmDialogContentClassName}
           confirmDialogOverlayClassName={confirmDialogOverlayClassName}
           onAction={(action) => onAction?.(action)}
