@@ -136,9 +136,9 @@ const MessageItem: FC<Props> = ({
   const isStreamTarget = activityState?.isStreamTarget ?? false
   const isApprovalAnchor = activityState?.isApprovalAnchor ?? false
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
-  const showUserHeaderActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode
-  const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
+  const showAssistantFooterActions = showMenuBar && isAssistantMessage
+  const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -210,25 +210,6 @@ const MessageItem: FC<Props> = ({
             model={model}
             key={model ? createUniqueModelId(model.provider, model.id) : ''}
             isGroupContextMessage={isGroupContextMessage}
-            actionsSlot={
-              showUserHeaderActions ? (
-                <>
-                  <MessageMenuBar
-                    message={message}
-                    topic={topic}
-                    isLastMessage={isLastMessage}
-                    isAssistantMessage={isAssistantMessage}
-                    isGrouped={isGrouped}
-                    isProcessing={isProcessing}
-                    messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                    onStartEditing={handleStartEditing}
-                    onUpdateUseful={onUpdateUseful}
-                    variant="header"
-                  />
-                  <SiblingNavigator messageId={message.id} />
-                </>
-              ) : undefined
-            }
           />
         )}
         {isEditing && (
@@ -269,6 +250,23 @@ const MessageItem: FC<Props> = ({
                   <MessageContent message={message} />
                 </MessageErrorBoundary>
               </Scrollbar>
+            )}
+            {showUserFooterActions && (
+              <div className="MessageFooter mt-1 ml-0 flex min-h-6.5 max-w-full items-center gap-2 text-foreground-muted text-xs leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100">
+                <MessageMenuBar
+                  message={message}
+                  topic={topic}
+                  isLastMessage={isLastMessage}
+                  isAssistantMessage={false}
+                  isGrouped={isGrouped}
+                  isProcessing={isProcessing}
+                  messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                  onStartEditing={handleStartEditing}
+                  onUpdateUseful={onUpdateUseful}
+                  variant="header"
+                />
+                <SiblingNavigator messageId={message.id} />
+              </div>
             )}
             {showAssistantFooterActions && (
               <div
