@@ -276,7 +276,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
 
 // Tailwind components
 const ManagePanel: FC<PropsWithChildren> = ({ children }) => (
-  <div className="absolute bottom-[15px] left-[12px] z-[100] flex w-[calc(var(--assistants-width)-24px)] flex-row items-center rounded-xl bg-(--color-background) px-3 py-2 shadow-[0_4px_12px_rgba(0,0,0,0.15),0_0_0_1px_var(--color-border)]">
+  <div className="absolute bottom-3.75 left-3 z-100 flex w-[calc(var(--assistants-width)-24px)] flex-row items-center rounded-xl bg-background px-3 py-2 shadow-[0_4px_12px_rgba(0,0,0,0.15),0_0_0_1px_var(--color-border)]">
     {children}
   </div>
 )
@@ -312,7 +312,7 @@ const ManageIconButton: FC<PropsWithChildren<ManageIconButtonProps>> = ({
   </button>
 )
 
-const ManageDivider: FC = () => <div className="mx-1 h-5 w-px bg-(--color-border)" />
+const ManageDivider: FC = () => <div className="mx-1 h-5 w-px bg-border" />
 
 const LeftGroup: FC<PropsWithChildren> = ({ children }) => <div className="flex items-center gap-1">{children}</div>
 
@@ -328,7 +328,7 @@ const SelectedBadge: FC<PropsWithChildren<React.HTMLAttributes<HTMLSpanElement>>
   <span
     {...props}
     className={cn(
-      'inline-flex h-[18px] min-w-[18px] cursor-pointer items-center justify-center rounded-[9px] bg-(--color-primary) px-[5px] font-medium text-[11px] text-white transition-opacity duration-200 hover:opacity-[0.85]',
+      'inline-flex h-4.5 min-w-4.5 cursor-pointer items-center justify-center rounded-[9px] bg-primary px-1.25 font-medium text-[11px] text-white transition-opacity duration-200 hover:opacity-[0.85]',
       className
     )}>
     {children}

@@ -526,11 +526,7 @@ const AgentChatFrame = ({
 
 const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
   return (
-    <div
-      className={cn(
-        'flex flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-(--color-background)',
-        className
-      )}>
+    <div className={cn('flex flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background', className)}>
       {children}
     </div>
   )
@@ -539,9 +535,7 @@ const Container = ({ children, className }: PropsWithChildren<{ className?: stri
 // Lightweight warning banner — replaces antd `<Alert type="warning">`.
 // Mirrors the inline pattern in `MessageErrorBoundary.tsx`.
 const WarningAlert = ({ message }: { message: string }) => (
-  <div
-    role="alert"
-    className="mx-4 my-1 rounded-md border border-(--color-warning) bg-(--color-warning)/10 px-3 py-2 text-sm">
+  <div role="alert" className="mx-4 my-1 rounded-md border border-warning bg-warning/10 px-3 py-2 text-sm">
     {message}
   </div>
 )

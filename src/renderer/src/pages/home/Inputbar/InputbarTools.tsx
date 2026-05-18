@@ -325,7 +325,7 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
               <Droppable droppableId="inputbar-tools-visible" direction="horizontal">
                 {(provided) => (
                   <div
-                    className="flex h-[30px] items-center overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    className="flex h-7.5 items-center overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                     ref={provided.innerRef}
                     {...provided.droppableProps}>
                     {visibleTools.map((toolConfig, index) => {
@@ -335,7 +335,7 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
                           {(provided, snapshot) => (
                             <DraggablePortal isDragging={snapshot.isDragging}>
                               <div
-                                className="mr-1.5 w-[30px] transition-[width,margin-right,opacity] duration-200"
+                                className="mr-1.5 w-7.5 transition-[width,margin-right,opacity] duration-200"
                                 data-key={toolConfig.key}
                                 onContextMenu={() => setTargetTool(toolConfig)}
                                 ref={provided.innerRef}
@@ -359,7 +359,7 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
               <Droppable droppableId="inputbar-tools-hidden" direction="horizontal">
                 {(provided) => (
                   <div
-                    className="flex h-[30px] items-center overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    className="flex h-7.5 items-center overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                     ref={provided.innerRef}
                     {...provided.droppableProps}>
                     {hiddenTools.map((toolConfig, index) => {

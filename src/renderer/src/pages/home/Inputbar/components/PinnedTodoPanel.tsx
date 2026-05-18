@@ -86,7 +86,7 @@ export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ messages, partsByMes
 
   return (
     <div className="w-full">
-      <div className="overflow-hidden rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) [body[theme-mode=dark]_&]:bg-(--color-background-mute)">
+      <div className="overflow-hidden rounded-[17px] border-[0.5px] border-border bg-(--color-background-opacity) [body[theme-mode=dark]_&]:bg-(--color-background-mute)">
         <div
           className="flex cursor-pointer items-center justify-between px-3 py-2 text-(--color-text-2) text-xs"
           onClick={() => setIsCollapsed(!isCollapsed)}>

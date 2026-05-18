@@ -226,10 +226,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   }, [])
 
   return (
-    <div className="flex flex-1 flex-col p-[5px]">
+    <div className="flex flex-1 flex-col p-1.25">
       <RowFlex className="mb-2.5 items-center justify-between">
         <Label>{t('assistants.settings.default_model')}</Label>
-        <RowFlex className="items-center gap-[5px]">
+        <RowFlex className="items-center gap-1.25">
           <ModelSelector
             multiple={false}
             value={defaultModel}
@@ -512,11 +512,11 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 }
 
 const Label = ({ className, ...props }: ComponentPropsWithoutRef<'p'>) => (
-  <p className={cn('mr-[5px] flex shrink-0 items-center gap-[5px] font-medium', className)} {...props} />
+  <p className={cn('mr-1.25 flex shrink-0 items-center gap-1.25 font-medium', className)} {...props} />
 )
 
 const ModelSelectButton = ({ className, ...props }: ComponentPropsWithoutRef<typeof Button>) => (
-  <Button className={cn('max-w-[300px] justify-start [&_.ant-btn-icon]:shrink-0', className)} {...props} />
+  <Button className={cn('max-w-75 justify-start [&_.ant-btn-icon]:shrink-0', className)} {...props} />
 )
 
 const ModelName = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (

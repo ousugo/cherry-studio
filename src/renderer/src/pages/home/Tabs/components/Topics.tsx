@@ -908,7 +908,7 @@ function TopicListBody(props: TopicListBodyProps) {
   )
 
   if (variant === 'manage') {
-    return <ResourceList.VirtualItems ref={listRef} className="pb-[76px]" renderItem={renderItem} />
+    return <ResourceList.VirtualItems ref={listRef} className="pb-19" renderItem={renderItem} />
   }
 
   if (variant === 'draggable') {
@@ -1020,7 +1020,7 @@ function TopicRow({
       {isManageMode && (
         <ResourceList.ItemIcon className={cn('mr-0.5', !canSelect && 'opacity-50')}>
           {isSelected ? (
-            <CheckSquare size={16} className="text-(--color-primary)" />
+            <CheckSquare size={16} className="text-primary" />
           ) : (
             <Square size={16} className="text-foreground/70" />
           )}
@@ -1108,7 +1108,7 @@ function TopicRow({
 
 const TopicStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
   const dotClassName = cn(
-    'animation-pulse size-[5px] rounded-full',
+    'animation-pulse size-1.25 rounded-full',
     isPending ? 'bg-(--color-status-warning)' : 'bg-(--color-status-success)'
   )
 

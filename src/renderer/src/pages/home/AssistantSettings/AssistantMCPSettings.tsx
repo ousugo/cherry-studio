@@ -52,7 +52,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
         </Box>
       </div>
 
-      <div className="mb-4 [&_.ant-radio-button-wrapper:first-child]:rounded-lg [&_.ant-radio-button-wrapper:last-child]:rounded-lg [&_.ant-radio-button-wrapper:not(:first-child)::before]:hidden [&_.ant-radio-button-wrapper]:h-auto [&_.ant-radio-button-wrapper]:rounded-lg [&_.ant-radio-button-wrapper]:border [&_.ant-radio-button-wrapper]:border-(--color-border) [&_.ant-radio-button-wrapper]:px-4 [&_.ant-radio-button-wrapper]:py-3 [&_.ant-radio-group]:flex [&_.ant-radio-group]:flex-col [&_.ant-radio-group]:gap-2">
+      <div className="mb-4 [&_.ant-radio-button-wrapper:first-child]:rounded-lg [&_.ant-radio-button-wrapper:last-child]:rounded-lg [&_.ant-radio-button-wrapper:not(:first-child)::before]:hidden [&_.ant-radio-button-wrapper]:h-auto [&_.ant-radio-button-wrapper]:rounded-lg [&_.ant-radio-button-wrapper]:border [&_.ant-radio-button-wrapper]:border-border [&_.ant-radio-button-wrapper]:px-4 [&_.ant-radio-button-wrapper]:py-3 [&_.ant-radio-group]:flex [&_.ant-radio-group]:flex-col [&_.ant-radio-group]:gap-2">
         <Radio.Group value={currentMode} onChange={(e) => handleModeChange(e.target.value)}>
           <Radio.Button value="disabled">
             <div className="flex flex-col gap-0.5">
@@ -97,12 +97,12 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
                 return (
                   <div
                     key={server.id}
-                    className="flex items-center justify-between rounded-lg border border-(--color-border) bg-(--color-background-mute) px-4 py-3 transition-all duration-200"
+                    className="flex items-center justify-between rounded-lg border border-border bg-(--color-background-mute) px-4 py-3 transition-all duration-200"
                     style={{ opacity: isEnabled ? 1 : 0.7 }}>
                     <div className="flex flex-1 flex-col overflow-hidden">
                       <div className="mb-1 font-semibold">{server.name}</div>
                       {server.description && (
-                        <div className="mb-[3px] text-(--color-text-2) text-[0.85rem]">{server.description}</div>
+                        <div className="mb-0.75 text-(--color-text-2) text-[0.85rem]">{server.description}</div>
                       )}
                       {server.baseUrl && (
                         <div className="overflow-hidden text-ellipsis whitespace-nowrap text-(--color-text-3) text-[0.8rem]">

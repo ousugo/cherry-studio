@@ -9,7 +9,7 @@ const KnowledgeBaseInput: FC<{
   onRemoveKnowledgeBase: (knowledgeBase: KnowledgeBase) => void
 }> = ({ selectedKnowledgeBases, onRemoveKnowledgeBase }) => {
   return (
-    <div className="w-full px-[15px] py-[5px]">
+    <div className="w-full px-3.75 py-1.25">
       <HorizontalScrollContainer dependencies={[selectedKnowledgeBases]} expandable>
         {selectedKnowledgeBases.map((knowledgeBase) => (
           <CustomTag

@@ -670,7 +670,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 const DragHandle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      '-top-[3px] absolute right-0 left-0 z-[1] flex h-1.5 cursor-row-resize items-center justify-center text-(--color-icon) opacity-0 transition-opacity duration-200 hover:opacity-100 [&_.anticon]:rotate-90 [&_.anticon]:text-sm',
+      '-top-0.75 absolute right-0 left-0 z-1 flex h-1.5 cursor-row-resize items-center justify-center text-icon opacity-0 transition-opacity duration-200 hover:opacity-100 [&_.anticon]:rotate-90 [&_.anticon]:text-sm',
       className
     )}
     {...props}
@@ -678,13 +678,13 @@ const DragHandle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 )
 
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('relative z-[2] flex flex-col px-[18px] pt-0 pb-2.5', className)} {...props} />
+  <div className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-2.5', className)} {...props} />
 )
 
 const InputBarContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      "relative rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) pt-2 transition-all duration-200 ease-in-out [&.file-dragging]:border-2 [&.file-dragging]:border-[#2ecc71] [&.file-dragging]:border-dashed [&.file-dragging]:before:pointer-events-none [&.file-dragging]:before:absolute [&.file-dragging]:before:inset-0 [&.file-dragging]:before:z-[5] [&.file-dragging]:before:rounded-[14px] [&.file-dragging]:before:bg-[rgba(46,204,113,0.03)] [&.file-dragging]:before:content-['']",
+      "relative rounded-[17px] border-[0.5px] border-border bg-(--color-background-opacity) pt-2 transition-all duration-200 ease-in-out [&.file-dragging]:border-2 [&.file-dragging]:border-[#2ecc71] [&.file-dragging]:border-dashed [&.file-dragging]:before:pointer-events-none [&.file-dragging]:before:absolute [&.file-dragging]:before:inset-0 [&.file-dragging]:before:z-5 [&.file-dragging]:before:rounded-[14px] [&.file-dragging]:before:bg-[rgba(46,204,113,0.03)] [&.file-dragging]:before:content-['']",
       className
     )}
     {...props}
@@ -699,7 +699,7 @@ const Textarea = ({
   <TextArea
     ref={ref}
     className={cn(
-      'resize-none! box-border flex w-full overflow-auto rounded-none p-0 transition-none! [&.ant-input]:leading-[1.4] [&::-webkit-scrollbar]:w-[3px]',
+      'resize-none! box-border flex w-full overflow-auto rounded-none p-0 transition-none! [&.ant-input]:leading-[1.4] [&::-webkit-scrollbar]:w-0.75',
       className
     )}
     {...props}
@@ -709,7 +709,7 @@ Textarea.displayName = 'Textarea'
 
 const BottomBar = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('relative z-[2] flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-[5px]', className)}
+    className={cn('relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25', className)}
     {...props}
   />
 )

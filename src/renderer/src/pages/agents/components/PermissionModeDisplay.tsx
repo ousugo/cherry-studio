@@ -59,14 +59,14 @@ const PermissionModeDisplay: FC<Props> = ({ agentId }) => {
   return (
     <div
       onClick={handleClick}
-      className="mx-2 cursor-pointer rounded-lg border-[0.5px] border-[var(--color-border)] px-3 py-2">
+      className="mx-2 cursor-pointer rounded-lg border-(--color-border) border-[0.5px] px-3 py-2">
       <div className="flex items-center gap-2.5">
         <div className="flex shrink-0 items-center justify-center">{modeConfig.icon}</div>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <div className="overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-[var(--color-text-1)] text-xs">
+          <div className="overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-(--color-text-1) text-xs">
             {t(modeCard.titleKey, modeCard.titleFallback)}
           </div>
-          <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-[var(--color-text-2)] leading-[1.4]">
+          <div className="overflow-hidden text-ellipsis whitespace-nowrap text-(--color-text-2) text-[11px] leading-[1.4]">
             {t(modeCard.descriptionKey, modeCard.descriptionFallback)}
           </div>
         </div>

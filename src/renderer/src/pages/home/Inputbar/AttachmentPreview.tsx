@@ -117,7 +117,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
         <ColFlex className="items-center gap-0.5">
           {isImage(file.ext) && (
             <ImageViewer
-              className="max-h-[200px] w-20"
+              className="max-h-50 w-20"
               src={'file://' + FileManager.getSafePath(file)}
               preview={{
                 visible: visible,
@@ -197,7 +197,7 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles, onPasteAsText }) => {
   }
 
   return (
-    <div className="flex w-full flex-wrap gap-1 px-[15px] py-[5px]">
+    <div className="flex w-full flex-wrap gap-1 px-3.75 py-1.25">
       {files.map((file) => (
         <AttachmentItem
           key={file.id}

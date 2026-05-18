@@ -66,7 +66,7 @@ export const HeartbeatSetting = ({ base: agentBase, update }: HeartbeatSettingPr
             max={1440}
             value={interval}
             onChange={(val) => val && updateConfig({ heartbeat_interval: val })}
-            className="w-[100px]"
+            className="w-25"
             suffix="min"
           />
         </SettingsItem>

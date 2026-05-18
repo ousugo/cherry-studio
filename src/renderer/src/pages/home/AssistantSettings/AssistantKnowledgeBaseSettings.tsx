@@ -23,7 +23,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
   }))
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden p-[5px]">
+    <div className="flex flex-1 flex-col overflow-hidden p-1.25">
       <Box className="mb-2 font-bold">{t('common.knowledge_base')}</Box>
       <Select
         mode="multiple"

@@ -23,8 +23,8 @@ const NewTopicButton: FC = () => {
         variant="ghost"
         onClick={addNewTopic}
         className={cn(
-          'h-[34px]! rounded-full px-3 text-xs opacity-80 transition-all duration-300',
-          'hover:border-[var(--color-border-mute)] hover:text-[var(--color-text-1)]! hover:opacity-90',
+          'h-8.5! rounded-full px-3 text-xs opacity-80 transition-all duration-300',
+          'hover:border-(--color-border-mute) hover:text-(--color-text-1)! hover:opacity-90',
           theme === ThemeMode.dark
             ? 'bg-[var(--color-background-soft)] hover:bg-[var(--color-background-mute)]!'
             : undefined

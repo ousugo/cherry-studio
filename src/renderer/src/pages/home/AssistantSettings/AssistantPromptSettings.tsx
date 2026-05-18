@@ -81,7 +81,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     <div className="flex flex-1 flex-col overflow-hidden">
       <Box className="mb-2 font-bold">{t('common.name')}</Box>
       <RowFlex className="items-center gap-2">
-        <div className="hover:[&_.delete-icon]:!block relative inline-block">
+        <div className="hover:[&_.delete-icon]:block! relative inline-block">
           <Popover>
             <PopoverTrigger>
               <Button className="h-7 min-w-7 p-1 text-lg">{emoji}</Button>
@@ -132,7 +132,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
         </Tooltip>
       </RowFlex>
       <div className="relative w-full">
-        <div className="h-[calc(80vh-202px)] overflow-hidden rounded-[5px] border-(--color-border) border-[0.5px] [&_.prompt-rich-editor]:h-full [&_.prompt-rich-editor]:border-none [&_.prompt-rich-editor_.rich-editor-content]:flex-1 [&_.prompt-rich-editor_.rich-editor-content]:overflow-auto [&_.prompt-rich-editor_.rich-editor-wrapper]:flex [&_.prompt-rich-editor_.rich-editor-wrapper]:h-full [&_.prompt-rich-editor_.rich-editor-wrapper]:flex-col">
+        <div className="h-[calc(80vh-202px)] overflow-hidden rounded-[5px] border-[0.5px] border-border [&_.prompt-rich-editor]:h-full [&_.prompt-rich-editor]:border-none [&_.prompt-rich-editor_.rich-editor-content]:flex-1 [&_.prompt-rich-editor_.rich-editor-content]:overflow-auto [&_.prompt-rich-editor_.rich-editor-wrapper]:flex [&_.prompt-rich-editor_.rich-editor-wrapper]:h-full [&_.prompt-rich-editor_.rich-editor-wrapper]:flex-col">
           {showPreview ? (
             <div
               className="markdown h-full overflow-auto p-[0.5em]"

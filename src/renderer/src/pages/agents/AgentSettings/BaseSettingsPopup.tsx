@@ -73,7 +73,7 @@ export const BaseSettingsPopup: React.FC<BaseSettingsPopupProps> = ({
     return (
       <div className="flex w-full flex-1">
         <LeftMenu>
-          <MenuList className="w-[220px] p-1.25 pt-1.75">
+          <MenuList className="w-55 p-1.25 pt-1.75">
             {menuItems.map((item) => (
               <MenuItem
                 key={item.key}
