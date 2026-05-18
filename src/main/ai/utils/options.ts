@@ -1,39 +1,3 @@
-/**
- * Provider-options builder for the AI SDK request.
- *
- * Split into two layers by who owns them:
- *
- * 1. `buildCapabilityProviderOptions` — capability-driven. Per-provider
- *    dispatch that produces `{ providerId: providerOptions }` based on
- *    `(assistant, model, provider, capabilities)`. Covers reasoning params,
- *    service tier, verbosity, generate-image flags.
- *
- *    Called once by `AiService.buildAgentParams` and written directly to
- *    `AgentOptions.providerOptions` — these values are stable for the
- *    (assistant, model, provider, capabilities) tuple, so they live at the
- *    agent level, not per streamText call.
- *
- * 2. `extractAiSdkStandardParams` + `mergeCustomProviderParameters` —
- *    user-input-driven. Splits `assistant.settings.customParameters` into
- *    AI-SDK standard params (topK, frequencyPenalty, etc.) and provider
- *    params, then layers the provider params onto an existing
- *    providerOptions map.
- *
- *    Also consumed by `AiService.buildAgentParams` — user customParameters
- *    share the assistant's lifetime, so they're treated as agent-level
- *    config and written into `AgentOptions` alongside the capability defaults
- *    rather than layered per-call via `transformParams`.
- *
- * Ported from renderer `aiCore/utils/options.ts` (origin/main). Differences:
- *   - `AiSdkParam` / `OpenAIVerbosity` types now come from `@shared/types/aiSdk`
- *     (moved out of the renderer).
- *   - The Qwen-MT `translation_options` branch is deleted — v2 translate is
- *     its own entity (`packages/shared/data/types/translate.ts`) with its own
- *     request flow, not a field on the chat `Assistant`. When translate-on-
- *     Main lands it will inject `target_lang` from the translate handler, not
- *     from here.
- */
-
 import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
 import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
