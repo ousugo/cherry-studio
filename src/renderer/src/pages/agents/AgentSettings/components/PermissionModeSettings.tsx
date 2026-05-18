@@ -129,23 +129,23 @@ export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentB
                 {/* Header */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className="wrap-break-word whitespace-normal text-left font-semibold text-sm">
+                    <span className="whitespace-normal break-words text-left font-semibold text-sm">
                       {t(card.titleKey, card.titleFallback)}
                     </span>
-                    <span className="wrap-break-word whitespace-normal text-left text-(--color-foreground-secondary) text-xs">
+                    <span className="whitespace-normal break-words text-left text-[var(--color-foreground-secondary)] text-xs">
                       {t(card.descriptionKey, card.descriptionFallback)}
                     </span>
                   </div>
                   {disabled && <Tag color="warning">{t('common.coming_soon', 'Coming soon')}</Tag>}
-                  {isSelected && !disabled && <CheckCircle className="shrink-0 text-primary" size={20} />}
+                  {isSelected && !disabled && <CheckCircle className="flex-shrink-0 text-primary" size={20} />}
                 </div>
 
                 {/* Body */}
                 {showCaution && (
                   <div className="flex flex-col gap-2">
-                    <div className="flex items-start gap-2 rounded-md bg-(--color-error-bg)">
-                      <ShieldAlert className="shrink-0 text-(--color-error-base)" size={16} />
-                      <span className="text-(--color-error-base) text-xs">
+                    <div className="flex items-start gap-2 rounded-md bg-[var(--color-error-bg)]">
+                      <ShieldAlert className="flex-shrink-0 text-[var(--color-error-base)]" size={16} />
+                      <span className="text-[var(--color-error-base)] text-xs">
                         {t(
                           'agent.settings.tooling.permissionMode.bypassPermissions.warning',
                           'Use with caution — all tools will run without asking for approval.'

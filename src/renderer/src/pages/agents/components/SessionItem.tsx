@@ -209,7 +209,7 @@ const SessionItem = ({
 }
 
 const SessionStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
-  const dotClassName = cn('animation-pulse size-1.25 rounded-full', isPending ? 'bg-warning' : 'bg-success')
+  const dotClassName = cn('animation-pulse size-[5px] rounded-full', isPending ? 'bg-warning' : 'bg-success')
 
   if (!isPending && !isFulfilled) return null
 

@@ -71,7 +71,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
 
   return (
     <Modal
-      className="[&_.ant-menu-item-active]:bg-(--color-background-soft)! [&_.ant-menu-item-active]:transition-none! [&_.ant-menu-item-selected]:border-border [&_.ant-menu-item-selected]:bg-(--color-background-soft) [&_.ant-menu-item-selected_.ant-menu-title-content]:font-medium [&_.ant-menu-item-selected_.ant-menu-title-content]:text-(--color-text-1) [&_.ant-menu-item]:flex [&_.ant-menu-item]:h-9 [&_.ant-menu-item]:items-center [&_.ant-menu-item]:rounded-md [&_.ant-menu-item]:border-[0.5px] [&_.ant-menu-item]:border-transparent [&_.ant-menu-item]:text-(--color-text-2) [&_.ant-menu-title-content]:leading-9 [&_.ant-modal-close]:top-1 [&_.ant-modal-close]:right-1 [&_.ant-modal-title]:text-sm"
+      className="[&_.ant-menu-item-active]:!bg-(--color-background-soft) [&_.ant-menu-item-active]:!transition-none [&_.ant-menu-item-selected]:border-(--color-border) [&_.ant-menu-item-selected]:bg-(--color-background-soft) [&_.ant-menu-item-selected_.ant-menu-title-content]:font-medium [&_.ant-menu-item-selected_.ant-menu-title-content]:text-(--color-text-1) [&_.ant-menu-item]:flex [&_.ant-menu-item]:h-9 [&_.ant-menu-item]:items-center [&_.ant-menu-item]:rounded-md [&_.ant-menu-item]:border-[0.5px] [&_.ant-menu-item]:border-transparent [&_.ant-menu-item]:text-(--color-text-2) [&_.ant-menu-title-content]:leading-9 [&_.ant-modal-close]:top-1 [&_.ant-modal-close]:right-1 [&_.ant-modal-title]:text-sm"
       open={open}
       onOk={onOk}
       onCancel={onCancel}
@@ -94,9 +94,9 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
       height="80vh"
       centered>
       <RowFlex>
-        <div className="h-[calc(80vh-20px)] border-border border-r-[0.5px]">
+        <div className="h-[calc(80vh-20px)] border-(--color-border) border-r-[0.5px]">
           <Menu
-            className="mt-0.5 w-55 bg-transparent p-1.25 [&_.ant-menu-item]:mb-1.75"
+            className="mt-0.5 w-[220px] bg-transparent p-[5px] [&_.ant-menu-item]:mb-[7px]"
             defaultSelectedKeys={[tab || 'model']}
             mode="vertical"
             items={items}

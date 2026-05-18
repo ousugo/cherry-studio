@@ -16,7 +16,7 @@ const MentionModelsInput: FC<{
   }
 
   return (
-    <div className="w-full px-3.75 py-1.25">
+    <div className="w-full px-[15px] py-[5px]">
       <HorizontalScrollContainer dependencies={[selectedModels]} expandable>
         {selectedModels.map((model) => (
           <CustomTag

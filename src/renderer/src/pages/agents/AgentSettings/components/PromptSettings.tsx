@@ -51,8 +51,8 @@ const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) 
             <HelpCircle size={14} color="var(--color-text-2)" />
           </Popover>
         </SettingsTitle>
-        <div className="relative mt-1.25 min-h-0 w-full flex-1 overflow-hidden">
-          <div className="h-full flex-1 overflow-hidden rounded-[5px] border-[0.5px] border-border [&_.prompt-rich-editor]:h-full [&_.prompt-rich-editor]:border-none [&_.prompt-rich-editor_.rich-editor-content]:flex-1 [&_.prompt-rich-editor_.rich-editor-content]:overflow-auto [&_.prompt-rich-editor_.rich-editor-wrapper]:flex [&_.prompt-rich-editor_.rich-editor-wrapper]:h-full [&_.prompt-rich-editor_.rich-editor-wrapper]:flex-col">
+        <div className="relative mt-[5px] min-h-0 w-full flex-1 overflow-hidden">
+          <div className="h-full flex-1 overflow-hidden rounded-[5px] border-(--color-border) border-[0.5px] [&_.prompt-rich-editor]:h-full [&_.prompt-rich-editor]:border-none [&_.prompt-rich-editor_.rich-editor-content]:flex-1 [&_.prompt-rich-editor_.rich-editor-content]:overflow-auto [&_.prompt-rich-editor_.rich-editor-wrapper]:flex [&_.prompt-rich-editor_.rich-editor-wrapper]:h-full [&_.prompt-rich-editor_.rich-editor-wrapper]:flex-col">
             {showPreview ? (
               <div
                 className="markdown h-full overflow-auto p-[0.5em]"
