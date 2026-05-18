@@ -13,11 +13,12 @@ const attachmentTool = defineTool({
   },
 
   render: (context) => {
-    const { state, actions, quickPanel } = context
+    const { state, actions, quickPanel, launcher } = context
 
     return (
       <AttachmentButton
         quickPanel={quickPanel}
+        launcher={launcher}
         couldAddImageFile={state.couldAddImageFile}
         extensions={state.extensions}
         files={state.files}

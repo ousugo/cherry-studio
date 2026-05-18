@@ -3,6 +3,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import type { ToolLauncherApi } from '@renderer/pages/home/Inputbar/types'
 import { getWebSearchProviderLogo } from '@renderer/pages/settings/WebSearchSettings/utils/webSearchProviderMeta'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
@@ -20,11 +21,12 @@ import { useNavigate } from '@tanstack/react-router'
 import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
 import type { FC } from 'react'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
   assistantId: string
+  launcher: ToolLauncherApi
 }
 
 // Mirrors WebSearchProviderSetting.tsx: api-type providers (except fetch /
@@ -33,7 +35,7 @@ interface Props {
 const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean =>
   id !== 'fetch' && id !== 'searxng' && id !== 'exa-mcp'
 
-const WebSearchButton: FC<Props> = ({ assistantId }) => {
+const WebSearchButton: FC<Props> = ({ assistantId, launcher }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { assistant, model, updateAssistant } = useAssistant(assistantId)
@@ -121,6 +123,22 @@ const WebSearchButton: FC<Props> = ({ assistantId }) => {
 
   const ProviderMono = enableWebSearch ? providerLogo?.Mono : undefined
   const icon = ProviderMono ? <ProviderMono width={18} height={18} /> : <Globe />
+
+  useEffect(() => {
+    return launcher.registerLaunchers([
+      {
+        id: 'web-search',
+        kind: 'command',
+        sources: ['popover', 'root-panel'],
+        order: 30,
+        label: t('chat.input.web_search.label'),
+        description: '',
+        icon,
+        active: enableWebSearch,
+        action: onClick
+      }
+    ])
+  }, [enableWebSearch, icon, launcher, onClick, t])
 
   return (
     <Tooltip placement="top" title={ariaLabel} mouseLeaveDelay={0} arrow>

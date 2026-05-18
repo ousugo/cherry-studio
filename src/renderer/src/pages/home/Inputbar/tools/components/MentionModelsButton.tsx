@@ -1,5 +1,5 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
-import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
+import type { ToolLauncherApi, ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import type { FileMetadata } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
 import { Tooltip } from 'antd'
@@ -13,6 +13,7 @@ import { useMentionModelsPanel } from './useMentionModelsPanel'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
+  launcher: ToolLauncherApi
   quickPanelController: ToolQuickPanelController
   mentionedModels: Model[]
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
@@ -23,6 +24,7 @@ interface Props {
 
 const MentionModelsButton: FC<Props> = ({
   quickPanel,
+  launcher,
   quickPanelController,
   mentionedModels,
   setMentionedModels,
@@ -35,6 +37,7 @@ const MentionModelsButton: FC<Props> = ({
   const { handleOpenQuickPanel } = useMentionModelsPanel(
     {
       quickPanel,
+      launcher,
       quickPanelController,
       mentionedModels,
       setMentionedModels,

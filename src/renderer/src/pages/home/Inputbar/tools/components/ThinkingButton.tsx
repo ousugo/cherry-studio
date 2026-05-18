@@ -21,7 +21,7 @@ import {
 } from '@renderer/config/models'
 import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import type { ToolLauncherApi, ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { ThinkingOption } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
 import type { FC, ReactElement } from 'react'
@@ -30,6 +30,7 @@ import { useTranslation } from 'react-i18next'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
+  launcher: ToolLauncherApi
   model: Model
   assistantId: string
   // Controlled mode: external state management (for agent sessions)
@@ -39,6 +40,7 @@ interface Props {
 
 const ThinkingButton: FC<Props> = ({
   quickPanel,
+  launcher,
   model,
   assistantId,
   reasoningEffort: controlledEffort,
@@ -199,12 +201,15 @@ const ThinkingButton: FC<Props> = ({
   useEffect(() => {
     if (isFixedReasoning) return
 
-    const disposeMenu = quickPanel.registerRootMenu([
+    const disposeLauncher = launcher.registerLaunchers([
       {
+        id: 'thinking',
+        kind: 'panel',
+        sources: ['popover', 'root-panel'],
+        order: 60,
         label: t('assistants.settings.reasoning_effort.label'),
         description: '',
         icon: ThinkingIcon({ option: currentReasoningEffort }),
-        isMenu: true,
         action: () => openQuickPanel()
       }
     ])
@@ -212,10 +217,10 @@ const ThinkingButton: FC<Props> = ({
     const disposeTrigger = quickPanel.registerTrigger(QuickPanelReservedSymbol.Thinking, () => openQuickPanel())
 
     return () => {
-      disposeMenu()
+      disposeLauncher()
       disposeTrigger()
     }
-  }, [currentReasoningEffort, openQuickPanel, quickPanel, t, isFixedReasoning])
+  }, [currentReasoningEffort, launcher, openQuickPanel, quickPanel, t, isFixedReasoning])
 
   // Determine tooltip label, consistent with handleOpenQuickPanel behavior:
   // - Fixed reasoning models: always show "Thinking"

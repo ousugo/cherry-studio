@@ -1,4 +1,4 @@
-import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import type { ToolLauncherApi, ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { Assistant, ThinkingOption } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -238,6 +238,10 @@ const createQuickPanelApi = (): ToolQuickPanelApi => ({
   registerTrigger: vi.fn(() => vi.fn())
 })
 
+const createLauncherApi = (): ToolLauncherApi => ({
+  registerLaunchers: vi.fn(() => vi.fn())
+})
+
 // Model presets for common test scenarios
 const modelPresets = {
   gpt5: () => createModel({ id: 'gpt-5', name: 'GPT-5' }),
@@ -255,6 +259,7 @@ const renderComponent = (
     model?: Model
     assistantId?: string
     quickPanelApi?: ToolQuickPanelApi
+    launcherApi?: ToolLauncherApi
     useAssistantReturn?: ReturnType<typeof createUseAssistantReturn>
     useQuickPanelReturn?: ReturnType<typeof createUseQuickPanelReturn>
     useTranslationReturn?: ReturnType<typeof createUseTranslationReturn>
@@ -271,6 +276,7 @@ const renderComponent = (
     model = modelPresets.gpt5(),
     assistantId = 'assistant-1',
     quickPanelApi = createQuickPanelApi(),
+    launcherApi = createLauncherApi(),
     useAssistantReturn = createUseAssistantReturn(),
     useQuickPanelReturn = createUseQuickPanelReturn(),
     useTranslationReturn = createUseTranslationReturn(),
@@ -309,7 +315,9 @@ const renderComponent = (
   // Setup global toast mock
   ;(global.window as any).toast = { warning: mockToastWarning }
 
-  return render(<ThinkingButton model={model} assistantId={assistantId} quickPanel={quickPanelApi} />)
+  return render(
+    <ThinkingButton model={model} assistantId={assistantId} quickPanel={quickPanelApi} launcher={launcherApi} />
+  )
 }
 
 // Query helper functions

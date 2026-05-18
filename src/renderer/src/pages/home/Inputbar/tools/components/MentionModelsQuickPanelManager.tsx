@@ -10,6 +10,7 @@ interface ManagerProps {
 const MentionModelsQuickPanelManager = ({ context }: ManagerProps) => {
   const {
     quickPanel,
+    launcher,
     quickPanelController,
     state: { mentionedModels, files, couldMentionNotVisionModel },
     actions: { setMentionedModels, onTextChange }
@@ -18,6 +19,7 @@ const MentionModelsQuickPanelManager = ({ context }: ManagerProps) => {
   useMentionModelsPanel(
     {
       quickPanel,
+      launcher,
       quickPanelController,
       mentionedModels: mentionedModels,
       setMentionedModels: setMentionedModels,

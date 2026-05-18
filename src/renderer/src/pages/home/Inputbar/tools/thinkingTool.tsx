@@ -9,9 +9,10 @@ const thinkingTool = defineTool({
   condition: ({ model }) => {
     return isReasoningModel(model)
   },
-  render: ({ assistant, model, quickPanel, session }) => (
+  render: ({ assistant, model, quickPanel, launcher, session }) => (
     <ThinkingButton
       quickPanel={quickPanel}
+      launcher={launcher}
       model={model}
       assistantId={assistant.id}
       reasoningEffort={session?.reasoningEffort}

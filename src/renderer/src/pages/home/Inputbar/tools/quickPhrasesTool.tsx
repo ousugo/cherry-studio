@@ -12,11 +12,12 @@ const quickPhrasesTool = defineTool({
   },
 
   render: (context) => {
-    const { actions, quickPanel } = context
+    const { actions, quickPanel, launcher } = context
 
     return (
       <QuickPhrasesButton
         quickPanel={quickPanel}
+        launcher={launcher}
         setInputValue={actions.onTextChange}
         resizeTextArea={actions.resizeTextArea}
       />

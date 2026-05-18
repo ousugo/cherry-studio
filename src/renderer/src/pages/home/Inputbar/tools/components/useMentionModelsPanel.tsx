@@ -5,7 +5,7 @@ import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@r
 import db from '@renderer/databases'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
-import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
+import type { ToolLauncherApi, ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import type { FileMetadata } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
@@ -22,6 +22,7 @@ export type MentionTriggerInfo = { type: 'input' | 'button'; position?: number; 
 
 interface Params {
   quickPanel: ToolQuickPanelApi
+  launcher: ToolLauncherApi
   quickPanelController: ToolQuickPanelController
   mentionedModels: Model[]
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
@@ -33,6 +34,7 @@ interface Params {
 export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager' = 'button') => {
   const {
     quickPanel,
+    launcher,
     quickPanelController,
     mentionedModels,
     setMentionedModels,
@@ -40,7 +42,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
     files,
     setText
   } = params
-  const { registerRootMenu, registerTrigger } = quickPanel
+  const { registerTrigger } = quickPanel
   const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { providers } = useProviders()
   const { models: v2Models } = useModels()
@@ -300,12 +302,14 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
 
   useEffect(() => {
     if (role !== 'manager') return
-    const disposeRootMenu = registerRootMenu([
+    const disposeLauncher = launcher.registerLaunchers([
       {
+        id: 'mention-models',
+        kind: 'panel',
+        sources: [],
         label: t('assistants.presets.edit.model.select.title'),
         description: '',
         icon: <AtSign />,
-        isMenu: true,
         action: () => openQuickPanel({ type: 'button' })
       }
     ])
@@ -316,10 +320,10 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
     })
 
     return () => {
-      disposeRootMenu()
+      disposeLauncher()
       disposeTrigger()
     }
-  }, [openQuickPanel, registerRootMenu, registerTrigger, role, t])
+  }, [launcher, openQuickPanel, registerTrigger, role, t])
 
   return {
     handleOpenQuickPanel,

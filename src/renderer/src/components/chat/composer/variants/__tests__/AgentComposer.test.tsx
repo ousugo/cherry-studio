@@ -1,7 +1,7 @@
-import type * as InputbarToolsProviderModule from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import type { FileMetadata } from '@renderer/types'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   stop: vi.fn(),
   setFiles: vi.fn(),
-  surfaceProps: undefined as ComposerSurfaceProps | undefined
+  surfaceProps: undefined as ComposerSurfaceProps | undefined,
+  runtimeHostProps: undefined as { assistant?: { modelId?: string | null }; model?: Model } | undefined
 }))
 
 const model = {
@@ -43,13 +44,8 @@ vi.mock('@data/CacheService', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/composer/ComposerSurface', async () => {
-  const { InputbarToolsProvider } = await vi.importActual<typeof InputbarToolsProviderModule>(
-    '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
-  )
-
+vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
   return {
-    InputbarToolsProvider,
     default: (props: ComposerSurfaceProps) => {
       mocks.surfaceProps = props
       return (
@@ -79,6 +75,50 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', async () => {
     }
   }
 })
+
+vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
+  ComposerToolRuntimeProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ComposerToolRuntimeHost: (props: { assistant?: { modelId?: string | null }; model?: Model }) => {
+    mocks.runtimeHostProps = props
+    return null
+  },
+  ComposerToolMenu: () => null,
+  useComposerToolState: () => ({
+    files: mocks.files,
+    mentionedModels: [],
+    selectedKnowledgeBases: [],
+    isExpanded: false,
+    couldAddImageFile: false,
+    couldMentionNotVisionModel: true,
+    extensions: []
+  }),
+  useComposerToolDispatch: () => ({
+    setFiles: mocks.setFiles,
+    setIsExpanded: vi.fn(),
+    resizeTextArea: vi.fn(),
+    addNewTopic: vi.fn(),
+    onTextChange: vi.fn(),
+    toggleExpanded: vi.fn(),
+    toolsRegistry: {
+      registerRootMenu: vi.fn(() => vi.fn()),
+      registerLaunchers: vi.fn(() => vi.fn()),
+      registerTrigger: vi.fn(() => vi.fn())
+    },
+    triggers: {
+      emit: vi.fn(),
+      getRootMenu: vi.fn(() => []),
+      getLaunchers: vi.fn(() => [])
+    }
+  }),
+  useComposerToolInternalDispatch: () => ({
+    setCouldAddImageFile: vi.fn(),
+    setExtensions: vi.fn()
+  }),
+  useComposerToolLauncherController: () => ({
+    getLaunchers: vi.fn(() => []),
+    dispatchLauncher: vi.fn()
+  })
+}))
 
 vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useAgent: () => ({
@@ -130,46 +170,6 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/home/Inputbar/context/InputbarToolsProvider', async () => {
-  const actual = await vi.importActual<typeof InputbarToolsProviderModule>(
-    '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
-  )
-
-  return {
-    ...actual,
-    useInputbarToolsState: () => ({
-      files: mocks.files,
-      mentionedModels: [],
-      selectedKnowledgeBases: [],
-      isExpanded: false,
-      couldAddImageFile: false,
-      couldMentionNotVisionModel: true,
-      extensions: []
-    }),
-    useInputbarToolsDispatch: () => ({
-      setFiles: mocks.setFiles,
-      resizeTextArea: vi.fn(),
-      addNewTopic: vi.fn(),
-      clearTopic: vi.fn(),
-      onNewContext: vi.fn(),
-      onTextChange: vi.fn(),
-      toggleExpanded: vi.fn(),
-      toolsRegistry: {
-        registerRootMenu: vi.fn(() => vi.fn()),
-        registerTrigger: vi.fn(() => vi.fn())
-      },
-      triggers: {
-        emit: vi.fn(),
-        getRootMenu: vi.fn(() => [])
-      }
-    }),
-    useInputbarToolsInternalDispatch: () => ({
-      setCouldAddImageFile: vi.fn(),
-      setExtensions: vi.fn()
-    })
-  }
-})
-
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18nextModule>()
   return {
@@ -191,6 +191,7 @@ describe('AgentComposer', () => {
     mocks.stop.mockResolvedValue(undefined)
     mocks.setFiles.mockReset()
     mocks.surfaceProps = undefined
+    mocks.runtimeHostProps = undefined
   })
 
   it('resolves the agent model through the v2 UniqueModelId', () => {
@@ -205,8 +206,8 @@ describe('AgentComposer', () => {
     )
 
     expect(mocks.modelLookupId).toBe('anthropic::claude-sonnet-4-5')
-    expect(mocks.surfaceProps?.model).toBe(model)
-    expect(mocks.surfaceProps?.assistant?.modelId).toBe('anthropic::claude-sonnet-4-5')
+    expect(mocks.runtimeHostProps?.model).toBe(model)
+    expect(mocks.runtimeHostProps?.assistant?.modelId).toBe('anthropic::claude-sonnet-4-5')
   })
 
   it('bridges file tokens into the existing agent session message text protocol', () => {

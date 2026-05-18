@@ -8,7 +8,7 @@ import { Tooltip } from 'antd'
 import { uniq } from 'lodash'
 import { FolderPen, Pointer, RefreshCcw, Route } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 
 import { defineTool, registerTool, TopicType } from '../types'
 
@@ -35,7 +35,7 @@ const permissionModeTool = defineTool({
   visibleInScopes: [TopicType.Session],
 
   render: function PermissionModeRender(context) {
-    const { t, session: sessionContext, quickPanelController } = context
+    const { t, launcher, session: sessionContext, quickPanelController } = context
     const agentId = sessionContext?.agentId
     const { agent } = useAgent(agentId ?? '')
     const { updateAgent } = useUpdateAgent()
@@ -98,6 +98,21 @@ const permissionModeTool = defineTool({
 
     const modeCard = permissionModeCards.find((card) => card.mode === currentMode)
     const tooltipTitle = modeCard ? t(modeCard.titleKey, modeCard.titleFallback) : ''
+
+    useEffect(() => {
+      return launcher.registerLaunchers([
+        {
+          id: 'permission-mode',
+          kind: 'panel',
+          sources: ['popover', 'root-panel'],
+          order: 80,
+          label: t('agent.settings.permissionMode.title', 'Permission Mode'),
+          description: tooltipTitle,
+          icon: getPermissionModeIcon(currentMode),
+          action: handleClick
+        }
+      ])
+    }, [currentMode, handleClick, launcher, t, tooltipTitle])
 
     return (
       <Tooltip placement="top" title={tooltipTitle}>

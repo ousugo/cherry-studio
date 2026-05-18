@@ -3,7 +3,7 @@ import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
-import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import type { ToolLauncherApi, ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useNavigate } from '@tanstack/react-router'
 import { CircleX, FileSearch, Plus } from 'lucide-react'
@@ -13,12 +13,13 @@ import { useTranslation } from 'react-i18next'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
+  launcher: ToolLauncherApi
   selectedBases?: KnowledgeBase[]
   onSelect: (bases: KnowledgeBase[]) => void
   disabled?: boolean
 }
 
-const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, disabled }) => {
+const KnowledgeBaseButton: FC<Props> = ({ quickPanel, launcher, selectedBases, onSelect, disabled }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const quickPanelHook = useQuickPanel()
@@ -93,12 +94,16 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
   }, [openQuickPanel, quickPanelHook])
 
   useEffect(() => {
-    const disposeRootMenu = quickPanel.registerRootMenu([
+    const disposeLauncher = launcher.registerLaunchers([
       {
+        id: 'knowledge-base',
+        kind: 'panel',
+        sources: ['popover', 'root-panel'],
+        order: 40,
         label: t('chat.input.knowledge_base'),
         description: '',
         icon: <FileSearch />,
-        isMenu: true,
+        disabled,
         action: () => openQuickPanel()
       }
     ])
@@ -106,10 +111,10 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
     const disposeTrigger = quickPanel.registerTrigger(QuickPanelReservedSymbol.KnowledgeBase, () => openQuickPanel())
 
     return () => {
-      disposeRootMenu()
+      disposeLauncher()
       disposeTrigger()
     }
-  }, [openQuickPanel, quickPanel, t])
+  }, [disabled, launcher, openQuickPanel, quickPanel, t])
 
   return (
     <Tooltip content={t('chat.input.knowledge_base')}>

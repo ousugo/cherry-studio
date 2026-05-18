@@ -17,7 +17,7 @@ const webSearchTool = defineTool({
   visibleInScopes: [TopicType.Chat],
 
   render: function WebSearchToolRender(context) {
-    return <WebSearchButton assistantId={context.assistant.id} />
+    return <WebSearchButton assistantId={context.assistant.id} launcher={context.launcher} />
   }
 })
 

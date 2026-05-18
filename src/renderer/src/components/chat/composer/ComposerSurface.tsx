@@ -1,31 +1,27 @@
-import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
-import type { QuickPanelInputAdapter, QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
+import type {
+  QuickPanelContextType,
+  QuickPanelInputAdapter,
+  QuickPanelListItem,
+  QuickPanelTriggerInfo
+} from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
-import {
-  InputbarToolsProvider,
-  useInputbarToolsDispatch,
-  useInputbarToolsInternalDispatch,
-  useInputbarToolsState
-} from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import { useFileDragDrop } from '@renderer/pages/home/Inputbar/hooks/useFileDragDrop'
 import { usePasteHandler } from '@renderer/pages/home/Inputbar/hooks/usePasteHandler'
-import InputbarTools from '@renderer/pages/home/Inputbar/InputbarTools'
 import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
-import type { InputbarScope, ToolContext } from '@renderer/pages/home/Inputbar/types'
 import PasteService from '@renderer/services/PasteService'
-import type { Assistant } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
-import type { Model } from '@shared/data/types/model'
 import type { JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent } from '@tiptap/react'
-import { CirclePause, MoreHorizontal, Plus } from 'lucide-react'
+import { CirclePause } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,6 +29,7 @@ import { serializeComposerDocument } from './composerDraft'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
+import type { ComposerToolLauncher } from './toolLauncher'
 
 export interface ComposerSurfaceActions {
   resizeTextArea: () => void
@@ -52,10 +49,10 @@ export interface ComposerSurfaceProps {
   onSendDraft: (draft: ComposerSerializedDraft) => void | Promise<void>
   onPause: () => void | Promise<void>
   supportedExts: string[]
-  scope: InputbarScope
-  assistant?: Assistant
-  model?: Model
-  session?: ToolContext['session']
+  setFiles: React.Dispatch<React.SetStateAction<FileMetadata[]>>
+  filesCount: number
+  isExpanded: boolean
+  onExpandedChange: (expanded: boolean) => void
   quickPanelEnabled: boolean
   enableQuickPanelTriggers: boolean
   enableMentionModelTrigger?: boolean
@@ -66,6 +63,19 @@ export interface ComposerSurfaceProps {
   narrowMode: boolean
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
+  getToolLaunchers?: () => ComposerToolLauncher[]
+  emitToolTrigger?: (symbol: QuickPanelReservedSymbol, payload?: unknown) => void
+  onToolLauncherSelect?: (
+    launcher: ComposerToolLauncher,
+    options: {
+      source: 'root-panel'
+      inputAdapter?: QuickPanelInputAdapter
+      quickPanel: QuickPanelContextType
+      triggerInfo?: QuickPanelTriggerInfo
+      searchText?: string
+    }
+  ) => void
+  renderLeftControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
 }
 
 function createPlainTextContent(text: string): JSONContent {
@@ -170,10 +180,10 @@ export default function ComposerSurface({
   onSendDraft,
   onPause,
   supportedExts,
-  scope,
-  assistant,
-  model,
-  session,
+  setFiles,
+  filesCount,
+  isExpanded,
+  onExpandedChange,
   quickPanelEnabled,
   enableQuickPanelTriggers,
   enableMentionModelTrigger = false,
@@ -183,11 +193,12 @@ export default function ComposerSurface({
   fontSize,
   narrowMode,
   onFocus,
-  onActionsChange
+  onActionsChange,
+  getToolLaunchers,
+  emitToolTrigger,
+  onToolLauncherSelect,
+  renderLeftControls
 }: ComposerSurfaceProps) {
-  const { files, isExpanded } = useInputbarToolsState()
-  const { setFiles, setIsExpanded, toolsRegistry, triggers } = useInputbarToolsDispatch()
-  const { setExtensions } = useInputbarToolsInternalDispatch()
   const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -216,10 +227,6 @@ export default function ComposerSurface({
   useEffect(() => {
     onSendDraftRef.current = onSendDraft
   }, [onSendDraft])
-
-  useEffect(() => {
-    setExtensions(supportedExts)
-  }, [setExtensions, supportedExts])
 
   const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
     (value) => {
@@ -253,11 +260,11 @@ export default function ComposerSurface({
   const handleToggleExpanded = useCallback(
     (nextState?: boolean) => {
       const target = typeof nextState === 'boolean' ? nextState : !isExpanded
-      setIsExpanded(target)
+      onExpandedChange(target)
       setCustomHeight(target ? Math.max(220, Math.round(window.innerHeight * 0.5)) : undefined)
       focusEditor()
     },
-    [focusEditor, isExpanded, setIsExpanded]
+    [focusEditor, isExpanded, onExpandedChange]
   )
 
   const handleTextChangeFromTool = useCallback(
@@ -279,9 +286,37 @@ export default function ComposerSurface({
 
   const editorExtensions = useMemo(() => createComposerEditorPreset({ placeholder }), [placeholder])
 
+  const getRootPanelItems = useCallback((): QuickPanelListItem[] => {
+    return (getToolLaunchers?.() ?? [])
+      .filter((launcher) => !launcher.hidden)
+      .map((launcher) => ({
+        label: launcher.label,
+        description: launcher.description,
+        icon: launcher.icon,
+        suffix:
+          launcher.suffix ??
+          (launcher.kind === 'panel' || launcher.kind === 'group' ? (
+            <span className="text-foreground-muted">›</span>
+          ) : undefined),
+        disabled: launcher.disabled,
+        hidden: launcher.hidden,
+        isSelected: launcher.active,
+        isMenu: launcher.kind === 'panel' || launcher.kind === 'group',
+        action: ({ context, searchText, inputAdapter }) => {
+          onToolLauncherSelect?.(launcher, {
+            source: 'root-panel',
+            quickPanel: context,
+            inputAdapter,
+            triggerInfo: context.triggerInfo,
+            searchText
+          })
+        }
+      }))
+  }, [getToolLaunchers, onToolLauncherSelect])
+
   const openRootPanel = useCallback(
     (payload?: unknown) => {
-      const menuItems = triggers.getRootMenu()
+      const menuItems = getRootPanelItems()
       if (menuItems.length === 0) return
 
       quickPanel.open({
@@ -291,22 +326,8 @@ export default function ComposerSurface({
         triggerInfo: (payload ?? { type: 'button' }) as QuickPanelTriggerInfo
       })
     },
-    [quickPanel, t, triggers]
+    [getRootPanelItems, quickPanel, t]
   )
-
-  useEffect(() => {
-    if (!quickPanelEnabled) return
-
-    const disposeRootTrigger = toolsRegistry.registerTrigger(
-      'composer-surface-root',
-      QuickPanelReservedSymbol.Root,
-      openRootPanel
-    )
-
-    return () => {
-      disposeRootTrigger()
-    }
-  }, [openRootPanel, quickPanelEnabled, toolsRegistry])
 
   const editor = useRichTextEditorKernel({
     extensions: editorExtensions,
@@ -336,7 +357,7 @@ export default function ComposerSurface({
           return true
         }
 
-        if (event.key === 'Backspace' && textRef.current.trim().length === 0 && files.length > 0) {
+        if (event.key === 'Backspace' && textRef.current.trim().length === 0 && filesCount > 0) {
           setFiles((prev) => prev.slice(0, -1))
           event.preventDefault()
           return true
@@ -366,7 +387,7 @@ export default function ComposerSurface({
 
       if (!enableQuickPanelTriggers || !quickPanelEnabled) return
 
-      const hasRootMenuItems = triggers.getRootMenu().length > 0
+      const hasRootMenuItems = getRootPanelItems().length > 0
       const textBeforeCursor = nextText.slice(0, cursorPosition)
       const lastRootIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.Root)
       const lastMentionIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.MentionModels)
@@ -379,7 +400,7 @@ export default function ComposerSurface({
         (quickPanel.lastCloseAction === undefined || quickPanel.lastCloseAction === 'outsideclick')
 
       const openRootPanelAt = (position: number) => {
-        triggers.emit(QuickPanelReservedSymbol.Root, {
+        openRootPanel({
           type: 'input',
           position,
           originalText: nextText
@@ -387,7 +408,7 @@ export default function ComposerSurface({
       }
 
       const openMentionPanelAt = (position: number) => {
-        triggers.emit(QuickPanelReservedSymbol.MentionModels, {
+        emitToolTrigger?.(QuickPanelReservedSymbol.MentionModels, {
           type: 'input',
           position,
           originalText: nextText
@@ -561,9 +582,7 @@ export default function ComposerSurface({
           </div>
 
           <div className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-[5px]">
-            <div className="flex min-w-0 flex-1 items-center">
-              <ComposerSurfaceToolMenu scope={scope} assistant={assistant} model={model} session={session} />
-            </div>
+            <div className="flex min-w-0 flex-1 items-center">{renderLeftControls?.(inputAdapter)}</div>
             <div className="flex flex-row items-center gap-1.5">
               <TranslateButton text={text} disabled={sendDisabled} onTranslated={onTranslated} />
               {isLoading ? (
@@ -586,84 +605,3 @@ export default function ComposerSurface({
     </NarrowLayout>
   )
 }
-
-interface ComposerSurfaceToolMenuProps {
-  scope: InputbarScope
-  assistant?: Assistant
-  model?: Model
-  session?: ToolContext['session']
-}
-
-const ComposerSurfaceToolMenu = ({ scope, assistant, model, session }: ComposerSurfaceToolMenuProps) => {
-  const { t } = useTranslation()
-  const { triggers } = useInputbarToolsDispatch()
-  const quickPanel = useQuickPanel()
-  const [open, setOpen] = useState(false)
-  const [menuItems, setMenuItems] = useState(() => triggers.getRootMenu())
-
-  const refreshMenuItems = useCallback(() => {
-    setMenuItems(triggers.getRootMenu())
-  }, [triggers])
-
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      setOpen(nextOpen)
-      if (nextOpen) refreshMenuItems()
-    },
-    [refreshMenuItems]
-  )
-
-  const visibleMenuItems = useMemo(() => menuItems.filter((item) => !item.hidden), [menuItems])
-
-  return (
-    <>
-      <Popover open={open} onOpenChange={handleOpenChange}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground"
-            aria-label={t('common.add')}>
-            <Plus size={20} />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="start" side="top" sideOffset={10} className="w-64 rounded-[20px] p-2 shadow-xl">
-          <MenuList className="gap-1">
-            {visibleMenuItems.map((item, index) => (
-              <MenuItem
-                key={`${String(item.label)}-${index}`}
-                icon={<span className="text-foreground-muted [&_svg]:size-5">{item.icon}</span>}
-                label={String(item.label)}
-                disabled={item.disabled}
-                suffix={item.isMenu ? <span className="text-foreground-muted">›</span> : undefined}
-                active={item.isSelected}
-                onClick={() => {
-                  item.action?.({ item, context: quickPanel, action: 'click' })
-                  setOpen(false)
-                }}
-              />
-            ))}
-
-            {visibleMenuItems.length > 0 && <MenuDivider />}
-
-            <MenuItem
-              icon={<MoreHorizontal size={20} />}
-              label={t('common.more')}
-              onClick={() => {
-                triggers.emit(QuickPanelReservedSymbol.Root, { type: 'button' })
-                setOpen(false)
-              }}
-            />
-          </MenuList>
-        </PopoverContent>
-      </Popover>
-
-      {assistant && model && (
-        <div className="hidden" aria-hidden>
-          <InputbarTools scope={scope} assistant={assistant} model={model} session={session} />
-        </div>
-      )}
-    </>
-  )
-}
-
-export { InputbarToolsProvider }

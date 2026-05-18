@@ -62,22 +62,10 @@ export const SHORTCUT_DEFINITIONS = [
   }),
   // ==================== Chat shortcuts ====================
   defineShortcut({
-    key: 'shortcut.chat.clear',
-    scope: 'renderer',
-    category: 'chat',
-    labelKey: 'clear_topic'
-  }),
-  defineShortcut({
     key: 'shortcut.chat.search_message',
     scope: 'renderer',
     category: 'chat',
     labelKey: 'search_message_in_chat'
-  }),
-  defineShortcut({
-    key: 'shortcut.chat.toggle_new_context',
-    scope: 'renderer',
-    category: 'chat',
-    labelKey: 'toggle_new_context'
   }),
   defineShortcut({
     key: 'shortcut.chat.copy_last_message',

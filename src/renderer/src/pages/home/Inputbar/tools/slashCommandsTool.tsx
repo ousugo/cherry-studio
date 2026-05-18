@@ -102,50 +102,55 @@ const slashCommandsTool = defineTool({
     actions: ['onTextChange'] as const
   },
 
+  launcher: {
+    createLaunchers: (context) => {
+      const { t, session, actions, quickPanelController } = context
+      const slashCommands = getBuiltinSlashCommands(session?.agentType)
+
+      if (slashCommands.length === 0) {
+        return []
+      }
+
+      return [
+        {
+          id: 'slash-commands',
+          kind: 'panel' as const,
+          sources: ['popover', 'root-panel'],
+          order: 20,
+          label: t('chat.input.slash_commands.title'),
+          description: t('chat.input.slash_commands.description', 'Agent session slash commands'),
+          icon: <Terminal size={16} />,
+          action: ({ source, quickPanel, inputAdapter }) => {
+            const shouldReplaceTrigger = source === 'root-panel'
+            quickPanel.close('select')
+            setTimeout(() => {
+              quickPanelController.open({
+                title: t('chat.input.slash_commands.title'),
+                symbol: QuickPanelReservedSymbol.SlashCommands,
+                list: slashCommands.map((cmd) => ({
+                  label: cmd.command,
+                  description: cmd.description || '',
+                  icon: <Terminal size={16} />,
+                  filterText: `${cmd.command} ${cmd.description || ''}`,
+                  action: ({ inputAdapter: panelInputAdapter }) => {
+                    insertSlashCommand(
+                      cmd.command,
+                      actions.onTextChange,
+                      shouldReplaceTrigger,
+                      panelInputAdapter ?? inputAdapter
+                    )
+                  }
+                }))
+              })
+            }, 0)
+          }
+        }
+      ]
+    }
+  },
+
   // Declarative QuickPanel configuration
   quickPanel: {
-    // Root menu contribution (first level menu item)
-    rootMenu: {
-      createMenuItems: (context) => {
-        const { t, session, actions, quickPanelController } = context
-        const slashCommands = getBuiltinSlashCommands(session?.agentType)
-
-        // Only show menu item if there are commands
-        if (slashCommands.length === 0) {
-          return []
-        }
-
-        return [
-          {
-            label: t('chat.input.slash_commands.title'),
-            description: t('chat.input.slash_commands.description', 'Agent session slash commands'),
-            icon: <Terminal size={16} />,
-            isMenu: true, // Mark as parent menu item (first level)
-            action: () => {
-              // Close root panel and open secondary panel
-              quickPanelController.close()
-              setTimeout(() => {
-                quickPanelController.open({
-                  title: t('chat.input.slash_commands.title'),
-                  symbol: QuickPanelReservedSymbol.SlashCommands,
-                  list: slashCommands.map((cmd) => ({
-                    label: cmd.command,
-                    description: cmd.description || '',
-                    icon: <Terminal size={16} />,
-                    filterText: `${cmd.command} ${cmd.description || ''}`,
-                    action: ({ inputAdapter }) => {
-                      // Replace the '/' that triggered the root menu
-                      insertSlashCommand(cmd.command, actions.onTextChange, true, inputAdapter)
-                    }
-                  }))
-                })
-              }, 0)
-            }
-          }
-        ]
-      }
-    },
-
     // Trigger configuration (allows direct access via symbol)
     triggers: [
       {

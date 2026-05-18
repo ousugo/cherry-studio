@@ -8,7 +8,7 @@ import type {
 } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
-import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
+import type { ToolLauncherApi, ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { getFileTypeByExt } from '@shared/file/types'
@@ -91,6 +91,7 @@ export type ResourcePanelTriggerInfo = {
 
 interface Params {
   quickPanel: ToolQuickPanelApi
+  launcher: ToolLauncherApi
   quickPanelController: ToolQuickPanelController
   accessiblePaths: string[]
   agentId?: string
@@ -100,8 +101,8 @@ interface Params {
 }
 
 export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'button') => {
-  const { quickPanel, quickPanelController, accessiblePaths, agentId, files, setFiles, setText } = params
-  const { registerTrigger, registerRootMenu } = quickPanel
+  const { quickPanel, launcher, quickPanelController, accessiblePaths, agentId, files, setFiles, setText } = params
+  const { registerTrigger } = quickPanel
   const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { t } = useTranslation()
 
@@ -626,13 +627,16 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
   useEffect(() => {
     if (role !== 'manager') return
 
-    const disposeMenu = registerRootMenu([
+    const disposeLauncher = launcher.registerLaunchers([
       {
+        id: 'resource-panel',
+        kind: 'panel',
+        sources: ['popover', 'root-panel'],
+        order: 30,
         label: t('chat.input.resource_panel.title'),
         description: t('chat.input.resource_panel.description'),
         icon: <Folder size={16} />,
-        isMenu: true,
-        action: ({ context }) => {
+        action: ({ quickPanel: context }) => {
           const rootTrigger =
             context.triggerInfo && context.triggerInfo.type === 'input'
               ? {
@@ -655,10 +659,10 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
     })
 
     return () => {
-      disposeMenu()
+      disposeLauncher()
       disposeTrigger()
     }
-  }, [openQuickPanel, registerRootMenu, registerTrigger, role, t])
+  }, [launcher, openQuickPanel, registerTrigger, role, t])
 
   return {
     handleOpenQuickPanel,

@@ -1,9 +1,15 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import ComposerSurface, {
-  type ComposerSurfaceActions,
-  InputbarToolsProvider
-} from '@renderer/components/chat/composer/ComposerSurface'
+import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
+import {
+  ComposerToolMenu,
+  ComposerToolRuntimeHost,
+  ComposerToolRuntimeProvider,
+  useComposerToolDispatch,
+  useComposerToolInternalDispatch,
+  useComposerToolLauncherController,
+  useComposerToolState
+} from '@renderer/components/chat/composer/ComposerToolRuntime'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
@@ -11,11 +17,6 @@ import { useSession } from '@renderer/hooks/agents/useSession'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { isSoulModeEnabled } from '@renderer/pages/agents/AgentSettings/shared'
-import {
-  useInputbarToolsDispatch,
-  useInputbarToolsInternalDispatch,
-  useInputbarToolsState
-} from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
 import type { ToolContext } from '@renderer/pages/home/Inputbar/types'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -52,15 +53,11 @@ type Props = {
 
 type ProviderActionHandlers = ComposerSurfaceActions & {
   addNewTopic: () => void
-  clearTopic: () => void
-  onNewContext: () => void
 }
 
 const emptyActions: ProviderActionHandlers = {
   resizeTextArea: () => undefined,
   addNewTopic: () => undefined,
-  clearTopic: () => undefined,
-  onNewContext: () => undefined,
   onTextChange: () => undefined,
   toggleExpanded: () => undefined
 }
@@ -127,7 +124,7 @@ const AgentComposer = ({
   if (!assistantStub) return null
 
   return (
-    <InputbarToolsProvider
+    <ComposerToolRuntimeProvider
       initialState={initialState}
       actions={{
         resizeTextArea: () => actionsRef.current.resizeTextArea(),
@@ -135,8 +132,6 @@ const AgentComposer = ({
         addNewTopic: () => {
           void onNewSessionDraft?.()
         },
-        clearTopic: () => actionsRef.current.clearTopic(),
-        onNewContext: () => actionsRef.current.onNewContext(),
         toggleExpanded: (next) => actionsRef.current.toggleExpanded(next)
       }}>
       <AgentComposerInner
@@ -150,7 +145,7 @@ const AgentComposer = ({
         chatStop={stop}
         isStreaming={isStreaming}
       />
-    </InputbarToolsProvider>
+    </ComposerToolRuntimeProvider>
   )
 }
 
@@ -180,9 +175,10 @@ const AgentComposerInner = ({
   const { agent: agentBase } = useAgent(agentId)
   const scope = TopicType.Session
   const config = getInputbarConfig(scope)
-  const { files } = useInputbarToolsState()
-  const { setFiles } = useInputbarToolsDispatch()
-  const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
+  const { files, isExpanded } = useComposerToolState()
+  const { setFiles, setIsExpanded, triggers } = useComposerToolDispatch()
+  const { setCouldAddImageFile, setExtensions } = useComposerToolInternalDispatch()
+  const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
@@ -217,6 +213,10 @@ const AgentComposerInner = ({
   useEffect(() => {
     setCouldAddImageFile(canAddImageFile)
   }, [canAddImageFile, setCouldAddImageFile])
+
+  useEffect(() => {
+    setExtensions(supportedExts)
+  }, [setExtensions, supportedExts])
 
   const setText = useCallback(
     (nextText: string) => {
@@ -298,31 +298,38 @@ const AgentComposerInner = ({
   )
 
   return (
-    <ComposerSurface
-      text={text}
-      onTextChange={setText}
-      tokens={tokens}
-      managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
-      onTokensChange={handleTokensChange}
-      placeholder={placeholderText}
-      sendDisabled={(text.trim().length === 0 && files.length === 0) || isStreaming}
-      isLoading={isStreaming}
-      onSendDraft={handleSendDraft}
-      onPause={abortAgentSession}
-      supportedExts={supportedExts}
-      scope={scope}
-      assistant={assistant}
-      model={model}
-      session={toolsSession}
-      quickPanelEnabled={config.enableQuickPanel ?? true}
-      enableQuickPanelTriggers
-      enableMentionModelTrigger
-      enableDragDrop={config.enableDragDrop ?? true}
-      enableSpellCheck={enableSpellCheck}
-      fontSize={fontSize}
-      narrowMode={narrowMode}
-      onActionsChange={handleSurfaceActionsChange}
-    />
+    <>
+      {model && <ComposerToolRuntimeHost scope={scope} assistant={assistant} model={model} session={toolsSession} />}
+      <ComposerSurface
+        text={text}
+        onTextChange={setText}
+        tokens={tokens}
+        managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
+        onTokensChange={handleTokensChange}
+        placeholder={placeholderText}
+        sendDisabled={(text.trim().length === 0 && files.length === 0) || isStreaming}
+        isLoading={isStreaming}
+        onSendDraft={handleSendDraft}
+        onPause={abortAgentSession}
+        supportedExts={supportedExts}
+        setFiles={setFiles}
+        filesCount={files.length}
+        isExpanded={isExpanded}
+        onExpandedChange={setIsExpanded}
+        quickPanelEnabled={config.enableQuickPanel ?? true}
+        enableQuickPanelTriggers
+        enableMentionModelTrigger
+        enableDragDrop={config.enableDragDrop ?? true}
+        enableSpellCheck={enableSpellCheck}
+        fontSize={fontSize}
+        narrowMode={narrowMode}
+        onActionsChange={handleSurfaceActionsChange}
+        getToolLaunchers={() => getLaunchers('root-panel')}
+        emitToolTrigger={triggers.emit}
+        onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+        renderLeftControls={(inputAdapter) => <ComposerToolMenu inputAdapter={inputAdapter} />}
+      />
+    </>
   )
 }
 

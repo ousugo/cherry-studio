@@ -1,0 +1,37 @@
+import type {
+  QuickPanelContextType,
+  QuickPanelInputAdapter,
+  QuickPanelTriggerInfo
+} from '@renderer/components/QuickPanel'
+import type { ReactNode } from 'react'
+
+export type ComposerToolLauncherKind = 'command' | 'panel' | 'dialog' | 'group'
+
+export type ComposerToolLauncherSource = 'popover' | 'root-panel'
+
+export interface ComposerToolLauncherActionOptions {
+  quickPanel: QuickPanelContextType
+  inputAdapter?: QuickPanelInputAdapter
+  triggerInfo?: QuickPanelTriggerInfo
+  searchText?: string
+  source: ComposerToolLauncherSource
+}
+
+export interface ComposerToolLauncher {
+  id: string
+  kind: ComposerToolLauncherKind
+  /**
+   * Composer tools must declare where they can be launched from. QuickPanel is
+   * only the search/list renderer; it is not the tool menu data source.
+   */
+  sources?: readonly ComposerToolLauncherSource[]
+  order?: number
+  label: ReactNode | string
+  description?: ReactNode | string
+  icon: ReactNode | string
+  suffix?: ReactNode | string
+  active?: boolean
+  disabled?: boolean
+  hidden?: boolean
+  action?: (options: ComposerToolLauncherActionOptions) => void
+}

@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
 import type {
   QuickPanelContextType,
   QuickPanelListItem,
@@ -83,11 +84,19 @@ export interface ToolContext {
 }
 
 /**
- * 工具 QuickPanel 注册 API（声明式注册菜单和触发器）
+ * 工具 QuickPanel 注册 API（声明式注册触发器）。
+ *
+ * Rule: QuickPanel is a panel renderer, not the composer tool data layer.
+ * New composer entries must register `launcher` entries; `rootMenu` remains
+ * only for the legacy horizontal Inputbar path.
  */
 export interface ToolQuickPanelApi {
   registerRootMenu: (entries: QuickPanelListItem[]) => () => void
   registerTrigger: (symbol: QuickPanelReservedSymbol, handler: (payload?: unknown) => void) => () => void
+}
+
+export interface ToolLauncherApi {
+  registerLaunchers: (entries: ComposerToolLauncher[]) => () => void
 }
 
 /**
@@ -102,6 +111,7 @@ export type ToolRenderContext<S extends readonly ToolStateKey[], A extends reado
   state: Pick<ToolStateMap, S[number]>
   actions: Pick<ToolActionMap, A[number]>
   quickPanel: ToolQuickPanelApi
+  launcher: ToolLauncherApi
   quickPanelController: ToolQuickPanelController
   t: TFunction
 }
@@ -125,8 +135,8 @@ export interface ToolQuickPanelTrigger<
 }
 
 /**
- * Root menu configuration for a tool.
- * Allows tools to contribute menu items to the '/' root menu.
+ * Legacy root menu configuration for the old Inputbar.
+ * Composer + menu and "/" root panel must consume ToolLauncherContribution.
  */
 export interface ToolQuickPanelRootMenu<
   S extends readonly ToolStateKey[] = readonly ToolStateKey[],
@@ -150,6 +160,13 @@ export interface ToolQuickPanelCapabilities<
   triggers?: ToolQuickPanelTrigger<S, A>[]
 }
 
+export interface ToolLauncherContribution<
+  S extends readonly ToolStateKey[] = readonly ToolStateKey[],
+  A extends readonly ToolActionKey[] = readonly ToolActionKey[]
+> {
+  createLaunchers: (context: ToolRenderContext<S, A>) => ComposerToolLauncher[]
+}
+
 /**
  * Tool definition with full type inference for dependencies
  */
@@ -171,8 +188,11 @@ export interface ToolDefinition<
     actions?: A
   }
 
-  // Quick panel integration metadata (declarative trigger registration)
+  // Quick panel integration metadata (legacy root menu + declarative trigger registration)
   quickPanel?: ToolQuickPanelCapabilities<S, A>
+
+  // Composer-native tool menu entries. Popover and "/" root panel adapt these launchers.
+  launcher?: ToolLauncherContribution<S, A>
 
   // Render function (receives context with injected dependencies)
   // If null, the tool is a pure menu contributor (no button)

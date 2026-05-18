@@ -6,7 +6,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import type { ToolLauncherApi, ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { EventEmitter } from '@renderer/services/EventService'
 import type { AssistantSettings, McpMode, MCPPrompt, MCPResource } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   assistantId: string
   quickPanel: ToolQuickPanelApi
+  launcher: ToolLauncherApi
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
 }
@@ -113,7 +114,7 @@ const sparklesIcon = <Sparkles />
 const hammerIcon18 = <Hammer size={18} />
 const sparklesIcon18 = <Sparkles size={18} />
 
-const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, assistantId }) => {
+const MCPToolsButton: FC<Props> = ({ quickPanel, launcher, setInputValue, resizeTextArea, assistantId }) => {
   const { mcpServers: activedMcpServers } = useMCPServers({ isActive: true })
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
@@ -524,26 +525,35 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
   }, [openQuickPanel, quickPanelHook])
 
   useEffect(() => {
-    const disposeMain = quickPanel.registerRootMenu([
+    const disposeLauncher = launcher.registerLaunchers([
       {
+        id: 'mcp-tools',
+        kind: 'panel',
+        sources: ['popover', 'root-panel'],
+        order: 50,
         label: t('settings.mcp.title'),
         description: '',
         icon: hammerIcon,
-        isMenu: true,
         action: () => openQuickPanel()
       },
       {
+        id: 'mcp-prompts',
+        kind: 'panel',
+        sources: ['root-panel'],
+        order: 51,
         label: `MCP ${t('settings.mcp.tabs.prompts')}`,
         description: '',
         icon: hammerIcon,
-        isMenu: true,
         action: () => openPromptList()
       },
       {
+        id: 'mcp-resources',
+        kind: 'panel',
+        sources: ['root-panel'],
+        order: 52,
         label: `MCP ${t('settings.mcp.tabs.resources')}`,
         description: '',
         icon: hammerIcon,
-        isMenu: true,
         action: () => openResourcesList()
       }
     ])
@@ -555,12 +565,12 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     )
 
     return () => {
-      disposeMain()
+      disposeLauncher()
       disposeMainTrigger()
       disposePromptTrigger()
       disposeResourceTrigger()
     }
-  }, [openPromptList, openQuickPanel, openResourcesList, quickPanel, t])
+  }, [launcher, openPromptList, openQuickPanel, openResourcesList, quickPanel, t])
 
   const isActive = currentMode !== 'disabled'
 

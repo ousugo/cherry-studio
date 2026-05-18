@@ -4,7 +4,7 @@ import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
 import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
-import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import type { ToolLauncherApi, ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { FileMetadata } from '@renderer/types'
 import { filterSupportedFiles, formatFileSize } from '@renderer/utils/file'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
+  launcher: ToolLauncherApi
   couldAddImageFile: boolean
   extensions: string[]
   files: FileMetadata[]
@@ -23,7 +24,15 @@ interface Props {
   disabled?: boolean
 }
 
-const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions, files, setFiles, disabled }) => {
+const AttachmentButton: FC<Props> = ({
+  quickPanel,
+  launcher,
+  couldAddImageFile,
+  extensions,
+  files,
+  setFiles,
+  disabled
+}) => {
   const { t } = useTranslation()
   const {
     open: openQuickPanelPanel,
@@ -205,23 +214,29 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
   }, [items, openQuickPanelPanel, t])
 
   useEffect(() => {
-    const disposeRootMenu = quickPanel.registerRootMenu([
+    const disposeLauncher = launcher.registerLaunchers([
       {
+        id: 'attachment',
+        kind: 'dialog',
+        sources: ['popover', 'root-panel'],
+        order: 10,
         label: couldAddImageFile ? t('chat.input.upload.attachment') : t('chat.input.upload.document'),
         description: '',
         icon: <Paperclip />,
-        isMenu: true,
-        action: () => openQuickPanel()
+        disabled,
+        action: () => {
+          void openFileSelectDialog()
+        }
       }
     ])
 
     const disposeTrigger = quickPanel.registerTrigger(QuickPanelReservedSymbol.File, () => openQuickPanel())
 
     return () => {
-      disposeRootMenu()
+      disposeLauncher()
       disposeTrigger()
     }
-  }, [couldAddImageFile, openQuickPanel, quickPanel, t])
+  }, [couldAddImageFile, disabled, launcher, openFileSelectDialog, openQuickPanel, quickPanel, t])
 
   const ariaLabel = couldAddImageFile ? t('chat.input.upload.image_or_document') : t('chat.input.upload.document')
 

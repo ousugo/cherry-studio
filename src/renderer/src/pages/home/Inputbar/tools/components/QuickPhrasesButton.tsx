@@ -11,7 +11,7 @@ import {
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import type { ToolLauncherApi, ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt } from '@shared/data/types/prompt'
 import { Plus, Zap } from 'lucide-react'
@@ -22,13 +22,14 @@ import { computeQuickPhraseInsertResult } from './quickPhraseInsert'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
+  launcher: ToolLauncherApi
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
 }
 
 const logger = loggerService.withContext('QuickPhrasesButton')
 
-const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props) => {
+const QuickPhrasesButton = ({ quickPanel, launcher, setInputValue, resizeTextArea }: Props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const { t } = useTranslation()
   const {
@@ -208,13 +209,16 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
   }, [closeQuickPanel, isQuickPanelVisible, openQuickPanel, quickPanelSymbol])
 
   useEffect(() => {
-    const disposeRootMenu = quickPanel.registerRootMenu([
+    const disposeLauncher = launcher.registerLaunchers([
       {
+        id: 'quick-phrases',
+        kind: 'panel',
+        sources: ['root-panel'],
+        order: 70,
         label: t('settings.prompts.title'),
         description: '',
         icon: <Zap />,
-        isMenu: true,
-        action: ({ context, searchText }) => {
+        action: ({ quickPanel: context, searchText }) => {
           const rootTrigger =
             context.triggerInfo && context.triggerInfo.type === 'input'
               ? {
@@ -236,10 +240,10 @@ const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea }: Props
     })
 
     return () => {
-      disposeRootMenu()
+      disposeLauncher()
       disposeTrigger()
     }
-  }, [openQuickPanel, quickPanel, setTimeoutTimer, t])
+  }, [launcher, openQuickPanel, quickPanel, setTimeoutTimer, t])
 
   return (
     <>

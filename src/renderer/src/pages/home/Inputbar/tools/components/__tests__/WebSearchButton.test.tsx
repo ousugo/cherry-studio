@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
+import type { ToolLauncherApi } from '@renderer/pages/home/Inputbar/types'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
@@ -10,6 +11,9 @@ import WebSearchButton from '../WebSearchButton'
 const updateAssistantMock = vi.fn()
 const navigateMock = vi.fn()
 const confirmMock = vi.fn()
+const launcherApi: ToolLauncherApi = {
+  registerLaunchers: vi.fn(() => vi.fn())
+}
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
@@ -25,11 +29,18 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@renderer/components/Buttons', () => ({
-  ActionIconButton: ({ icon, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { icon: React.ReactNode }) => (
-    <button type="button" {...props}>
-      {icon}
-    </button>
-  )
+  ActionIconButton: ({
+    icon,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; icon: React.ReactNode }) => {
+    const buttonProps = { ...props }
+    delete buttonProps.active
+    return (
+      <button type="button" {...buttonProps}>
+        {icon}
+      </button>
+    )
+  }
 }))
 
 vi.mock('antd', () => ({
@@ -54,6 +65,13 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
       enableWebSearch: false,
       mcpMode: 'disabled',
       mcpServers: []
+    },
+    model: {
+      id: 'anthropic::claude-3-5-sonnet',
+      providerId: 'anthropic',
+      apiModelId: 'claude-3-5-sonnet',
+      name: 'Claude 3.5 Sonnet',
+      capabilities: []
     },
     updateAssistant: updateAssistantMock
   })
@@ -130,7 +148,7 @@ describe('WebSearchButton', () => {
   })
 
   it('opens web search settings and does not update the assistant when external providers are missing', () => {
-    render(<WebSearchButton assistantId="assistant-1" />)
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
 

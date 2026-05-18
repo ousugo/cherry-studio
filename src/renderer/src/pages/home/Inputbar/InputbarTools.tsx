@@ -65,6 +65,7 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
   const toolsContext = useInputbarTools()
   const quickPanelContext = useQuickPanel()
   const quickPanelApiCacheRef = useRef(new Map<string, ToolQuickPanelApi>())
+  const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
 
   const getQuickPanelApiForTool = useCallback(
     (toolKey: string): ToolQuickPanelApi => {
@@ -76,6 +77,21 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
             toolsContext.toolsRegistry.registerRootMenu(toolKey, entries),
           registerTrigger: (symbol: QuickPanelReservedSymbol, handler: (payload?: unknown) => void) =>
             toolsContext.toolsRegistry.registerTrigger(toolKey, symbol, handler)
+        })
+      }
+
+      return cache.get(toolKey)!
+    },
+    [toolsContext.toolsRegistry]
+  )
+
+  const getLauncherApiForTool = useCallback(
+    (toolKey: string): ToolRenderContext<any, any>['launcher'] => {
+      const cache = launcherApiCacheRef.current
+
+      if (!cache.has(toolKey)) {
+        cache.set(toolKey, {
+          registerLaunchers: (entries) => toolsContext.toolsRegistry.registerLaunchers(toolKey, entries)
         })
       }
 
@@ -136,11 +152,22 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
         state,
         actions,
         quickPanel,
+        launcher: getLauncherApiForTool(tool.key),
         quickPanelController: quickPanelContext,
         t
       } as ToolRenderContext<S, A>
     },
-    [assistant, model, quickPanelContext, scope, session, t, toolsContext, getQuickPanelApiForTool]
+    [
+      assistant,
+      model,
+      quickPanelContext,
+      scope,
+      session,
+      t,
+      toolsContext,
+      getQuickPanelApiForTool,
+      getLauncherApiForTool
+    ]
   )
 
   // Build tool metadata (without rendering)
@@ -159,9 +186,15 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
     const disposeCallbacks: Array<() => void> = []
 
     for (const tool of availableTools) {
-      if (!tool.quickPanel) continue
-
       const context = buildRenderContext(tool)
+
+      if (tool.launcher) {
+        const launchers = tool.launcher.createLaunchers(context)
+        const dispose = toolsContext.toolsRegistry.registerLaunchers(tool.key, launchers)
+        disposeCallbacks.push(dispose)
+      }
+
+      if (!tool.quickPanel) continue
 
       // Register root menu items (declarative)
       if (tool.quickPanel.rootMenu) {

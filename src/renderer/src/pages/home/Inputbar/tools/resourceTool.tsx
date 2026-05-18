@@ -22,7 +22,7 @@ const resourceTool = defineTool({
   },
 
   render: function ResourceToolRender(context) {
-    const { quickPanel, quickPanelController, state, actions, session } = context
+    const { quickPanel, launcher, quickPanelController, state, actions, session } = context
     const { onTextChange, setFiles } = actions
 
     // Get accessible paths from session data
@@ -36,6 +36,7 @@ const resourceTool = defineTool({
     return (
       <ResourceButton
         quickPanel={quickPanel}
+        launcher={launcher}
         quickPanelController={quickPanelController}
         accessiblePaths={accessiblePaths}
         files={state.files}

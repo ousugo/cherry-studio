@@ -1,9 +1,15 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import ComposerSurface, {
-  type ComposerSurfaceActions,
-  InputbarToolsProvider
-} from '@renderer/components/chat/composer/ComposerSurface'
+import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
+import {
+  ComposerToolMenu,
+  ComposerToolRuntimeHost,
+  ComposerToolRuntimeProvider,
+  useComposerToolDispatch,
+  useComposerToolInternalDispatch,
+  useComposerToolLauncherController,
+  useComposerToolState
+} from '@renderer/components/chat/composer/ComposerToolRuntime'
 import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/config/models'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -15,17 +21,11 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import {
-  useInputbarToolsDispatch,
-  useInputbarToolsInternalDispatch,
-  useInputbarToolsState
-} from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import { resolveNewTopicAssistantId } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
 import { type AddNewTopicPayload, EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata, Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
-import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -74,15 +74,11 @@ interface ChatComposerProps {
 
 type ProviderActionHandlers = ComposerSurfaceActions & {
   addNewTopic: (payload?: AddNewTopicPayload) => void
-  clearTopic: () => void
-  onNewContext: () => void
 }
 
 const emptyActions: ProviderActionHandlers = {
   resizeTextArea: () => undefined,
   addNewTopic: () => undefined,
-  clearTopic: () => undefined,
-  onNewContext: () => undefined,
   onTextChange: () => undefined,
   toggleExpanded: () => undefined
 }
@@ -104,18 +100,16 @@ const ChatComposer = ({ setActiveTopic, topic, onSend }: ChatComposerProps) => {
   )
 
   return (
-    <InputbarToolsProvider
+    <ComposerToolRuntimeProvider
       initialState={initialState}
       actions={{
         resizeTextArea: () => actionsRef.current.resizeTextArea(),
         addNewTopic: () => actionsRef.current.addNewTopic(),
-        clearTopic: () => actionsRef.current.clearTopic(),
-        onNewContext: () => actionsRef.current.onNewContext(),
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         toggleExpanded: (next) => actionsRef.current.toggleExpanded(next)
       }}>
       <ChatComposerInner setActiveTopic={setActiveTopic} topic={topic} actionsRef={actionsRef} onSend={onSend} />
-    </InputbarToolsProvider>
+    </ComposerToolRuntimeProvider>
   )
 }
 
@@ -127,9 +121,10 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   const awaitingApproval = useTopicAwaitingApproval(topic.id)
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
-  const { files, mentionedModels, selectedKnowledgeBases } = useInputbarToolsState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases } = useInputbarToolsDispatch()
-  const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
+  const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
+  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, triggers, setIsExpanded } = useComposerToolDispatch()
+  const { setCouldAddImageFile, setExtensions } = useComposerToolInternalDispatch()
+  const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const { assistant, model, updateAssistant } = useAssistant(topic.assistantId)
   const { assistant: defaultAssistant } = useDefaultAssistant()
   const { createTopic } = useTopicMutations()
@@ -195,6 +190,10 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   useEffect(() => {
     setCouldAddImageFile(canAddImageFile)
   }, [canAddImageFile, setCouldAddImageFile])
+
+  useEffect(() => {
+    setExtensions(supportedExts)
+  }, [setExtensions, supportedExts])
 
   const setText = useCallback((nextText: string) => {
     setTextState(nextText)
@@ -270,22 +269,6 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
     chatWrite?.pause()
   }, [chatWrite])
 
-  const clearTopic = useCallback(async () => {
-    if (loading) {
-      onPause()
-      await delay(1)
-    }
-    void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
-  }, [loading, onPause, topic])
-
-  const onNewContext = useCallback(() => {
-    if (loading) {
-      onPause()
-      return
-    }
-    void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
-  }, [loading, onPause])
-
   const addNewTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
       const assistantId = resolveNewTopicAssistantId(topic.assistantId, payload)
@@ -305,8 +288,8 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   )
 
   useEffect(() => {
-    Object.assign(actionsRef.current, { addNewTopic, clearTopic, onNewContext })
-  }, [actionsRef, addNewTopic, clearTopic, onNewContext])
+    Object.assign(actionsRef.current, { addNewTopic })
+  }, [actionsRef, addNewTopic])
 
   useShortcut(
     'topic.new',
@@ -316,11 +299,6 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
     },
     { preventDefault: true, enableOnFormTags: true }
   )
-
-  useShortcut('chat.clear', clearTopic, {
-    preventDefault: true,
-    enableOnFormTags: true
-  })
 
   useEffect(() => {
     const unsubscribes = [EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)]
@@ -378,32 +356,42 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   if (isMultiSelectMode) return null
 
   return (
-    <ComposerSurface
-      text={text}
-      onTextChange={setText}
-      tokens={tokens}
-      managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
-      onTokensChange={handleTokensChange}
-      placeholder={searching ? t('chat.input.translating') : placeholderText}
-      sendDisabled={text.trim().length === 0 || loading || searching}
-      isLoading={loading}
-      onSendDraft={handleSendDraft}
-      onPause={onPause}
-      supportedExts={supportedExts}
-      scope={scope}
-      assistant={runtimeAssistant}
-      model={model}
-      quickPanelEnabled={config.enableQuickPanel ?? true}
-      enableQuickPanelTriggers={enableQuickPanelTriggers}
-      enableMentionModelTrigger
-      enableDragDrop={config.enableDragDrop ?? true}
-      enableSpellCheck={enableSpellCheck}
-      editable={!searching}
-      fontSize={fontSize}
-      narrowMode={narrowMode}
-      onFocus={() => setSearching(false)}
-      onActionsChange={handleSurfaceActionsChange}
-    />
+    <>
+      {runtimeAssistant && model && (
+        <ComposerToolRuntimeHost scope={scope} assistant={runtimeAssistant} model={model} />
+      )}
+      <ComposerSurface
+        text={text}
+        onTextChange={setText}
+        tokens={tokens}
+        managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
+        onTokensChange={handleTokensChange}
+        placeholder={searching ? t('chat.input.translating') : placeholderText}
+        sendDisabled={text.trim().length === 0 || loading || searching}
+        isLoading={loading}
+        onSendDraft={handleSendDraft}
+        onPause={onPause}
+        supportedExts={supportedExts}
+        setFiles={setFiles}
+        filesCount={files.length}
+        isExpanded={isExpanded}
+        onExpandedChange={setIsExpanded}
+        quickPanelEnabled={config.enableQuickPanel ?? true}
+        enableQuickPanelTriggers={enableQuickPanelTriggers}
+        enableMentionModelTrigger
+        enableDragDrop={config.enableDragDrop ?? true}
+        enableSpellCheck={enableSpellCheck}
+        editable={!searching}
+        fontSize={fontSize}
+        narrowMode={narrowMode}
+        onFocus={() => setSearching(false)}
+        onActionsChange={handleSurfaceActionsChange}
+        getToolLaunchers={() => getLaunchers('root-panel')}
+        emitToolTrigger={triggers.emit}
+        onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+        renderLeftControls={(inputAdapter) => <ComposerToolMenu inputAdapter={inputAdapter} />}
+      />
+    </>
   )
 }
 

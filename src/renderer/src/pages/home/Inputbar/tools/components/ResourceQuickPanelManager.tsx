@@ -10,6 +10,7 @@ interface ManagerProps {
 const ResourceQuickPanelManager = ({ context }: ManagerProps) => {
   const {
     quickPanel,
+    launcher,
     quickPanelController,
     state: { files },
     actions: { onTextChange, setFiles },
@@ -23,6 +24,7 @@ const ResourceQuickPanelManager = ({ context }: ManagerProps) => {
   useResourcePanel(
     {
       quickPanel,
+      launcher,
       quickPanelController,
       accessiblePaths,
       agentId: session?.agentId,

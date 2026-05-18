@@ -21,13 +21,14 @@ const mentionModelsTool = defineTool({
   },
 
   render: function MentionModelsToolRender(context) {
-    const { state, actions, quickPanel, quickPanelController } = context
+    const { state, actions, quickPanel, launcher, quickPanelController } = context
     const { mentionedModels, files, couldMentionNotVisionModel } = state
     const { setMentionedModels, onTextChange } = actions
 
     return (
       <MentionModelsButton
         quickPanel={quickPanel}
+        launcher={launcher}
         quickPanelController={quickPanelController}
         mentionedModels={mentionedModels}
         setMentionedModels={setMentionedModels}

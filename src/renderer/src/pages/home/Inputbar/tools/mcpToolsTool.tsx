@@ -11,10 +11,11 @@ const mcpToolsTool = defineTool({
   dependencies: {
     actions: ['onTextChange', 'resizeTextArea'] as const
   },
-  render: ({ assistant, actions, quickPanel }) => (
+  render: ({ assistant, actions, quickPanel, launcher }) => (
     <MCPToolsButton
       assistantId={assistant.id}
       quickPanel={quickPanel}
+      launcher={launcher}
       setInputValue={actions.onTextChange}
       resizeTextArea={actions.resizeTextArea}
     />

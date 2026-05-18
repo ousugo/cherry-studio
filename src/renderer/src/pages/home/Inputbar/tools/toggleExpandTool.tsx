@@ -3,7 +3,7 @@ import type { ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import { Tooltip } from 'antd'
 import { Maximize, Minimize } from 'lucide-react'
-import React, { useCallback } from 'react'
+import React, { useCallback, useEffect } from 'react'
 
 type ToggleExpandRenderContext = ToolRenderContext<readonly ['isExpanded'], readonly ['toggleExpanded']>
 
@@ -14,6 +14,22 @@ const ToggleExpandTool: React.FC<{ context: ToggleExpandRenderContext }> = ({ co
   const handleToggle = useCallback(() => {
     actions.toggleExpanded?.()
   }, [actions])
+
+  useEffect(() => {
+    return context.launcher.registerLaunchers([
+      {
+        id: 'toggle-expand',
+        kind: 'command',
+        sources: ['popover'],
+        order: 90,
+        label: isExpanded ? t('chat.input.collapse') : t('chat.input.expand'),
+        description: '',
+        icon: isExpanded ? <Minimize size={18} /> : <Maximize size={18} />,
+        active: isExpanded,
+        action: handleToggle
+      }
+    ])
+  }, [context.launcher, handleToggle, isExpanded, t])
 
   return (
     <Tooltip

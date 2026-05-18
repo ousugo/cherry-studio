@@ -1,3 +1,4 @@
+import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import type { FileMetadata } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
@@ -42,6 +43,8 @@ export interface ToolsRegistryAPI {
    */
   registerRootMenu: (toolKey: string, entries: QuickPanelListItem[]) => () => void
 
+  registerLaunchers: (toolKey: string, entries: ComposerToolLauncher[]) => () => void
+
   /**
    * Register a trigger handler function.
    * @param toolKey - Unique tool identifier
@@ -69,6 +72,8 @@ export interface TriggersAPI {
    * @returns Merged menu items list
    */
   getRootMenu: () => QuickPanelListItem[]
+
+  getLaunchers: () => ComposerToolLauncher[]
 }
 
 /**
@@ -85,8 +90,6 @@ export interface InputbarToolsDispatch {
   /** Parent component actions */
   resizeTextArea: () => void
   addNewTopic: () => void
-  clearTopic: () => void
-  onNewContext: () => void
   toggleExpanded: (nextState?: boolean) => void
 
   /** Text manipulation (avoids putting text state in Context) */
@@ -155,8 +158,6 @@ interface InputbarToolsProviderProps {
   actions: {
     resizeTextArea: () => void
     addNewTopic: () => void
-    clearTopic: () => void
-    onNewContext: () => void
     onTextChange: (updater: string | ((prev: string) => string)) => void
     toggleExpanded: (nextState?: boolean) => void
   }
@@ -179,6 +180,7 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
 
   // Quick Panel Registry (stored in refs to avoid re-renders)
   const rootMenuRegistryRef = useRef(new Map<string, QuickPanelListItem[]>())
+  const launcherRegistryRef = useRef(new Map<string, ComposerToolLauncher[]>())
   const triggerRegistryRef = useRef(new Map<QuickPanelReservedSymbol, Map<string, QuickPanelTriggerHandler>>())
 
   // Quick Panel API (stable references)
@@ -194,6 +196,21 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
     rootMenuRegistryRef.current.set(toolKey, entries)
     return () => {
       rootMenuRegistryRef.current.delete(toolKey)
+    }
+  }, [])
+
+  const getComposerToolLaunchers = useCallback(() => {
+    const allEntries: ComposerToolLauncher[] = []
+    launcherRegistryRef.current.forEach((entries) => {
+      allEntries.push(...entries)
+    })
+    return allEntries
+  }, [])
+
+  const registerLaunchers = useCallback((toolKey: string, entries: ComposerToolLauncher[]) => {
+    launcherRegistryRef.current.set(toolKey, entries)
+    return () => {
+      launcherRegistryRef.current.delete(toolKey)
     }
   }, [])
 
@@ -236,8 +253,6 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
     () => ({
       resizeTextArea: () => actionsRef.current.resizeTextArea(),
       addNewTopic: () => actionsRef.current.addNewTopic(),
-      clearTopic: () => actionsRef.current.clearTopic(),
-      onNewContext: () => actionsRef.current.onNewContext(),
       onTextChange: (updater: string | ((prev: string) => string)) => actionsRef.current.onTextChange(updater),
       toggleExpanded: (nextState?: boolean) => actionsRef.current.toggleExpanded(nextState)
     }),
@@ -270,18 +285,20 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
   const toolsRegistryAPI = useMemo<ToolsRegistryAPI>(
     () => ({
       registerRootMenu,
+      registerLaunchers,
       registerTrigger
     }),
-    [registerRootMenu, registerTrigger]
+    [registerRootMenu, registerLaunchers, registerTrigger]
   )
 
   // Triggers API (stable references for Inputbar component)
   const triggersAPI = useMemo<TriggersAPI>(
     () => ({
       emit: emitTrigger,
-      getRootMenu: getQuickPanelRootMenu
+      getRootMenu: getQuickPanelRootMenu,
+      getLaunchers: getComposerToolLaunchers
     }),
-    [emitTrigger, getQuickPanelRootMenu]
+    [emitTrigger, getQuickPanelRootMenu, getComposerToolLaunchers]
   )
 
   // Dispatch Context Value (stable references)

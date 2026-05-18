@@ -25,7 +25,7 @@ const knowledgeBaseTool = defineTool({
   },
 
   render: function KnowledgeBaseToolRender(context) {
-    const { assistant, state, actions, quickPanel } = context
+    const { assistant, state, actions, quickPanel, launcher } = context
     const { updateAssistant } = useAssistantMutations()
 
     const handleSelect = useCallback(
@@ -41,6 +41,7 @@ const knowledgeBaseTool = defineTool({
     return (
       <KnowledgeBaseButton
         quickPanel={quickPanel}
+        launcher={launcher}
         selectedBases={state.selectedKnowledgeBases}
         onSelect={handleSelect}
         disabled={Array.isArray(state.files) && state.files.length > 0}

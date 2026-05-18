@@ -38,8 +38,6 @@ const LEGACY_KEY_TO_TARGET_KEY: Record<string, string> = {
   edit_last_user_message: 'shortcut.chat.edit_last_user_message',
   search_message_in_chat: 'shortcut.chat.search_message',
   search_message: 'shortcut.general.search',
-  clear_topic: 'shortcut.chat.clear',
-  toggle_new_context: 'shortcut.chat.toggle_new_context',
   select_model: 'shortcut.chat.select_model',
   exit_fullscreen: 'shortcut.general.exit_fullscreen',
   mini_window: 'shortcut.feature.quick_assistant.toggle_window',

@@ -1,5 +1,5 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
-import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
+import type { ToolLauncherApi, ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import type { FileMetadata } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { FolderOpen } from 'lucide-react'
@@ -12,6 +12,7 @@ import { useResourcePanel } from './useResourcePanel'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
+  launcher: ToolLauncherApi
   quickPanelController: ToolQuickPanelController
   accessiblePaths: string[]
   files: FileMetadata[]
@@ -19,12 +20,21 @@ interface Props {
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
-const ResourceButton: FC<Props> = ({ quickPanel, quickPanelController, accessiblePaths, files, setFiles, setText }) => {
+const ResourceButton: FC<Props> = ({
+  quickPanel,
+  launcher,
+  quickPanelController,
+  accessiblePaths,
+  files,
+  setFiles,
+  setText
+}) => {
   const { t } = useTranslation()
 
   const { handleOpenQuickPanel } = useResourcePanel(
     {
       quickPanel,
+      launcher,
       quickPanelController,
       accessiblePaths,
       files,
