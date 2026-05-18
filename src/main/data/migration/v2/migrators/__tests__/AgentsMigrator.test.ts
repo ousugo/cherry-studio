@@ -12,7 +12,7 @@ vi.mock('@logger', () => ({
 }))
 
 import { LegacyAgentsDbReader } from '../../utils/LegacyAgentsDbReader'
-import { AgentsMigrator } from '../AgentsMigrator'
+import { AgentsMigrator, backfillAgentOrderKeys } from '../AgentsMigrator'
 import { AGENTS_TABLE_MIGRATION_SPECS } from '../mappings/AgentsDbMappings'
 
 function createCounts() {
@@ -134,6 +134,18 @@ describe('AgentsMigrator', () => {
     expect(insertCalls).toHaveLength(AGENTS_TABLE_MIGRATION_SPECS.length)
     // No old-prefix IDs returned → no UPDATE calls
     expect(update).not.toHaveBeenCalled()
+  })
+
+  it('backfills agent order keys from legacy sort_order before id remap', async () => {
+    const all = vi.fn().mockResolvedValue([{ id: 'agent-b' }, { id: 'agent-a' }])
+    const run = vi.fn().mockResolvedValue(undefined)
+
+    await backfillAgentOrderKeys({ all, run } as never)
+
+    const [query] = all.mock.calls[0]
+    expect(query.queryChunks[0]?.value?.[0]).toContain('LEFT JOIN agents_legacy.agents')
+    expect(query.queryChunks[0]?.value?.[0]).toContain('ORDER BY COALESCE(s.sort_order, 0) ASC')
+    expect(run).toHaveBeenCalledTimes(2)
   })
 
   it('re-enables FK and detaches when an import statement fails inside the transaction', async () => {
