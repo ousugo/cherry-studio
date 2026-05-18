@@ -2,12 +2,11 @@ import { useReorder } from '@data/hooks/useReorder'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
-  canManageProvider,
-  isAnthropicSupportedProvider,
   isProviderSettingsListVisibleProvider,
   matchKeywordsInProvider
-} from '@renderer/pages/settings/ProviderSettings/utils/provider'
+} from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import type { Provider } from '@shared/data/types/provider'
+import { canManageProvider, isAnthropicSupportedProvider } from '@shared/utils/provider'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

@@ -1,5 +1,5 @@
-import { isProviderSupportAuth } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import type { Provider } from '@shared/data/types/provider'
+import { isProviderSupportAuth } from '@shared/utils/provider'
 import type { ReactNode } from 'react'
 
 import OpenAIAlert from '../components/OpenAIAlert'

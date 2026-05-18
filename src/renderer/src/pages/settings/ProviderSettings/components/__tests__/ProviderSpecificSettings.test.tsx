@@ -15,7 +15,7 @@ vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
   useProviderMeta: (...args: any[]) => useProviderMetaMock(...args)
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/utils/provider', () => ({
+vi.mock('@shared/utils/provider', () => ({
   isProviderSupportAuth: (...args: any[]) => isProviderSupportAuthMock(...args)
 }))
 
