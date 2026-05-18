@@ -33,11 +33,7 @@ export function getProviderSearchString(provider: Provider): string {
   return `${provider.id} ${provider.name}`
 }
 
-export function matchKeywordsInProvider(
-  keywords: string[],
-  provider: Provider,
-  extraSearchString?: string
-): boolean {
+export function matchKeywordsInProvider(keywords: string[], provider: Provider, extraSearchString?: string): boolean {
   if (keywords.length === 0) return true
   const base = getProviderSearchString(provider)
   const searchStr = (extraSearchString ? `${base} ${extraSearchString}` : base).toLowerCase()
