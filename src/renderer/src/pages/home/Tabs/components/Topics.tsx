@@ -73,6 +73,7 @@ import {
 import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
+const RESOURCE_LIST_ACTION_ICON_BUTTON_CLASS = '!text-sidebar-foreground/55 hover:!text-sidebar-foreground/75'
 
 interface Props {
   activeTopic: Topic
@@ -117,7 +118,7 @@ function TopicDisplayModeMenu({
           type="button"
           variant="ghost"
           aria-label={t('chat.topics.display.title')}
-          className="inline-flex size-5 shrink-0 items-center justify-center p-0 text-muted-foreground/55 leading-none shadow-none hover:bg-transparent hover:text-muted-foreground/75 [&_svg]:block [&_svg]:shrink-0">
+          className={`inline-flex size-5 shrink-0 items-center justify-center p-0 leading-none shadow-none hover:bg-transparent ${RESOURCE_LIST_ACTION_ICON_BUTTON_CLASS} [&_svg]:block [&_svg]:shrink-0`}>
           <ListFilter size={12} className="block" />
         </Button>
       </PopoverTrigger>
@@ -485,6 +486,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
           <ResourceList.HeaderActionButton
             type="button"
             aria-label={t('chat.add.topic.title')}
+            className={RESOURCE_LIST_ACTION_ICON_BUTTON_CLASS}
             onClick={() =>
               payload === undefined
                 ? void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
