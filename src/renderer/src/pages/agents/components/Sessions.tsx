@@ -8,17 +8,15 @@ import {
   SessionResourceList,
   useResourceList
 } from '@renderer/components/chat/resources'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { Bot, Check, ChevronDown, ChevronsUpDown, Clock3, Folder, ListFilter, Plus, Sparkles } from 'lucide-react'
+import { Check, ChevronsUpDown, Clock3, ListFilter, Plus } from 'lucide-react'
 import { memo, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -34,9 +32,7 @@ import {
   getAgentIdFromSessionGroupId,
   getWorkdirPathFromSessionGroupId,
   normalizeSessionDropPayload,
-  SESSION_NO_WORKDIR_GROUP_ID,
   SESSION_PINNED_GROUP_ID,
-  SESSION_UNKNOWN_AGENT_GROUP_ID,
   type SessionListItem,
   sortSessionsForDisplayGroups
 } from './SessionList.helpers'
@@ -55,11 +51,6 @@ const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
   agent: 'agent.session.display.agent',
   time: 'agent.session.display.time',
   workdir: 'agent.session.display.workdir'
-}
-
-function resolveAgentAvatar(agent: AgentEntity | undefined): string | undefined {
-  const avatar = agent?.configuration?.avatar?.trim()
-  return avatar || undefined
 }
 
 function SessionDisplayModeMenu({
@@ -98,7 +89,7 @@ function SessionDisplayModeMenu({
               label={t(SESSION_DISPLAY_LABEL_KEYS[option])}
               active={mode === option}
               suffix={mode === option ? <Check size={11} /> : null}
-              className="h-6 gap-1.5 rounded-md px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground [&_svg]:size-3"
+              className="h-6 gap-1.5 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground data-[active=true]:bg-accent data-[active=true]:text-foreground [&_svg]:size-3"
               onClick={() => {
                 onChange(option)
                 setOpen(false)
@@ -365,31 +356,6 @@ const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps)
     [displayMode, dragReady, reorderSession, sessionItems]
   )
 
-  const getGroupHeaderIcon = useCallback(
-    (group: { id: string }, { collapsed }: { collapsed: boolean }) => {
-      if (group.id === SESSION_PINNED_GROUP_ID || displayMode === 'time') {
-        return <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
-      }
-
-      if (displayMode === 'agent') {
-        if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return <Sparkles size={13} />
-
-        const agentId = getAgentIdFromSessionGroupId(group.id)
-        const avatar = resolveAgentAvatar(agentId ? agentById.get(agentId) : undefined)
-        return avatar ? <EmojiIcon emoji={avatar} size={16} fontSize={10} className="mr-0" /> : <Bot size={13} />
-      }
-      if (displayMode === 'workdir') {
-        return group.id === SESSION_NO_WORKDIR_GROUP_ID ? (
-          <Folder size={13} className="opacity-60" />
-        ) : (
-          <Folder size={13} />
-        )
-      }
-      return undefined
-    },
-    [agentById, displayMode]
-  )
-
   const getGroupHeaderAction = useCallback(
     (group: { id: string }) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return null
@@ -443,7 +409,6 @@ const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps)
       defaultGroupVisibleCount={5}
       groupLoadStep={5}
       getGroupHeaderAction={getGroupHeaderAction}
-      getGroupHeaderIcon={getGroupHeaderIcon}
       dragCapabilities={{
         groups: false,
         items: dragReady,
@@ -479,7 +444,7 @@ const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps)
           variant="ghost"
           aria-label={t('agent.session.add.title')}
           disabled={creatingSession}
-          className="h-7 w-full justify-start gap-1.5 rounded-md px-2.5 font-normal text-[12px] text-muted-foreground/70 shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
+          className="h-7 w-full justify-start gap-1.5 rounded-lg px-2.5 font-normal text-[12px] text-muted-foreground/70 shadow-none hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground"
           onClick={handleHeaderCreateSession}>
           <Plus size={13} className="block shrink-0" />
           <span className="truncate">{t('agent.session.add.title')}</span>

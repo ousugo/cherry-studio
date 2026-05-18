@@ -131,7 +131,7 @@ const SessionItem = ({
     <ResourceList.Item
       item={session}
       data-testid="agent-session-row"
-      className={cn('relative', isActive && 'bg-sidebar-accent')}
+      className={cn('relative', isActive && 'bg-accent text-foreground')}
       style={{ cursor: 'pointer' }}
       onClick={handlePress}
       title={sessionName}>

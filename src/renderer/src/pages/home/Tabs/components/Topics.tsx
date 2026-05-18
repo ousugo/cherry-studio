@@ -14,7 +14,6 @@ import {
   useResourceListPinnedState
 } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
@@ -33,21 +32,18 @@ import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
   Check,
   CheckSquare,
-  ChevronDown,
   ChevronsUpDown,
   Clock3,
   ListChecks,
   ListFilter,
   PinIcon,
   Plus,
-  Sparkles,
   Square,
   Trash2,
   XIcon
@@ -87,7 +83,6 @@ interface Props {
 }
 
 const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
-const DEFAULT_ASSISTANT_GROUP_EMOJI = '😀'
 
 function resolveAssistantIdForTopicGroup(
   groupId: string,
@@ -137,7 +132,7 @@ function TopicDisplayModeMenu({
               label={t(`chat.topics.display.${option}`)}
               active={mode === option}
               suffix={mode === option ? <Check size={11} /> : null}
-              className="h-6 gap-1.5 rounded-md px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground [&_svg]:size-3"
+              className="h-6 gap-1.5 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground data-[active=true]:bg-accent data-[active=true]:text-foreground [&_svg]:size-3"
               onClick={() => {
                 onChange(option)
                 setOpen(false)
@@ -503,42 +498,6 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
     [assistantById, displayMode, t]
   )
 
-  const getGroupHeaderIcon = useCallback(
-    (group: { id: string }, { collapsed }: { collapsed: boolean }) => {
-      if (group.id === TOPIC_PINNED_GROUP_ID) {
-        return <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
-      }
-
-      if (displayMode !== 'assistant') {
-        return <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
-      }
-
-      if (group.id === TOPIC_DEFAULT_ASSISTANT_GROUP_ID) {
-        return <EmojiIcon emoji={DEFAULT_ASSISTANT_GROUP_EMOJI} size={14} fontSize={10} className="mr-0" />
-      }
-
-      if (group.id === TOPIC_UNKNOWN_ASSISTANT_GROUP_ID) {
-        return <Sparkles size={13} />
-      }
-
-      const assistantId = getAssistantIdFromTopicGroupId(group.id)
-      const assistant = assistantId ? assistantById.get(assistantId) : undefined
-      if (!assistant) {
-        return <Sparkles size={13} />
-      }
-
-      return (
-        <EmojiIcon
-          emoji={assistant.emoji || getLeadingEmoji(assistant.name)}
-          size={14}
-          fontSize={10}
-          className="mr-0"
-        />
-      )
-    },
-    [assistantById, displayMode]
-  )
-
   const handleCollapsedTopicGroupIdsChange = useCallback(
     (nextGroupIds: string[]) => void setCollapsedTopicGroupIds(nextGroupIds),
     [setCollapsedTopicGroupIds]
@@ -717,7 +676,6 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
         getGroupHeaderAction={getGroupHeaderAction}
-        getGroupHeaderIcon={getGroupHeaderIcon}
         dragCapabilities={{
           groups: isAssistantDisplayMode && !isManageMode,
           items: isAssistantDisplayMode && !isManageMode,
@@ -764,7 +722,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
             type="button"
             variant="ghost"
             aria-label={t('chat.add.topic.title')}
-            className="h-7 w-full justify-start gap-1.5 rounded-md px-2.5 font-normal text-[12px] text-muted-foreground/70 shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
+            className="h-7 w-full justify-start gap-1.5 rounded-lg px-2.5 font-normal text-[12px] text-muted-foreground/70 shadow-none hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground"
             onClick={() => void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
             <Plus size={13} className="block shrink-0" />
             <span className="truncate">{t('chat.add.topic.title')}</span>
@@ -1046,11 +1004,12 @@ function TopicRow({
       data-testid="topic-list-row"
       className={cn(
         'relative',
-        isManageMode && isSelected && 'bg-sidebar-accent shadow-[inset_0_0_0_1px_var(--color-sidebar-active-border)]',
+        isManageMode &&
+          isSelected &&
+          'bg-accent text-foreground shadow-[inset_0_0_0_1px_var(--color-sidebar-active-border)]',
         isManageMode && !canSelect && 'cursor-not-allowed opacity-50',
-        layout === 'grouped' && !isManageMode && isActive && 'bg-sidebar-accent',
-        layout === 'single' && !isManageMode && isActive && 'bg-sidebar-accent shadow-none',
-        layout === 'single' && !isManageMode && !isActive && 'hover:bg-(--color-background-soft)'
+        layout === 'grouped' && !isManageMode && isActive && 'bg-accent text-foreground',
+        layout === 'single' && !isManageMode && isActive && 'bg-accent text-foreground shadow-none'
       )}
       style={{ cursor: isManageMode && !canSelect ? 'not-allowed' : 'pointer' }}
       onMouseEnter={() =>

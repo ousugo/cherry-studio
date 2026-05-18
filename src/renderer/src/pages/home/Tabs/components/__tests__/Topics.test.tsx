@@ -995,7 +995,7 @@ describe('Topics', () => {
     renderTopicList()
 
     const createButton = screen.getAllByRole('button', { name: 'New Topic' })[0]
-    expect(createButton).toHaveClass('h-7', 'w-full', 'justify-start', 'rounded-md', 'text-[12px]')
+    expect(createButton).toHaveClass('h-7', 'w-full', 'justify-start', 'rounded-lg', 'text-[12px]')
     expect(createButton).not.toHaveClass('border')
     expect(screen.getByRole('listbox')).toHaveClass('pt-0')
 
@@ -1183,6 +1183,11 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Unknown Assistant' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Alpha Assistant' }).querySelector('.lucide-chevron-down')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')).not.toHaveTextContent('🧪')
+    expect(screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')).not.toHaveTextContent('✍️')
 
     const defaultHeader = screen.getByRole('button', { name: 'Default Assistant' }).closest('div')
     expect(defaultHeader).toBeInTheDocument()

@@ -185,7 +185,7 @@ describe('ResourceList', () => {
     expect(items).toHaveLength(5)
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(19)
     expect(groupHeaders[0]).toHaveClass('h-7', 'px-1.5', 'pt-2', 'pb-1')
-    expect(items[0]).toHaveClass('min-h-8', 'rounded-md', 'px-1.5', 'py-1.5', 'gap-1.5')
+    expect(items[0]).toHaveClass('mb-[2px]', 'min-h-8', 'rounded-lg', 'px-1.5', 'py-1.5', 'gap-1.5')
   })
 
   it('uses a border-only reveal focus animation without changing row background', () => {
@@ -204,7 +204,7 @@ describe('ResourceList', () => {
     const originalOrder = ITEMS.map((item) => item.id).join(',')
     const Provider = ResourceList.Provider<TestItem>
 
-    render(
+    const { container } = render(
       <Provider
         items={ITEMS}
         defaultSortId="updated"
@@ -241,6 +241,7 @@ describe('ResourceList', () => {
     expect(screen.getByText('Beta')).toBeInTheDocument()
     expect(screen.getByText('Gamma')).toBeInTheDocument()
     expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(container.querySelector('[data-resource-list-item-row="true"]')).toHaveClass('pb-[2px]')
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     fireEvent.change(screen.getByPlaceholderText('Search resources'), { target: { value: 'ga' } })
@@ -655,6 +656,8 @@ describe('ResourceList', () => {
 
     expect(screen.getByText('Pinned')).toBeInTheDocument()
     expect(screen.getByText('Regular')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveClass('text-[color:var(--resource-list-group-color)]')
+    expect(screen.getByRole('button', { name: 'Pinned' })).not.toHaveClass('hover:text-muted-foreground/70')
     expect(screen.queryByText('2')).not.toBeInTheDocument()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(
@@ -762,7 +765,10 @@ describe('ResourceList', () => {
 
     expect(screen.getByText('Item 5')).toBeInTheDocument()
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+    const showMoreButton = screen.getByRole('button', { name: 'Show more' })
+    expect(showMoreButton).toHaveClass('text-[color:var(--resource-list-group-color)]')
+    expect(showMoreButton.querySelector('svg')).toHaveClass('text-[color:var(--resource-list-group-color)]')
+    expect(showMoreButton.querySelector('svg')).not.toHaveClass('opacity-[0.65]')
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 7 }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))

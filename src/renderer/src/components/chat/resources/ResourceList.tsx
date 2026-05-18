@@ -20,8 +20,8 @@ import {
   type GroupedVirtualListGroup
 } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
-import { CalendarDays, ChevronsDown, ChevronsUp, SearchIcon } from 'lucide-react'
-import type { ComponentProps, ReactNode, Ref, RefObject } from 'react'
+import { ChevronDown, ChevronsDown, ChevronsUp, SearchIcon } from 'lucide-react'
+import type { ComponentProps, CSSProperties, ReactNode, Ref, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
 import { ActionMenu } from '../actions/ActionMenu'
@@ -47,11 +47,16 @@ const DEFAULT_GROUP_SHOW_MORE_LABEL = 'Show more'
 const DEFAULT_GROUP_COLLAPSE_LABEL = 'Collapse group'
 const SCROLLBAR_AUTO_HIDE_DELAY = 1200
 const SCROLLBAR_FADE_STEP = 140
+const ITEM_ROW_GAP_CLASS = 'pb-[2px]'
+const GROUP_HEADER_COLOR_STYLE = {
+  '--resource-list-group-color': 'color-mix(in srgb, var(--color-muted-foreground) 55%, transparent)'
+} as CSSProperties
+const GROUP_HEADER_TEXT_CLASS = 'text-[color:var(--resource-list-group-color)]'
 const CONTEXT_MENU_CONTENT_CLASS = 'w-[184px] rounded-lg border-border p-1.5 shadow-lg'
 const CONTEXT_MENU_ITEM_CLASS =
-  'h-7 gap-2 rounded-md px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-sidebar-accent focus:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
+  'h-7 gap-2 rounded-lg px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-accent focus:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
 const CONTEXT_MENU_SUB_TRIGGER_CLASS =
-  'h-7 gap-2 rounded-md px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-sidebar-accent focus:text-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
+  'h-7 gap-2 rounded-lg px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-accent focus:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
 const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
 const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = []
 const getDefaultItemId = (item: ResourceListItemBase) => item.id
@@ -625,7 +630,10 @@ function Frame({ className, ref, ...props }: FrameProps) {
     <div
       ref={ref}
       data-resource-list-variant={meta.variant}
-      className={cn('flex min-h-0 flex-1 flex-col overflow-hidden bg-sidebar text-sidebar-foreground', className)}
+      className={cn(
+        'flex min-h-0 flex-1 flex-col overflow-hidden bg-(--color-background) text-sidebar-foreground',
+        className
+      )}
       {...props}
     />
   )
@@ -801,34 +809,46 @@ type GroupHeaderProps = ComponentProps<'div'> & {
   ref?: Ref<HTMLDivElement>
 }
 
-function GroupHeader({ group, className, ref, ...props }: GroupHeaderProps) {
+function GroupHeader({ group, className, ref, style, ...props }: GroupHeaderProps) {
   const { actions, meta, view } = useResourceList()
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
   const collapsed = viewGroup?.collapsed ?? false
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, { collapsed })
-  const groupHeaderIcon = customGroupHeaderIcon === undefined ? <CalendarDays size={13} /> : customGroupHeaderIcon
+  const groupHeaderIcon =
+    customGroupHeaderIcon === undefined ? (
+      <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
+    ) : (
+      customGroupHeaderIcon
+    )
 
   if (!group.label) return null
   return (
     <div
       ref={ref}
+      style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
       className={cn(
-        'group/resource-list-group flex h-7 items-center gap-1.5 px-1.5 pt-2 pb-1 font-medium text-[11px] text-muted-foreground/70',
+        'group/resource-list-group flex h-7 items-center gap-1.5 px-1.5 pt-2 pb-1 font-medium text-[11px]',
+        GROUP_HEADER_TEXT_CLASS,
         className
       )}
       {...props}>
       <button
         type="button"
         aria-expanded={!collapsed}
-        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm text-left outline-none hover:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+        className={cn(
+          'flex min-w-0 flex-1 items-center gap-1.5 rounded-sm text-left outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring',
+          GROUP_HEADER_TEXT_CLASS
+        )}
         onClick={() => actions.toggleGroup(group.id)}>
         {groupHeaderIcon && (
-          <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center">
+          <span
+            aria-hidden="true"
+            className="flex size-5 shrink-0 items-center justify-center text-inherit [&_svg]:stroke-current [&_svg]:text-inherit">
             {groupHeaderIcon}
           </span>
         )}
-        <span className="truncate">{group.label}</span>
+        <span className="truncate text-inherit">{group.label}</span>
       </button>
       {groupHeaderAction && (
         <div className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100">
@@ -844,20 +864,25 @@ type GroupShowMoreProps = ComponentProps<'div'> & {
   ref?: Ref<HTMLDivElement>
 }
 
-function GroupShowMore({ groupId, className, ref, ...props }: GroupShowMoreProps) {
+function GroupShowMore({ groupId, className, ref, style, ...props }: GroupShowMoreProps) {
   const { actions, meta, view } = useResourceList()
   const viewGroup = view.groups.find((candidate) => candidate.group.id === groupId)
   const canCollapseToDefault = viewGroup?.canCollapseToDefault === true
   const label = canCollapseToDefault ? meta.groupCollapseLabel : meta.groupShowMoreLabel
 
   return (
-    <div ref={ref} className={cn('flex justify-center px-2 py-1', className)} {...props}>
+    <div
+      ref={ref}
+      style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
+      className={cn('flex justify-center px-2 py-1', className)}
+      {...props}>
       <button
         type="button"
         aria-label={label}
         className={cn(
-          'flex h-6 min-w-10 items-center justify-center rounded-md px-2 text-muted-foreground transition-colors',
-          'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+          'flex h-6 min-w-10 items-center justify-center rounded-lg px-2 transition-all duration-150',
+          GROUP_HEADER_TEXT_CLASS,
+          'hover:bg-accent hover:text-muted-foreground/55 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring'
         )}
         onClick={() => {
           if (canCollapseToDefault) {
@@ -866,7 +891,11 @@ function GroupShowMore({ groupId, className, ref, ...props }: GroupShowMoreProps
           }
           actions.showMoreInGroup(groupId)
         }}>
-        {canCollapseToDefault ? <ChevronsUp size={14} /> : <ChevronsDown size={14} />}
+        {canCollapseToDefault ? (
+          <ChevronsUp size={14} className={GROUP_HEADER_TEXT_CLASS} />
+        ) : (
+          <ChevronsDown size={14} className={GROUP_HEADER_TEXT_CLASS} />
+        )}
       </button>
     </div>
   )
@@ -904,9 +933,9 @@ function Item<T extends ResourceListItemBase>({
       data-reveal-focus={revealFocused || undefined}
       tabIndex={tabIndex ?? 0}
       className={cn(
-        'group flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1.5 text-sm outline-none transition-colors',
-        'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-ring',
-        selected && 'bg-sidebar-accent text-sidebar-accent-foreground',
+        'group flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-sm outline-none transition-all duration-150',
+        'hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring',
+        selected && 'bg-accent text-foreground',
         revealFocused && 'animation-resource-list-reveal-focus',
         className
       )}
@@ -1007,7 +1036,7 @@ function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left font-medium text-[12px] text-sidebar-foreground/70 leading-5',
+        'min-w-0 flex-1 truncate text-left font-medium text-[12px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground',
         className
       )}
       {...props}
@@ -1023,7 +1052,10 @@ function ItemIcon({ className, ref, ...props }: ItemIconProps) {
   return (
     <span
       ref={ref}
-      className={cn('flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/70', className)}
+      className={cn(
+        'flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground',
+        className
+      )}
       {...props}
     />
   )
@@ -1039,9 +1071,9 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       ref={ref}
       type={type}
       className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-colors transition-opacity',
-        'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-        'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+        'flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 opacity-0 transition-all duration-150',
+        'hover:bg-accent hover:text-foreground',
+        'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
         'group-hover:opacity-100 data-[deleting=true]:opacity-100',
         className
       )}
@@ -1058,9 +1090,9 @@ function ItemLeadingAction({ className, ref, type = 'button', ...props }: ItemLe
       ref={ref}
       type={type}
       className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 opacity-0 transition-colors transition-opacity',
-        'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-        'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+        'flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 opacity-0 transition-all duration-150',
+        'hover:bg-accent hover:text-foreground',
+        'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
         'group-hover:opacity-100 data-[active=true]:opacity-100',
         className
       )}
@@ -1082,6 +1114,14 @@ type ResourceListVirtualItem<T extends ResourceListItemBase> = {
 
 type ResourceListVirtualFooter = {
   groupId: string
+}
+
+function VirtualItemRow({ children }: { children: ReactNode }) {
+  return (
+    <div data-resource-list-item-row="true" className={ITEM_ROW_GAP_CLASS}>
+      {children}
+    </div>
+  )
 }
 
 type ResourceListVirtualGroup<T extends ResourceListItemBase> = GroupedVirtualListGroup<
@@ -1162,7 +1202,9 @@ function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderIt
   )
   const renderGroupHeader = useCallback((group: ResourceListGroup) => <GroupHeader group={group} />, [])
   const renderVirtualItem = useCallback(
-    (virtualItem: ResourceListVirtualItem<T>) => renderItem(virtualItem.item, context),
+    (virtualItem: ResourceListVirtualItem<T>) => (
+      <VirtualItemRow>{renderItem(virtualItem.item, context)}</VirtualItemRow>
+    ),
     [context, renderItem]
   )
   const renderGroupFooter = useCallback(
@@ -1426,7 +1468,9 @@ function VirtualDraggableItems<T extends ResourceListItemBase>({
   )
   const renderGroupHeader = useCallback((group: ResourceListGroup) => <GroupHeader group={group} />, [])
   const renderVirtualItem = useCallback(
-    (virtualItem: ResourceListVirtualItem<T>) => renderItem(virtualItem.item, context),
+    (virtualItem: ResourceListVirtualItem<T>) => (
+      <VirtualItemRow>{renderItem(virtualItem.item, context)}</VirtualItemRow>
+    ),
     [context, renderItem]
   )
   const renderGroupFooter = useCallback(
@@ -1494,7 +1538,7 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
             <div
               key={`${group.id}-${index}`}
               data-resource-list-loading-item="true"
-              className="flex min-h-8 w-full items-center gap-1.5 rounded-md px-1.5 py-1.5">
+              className="mb-[2px] flex min-h-8 w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 last:mb-0">
               <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
               <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', width)} />
               <Skeleton data-slot="skeleton" className="ml-auto size-5 shrink-0 rounded-md opacity-60" />

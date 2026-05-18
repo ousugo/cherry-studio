@@ -442,7 +442,7 @@ describe('Sessions', () => {
     expect(sessionDataMocks.reload).toHaveBeenCalled()
   })
 
-  it('uses agent configuration avatar for agent group headers without changing session rows', () => {
+  it('uses shared disclosure arrows for agent group headers without rendering avatars', () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: '🧠' } }],
       isLoading: false,
@@ -457,7 +457,9 @@ describe('Sessions', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     render(<Sessions />)
 
-    expect(screen.getByRole('button', { name: 'Alpha agent' }).closest('div')).toHaveTextContent('🧠')
+    const agentHeader = screen.getByRole('button', { name: 'Alpha agent' })
+    expect(agentHeader.querySelector('.lucide-chevron-down')).toBeInTheDocument()
+    expect(agentHeader.closest('div')).not.toHaveTextContent('🧠')
   })
 
   it('keeps agent grouped sessions in the generic loading state until all pages are ready', () => {
