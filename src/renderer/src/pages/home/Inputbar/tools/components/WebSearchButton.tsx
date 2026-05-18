@@ -8,7 +8,6 @@ import { getWebSearchProviderLogo } from '@renderer/pages/settings/WebSearchSett
 import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-import { checkWebSearchAvailability } from '@shared/data/utils/webSearchPreferences'
 import {
   isGemini3Model,
   isGeminiModel,
@@ -47,13 +46,12 @@ const WebSearchButton: FC<Props> = ({ assistantId, launcher }) => {
   const hasBuiltinWebSearch = model ? isWebSearchModel(model) : false
 
   const activeProviderId = useMemo(() => {
-    if (
-      defaultSearchKeywordsProvider &&
-      checkWebSearchAvailability(defaultSearchKeywordsProvider, webSearchProviderRequiresApiKey)
-    ) {
-      return defaultSearchKeywordsProvider.id
-    }
-    return undefined
+    const p = defaultSearchKeywordsProvider
+    if (!p) return undefined
+    const available = webSearchProviderRequiresApiKey(p.id)
+      ? p.apiKeys.some((k) => k.trim().length > 0)
+      : Boolean(p.capabilities.find((c) => c.feature === 'searchKeywords')?.apiHost?.trim())
+    return available ? p.id : undefined
   }, [defaultSearchKeywordsProvider])
 
   // When the model has built-in web search, the toggle just flips the
@@ -121,8 +119,8 @@ const WebSearchButton: FC<Props> = ({ assistantId, launcher }) => {
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
 
-  const ProviderMono = enableWebSearch ? providerLogo?.Mono : undefined
-  const icon = ProviderMono ? <ProviderMono width={18} height={18} /> : <Globe />
+  const ProviderIcon = enableWebSearch ? providerLogo : undefined
+  const icon = ProviderIcon ? <ProviderIcon width={18} height={18} /> : <Globe />
 
   useEffect(() => {
     return launcher.registerLaunchers([

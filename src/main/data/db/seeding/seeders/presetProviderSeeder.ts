@@ -65,7 +65,7 @@ function toDbRow(p: ProtoProviderConfig) {
 
   return {
     providerId: p.id,
-    presetProviderId: p.id,
+    presetProviderId: p.presetProviderId ?? p.id,
     name: p.name,
     endpointConfigs: buildRuntimeEndpointConfigs(p.endpointConfigs),
     defaultChatEndpoint: getSeedDefaultChatEndpoint(p.id, p.defaultChatEndpoint),

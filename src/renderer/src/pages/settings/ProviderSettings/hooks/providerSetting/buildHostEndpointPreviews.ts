@@ -1,14 +1,14 @@
+import { formatApiHost } from '@renderer/utils'
+import { formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import type { AuthConfig, Provider } from '@shared/data/types/provider'
 import {
   isAzureOpenAIProvider,
   isCherryAIProvider,
   isNewApiProvider,
   isPerplexityProvider,
   isVertexProvider
-} from '@renderer/pages/settings/ProviderSettings/utils/provider'
-import { formatApiHost } from '@renderer/utils'
-import { formatOllamaApiHost, formatVertexApiHost, isWithTrailingSharp } from '@renderer/utils/api'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import type { AuthConfig, Provider } from '@shared/data/types/provider'
+} from '@shared/utils/provider'
 
 export function buildHostEndpointPreviews(params: {
   provider: Provider

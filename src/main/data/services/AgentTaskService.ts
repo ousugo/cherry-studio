@@ -10,10 +10,10 @@ import {
   type InsertAgentTaskRunLogRow as InsertTaskRunLogRow
 } from '@data/db/schemas/agentTask'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { ListOptions } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { ListOptions } from '@shared/data/api/apiTypes'
 import {
   type CreateTaskDto,
   type ScheduledTaskEntity,

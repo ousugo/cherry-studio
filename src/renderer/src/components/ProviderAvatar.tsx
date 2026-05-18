@@ -1,6 +1,5 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
 import React from 'react'
 
@@ -11,15 +10,6 @@ interface ProviderAvatarPrimitiveProps {
   logo?: CompoundIcon | string
   /** @deprecated Use logo instead */
   logoSrc?: string
-  size?: number
-  className?: string
-  style?: React.CSSProperties
-}
-
-interface ProviderAvatarProps {
-  /** Structural minimum: only id + name are read, so this accepts v1 or v2 Provider. */
-  provider: { id: string; name: string }
-  customLogos?: Record<string, string>
   size?: number
   className?: string
   style?: React.CSSProperties
@@ -66,51 +56,5 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
       }}>
       <AvatarFallback style={{ backgroundColor, color }}>{getFirstCharacter(providerName)}</AvatarFallback>
     </Avatar>
-  )
-}
-
-export const ProviderAvatar: React.FC<ProviderAvatarProps> = ({
-  provider,
-  customLogos = {},
-  className,
-  style,
-  size
-}) => {
-  const systemIcon = resolveProviderIcon(provider.id)
-  if (systemIcon) {
-    return (
-      <ProviderAvatarPrimitive
-        size={size}
-        providerId={provider.id}
-        providerName={provider.name}
-        logo={systemIcon}
-        className={className}
-        style={style}
-      />
-    )
-  }
-
-  const customLogo = customLogos[provider.id]
-  if (customLogo) {
-    return (
-      <ProviderAvatarPrimitive
-        providerId={provider.id}
-        providerName={provider.name}
-        logo={customLogo}
-        size={size}
-        className={className}
-        style={style}
-      />
-    )
-  }
-
-  return (
-    <ProviderAvatarPrimitive
-      providerId={provider.id}
-      providerName={provider.name}
-      size={size}
-      className={className}
-      style={style}
-    />
   )
 }

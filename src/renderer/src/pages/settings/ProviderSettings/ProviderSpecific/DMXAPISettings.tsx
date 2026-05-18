@@ -1,7 +1,7 @@
 import { Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
 import { Dmxapi } from '@cherrystudio/ui/icons'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/provider'
+import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -82,7 +82,7 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
   return (
     <div className="mt-4 mb-[30px]">
       <div className="mb-[30px] flex flex-col items-center justify-center">
-        <Dmxapi.Color height={70} width="auto" />
+        <Dmxapi height={70} width="auto" />
       </div>
 
       <div className="flex w-full flex-col gap-2">

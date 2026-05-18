@@ -93,23 +93,14 @@ export type MessageStats = z.infer<typeof MessageStatsSchema>
 export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
 
 /**
- * Message data field structure
- * This is the type for the `data` column in the message table.
+ * Message data field structure — the type for the `data` column in the
+ * message table. Messages are stored in AI SDK `UIMessage.parts` format.
  *
- * After v2 migration, messages are stored in `parts` format (AI SDK UIMessage.parts).
- * The `blocks` field is retained for type compatibility during migration but
- * should not be used for new messages.
+ * Accepts the generic `UIMessagePart[]` for writes — the DB stores whatever
+ * parts the AI SDK produces. Readers can narrow to `CherryMessagePart[]` when
+ * they need Cherry-specific data part type safety.
  */
 export interface MessageData {
-  /** @deprecated Use `parts` for new messages. Retained for v1→v2 migration compatibility. */
-  blocks?: MessageDataBlock[]
-  /**
-   * AI SDK UIMessage.parts format — the canonical storage format after v2 migration.
-   *
-   * Accepts `UIMessagePart[]` (the generic AI SDK type) for writes — the DB stores
-   * whatever parts the AI SDK produces. Readers can narrow to `CherryMessagePart[]`
-   * when they need Cherry-specific data part type safety.
-   */
   parts?: CherryMessagePart[]
 }
 
@@ -331,37 +322,6 @@ export function isMemoryCitation(ref: ContentReference): ref is MemoryCitationRe
   return isCitation(ref) && ref.citationType === CitationType.MEMORY
 }
 
-// ============================================================================
-// Message Block
-// ============================================================================
-
-export enum BlockType {
-  UNKNOWN = 'unknown',
-  MAIN_TEXT = 'main_text',
-  THINKING = 'thinking',
-  TRANSLATION = 'translation',
-  IMAGE = 'image',
-  CODE = 'code',
-  TOOL = 'tool',
-  FILE = 'file',
-  ERROR = 'error',
-  CITATION = 'citation',
-  VIDEO = 'video',
-  COMPACT = 'compact'
-}
-
-/**
- * Base message block data structure
- */
-export interface BaseBlock {
-  type: BlockType
-  createdAt: number // timestamp
-  updatedAt?: number
-  // modelId?: string // v1's dead code, will be removed in v2
-  metadata?: Record<string, unknown>
-  error?: SerializedErrorData
-}
-
 /**
  * Serialized error for storage
  */
@@ -373,145 +333,15 @@ export interface SerializedErrorData {
   cause?: unknown
 }
 
-// Block type specific interfaces
-
-export interface UnknownBlock extends BaseBlock {
-  type: BlockType.UNKNOWN
-  content?: string
-}
-
 /**
- * Main text block containing the primary message content.
- *
- * ## Migration Notes (v2.0)
- *
- * ### Added
- * - `references`: Unified inline references replacing the old citation system.
- *   Supports multiple reference types (citations, mentions) with position tracking.
- *
- * ### Removed
- * - `citationReferences`: Use `references` with `ReferenceCategory.CITATION` instead.
- * - `CitationBlock`: Citation data is now embedded in `MainTextBlock.references`.
- *   The standalone CitationBlock type is no longer used.
- */
-export interface MainTextBlock extends BaseBlock {
-  type: BlockType.MAIN_TEXT
-  content: string
-  //knowledgeBaseIds?: string[] // v1's dead code, will be removed in v2
-
-  /**
-   * Inline references embedded in the content (citations, mentions, etc.)
-   * Replaces the old CitationBlock + citationReferences pattern.
-   * @since v2.0
-   */
-  references?: ContentReference[]
-
-  /**
-   * @deprecated Use `references` with `ReferenceCategory.CITATION` instead.
-   */
-  // citationReferences?: {
-  //   citationBlockId?: string
-  //   citationBlockSource?: string
-  // }[]
-}
-
-export interface ThinkingBlock extends BaseBlock {
-  type: BlockType.THINKING
-  content: string
-  thinkingMs: number
-}
-
-export interface TranslationBlock extends BaseBlock {
-  type: BlockType.TRANSLATION
-  content: string
-  sourceBlockId?: string
-  sourceLanguage?: string
-  targetLanguage: string
-}
-
-export interface CodeBlock extends BaseBlock {
-  type: BlockType.CODE
-  content: string
-  language: string
-}
-
-export interface ImageBlock extends BaseBlock {
-  type: BlockType.IMAGE
-  url?: string
-  fileId?: string
-}
-
-export interface ToolBlock extends BaseBlock {
-  type: BlockType.TOOL
-  toolId: string
-  toolName?: string
-  arguments?: Record<string, unknown>
-  content?: string | object
-}
-
-/**
- * @deprecated Citation data is now embedded in MainTextBlock.references.
- * Use ContentReference types instead. Will be removed in v3.0.
- */
-export interface CitationBlock extends BaseBlock {
-  type: BlockType.CITATION
-  responseData?: unknown
-  knowledgeData?: unknown
-  memoriesData?: unknown
-}
-
-export interface FileBlock extends BaseBlock {
-  type: BlockType.FILE
-  fileId: string
-}
-
-export interface VideoBlock extends BaseBlock {
-  type: BlockType.VIDEO
-  url?: string
-  filePath?: string
-}
-
-export interface ErrorBlock extends BaseBlock {
-  type: BlockType.ERROR
-}
-
-export interface CompactBlock extends BaseBlock {
-  type: BlockType.COMPACT
-  content: string
-  compactedContent: string
-}
-
-/**
- * Union type of all message block data types
- */
-export type MessageDataBlock =
-  | UnknownBlock
-  | MainTextBlock
-  | ThinkingBlock
-  | TranslationBlock
-  | CodeBlock
-  | ImageBlock
-  | ToolBlock
-  | CitationBlock
-  | FileBlock
-  | VideoBlock
-  | ErrorBlock
-  | CompactBlock
-
-/**
- * Runtime schema for `MessageData`. Both `blocks` (deprecated v1) and
- * `parts` (v2 canonical) are optional on the TypeScript interface and
- * the DB column, so the runtime check mirrors that: accept any object,
- * reject only if either present field is the wrong shape. The previous
- * implementation required `Array.isArray(value.blocks)` which broke
- * v2-native writes like `{ data: { parts: [...] } }` from `MessageEditor`.
- * The discriminated-union block / part types stay runtime-opaque for
- * now; tighten with per-entry schemas in a follow-up.
+ * Runtime schema for `MessageData`. `parts` is optional on the TS interface
+ * and the DB column, so the runtime check mirrors that: accept any object,
+ * reject only if `parts` is present and the wrong shape. Part entry types
+ * stay runtime-opaque for now; tighten with per-entry schemas in a follow-up.
  */
 export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
-  if (v.blocks !== undefined && !Array.isArray(v.blocks)) return false
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
   return true
 })

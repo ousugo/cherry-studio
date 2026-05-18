@@ -4,10 +4,8 @@ import { usePreference } from '@data/hooks/usePreference'
 import { ModelSelector } from '@renderer/components/Selector'
 import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
-import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
 import { cn } from '@renderer/utils'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
@@ -127,7 +125,6 @@ const ModelSettings: FC<ModelSettingsProps> = ({
 }) => {
   const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
     useDefaultModel()
-  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { providers } = useProviders({ enabled: true })
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
   const { theme } = useTheme()
@@ -189,16 +186,6 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               onSelect={onSelectDefault}
               placeholder={t('settings.models.empty')}
             />
-            {showSettingsButton && defaultAssistant && (
-              <Button
-                aria-label={t('settings.assistant.title')}
-                className="shrink-0"
-                onClick={() => AssistantSettingsPopup.show({ assistant: defaultAssistant })}
-                size="icon-sm"
-                variant="outline">
-                <Settings2 size={16} />
-              </Button>
-            )}
           </ModelSettingRow>
           <SettingDivider />
           <ModelSettingRow

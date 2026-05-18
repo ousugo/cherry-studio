@@ -781,7 +781,7 @@ describe('ChatMigrator model reference sanitization', () => {
         parentId: null,
         topicId: 't1',
         role: 'assistant',
-        data: { blocks: [] },
+        data: { parts: [] },
         searchableText: '',
         status: 'success',
         siblingsGroupId: 0,

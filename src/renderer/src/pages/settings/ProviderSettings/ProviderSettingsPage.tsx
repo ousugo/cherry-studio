@@ -8,7 +8,7 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
 import ProviderList from './ProviderList'
 import ProviderSetting from './ProviderSetting'
-import { isProviderSettingsListVisibleProvider } from './utils/provider'
+import { isProviderSettingsListVisibleProvider } from './utils/providerDisplay'
 
 interface ProviderSettingsPageProps {
   isOnboarding?: boolean

@@ -128,7 +128,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // canonical identifier the trace viewer keys on (Message.traceId === span.traceId).
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models)
 
-    const { userMessage, placeholders } = await messageService.reserveAssistantTurn({
+    const { userMessage, placeholders } = await messageService.createUserMessageWithPlaceholders({
       topicId: req.topicId,
       userMessage: userMessageInput,
       siblingsGroupId,

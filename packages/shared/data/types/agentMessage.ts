@@ -50,10 +50,7 @@ export interface AgentPersistedMessageContent {
   status?: string
   /** Assistant-only: model id used for the response. */
   modelId?: string
-  /** v2 message data — readers should consume this. */
   data?: { parts?: CherryMessagePart[] }
-  /** @deprecated v1 block-id list. */
-  blocks?: string[]
 }
 
 /** Per-side persistence input. User and assistant carry the same fields;

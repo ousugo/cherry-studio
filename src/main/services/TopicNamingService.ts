@@ -162,32 +162,42 @@ export class TopicNamingService {
     const topic = await this.getTopic(topicId)
     if (!topic || topic.isNameManuallyEdited || !assistantId) return
 
+    if (summaryLocks.has(topicId)) return
+    if (hasNamedTopic(topicId)) return
+
     const messages = await this.getBranchMessages(topicId)
     if (messages.length === 0) return
 
-    const enabled = application.get('PreferenceService').get('topic.naming.enabled')
-    if (!enabled) {
-      const title = truncateText(getMainTextContentFromMessage(messages[0]))
+    summaryLocks.add(topicId)
+    try {
+      const enabled = application.get('PreferenceService').get('topic.naming.enabled')
+      if (!enabled) {
+        const title = truncateText(getMainTextContentFromMessage(messages[0]))
+        if (!title) return
+        await this.renameTopic(topic, title)
+        markNamedTopic(topicId)
+        return
+      }
+
+      const structuredConversation = messages.map((message) => ({
+        role: message.role,
+        mainText: cleanMarkdownImages(getMainTextContentFromMessage(message)),
+        files: getFileNamesFromMessage(message)
+      }))
+
+      const uniqueModelId = await this.resolveNamingModelId(assistantId)
+      const title = await this.generateSummaryTitle(
+        assistantId,
+        uniqueModelId,
+        buildStructuredConversation(structuredConversation)
+      )
       if (!title) return
+
       await this.renameTopic(topic, title)
-      return
+      markNamedTopic(topicId)
+    } finally {
+      summaryLocks.delete(topicId)
     }
-
-    const structuredConversation = messages.map((message) => ({
-      role: message.role,
-      mainText: cleanMarkdownImages(getMainTextContentFromMessage(message)),
-      files: getFileNamesFromMessage(message)
-    }))
-
-    const uniqueModelId = await this.resolveNamingModelId(assistantId)
-    const title = await this.generateSummaryTitle(
-      assistantId,
-      uniqueModelId,
-      buildStructuredConversation(structuredConversation)
-    )
-    if (!title) return
-
-    await this.renameTopic(topic, title)
   }
 
   /**

@@ -3,12 +3,12 @@ import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { ListOptions } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { ListOptions } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AGENT_MUTABLE_FIELDS,

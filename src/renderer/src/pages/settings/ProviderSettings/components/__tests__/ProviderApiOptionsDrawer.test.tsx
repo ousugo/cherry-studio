@@ -34,7 +34,7 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
     ) : null
 }))
 
-vi.mock('../../utils/provider', () => ({
+vi.mock('@shared/utils/provider', () => ({
   isAnthropicSupportedProvider: (...args: unknown[]) => isAnthropicSupportedProviderMock(...args),
   isAzureOpenAIProvider: (...args: unknown[]) => isAzureOpenAIProviderMock(...args),
   isOpenAICompatibleProvider: (...args: unknown[]) => isOpenAICompatibleProviderMock(...args)

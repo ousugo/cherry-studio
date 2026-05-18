@@ -2,6 +2,7 @@ import { Button, Input, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { cn } from '@renderer/utils'
 import type { Provider, RuntimeApiFeatures } from '@shared/data/types/provider'
+import { isAnthropicSupportedProvider, isAzureOpenAIProvider, isOpenAICompatibleProvider } from '@shared/utils/provider'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,7 +10,6 @@ import { useTranslation } from 'react-i18next'
 import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
-import { isAnthropicSupportedProvider, isAzureOpenAIProvider, isOpenAICompatibleProvider } from '../utils/provider'
 
 interface ProviderApiOptionsDrawerProps {
   providerId: string

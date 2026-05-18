@@ -43,7 +43,8 @@ import { timestampToISO } from './utils/rowMappers'
 const logger = loggerService.withContext('DataApi:MessageService')
 
 /**
- * Input for `reserveAssistantTurn` — one "chat turn" reservation.
+ * Input for `createUserMessageWithPlaceholders` — one chat turn (user
+ * message + assistant placeholder rows).
  *
  * Placeholders have `parentId` and `siblingsGroupId` intentionally omitted:
  * both are derived by the reservation (placeholders always hang off the user
@@ -54,21 +55,20 @@ const logger = loggerService.withContext('DataApi:MessageService')
  * `useChat.activeResponse` and the DB row agree — eliminating the
  * duplicate-assistant-message bug caused by client/DB id divergence.
  */
-export interface ReserveAssistantTurnPlaceholder
-  extends Omit<CreateMessageDto, 'parentId' | 'siblingsGroupId' | 'setAsActive'> {
+export interface AssistantPlaceholder extends Omit<CreateMessageDto, 'parentId' | 'siblingsGroupId' | 'setAsActive'> {
   /** Optional caller-supplied UUID; falls back to the schema default when omitted. */
   id?: string
 }
 
-export interface ReserveAssistantTurnInput {
+export interface CreateUserMessageWithPlaceholdersInput {
   topicId: string
   userMessage: { mode: 'create'; dto: CreateMessageDto } | { mode: 'existing'; id: string }
   /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
   siblingsGroupId?: number
-  placeholders: ReserveAssistantTurnPlaceholder[]
+  placeholders: AssistantPlaceholder[]
 }
 
-export interface ReserveAssistantTurnResult {
+export interface CreateUserMessageWithPlaceholdersResult {
   userMessage: Message
   /** In the same order as `input.placeholders`. */
   placeholders: Message[]
@@ -947,13 +947,13 @@ export class MessageService {
   }
 
   /**
-   * Atomically reserve an assistant turn: insert (or resolve) one user message,
+   * Atomically create one chat turn: insert (or resolve) one user message,
    * optionally backfill existing siblings with groupId=0, and insert N assistant
    * placeholders as children, then point topic.activeNodeId at the last placeholder.
    *
    * The whole operation runs in a single DB transaction, so a failure anywhere
    * rolls back everything — callers don't need compensation logic. Designed for
-   * the AI Stream reservation phase where multi-model / regenerate turns must be
+   * the AI Stream setup phase where multi-model / regenerate turns must be
    * written as one unit to avoid orphaned user messages or pending placeholders.
    *
    * User message handling:
@@ -968,7 +968,9 @@ export class MessageService {
    * is a no-op when there are no existing children (fresh turn) or when they
    * already belong to a group (inherit case).
    */
-  async reserveAssistantTurn(input: ReserveAssistantTurnInput): Promise<ReserveAssistantTurnResult> {
+  async createUserMessageWithPlaceholders(
+    input: CreateUserMessageWithPlaceholdersInput
+  ): Promise<CreateUserMessageWithPlaceholdersResult> {
     const db = application.get('DbService').getDb()
 
     return await db.transaction(async (tx) => {

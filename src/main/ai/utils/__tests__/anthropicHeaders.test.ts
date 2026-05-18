@@ -29,7 +29,7 @@ describe('addAnthropicHeaders', () => {
     const headers = addAnthropicHeaders(
       makeAssistant({ settings: { toolUseMode: 'function' } }),
       claudeModel(),
-      makeProvider({ id: 'aws-bedrock', presetProviderId: 'aws-bedrock' })
+      makeProvider({ id: 'aws-bedrock', presetProviderId: 'aws-bedrock', authType: 'iam-aws' })
     )
     expect(headers).not.toContain('interleaved-thinking-2025-05-14')
   })
@@ -38,7 +38,7 @@ describe('addAnthropicHeaders', () => {
     const headers = addAnthropicHeaders(
       makeAssistant({ settings: { enableWebSearch: true } }),
       makeModel({ id: 'anthropic::claude-sonnet-4-20250101', providerId: 'anthropic' }),
-      makeProvider({ id: 'google-vertex', presetProviderId: 'google-vertex' })
+      makeProvider({ id: 'google-vertex', presetProviderId: 'google-vertex', authType: 'iam-gcp' })
     )
     expect(headers).toContain('web-search-2025-03-05')
   })
@@ -47,7 +47,7 @@ describe('addAnthropicHeaders', () => {
     const headers = addAnthropicHeaders(
       makeAssistant({ settings: { enableWebSearch: false } }),
       makeModel({ id: 'anthropic::claude-sonnet-4-20250101', providerId: 'anthropic' }),
-      makeProvider({ id: 'google-vertex', presetProviderId: 'google-vertex' })
+      makeProvider({ id: 'google-vertex', presetProviderId: 'google-vertex', authType: 'iam-gcp' })
     )
     expect(headers).not.toContain('web-search-2025-03-05')
   })

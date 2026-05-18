@@ -14,14 +14,14 @@ import { temporaryChatHandlers } from '@data/api/handlers/temporaryChats'
 import { messageTable } from '@data/db/schemas/message'
 import { messageService } from '@data/services/MessageService'
 import type { PersistTemporaryChatResponse } from '@shared/data/api/schemas/temporaryChats'
-import { BlockType, type Message, type MessageData } from '@shared/data/types/message'
+import type { Message, MessageData } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 function mainText(content: string): MessageData {
-  return { blocks: [{ type: BlockType.MAIN_TEXT, content, createdAt: 0 }] }
+  return { parts: [{ type: 'text', text: content }] }
 }
 
 describe('Temporary Chat end-to-end (handler → persist → persistent readback)', () => {

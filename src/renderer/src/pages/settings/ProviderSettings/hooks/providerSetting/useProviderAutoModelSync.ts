@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
-import { getProviderHostTopology } from '@renderer/pages/settings/ProviderSettings/utils/providerTopology'
+import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useEffect, useMemo, useRef } from 'react'
 
 import { useProviderModelSync } from '../useProviderModelSync'
@@ -26,6 +26,10 @@ export function useProviderAutoModelSync(providerId: string) {
       return true
     }
 
+    // Must stay in lockstep with `providerNeedsApiKeyForModelSync` in
+    // ModelList/modelSync.ts. `api-key-aws` is intentionally NOT excluded:
+    // unlike `iam-aws` (IAM access keys), it authenticates with an
+    // AWS-issued bearer-token api-key and therefore needs an enabled key.
     return !(
       provider.id === 'ollama' ||
       provider.id === 'lmstudio' ||

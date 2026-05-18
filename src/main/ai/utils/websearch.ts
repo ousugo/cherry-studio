@@ -1,11 +1,9 @@
-// @ts-nocheck — v2 drift: Model type no longer carries `endpoint_type` (now `endpointTypes`).
-//                 Unrelated to stubs migration — revisit when the `cherryin` branch is re-audited.
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
 
 import type { AppProviderId } from '../types'
-import { mapRegexToPatterns } from './blacklistMatchPattern'
 
 /** Inputs for provider-builtin web-search plugin configuration. */
 export interface CherryWebSearchConfig {
@@ -64,9 +62,10 @@ export function buildProviderBuiltinWebSearchConfig(
   switch (providerId) {
     case 'azure-responses':
     case 'openai': {
-      const searchContextSize = isOpenAIDeepResearchModel(model)
-        ? 'medium'
-        : mapMaxResultToOpenAIContextSize(webSearchConfig.maxResults)
+      const searchContextSize =
+        model && isOpenAIDeepResearchModel(model)
+          ? 'medium'
+          : mapMaxResultToOpenAIContextSize(webSearchConfig.maxResults)
       return {
         openai: {
           searchContextSize
@@ -74,9 +73,10 @@ export function buildProviderBuiltinWebSearchConfig(
       }
     }
     case 'openai-chat': {
-      const searchContextSize = isOpenAIDeepResearchModel(model)
-        ? 'medium'
-        : mapMaxResultToOpenAIContextSize(webSearchConfig.maxResults)
+      const searchContextSize =
+        model && isOpenAIDeepResearchModel(model)
+          ? 'medium'
+          : mapMaxResultToOpenAIContextSize(webSearchConfig.maxResults)
       return {
         'openai-chat': {
           searchContextSize
@@ -122,9 +122,18 @@ export function buildProviderBuiltinWebSearchConfig(
       }
     }
     case 'cherryin': {
-      const _providerId =
-        { 'openai-response': 'openai', openai: 'openai-chat' }[model?.endpoint_type ?? ''] ?? model?.endpoint_type
-      return buildProviderBuiltinWebSearchConfig(_providerId, webSearchConfig, model)
+      // cherryin proxies to a real endpoint forced via model.endpointTypes[0];
+      // map it to the AppProviderId whose web-search case applies.
+      const endpoint = model?.endpointTypes?.[0]
+      const proxied: AppProviderId | undefined =
+        endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES
+          ? 'openai'
+          : endpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+            ? 'openai-chat'
+            : endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+              ? 'anthropic'
+              : endpoint
+      return proxied ? buildProviderBuiltinWebSearchConfig(proxied, webSearchConfig, model) : {}
     }
     default: {
       return {}
