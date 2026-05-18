@@ -22,6 +22,17 @@ const ITEM_HEIGHT = 31
 
 interface Props {
   setInputText: React.Dispatch<React.SetStateAction<string>>
+  inputAdapter?: QuickPanelInputAdapter
+}
+
+export interface QuickPanelInputAdapter {
+  getText: () => string
+  getCursorOffset?: () => number
+  insertText: (text: string) => void
+  insertToken?: (token: unknown) => void
+  deleteTriggerRange: (range: { from: number; to: number }) => void
+  focus: () => void
+  subscribeInput?: (listener: (event?: { isComposing?: boolean }) => void) => () => void
 }
 
 /**
@@ -31,7 +42,7 @@ interface Props {
  *
  * 无奈之举，为了清除输入框搜索文本，所以传了个setInputText进来
  */
-export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
+export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) => {
   const ctx = use(QuickPanelContext)
 
   if (!ctx) {
@@ -163,11 +174,12 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
   const clearSearchText = useCallback(
     (includeSymbol = false) => {
-      const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
-      if (!textArea) return
+      const textArea = inputAdapter ? null : document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
+      if (!inputAdapter && !textArea) return
 
-      const cursorPosition = textArea.selectionStart ?? 0
-      const textBeforeCursor = textArea.value.slice(0, cursorPosition)
+      const currentInputText = inputAdapter?.getText() ?? textArea?.value ?? ''
+      const cursorPosition = inputAdapter?.getCursorOffset?.() ?? textArea?.selectionStart ?? currentInputText.length
+      const textBeforeCursor = currentInputText.slice(0, cursorPosition)
 
       // 查找末尾最近的触发符号（@ 或 /），允许位于文本起始或空格后
       const match = textBeforeCursor.match(/(^| )([@/][^\s]*)$/)
@@ -191,7 +203,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
       const activeSearchText = searchTextRef.current ?? ''
 
-      setInputText((currentText) => {
+      const deleteSearchText = (currentText: string) => {
         const safeText = currentText ?? ''
         const expectedSegment = includeSymbol ? symbolSegment : symbolSegment.slice(1)
         const typedSearch = activeSearchText
@@ -202,55 +214,71 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             : typedSearch
 
         if (normalizedTyped && expectedSegment !== normalizedTyped) {
-          return safeText
+          return
         }
 
         const segmentStart = includeSymbol ? symbolStart : symbolStart + 1
         const segmentEnd = segmentStart + expectedSegment.length
 
         if (segmentStart < 0 || segmentStart > safeText.length) {
-          return safeText
+          return
         }
 
         if (segmentEnd > safeText.length) {
-          return safeText
+          return
         }
 
         const actualSegment = safeText.slice(segmentStart, segmentEnd)
         if (actualSegment !== expectedSegment) {
-          return safeText
+          return
         }
 
         const clampedDeleteStart = Math.max(0, Math.min(deleteStart, safeText.length))
         const clampedDeleteEnd = Math.max(clampedDeleteStart, Math.min(deleteEnd, safeText.length))
 
         if (clampedDeleteStart >= clampedDeleteEnd) {
-          return safeText
+          return
         }
 
         const updatedText = safeText.slice(0, clampedDeleteStart) + safeText.slice(clampedDeleteEnd)
 
         if (updatedText === safeText) {
-          return safeText
+          return
         }
 
         setTimeoutTimer(
           'quickpanel_focus',
           () => {
+            if (inputAdapter) {
+              inputAdapter.focus()
+              return
+            }
             const textareaEl = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
-            if (!textareaEl) return
-            textareaEl.focus()
-            textareaEl.setSelectionRange(clampedDeleteStart, clampedDeleteStart)
+            if (textareaEl) {
+              textareaEl.focus()
+              textareaEl.setSelectionRange(clampedDeleteStart, clampedDeleteStart)
+            }
           },
           0
         )
 
+        if (inputAdapter) {
+          inputAdapter.deleteTriggerRange({ from: clampedDeleteStart, to: clampedDeleteEnd })
+          return
+        }
+
         return updatedText
-      })
+      }
+
+      if (inputAdapter) {
+        deleteSearchText(currentInputText)
+      } else {
+        setInputText((currentText) => deleteSearchText(currentText) ?? currentText)
+      }
 
       setSearchText('')
     },
-    [setInputText, setTimeoutTimer]
+    [inputAdapter, setInputText, setTimeoutTimer]
   )
 
   const handleClose = useCallback(
@@ -262,8 +290,10 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       scrollTriggerRef.current = 'initial'
 
       if (action === 'delete-symbol') {
-        const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
-        if (textArea) {
+        const textArea = inputAdapter ? null : document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
+        if (inputAdapter) {
+          setInputText(inputAdapter.getText())
+        } else if (textArea) {
           setInputText(textArea.value)
         }
       } else if (
@@ -280,7 +310,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         )
       }
     },
-    [ctx, clearSearchText, setInputText, searchText, setTimeoutTimer]
+    [ctx, clearSearchText, inputAdapter, setInputText, searchText, setTimeoutTimer]
   )
 
   const handleItemAction = useCallback(
@@ -428,15 +458,10 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   useEffect(() => {
     if (!ctx.isVisible) return
 
-    const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
-    if (!textArea) return
+    const handleSearchInput = (value: string, cursorPosition: number, composing = false) => {
+      if (composing || isComposing.current) return
 
-    const handleInput = (e: Event) => {
-      if (isComposing.current) return
-
-      const target = e.target as HTMLTextAreaElement
-      const cursorPosition = target.selectionStart
-      const textBeforeCursor = target.value.slice(0, cursorPosition)
+      const textBeforeCursor = value.slice(0, cursorPosition)
       const lastSlashIndex = textBeforeCursor.lastIndexOf('/')
       const lastAtIndex = textBeforeCursor.lastIndexOf('@')
       const lastSymbolIndex = Math.max(lastSlashIndex, lastAtIndex)
@@ -444,12 +469,28 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       if (lastSymbolIndex !== -1) {
         const newSearchText = textBeforeCursor.slice(lastSymbolIndex)
         setSearchTextDebounced(newSearchText)
-        // Trigger server-side search callback immediately (with its own debounce)
         triggerSearchChange(newSearchText)
       } else {
-        // 使用本地 handleClose，确保在删除触发符时同步受控输入值
         handleClose('delete-symbol')
       }
+    }
+
+    if (inputAdapter?.subscribeInput) {
+      return inputAdapter.subscribeInput((event) => {
+        handleSearchInput(
+          inputAdapter.getText(),
+          inputAdapter.getCursorOffset?.() ?? inputAdapter.getText().length,
+          event?.isComposing
+        )
+      })
+    }
+
+    const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
+    if (!textArea) return
+
+    const handleInput = (e: Event) => {
+      const target = e.target as HTMLTextAreaElement
+      handleSearchInput(target.value, target.selectionStart)
     }
 
     const handleCompositionUpdate = () => {
@@ -470,7 +511,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       textArea.removeEventListener('compositionupdate', handleCompositionUpdate)
       textArea.removeEventListener('compositionend', handleCompositionEnd)
     }
-  }, [ctx.isVisible, ctx.symbol, handleClose, setSearchTextDebounced, triggerSearchChange])
+  }, [ctx.isVisible, ctx.symbol, handleClose, inputAdapter, setSearchTextDebounced, triggerSearchChange])
 
   useEffect(() => {
     if (ctx.isVisible) return

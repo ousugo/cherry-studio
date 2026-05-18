@@ -721,7 +721,7 @@ function HeaderItem({ actions, className, icon, label, ref, variant = 'ghost', .
         ref={ref}
         variant={variant}
         className={cn(
-          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] shadow-none outline-none transition-all duration-150 hover:bg-accent focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-[18px] [&_svg]:shrink-0',
+          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1.5 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-3.5 [&_svg]:shrink-0',
           className
         )}
         {...props}>

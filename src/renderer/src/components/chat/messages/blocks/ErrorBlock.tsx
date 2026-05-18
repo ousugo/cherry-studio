@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
@@ -172,10 +173,10 @@ const MessageErrorInfo: React.FC<{
 
   return (
     <div
-      className={[
+      className={cn(
         'group relative my-2 rounded-lg border px-3.5 py-3 text-[13px] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--color-error-base)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-error-base)_7%,transparent)]',
-        canOpenDetail ? 'cursor-pointer' : ''
-      ].join(' ')}
+        canOpenDetail && 'cursor-pointer'
+      )}
       style={{
         borderColor: 'color-mix(in srgb, var(--color-error-base) 20%, transparent)',
         background: 'color-mix(in srgb, var(--color-error-base) 4%, transparent)'

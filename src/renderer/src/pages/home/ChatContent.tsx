@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
 import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
 import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
+import ChatComposer from '@renderer/components/chat/composer/variants/ChatComposer'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import MessageList from '@renderer/components/chat/messages/MessageList'
@@ -25,7 +26,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
-import Inputbar from './Inputbar/Inputbar'
 import { useHomeMessageListProviderValue } from './messages/homeMessageListAdapter'
 
 const logger = loggerService.withContext('ChatContent')
@@ -348,7 +348,7 @@ const ChatContentInner: FC<InnerProps> = ({
             const bottomComposer = (
               <ComposerContextProvider value={composerContext}>
                 <ComposerCore
-                  fallback={<Inputbar topic={topic} setActiveTopic={setActiveTopic} onSend={handleSend} />}
+                  fallback={<ChatComposer topic={topic} setActiveTopic={setActiveTopic} onSend={handleSend} />}
                 />
               </ComposerContextProvider>
             )

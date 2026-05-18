@@ -48,7 +48,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
-vi.mock('../Inputbar/Inputbar', () => ({
+vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
   default: ({ onSend }: { onSend: (text: string) => Promise<void> | void }) => (
     (capturedOnSend = onSend),
     (
