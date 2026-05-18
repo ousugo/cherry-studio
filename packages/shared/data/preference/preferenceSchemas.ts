@@ -183,8 +183,6 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'chat.web_search.compression.cutoff_limit': number
     // target-key-definitions/complex/complex
-    'chat.web_search.compression.cutoff_unit': PreferenceTypes.WebSearchCompressionCutoffUnit
-    // target-key-definitions/complex/complex
     'chat.web_search.compression.method': PreferenceTypes.WebSearchCompressionMethod
     // target-key-definitions/complex/complex
     'chat.web_search.default_fetch_urls_provider': PreferenceTypes.WebSearchProviderId | null
@@ -196,10 +194,6 @@ export interface PreferenceSchemas {
     'chat.web_search.max_results': number
     // target-key-definitions/complex/complex
     'chat.web_search.provider_overrides': PreferenceTypes.WebSearchProviderOverrides
-    // target-key-definitions/complex/complex
-    'chat.web_search.search_with_time': boolean
-    // target-key-definitions/complex/complex
-    'chat.web_search.subscribe_sources': PreferenceTypes.WebSearchSubscribeSource[]
     // redux/settings/skipBackupFile
     'data.backup.general.skip_backup_file': boolean
     // redux/settings/localBackupAutoSync
@@ -587,15 +581,12 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.message.thought.auto_collapse': true,
     'chat.narrow_mode': false,
     'chat.web_search.compression.cutoff_limit': 2000,
-    'chat.web_search.compression.cutoff_unit': 'char',
     'chat.web_search.compression.method': 'none',
     'chat.web_search.default_fetch_urls_provider': null,
     'chat.web_search.default_search_keywords_provider': null,
     'chat.web_search.exclude_domains': [],
     'chat.web_search.max_results': 5,
     'chat.web_search.provider_overrides': {},
-    'chat.web_search.search_with_time': true,
-    'chat.web_search.subscribe_sources': [],
     'data.backup.general.skip_backup_file': false,
     'data.backup.local.auto_sync': false,
     'data.backup.local.dir': '',

@@ -1,9 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { isQwenMTModel } from '@renderer/config/models'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
-import { useDefaultModel } from '@renderer/hooks/useModels'
-import type { Model } from '@renderer/types'
+import { useDefaultModel } from '@renderer/hooks/useModel'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { LANG_DETECT_PROMPT } from '@shared/config/prompts'
 import {
@@ -12,7 +9,8 @@ import {
   type TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
-import { createUniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
+import { isQwenMTModel } from '@shared/utils/model'
 import { franc } from 'franc-min'
 import i18n from 'i18next'
 import { useCallback, useRef } from 'react'
@@ -60,7 +58,7 @@ export const detectLanguageByLLM = async (
   const systemPrompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
 
   const { text: result } = await window.api.ai.generateText({
-    uniqueModelId: createUniqueModelId(model.provider, model.id),
+    uniqueModelId: model.id,
     system: systemPrompt,
     prompt: 'follow system prompt'
   })
@@ -169,12 +167,8 @@ export const detectWithMethod = async (
 export const useDetectLang = () => {
   const [method] = usePreference('feature.translate.auto_detection_method')
   const { languages } = useLanguages()
-  const { quickModel: sharedQuickModel } = useDefaultModel()
-  const quickModel: Model | undefined = sharedQuickModel ? fromSharedModel(sharedQuickModel) : undefined
+  const { quickModel } = useDefaultModel()
 
-  // One-shot UX surface: useLanguages only toasts on SWR error, but a successful
-  // empty-array response (seeder failure / DB corruption) slips past it. Notify
-  // the user once per session so they don't silently keep getting UNKNOWN.
   const toastedNotReadyRef = useRef(false)
   const toastedEmptyRef = useRef(false)
 

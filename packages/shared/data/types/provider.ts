@@ -25,17 +25,16 @@ const CatalogApiFeaturesSchema = z.object({
   streamOptions: z.boolean().optional(),
   developerRole: z.boolean().optional(),
   serviceTier: z.boolean().optional(),
-  verbosity: z.boolean().optional(),
-  enableThinking: z.boolean().optional()
+  verbosity: z.boolean().optional()
 })
 
 /** Provider website schema (type used for catalog ProviderWebsite type) */
 const ProviderWebsiteSchema = z.object({
   website: z.object({
-    official: z.string().url().optional(),
-    docs: z.string().url().optional(),
-    apiKey: z.string().url().optional(),
-    models: z.string().url().optional()
+    official: z.url().optional(),
+    docs: z.url().optional(),
+    apiKey: z.url().optional(),
+    models: z.url().optional()
   })
 })
 
@@ -70,9 +69,9 @@ export function isServiceTier(tier: string | null | undefined): tier is ServiceT
 
 export const ApiKeyEntrySchema = z.object({
   /** UUID for referencing this key */
-  id: z.string(),
-  /** Actual key value (encrypted in storage) */
-  key: z.string(),
+  id: z.string().min(1),
+  /** Actual key value (trimmed; empty values are rejected) */
+  key: z.string().trim().min(1),
   /** User-friendly label */
   label: z.string().optional(),
   /** Whether this key is enabled */
@@ -223,7 +222,9 @@ export const EndpointConfigSchema = z.object({
   /** How this endpoint type expects reasoning parameters */
   reasoningFormatType: ReasoningFormatTypeSchema.optional(),
   /** URLs for fetching available models via this endpoint type */
-  modelsApiUrls: ModelsApiUrlsSchema.optional()
+  modelsApiUrls: ModelsApiUrlsSchema.optional(),
+  /** AI SDK adapter family that handles this endpoint. Carried over from the catalog */
+  adapterFamily: z.string().optional()
 })
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
@@ -237,6 +238,8 @@ export const ProviderSchema = z.object({
   name: z.string(),
   /** Description */
   description: z.string().optional(),
+  /** Preset provider website links */
+  websites: ProviderWebsitesSchema.optional(),
   /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
   endpointConfigs: z.record(EndpointTypeSchema, EndpointConfigSchema).optional() as z.ZodOptional<
     z.ZodType<Partial<Record<EndpointType, EndpointConfig>>>
@@ -262,8 +265,7 @@ export const DEFAULT_API_FEATURES: RuntimeApiFeatures = {
   streamOptions: true,
   developerRole: false,
   serviceTier: false,
-  verbosity: false,
-  enableThinking: true
+  verbosity: false
 }
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {}

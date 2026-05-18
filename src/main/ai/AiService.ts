@@ -8,6 +8,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
+import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
 import { type Assistant } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -33,7 +34,7 @@ import { dispatchStreamRequest } from './stream-manager/context'
 import { WebContentsListener } from './stream-manager/listeners/WebContentsListener'
 import { registerBuiltinTools } from './tools/builtin'
 import type { AppProviderSettingsMap } from './types'
-import type { AiBaseRequest, AiStreamRequest, AiTransportOptions } from './types/requests'
+import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
 
 const logger = loggerService.withContext('AiService')
 
@@ -224,8 +225,12 @@ export class AiService extends BaseService {
       })()
     })
 
-    this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: AiBaseRequest) => {
+    this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: ListModelsRequest) => {
       return this.listModels(request)
+    })
+
+    this.ipcHandle(IpcChannel.Ai_Translate_Open, async (event, request: TranslateOpenRequest) => {
+      return translateService.open(event.sender, request)
     })
 
     this.ipcHandle(
@@ -473,10 +478,19 @@ export class AiService extends BaseService {
   }
 
   // ── Model listing ──
-
-  async listModels(request: AiBaseRequest): Promise<Partial<Model>[]> {
-    const { provider } = await this.getProviderAndModel(request)
-    return listModelsFromProvider(provider)
+  async listModels(request: ListModelsRequest): Promise<Partial<Model>[]> {
+    let providerId = request.providerId
+    if (!providerId && request.assistantId) {
+      const assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
+      if (assistant?.modelId) {
+        providerId = parseUniqueModelId(assistant.modelId).providerId
+      }
+    }
+    if (!providerId) {
+      throw new Error('Cannot resolve providerId: not in request and assistant has no model')
+    }
+    const provider = await providerService.getByProviderId(providerId)
+    return listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
   }
 
   // ── API validation ──

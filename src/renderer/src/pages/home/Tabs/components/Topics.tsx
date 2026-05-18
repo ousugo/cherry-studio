@@ -17,11 +17,17 @@ import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
-import { useAssistantsApi } from '@renderer/hooks/useAssistantDataApi'
+import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
-import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
-import { mapApiTopicToRendererTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopicDataApi'
+import {
+  finishTopicRenaming,
+  getTopicMessages,
+  mapApiTopicToRendererTopic,
+  startTopicRenaming,
+  useAllTopics,
+  useTopicMutations
+} from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -116,7 +122,7 @@ function TopicDisplayModeMenu({
           type="button"
           variant="ghost"
           aria-label={t('chat.topics.display.title')}
-          className="inline-flex size-5 shrink-0 items-center justify-center p-0 leading-none text-muted-foreground/55 shadow-none hover:bg-transparent hover:text-muted-foreground/75 [&_svg]:block [&_svg]:shrink-0">
+          className="inline-flex size-5 shrink-0 items-center justify-center p-0 text-muted-foreground/55 leading-none shadow-none hover:bg-transparent hover:text-muted-foreground/75 [&_svg]:block [&_svg]:shrink-0">
           <ListFilter size={12} className="block" />
         </Button>
       </PopoverTrigger>
@@ -131,7 +137,7 @@ function TopicDisplayModeMenu({
               label={t(`chat.topics.display.${option}`)}
               active={mode === option}
               suffix={mode === option ? <Check size={11} /> : null}
-              className="h-6 gap-1.5 rounded-md px-1.5 py-0 text-[11px] font-normal text-muted-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground [&_svg]:size-3"
+              className="h-6 gap-1.5 rounded-md px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground [&_svg]:size-3"
               onClick={() => {
                 onChange(option)
                 setOpen(false)
@@ -746,7 +752,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
             type="button"
             variant="ghost"
             aria-label={t('chat.add.topic.title')}
-            className="h-7 w-full justify-start gap-1.5 rounded-md px-2.5 text-[12px] font-normal text-muted-foreground/70 shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
+            className="h-7 w-full justify-start gap-1.5 rounded-md px-2.5 font-normal text-[12px] text-muted-foreground/70 shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground"
             onClick={() => void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
             <Plus size={13} className="block shrink-0" />
             <span className="truncate">{t('chat.add.topic.title')}</span>

@@ -3,6 +3,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { pinService } from '@data/services/PinService'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,10 +53,19 @@ describe('AgentService', () => {
   // calls with `model: <canonical id>` satisfy the FK.
   const TEST_MODEL_ID = 'anthropic::claude-3-5-sonnet'
   beforeEach(async () => {
-    await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'anthropic' }).onConflictDoNothing()
+    await dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'anthropic', name: 'anthropic', orderKey: generateOrderKeyBetween(null, null) })
+      .onConflictDoNothing()
     await dbh.db
       .insert(userModelTable)
-      .values({ id: TEST_MODEL_ID, providerId: 'anthropic', modelId: 'claude-3-5-sonnet' })
+      .values({
+        id: TEST_MODEL_ID,
+        providerId: 'anthropic',
+        modelId: 'claude-3-5-sonnet',
+        name: 'claude-3-5-sonnet',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
       .onConflictDoNothing()
   })
 
@@ -67,6 +77,7 @@ describe('AgentService', () => {
       instructions: 'You are a helpful assistant.',
       // FK to user_model.id; tests insert NULL since they don't exercise model behavior.
       model: null,
+      orderKey: 'a0',
       ...overrides,
       id
     }
@@ -75,7 +86,11 @@ describe('AgentService', () => {
   }
 
   async function seedModelRefs() {
-    await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic' })
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'anthropic',
+      name: 'Anthropic',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
     await dbh.db.insert(userModelTable).values({
       id: createUniqueModelId('anthropic', 'claude-sonnet-4-5'),
       providerId: 'anthropic',
@@ -84,7 +99,7 @@ describe('AgentService', () => {
       name: 'Claude Sonnet 4.5',
       isEnabled: true,
       isHidden: false,
-      sortOrder: 0
+      orderKey: generateOrderKeyBetween(null, null)
     })
   }
 

@@ -117,8 +117,7 @@ const openAiProvider = {
     streamOptions: true,
     developerRole: false,
     serviceTier: true,
-    verbosity: true,
-    enableThinking: true
+    verbosity: true
   },
   settings: {
     verbosity: 'low'

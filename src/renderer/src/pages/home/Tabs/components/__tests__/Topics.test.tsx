@@ -107,8 +107,8 @@ const topicStreamStatusMocks = vi.hoisted(() => ({
   statuses: new Map<string, { isFulfilled?: boolean; isPending?: boolean }>()
 }))
 
-vi.mock('@renderer/hooks/useTopicDataApi', async () => {
-  const actual = await vi.importActual<typeof TopicDataApiModule>('@renderer/hooks/useTopicDataApi')
+vi.mock('@renderer/hooks/useTopic', async () => {
+  const actual = await vi.importActual<typeof TopicDataApiModule>('@renderer/hooks/useTopic')
   return {
     ...actual,
     useTopicMutations: () => ({
@@ -249,7 +249,7 @@ vi.mock('react-i18next', () => ({
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import type * as TopicDataApiModule from '@renderer/hooks/useTopicDataApi'
+import type * as TopicDataApiModule from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import type { Pin } from '@shared/data/types/pin'

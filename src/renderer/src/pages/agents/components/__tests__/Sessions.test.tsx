@@ -175,12 +175,12 @@ const topicStreamStatusMocks = vi.hoisted(() => ({
   }))
 }))
 
-vi.mock('@renderer/hooks/agents/useSessionDataApi', () => ({
+vi.mock('@renderer/hooks/agents/useSession', () => ({
   useSessions: sessionDataMocks.useSessions,
   useUpdateSession: sessionDataMocks.useUpdateSession
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentDataApi', () => ({
+vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useAgents: agentDataMocks.useAgents
 }))
 

@@ -1,5 +1,4 @@
-import type { Model } from '@renderer/types'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
@@ -63,11 +62,14 @@ vi.mock('react-i18next', () => ({
 }))
 
 const model = {
-  id: 'gpt-5.1',
-  provider: 'openai',
+  id: 'openai::gpt-5.1',
+  providerId: 'openai',
   name: 'gpt-5.1',
-  group: '',
-  supported_endpoint_types: ['openai-response']
+  capabilities: [],
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false,
+  endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
 } satisfies Model
 
 const provider = {
@@ -84,8 +86,7 @@ const provider = {
     streamOptions: true,
     developerRole: false,
     serviceTier: true,
-    verbosity: true,
-    enableThinking: true
+    verbosity: true
   },
   settings: {
     serviceTier: 'auto',

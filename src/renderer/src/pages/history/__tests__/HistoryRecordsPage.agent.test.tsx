@@ -266,7 +266,7 @@ function createAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
   return {
     id: 'agent-alpha',
     type: 'claude-code',
-    model: 'model-alpha',
+    model: 'provider-alpha::model-alpha',
     modelName: 'Claude',
     name: 'Alpha agent',
     configuration: { avatar: 'A' },

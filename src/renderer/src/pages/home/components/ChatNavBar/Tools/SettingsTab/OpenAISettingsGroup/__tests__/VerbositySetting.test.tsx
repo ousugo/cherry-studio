@@ -1,4 +1,4 @@
-import type { Model } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { render, screen } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { createContext, use } from 'react'
@@ -45,10 +45,13 @@ vi.mock('react-i18next', () => ({
 }))
 
 const model = {
-  id: 'gpt-5.1-nano',
-  provider: 'openai',
+  id: 'openai::gpt-5.1-nano',
+  providerId: 'openai',
   name: 'gpt-5.1-nano',
-  group: ''
+  capabilities: [],
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false
 } satisfies Model
 
 describe('VerbositySetting', () => {

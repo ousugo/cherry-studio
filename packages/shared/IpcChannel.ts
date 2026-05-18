@@ -119,7 +119,9 @@ export enum IpcChannel {
   CherryIN_GetBalance = 'cherryin:get-balance',
   CherryIN_Logout = 'cherryin:logout',
   CherryIN_StartOAuthFlow = 'cherryin:start-oauth-flow',
-  CherryIN_ExchangeToken = 'cherryin:exchange-token',
+  // Main → renderer push: OAuth callback result, addressed to the flow initiator
+  // captured at startOAuthFlow time. Replaces the renderer-pulled exchange-token IPC.
+  CherryIN_OAuthResult = 'cherryin:oauth-result',
 
   // obsidian
   Obsidian_GetVaults = 'obsidian:get-vaults',
@@ -169,13 +171,7 @@ export enum IpcChannel {
   Tab_TryAttach = 'tab:try-attach',
   Tab_DragEnd = 'tab:drag-end',
 
-  KnowledgeBase_Create = 'knowledge-base:create',
-  KnowledgeBase_Reset = 'knowledge-base:reset',
   KnowledgeBase_Delete = 'knowledge-base:delete',
-  KnowledgeBase_Add = 'knowledge-base:add',
-  KnowledgeBase_Remove = 'knowledge-base:remove',
-  KnowledgeBase_Search = 'knowledge-base:search',
-  KnowledgeBase_Rerank = 'knowledge-base:rerank',
   KnowledgeRuntime_CreateBase = 'knowledge-runtime:create-base',
   KnowledgeRuntime_RestoreBase = 'knowledge-runtime:restore-base',
   KnowledgeRuntime_DeleteBase = 'knowledge-runtime:delete-base',
@@ -238,6 +234,9 @@ export enum IpcChannel {
   File_ResumeWatcher = 'file:resumeWatcher',
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
   File_ShowInFolder = 'file:showInFolder',
+  // FileManager v2 surface (Phase 1b.3)
+  File_GetDanglingState = 'file:getDanglingState',
+  File_BatchGetDanglingStates = 'file:batchGetDanglingStates',
 
   // PDF
   Pdf_ExtractText = 'pdf:extractText',
@@ -461,6 +460,7 @@ export enum IpcChannel {
   Ai_StreamChunk = 'ai:stream-chunk',
   Ai_StreamDone = 'ai:stream-done',
   Ai_StreamError = 'ai:stream-error',
+  Ai_Translate_Open = 'ai:translate:open',
   /** Renderer → Main: send message (AiStreamManager routes to start or steer) */
   Ai_Stream_Open = 'ai:stream:open',
   /** Renderer → Main: subscribe to a topic's stream state */
@@ -469,21 +469,6 @@ export enum IpcChannel {
   Ai_Stream_Detach = 'ai:stream:detach',
   /** Renderer → Main: abort the active generation on a topic */
   Ai_Stream_Abort = 'ai:stream:abort',
-  /**
-   * Renderer → Main: user decided on a `ToolUIPart { state: 'approval-requested' }`.
-   * Payload: `{ approvalId, approved, reason?, updatedInput?, topicId?, anchorId? }`.
-   *
-   * Main routes by what's still alive:
-   *  1. If `ToolApprovalRegistry` has a pending entry for `approvalId`, dispatch
-   *     to unblock the still-running `canUseTool` (Claude-Agent transport).
-   *  2. Otherwise, if `topicId` + `anchorId` are present, apply the decision to
-   *     the DB anchor and dispatch a fresh `continue-conversation` turn (MCP
-   *     transport — original stream already ended at approval-request).
-   *
-   * Renderer never sends the message tree and never relies on
-   * `useChat.transport.sendMessages` to extract decisions out of
-   * `chat.state.messages` — Main is the single writer of approval state.
-   */
   Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
 
   // AI Non-streaming

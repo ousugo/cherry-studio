@@ -127,7 +127,9 @@ describe('SelectorShell', () => {
     )
 
     await waitFor(() => expect(addEventListenerSpy).toHaveBeenCalledWith('resize', expect.any(Function)))
-    const resizeListenerCount = addEventListenerSpy.mock.calls.filter(([eventName]) => eventName === 'resize').length
+    const resizeListenerCount = addEventListenerSpy.mock.calls.filter(
+      ([eventName]) => (eventName as string) === 'resize'
+    ).length
     const disconnectCount = disconnect.mock.calls.length
 
     rerender(
@@ -141,7 +143,7 @@ describe('SelectorShell', () => {
       </SelectorShell>
     )
 
-    expect(addEventListenerSpy.mock.calls.filter(([eventName]) => eventName === 'resize')).toHaveLength(
+    expect(addEventListenerSpy.mock.calls.filter(([eventName]) => (eventName as string) === 'resize')).toHaveLength(
       resizeListenerCount
     )
     expect(disconnect).toHaveBeenCalledTimes(disconnectCount)

@@ -1,10 +1,9 @@
 import { dataApiService } from '@data/DataApiService'
 import { preferenceService } from '@data/PreferenceService'
-import { fromSharedModel } from '@renderer/config/models/_bridge'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
-import type { Model, ReasoningEffortOption } from '@renderer/types'
+import type { ReasoningEffortOption } from '@renderer/types'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { t } from 'i18next'
 
@@ -38,15 +37,13 @@ export async function resolveTranslatePayload(
   if (!sharedModel) {
     throw new Error(t('translate.error.not_configured'))
   }
-  const model = fromSharedModel(sharedModel)
-
-  const content = isQwenMTModel(model)
+  const content = isQwenMTModel(sharedModel)
     ? text
     : (await preferenceService.get('feature.translate.model_prompt'))
         .replaceAll('{{target_language}}', targetLanguage.value)
         .replaceAll('{{text}}', text)
 
-  return { model, content }
+  return { model: sharedModel, content }
 }
 
 /**
@@ -60,7 +57,7 @@ export async function resolveTranslatePayload(
  * @param text - The source text to translate
  * @param targetLanguage - Either a {@link TranslateLangCode} (resolved via DataApi) or a {@link TranslateLanguage} object
  * @param onResponse - Invoked once with the final translated text and `isComplete=true`
- * @param _abortKey - Currently unused (legacy streaming-abort path is gone)
+ * @param _signal - Currently unused (legacy streaming-abort path is gone)
  * @param options - Optional settings (e.g. reasoning effort) — currently unused while the IPC `generateText` signature
  *                  doesn't accept per-call assistant settings; preserved for future use without breaking callers.
  * @returns The trimmed translated text
@@ -70,7 +67,7 @@ export const translateText = async (
   text: string,
   targetLanguage: TranslateLangCode | TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
-  _abortKey?: string,
+  _signal?: AbortSignal,
   _options?: TranslateOptions
 ) => {
   if (typeof targetLanguage === 'string') {
@@ -84,7 +81,7 @@ export const translateText = async (
   const { model, content } = await resolveTranslatePayload(targetLanguage, text)
 
   const { text: result } = await window.api.ai.generateText({
-    uniqueModelId: createUniqueModelId(model.provider, model.id),
+    uniqueModelId: model.id,
     // No persisted assistant for ad-hoc translate calls — main resolves the
     // model directly via `uniqueModelId`.
     prompt: content

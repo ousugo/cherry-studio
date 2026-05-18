@@ -3,8 +3,8 @@ import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAgent } from '@renderer/hooks/agents/useAgentDataApi'
-import { useActiveSession } from '@renderer/hooks/agents/useSessionDataApi'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
+import { useActiveSession } from '@renderer/hooks/agents/useSession'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
@@ -30,7 +30,7 @@ interface Props {
   isGroupContextMessage?: boolean
 }
 
-const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {
+const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupContextMessage }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const [userName] = usePreference('app.user.name')
@@ -42,7 +42,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const { isBubbleStyle } = useMessageStyle()
   const { openMiniAppById } = useMiniAppPopup()
 
-  const { isMultiSelectMode, selectedMessageIds, handleSelectMessage } = useChatContext(topic)
+  const { isMultiSelectMode, selectedMessageIds, handleSelectMessage } = useChatContext()
 
   const isSelected = selectedMessageIds?.includes(message.id)
 

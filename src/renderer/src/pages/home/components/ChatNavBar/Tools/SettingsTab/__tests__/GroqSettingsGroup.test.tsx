@@ -69,8 +69,7 @@ const provider = {
     streamOptions: true,
     developerRole: false,
     serviceTier: true,
-    verbosity: false,
-    enableThinking: true
+    verbosity: false
   },
   settings: {
     serviceTier: 'auto'
