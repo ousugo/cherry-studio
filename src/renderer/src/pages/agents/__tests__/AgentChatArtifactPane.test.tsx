@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,6 +14,7 @@ vi.mock('@renderer/components/chat', () => ({
     topBar,
     sidePanel,
     main,
+    centerContent,
     bottomComposer,
     overlay
   }: {
@@ -21,7 +23,8 @@ vi.mock('@renderer/components/chat', () => ({
     panePosition?: string
     topBar?: ReactNode
     sidePanel?: ReactNode
-    main: ReactNode
+    main?: ReactNode
+    centerContent?: ReactNode
     bottomComposer?: ReactNode
     overlay?: ReactNode
   }) => (
@@ -29,7 +32,7 @@ vi.mock('@renderer/components/chat', () => ({
       <div data-testid="agent-top-bar">{topBar}</div>
       <div data-testid="shell-pane">{pane}</div>
       <div data-testid="agent-side-panel">{sidePanel}</div>
-      <div>{main}</div>
+      <div>{centerContent ?? main}</div>
       <div>{bottomComposer}</div>
       <div>{overlay}</div>
     </div>
@@ -107,12 +110,20 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
-  useActiveSession: () => ({
+const activeSessionMocks = vi.hoisted(() => ({
+  result: {
     session: { id: 'session-1', agentId: 'agent-1', accessiblePaths: ['/tmp/workspace'] },
     isLoading: false,
     setActiveSessionId: vi.fn()
-  })
+  } as {
+    session: { id: string; agentId: string; accessiblePaths: string[] } | undefined
+    isLoading: boolean
+    setActiveSessionId: ReturnType<typeof vi.fn>
+  }
+}))
+
+vi.mock('@renderer/hooks/agents/useSession', () => ({
+  useActiveSession: () => activeSessionMocks.result
 }))
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
@@ -214,6 +225,11 @@ vi.mock('../../home/Inputbar/components/PinnedTodoPanel', () => ({
 
 describe('AgentChat artifact pane', () => {
   beforeEach(() => {
+    activeSessionMocks.result = {
+      session: { id: 'session-1', agentId: 'agent-1', accessiblePaths: ['/tmp/workspace'] },
+      isLoading: false,
+      setActiveSessionId: vi.fn()
+    }
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -249,5 +265,38 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByTestId('session-pane')).toBeInTheDocument()
+  })
+
+  it('keeps the session pane mounted while a selected session reloads', () => {
+    const paneMounts: string[] = []
+
+    function SessionPane() {
+      const [count, setCount] = useState(0)
+
+      useEffect(() => {
+        paneMounts.push('mounted')
+      }, [])
+
+      return (
+        <button type="button" onClick={() => setCount((value) => value + 1)}>
+          pane count {count}
+        </button>
+      )
+    }
+
+    const { rerender } = render(<AgentChat pane={<SessionPane />} paneOpen={true} panePosition="left" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'pane count 0' }))
+    expect(screen.getByRole('button', { name: 'pane count 1' })).toBeInTheDocument()
+
+    activeSessionMocks.result = {
+      session: undefined,
+      isLoading: true,
+      setActiveSessionId: vi.fn()
+    }
+    rerender(<AgentChat pane={<SessionPane />} paneOpen={true} panePosition="left" />)
+
+    expect(screen.getByRole('button', { name: 'pane count 1' })).toBeInTheDocument()
+    expect(paneMounts).toEqual(['mounted'])
   })
 })

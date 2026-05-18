@@ -16,19 +16,21 @@ vi.mock('@renderer/components/chat', () => ({
     topBar,
     sidePanel,
     main,
+    centerContent,
     bottomComposer,
     overlay
   }: {
     topBar?: ReactNode
     sidePanel?: ReactNode
-    main: ReactNode
+    main?: ReactNode
+    centerContent?: ReactNode
     bottomComposer?: ReactNode
     overlay?: ReactNode
   }) => (
     <div>
       <div data-testid="agent-top-bar">{topBar}</div>
       <div data-testid="agent-side-panel">{sidePanel}</div>
-      <div>{main}</div>
+      <div>{centerContent ?? main}</div>
       <div>{bottomComposer}</div>
       <div>{overlay}</div>
     </div>

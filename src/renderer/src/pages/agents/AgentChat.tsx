@@ -69,6 +69,8 @@ const AgentChat = ({
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const [artifactPaneOpen, setArtifactPaneOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
 
   const { session: activeSession, isLoading: isSessionLoading } = useActiveSession()
   const temporaryAgentConversation = temporaryConversation?.type === 'agent' ? temporaryConversation : null
@@ -146,12 +148,22 @@ const AgentChat = ({
 
   const closeArtifactPane = useCallback(() => setArtifactPaneOpen(false), [])
   const toggleArtifactPane = useCallback(() => setArtifactPaneOpen((prev) => !prev), [])
+  const handleOpenSettings = useCallback(() => {
+    setCitationPanelCitations(null)
+    setSettingsOpen(true)
+  }, [])
+  const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
+    setSettingsOpen(false)
+    setCitationPanelCitations(citations)
+  }, [])
 
   const isInitializing = isSessionLoading || ((activeSession || temporaryAgentConversation) && isAgentLoading)
+  const citationsPanelOpen = citationPanelCitations !== null
 
   if (isInitializing) {
     return (
       <AgentChatFrame
+        className={messageStyle}
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
@@ -167,7 +179,15 @@ const AgentChat = ({
 
   if (!activeSession) {
     if (!temporaryAgentConversation) {
-      return <AgentChatFrame pane={pane} paneOpen={paneOpen} panePosition={panePosition} main={<div />} />
+      return (
+        <AgentChatFrame
+          className={messageStyle}
+          pane={pane}
+          paneOpen={paneOpen}
+          panePosition={panePosition}
+          main={<div />}
+        />
+      )
     }
 
     const bottomComposer = !isMultiSelectMode ? (
@@ -190,6 +210,7 @@ const AgentChat = ({
 
     return (
       <AgentChatFrame
+        className={messageStyle}
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
@@ -201,7 +222,7 @@ const AgentChat = ({
             <AgentChatNavbar
               className="min-w-0"
               activeAgent={activeAgent ?? null}
-              onOpenSettings={() => undefined}
+              onOpenSettings={handleOpenSettings}
               artifactPaneOpen={artifactPaneOpen}
               onToggleArtifactPane={toggleArtifactPane}
               onDraftAgentChange={onDraftAgentChange}
@@ -212,6 +233,16 @@ const AgentChat = ({
         }
         main={<div className="h-full w-full" />}
         bottomComposer={bottomComposer}
+        sidePanel={
+          <>
+            <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />
+            <CitationsPanel
+              open={citationsPanelOpen}
+              onClose={() => setCitationPanelCitations(null)}
+              citations={citationPanelCitations ?? []}
+            />
+          </>
+        }
       />
     )
   }
@@ -221,6 +252,7 @@ const AgentChat = ({
   if (!activeSession.agentId) {
     return (
       <AgentChatFrame
+        className={messageStyle}
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
@@ -237,26 +269,54 @@ const AgentChat = ({
   }
 
   return (
-    <AgentChatInner
+    <AgentChatFrame
+      className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}
       pane={pane}
       paneOpen={paneOpen}
       panePosition={panePosition}
-      agentId={activeSession.agentId}
-      sessionId={activeSession.id}
-      activeAgent={activeAgent}
-      messageNavigation={messageNavigation}
-      messageStyle={messageStyle}
-      isMultiSelectMode={isMultiSelectMode}
       artifactPaneOpen={artifactPaneOpen}
       artifactPaneWorkspacePath={activeSession.accessiblePaths?.[0]}
-      onToggleArtifactPane={toggleArtifactPane}
       onCloseArtifactPane={closeArtifactPane}
-      onNewSessionDraft={() =>
-        onStartTemporarySession?.({
-          agentId: activeSession.agentId,
-          accessiblePaths: activeSession.accessiblePaths,
-          name: t('common.unnamed')
-        })
+      topBar={
+        activeAgent && (
+          <div className="flex h-fit w-full min-w-0">
+            <AgentChatNavbar
+              className="min-w-0"
+              activeAgent={activeAgent}
+              onOpenSettings={handleOpenSettings}
+              artifactPaneOpen={artifactPaneOpen}
+              onToggleArtifactPane={toggleArtifactPane}
+            />
+          </div>
+        )
+      }
+      centerContent={
+        <AgentChatSessionContent
+          key={activeSession.id}
+          agentId={activeSession.agentId}
+          sessionId={activeSession.id}
+          activeAgent={activeAgent}
+          messageNavigation={messageNavigation}
+          isMultiSelectMode={isMultiSelectMode}
+          onOpenCitationsPanel={handleOpenCitationsPanel}
+          onNewSessionDraft={() =>
+            onStartTemporarySession?.({
+              agentId: activeSession.agentId,
+              accessiblePaths: activeSession.accessiblePaths,
+              name: t('common.unnamed')
+            })
+          }
+        />
+      }
+      sidePanel={
+        <>
+          <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />
+          <CitationsPanel
+            open={citationsPanelOpen}
+            onClose={() => setCitationPanelCitations(null)}
+            citations={citationPanelCitations ?? []}
+          />
+        </>
       }
     />
   )
@@ -265,40 +325,24 @@ const AgentChat = ({
 // ── Inner: mounted only when agentId + sessionId are resolved ──
 
 interface InnerProps {
-  pane?: ReactNode
-  paneOpen?: boolean
-  panePosition?: ChatPanePosition
   agentId: string
   sessionId: string
   activeAgent: GetAgentResponse | undefined
   messageNavigation: string
-  messageStyle: string
   isMultiSelectMode: boolean
-  artifactPaneOpen: boolean
-  artifactPaneWorkspacePath?: string
-  onToggleArtifactPane: () => void
-  onCloseArtifactPane: () => void
+  onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onNewSessionDraft?: () => void | Promise<void>
 }
 
-const AgentChatInner = ({
-  pane,
-  paneOpen,
-  panePosition,
+const AgentChatSessionContent = ({
   agentId,
   sessionId,
   activeAgent,
   messageNavigation,
-  messageStyle,
   isMultiSelectMode,
-  artifactPaneOpen,
-  artifactPaneWorkspacePath,
-  onToggleArtifactPane,
-  onCloseArtifactPane,
+  onOpenCitationsPanel,
   onNewSessionDraft
 }: InnerProps) => {
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [narrowMode] = usePreference('chat.narrow_mode')
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const {
@@ -352,17 +396,6 @@ const AgentChatInner = ({
   const executionChats = useExecutionChats(sessionTopicId, chat.activeExecutions)
 
   const { isPending } = useTopicStreamStatus(sessionTopicId)
-  const citationsPanelOpen = citationPanelCitations !== null
-
-  const handleOpenSettings = useCallback(() => {
-    setCitationPanelCitations(null)
-    setSettingsOpen(true)
-  }, [])
-
-  const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
-    setSettingsOpen(false)
-    setCitationPanelCitations(citations)
-  }, [])
 
   const composerContext = useMemo(
     () => ({
@@ -402,87 +435,53 @@ const AgentChatInner = ({
   ])
 
   return (
-    <AgentChatFrame
-      className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}
-      pane={pane}
-      paneOpen={paneOpen}
-      panePosition={panePosition}
-      artifactPaneOpen={artifactPaneOpen}
-      artifactPaneWorkspacePath={artifactPaneWorkspacePath}
-      onCloseArtifactPane={onCloseArtifactPane}
-      topBar={
-        activeAgent && (
-          <div className="flex h-fit w-full min-w-0">
-            <AgentChatNavbar
-              className="min-w-0"
-              activeAgent={activeAgent}
-              onOpenSettings={handleOpenSettings}
-              artifactPaneOpen={artifactPaneOpen}
-              onToggleArtifactPane={onToggleArtifactPane}
+    <>
+      <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
+        {chat.activeExecutions.map(({ executionId }) => {
+          const execChat = executionChats.get(executionId)
+          if (!execChat) return null
+          return (
+            <ExecutionStreamCollector
+              key={executionId}
+              executionId={executionId}
+              chat={execChat}
+              onMessagesChange={handleExecutionMessagesChange}
+              onDispose={handleExecutionDispose}
             />
-          </div>
-        )
-      }
-      main={
-        <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-          {chat.activeExecutions.map(({ executionId }) => {
-            const execChat = executionChats.get(executionId)
-            if (!execChat) return null
-            return (
-              <ExecutionStreamCollector
-                key={executionId}
-                executionId={executionId}
-                chat={execChat}
-                onMessagesChange={handleExecutionMessagesChange}
-                onDispose={handleExecutionDispose}
-              />
-            )
-          })}
+          )
+        })}
 
-          <AgentSessionMessages
-            agentId={agentId}
-            sessionId={sessionId}
-            messages={uiMessages}
-            activeAgent={activeAgent}
-            partsByMessageId={partsByMessageId}
-            modelFallback={fallbackSnapshot}
-            isLoading={isLoading}
-            hasOlder={hasOlder}
-            loadOlder={loadOlder}
-            onOpenCitationsPanel={handleOpenCitationsPanel}
-            deleteMessage={deleteMessage}
-            respondToolApproval={handleToolApprovalRespond}
-          />
-          <div className="mt-auto px-4.5 pb-2">
-            <NarrowLayout narrowMode={narrowMode}>
-              <PinnedTodoPanel messages={uiMessages} partsByMessageId={partsByMessageId} />
-            </NarrowLayout>
-          </div>
-          {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+        <AgentSessionMessages
+          agentId={agentId}
+          sessionId={sessionId}
+          messages={uiMessages}
+          activeAgent={activeAgent}
+          partsByMessageId={partsByMessageId}
+          modelFallback={fallbackSnapshot}
+          isLoading={isLoading}
+          hasOlder={hasOlder}
+          loadOlder={loadOlder}
+          onOpenCitationsPanel={onOpenCitationsPanel}
+          deleteMessage={deleteMessage}
+          respondToolApproval={handleToolApprovalRespond}
+        />
+        <div className="mt-auto px-4.5 pb-2">
+          <NarrowLayout narrowMode={narrowMode}>
+            <PinnedTodoPanel messages={uiMessages} partsByMessageId={partsByMessageId} />
+          </NarrowLayout>
         </div>
-      }
-      bottomComposer={bottomComposer}
-      sidePanel={
-        <>
-          <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />
-          <CitationsPanel
-            open={citationsPanelOpen}
-            onClose={() => setCitationPanelCitations(null)}
-            citations={citationPanelCitations ?? []}
-          />
-        </>
-      }
-    />
+        {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+      </div>
+      {bottomComposer}
+    </>
   )
 }
 
-interface AgentChatFrameProps {
+interface AgentChatFrameBaseProps {
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   topBar?: ReactNode
-  main: ReactNode
-  bottomComposer?: ReactNode
   sidePanel?: ReactNode
   overlay?: ReactNode
   className?: string
@@ -491,12 +490,27 @@ interface AgentChatFrameProps {
   onCloseArtifactPane?: () => void
 }
 
+type AgentChatFrameMainProps = AgentChatFrameBaseProps & {
+  main: ReactNode
+  bottomComposer?: ReactNode
+  centerContent?: never
+}
+
+type AgentChatFrameCenterContentProps = AgentChatFrameBaseProps & {
+  centerContent: ReactNode
+  main?: never
+  bottomComposer?: never
+}
+
+type AgentChatFrameProps = AgentChatFrameMainProps | AgentChatFrameCenterContentProps
+
 const AgentChatFrame = ({
   pane,
   paneOpen,
   panePosition,
   topBar,
   main,
+  centerContent,
   bottomComposer,
   sidePanel,
   overlay,
@@ -504,25 +518,42 @@ const AgentChatFrame = ({
   artifactPaneOpen,
   artifactPaneWorkspacePath,
   onCloseArtifactPane
-}: AgentChatFrameProps) => (
-  <Container className={className}>
-    <QuickPanelProvider>
+}: AgentChatFrameProps) => {
+  const shell =
+    centerContent !== undefined ? (
       <ChatAppShell
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
         topBar={topBar}
-        main={main}
+        centerContent={centerContent}
+        sidePanel={sidePanel}
+        overlay={overlay}
+      />
+    ) : (
+      <ChatAppShell
+        pane={pane}
+        paneOpen={paneOpen}
+        panePosition={panePosition}
+        topBar={topBar}
+        main={main ?? null}
         bottomComposer={bottomComposer}
         sidePanel={sidePanel}
         overlay={overlay}
       />
-    </QuickPanelProvider>
-    <RightPaneHost open={artifactPaneOpen} width={ARTIFACT_PANE_WIDTH} className="p-2">
-      {onCloseArtifactPane && <ArtifactPane workspacePath={artifactPaneWorkspacePath} onClose={onCloseArtifactPane} />}
-    </RightPaneHost>
-  </Container>
-)
+    )
+
+  return (
+    <Container className={className}>
+      <QuickPanelProvider>{shell}</QuickPanelProvider>
+      <RightPaneHost open={artifactPaneOpen} width={ARTIFACT_PANE_WIDTH} className="p-2">
+        {onCloseArtifactPane && (
+          <ArtifactPane workspacePath={artifactPaneWorkspacePath} onClose={onCloseArtifactPane} />
+        )}
+      </RightPaneHost>
+    </Container>
+  )
+}
 
 const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
   return (
