@@ -629,7 +629,7 @@ function Frame({ className, ref, ...props }: FrameProps) {
       ref={ref}
       data-resource-list-variant={meta.variant}
       className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden bg-(--color-background) text-sidebar-foreground',
+        'flex min-h-0 flex-1 flex-col overflow-hidden border-border border-r-[0.5px] text-sidebar-foreground',
         className
       )}
       {...props}
