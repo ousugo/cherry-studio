@@ -3,7 +3,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import { BlockType, type MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 function fieldsOf(err: unknown): Record<string, string[]> {
@@ -196,16 +196,23 @@ describe('TemporaryChatService', () => {
       await expect(service.persist('no-such-id')).rejects.toThrow(/not found/i)
     })
 
-    it('persisted topic has a non-empty fractional-indexing orderKey', async () => {
+    it('persisted topic has a non-empty first-position fractional-indexing orderKey', async () => {
       // Regression guard: a refactor swapping insertWithOrderKey for plain
       // tx.insert() would ship the row with orderKey = '' — silently breaks
       // all subsequent reorders and the unpinned section's sort.
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'existing', name: 'existing', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
       const topic = await service.createTopic({ name: 'with-key' })
       await service.persist(topic.id)
       const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
       expect(dbTopic?.orderKey).toBeDefined()
       expect(dbTopic?.orderKey).not.toBe('')
       expect(dbTopic?.orderKey?.length).toBeGreaterThan(0)
+      expect(await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.orderKey))).toEqual([
+        { id: topic.id },
+        { id: 'existing' }
+      ])
     })
 
     // NOTE: The original "rollback on tx failure" test dropped the message

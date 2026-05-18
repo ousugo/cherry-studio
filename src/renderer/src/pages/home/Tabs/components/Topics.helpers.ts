@@ -66,6 +66,15 @@ export const TOPIC_UNKNOWN_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
 const TOPIC_UNKNOWN_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER
 
+function compareOrderKey(a?: string, b?: string) {
+  if (a && b) {
+    if (a < b) return -1
+    if (a > b) return 1
+  }
+
+  return 0
+}
+
 export function moveTopicAfterDrop<T extends { id: string }>(
   topics: readonly T[],
   payload: ResourceListItemReorderPayload
@@ -126,7 +135,7 @@ export function applyOptimisticTopicDisplayMove<T extends TopicListItem>(
 
 export function buildTopicDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest {
   if (payload.overType === 'item') {
-    return payload.position === 'before' ? { after: payload.overId } : { before: payload.overId }
+    return payload.position === 'before' ? { before: payload.overId } : { after: payload.overId }
   }
 
   return { position: 'last' }
@@ -302,10 +311,8 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
           return a.index - b.index
         }
 
-        if (a.orderKey && b.orderKey) {
-          const orderDelta = a.orderKey.localeCompare(b.orderKey)
-          if (orderDelta !== 0) return -orderDelta
-        }
+        const orderDelta = compareOrderKey(a.orderKey, b.orderKey)
+        if (orderDelta !== 0) return orderDelta
 
         return a.index - b.index
       })

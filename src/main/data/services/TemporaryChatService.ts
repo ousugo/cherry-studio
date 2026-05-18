@@ -184,7 +184,7 @@ export class TemporaryChatService {
         // because the TS-side ISO strings don't match the DB's integer column.
         //
         // `orderKey` is computed via `insertWithOrderKey` so the new persisted
-        // topic lands at the tail of the global non-deleted topic order,
+        // topic lands at the head of the global non-deleted topic order,
         // matching what `topicService.create` does for normal topics. The
         // `?? undefined` pattern used for the other fields converts `null` to
         // `undefined` so Drizzle omits the column entirely, letting the DB
@@ -201,6 +201,7 @@ export class TemporaryChatService {
           },
           {
             pkColumn: topicTable.id,
+            position: 'first',
             scope: isNull(topicTable.deletedAt)
           }
         )

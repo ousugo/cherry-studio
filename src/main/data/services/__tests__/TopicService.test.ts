@@ -390,13 +390,21 @@ describe('TopicService', () => {
   })
 
   describe('create', () => {
-    it('without sourceNodeId: leaves activeNodeId unset and inserts a fresh orderKey', async () => {
+    it('without sourceNodeId: leaves activeNodeId unset and inserts a fresh first-position orderKey', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'existing', name: 'existing', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+
       const result = await topicService.create({ name: 'fresh' })
       expect(result.activeNodeId).toBeUndefined()
       expect(result.name).toBe('fresh')
       const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
       expect(row?.orderKey).toBeDefined()
       expect(row?.orderKey).not.toBe('')
+      expect(await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.orderKey))).toEqual([
+        { id: result.id },
+        { id: 'existing' }
+      ])
     })
 
     it('with sourceNodeId: inserts topic pointing to source message', async () => {

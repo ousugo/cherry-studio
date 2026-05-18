@@ -53,7 +53,7 @@ function createTopic(overrides: Partial<Topic> = {}): Topic {
 }
 
 describe('Topics helpers', () => {
-  it('translates descending assistant visual drops into persisted order anchors', () => {
+  it('translates assistant visual drops into persisted order anchors', () => {
     const basePayload: ResourceListItemReorderPayload = {
       type: 'item',
       activeId: 'a',
@@ -66,8 +66,8 @@ describe('Topics helpers', () => {
       targetIndex: 0
     }
 
-    expect(buildTopicDropAnchor(basePayload)).toEqual({ after: 'b' })
-    expect(buildTopicDropAnchor({ ...basePayload, position: 'after' })).toEqual({ before: 'b' })
+    expect(buildTopicDropAnchor(basePayload)).toEqual({ before: 'b' })
+    expect(buildTopicDropAnchor({ ...basePayload, position: 'after' })).toEqual({ after: 'b' })
     expect(buildTopicDropAnchor({ ...basePayload, overId: 'topic:assistant:assistant-1', overType: 'group' })).toEqual({
       position: 'last'
     })
@@ -306,11 +306,11 @@ describe('Topics helpers', () => {
     ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'unknown-1'])
   })
 
-  it('sorts assistant group topics by persisted orderKey descending when available', () => {
+  it('sorts assistant group topics by raw persisted orderKey ascending when available', () => {
     const topics = [
-      createTopic({ id: 'assistant-a-3', assistantId: 'assistant-a', orderKey: 'c' }),
-      createTopic({ id: 'assistant-a-1', assistantId: 'assistant-a', orderKey: 'a' }),
-      createTopic({ id: 'assistant-a-2', assistantId: 'assistant-a', orderKey: 'b' })
+      createTopic({ id: 'first-created', assistantId: 'assistant-a', orderKey: 'a0' }),
+      createTopic({ id: 'inserted-before-first', assistantId: 'assistant-a', orderKey: 'Zz' }),
+      createTopic({ id: 'inserted-before-that', assistantId: 'assistant-a', orderKey: 'Zy' })
     ]
 
     expect(
@@ -318,6 +318,6 @@ describe('Topics helpers', () => {
         assistantRankById: new Map([['assistant-a', 0]]),
         mode: 'assistant'
       }).map((topic) => topic.id)
-    ).toEqual(['assistant-a-3', 'assistant-a-2', 'assistant-a-1'])
+    ).toEqual(['inserted-before-that', 'inserted-before-first', 'first-created'])
   })
 })

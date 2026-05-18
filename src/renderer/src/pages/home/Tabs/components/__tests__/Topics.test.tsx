@@ -1501,7 +1501,7 @@ describe('Topics', () => {
       )
     })
     await vi.waitFor(() =>
-      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-d/order', { body: { after: 'topic-c' } })
+      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-d/order', { body: { before: 'topic-c' } })
     )
     expect(patchSpy).toHaveBeenCalledTimes(1)
     expect(patchSpy).not.toHaveBeenCalledWith('/topics/topic-d', expect.anything())
@@ -1551,7 +1551,7 @@ describe('Topics', () => {
       )
     })
     await vi.waitFor(() =>
-      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-c/order', { body: { after: 'topic-a' } })
+      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-c/order', { body: { before: 'topic-a' } })
     )
     expect(patchSpy).toHaveBeenCalledTimes(1)
   })
@@ -1637,7 +1637,7 @@ describe('Topics', () => {
       )
     })
     await vi.waitFor(() =>
-      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-d/order', { body: { after: 'topic-c' } })
+      expect(patchSpy).toHaveBeenCalledWith('/topics/topic-d/order', { body: { before: 'topic-c' } })
     )
     expect(patchSpy).toHaveBeenCalledTimes(1)
   })
@@ -1659,17 +1659,17 @@ describe('Topics', () => {
 
     await vi.waitFor(() => {
       const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
-      expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeGreaterThan(
+      expect(rowTexts.findIndex((text) => text.includes('Gamma topic'))).toBeLessThan(
         rowTexts.findIndex((text) => text.includes('Delta archive'))
       )
-      expect(rowTexts.findIndex((text) => text.includes('Alpha topic'))).toBeLessThan(
-        rowTexts.findIndex((text) => text.includes('Gamma topic'))
+      expect(rowTexts.findIndex((text) => text.includes('Delta archive'))).toBeLessThan(
+        rowTexts.findIndex((text) => text.includes('Alpha topic'))
       )
     })
     await vi.waitFor(() =>
       expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
     )
-    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { before: 'topic-d' } })
+    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-d' } })
     expect(patchSpy).toHaveBeenCalledTimes(2)
   })
 
@@ -1693,7 +1693,7 @@ describe('Topics', () => {
 
     await vi.waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(2))
     expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
-    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { before: 'topic-d' } })
+    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-d' } })
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
   })
 
@@ -1770,7 +1770,7 @@ describe('Topics', () => {
     await vi.waitFor(() =>
       expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: null } })
     )
-    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { before: 'topic-c' } })
+    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-c' } })
   })
 
   it('allows unknown assistant topics to move into known assistant groups', async () => {
@@ -1810,7 +1810,7 @@ describe('Topics', () => {
     await vi.waitFor(() =>
       expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-e', { body: { assistantId: 'assistant-1' } })
     )
-    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-e/order', { body: { before: 'topic-a' } })
+    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-e/order', { body: { after: 'topic-a' } })
   })
 
   it('does not drop topics into pinned or unknown assistant groups', () => {

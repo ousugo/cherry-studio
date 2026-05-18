@@ -143,6 +143,7 @@ export class TopicService {
         },
         {
           pkColumn: topicTable.id,
+          position: 'first',
           scope: isNull(topicTable.deletedAt)
         }
       )
