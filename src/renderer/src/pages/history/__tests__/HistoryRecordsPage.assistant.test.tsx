@@ -152,6 +152,8 @@ vi.mock('@renderer/hooks/usePins', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
+  finishTopicRenaming: hookMocks.finishTopicRenaming,
+  getTopicMessages: hookMocks.getTopicMessages,
   mapApiTopicToRendererTopic: (topic: Topic) => ({
     id: topic.id,
     assistantId: topic.assistantId,
@@ -167,17 +169,12 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   useTopicMutations: () => ({
     deleteTopic: hookMocks.deleteTopic,
     updateTopic: hookMocks.updateTopic
-  })
+  }),
+  startTopicRenaming: hookMocks.startTopicRenaming
 }))
 
 vi.mock('@renderer/hooks/useNotesSettings', () => ({
   useNotesSettings: () => ({ notesPath: '/notes' })
-}))
-
-vi.mock('@renderer/hooks/useTopic', () => ({
-  finishTopicRenaming: hookMocks.finishTopicRenaming,
-  getTopicMessages: hookMocks.getTopicMessages,
-  startTopicRenaming: hookMocks.startTopicRenaming
 }))
 
 vi.mock('@renderer/services/ApiService', () => ({
@@ -255,6 +252,7 @@ vi.mock('react-i18next', () => ({
         'chat.topics.pin': 'Pin Topic',
         'chat.topics.unpin': 'Unpin Topic',
         'common.assistant': 'Assistant',
+        'common.back': 'Back',
         'common.cancel': 'Cancel',
         'common.close': 'Close',
         'common.delete': 'Delete',
@@ -264,11 +262,13 @@ vi.mock('react-i18next', () => ({
         'history.records.assistantSubtitle': '{{count}} topics',
         'history.records.resultCount': '{{count}} results',
         'history.records.searchTopic': 'Search topics...',
+        'history.records.shortTitle': 'History',
         'history.records.table.emptyValue': '-',
         'history.records.table.time': 'Time',
         'history.records.table.title': 'Title',
         'history.records.title': 'Topic history',
-        'notes.save': 'Save to notes'
+        'notes.save': 'Save to notes',
+        'selector.common.pinned_title': 'Pinned'
       }
       const template = labels[key] ?? fallback ?? key
       return template.replace('{{count}}', String(options?.count ?? ''))
@@ -377,12 +377,23 @@ describe('HistoryRecordsPage assistant mode', () => {
   it('selects the clicked topic and closes history', () => {
     hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-alpha'], togglePin: hookMocks.togglePin })
 
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
 
     render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
 
+    expect(screen.getByText('History')).toBeInTheDocument()
+    expect(screen.getByText('1 topics')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+    const pinButton = screen.getByTestId('history-pin-button')
+    expect(pinButton).toHaveAccessibleName('Unpin Topic')
+    fireEvent.click(pinButton)
+    expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
     expect(screen.queryByText('Messages')).not.toBeInTheDocument()
     expect(screen.queryByText('消息')).not.toBeInTheDocument()
 
@@ -393,7 +404,7 @@ describe('HistoryRecordsPage assistant mode', () => {
         id: 'topic-alpha',
         name: 'Alpha topic',
         messages: [],
-        pinned: false
+        pinned: true
       })
     )
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -418,6 +429,33 @@ describe('HistoryRecordsPage assistant mode', () => {
     const overlay = screen.getByTestId('history-records-page')
     expect(overlay).toHaveClass('z-40')
     expect(overlay).not.toHaveStyle({ willChange: 'clip-path' })
+  })
+
+  it('matches external assistant ResourceList source and selected-source order', () => {
+    hookMocks.useAllTopics.mockReturnValue({
+      topics: [
+        createTopic({ id: 'topic-beta', assistantId: 'assistant-beta', name: 'Beta topic', orderKey: 'a' }),
+        createTopic({ id: 'topic-alpha-b', name: 'Alpha B', orderKey: 'b' }),
+        createTopic({ id: 'topic-alpha-a', name: 'Alpha A', orderKey: 'a' })
+      ],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({
+      assistants: [createAssistant(), createAssistant({ id: 'assistant-beta', name: 'Beta assistant', emoji: 'B' })]
+    })
+
+    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+
+    const alphaSource = screen.getByRole('button', { name: /Alpha assistant 2/ })
+    const betaSource = screen.getByRole('button', { name: /Beta assistant 1/ })
+    expect(Boolean(alphaSource.compareDocumentPosition(betaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+
+    fireEvent.click(alphaSource)
+
+    const alphaA = screen.getByText('Alpha A').closest('[role="option"]') as HTMLElement
+    const alphaB = screen.getByText('Alpha B').closest('[role="option"]') as HTMLElement
+    expect(Boolean(alphaA.compareDocumentPosition(alphaB) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
   })
 
   it('unmounts the overlay immediately when closed', () => {
@@ -675,6 +713,7 @@ describe('HistoryRecordsPage locale resources', () => {
     const requiredGlobalKeys = [
       'chat.topics.manage.delete.confirm.content',
       'chat.topics.manage.delete.confirm.title',
+      'common.back',
       'common.cancel',
       'common.delete',
       'common.required_field',
@@ -695,6 +734,7 @@ describe('HistoryRecordsPage locale resources', () => {
       'resultCount',
       'searchSession',
       'searchTopic',
+      'shortTitle',
       'sidebar.searchAssistant',
       'sidebar.status',
       'sidebar.unknownAssistant',

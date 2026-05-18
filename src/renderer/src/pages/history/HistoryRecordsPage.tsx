@@ -16,6 +16,10 @@ import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@rend
 import { mapApiTopicToRendererTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopic'
 import type { SessionActionContext } from '@renderer/pages/agents/components/sessionItemActions'
 import {
+  type SessionListItem,
+  sortSessionsForDisplayGroups
+} from '@renderer/pages/agents/components/SessionList.helpers'
+import {
   createSessionActionContext,
   useSessionMenuPreset
 } from '@renderer/pages/agents/components/useSessionMenuActions'
@@ -23,6 +27,7 @@ import type {
   TopicActionContext,
   TopicExportMenuOptions
 } from '@renderer/pages/home/Tabs/components/topicContextMenuActions'
+import { sortTopicsForDisplayGroups } from '@renderer/pages/home/Tabs/components/Topics.helpers'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/home/Tabs/components/useTopicMenuActions'
 import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
@@ -31,8 +36,8 @@ import type { Topic as RendererTopic } from '@renderer/types'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { Topic } from '@shared/data/types/topic'
-import { Bot, History, Wrench, X } from 'lucide-react'
+import type { Topic as ApiTopic } from '@shared/data/types/topic'
+import { ArrowLeft, Bot, Wrench } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -54,6 +59,10 @@ const EMPTY_ASSISTANT_BY_ID: ReadonlyMap<string, Assistant> = new Map()
 const EMPTY_AGENT_BY_ID: ReadonlyMap<string, AgentEntity> = new Map()
 const logger = loggerService.withContext('HistoryRecordsPage')
 type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
+type HistoryTopicItem = ApiTopic & {
+  assistantId: string | undefined
+  pinned: boolean
+}
 
 interface HistoryRecordsPageBaseProps {
   mode: HistoryRecordsMode
@@ -157,6 +166,7 @@ const AssistantHistoryRecordsContent = ({
   const tabs = useOptionalTabsContext()
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [searchText, setSearchText] = useState('')
+  const [groupNow] = useState(() => new Date())
 
   const { topics: rawTopics, isLoading: isTopicsLoading } = useAllTopics({ loadAll: true })
   const { assistants } = useAssistants()
@@ -185,17 +195,34 @@ const AssistantHistoryRecordsContent = ({
   )
   const isTopicRenaming = useCallback((topicId: string) => renamingTopicIdSet.has(topicId), [renamingTopicIdSet])
   const topics = useMemo(
-    () =>
-      sortHistoryEntries(
-        rawTopics,
-        (topic) => isTopicPinned(topic.id),
-        (topic) => topic.updatedAt
-      ),
+    (): HistoryTopicItem[] =>
+      rawTopics.map((topic) => ({
+        ...topic,
+        assistantId: topic.assistantId,
+        pinned: isTopicPinned(topic.id)
+      })),
     [isTopicPinned, rawTopics]
   )
 
   const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
+  const assistantRankById = useMemo(
+    () => new Map(assistants.map((assistant, index) => [assistant.id, index])),
+    [assistants]
+  )
   const defaultAssistantLabel = t('chat.default.name', '默认助手')
+  const timeSortedTopics = useMemo(
+    () => sortTopicsForDisplayGroups(topics, { mode: 'time', now: groupNow }),
+    [groupNow, topics]
+  )
+  const assistantSortedTopics = useMemo(
+    () =>
+      sortTopicsForDisplayGroups(topics, {
+        assistantRankById,
+        mode: 'assistant',
+        now: groupNow
+      }),
+    [assistantRankById, groupNow, topics]
+  )
   const rendererTopicById = useMemo(
     () =>
       new Map(
@@ -210,7 +237,7 @@ const AssistantHistoryRecordsContent = ({
     [isTopicPinned, topics]
   )
   const getRendererTopic = useCallback(
-    (topic: Topic): RendererTopic =>
+    (topic: ApiTopic): RendererTopic =>
       rendererTopicById.get(topic.id) ?? {
         ...mapApiTopicToRendererTopic(topic),
         pinned: isTopicPinned(topic.id)
@@ -219,15 +246,16 @@ const AssistantHistoryRecordsContent = ({
   )
 
   const assistantSources = useMemo(
-    () => buildAssistantSources(topics, assistantById, defaultAssistantLabel, t),
-    [assistantById, defaultAssistantLabel, t, topics]
+    () => buildAssistantSources(topics, assistantById, assistantRankById, defaultAssistantLabel, t),
+    [assistantById, assistantRankById, defaultAssistantLabel, t, topics]
   )
 
   const filteredTopics = useMemo(() => {
-    if (selectedSourceId === ALL_SOURCE_ID) return topics
+    const sortedTopics = selectedSourceId === ALL_SOURCE_ID ? timeSortedTopics : assistantSortedTopics
+    if (selectedSourceId === ALL_SOURCE_ID) return sortedTopics
 
-    return topics.filter((topic) => getTopicSourceId(topic) === selectedSourceId)
-  }, [selectedSourceId, topics])
+    return sortedTopics.filter((topic) => getTopicSourceId(topic) === selectedSourceId)
+  }, [assistantSortedTopics, selectedSourceId, timeSortedTopics])
 
   const searchedTopics = useMemo(() => {
     const keywords = searchText.trim().toLowerCase()
@@ -247,7 +275,7 @@ const AssistantHistoryRecordsContent = ({
   }, [assistantSources, selectedSourceId])
 
   const handleTopicSelect = useCallback(
-    (topic: Topic) => {
+    (topic: ApiTopic) => {
       onRecordSelect?.(rendererTopicById.get(topic.id) ?? mapApiTopicToRendererTopic(topic))
       onClose()
     },
@@ -264,7 +292,7 @@ const AssistantHistoryRecordsContent = ({
   )
 
   const handlePinTopic = useCallback(
-    async (topic: RendererTopic) => {
+    async (topic: Pick<RendererTopic, 'id'>) => {
       try {
         await toggleTopicPin(topic.id)
       } catch (err) {
@@ -285,14 +313,14 @@ const AssistantHistoryRecordsContent = ({
         return
       }
 
-      if (topic.id === activeRecordId && topics.length > 1) {
-        const nextTopic = findAdjacentHistoryRecord(topics, topic.id, (candidate) => candidate.id)
+      if (topic.id === activeRecordId && timeSortedTopics.length > 1) {
+        const nextTopic = findAdjacentHistoryRecord(timeSortedTopics, topic.id, (candidate) => candidate.id)
         if (nextTopic) {
           onRecordSelect?.(getRendererTopic(nextTopic))
         }
       }
     },
-    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, t, topics]
+    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, t, timeSortedTopics]
   )
 
   const handleClearMessages = useCallback((topic: RendererTopic) => {
@@ -340,7 +368,7 @@ const AssistantHistoryRecordsContent = ({
   )
 
   const getTopicActionContext = useCallback(
-    (apiTopic: Topic): TopicActionContext => {
+    (apiTopic: ApiTopic): TopicActionContext => {
       const topic = getRendererTopic(apiTopic)
 
       return createTopicActionContext({
@@ -373,7 +401,7 @@ const AssistantHistoryRecordsContent = ({
     ]
   )
 
-  const topicMenuPreset = useTopicMenuPreset<Topic>({ getActionContext: getTopicActionContext })
+  const topicMenuPreset = useTopicMenuPreset<ApiTopic>({ getActionContext: getTopicActionContext })
 
   return (
     <HistoryRecordsLayout
@@ -395,6 +423,8 @@ const AssistantHistoryRecordsContent = ({
         defaultAssistantLabel={defaultAssistantLabel}
         unknownAgentLabel=""
         isLoading={isTopicsLoading}
+        isTopicPinned={isTopicPinned}
+        onToggleTopicPin={handlePinTopic}
         topicMenuPreset={topicMenuPreset}
         onTopicRename={handleRenameTopic}
         onTopicSelect={handleTopicSelect}
@@ -409,6 +439,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
   const [searchText, setSearchText] = useState('')
+  const [groupNow] = useState(() => new Date())
 
   const {
     sessions,
@@ -421,16 +452,26 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     pageSize: 50
   })
   const { agents, isLoading: isAgentsLoading } = useAgents()
-  const sortedSessions = useMemo(
-    () =>
-      sortHistoryEntries(
-        sessions,
-        (session) => pinIdBySessionId.has(session.id),
-        (session) => session.updatedAt
-      ),
-    [pinIdBySessionId, sessions]
+  const isSessionPinned = useCallback((sessionId: string) => pinIdBySessionId.has(sessionId), [pinIdBySessionId])
+  const sessionItems = useMemo<SessionListItem[]>(
+    () => sessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
+    [isSessionPinned, sessions]
   )
-  const sessionIds = useMemo(() => sortedSessions.map((session) => session.id), [sortedSessions])
+  const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
+  const timeSortedSessions = useMemo(
+    () => sortSessionsForDisplayGroups(sessionItems, { mode: 'time', now: groupNow }),
+    [groupNow, sessionItems]
+  )
+  const agentSortedSessions = useMemo(
+    () =>
+      sortSessionsForDisplayGroups(sessionItems, {
+        agentRankById,
+        mode: 'agent',
+        now: groupNow
+      }),
+    [agentRankById, groupNow, sessionItems]
+  )
+  const sessionIds = useMemo(() => sessionItems.map((session) => session.id), [sessionItems])
   const streamStatusBySessionId = useAgentSessionStreamStatuses(sessionIds)
 
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
@@ -440,17 +481,18 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     [sessions, streamStatusBySessionId, t]
   )
   const agentSources = useMemo(
-    () => buildAgentSources(sessions, agents, agentById, unknownAgentLabel, t),
-    [agentById, agents, sessions, t, unknownAgentLabel]
+    () => buildAgentSources(sessionItems, agents, agentById, unknownAgentLabel, t),
+    [agentById, agents, sessionItems, t, unknownAgentLabel]
   )
 
   const statusFilteredSessions = useMemo(() => {
+    const sortedSessions = selectedSourceId === ALL_SOURCE_ID ? timeSortedSessions : agentSortedSessions
     if (selectedStatus === ALL_SOURCE_ID) return sortedSessions
 
     return sortedSessions.filter(
       (session) => getAgentHistoryStatus(streamStatusBySessionId.get(session.id)) === selectedStatus
     )
-  }, [selectedStatus, sortedSessions, streamStatusBySessionId])
+  }, [agentSortedSessions, selectedSourceId, selectedStatus, streamStatusBySessionId, timeSortedSessions])
 
   const filteredSessions = useMemo(() => {
     if (selectedSourceId === ALL_SOURCE_ID) return statusFilteredSessions
@@ -498,11 +540,11 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     async (id: string) => {
       const success = await deleteSession(id)
       if (success && activeRecordId === id) {
-        const nextSession = findAdjacentHistoryRecord(sortedSessions, id, (session) => session.id)
+        const nextSession = findAdjacentHistoryRecord(timeSortedSessions, id, (session) => session.id)
         onRecordSelect?.(nextSession?.id ?? null)
       }
     },
-    [activeRecordId, deleteSession, onRecordSelect, sortedSessions]
+    [activeRecordId, deleteSession, onRecordSelect, timeSortedSessions]
   )
 
   const handleRenameSession = useCallback(
@@ -542,15 +584,21 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
         onTogglePin: () => {
           void togglePin(session.id)
         },
-        pinned: pinIdBySessionId.has(session.id),
+        pinned: isSessionPinned(session.id),
         sessionName: session.name ?? session.id,
         startEdit: () => undefined,
         t
       }),
-    [handleDeleteSession, handleEditAgent, pinIdBySessionId, t, togglePin]
+    [handleDeleteSession, handleEditAgent, isSessionPinned, t, togglePin]
   )
 
   const sessionMenuPreset = useSessionMenuPreset<AgentSessionEntity>({ getActionContext: getSessionActionContext })
+  const handleToggleSessionPin = useCallback(
+    (sessionId: string) => {
+      void togglePin(sessionId)
+    },
+    [togglePin]
+  )
 
   return (
     <HistoryRecordsLayout
@@ -575,6 +623,8 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
         defaultAssistantLabel=""
         unknownAgentLabel={unknownAgentLabel}
         isLoading={isSessionsLoading || isAgentsLoading}
+        isSessionPinned={isSessionPinned}
+        onToggleSessionPin={handleToggleSessionPin}
         sessionMenuPreset={sessionMenuPreset}
         onSessionRename={handleRenameSession}
         onSessionSelect={handleSessionSelect}
@@ -615,33 +665,26 @@ const HistoryRecordsLayout = ({
   onStatusSelect
 }: HistoryRecordsLayoutProps) => {
   const { t } = useTranslation()
-  const title =
-    mode === 'assistant'
-      ? t('history.records.title', '话题历史记录')
-      : t('history.records.agentTitle', '智能体历史记录')
+  const title = t('history.records.shortTitle', '历史记录')
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card pb-3 text-foreground" aria-label={title}>
-      <header className="flex h-[52px] shrink-0 items-center justify-between bg-card px-3 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-card text-foreground-secondary">
-            <History size={16} />
-          </div>
-          <div className="min-w-0">
+      <header className="flex h-[52px] shrink-0 items-center bg-card px-3 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
+        <div className="flex min-w-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-7 min-h-7 shrink-0 rounded-md text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
+            aria-label={t('common.back', '返回')}
+            onClick={onClose}>
+            <ArrowLeft className="size-4" />
+          </Button>
+          <div className="flex min-w-0 items-baseline gap-2">
             <h2 className="truncate font-semibold text-base text-foreground leading-5">{title}</h2>
-            <p className="mt-0.5 truncate text-foreground-muted text-xs leading-4">{subtitle}</p>
+            <span className="truncate text-foreground-muted text-xs leading-4">{subtitle}</span>
           </div>
         </div>
-
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-7 min-h-7 rounded-md text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
-          aria-label={t('common.close', '关闭')}
-          onClick={onClose}>
-          <X className="size-4" />
-        </Button>
       </header>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -669,7 +712,7 @@ const HistoryRecordsLayout = ({
   )
 }
 
-function getTopicSourceId(topic: Topic) {
+function getTopicSourceId(topic: Pick<ApiTopic, 'assistantId'>) {
   return topic.assistantId ?? DEFAULT_ASSISTANT_SOURCE_ID
 }
 
@@ -684,19 +727,6 @@ function getAgentHistoryStatus(streamStatus?: AgentSessionStreamState): AgentHis
   return 'completed'
 }
 
-function sortHistoryEntries<T>(
-  items: readonly T[],
-  isPinned: (item: T) => boolean,
-  getUpdatedAt: (item: T) => string
-): T[] {
-  return [...items].sort((left, right) => {
-    const pinnedDelta = Number(isPinned(right)) - Number(isPinned(left))
-    if (pinnedDelta !== 0) return pinnedDelta
-
-    return getHistoryTimestamp(getUpdatedAt(right)) - getHistoryTimestamp(getUpdatedAt(left))
-  })
-}
-
 function findAdjacentHistoryRecord<T>(
   items: readonly T[],
   deletedId: string,
@@ -706,11 +736,6 @@ function findAdjacentHistoryRecord<T>(
   if (index < 0) return undefined
 
   return items[index + 1 === items.length ? index - 1 : index + 1]
-}
-
-function getHistoryTimestamp(value: string): number {
-  const timestamp = Date.parse(value)
-  return Number.isFinite(timestamp) ? timestamp : 0
 }
 
 function buildAgentStatusItems(
@@ -756,8 +781,9 @@ function buildAgentStatusItems(
 }
 
 function buildAssistantSources(
-  topics: readonly Topic[],
+  topics: readonly ApiTopic[],
   assistantById: ReadonlyMap<string, Assistant>,
+  assistantRankById: ReadonlyMap<string, number>,
   defaultAssistantLabel: string,
   t: ReturnType<typeof useTranslation>['t']
 ): HistorySourceItem[] {
@@ -774,20 +800,33 @@ function buildAssistantSources(
       label: t('common.all', '全部'),
       count: topics.length
     },
-    ...Array.from(counts.entries()).map(([sourceId, count]) => {
-      const assistant = sourceId === DEFAULT_ASSISTANT_SOURCE_ID ? undefined : assistantById.get(sourceId)
+    ...Array.from(counts.entries())
+      .sort(
+        ([leftId], [rightId]) =>
+          getAssistantSourceRank(leftId, assistantRankById) - getAssistantSourceRank(rightId, assistantRankById)
+      )
+      .map(([sourceId, count]) => {
+        const assistant = sourceId === DEFAULT_ASSISTANT_SOURCE_ID ? undefined : assistantById.get(sourceId)
 
-      return {
-        id: sourceId,
-        label:
-          sourceId === DEFAULT_ASSISTANT_SOURCE_ID
-            ? defaultAssistantLabel
-            : (assistant?.name ?? t('history.records.sidebar.unknownAssistant', '未知助手')),
-        count,
-        icon: assistant?.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={15} />
-      }
-    })
+        return {
+          id: sourceId,
+          label:
+            sourceId === DEFAULT_ASSISTANT_SOURCE_ID
+              ? defaultAssistantLabel
+              : (assistant?.name ?? t('history.records.sidebar.unknownAssistant', '未知助手')),
+          count,
+          icon: assistant?.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={15} />
+        }
+      })
   ]
+}
+
+function getAssistantSourceRank(sourceId: string, assistantRankById: ReadonlyMap<string, number>) {
+  const assistantRank = assistantRankById.get(sourceId)
+  if (assistantRank !== undefined) return assistantRank
+  if (sourceId === DEFAULT_ASSISTANT_SOURCE_ID) return Number.MAX_SAFE_INTEGER - 1
+
+  return Number.MAX_SAFE_INTEGER
 }
 
 function buildAgentSources(

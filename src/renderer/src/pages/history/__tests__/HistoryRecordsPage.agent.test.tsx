@@ -135,12 +135,15 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
+  finishTopicRenaming: vi.fn(),
+  getTopicMessages: vi.fn().mockResolvedValue([]),
   mapApiTopicToRendererTopic: (topic: { id: string }) => topic,
   useAllTopics: hookMocks.useAllTopics,
   useTopicMutations: () => ({
     deleteTopic: vi.fn(),
     updateTopic: vi.fn()
-  })
+  }),
+  startTopicRenaming: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({
@@ -149,12 +152,6 @@ vi.mock('@renderer/hooks/usePins', () => ({
 
 vi.mock('@renderer/hooks/useNotesSettings', () => ({
   useNotesSettings: () => ({ notesPath: '/notes' })
-}))
-
-vi.mock('@renderer/hooks/useTopic', () => ({
-  finishTopicRenaming: vi.fn(),
-  getTopicMessages: vi.fn().mockResolvedValue([]),
-  startTopicRenaming: vi.fn()
 }))
 
 vi.mock('@renderer/services/ApiService', () => ({
@@ -217,6 +214,7 @@ vi.mock('react-i18next', () => ({
         'chat.topics.unpin': 'Unpin',
         'common.agent': 'Agent',
         'common.all': 'All',
+        'common.back': 'Back',
         'common.cancel': 'Cancel',
         'common.close': 'Close',
         'common.delete': 'Delete',
@@ -234,12 +232,16 @@ vi.mock('react-i18next', () => ({
         'history.records.loading.sessionsTitle': 'Loading sessions',
         'history.records.resultCount': '{{count}} results',
         'history.records.searchSession': 'Search sessions...',
+        'history.records.shortTitle': 'History',
         'history.records.sidebar.status': 'Status',
         'history.records.status.completed': 'Completed',
         'history.records.status.failed': 'Failed',
         'history.records.status.running': 'Running',
         'history.records.table.session': 'Session',
-        'history.records.table.time': 'Time'
+        'history.records.table.time': 'Time',
+        'selector.common.pin': 'Pin',
+        'selector.common.unpin': 'Unpin',
+        'selector.common.pinned_title': 'Pinned'
       }
       const template = labels[key] ?? fallback ?? key
       return template.replace('{{count}}', String(options?.count ?? ''))
@@ -293,16 +295,18 @@ function setupAgentHistory({
       description: 'Runbook audit',
       orderKey: 'b'
     })
-  ]
+  ],
+  pinIdBySessionId = new Map<string, string>()
 }: {
   activeRecordId?: string | null
   agents?: AgentEntity[]
+  pinIdBySessionId?: Map<string, string>
   sessions?: AgentSessionEntity[]
 } = {}) {
   hookMocks.useAgents.mockReturnValue({ agents, error: undefined, isLoading: false })
   hookMocks.useSessions.mockReturnValue({
     sessions,
-    pinIdBySessionId: new Map(),
+    pinIdBySessionId,
     error: undefined,
     isLoading: false,
     deleteSession: hookMocks.deleteSession,
@@ -375,12 +379,23 @@ describe('HistoryRecordsPage agent mode', () => {
   })
 
   it('renders sessions from the existing agent session list data', () => {
-    setupAgentHistory()
+    const { onClose, onRecordSelect } = setupAgentHistory({
+      pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']])
+    })
 
     expect(hookMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 50 })
     expect(hookMocks.useAllTopics).not.toHaveBeenCalled()
     expect(hookMocks.useAssistants).not.toHaveBeenCalled()
-    expect(screen.getByText('Agent history')).toBeInTheDocument()
+    expect(screen.getByText('History')).toBeInTheDocument()
+    expect(screen.getByText('2 sessions')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+    const pinButton = screen.getAllByTestId('history-pin-button')[0]
+    expect(pinButton).toHaveAccessibleName('Unpin')
+    fireEvent.click(pinButton)
+    expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha')
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
     expect(screen.queryByText('Messages')).not.toBeInTheDocument()
     expect(screen.queryByText('消息')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
@@ -398,6 +413,26 @@ describe('HistoryRecordsPage agent mode', () => {
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
+  })
+
+  it('matches external agent ResourceList source and selected-source order', () => {
+    setupAgentHistory({
+      sessions: [
+        createSession({ id: 'session-beta', agentId: 'agent-beta', name: 'Beta session', orderKey: 'a' }),
+        createSession({ id: 'session-alpha-b', name: 'Alpha B', orderKey: 'b' }),
+        createSession({ id: 'session-alpha-a', name: 'Alpha A', orderKey: 'a' })
+      ]
+    })
+
+    const alphaSource = screen.getByRole('button', { name: /Alpha agent 2/ })
+    const betaSource = screen.getByRole('button', { name: /Beta agent 1/ })
+    expect(Boolean(alphaSource.compareDocumentPosition(betaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+
+    fireEvent.click(alphaSource)
+
+    const alphaA = screen.getByText('Alpha A').closest('[role="option"]') as HTMLElement
+    const alphaB = screen.getByText('Alpha B').closest('[role="option"]') as HTMLElement
+    expect(Boolean(alphaA.compareDocumentPosition(alphaB) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
   })
 
   it('restores the agent status selector and filters by existing stream status', () => {

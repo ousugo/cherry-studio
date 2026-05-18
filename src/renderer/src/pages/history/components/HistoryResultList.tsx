@@ -17,7 +17,7 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 import dayjs from 'dayjs'
-import { Bot, MessageSquareText, Wrench } from 'lucide-react'
+import { Bot, MessageSquareText, PinIcon, Wrench } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -37,6 +37,10 @@ interface HistoryResultListProps {
   defaultAssistantLabel: string
   unknownAgentLabel: string
   isLoading?: boolean
+  isSessionPinned?: (sessionId: string) => boolean
+  isTopicPinned?: (topicId: string) => boolean
+  onToggleSessionPin?: (sessionId: string) => void | Promise<void>
+  onToggleTopicPin?: (topic: Topic) => void | Promise<void>
   topicMenuPreset?: TopicMenuPreset<Topic>
   sessionMenuPreset?: SessionMenuPreset<AgentSessionEntity>
   onTopicRename?: (id: string, name: string) => void | Promise<void>
@@ -54,6 +58,10 @@ const HistoryResultList = ({
   defaultAssistantLabel,
   unknownAgentLabel,
   isLoading = false,
+  isSessionPinned = () => false,
+  isTopicPinned = () => false,
+  onToggleSessionPin,
+  onToggleTopicPin,
   topicMenuPreset,
   sessionMenuPreset,
   onTopicRename,
@@ -120,7 +128,9 @@ const HistoryResultList = ({
                       sourceName={sourceName}
                       fallbackTitle={t('chat.default.topic.name', '新话题')}
                       timeLabel={formatHistoryTime(topic.updatedAt, t)}
+                      isPinned={isTopicPinned(topic.id)}
                       menuPreset={topicMenuPreset}
+                      onTogglePin={onToggleTopicPin}
                       onPress={onTopicSelect}
                     />
                   )
@@ -146,7 +156,9 @@ const HistoryResultList = ({
                       sourceName={sourceName}
                       fallbackTitle={t('common.unnamed', '未命名')}
                       timeLabel={formatHistoryTime(session.updatedAt, t)}
+                      isPinned={isSessionPinned(session.id)}
                       menuPreset={sessionMenuPreset}
+                      onTogglePin={onToggleSessionPin}
                       onPress={onSessionSelect}
                     />
                   )
@@ -186,7 +198,9 @@ interface HistoryTopicRowProps {
   sourceName: string
   fallbackTitle: string
   timeLabel: string
+  isPinned: boolean
   menuPreset?: TopicMenuPreset<Topic>
+  onTogglePin?: (topic: Topic) => void | Promise<void>
   onPress?: (topic: Topic) => void
 }
 
@@ -196,7 +210,9 @@ const HistoryTopicRow = ({
   sourceName,
   fallbackTitle,
   timeLabel,
+  isPinned,
   menuPreset,
+  onTogglePin,
   onPress
 }: HistoryTopicRowProps) => {
   const { t } = useTranslation()
@@ -222,11 +238,17 @@ const HistoryTopicRow = ({
       )}
       onClick={() => onPress?.(topic)}>
       <div className="flex min-w-0 items-center gap-2.5">
+        <PinSlot
+          isPinned={isPinned}
+          pinLabel={t('chat.topics.pin', '固定话题')}
+          unpinLabel={t('chat.topics.unpin', '取消固定')}
+          onClick={() => onTogglePin?.(topic)}
+        />
         <span className="flex size-5 shrink-0 items-center justify-center text-foreground-muted text-sm leading-none">
           {assistant?.emoji ? <span aria-hidden>{assistant.emoji}</span> : <Bot size={14} />}
         </span>
-        <span className="min-w-0 flex-1" data-testid="history-topic-rename-field">
-          <span className="block truncate font-medium text-foreground-secondary">{topic.name || fallbackTitle}</span>
+        <span className="flex min-w-0 flex-1 items-center gap-1.5" data-testid="history-topic-rename-field">
+          <span className="truncate font-medium text-foreground-secondary">{topic.name || fallbackTitle}</span>
         </span>
       </div>
       <div className="truncate text-foreground-secondary text-xs">{sourceName}</div>
@@ -261,7 +283,9 @@ interface HistorySessionRowProps {
   sourceName: string
   fallbackTitle: string
   timeLabel: string
+  isPinned: boolean
   menuPreset?: SessionMenuPreset<AgentSessionEntity>
+  onTogglePin?: (sessionId: string) => void | Promise<void>
   onPress?: (sessionId: string) => void
 }
 
@@ -271,7 +295,9 @@ const HistorySessionRow = ({
   sourceName,
   fallbackTitle,
   timeLabel,
+  isPinned,
   menuPreset,
+  onTogglePin,
   onPress
 }: HistorySessionRowProps) => {
   const { t } = useTranslation()
@@ -296,11 +322,19 @@ const HistorySessionRow = ({
       )}
       onClick={() => onPress?.(session.id)}>
       <div className="flex min-w-0 items-center gap-2.5">
+        <PinSlot
+          isPinned={isPinned}
+          pinLabel={t('selector.common.pin', '固定')}
+          unpinLabel={t('selector.common.unpin', '取消固定')}
+          onClick={() => onTogglePin?.(session.id)}
+        />
         <span className="flex size-5 shrink-0 items-center justify-center text-foreground-muted text-sm leading-none">
           {avatar ? <span aria-hidden>{avatar}</span> : <Wrench size={14} />}
         </span>
         <span className="min-w-0 flex-1" data-testid="history-session-rename-field">
-          <span className="block truncate font-medium text-foreground-secondary">{session.name || fallbackTitle}</span>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate font-medium text-foreground-secondary">{session.name || fallbackTitle}</span>
+          </span>
           {session.description && (
             <span className="mt-0.5 block truncate text-foreground-muted text-xs leading-4">{session.description}</span>
           )}
@@ -329,6 +363,37 @@ const HistorySessionRow = ({
         onOpenChange={setRenameDialogOpen}
       />
     </>
+  )
+}
+
+interface PinSlotProps {
+  isPinned: boolean
+  pinLabel: string
+  unpinLabel: string
+  onClick?: () => void | Promise<void>
+}
+
+const PinSlot = ({ isPinned, pinLabel, unpinLabel, onClick }: PinSlotProps) => {
+  const label = isPinned ? unpinLabel : pinLabel
+
+  return (
+    <span className="flex size-5 shrink-0 items-center justify-center">
+      <button
+        type="button"
+        aria-label={label}
+        className={cn(
+          'inline-flex size-5 items-center justify-center rounded text-foreground-muted transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
+          !isPinned && 'opacity-0 group-hover:opacity-100'
+        )}
+        data-testid="history-pin-button"
+        title={label}
+        onClick={(event) => {
+          event.stopPropagation()
+          void onClick?.()
+        }}>
+        <PinIcon size={12} className={cn(isPinned && '-rotate-45')} />
+      </button>
+    </span>
   )
 }
 
