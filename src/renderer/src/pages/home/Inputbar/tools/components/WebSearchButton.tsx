@@ -7,7 +7,6 @@ import { getWebSearchProviderLogo } from '@renderer/pages/settings/WebSearchSett
 import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-import { checkWebSearchAvailability } from '@shared/data/utils/webSearchPreferences'
 import {
   isGemini3Model,
   isGeminiModel,
@@ -45,13 +44,12 @@ const WebSearchButton: FC<Props> = ({ assistantId }) => {
   const hasBuiltinWebSearch = model ? isWebSearchModel(model) : false
 
   const activeProviderId = useMemo(() => {
-    if (
-      defaultSearchKeywordsProvider &&
-      checkWebSearchAvailability(defaultSearchKeywordsProvider, webSearchProviderRequiresApiKey)
-    ) {
-      return defaultSearchKeywordsProvider.id
-    }
-    return undefined
+    const p = defaultSearchKeywordsProvider
+    if (!p) return undefined
+    const available = webSearchProviderRequiresApiKey(p.id)
+      ? p.apiKeys.some((k) => k.trim().length > 0)
+      : Boolean(p.capabilities.find((c) => c.feature === 'searchKeywords')?.apiHost?.trim())
+    return available ? p.id : undefined
   }, [defaultSearchKeywordsProvider])
 
   // When the model has built-in web search, the toggle just flips the
