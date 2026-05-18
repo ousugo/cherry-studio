@@ -1,4 +1,4 @@
-import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
@@ -73,7 +73,6 @@ import {
 import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
-const RESOURCE_LIST_ACTION_ICON_BUTTON_CLASS = '!text-sidebar-foreground/55 hover:!text-sidebar-foreground/75'
 
 interface Props {
   activeTopic: Topic
@@ -114,13 +113,9 @@ function TopicDisplayModeMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          aria-label={t('chat.topics.display.title')}
-          className={`inline-flex size-5 shrink-0 items-center justify-center p-0 leading-none shadow-none hover:bg-transparent ${RESOURCE_LIST_ACTION_ICON_BUTTON_CLASS} [&_svg]:block [&_svg]:shrink-0`}>
-          <ListFilter size={12} className="block" />
-        </Button>
+        <ResourceList.HeaderActionButton type="button" aria-label={t('chat.topics.display.title')}>
+          <ListFilter className="block" />
+        </ResourceList.HeaderActionButton>
       </PopoverTrigger>
       <PopoverContent align="end" side="bottom" sideOffset={4} className="w-28 rounded-lg border-border p-1 shadow-lg">
         <MenuList className="gap-0.5">
@@ -486,13 +481,12 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
           <ResourceList.HeaderActionButton
             type="button"
             aria-label={t('chat.add.topic.title')}
-            className={RESOURCE_LIST_ACTION_ICON_BUTTON_CLASS}
             onClick={() =>
               payload === undefined
                 ? void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
                 : void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC, payload)
             }>
-            <Plus size={12} className="block" />
+            <Plus className="block" />
           </ResourceList.HeaderActionButton>
         </Tooltip>
       )
@@ -697,7 +691,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
           <ResourceList.HeaderItem
             type="button"
             aria-label={t('chat.conversation.new')}
-            icon={<SquarePen size={14} />}
+            icon={<SquarePen />}
             label={t('chat.conversation.new')}
             onClick={() => void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}
             actions={
@@ -710,7 +704,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
                     aria-pressed={isManageMode}
                     className={cn(isManageMode && 'text-foreground')}
                     onClick={isManageMode ? exitManageMode : enterManageMode}>
-                    <ListChecks size={12} className="block" />
+                    <ListChecks className="block" />
                   </ResourceList.HeaderActionButton>
                 </Tooltip>
               </>
@@ -719,7 +713,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
           <ResourceList.HeaderItem
             type="button"
             aria-label={onOpenHistory ? t('history.records.title') : t('shortcut.general.toggle_sidebar')}
-            icon={<Clock3 size={14} />}
+            icon={<Clock3 />}
             label={t('history.records.shortTitle')}
             onClick={handleOpenHistoryOrToggleSidebar}
           />
@@ -1028,7 +1022,7 @@ function TopicRow({
           {isSelected ? (
             <CheckSquare size={16} className="text-(--color-primary)" />
           ) : (
-            <Square size={16} className="text-(--color-text-3)" />
+            <Square size={16} className="text-foreground/70" />
           )}
         </ResourceList.ItemIcon>
       )}
@@ -1036,7 +1030,7 @@ function TopicRow({
         <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
           <ResourceList.ItemLeadingAction
             aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-            className={cn(topic.pinned && 'text-muted-foreground/55 hover:text-muted-foreground/75')}
+            className={cn(topic.pinned && 'text-foreground/70 hover:text-foreground')}
             onClick={(event) => {
               event.stopPropagation()
               void onPinTopic(topic)

@@ -138,7 +138,7 @@ const SessionItem = ({
       <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
         <ResourceList.ItemLeadingAction
           aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-          className={cn(pinned && 'text-muted-foreground/55 hover:text-muted-foreground/75')}
+          className={cn(pinned && 'text-foreground/70 hover:text-foreground')}
           onClick={handleTogglePinClick}>
           {pinned ? <PinIcon size={13} className="-rotate-45" /> : <PinIcon size={13} />}
         </ResourceList.ItemLeadingAction>

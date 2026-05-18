@@ -55,7 +55,6 @@ const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
   time: 'agent.session.display.time',
   workdir: 'agent.session.display.workdir'
 }
-const RESOURCE_LIST_ACTION_ICON_BUTTON_CLASS = '!text-sidebar-foreground/55 hover:!text-sidebar-foreground/75'
 
 function SessionDisplayModeMenu({
   mode,
@@ -70,13 +69,9 @@ function SessionDisplayModeMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          aria-label={t('agent.session.display.title')}
-          className={`inline-flex size-5 shrink-0 items-center justify-center p-0 leading-none shadow-none hover:bg-transparent ${RESOURCE_LIST_ACTION_ICON_BUTTON_CLASS} [&_svg]:block [&_svg]:shrink-0`}>
-          <ListFilter size={12} className="block" />
-        </Button>
+        <ResourceList.HeaderActionButton type="button" aria-label={t('agent.session.display.title')}>
+          <ListFilter className="block" />
+        </ResourceList.HeaderActionButton>
       </PopoverTrigger>
       <PopoverContent
         align="end"
@@ -389,10 +384,9 @@ const Sessions = ({
           <ResourceList.HeaderActionButton
             type="button"
             aria-label={t('agent.session.add.title')}
-            className={RESOURCE_LIST_ACTION_ICON_BUTTON_CLASS}
             disabled={creatingSession || !agentById.has(payload.agentId)}
             onClick={() => void createSessionForGroup(payload.agentId, payload.accessiblePaths)}>
-            <Plus size={12} className="block" />
+            <Plus className="block" />
           </ResourceList.HeaderActionButton>
         </Tooltip>
       )
@@ -436,7 +430,7 @@ const Sessions = ({
           type="button"
           aria-label={t('chat.conversation.new')}
           disabled={creatingSession}
-          icon={<SquarePen size={14} />}
+          icon={<SquarePen />}
           label={t('chat.conversation.new')}
           onClick={handleHeaderCreateSession}
           actions={
@@ -446,7 +440,7 @@ const Sessions = ({
         <ResourceList.HeaderItem
           type="button"
           aria-label={onOpenHistory ? t('history.records.agentTitle') : t('shortcut.general.toggle_sidebar')}
-          icon={<Clock3 size={14} />}
+          icon={<Clock3 />}
           label={t('history.records.shortTitle')}
           onClick={handleOpenHistoryOrToggleSidebar}
         />

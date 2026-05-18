@@ -423,7 +423,7 @@ describe('Sessions', () => {
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 50 })
     expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
-    expect(screen.getByText('Alpha session')).toHaveClass('text-[12px]', 'font-medium', 'text-sidebar-foreground/70')
+    expect(screen.getByText('Alpha session')).toHaveClass('text-sm', 'font-medium', 'text-sidebar-foreground/70')
     expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
   })
 

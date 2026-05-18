@@ -721,20 +721,20 @@ function HeaderItem({ actions, className, icon, label, ref, variant = 'ghost', .
         ref={ref}
         variant={variant}
         className={cn(
-          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1.5 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-3.5 [&_svg]:shrink-0',
+          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1.5 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-[18px] [&_svg]:shrink-0',
           className
         )}
         {...props}>
         {icon && (
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground/55 group-hover:text-foreground group-focus-visible:text-foreground">
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground">
             {icon}
           </span>
         )}
-        <span className="min-w-0 flex-1 truncate text-left font-medium text-[12px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
+        <span className="min-w-0 flex-1 truncate text-left font-medium text-sidebar-foreground/70 text-sm leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
           {label}
         </span>
       </Button>
-      {actions && <div className="flex shrink-0 items-center gap-1 text-muted-foreground/55">{actions}</div>}
+      {actions && <div className="flex shrink-0 items-center gap-1 text-foreground/70">{actions}</div>}
     </div>
   )
 }
@@ -746,7 +746,7 @@ function HeaderActionButton({ className, ref, size, variant = 'ghost', ...props 
       size={size}
       variant={variant}
       className={cn(
-        'inline-flex size-5 shrink-0 items-center justify-center p-0 text-muted-foreground/55 leading-none shadow-none hover:bg-transparent hover:text-muted-foreground/75 [&_svg]:block [&_svg]:shrink-0',
+        'inline-flex h-[30px] min-w-[30px] shrink-0 items-center justify-center rounded-[8px] px-[7px] py-0 text-foreground/70 leading-none shadow-none hover:bg-muted hover:text-foreground [&_svg]:block [&_svg]:size-[18px] [&_svg]:shrink-0',
         className
       )}
       {...props}
@@ -1029,7 +1029,7 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
       ref={setInputRef}
       defaultValue={meta.getItemLabel(item)}
       className={cn(
-        'h-6 flex-1 border-none bg-transparent px-0 text-[12px] text-sidebar-foreground/70 shadow-none focus-visible:ring-0',
+        'h-6 flex-1 border-none bg-transparent px-0 text-sidebar-foreground/70 text-sm shadow-none focus-visible:ring-0',
         className
       )}
       onBlur={(event) => commitRename(event.currentTarget.value)}
@@ -1060,7 +1060,7 @@ function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left font-medium text-[12px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground',
+        'min-w-0 flex-1 truncate text-left font-medium text-sidebar-foreground/70 text-sm leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground',
         className
       )}
       {...props}
@@ -1077,7 +1077,7 @@ function ItemIcon({ className, ref, ...props }: ItemIconProps) {
     <span
       ref={ref}
       className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground',
+        'flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0',
         className
       )}
       {...props}
@@ -1095,7 +1095,7 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       ref={ref}
       type={type}
       className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 opacity-0 transition-all duration-150',
+        'flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 opacity-0 transition-all duration-150 [&_svg]:size-4 [&_svg]:shrink-0',
         'hover:bg-accent hover:text-foreground',
         'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
         'group-hover:opacity-100 data-[deleting=true]:opacity-100',
@@ -1114,7 +1114,7 @@ function ItemLeadingAction({ className, ref, type = 'button', ...props }: ItemLe
       ref={ref}
       type={type}
       className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 opacity-0 transition-all duration-150',
+        'flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 opacity-0 transition-all duration-150 [&_svg]:size-4 [&_svg]:shrink-0',
         'hover:bg-accent hover:text-foreground',
         'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
         'group-hover:opacity-100 data-[active=true]:opacity-100',
