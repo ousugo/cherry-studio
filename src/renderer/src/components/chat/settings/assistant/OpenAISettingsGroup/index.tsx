@@ -1,5 +1,5 @@
+import { SettingGroup } from '@renderer/components/chat/settings/settingsPanelPrimitives'
 import { isSupportedReasoningEffortOpenAIModel, isSupportVerbosityModel } from '@renderer/config/models'
-import { SettingGroup } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
 import { SettingDivider } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import type { Model } from '@shared/data/types/model'

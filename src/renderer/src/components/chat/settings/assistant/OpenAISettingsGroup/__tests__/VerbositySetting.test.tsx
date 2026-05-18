@@ -18,7 +18,7 @@ vi.mock('@renderer/pages/settings', () => ({
   SettingRow: ({ children }: PropsWithChildren) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/pages/chat-settings/settingsPanelPrimitives', () => ({
+vi.mock('@renderer/components/chat/settings/settingsPanelPrimitives', () => ({
   SettingRowTitleSmall: ({ children }: PropsWithChildren) => <span>{children}</span>
 }))
 

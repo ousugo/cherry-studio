@@ -120,7 +120,7 @@ vi.mock('../ChatContent', () => ({
   )
 }))
 
-vi.mock('../../chat-settings/SettingsPanel', () => ({
+vi.mock('@renderer/components/chat/settings/SettingsPanel', () => ({
   default: ({ open, onClose }: { open: boolean; onClose: () => void }) => (
     <div data-testid="settings-panel" data-open={String(open)}>
       {open && (
@@ -132,7 +132,7 @@ vi.mock('../../chat-settings/SettingsPanel', () => ({
   )
 }))
 
-vi.mock('../../chat-citations/CitationsPanel', () => ({
+vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
   default: ({ open, onClose, citations }: { open: boolean; onClose: () => void; citations: unknown[] }) => (
     <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
       {open && (

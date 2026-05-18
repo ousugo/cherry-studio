@@ -1,14 +1,12 @@
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { createContext, use } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import OpenAISettingsGroup from '..'
+import GroqSettingsGroup from '../GroqSettingsGroup'
 
 vi.mock('@renderer/pages/settings', () => ({
-  SettingDivider: () => <hr />,
   SettingRow: ({ children }: PropsWithChildren) => <div>{children}</div>
 }))
 
@@ -21,7 +19,7 @@ vi.mock('@renderer/pages/settings/SettingGroup', () => ({
   )
 }))
 
-vi.mock('@renderer/pages/chat-settings/settingsPanelPrimitives', () => ({
+vi.mock('@renderer/components/chat/settings/settingsPanelPrimitives', () => ({
   SettingGroup: ({ children }: PropsWithChildren) => <div>{children}</div>,
   SettingRowTitleSmall: ({ children }: PropsWithChildren) => <span>{children}</span>
 }))
@@ -61,24 +59,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const model = {
-  id: 'openai::gpt-5.1',
-  providerId: 'openai',
-  name: 'gpt-5.1',
-  capabilities: [],
-  supportsStreaming: true,
-  isEnabled: true,
-  isHidden: false,
-  endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
-} satisfies Model
-
 const provider = {
-  id: 'openai',
-  name: 'OpenAI',
-  endpointConfigs: {
-    [ENDPOINT_TYPE.OPENAI_RESPONSES]: {}
-  },
-  defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+  id: 'groq',
+  name: 'Groq',
   apiKeys: [],
   authType: 'api-key',
   apiFeatures: {
@@ -86,41 +69,18 @@ const provider = {
     streamOptions: true,
     developerRole: false,
     serviceTier: true,
-    verbosity: true
+    verbosity: false
   },
   settings: {
-    serviceTier: 'auto',
-    summaryText: 'auto',
-    verbosity: 'low',
-    streamOptions: {
-      includeUsage: false
-    }
+    serviceTier: 'auto'
   },
   isEnabled: true
 } satisfies Provider
 
-describe('OpenAISettingsGroup', () => {
-  it('writes advanced settings through provider settings patches', () => {
-    const onProviderSettingsChange = vi.fn()
+describe('GroqSettingsGroup', () => {
+  it('disables the service-tier select while provider settings are updating', () => {
+    render(<GroqSettingsGroup provider={provider} disabled onProviderSettingsChange={vi.fn()} />)
 
-    render(
-      <OpenAISettingsGroup model={model} provider={provider} onProviderSettingsChange={onProviderSettingsChange} />
-    )
-
-    fireEvent.click(screen.getByText('settings.openai.summary_text_mode.detailed'))
-    fireEvent.click(screen.getByText('settings.openai.verbosity.high'))
-    fireEvent.click(screen.getByText('common.on'))
-
-    expect(onProviderSettingsChange).toHaveBeenCalledWith({ summaryText: 'detailed' })
-    expect(onProviderSettingsChange).toHaveBeenCalledWith({ verbosity: 'high' })
-    expect(onProviderSettingsChange).toHaveBeenCalledWith({ streamOptions: { includeUsage: true } })
-  })
-
-  it('disables every setting select while provider settings are updating', () => {
-    render(<OpenAISettingsGroup model={model} provider={provider} disabled onProviderSettingsChange={vi.fn()} />)
-
-    screen.getAllByTestId('select-trigger').forEach((trigger) => {
-      expect(trigger).toBeDisabled()
-    })
+    expect(screen.getByTestId('select-trigger')).toBeDisabled()
   })
 })

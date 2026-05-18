@@ -1,5 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
-import { SettingRowTitleSmall } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
+import { SettingRowTitleSmall } from '@renderer/components/chat/settings/settingsPanelPrimitives'
 import { SettingRow } from '@renderer/pages/settings'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { OpenAICompletionsStreamOptions } from '@shared/types/aiSdk'

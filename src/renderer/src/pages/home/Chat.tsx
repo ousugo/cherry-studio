@@ -1,6 +1,8 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ChatAppShell, type ChatPanePosition, OverlayHost } from '@renderer/components/chat'
+import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
+import SettingsPanel from '@renderer/components/chat/settings/SettingsPanel'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -16,8 +18,6 @@ import React, { useCallback, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
-import CitationsPanel from '../chat-citations/CitationsPanel'
-import SettingsPanel from '../chat-settings/SettingsPanel'
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavBar'
 

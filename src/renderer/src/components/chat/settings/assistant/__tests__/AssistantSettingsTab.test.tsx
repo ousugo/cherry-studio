@@ -66,11 +66,11 @@ vi.mock('@renderer/hooks/useProviders', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/chat-settings/ChatPreferenceSections', () => ({
+vi.mock('@renderer/components/chat/settings/ChatPreferenceSections', () => ({
   default: () => <div data-testid="chat-preferences" />
 }))
 
-vi.mock('@renderer/pages/chat-settings/settingsPanelPrimitives', () => ({
+vi.mock('@renderer/components/chat/settings/settingsPanelPrimitives', () => ({
   SettingDivider: () => <hr />,
   SettingGroup: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   SettingRowTitleSmall: ({ children }: { children?: ReactNode }) => <span>{children}</span>

@@ -1,12 +1,11 @@
 import { PageSidePanel, Skeleton } from '@cherrystudio/ui'
+import { AssistantSettingsTab } from '@renderer/components/chat/settings/assistant'
+import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import { AssistantSettingsTab } from '@renderer/pages/home/components/ChatNavBar/Tools/SettingsTab'
 import { SlidersHorizontal } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import ChatPreferenceSections from './ChatPreferenceSections'
 
 type SettingsPanelMode = 'assistant' | 'agent'
 

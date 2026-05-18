@@ -1,5 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
-import { SettingGroup, SettingRowTitleSmall } from '@renderer/pages/chat-settings/settingsPanelPrimitives'
+import { SettingGroup, SettingRowTitleSmall } from '@renderer/components/chat/settings/settingsPanelPrimitives'
 import { SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'

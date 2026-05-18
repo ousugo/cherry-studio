@@ -23,11 +23,11 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   )
 }))
 
-vi.mock('@renderer/pages/chat-settings/ChatPreferenceSections', () => ({
+vi.mock('@renderer/components/chat/settings/ChatPreferenceSections', () => ({
   default: () => <div data-testid="chat-preferences" />
 }))
 
-vi.mock('@renderer/pages/home/components/ChatNavBar/Tools/SettingsTab', () => ({
+vi.mock('@renderer/components/chat/settings/assistant', () => ({
   AssistantSettingsTab: ({ assistant }: { assistant: { id: string } }) => (
     <div data-testid="assistant-settings-tab">{assistant.id}</div>
   )
