@@ -172,7 +172,10 @@ const MessageErrorInfo: React.FC<{
 
   return (
     <div
-      className={`group relative my-2 rounded-lg border px-3.5 py-3 text-[13px] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--color-error-base)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-error-base)_7%,transparent)]${canOpenDetail ? ' cursor-pointer' : ''}`}
+      className={[
+        'group relative my-2 rounded-lg border px-3.5 py-3 text-[13px] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--color-error-base)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-error-base)_7%,transparent)]',
+        canOpenDetail ? 'cursor-pointer' : ''
+      ].join(' ')}
       style={{
         borderColor: 'color-mix(in srgb, var(--color-error-base) 20%, transparent)',
         background: 'color-mix(in srgb, var(--color-error-base) 4%, transparent)'

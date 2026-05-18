@@ -1,11 +1,9 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversationDefaults, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
@@ -19,12 +17,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentChat from './AgentChat'
-import AgentNavbar from './AgentNavbar'
 import AgentSidePanel from './AgentSidePanel'
 import { AgentEmpty } from './components/status'
 
 const AgentPage = () => {
-  const { isLeftNavbar } = useNavbarPosition()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
@@ -165,9 +161,6 @@ const AgentPage = () => {
   if (agents && agents.length === 0) {
     return (
       <Container>
-        <Navbar>
-          <NavbarCenter style={{ borderRight: 'none' }}>{t('common.agent_one')}</NavbarCenter>
-        </Navbar>
         <AgentEmpty />
         {historyOverlay}
       </Container>
@@ -178,14 +171,10 @@ const AgentPage = () => {
 
   return (
     <Container>
-      <AgentNavbar />
-      <div
-        id={isLeftNavbar ? 'content-container' : undefined}
-        className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
+      <div className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AgentChat
           pane={
             <AgentSidePanel
-              position={panePosition}
               onOpenHistory={openHistory}
               revealRequest={sessionRevealRequest}
               onDiscardTemporarySession={discardTemporaryConversation}

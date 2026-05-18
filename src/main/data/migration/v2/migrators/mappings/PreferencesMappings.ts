@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-05-11T09:55:37.835Z
+ * Generated at: 2026-05-18T10:10:33.805Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -607,10 +607,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.backup.s3.skip_backup_file'
     },
     {
-      originalKey: 'navbarPosition',
-      targetKey: 'ui.navbar.position'
-    },
-    {
       originalKey: 'apiServer.enabled',
       targetKey: 'feature.csaas.enabled'
     },
@@ -827,11 +823,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 185
+ * - Redux Store项: 182
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 4
  * - localStorage项: 0
- * - 总配置项: 190
+ * - 总配置项: 187
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

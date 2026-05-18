@@ -116,7 +116,7 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
     <ButtonGroup className={className}>
       <NormalTooltip content={primaryLabel} delayDuration={500}>
         <Button
-          className="h-7 min-w-[35px] w-[35px] p-0"
+          className="h-7 w-[35px] min-w-[35px] p-0"
           variant="outline"
           size="icon-sm"
           aria-label={primaryLabel}
@@ -126,7 +126,7 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
       </NormalTooltip>
       <Popover>
         <PopoverTrigger asChild>
-          <Button className="h-7 min-w-7 w-7 p-0" variant="outline" size="icon-sm" aria-label={t('common.more')}>
+          <Button className="h-7 w-7 min-w-7 p-0" variant="outline" size="icon-sm" aria-label={t('common.more')}>
             <ChevronDown size={14} />
           </Button>
         </PopoverTrigger>

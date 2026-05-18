@@ -9,7 +9,6 @@ import Chat from '../Chat'
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'chat.message.style') return ['message-style']
-    if (key === 'ui.navbar.position') return [true]
 
     return [undefined, vi.fn()]
   }

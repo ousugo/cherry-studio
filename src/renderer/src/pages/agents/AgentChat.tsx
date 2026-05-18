@@ -21,7 +21,6 @@ import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { TemporaryConversation, TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -157,7 +156,9 @@ const AgentChat = ({
         paneOpen={paneOpen}
         panePosition={panePosition}
         artifactPaneOpen={artifactPaneOpen}
-        artifactPaneWorkspacePath={activeSession?.accessiblePaths?.[0] ?? temporaryAgentConversation?.accessiblePaths?.[0]}
+        artifactPaneWorkspacePath={
+          activeSession?.accessiblePaths?.[0] ?? temporaryAgentConversation?.accessiblePaths?.[0]
+        }
         onCloseArtifactPane={closeArtifactPane}
         main={<MessageListInitialLoading />}
       />
@@ -524,13 +525,10 @@ const AgentChatFrame = ({
 )
 
 const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
-  const { isTopNavbar } = useNavbarPosition()
-
   return (
     <div
       className={cn(
-        'flex flex-1 overflow-hidden',
-        isTopNavbar && 'rounded-tl-[10px] rounded-bl-[10px] bg-(--color-background)',
+        'flex flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-(--color-background)',
         className
       )}>
       {children}

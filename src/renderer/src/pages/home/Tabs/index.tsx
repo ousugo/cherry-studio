@@ -1,6 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import type { Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import type { FC } from 'react'
@@ -19,13 +18,8 @@ interface Props {
 
 const HomeTabs: FC<Props> = ({ activeTopic, onOpenHistory, setActiveTopic, position, revealRequest, style }) => {
   const [topicPosition] = usePreference('topic.position')
-  const { isLeftNavbar } = useNavbarPosition()
 
-  const borderStyle = '0.5px solid var(--color-border)'
-  const border =
-    position === 'left'
-      ? { borderRight: isLeftNavbar ? borderStyle : 'none' }
-      : { borderLeft: isLeftNavbar ? borderStyle : 'none', borderTopLeftRadius: 0 }
+  const border = position === 'right' ? { borderTopLeftRadius: 0 } : undefined
 
   return (
     <Container
@@ -56,12 +50,6 @@ const Container = styled.div`
     height: calc(100vh - var(--navbar-height));
   }
 
-  [navbar-position='left'] & {
-    background-color: var(--color-background);
-  }
-  [navbar-position='top'] & {
-    height: calc(100vh - var(--navbar-height));
-  }
   overflow: hidden;
   .collapsed {
     width: 0;

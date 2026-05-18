@@ -8,7 +8,6 @@ import { useUpdateAgent } from '@renderer/hooks/agents/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useModelById } from '@renderer/hooks/useModel'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { AgentLabel } from '@renderer/pages/agents/AgentSettings/shared'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -44,7 +43,6 @@ const AgentContent = ({
   const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
-  const { isTopNavbar } = useNavbarPosition()
   const { session: activeSession } = useActiveSession()
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession(activeAgent?.id ?? null)
@@ -80,14 +78,14 @@ const AgentContent = ({
   return (
     <div className="flex w-full justify-between pr-2">
       <div className="flex min-w-0 shrink items-center">
-        {isTopNavbar && showSidebar && (
+        {showSidebar && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
             <NavbarIcon onClick={toggleShowSidebar}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
-        {isTopNavbar && !showSidebar && (
+        {!showSidebar && (
           <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
             <NavbarIcon onClick={toggleShowSidebar} style={{ marginRight: 8 }}>
               <PanelRightClose size={18} />
@@ -95,7 +93,7 @@ const AgentContent = ({
           </Tooltip>
         )}
         <AnimatePresence initial={false}>
-          {!showSidebar && isTopNavbar && (
+          {!showSidebar && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 'auto', opacity: 1 }}

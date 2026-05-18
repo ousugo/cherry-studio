@@ -387,7 +387,7 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 ### Window Chrome
 
 - **Top chrome height**: `var(--app-top-chrome-height)` = 44px. Use this for the main window tab bar and any standalone macOS window top drag area that should visually align with the main app chrome.
-- **Navbar content height**: `var(--navbar-height)` defaults to `var(--app-top-chrome-height)`. Only override it for legacy navbar-position modes or inner content calculations that intentionally do not include a top navbar.
+- **Navbar content height**: `var(--navbar-height)` defaults to `var(--app-top-chrome-height)` for the fixed top-menu layout. Only override it for inner content calculations that intentionally do not include a top navbar.
 - Settings-style floating windows with a transparent macOS shell must keep the outer top inset tied to `var(--app-top-chrome-height)` instead of hard-coded pixel classes such as `h-11` or `h-[50px]`.
 
 ### Spacing System

@@ -60,10 +60,6 @@ vi.mock('@renderer/hooks/agents/useAgentSessionInitializer', () => ({
   useAgentSessionInitializer: vi.fn()
 }))
 
-vi.mock('@renderer/hooks/useNavbar', () => ({
-  useNavbarPosition: () => ({ isLeftNavbar: false })
-}))
-
 vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: () => ({ topicPosition: 'left' })
 }))
@@ -113,10 +109,6 @@ vi.mock('../AgentChat', () => ({
       {pane}
     </section>
   )
-}))
-
-vi.mock('../AgentNavbar', () => ({
-  default: () => <nav />
 }))
 
 vi.mock('../AgentSidePanel', () => ({

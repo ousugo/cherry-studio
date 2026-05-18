@@ -1,7 +1,5 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import { isMac } from '@renderer/config/constant'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
@@ -12,22 +10,16 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 
 import useFullScreenNotice from './useFullScreenNotice'
-import { useMiniApps } from './useMiniApps'
 import useNavBackgroundColor from './useNavBackgroundColor'
-import { useNavbarPosition } from './useNavbar'
 
 export function useAppInit() {
   const [language] = usePreference('app.language')
-  const [windowStyle] = usePreference('ui.window_style')
   const [customCss] = usePreference('ui.custom_css')
   const [autoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
   const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
-  const { isLeftNavbar } = useNavbarPosition()
-  const { miniAppShow } = useMiniApps()
   const { updateAppUpdateState } = useAppUpdateState()
   const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
-  const { theme } = useTheme()
   const navBackgroundColor = useNavBackgroundColor()
 
   useEffect(() => {
@@ -97,15 +89,8 @@ export function useAppInit() {
   }, [language])
 
   useEffect(() => {
-    const isMacTransparentWindow = windowStyle === 'transparent' && isMac
-
-    if (miniAppShow && isLeftNavbar) {
-      window.root.style.background = isMacTransparentWindow ? 'var(--color-background)' : navBackgroundColor
-      return
-    }
-
     window.root.style.background = navBackgroundColor
-  }, [windowStyle, miniAppShow, theme, isLeftNavbar, navBackgroundColor])
+  }, [navBackgroundColor])
 
   useEffect(() => {
     // set files path

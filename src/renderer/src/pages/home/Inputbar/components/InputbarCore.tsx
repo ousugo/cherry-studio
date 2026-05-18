@@ -678,10 +678,7 @@ const DragHandle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 )
 
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={cn('relative z-[2] flex flex-col px-[18px] pt-0 pb-[18px] [[navbar-position=top]_&]:pb-2.5', className)}
-    {...props}
-  />
+  <div className={cn('relative z-[2] flex flex-col px-[18px] pt-0 pb-2.5', className)} {...props} />
 )
 
 const InputBarContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

@@ -42,7 +42,6 @@ const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
-  const [isTopNavbar] = usePreference('ui.navbar.position')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
 
@@ -109,7 +108,7 @@ const Chat: FC<Props> = (props) => {
     })
   }
 
-  const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
+  const mainHeight = 'calc(100vh - var(--navbar-height) - 6px)'
   const citationsPanelOpen = citationPanelCitations !== null
 
   const handleOpenSettings = useCallback(() => {
@@ -127,10 +126,7 @@ const Chat: FC<Props> = (props) => {
       id="chat"
       className={classNames([
         messageStyle,
-        'flex h-[calc(100vh-var(--navbar-height))] flex-1 flex-col overflow-hidden',
-        '[navbar-position=top]_&:h-[calc(100vh-var(--navbar-height)-6px)]',
-        '[navbar-position=top]_&:bg-(--color-background)',
-        '[navbar-position=top]_&:rounded-tl-[10px] [navbar-position=top]_&:rounded-bl-[10px]'
+        'flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 flex-col overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-(--color-background)'
       ])}>
       <QuickPanelProvider>
         <ChatAppShell

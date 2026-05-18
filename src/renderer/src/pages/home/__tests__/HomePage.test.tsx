@@ -66,10 +66,6 @@ vi.mock('@data/hooks/usePreference', async () => {
   }
 })
 
-vi.mock('@renderer/hooks/useNavbar', () => ({
-  useNavbarPosition: () => ({ isLeftNavbar: false })
-}))
-
 vi.mock('@renderer/hooks/useShortcuts', () => ({
   useShortcut: vi.fn()
 }))

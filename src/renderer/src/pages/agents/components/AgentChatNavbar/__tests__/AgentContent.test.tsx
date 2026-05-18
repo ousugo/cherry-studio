@@ -73,10 +73,6 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModelById: () => ({ model: { id: 'provider:model-a', name: 'Model A', providerId: 'provider' } })
 }))
 
-vi.mock('@renderer/hooks/useNavbar', () => ({
-  useNavbarPosition: () => ({ isTopNavbar: false })
-}))
-
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderDisplayName: () => 'Provider'
 }))
@@ -134,7 +130,14 @@ describe('AgentContent', () => {
     const onDraftAgentChange = vi.fn().mockResolvedValue(undefined)
 
     render(
-      <AgentContent activeAgent={agentA} onOpenSettings={vi.fn()} onDraftAgentChange={onDraftAgentChange} draftMode />
+      <AgentContent
+        activeAgent={agentA}
+        onOpenSettings={vi.fn()}
+        artifactPaneOpen={false}
+        onToggleArtifactPane={vi.fn()}
+        onDraftAgentChange={onDraftAgentChange}
+        draftMode
+      />
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'select agent b' }))
@@ -144,7 +147,15 @@ describe('AgentContent', () => {
   })
 
   it('keeps global model mutation available in draft mode', () => {
-    render(<AgentContent activeAgent={agentA} onOpenSettings={vi.fn()} draftMode />)
+    render(
+      <AgentContent
+        activeAgent={agentA}
+        onOpenSettings={vi.fn()}
+        artifactPaneOpen={false}
+        onToggleArtifactPane={vi.fn()}
+        draftMode
+      />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'select model b' }))
 
@@ -154,7 +165,14 @@ describe('AgentContent', () => {
   it('keeps persisted session agent and model mutations unchanged', async () => {
     mocks.activeSession = { id: 'session-1', agentId: 'agent-a', accessiblePaths: [] }
 
-    render(<AgentContent activeAgent={agentA} onOpenSettings={vi.fn()} />)
+    render(
+      <AgentContent
+        activeAgent={agentA}
+        onOpenSettings={vi.fn()}
+        artifactPaneOpen={false}
+        onToggleArtifactPane={vi.fn()}
+      />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'select agent b' }))
     await waitFor(() =>

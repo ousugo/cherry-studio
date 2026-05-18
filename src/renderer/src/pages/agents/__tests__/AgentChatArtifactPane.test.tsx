@@ -147,10 +147,6 @@ vi.mock('@renderer/hooks/useExecutionMessages', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useNavbar', () => ({
-  useNavbarPosition: () => ({ isTopNavbar: false })
-}))
-
 vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: () => ({
     messageNavigation: 'none',

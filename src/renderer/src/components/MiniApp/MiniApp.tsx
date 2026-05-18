@@ -4,7 +4,6 @@ import MiniAppIcon from '@renderer/components/Icons/MiniAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -40,7 +39,6 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const shouldShow = isVisible || isPinned
   const isActive = miniAppShow && currentMiniAppId === app.appId
   const isOpened = openedKeepAliveMiniApps.some((item) => item.appId === app.appId)
-  const { isTopNavbar } = useNavbarPosition()
 
   // Calculate display name
   const displayName = isLast ? t('settings.miniApps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
@@ -61,13 +59,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     }
   }
 
-  const togglePinLabel = isPinned
-    ? isTopNavbar
-      ? t('miniApp.remove_from_launchpad')
-      : t('miniApp.remove_from_sidebar')
-    : isTopNavbar
-      ? t('miniApp.add_to_launchpad')
-      : t('miniApp.add_to_sidebar')
+  const togglePinLabel = isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')
 
   const handleTogglePin = () => {
     const nextStatus = isPinned ? 'enabled' : 'pinned'

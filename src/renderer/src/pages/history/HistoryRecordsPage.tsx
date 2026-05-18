@@ -599,7 +599,7 @@ const HistoryRecordsLayout = ({
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card pb-3 text-foreground" aria-label={title}>
-      <header className="flex h-[52px] shrink-0 items-center justify-between bg-card px-5 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
+      <header className="flex h-[52px] shrink-0 items-center justify-between bg-card px-3 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border-subtle bg-card text-foreground-secondary">
             <History size={16} />

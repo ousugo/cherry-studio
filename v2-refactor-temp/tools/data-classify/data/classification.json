@@ -2423,9 +2423,9 @@
           "originalKey": "navbarPosition",
           "type": "'left' | 'top'",
           "defaultValue": "top",
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "ui.navbar.position"
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "apiServer",

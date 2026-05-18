@@ -2,7 +2,6 @@ import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
@@ -18,7 +17,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import Chat from './Chat'
-import Navbar from './Navbar'
 import HomeTabs from './Tabs'
 
 const logger = loggerService.withContext('HomePage')
@@ -44,7 +42,6 @@ function buildPendingTemporaryTopic(id: string, assistantId?: string | null): To
 
 const HomePage: FC = () => {
   const navigate = useNavigate()
-  const { isLeftNavbar } = useNavbarPosition()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
@@ -232,8 +229,7 @@ const HomePage: FC = () => {
 
   return (
     <Container id="home-page">
-      {isLeftNavbar && <Navbar position="left" />}
-      <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
+      <ContentContainer>
         <Chat
           activeTopic={activeTopic}
           setActiveTopic={setActiveTopicAndDiscardTemporary}
@@ -270,12 +266,7 @@ const Container = styled.div`
   flex-direction: column;
   position: relative;
   overflow: hidden;
-  [navbar-position='left'] & {
-    max-width: calc(100vw - var(--sidebar-width));
-  }
-  [navbar-position='top'] & {
-    max-width: 100vw;
-  }
+  max-width: 100vw;
 `
 
 const ContentContainer = styled.div`
@@ -283,10 +274,7 @@ const ContentContainer = styled.div`
   flex: 1;
   flex-direction: row;
   overflow: hidden;
-
-  [navbar-position='top'] & {
-    max-width: calc(100vw - 12px);
-  }
+  max-width: calc(100vw - 12px);
 `
 
 export default HomePage

@@ -54,7 +54,7 @@ const HistorySourceSidebar = ({
 
   return (
     <aside className="flex w-[284px] shrink-0 flex-col bg-card [border-right:0.5px_solid_var(--color-border-subtle)]">
-      <Scrollbar className="min-h-0 flex-1 px-3 py-3.5">
+      <Scrollbar className="min-h-0 flex-1 px-3 py-3.5 pt-2">
         {mode === 'agent' && statusItems.length > 0 && selectedStatus && onStatusSelect && (
           <SidebarSection title={t('history.records.sidebar.status', '状态')}>
             <div className="space-y-1">
