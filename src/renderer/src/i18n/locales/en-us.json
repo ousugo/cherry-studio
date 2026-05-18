@@ -402,10 +402,10 @@
         }
       },
       "group": {
-        "collapse": "Collapse sessions",
+        "collapse": "Collapse display",
         "earlier": "Earlier",
         "no_workdir": "No workspace",
-        "show_more": "Show more sessions",
+        "show_more": "Expand display",
         "this_week": "This week",
         "today": "Today",
         "unknown_agent": "Unknown agent",

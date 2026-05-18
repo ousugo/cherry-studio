@@ -402,10 +402,10 @@
         }
       },
       "group": {
-        "collapse": "[to be translated]:Collapse sessions",
+        "collapse": "折疊顯示",
         "earlier": "[to be translated]:Earlier",
         "no_workdir": "[to be translated]:No workspace",
-        "show_more": "[to be translated]:Show more sessions",
+        "show_more": "展開顯示",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
         "unknown_agent": "[to be translated]:Unknown agent",

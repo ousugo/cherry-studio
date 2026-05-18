@@ -402,10 +402,10 @@
         }
       },
       "group": {
-        "collapse": "折叠会话",
+        "collapse": "折叠显示",
         "earlier": "更早",
         "no_workdir": "无工作目录",
-        "show_more": "显示更多会话",
+        "show_more": "展开显示",
         "this_week": "本周",
         "today": "今天",
         "unknown_agent": "未知智能体",
