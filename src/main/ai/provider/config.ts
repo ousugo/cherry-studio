@@ -12,7 +12,6 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { providerService } from '@main/data/services/ProviderService'
 import { generateSignature } from '@main/integration/cherryai'
 import { sessionService } from '@main/services/agents'
-import { anthropicService } from '@main/services/AnthropicService'
 import { copilotService } from '@main/services/CopilotService'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
@@ -121,7 +120,6 @@ export async function providerToAiSdkConfig(
   const builders: ConfigBuilderEntry[] = [
     { match: (p) => p.id === SystemProviderIds.copilot, build: buildCopilotConfig },
     { match: (p) => p.id === 'cherryai', build: buildCherryAIConfig },
-    { match: (p) => p.id === 'anthropic' && p.authType === 'oauth', build: buildAnthropicOAuthConfig },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
@@ -178,28 +176,6 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
           body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
         })
         return fetch(input, { ...init, headers: { ...init?.headers, ...signature } })
-      }
-    }
-  }
-}
-
-async function buildAnthropicOAuthConfig(ctx: BuilderContext): Promise<ProviderConfig<'anthropic'>> {
-  const oauthToken = await anthropicService.getValidAccessToken()
-
-  if (!oauthToken) {
-    throw new Error('Anthropic OAuth: no valid access token. Please re-authorize.')
-  }
-
-  return {
-    providerId: 'anthropic',
-    endpoint: ctx.endpoint,
-    providerSettings: {
-      baseURL: 'https://api.anthropic.com/v1',
-      apiKey: '',
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-        Authorization: `Bearer ${oauthToken}`
       }
     }
   }

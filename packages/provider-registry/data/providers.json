@@ -1319,6 +1319,7 @@
     },
     {
       "id": "zai",
+      "presetProviderId": "zhipu",
       "name": "zai",
       "description": "zai - AI model provider",
       "endpointConfigs": {
@@ -1343,6 +1344,7 @@
     },
     {
       "id": "minimax-global",
+      "presetProviderId": "minimax",
       "name": "minimax-global",
       "description": "minimax-global - AI model provider",
       "endpointConfigs": {

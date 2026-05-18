@@ -117,8 +117,8 @@ const WebSearchButton: FC<Props> = ({ assistantId }) => {
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
 
-  const ProviderMono = enableWebSearch ? providerLogo?.Mono : undefined
-  const icon = ProviderMono ? <ProviderMono width={18} height={18} /> : <Globe />
+  const ProviderIcon = enableWebSearch ? providerLogo : undefined
+  const icon = ProviderIcon ? <ProviderIcon width={18} height={18} /> : <Globe />
 
   return (
     <Tooltip placement="top" title={ariaLabel} mouseLeaveDelay={0} arrow>

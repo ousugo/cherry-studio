@@ -91,6 +91,10 @@ export function isSystemProvider(provider: Provider): boolean {
   return provider.presetProviderId != null
 }
 
+export function matchesPreset(provider: Provider, presetId: string): boolean {
+  return provider.id === presetId || provider.presetProviderId === presetId
+}
+
 /**
  * Canonical preset providers are seeded built-ins whose runtime ID equals the
  * linked preset ID. Preset-derived user providers remain user-manageable.

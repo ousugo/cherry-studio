@@ -2,8 +2,6 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { MessageCreateParams, RawMessageStreamEvent } from '@anthropic-ai/sdk/resources'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { anthropicService } from '@main/services/AnthropicService'
-import { buildClaudeCodeSystemMessage } from '@shared/anthropic'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Response } from 'express'
@@ -102,21 +100,6 @@ export class MessagesService {
     const anthropicConfig = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     const baseURL = anthropicConfig?.baseUrl || 'https://api.anthropic.com'
 
-    if (provider.authType === 'oauth') {
-      const oauthToken = await anthropicService.getValidAccessToken()
-      if (!oauthToken) throw new Error('OAuth token is not available')
-      return new Anthropic({
-        authToken: oauthToken,
-        baseURL: 'https://api.anthropic.com',
-        dangerouslyAllowBrowser: true,
-        defaultHeaders: {
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
-          ...extraHeaders
-        }
-      })
-    }
-
     const apiKey = await providerService.getRotatedApiKey(provider.id)
     // Flatten string[] headers to string for Anthropic SDK compatibility
     const flatHeaders: Record<string, string> = {}
@@ -152,7 +135,7 @@ export class MessagesService {
     return extraHeaders
   }
 
-  createAnthropicRequest(request: MessageCreateParams, provider: Provider, modelId?: string): MessageCreateParams {
+  createAnthropicRequest(request: MessageCreateParams, modelId?: string): MessageCreateParams {
     const anthropicRequest: MessageCreateParams = {
       ...request,
       stream: !!request.stream
@@ -161,11 +144,6 @@ export class MessagesService {
     // Override model if provided
     if (modelId) {
       anthropicRequest.model = modelId
-    }
-
-    // Add Claude Code system message for OAuth providers
-    if (provider.authType === 'oauth') {
-      anthropicRequest.system = buildClaudeCodeSystemMessage(request.system)
     }
 
     return anthropicRequest
@@ -322,7 +300,7 @@ export class MessagesService {
     const { provider, request, extraHeaders, modelId } = options
 
     const client = await this.getClient(provider, extraHeaders)
-    const anthropicRequest = this.createAnthropicRequest(request, provider, modelId)
+    const anthropicRequest = this.createAnthropicRequest(request, modelId)
 
     const messageCount = Array.isArray(request.messages) ? request.messages.length : 0
 
