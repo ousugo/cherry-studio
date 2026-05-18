@@ -50,7 +50,11 @@ const Hyperlink: React.FC<HyperLinkProps> = ({ children, href }) => {
           {children}
         </span>
       </PopoverTrigger>
-      <PopoverContent className="overflow-hidden rounded-lg p-0" onMouseEnter={openPopover} onMouseLeave={closePopover}>
+      <PopoverContent
+        className="w-auto max-w-none overflow-hidden rounded-lg p-0"
+        sideOffset={0}
+        onMouseEnter={openPopover}
+        onMouseLeave={closePopover}>
         <OGCard link={link} show={open} />
       </PopoverContent>
     </Popover>

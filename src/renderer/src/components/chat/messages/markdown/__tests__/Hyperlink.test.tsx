@@ -41,7 +41,7 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children)
     },
-    PopoverContent: ({ children, ...props }) => {
+    PopoverContent: ({ children, sideOffset, ...props }) => {
       const context = React.use(PopoverContext)
       return context.open ? React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children) : null
     }
@@ -108,7 +108,7 @@ describe('Hyperlink', () => {
     const popover = screen.getByTestId('popover')
     expect(popover).toBeInTheDocument()
     fireEvent.mouseEnter(screen.getByTestId('popover-trigger'))
-    expect(screen.getByTestId('popover-content')).toHaveClass('overflow-hidden rounded-lg p-0')
+    expect(screen.getByTestId('popover-content')).toHaveClass('w-auto max-w-none overflow-hidden rounded-lg p-0')
 
     // Content includes decoded url text and favicon with hostname
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')
