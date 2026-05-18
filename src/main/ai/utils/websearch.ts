@@ -2,10 +2,10 @@
 //                 Unrelated to stubs migration — revisit when the `cherryin` branch is re-audited.
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin'
 import type { Model } from '@shared/data/types/model'
+import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
 
 import type { AppProviderId } from '../types'
-import { mapRegexToPatterns } from './blacklistMatchPattern'
 
 /** Inputs for provider-builtin web-search plugin configuration. */
 export interface CherryWebSearchConfig {
