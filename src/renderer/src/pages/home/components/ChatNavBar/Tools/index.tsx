@@ -1,5 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import NarrowLayoutToggleButton from '@renderer/components/chat/layout/NarrowLayoutToggleButton'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
@@ -16,20 +17,11 @@ const Tools = ({ onOpenSettings }: ToolsProps) => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const [topicPosition] = usePreference('topic.position')
-  const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
-
-  const handleNarrowModeToggle = () => {
-    void setNarrowMode(!narrowMode)
-  }
 
   return (
     <div className="flex items-center gap-2">
       <SettingsButton onOpenSettings={onOpenSettings} />
-      <Tooltip content={t('navbar.expand')} delay={800}>
-        <NavbarIcon className="max-[1000px]:hidden" onClick={handleNarrowModeToggle}>
-          <i className="iconfont icon-icon-adaptive-width"></i>
-        </NavbarIcon>
-      </Tooltip>
+      <NarrowLayoutToggleButton />
       <Tooltip content={t('chat.assistant.search.placeholder')} delay={800}>
         <NavbarIcon onClick={() => SearchPopup.show()}>
           <Search size={18} />

@@ -125,41 +125,43 @@ const MessageList = () => {
 
   return (
     <MessagesContainer id="messages" className="messages-container" key={data.listKey}>
-      <NarrowLayout
-        narrowMode={renderConfig.narrowMode}
-        style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-        {beforeList}
-        <SelectionContextMenu>
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            <MessageVirtualList
-              handleRef={messageListRef}
-              items={groupedMessages}
-              getItemKey={([key]) => key}
-              estimateSize={data.estimateSize}
-              overscan={data.overscan}
-              bottomPadding={isMultiSelectMode ? MULTI_SELECT_BOTTOM_PADDING_PX : undefined}
-              hasMoreTop={hasOlder}
-              onReachTop={loadMoreMessages}
-              renderItem={([key, groupMessages]) => (
+      {beforeList && (
+        <NarrowLayout narrowMode={renderConfig.narrowMode} className="shrink-0">
+          {beforeList}
+        </NarrowLayout>
+      )}
+      <SelectionContextMenu>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <MessageVirtualList
+            handleRef={messageListRef}
+            items={groupedMessages}
+            getItemKey={([key]) => key}
+            estimateSize={data.estimateSize}
+            overscan={data.overscan}
+            bottomPadding={isMultiSelectMode ? MULTI_SELECT_BOTTOM_PADDING_PX : undefined}
+            hasMoreTop={hasOlder}
+            onReachTop={loadMoreMessages}
+            renderItem={([key, groupMessages]) => (
+              <NarrowLayout narrowMode={renderConfig.narrowMode}>
                 <MessageGroup
                   key={key}
                   messages={groupMessages}
                   topic={topic}
                   registerMessageElement={registerMessageElement}
                 />
-              )}
-              style={{ flex: 1, minHeight: 0 }}
-            />
-            {isLoadingMore && (
-              <div
-                className="pointer-events-none flex w-full justify-center py-2.5"
-                style={{ background: 'var(--color-background)' }}>
-                <LoadingIcon color="var(--color-foreground-secondary)" />
-              </div>
+              </NarrowLayout>
             )}
-          </div>
-        </SelectionContextMenu>
-      </NarrowLayout>
+            style={{ flex: 1, minHeight: 0 }}
+          />
+          {isLoadingMore && (
+            <div
+              className="pointer-events-none flex w-full justify-center py-2.5"
+              style={{ background: 'var(--color-background)' }}>
+              <LoadingIcon color="var(--color-foreground-secondary)" />
+            </div>
+          )}
+        </div>
+      </SelectionContextMenu>
       {messageNavigation === 'anchor' && (
         <MessageAnchorLine
           messages={messages}

@@ -1,3 +1,4 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { FC, HTMLAttributes, ReactNode } from 'react'
 
 interface Props extends HTMLAttributes<HTMLDivElement> {
@@ -5,10 +6,14 @@ interface Props extends HTMLAttributes<HTMLDivElement> {
   narrowMode?: boolean
 }
 
-const NarrowLayout: FC<Props> = ({ children, narrowMode = false, ...props }) => {
+const NarrowLayout: FC<Props> = ({ children, className, narrowMode = false, ...props }) => {
   return (
     <div
-      className={`narrow-mode relative mx-auto w-full max-w-full transition-[max-width] duration-300 ease-in-out ${narrowMode ? 'active max-w-[800px]' : ''}`}
+      className={cn(
+        'narrow-mode relative mx-auto w-full transition-[max-width] duration-300 ease-in-out',
+        narrowMode ? 'active max-w-[800px]' : 'max-w-full',
+        className
+      )}
       {...props}>
       {children}
     </div>
