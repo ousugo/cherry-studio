@@ -149,6 +149,15 @@ function deleteComposerTextBeforeCursor(editor: Editor, range: { from: number; t
 
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
 
+function getComposerEditorStyle(fontSize: number) {
+  return [
+    '--composer-editor-padding: 6px 15px 0',
+    '--composer-editor-min-height: 30px',
+    `--composer-editor-font-size: ${fontSize}px`,
+    '--composer-editor-line-height: 1.4'
+  ].join('; ')
+}
+
 export default function ComposerSurface({
   text,
   onTextChange,
@@ -307,8 +316,8 @@ export default function ComposerSurface({
     editorProps: {
       attributes: {
         class:
-          'box-border flex min-h-[30px]! max-h-[500px]! w-full overflow-auto rounded-none px-[15px]! pt-1.5! pb-0! text-foreground outline-none transition-none! break-words whitespace-pre-wrap after:hidden! [&::-webkit-scrollbar]:w-[3px] [&_.placeholder:before]:not-italic! [&_p]:m-0! [&_p]:whitespace-pre-wrap! [&_p]:leading-[1.4]!',
-        style: `font-size: ${fontSize}px; line-height: 1.4; min-height: 30px;`
+          'composer-tiptap box-border flex max-h-[500px]! w-full overflow-auto rounded-none text-foreground outline-none transition-none! break-words whitespace-pre-wrap after:hidden! [&::-webkit-scrollbar]:w-[3px]',
+        style: getComposerEditorStyle(fontSize)
       },
       handleKeyDown: (_view, event) => {
         if (event.key === 'Escape' && isExpanded) {
