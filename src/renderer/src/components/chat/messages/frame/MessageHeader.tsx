@@ -19,9 +19,9 @@ import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel, getMessageListItemModelName } from '../utils/messageListItem'
 import MessageTokens from './MessageTokens'
 
-const MESSAGE_AVATAR_SIZE = 30
-const MESSAGE_EMOJI_AVATAR_FONT_SIZE = 17
-const MESSAGE_AVATAR_CLASS = 'h-[30px] w-[30px] rounded-full'
+const MESSAGE_AVATAR_SIZE = 26
+const MESSAGE_EMOJI_AVATAR_FONT_SIZE = 15
+const MESSAGE_AVATAR_CLASS = 'size-6.5 rounded-full'
 
 interface Props {
   message: MessageListItem

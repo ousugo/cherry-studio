@@ -259,7 +259,7 @@ const MessageItem: FC<Props> = ({
               />
             ) : (
               <Scrollbar
-                className="message-content-container mt-0 max-w-full overflow-y-auto pl-10"
+                className="message-content-container mt-0 max-w-full overflow-y-auto pl-0"
                 style={{
                   fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
                   fontSize,
@@ -273,7 +273,7 @@ const MessageItem: FC<Props> = ({
             {showAssistantFooterActions && (
               <div
                 className={cn(
-                  'MessageFooter mt-1 ml-10 flex min-h-6.5 items-center justify-between gap-1.5 text-xs leading-none'
+                  'MessageFooter mt-1 ml-0 flex min-h-6.5 items-center justify-between gap-1.5 text-xs leading-none'
                 )}>
                 <HorizontalScrollContainer
                   classNames={{
@@ -354,19 +354,19 @@ const UserBubbleMessage = ({
           <EmojiAvatar
             className={`shrink-0 rounded-full ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
             onClick={canOpenUserProfile ? openUserProfile : undefined}
-            size={30}
-            fontSize={17}>
+            size={26}
+            fontSize={15}>
             {avatar}
           </EmojiAvatar>
         ) : (
           <Avatar
-            className={`size-7.5 shrink-0 rounded-full ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
+            className={`size-6.5 shrink-0 rounded-full ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
             onClick={canOpenUserProfile ? openUserProfile : undefined}>
             <AvatarImage src={avatar} />
           </Avatar>
         )}
       </div>
-      <div className="MessageFooter mt-1 mr-10 flex min-h-6.5 max-w-full items-center justify-end gap-2 text-foreground-muted text-xs leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100">
+      <div className="MessageFooter mt-1 mr-8.5 flex min-h-6.5 max-w-full items-center justify-end gap-2 text-foreground-muted text-xs leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100">
         <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
         <MessageMenuBar
           message={message}
