@@ -13,6 +13,7 @@ import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
+import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -40,6 +41,8 @@ import {
 interface SessionsProps {
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
   onSelectItem?: () => void
+  onDiscardTemporarySession?: () => void | Promise<void>
+  onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
   revealRequest?: ResourceListRevealRequest
 }
 
@@ -111,7 +114,13 @@ export function resolveCreateSessionAgentId(
   return activeAgentId ?? sessions[0]?.agentId ?? agents[0]?.id ?? null
 }
 
-const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps) => {
+const Sessions = ({
+  onOpenHistory,
+  onSelectItem,
+  onDiscardTemporarySession,
+  onStartTemporarySession,
+  revealRequest
+}: SessionsProps) => {
   const { t } = useTranslation()
   const [groupNow] = useState(() => new Date())
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
@@ -130,7 +139,6 @@ const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps)
     isLoadingMore,
     isValidating,
     reload,
-    createSession,
     reorderSession,
     togglePin
   } = useSessions(undefined, { loadAll: true, pageSize: 50 })
@@ -284,16 +292,14 @@ const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps)
 
       setCreatingSession(true)
       try {
-        const created = await createSession({
+        await onStartTemporarySession?.({
           agentId,
           name: t('common.unnamed'),
           ...(accessiblePaths && accessiblePaths.length > 0 ? { accessiblePaths } : {})
         })
 
-        if (!created) return null
-
-        setActiveSessionId(created.id)
-        return created
+        setActiveSessionId(null)
+        return null
       } catch (err) {
         logger.error('Failed to create session from session list', { err, agentId })
         window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
@@ -302,18 +308,19 @@ const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps)
         setCreatingSession(false)
       }
     },
-    [agentById, createSession, creatingSession, setActiveSessionId, t]
+    [agentById, creatingSession, onStartTemporarySession, setActiveSessionId, t]
   )
 
   const handleHeaderCreateSession = useCallback(() => {
-    setActiveSessionId(null)
-  }, [setActiveSessionId])
+    void createSessionForGroup(fallbackAgentId)
+  }, [createSessionForGroup, fallbackAgentId])
 
   const handleSelectSession = useCallback(
     (id: string | null) => {
+      if (id) void onDiscardTemporarySession?.()
       setActiveSessionId(id)
     },
-    [setActiveSessionId]
+    [onDiscardTemporarySession, setActiveSessionId]
   )
 
   const canDragSessionItem = useCallback(

@@ -27,9 +27,16 @@ type AgentContentProps = {
   onOpenSettings: () => void
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   creatingSession?: boolean
+  draftMode?: boolean
 }
 
-const AgentContent = ({ activeAgent, onOpenSettings, onDraftAgentChange, creatingSession }: AgentContentProps) => {
+const AgentContent = ({
+  activeAgent,
+  onOpenSettings,
+  onDraftAgentChange,
+  creatingSession,
+  draftMode
+}: AgentContentProps) => {
   const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
@@ -46,7 +53,8 @@ const AgentContent = ({ activeAgent, onOpenSettings, onDraftAgentChange, creatin
     async (nextAgentId: string | null) => {
       if (!nextAgentId) return
 
-      if (!activeAgent) {
+      if (draftMode || !activeAgent) {
+        if (nextAgentId === activeAgent?.id) return
         await onDraftAgentChange?.(nextAgentId)
         return
       }
@@ -54,7 +62,7 @@ const AgentContent = ({ activeAgent, onOpenSettings, onDraftAgentChange, creatin
       if (!activeSession || nextAgentId === activeAgent.id) return
       await updateSession({ id: activeSession.id, agentId: nextAgentId }, { showSuccessToast: false })
     },
-    [activeAgent, activeSession, onDraftAgentChange, updateSession]
+    [activeAgent, activeSession, draftMode, onDraftAgentChange, updateSession]
   )
 
   const handleModelSelect = useCallback(

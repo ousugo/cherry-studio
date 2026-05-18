@@ -381,8 +381,19 @@
         },
         "title": "Xóa phiên"
       },
+      "display": {
+        "agent": "[to be translated]:Agent",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode",
+        "workdir": "[to be translated]:Workspace"
+      },
       "edit": {
         "title": "Séance d'édition"
+      },
+      "file_manager": {
+        "file_explorer": "[to be translated]:File Explorer",
+        "files": "[to be translated]:Files",
+        "finder": "[to be translated]:Finder"
       },
       "get": {
         "error": {
@@ -390,12 +401,28 @@
           "null_id": "ID phiên là null"
         }
       },
+      "group": {
+        "collapse": "[to be translated]:Collapse sessions",
+        "earlier": "[to be translated]:Earlier",
+        "no_workdir": "[to be translated]:No workspace",
+        "show_more": "[to be translated]:Show more sessions",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
+        "yesterday": "[to be translated]:Yesterday"
+      },
       "label_one": "Phiên",
       "label_other": " sessions",
+      "list": {
+        "title": "[to be translated]:Sessions"
+      },
       "reorder": {
         "error": {
           "failed": "Không thể sắp xếp lại các phiên"
         }
+      },
+      "search": {
+        "placeholder": "[to be translated]:Search sessions"
       },
       "update": {
         "error": {
@@ -996,6 +1023,11 @@
       },
       "title": "Thư viện Trợ lý"
     },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder assistants"
+      }
+    },
     "save": {
       "success": "Đã lưu thành công",
       "title": "Lưu vào thư viện trợ lý"
@@ -1167,6 +1199,9 @@
       "search": {
         "placeholder": "Tìm kiếm"
       }
+    },
+    "conversation": {
+      "new": "[to be translated]:New Chat"
     },
     "deeply_thought": "Suy nghĩ sâu ({{seconds}} giây)",
     "default": {
@@ -1416,6 +1451,7 @@
             "save_failed": "Không lưu được chủ đề, vui lòng kiểm tra cấu hình cơ sở kiến thức"
           },
           "loading": "Đang phân tích nội dung chủ đề...",
+          "menu_title": "[to be translated]:Save to Knowledge Base",
           "select": {
             "content": {
               "label": "Chọn các loại nội dung để lưu",
@@ -1502,6 +1538,12 @@
       "delete": {
         "shortcut": "Giữ {{key}} để xóa trực tiếp"
       },
+      "display": {
+        "assistant": "[to be translated]:Assistant",
+        "tag": "[to be translated]:Tag",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode"
+      },
       "edit": {
         "placeholder": "Masukkan nama baru",
         "title": "Chỉnh sửa Tên",
@@ -1556,6 +1598,15 @@
         "wait_for_title_naming": "Đang tạo tiêu đề...",
         "word": "Xuất ra Word",
         "yuque": "Xuất sang Yuque"
+      },
+      "group": {
+        "collapse": "[to be translated]:Collapse display",
+        "earlier": "[to be translated]:Earlier",
+        "show_more": "[to be translated]:Expand display",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_assistant": "[to be translated]:Unknown Assistant",
+        "yesterday": "[to be translated]:Yesterday"
       },
       "list": "Daftar Topik",
       "manage": {
@@ -1705,8 +1756,10 @@
     "add": "Thêm",
     "add_success": "Đã thêm thành công",
     "advanced_settings": "Cài đặt nâng cao",
+    "agent": "[to be translated]:Agent",
     "agent_one": "Đại lý",
     "agent_other": "Đại lý",
+    "all": "[to be translated]:All",
     "and": "và",
     "assistant": "Đại lý",
     "assistant_one": "Trợ lý",
@@ -1834,6 +1887,7 @@
     "upload_image": "Tải lên tệp hình ảnh",
     "uploaded_image": "Hình ảnh đã tải lên",
     "warning": "Cảnh báo",
+    "yesterday": "[to be translated]:Yesterday",
     "you": "Bạn"
   },
   "dialog": {
@@ -2042,6 +2096,45 @@
     },
     "locate": {
       "message": "Tìm tin nhắn"
+    },
+    "records": {
+      "agentSubtitle": "[to be translated]:{{count}} sessions",
+      "agentTitle": "[to be translated]:Agent History",
+      "assistantSubtitle": "[to be translated]:{{count}} topics",
+      "empty": {
+        "description": "[to be translated]:No topics for the current filters.",
+        "sessionsDescription": "[to be translated]:No sessions for the current filters.",
+        "sessionsTitle": "[to be translated]:No sessions",
+        "title": "[to be translated]:No topics"
+      },
+      "loading": {
+        "description": "[to be translated]:Loading topic list.",
+        "sessionsDescription": "[to be translated]:Loading session list.",
+        "sessionsTitle": "[to be translated]:Loading sessions",
+        "title": "[to be translated]:Loading topics"
+      },
+      "resultCount": "[to be translated]:{{count}} results",
+      "searchSession": "[to be translated]:Search sessions...",
+      "searchTopic": "[to be translated]:Search topics...",
+      "shortTitle": "[to be translated]:History",
+      "sidebar": {
+        "searchAssistant": "[to be translated]:Search assistants...",
+        "status": "[to be translated]:Status",
+        "unknownAssistant": "[to be translated]:Unknown assistant"
+      },
+      "status": {
+        "completed": "[to be translated]:Completed",
+        "failed": "[to be translated]:Failed",
+        "running": "[to be translated]:Running"
+      },
+      "table": {
+        "emptyValue": "[to be translated]:—",
+        "messages": "[to be translated]:Messages",
+        "session": "[to be translated]:Session",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Title"
+      },
+      "title": "[to be translated]:Topic History"
     },
     "search": {
       "match": {
@@ -2903,6 +2996,7 @@
       "chunk_overlap_too_large": "Phần chồng chéo của khối không thể lớn hơn kích thước khối",
       "copy": "Sao chép thất bại",
       "dimension_too_large": "Kích thước nội dung quá lớn",
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
       "enter": {
         "api": {
           "host": "Vui lòng nhập máy chủ API của bạn trước",
@@ -2953,6 +3047,7 @@
         "no_api_key": "Notion ApiKey hoặc Notion DatabaseID chưa được cấu hình",
         "no_content": "No hay nada que exportar a Notion."
       },
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "siyuan": {
         "export": "Không xuất được sang Siyuan Note, vui lòng kiểm tra trạng thái kết nối và cấu hình theo tài liệu",
         "no_config": "Địa chỉ API hoặc mã thông báo của Siyuan Note chưa được cấu hình"
@@ -2960,8 +3055,6 @@
       "table": {
         "invalid": "Không thể truy xuất dữ liệu bảng hợp lệ"
       },
-      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
-      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "unknown": "Lỗi không xác định",
       "yuque": {
         "export": "Không thể xuất ra Yuque. Vui lòng kiểm tra trạng thái kết nối và cấu hình theo tài liệu.",
@@ -4623,6 +4716,20 @@
       },
       "sort_label": "Sắp xếp",
       "unpin": "Bỏ ghim"
+    },
+    "create_dialog": {
+      "agent_title": "[to be translated]:New Agent",
+      "assistant_title": "[to be translated]:New Assistant",
+      "avatar_aria": "[to be translated]:Choose avatar",
+      "create": "[to be translated]:Create",
+      "description_placeholder": "[to be translated]:Describe what it is for...",
+      "dialog_description": "[to be translated]:Create a lightweight resource from the selector.",
+      "model_placeholder": "[to be translated]:Select a model",
+      "model_required": "[to be translated]:Please select a model",
+      "name_placeholder": "[to be translated]:Enter a name",
+      "name_required": "[to be translated]:Please enter a name",
+      "refresh_failed": "[to be translated]:Created, but failed to refresh the list",
+      "submit_failed": "[to be translated]:Create failed"
     }
   },
   "settings": {

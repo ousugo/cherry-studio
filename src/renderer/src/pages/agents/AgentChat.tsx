@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
@@ -11,9 +12,9 @@ import type { MessageToolApprovalInput } from '@renderer/components/chat/message
 import SettingsPanel from '@renderer/components/chat/settings/SettingsPanel'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useSession'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -21,16 +22,16 @@ import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
+import type { TemporaryConversation, TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import ChatNavigation from '@renderer/pages/agents/components/ChatNavigation'
+import { isPerExecutionOnly } from '@renderer/transport/IpcChatTransport'
 import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { ModelSnapshot } from '@shared/data/types/message'
-import { motion } from 'motion/react'
 import type { PropsWithChildren, ReactNode } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
@@ -38,53 +39,111 @@ import AgentChatNavbar from './components/AgentChatNavbar'
 import AgentSessionInputbar from './components/AgentSessionInputbar'
 import AgentSessionMessages from './components/AgentSessionMessages'
 
+const logger = loggerService.withContext('AgentChat')
+
 interface AgentChatProps {
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
+  temporaryConversation?: TemporaryConversation | null
+  onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
+  onPersistTemporarySession?: (initialName?: string) => Promise<TemporaryConversation | null>
+  onTemporarySessionReady?: () => void | Promise<void>
+  onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
+  replacingTemporaryAgent?: boolean
 }
 
-const AgentChat = ({ pane, paneOpen, panePosition }: AgentChatProps) => {
+const AgentChat = ({
+  pane,
+  paneOpen,
+  panePosition,
+  temporaryConversation,
+  onStartTemporarySession,
+  onPersistTemporarySession,
+  onTemporarySessionReady,
+  onDraftAgentChange,
+  replacingTemporaryAgent
+}: AgentChatProps) => {
   const { t } = useTranslation()
   const { messageStyle } = useSettings()
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
 
-  const { session: activeSession, isLoading: isSessionLoading, setActiveSessionId } = useActiveSession()
-  const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(activeSession?.agentId ?? null)
-  const { isLoading: isAgentsLoading, agents } = useAgents()
-  const { trigger: createSession, isLoading: isCreatingSession } = useMutation('POST', '/sessions', {
-    refresh: ['/sessions']
-  })
-
-  const handleDraftAgentChange = useCallback(
-    async (agentId: string | null) => {
-      if (!agentId || isCreatingSession) return
-
-      const selectedAgent = agents?.find((agent) => agent.id === agentId)
-      if (!selectedAgent) return
-
-      if (!selectedAgent.model) {
-        window.toast.error(t('error.model.not_exists'))
-        return
-      }
-
-      try {
-        const created = await createSession({
-          body: {
-            agentId,
-            name: t('common.unnamed')
-          }
-        })
-        setActiveSessionId(created.id)
-      } catch (err) {
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
-      }
-    },
-    [agents, createSession, isCreatingSession, setActiveSessionId, t]
+  const { session: activeSession, isLoading: isSessionLoading } = useActiveSession()
+  const temporaryAgentConversation = temporaryConversation?.type === 'agent' ? temporaryConversation : null
+  const invalidateCache = useInvalidateCache()
+  const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(
+    activeSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
   )
 
-  const isInitializing = isAgentsLoading || isSessionLoading || (activeSession && isAgentLoading) || !agents
+  useEffect(() => {
+    if (!activeSession || !temporaryAgentConversation || activeSession.id !== temporaryAgentConversation.sessionId)
+      return
+    void onTemporarySessionReady?.()
+  }, [activeSession, onTemporarySessionReady, temporaryAgentConversation])
+
+  const refreshPersistedSession = useCallback(
+    async (sessionId: string) => {
+      await invalidateCache(['/sessions', `/sessions/${sessionId}`, `/sessions/${sessionId}/messages`])
+    },
+    [invalidateCache]
+  )
+
+  const watchTemporaryStream = useCallback(
+    (topicId: string, sessionId: string) => {
+      let doneUnsub: () => void = () => undefined
+      let errorUnsub: () => void = () => undefined
+      let cleaned = false
+      const cleanup = () => {
+        if (cleaned) return
+        cleaned = true
+        doneUnsub()
+        errorUnsub()
+      }
+      const refreshAndCleanup = () => {
+        cleanup()
+        void refreshPersistedSession(sessionId).catch((err) => {
+          logger.warn('Failed to refresh persisted temporary session', { sessionId, err })
+        })
+      }
+
+      doneUnsub = window.api.ai.onStreamDone((data) => {
+        if (data.topicId !== topicId || isPerExecutionOnly(data)) return
+        refreshAndCleanup()
+      })
+      errorUnsub = window.api.ai.onStreamError((data) => {
+        if (data.topicId !== topicId) return
+        refreshAndCleanup()
+      })
+
+      return cleanup
+    },
+    [refreshPersistedSession]
+  )
+
+  const sendTemporaryMessage = useCallback(
+    async (message?: { text: string }) => {
+      if (!temporaryAgentConversation || !onPersistTemporarySession) return
+      const persisted = await onPersistTemporarySession(message?.text)
+      if (persisted?.type !== 'agent') return
+
+      const cleanupStreamWatcher = watchTemporaryStream(persisted.topicId, persisted.sessionId)
+      try {
+        await window.api.ai.streamOpen({
+          trigger: 'submit-message',
+          topicId: persisted.topicId,
+          userMessageParts: message?.text ? [{ type: 'text', text: message.text }] : []
+        })
+      } catch (err) {
+        cleanupStreamWatcher()
+        await refreshPersistedSession(persisted.sessionId)
+        throw err
+      }
+    },
+    [onPersistTemporarySession, refreshPersistedSession, temporaryAgentConversation, watchTemporaryStream]
+  )
+
+  const isInitializing = isSessionLoading || ((activeSession || temporaryAgentConversation) && isAgentLoading)
 
   if (isInitializing) {
     return (
@@ -98,6 +157,28 @@ const AgentChat = ({ pane, paneOpen, panePosition }: AgentChatProps) => {
   }
 
   if (!activeSession) {
+    if (!temporaryAgentConversation) {
+      return <AgentChatFrame pane={pane} paneOpen={paneOpen} panePosition={panePosition} main={<div />} />
+    }
+
+    const bottomComposer = !isMultiSelectMode ? (
+      <AgentSessionInputbar
+        agentId={temporaryAgentConversation.agentId}
+        sessionId={temporaryAgentConversation.sessionId}
+        sessionOverride={temporaryAgentConversation.session}
+        sendMessage={sendTemporaryMessage}
+        stop={async () => undefined}
+        isStreaming={false}
+        onNewSessionDraft={() =>
+          onStartTemporarySession?.({
+            agentId: temporaryAgentConversation.agentId,
+            accessiblePaths: temporaryAgentConversation.accessiblePaths,
+            name: t('common.unnamed')
+          })
+        }
+      />
+    ) : undefined
+
     return (
       <AgentChatFrame
         pane={pane}
@@ -107,14 +188,16 @@ const AgentChat = ({ pane, paneOpen, panePosition }: AgentChatProps) => {
           <div className="flex h-fit w-full min-w-0">
             <AgentChatNavbar
               className="min-w-0"
-              activeAgent={null}
+              activeAgent={activeAgent ?? null}
               onOpenSettings={() => undefined}
-              onDraftAgentChange={handleDraftAgentChange}
-              creatingSession={isCreatingSession}
+              onDraftAgentChange={onDraftAgentChange}
+              creatingSession={replacingTemporaryAgent}
+              draftMode
             />
           </div>
         }
-        main={<AnimatedAgentSelectHint message={t('chat.alerts.select_agent')} />}
+        main={<div className="h-full w-full" />}
+        bottomComposer={bottomComposer}
       />
     )
   }
@@ -147,6 +230,13 @@ const AgentChat = ({ pane, paneOpen, panePosition }: AgentChatProps) => {
       messageNavigation={messageNavigation}
       messageStyle={messageStyle}
       isMultiSelectMode={isMultiSelectMode}
+      onNewSessionDraft={() =>
+        onStartTemporarySession?.({
+          agentId: activeSession.agentId,
+          accessiblePaths: activeSession.accessiblePaths,
+          name: t('common.unnamed')
+        })
+      }
     />
   )
 }
@@ -163,6 +253,7 @@ interface InnerProps {
   messageNavigation: string
   messageStyle: string
   isMultiSelectMode: boolean
+  onNewSessionDraft?: () => void | Promise<void>
 }
 
 const AgentChatInner = ({
@@ -174,7 +265,8 @@ const AgentChatInner = ({
   activeAgent,
   messageNavigation,
   messageStyle,
-  isMultiSelectMode
+  isMultiSelectMode,
+  onNewSessionDraft
 }: InnerProps) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
@@ -263,12 +355,22 @@ const AgentChatInner = ({
               sendMessage={chat.sendMessage}
               stop={chat.stop}
               isStreaming={isPending}
+              onNewSessionDraft={onNewSessionDraft}
             />
           }
         />
       </ComposerContextProvider>
     )
-  }, [agentId, chat.sendMessage, chat.stop, composerContext, isMultiSelectMode, isPending, sessionId])
+  }, [
+    agentId,
+    chat.sendMessage,
+    chat.stop,
+    composerContext,
+    isMultiSelectMode,
+    isPending,
+    onNewSessionDraft,
+    sessionId
+  ])
 
   return (
     <AgentChatFrame
@@ -398,32 +500,6 @@ const WarningAlert = ({ message }: { message: string }) => (
     className="mx-4 my-1 rounded-md border border-(--color-warning) bg-(--color-warning)/10 px-3 py-2 text-sm">
     {message}
   </div>
-)
-
-const AnimatedAgentSelectHint = ({ message }: { message: string }) => (
-  <motion.div
-    className="flex h-full w-full items-center justify-center text-base text-muted-foreground"
-    initial={{ opacity: 0, y: '50%' }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-    aria-label={message}>
-    <span className="inline-flex gap-1 overflow-hidden" aria-hidden="true">
-      {Array.from(message).map((char, index) => (
-        <motion.span
-          key={`${char}-${index}`}
-          className={cn('inline-block', char === ' ' && 'w-1.5')}
-          initial={{ opacity: 0, y: '100%' }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            delay: 0.08 + index * 0.045,
-            duration: 0.24,
-            ease: [0.22, 1, 0.36, 1]
-          }}>
-          {char === ' ' ? '\u00A0' : char}
-        </motion.span>
-      ))}
-    </span>
-  </motion.div>
 )
 
 export default AgentChat

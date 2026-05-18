@@ -28,11 +28,16 @@ const historyTopic: Topic = {
 const homeMocks = vi.hoisted(() => ({
   cacheGet: vi.fn(),
   cacheSet: vi.fn(),
+  discardTemporaryConversation: vi.fn(),
+  eventHandlers: new Map<string, (payload?: unknown) => void>(),
   historyTopic: undefined as Topic | undefined,
   locationState: undefined as { topic: Topic } | undefined,
+  persistTemporaryConversation: vi.fn(),
   preferenceValues: new Map<string, unknown>(),
   refreshTopics: vi.fn(),
-  setShowSidebar: vi.fn()
+  setShowSidebar: vi.fn(),
+  startTemporaryConversation: vi.fn(),
+  temporaryConversation: null as any
 }))
 
 vi.mock('@data/CacheService', () => ({
@@ -69,16 +74,12 @@ vi.mock('@renderer/hooks/useShortcuts', () => ({
   useShortcut: vi.fn()
 }))
 
-vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
-  useTemporaryTopic: () => ({
-    topicId: undefined,
-    persist: vi.fn().mockResolvedValue(undefined)
-  })
-}))
-
-vi.mock('@renderer/hooks/useTopic', () => ({
-  useTopicMutations: () => ({
-    refreshTopics: homeMocks.refreshTopics
+vi.mock('@renderer/hooks/useTemporaryConversation', () => ({
+  useTemporaryConversation: () => ({
+    conversation: homeMocks.temporaryConversation,
+    discard: homeMocks.discardTemporaryConversation,
+    persist: homeMocks.persistTemporaryConversation,
+    start: homeMocks.startTemporaryConversation
   })
 }))
 
@@ -86,6 +87,9 @@ vi.mock('@renderer/hooks/useTopic', async () => {
   const React = await import('react')
 
   return {
+    useTopicMutations: () => ({
+      refreshTopics: homeMocks.refreshTopics
+    }),
     useActiveTopic: (topic?: Topic) => {
       const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(topic)
       return { activeTopic, setActiveTopic }
@@ -109,11 +113,16 @@ vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
+    ADD_NEW_TOPIC: 'ADD_NEW_TOPIC',
     SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
     SHOW_TOPIC_SIDEBAR: 'SHOW_TOPIC_SIDEBAR'
   },
   EventEmitter: {
-    emit: vi.fn()
+    emit: vi.fn(),
+    on: vi.fn((eventName: string, handler: (payload?: unknown) => void) => {
+      homeMocks.eventHandlers.set(eventName, handler)
+      return () => homeMocks.eventHandlers.delete(eventName)
+    })
   }
 }))
 
@@ -154,13 +163,23 @@ vi.mock('../Tabs', () => ({
   )
 }))
 
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+
 import HomePage from '../HomePage'
 
 describe('HomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    homeMocks.eventHandlers.clear()
     homeMocks.historyTopic = historyTopic
     homeMocks.locationState = { topic: initialTopic }
+    homeMocks.persistTemporaryConversation.mockResolvedValue(null)
+    homeMocks.startTemporaryConversation.mockResolvedValue({
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    })
+    homeMocks.temporaryConversation = null
     homeMocks.preferenceValues.clear()
     homeMocks.preferenceValues.set('topic.tab.show', false)
     homeMocks.preferenceValues.set('topic.position', 'left')
@@ -195,5 +214,26 @@ describe('HomePage', () => {
       itemId: 'topic-history',
       requestId: 1
     })
+  })
+
+  it('does not lease another temporary topic while the active temporary topic is still empty', async () => {
+    homeMocks.cacheGet.mockReturnValue(true)
+    homeMocks.locationState = undefined
+    homeMocks.temporaryConversation = {
+      assistantId: 'assistant-1',
+      id: 'temp-topic',
+      topic: initialTopic,
+      topicId: 'temp-topic',
+      type: 'assistant'
+    }
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
+
+    homeMocks.eventHandlers.get(EVENT_NAMES.ADD_NEW_TOPIC)?.()
+
+    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
   })
 })

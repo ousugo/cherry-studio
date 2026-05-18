@@ -381,8 +381,19 @@
         },
         "title": "Удалить сеанс"
       },
+      "display": {
+        "agent": "[to be translated]:Agent",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode",
+        "workdir": "[to be translated]:Workspace"
+      },
       "edit": {
         "title": "Сессия редактирования"
+      },
+      "file_manager": {
+        "file_explorer": "[to be translated]:File Explorer",
+        "files": "[to be translated]:Files",
+        "finder": "[to be translated]:Finder"
       },
       "get": {
         "error": {
@@ -390,12 +401,28 @@
           "null_id": "ID сессии равен null"
         }
       },
+      "group": {
+        "collapse": "[to be translated]:Collapse sessions",
+        "earlier": "[to be translated]:Earlier",
+        "no_workdir": "[to be translated]:No workspace",
+        "show_more": "[to be translated]:Show more sessions",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
+        "yesterday": "[to be translated]:Yesterday"
+      },
       "label_one": "Сессия",
       "label_other": "Сессии",
+      "list": {
+        "title": "[to be translated]:Sessions"
+      },
       "reorder": {
         "error": {
           "failed": "Не удалось изменить порядок сеансов"
         }
+      },
+      "search": {
+        "placeholder": "[to be translated]:Search sessions"
       },
       "update": {
         "error": {
@@ -996,6 +1023,11 @@
       },
       "title": "Библиотека помощников"
     },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder assistants"
+      }
+    },
     "save": {
       "success": "Успешно сохранено",
       "title": "Сохранить в агента"
@@ -1167,6 +1199,9 @@
       "search": {
         "placeholder": "Поиск"
       }
+    },
+    "conversation": {
+      "new": "[to be translated]:New Chat"
     },
     "deeply_thought": "Мыслим ({{seconds}} секунд)",
     "default": {
@@ -1416,6 +1451,7 @@
             "save_failed": "Не удалось сохранить тему. Проверьте настройки базы знаний"
           },
           "loading": "Анализ содержимого темы...",
+          "menu_title": "[to be translated]:Save to Knowledge Base",
           "select": {
             "content": {
               "label": "Выберите тип содержимого для сохранения",
@@ -1502,6 +1538,12 @@
       "delete": {
         "shortcut": "Удерживайте {{key}} для мгновенного удаления"
       },
+      "display": {
+        "assistant": "[to be translated]:Assistant",
+        "tag": "[to be translated]:Tag",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode"
+      },
       "edit": {
         "placeholder": "Введите новый заголовок",
         "title": "Редактировать заголовок",
@@ -1556,6 +1598,15 @@
         "wait_for_title_naming": "Создание заголовка...",
         "word": "Экспорт как Word",
         "yuque": "Экспорт в Yuque"
+      },
+      "group": {
+        "collapse": "[to be translated]:Collapse display",
+        "earlier": "[to be translated]:Earlier",
+        "show_more": "[to be translated]:Expand display",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_assistant": "[to be translated]:Unknown Assistant",
+        "yesterday": "[to be translated]:Yesterday"
       },
       "list": "Список топиков",
       "manage": {
@@ -1705,8 +1756,10 @@
     "add": "Добавить",
     "add_success": "Успешно добавлено",
     "advanced_settings": "Дополнительные настройки",
+    "agent": "[to be translated]:Agent",
     "agent_one": "Агент",
     "agent_other": "Агенты",
+    "all": "[to be translated]:All",
     "and": "и",
     "assistant": "Ассистент",
     "assistant_one": "Помощник",
@@ -1834,6 +1887,7 @@
     "upload_image": "Загрузить файл изображения",
     "uploaded_image": "Загруженное изображение",
     "warning": "Предупреждение",
+    "yesterday": "[to be translated]:Yesterday",
     "you": "Вы"
   },
   "dialog": {
@@ -2042,6 +2096,45 @@
     },
     "locate": {
       "message": "Найти сообщение"
+    },
+    "records": {
+      "agentSubtitle": "[to be translated]:{{count}} sessions",
+      "agentTitle": "[to be translated]:Agent History",
+      "assistantSubtitle": "[to be translated]:{{count}} topics",
+      "empty": {
+        "description": "[to be translated]:No topics for the current filters.",
+        "sessionsDescription": "[to be translated]:No sessions for the current filters.",
+        "sessionsTitle": "[to be translated]:No sessions",
+        "title": "[to be translated]:No topics"
+      },
+      "loading": {
+        "description": "[to be translated]:Loading topic list.",
+        "sessionsDescription": "[to be translated]:Loading session list.",
+        "sessionsTitle": "[to be translated]:Loading sessions",
+        "title": "[to be translated]:Loading topics"
+      },
+      "resultCount": "[to be translated]:{{count}} results",
+      "searchSession": "[to be translated]:Search sessions...",
+      "searchTopic": "[to be translated]:Search topics...",
+      "shortTitle": "[to be translated]:History",
+      "sidebar": {
+        "searchAssistant": "[to be translated]:Search assistants...",
+        "status": "[to be translated]:Status",
+        "unknownAssistant": "[to be translated]:Unknown assistant"
+      },
+      "status": {
+        "completed": "[to be translated]:Completed",
+        "failed": "[to be translated]:Failed",
+        "running": "[to be translated]:Running"
+      },
+      "table": {
+        "emptyValue": "[to be translated]:—",
+        "messages": "[to be translated]:Messages",
+        "session": "[to be translated]:Session",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Title"
+      },
+      "title": "[to be translated]:Topic History"
     },
     "search": {
       "match": {
@@ -2903,6 +2996,7 @@
       "chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента",
       "copy": "Не удалось скопировать",
       "dimension_too_large": "Размер содержимого слишком велик",
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
       "enter": {
         "api": {
           "host": "Пожалуйста, введите ваш API хост",
@@ -2953,6 +3047,7 @@
         "no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
         "no_content": "Нет содержимого для экспорта в Notion"
       },
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "siyuan": {
         "export": "Ошибка экспорта в Siyuan, пожалуйста, проверьте состояние подключения и настройки в документации",
         "no_config": "Не настроен API адрес или токен Siyuan"
@@ -2960,8 +3055,6 @@
       "table": {
         "invalid": "Не удалось получить корректные данные таблицы"
       },
-      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
-      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "unknown": "Неизвестная ошибка",
       "yuque": {
         "export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
@@ -4623,6 +4716,20 @@
       },
       "sort_label": "Сортировать",
       "unpin": "Открепить"
+    },
+    "create_dialog": {
+      "agent_title": "[to be translated]:New Agent",
+      "assistant_title": "[to be translated]:New Assistant",
+      "avatar_aria": "[to be translated]:Choose avatar",
+      "create": "[to be translated]:Create",
+      "description_placeholder": "[to be translated]:Describe what it is for...",
+      "dialog_description": "[to be translated]:Create a lightweight resource from the selector.",
+      "model_placeholder": "[to be translated]:Select a model",
+      "model_required": "[to be translated]:Please select a model",
+      "name_placeholder": "[to be translated]:Enter a name",
+      "name_required": "[to be translated]:Please enter a name",
+      "refresh_failed": "[to be translated]:Created, but failed to refresh the list",
+      "submit_failed": "[to be translated]:Create failed"
     }
   },
   "settings": {

@@ -2,14 +2,17 @@ import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
+import { type TemporaryConversationDefaults, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -31,7 +34,16 @@ const AgentPage = () => {
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const sessionRevealRequestIdRef = useRef(0)
+  const [replacingTemporaryAgent, setReplacingTemporaryAgent] = useState(false)
   const { t } = useTranslation()
+  const invalidateCache = useInvalidateCache()
+  const temporaryConversation = useTemporaryConversation({ type: 'agent' })
+  const {
+    conversation: temporaryAgentConversation,
+    start: startTemporaryConversation,
+    persist: persistTemporaryConversation,
+    discard: discardTemporaryConversation
+  } = temporaryConversation
 
   // Seed `agent.active_session_id` to the most-recent session when nothing is set.
   useAgentSessionInitializer()
@@ -68,6 +80,7 @@ const AgentPage = () => {
   const handleHistorySessionSelect = useCallback(
     (sessionId: string | null) => {
       void setShowSidebar(true)
+      void discardTemporaryConversation()
       setActiveSessionId(sessionId)
 
       if (!sessionId) return
@@ -80,7 +93,63 @@ const AgentPage = () => {
         requestId: sessionRevealRequestIdRef.current
       })
     },
-    [setActiveSessionId, setShowSidebar]
+    [discardTemporaryConversation, setActiveSessionId, setShowSidebar]
+  )
+
+  const startTemporarySession = useCallback(
+    async (defaults: TemporaryConversationDefaults) => {
+      if (temporaryAgentConversation?.type === 'agent' && defaults.agentId === temporaryAgentConversation.agentId) {
+        setActiveSessionId(null)
+        return
+      }
+
+      await startTemporaryConversation({ ...defaults, name: defaults.name ?? t('common.unnamed') })
+      setActiveSessionId(null)
+    },
+    [setActiveSessionId, startTemporaryConversation, t, temporaryAgentConversation]
+  )
+
+  const persistTemporarySession = useCallback(
+    async (initialName?: string) => {
+      const persisted = await persistTemporaryConversation(initialName)
+      if (persisted?.type === 'agent') {
+        await invalidateCache(['/sessions', `/sessions/${persisted.sessionId}`])
+        setActiveSessionId(persisted.sessionId)
+        return persisted
+      }
+      return null
+    },
+    [invalidateCache, persistTemporaryConversation, setActiveSessionId]
+  )
+  const replaceTemporaryAgent = useCallback(
+    async (agentId: string | null) => {
+      if (!agentId || temporaryAgentConversation?.type !== 'agent') return
+      if (agentId === temporaryAgentConversation.agentId || replacingTemporaryAgent) return
+
+      const agent = agents?.find((candidate) => candidate.id === agentId)
+      if (!agent) {
+        window.toast.error(t('agent.session.create.error.failed'))
+        return
+      }
+      if (!agent.model) {
+        window.toast.error(t('error.model.not_exists'))
+        return
+      }
+
+      setReplacingTemporaryAgent(true)
+      try {
+        await startTemporarySession({
+          agentId,
+          accessiblePaths: temporaryAgentConversation.accessiblePaths,
+          name: temporaryAgentConversation.name
+        })
+      } catch (err) {
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+      } finally {
+        setReplacingTemporaryAgent(false)
+      }
+    },
+    [agents, replacingTemporaryAgent, startTemporarySession, t, temporaryAgentConversation]
   )
   const historyOverlay = (
     <HistoryRecordsPage
@@ -115,10 +184,22 @@ const AgentPage = () => {
         className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AgentChat
           pane={
-            <AgentSidePanel position={panePosition} onOpenHistory={openHistory} revealRequest={sessionRevealRequest} />
+            <AgentSidePanel
+              position={panePosition}
+              onOpenHistory={openHistory}
+              revealRequest={sessionRevealRequest}
+              onDiscardTemporarySession={discardTemporaryConversation}
+              onStartTemporarySession={startTemporarySession}
+            />
           }
           paneOpen={showSidebar}
           panePosition={panePosition}
+          temporaryConversation={temporaryAgentConversation}
+          onStartTemporarySession={startTemporarySession}
+          onPersistTemporarySession={persistTemporarySession}
+          onTemporarySessionReady={discardTemporaryConversation}
+          onDraftAgentChange={replaceTemporaryAgent}
+          replacingTemporaryAgent={replacingTemporaryAgent}
         />
       </div>
       {historyOverlay}

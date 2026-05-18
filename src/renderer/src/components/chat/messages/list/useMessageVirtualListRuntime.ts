@@ -39,10 +39,7 @@ export function useMessageVirtualListRuntime<T>({
 }: UseMessageVirtualListRuntimeOptions<T>) {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
 
-  const virtualizerGetItemKey = useCallback(
-    (index: number) => getItemKey(items[index] as T, index),
-    [items, getItemKey]
-  )
+  const virtualizerGetItemKey = useCallback((index: number) => getItemKey(items[index], index), [items, getItemKey])
   const virtualizerEstimateSize = useCallback(() => estimateSize, [estimateSize])
 
   const virtualizer = useVirtualizer({
@@ -104,7 +101,7 @@ export function useMessageVirtualListRuntime<T>({
     const el = scrollerRef.current
     if (!el) return
 
-    const newFirstKey = items.length > 0 ? getItemKey(items[0] as T, 0) : undefined
+    const newFirstKey = items.length > 0 ? getItemKey(items[0], 0) : undefined
     const prevFirstKey = prevFirstKeyRef.current
     const prevTotalSize = prevTotalSizeRef.current
     const prevCount = prevItemCountRef.current

@@ -1,12 +1,14 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
+import { useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { resolveNewTopicAssistantId } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
+import { type AddNewTopicPayload, EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -19,16 +21,18 @@ import Chat from './Chat'
 import Navbar from './Navbar'
 import HomeTabs from './Tabs'
 
+const logger = loggerService.withContext('HomePage')
+
 /**
  * Synthesise a renderer Topic shape from a freshly-leased temporary id.
  * First-launch temp topics have no associated assistant — `assistantId` is
  * `undefined`, not a sentinel.
  */
-function buildPendingTemporaryTopic(id: string): Topic {
+function buildPendingTemporaryTopic(id: string, assistantId?: string | null): Topic {
   const nowIso = new Date().toISOString()
   return {
     id,
-    assistantId: undefined,
+    assistantId: assistantId ?? undefined,
     name: '',
     createdAt: nowIso,
     updatedAt: nowIso,
@@ -56,23 +60,23 @@ const HomePage: FC = () => {
     return true
   })
 
-  // Lease a temporary topic only when this is the app's first HomePage mount
-  // and the caller didn't pre-select a topic via router state. The temp topic
-  // has no assistant attached — message capabilities / model fall back to the
-  // `chat.default_model_id` preference.
-  const { topicId: tempTopicId, persist: persistTemporaryTopic } = useTemporaryTopic({
-    enabled: shouldUseTemporary
-  })
+  const temporaryConversation = useTemporaryConversation({ type: 'assistant' })
+  const {
+    conversation: temporaryTopicConversation,
+    start: startTemporaryConversation,
+    persist: persistTemporaryConversation,
+    discard: discardTemporaryConversation
+  } = temporaryConversation
 
   const { refreshTopics } = useTopicMutations()
 
   const initialTopic = useMemo<Topic | undefined>(() => {
     if (state?.topic) return state.topic
-    if (shouldUseTemporary && tempTopicId) {
-      return buildPendingTemporaryTopic(tempTopicId)
+    if (temporaryTopicConversation?.type === 'assistant') {
+      return buildPendingTemporaryTopic(temporaryTopicConversation.topicId, temporaryTopicConversation.assistantId)
     }
     return undefined
-  }, [state?.topic, shouldUseTemporary, tempTopicId])
+  }, [state?.topic, temporaryTopicConversation])
 
   const { activeTopic, setActiveTopic } = useActiveTopic(initialTopic, {
     // While we're waiting for the temporary topic to lease, suppress the
@@ -83,10 +87,10 @@ const HomePage: FC = () => {
 
   const persistTemporaryTopicAndRefresh = useCallback(
     async (initialName?: string) => {
-      await persistTemporaryTopic(initialName)
+      await persistTemporaryConversation(initialName)
       await refreshTopics()
     },
-    [persistTemporaryTopic, refreshTopics]
+    [persistTemporaryConversation, refreshTopics]
   )
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicPosition] = usePreference('topic.position')
@@ -130,9 +134,57 @@ const HomePage: FC = () => {
   }, [navigate])
 
   useEffect(() => {
-    state?.topic && setActiveTopic(state?.topic)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state])
+    if (!state?.topic) return
+    setActiveTopic(state.topic)
+    void discardTemporaryConversation()
+  }, [discardTemporaryConversation, setActiveTopic, state?.topic])
+
+  const startTemporaryTopic = useCallback(
+    async (payload?: AddNewTopicPayload) => {
+      try {
+        if (
+          temporaryTopicConversation?.type === 'assistant' &&
+          activeTopic?.id === temporaryTopicConversation.topicId
+        ) {
+          void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+          return
+        }
+
+        const assistantId = resolveNewTopicAssistantId(activeTopic?.assistantId, payload)
+        const next = await startTemporaryConversation({ assistantId })
+        if (next.type !== 'assistant') return
+        setActiveTopic(buildPendingTemporaryTopic(next.topicId, next.assistantId))
+        void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      } catch (err) {
+        logger.error('Failed to start temporary topic', err as Error)
+      }
+    },
+    [activeTopic?.assistantId, activeTopic?.id, setActiveTopic, startTemporaryConversation, temporaryTopicConversation]
+  )
+
+  const firstTemporaryStartedRef = useRef(false)
+  useEffect(() => {
+    if (!shouldUseTemporary || firstTemporaryStartedRef.current || state?.topic) return
+    firstTemporaryStartedRef.current = true
+    void startTemporaryTopic()
+  }, [shouldUseTemporary, startTemporaryTopic, state?.topic])
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, (payload) => {
+      void startTemporaryTopic(payload as AddNewTopicPayload | undefined)
+    })
+    return () => unsubscribe()
+  }, [startTemporaryTopic])
+
+  const setActiveTopicAndDiscardTemporary = useCallback(
+    (topic: Topic) => {
+      if (temporaryTopicConversation?.id && topic.id !== temporaryTopicConversation.id) {
+        void discardTemporaryConversation()
+      }
+      setActiveTopic(topic)
+    },
+    [discardTemporaryConversation, setActiveTopic, temporaryTopicConversation?.id]
+  )
 
   useEffect(() => {
     void window.api.window.setMinimumSize(showSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
@@ -150,7 +202,7 @@ const HomePage: FC = () => {
   const handleHistoryTopicSelect = useCallback(
     (topic: Topic) => {
       void setShowSidebar(true)
-      setActiveTopic(topic)
+      setActiveTopicAndDiscardTemporary(topic)
       topicRevealRequestIdRef.current += 1
       setTopicRevealRequest({
         clearFilters: true,
@@ -159,7 +211,7 @@ const HomePage: FC = () => {
         requestId: topicRevealRequestIdRef.current
       })
     },
-    [setActiveTopic, setShowSidebar]
+    [setActiveTopicAndDiscardTemporary, setShowSidebar]
   )
   const historyOverlay = (
     <HistoryRecordsPage
@@ -184,11 +236,11 @@ const HomePage: FC = () => {
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         <Chat
           activeTopic={activeTopic}
-          setActiveTopic={setActiveTopic}
+          setActiveTopic={setActiveTopicAndDiscardTemporary}
           pane={
             <HomeTabs
               activeTopic={activeTopic}
-              setActiveTopic={setActiveTopic}
+              setActiveTopic={setActiveTopicAndDiscardTemporary}
               position={panePosition}
               onOpenHistory={openHistory}
               revealRequest={topicRevealRequest}
@@ -201,7 +253,9 @@ const HomePage: FC = () => {
           // before sending, the active id no longer matches the lease and
           // the next send won't accidentally persist an empty lease.
           onPersistTemporaryTopic={
-            tempTopicId && activeTopic.id === tempTopicId ? persistTemporaryTopicAndRefresh : undefined
+            temporaryTopicConversation?.type === 'assistant' && activeTopic.id === temporaryTopicConversation.topicId
+              ? persistTemporaryTopicAndRefresh
+              : undefined
           }
         />
       </ContentContainer>

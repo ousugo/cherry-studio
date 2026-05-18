@@ -390,6 +390,11 @@
       "edit": {
         "title": "編輯工作階段"
       },
+      "file_manager": {
+        "file_explorer": "[to be translated]:File Explorer",
+        "files": "[to be translated]:Files",
+        "finder": "[to be translated]:Finder"
+      },
       "get": {
         "error": {
           "failed": "無法取得工作階段",

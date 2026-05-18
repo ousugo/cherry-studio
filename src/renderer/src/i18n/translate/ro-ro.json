@@ -381,8 +381,19 @@
         },
         "title": "Șterge sesiunea"
       },
+      "display": {
+        "agent": "[to be translated]:Agent",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode",
+        "workdir": "[to be translated]:Workspace"
+      },
       "edit": {
         "title": "Editează sesiunea"
+      },
+      "file_manager": {
+        "file_explorer": "[to be translated]:File Explorer",
+        "files": "[to be translated]:Files",
+        "finder": "[to be translated]:Finder"
       },
       "get": {
         "error": {
@@ -390,12 +401,28 @@
           "null_id": "ID-ul sesiunii este nul"
         }
       },
+      "group": {
+        "collapse": "[to be translated]:Collapse sessions",
+        "earlier": "[to be translated]:Earlier",
+        "no_workdir": "[to be translated]:No workspace",
+        "show_more": "[to be translated]:Show more sessions",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
+        "yesterday": "[to be translated]:Yesterday"
+      },
       "label_one": "Sesiune",
       "label_other": "Sesiuni",
+      "list": {
+        "title": "[to be translated]:Sessions"
+      },
       "reorder": {
         "error": {
           "failed": "Nu s-a putut reordona sesiunile"
         }
+      },
+      "search": {
+        "placeholder": "[to be translated]:Search sessions"
       },
       "update": {
         "error": {
@@ -996,6 +1023,11 @@
       },
       "title": "Bibliotecă de asistenți"
     },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder assistants"
+      }
+    },
     "save": {
       "success": "Salvat cu succes",
       "title": "Salvează în biblioteca de asistenți"
@@ -1167,6 +1199,9 @@
       "search": {
         "placeholder": "Caută"
       }
+    },
+    "conversation": {
+      "new": "[to be translated]:New Chat"
     },
     "deeply_thought": "Gândit profund ({{seconds}} secunde)",
     "default": {
@@ -1416,6 +1451,7 @@
             "save_failed": "Nu s-a putut salva subiectul, te rugăm să verifici configurația bazei de cunoștințe"
           },
           "loading": "Se analizează conținutul subiectului...",
+          "menu_title": "[to be translated]:Save to Knowledge Base",
           "select": {
             "content": {
               "label": "Selectează tipurile de conținut pentru salvare",
@@ -1502,6 +1538,12 @@
       "delete": {
         "shortcut": "Ține apăsat {{key}} pentru a șterge direct"
       },
+      "display": {
+        "assistant": "[to be translated]:Assistant",
+        "tag": "[to be translated]:Tag",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode"
+      },
       "edit": {
         "placeholder": "Introdu noul nume",
         "title": "Editează numele",
@@ -1556,6 +1598,15 @@
         "wait_for_title_naming": "Se generează titlul...",
         "word": "Exportă ca Word",
         "yuque": "Exportă în Yuque"
+      },
+      "group": {
+        "collapse": "[to be translated]:Collapse display",
+        "earlier": "[to be translated]:Earlier",
+        "show_more": "[to be translated]:Expand display",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_assistant": "[to be translated]:Unknown Assistant",
+        "yesterday": "[to be translated]:Yesterday"
       },
       "list": "Listă subiecte",
       "manage": {
@@ -1705,8 +1756,10 @@
     "add": "Adaugă",
     "add_success": "Adăugat cu succes",
     "advanced_settings": "Setări avansate",
+    "agent": "[to be translated]:Agent",
     "agent_one": "Agent",
     "agent_other": "Agenți",
+    "all": "[to be translated]:All",
     "and": "și",
     "assistant": "Asistent",
     "assistant_one": "Asistent",
@@ -1834,6 +1887,7 @@
     "upload_image": "Încarcă fișier imagine",
     "uploaded_image": "Imagine încărcată",
     "warning": "Avertisment",
+    "yesterday": "[to be translated]:Yesterday",
     "you": "Tu"
   },
   "dialog": {
@@ -2042,6 +2096,45 @@
     },
     "locate": {
       "message": "Localizează mesajul"
+    },
+    "records": {
+      "agentSubtitle": "[to be translated]:{{count}} sessions",
+      "agentTitle": "[to be translated]:Agent History",
+      "assistantSubtitle": "[to be translated]:{{count}} topics",
+      "empty": {
+        "description": "[to be translated]:No topics for the current filters.",
+        "sessionsDescription": "[to be translated]:No sessions for the current filters.",
+        "sessionsTitle": "[to be translated]:No sessions",
+        "title": "[to be translated]:No topics"
+      },
+      "loading": {
+        "description": "[to be translated]:Loading topic list.",
+        "sessionsDescription": "[to be translated]:Loading session list.",
+        "sessionsTitle": "[to be translated]:Loading sessions",
+        "title": "[to be translated]:Loading topics"
+      },
+      "resultCount": "[to be translated]:{{count}} results",
+      "searchSession": "[to be translated]:Search sessions...",
+      "searchTopic": "[to be translated]:Search topics...",
+      "shortTitle": "[to be translated]:History",
+      "sidebar": {
+        "searchAssistant": "[to be translated]:Search assistants...",
+        "status": "[to be translated]:Status",
+        "unknownAssistant": "[to be translated]:Unknown assistant"
+      },
+      "status": {
+        "completed": "[to be translated]:Completed",
+        "failed": "[to be translated]:Failed",
+        "running": "[to be translated]:Running"
+      },
+      "table": {
+        "emptyValue": "[to be translated]:—",
+        "messages": "[to be translated]:Messages",
+        "session": "[to be translated]:Session",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Title"
+      },
+      "title": "[to be translated]:Topic History"
     },
     "search": {
       "match": {
@@ -2903,6 +2996,7 @@
       "chunk_overlap_too_large": "Suprapunerea fragmentelor nu poate fi mai mare decât dimensiunea fragmentului",
       "copy": "Copiere eșuată",
       "dimension_too_large": "Dimensiunea conținutului este prea mare",
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
       "enter": {
         "api": {
           "host": "Te rugăm să introduci mai întâi gazda (host) API",
@@ -2953,6 +3047,7 @@
         "no_api_key": "ApiKey-ul Notion sau DatabaseID-ul Notion nu sunt configurate",
         "no_content": "Nu există nimic de exportat în Notion."
       },
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "siyuan": {
         "export": "Nu s-a putut exporta în Siyuan Note, te rugăm să verifici starea conexiunii și configurarea conform documentației",
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
@@ -2960,8 +3055,6 @@
       "table": {
         "invalid": "Imposibil de recuperat date valide din tabel"
       },
-      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
-      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "unknown": "Eroare necunoscută",
       "yuque": {
         "export": "Nu s-a putut exporta în Yuque. Te rugăm să verifici starea conexiunii și configurarea conform documentației",
@@ -4623,6 +4716,20 @@
       },
       "sort_label": "Sortează",
       "unpin": "Anulați fixarea"
+    },
+    "create_dialog": {
+      "agent_title": "[to be translated]:New Agent",
+      "assistant_title": "[to be translated]:New Assistant",
+      "avatar_aria": "[to be translated]:Choose avatar",
+      "create": "[to be translated]:Create",
+      "description_placeholder": "[to be translated]:Describe what it is for...",
+      "dialog_description": "[to be translated]:Create a lightweight resource from the selector.",
+      "model_placeholder": "[to be translated]:Select a model",
+      "model_required": "[to be translated]:Please select a model",
+      "name_placeholder": "[to be translated]:Enter a name",
+      "name_required": "[to be translated]:Please enter a name",
+      "refresh_failed": "[to be translated]:Created, but failed to refresh the list",
+      "submit_failed": "[to be translated]:Create failed"
     }
   },
   "settings": {

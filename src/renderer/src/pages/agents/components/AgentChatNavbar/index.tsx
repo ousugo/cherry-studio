@@ -11,10 +11,18 @@ interface Props {
   onOpenSettings: () => void
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   creatingSession?: boolean
+  draftMode?: boolean
   className?: string
 }
 
-const AgentChatNavbar = ({ activeAgent, onOpenSettings, onDraftAgentChange, creatingSession, className }: Props) => {
+const AgentChatNavbar = ({
+  activeAgent,
+  onOpenSettings,
+  onDraftAgentChange,
+  creatingSession,
+  draftMode,
+  className
+}: Props) => {
   useShortcut('general.search', () => {
     void SearchPopup.show()
   })
@@ -27,6 +35,7 @@ const AgentChatNavbar = ({ activeAgent, onOpenSettings, onDraftAgentChange, crea
           onOpenSettings={onOpenSettings}
           onDraftAgentChange={onDraftAgentChange}
           creatingSession={creatingSession}
+          draftMode={draftMode}
         />
       </div>
     </NavbarHeader>

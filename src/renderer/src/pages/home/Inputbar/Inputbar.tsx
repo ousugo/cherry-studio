@@ -10,7 +10,6 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import {
@@ -69,11 +68,11 @@ type ProviderActionHandlers = {
   toggleExpanded: (nextState?: boolean) => void
 }
 
-interface InputbarInnerProps extends Props {
+interface InputbarInnerProps extends Omit<Props, 'setActiveTopic'> {
   actionsRef: React.RefObject<ProviderActionHandlers>
 }
 
-const Inputbar: FC<Props> = ({ setActiveTopic, topic, onSend: onSendProp }) => {
+const Inputbar: FC<Props> = ({ topic, onSend: onSendProp }) => {
   const actionsRef = useRef<ProviderActionHandlers>({
     resizeTextArea: () => {},
     addNewTopic: () => {},
@@ -108,12 +107,12 @@ const Inputbar: FC<Props> = ({ setActiveTopic, topic, onSend: onSendProp }) => {
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         toggleExpanded: (next) => actionsRef.current.toggleExpanded(next)
       }}>
-      <InputbarInner setActiveTopic={setActiveTopic} topic={topic} actionsRef={actionsRef} onSend={onSendProp} />
+      <InputbarInner topic={topic} actionsRef={actionsRef} onSend={onSendProp} />
     </InputbarToolsProvider>
   )
 }
 
-const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsRef, onSend: onSendProp }) => {
+const InputbarInner: FC<InputbarInnerProps> = ({ topic, actionsRef, onSend: onSendProp }) => {
   const awaitingApproval = useTopicAwaitingApproval(topic.id)
 
   const scope = topic.type ?? TopicType.Chat
@@ -141,7 +140,6 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   })
 
   const { assistant, model, updateAssistant } = useAssistant(topic.assistantId)
-  const { createTopic } = useTopicMutations()
   const { knowledgeBases: allKnowledgeBases } = useKnowledgeBases()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
@@ -270,15 +268,15 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   }, [loading, onPause])
 
   const addNewTopic = useCallback(
-    async (payload?: AddNewTopicPayload) => {
+    (payload?: AddNewTopicPayload) => {
       const assistantId = resolveNewTopicAssistantId(topic.assistantId, payload)
-      const persisted = await createTopic({ assistantId, name: t('chat.default.topic.name') })
-      if (!persisted) return
-      setActiveTopic(mapApiTopicToRendererTopic(persisted))
-
+      void EventEmitter.emit(
+        EVENT_NAMES.ADD_NEW_TOPIC,
+        payload && 'assistantId' in payload ? payload : { assistantId: assistantId ?? null }
+      )
       setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
     },
-    [createTopic, topic.assistantId, t, setActiveTopic, setTimeoutTimer]
+    [topic.assistantId, setTimeoutTimer]
   )
 
   const handleRemoveModel = useCallback(
@@ -320,7 +318,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   useShortcut(
     'topic.new',
     () => {
-      void addNewTopic()
+      addNewTopic()
       void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
       focusTextarea()
     },
@@ -331,13 +329,6 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     preventDefault: true,
     enableOnFormTags: true
   })
-
-  useEffect(() => {
-    const unsubscribes = [EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)]
-    return () => {
-      unsubscribes.forEach((unsubscribe) => unsubscribe())
-    }
-  }, [addNewTopic])
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {

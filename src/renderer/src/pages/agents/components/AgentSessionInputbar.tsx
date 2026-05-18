@@ -28,6 +28,7 @@ import type { FileMetadata } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { getBuiltinSlashCommands } from '@shared/data/types/agentSlashCommands'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
@@ -45,8 +46,10 @@ const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentI
 type Props = {
   agentId: string
   sessionId: string
+  sessionOverride?: AgentSessionEntity
   sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
   stop: () => Promise<void>
+  onNewSessionDraft?: () => void | Promise<void>
   /**
    * Whether the session has an active stream on Main (derived from
    * `useTopicStreamStatus(sessionTopicId)`). Replaces the old
@@ -60,12 +63,15 @@ type Props = {
 const AgentSessionInputbar = ({
   agentId,
   sessionId,
+  sessionOverride,
   sendMessage: chatSendMessage,
   stop: chatStop,
+  onNewSessionDraft,
   isStreaming: isStreamingProp
 }: Props) => {
   const { t } = useTranslation()
-  const { session } = useSession(sessionId)
+  const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
+  const session = sessionOverride ?? loadedSession
   const { agent } = useAgent(agentId)
   const { models } = useModels()
   // FIXME: 不应该使用ref将action传到context提供给tool，权宜之计
@@ -140,7 +146,9 @@ const AgentSessionInputbar = ({
         resizeTextArea: () => actionsRef.current.resizeTextArea(),
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         // Agent Session specific actions
-        addNewTopic: () => {},
+        addNewTopic: () => {
+          void onNewSessionDraft?.()
+        },
         clearTopic: () => {},
         onNewContext: () => {},
         toggleExpanded: () => actionsRef.current.toggleExpanded()
@@ -390,16 +398,15 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
         messageText = text ? `${text}\n\nAttached files:\n${filePaths}` : `Attached files:\n${filePaths}`
       }
 
-      void chatSendMessage({ text: messageText }, { body: { agentId, sessionId } })
-
-      // Emit event to trigger scroll to bottom in AgentSessionMessages
-      void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
-
-      // Clear text and files after successful send
       setText('')
       setFiles([])
       setTimeoutTimer('agentSession_sendMessage', () => setText(''), 500)
       focusTextarea()
+
+      await chatSendMessage({ text: messageText }, { body: { agentId, sessionId } })
+
+      // Emit event to trigger scroll to bottom in AgentSessionMessages
+      void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
     }

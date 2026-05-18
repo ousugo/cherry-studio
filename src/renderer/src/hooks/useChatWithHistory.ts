@@ -1,6 +1,6 @@
 import { Chat, useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
-import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
+import { ipcChatTransport, isPerExecutionOnly } from '@renderer/transport/IpcChatTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ChatRequestOptions } from 'ai'
@@ -101,6 +101,12 @@ export function useChatWithHistory(
   }, [resumeActiveStream, topicStreamStatus])
 
   useEffect(() => {
+    const doneUnsub = window.api.ai.onStreamDone((data) => {
+      if (data.topicId !== topicId || isPerExecutionOnly(data)) return
+      void refreshRef.current().catch((err) => {
+        logger.warn('Failed to refresh messages after stream done', { topicId, err })
+      })
+    })
     const errorUnsub = window.api.ai.onStreamError((data) => {
       if (data.topicId !== topicId) return
       void refreshRef.current().catch((err) => {
@@ -108,6 +114,7 @@ export function useChatWithHistory(
       })
     })
     return () => {
+      doneUnsub()
       errorUnsub()
     }
   }, [topicId])

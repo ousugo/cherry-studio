@@ -37,7 +37,7 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
 }
 
 export class SessionService {
-  async createSession(dto: CreateSessionDto): Promise<AgentSessionEntity> {
+  async createSession(dto: CreateSessionDto, options: { id?: string } = {}): Promise<AgentSessionEntity> {
     const db = application.get('DbService').getDb()
 
     // Verify the agent exists; FK alone gives generic 404 — explicit check returns
@@ -63,7 +63,7 @@ export class SessionService {
     }
     const accessiblePaths = resolveAccessiblePaths(workspaceInput)
 
-    const id = uuidv4()
+    const id = options.id ?? uuidv4()
     const row = await withSqliteErrors(
       () =>
         db.transaction((tx) =>

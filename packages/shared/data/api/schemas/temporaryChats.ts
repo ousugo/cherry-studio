@@ -15,6 +15,7 @@ import type { Message } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 
 import type { CreateMessageDto } from './messages'
+import type { AgentSessionEntity } from './sessions'
 import type { CreateTopicDto } from './topics'
 
 // ============================================================================
@@ -29,6 +30,13 @@ export interface PersistTemporaryChatResponse {
   topicId: string
   /** Number of messages written to the persistent DB */
   messageCount: number
+}
+
+export interface CreateTemporarySessionDto {
+  agentId: string
+  name?: string
+  description?: string
+  accessiblePaths?: string[]
 }
 
 // ============================================================================
@@ -114,6 +122,27 @@ export type TemporaryChatSchemas = {
     POST: {
       params: { id: string }
       response: PersistTemporaryChatResponse
+    }
+  }
+
+  '/temporary/sessions': {
+    POST: {
+      body: CreateTemporarySessionDto
+      response: AgentSessionEntity
+    }
+  }
+
+  '/temporary/sessions/:id': {
+    DELETE: {
+      params: { id: string }
+      response: void
+    }
+  }
+
+  '/temporary/sessions/:id/persist': {
+    POST: {
+      params: { id: string }
+      response: AgentSessionEntity
     }
   }
 }

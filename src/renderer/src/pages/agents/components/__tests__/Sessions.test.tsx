@@ -421,7 +421,7 @@ describe('Sessions', () => {
     render(<Sessions />)
 
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 50 })
-    expect(screen.getByText('Sessions')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toHaveClass('text-[12px]', 'font-medium', 'text-sidebar-foreground/70')
     expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
@@ -432,7 +432,7 @@ describe('Sessions', () => {
 
     render(<Sessions />)
 
-    expect(screen.getByText('Sessions')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to get sessions')
     expect(screen.getByRole('alert')).toHaveTextContent('Failed request')
@@ -492,7 +492,8 @@ describe('Sessions', () => {
     expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 
-  it('clears the active session from the header without creating inline', () => {
+  it('starts a temporary session from the header without creating inline', async () => {
+    const onStartTemporarySession = vi.fn()
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
         { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
@@ -502,24 +503,24 @@ describe('Sessions', () => {
       error: undefined
     })
 
-    render(<Sessions />)
+    render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 
-    const addButtons = screen.getAllByLabelText('Add session')
-    expect(addButtons).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.conversation.new' }))
 
-    fireEvent.click(addButtons[0])
     expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
-    expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null)
+    expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-a', name: 'Untitled' })
+    await vi.waitFor(() => expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null))
   })
 
   it('creates sessions from the time group action', async () => {
-    render(<Sessions />)
+    const onStartTemporarySession = vi.fn()
+    render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 
     const addButtons = screen.getAllByLabelText('Add session')
-    fireEvent.click(addButtons[1])
+    fireEvent.click(addButtons[0])
 
     await vi.waitFor(() =>
-      expect(sessionDataMocks.createSession).toHaveBeenCalledWith({ agentId: 'agent-a', name: 'Untitled' })
+      expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-a', name: 'Untitled' })
     )
   })
 
@@ -633,7 +634,8 @@ describe('Sessions', () => {
   it('clears pending delete confirmation timers on unmount', () => {
     vi.useFakeTimers()
     const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout')
-    const { unmount } = render(<Sessions />)
+    const onStartTemporarySession = vi.fn()
+    const { unmount } = render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 
     fireEvent.click(screen.getAllByLabelText('Delete')[0])
     unmount()
@@ -830,26 +832,28 @@ describe('Sessions', () => {
       error: undefined
     })
 
-    const { unmount } = render(<Sessions />)
+    const onStartTemporarySession = vi.fn()
+    const { unmount } = render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 
     const betaGroup = screen.getByRole('button', { name: 'Beta agent' }).closest('div')
     expect(betaGroup).not.toBeNull()
     fireEvent.click(betaGroup!.querySelector('[aria-label="Add session"]')!)
 
     await vi.waitFor(() =>
-      expect(sessionDataMocks.createSession).toHaveBeenCalledWith({ agentId: 'agent-b', name: 'Untitled' })
+      expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-b', name: 'Untitled' })
     )
 
     unmount()
+    onStartTemporarySession.mockClear()
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
-    render(<Sessions />)
+    render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 
     const workdirGroup = screen.getByRole('button', { name: 'project-a' }).closest('div')
     expect(workdirGroup).not.toBeNull()
     fireEvent.click(workdirGroup!.querySelector('[aria-label="Add session"]')!)
 
     await vi.waitFor(() =>
-      expect(sessionDataMocks.createSession).toHaveBeenCalledWith({
+      expect(onStartTemporarySession).toHaveBeenCalledWith({
         agentId: 'agent-a',
         name: 'Untitled',
         accessiblePaths: ['/Users/jd/project-a']

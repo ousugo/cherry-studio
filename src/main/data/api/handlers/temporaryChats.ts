@@ -12,6 +12,7 @@
  */
 
 import { temporaryChatService } from '@data/services/TemporaryChatService'
+import { temporarySessionService } from '@data/services/TemporarySessionService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { TemporaryChatSchemas } from '@shared/data/api/schemas/temporaryChats'
 
@@ -41,6 +42,25 @@ export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
   '/temporary/topics/:id/persist': {
     POST: async ({ params }) => {
       return await temporaryChatService.persist(params.id)
+    }
+  },
+
+  '/temporary/sessions': {
+    POST: async ({ body }) => {
+      return await temporarySessionService.createSession(body)
+    }
+  },
+
+  '/temporary/sessions/:id': {
+    DELETE: async ({ params }) => {
+      await temporarySessionService.deleteSession(params.id)
+      return undefined
+    }
+  },
+
+  '/temporary/sessions/:id/persist': {
+    POST: async ({ params }) => {
+      return await temporarySessionService.persist(params.id)
     }
   }
 }
