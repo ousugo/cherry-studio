@@ -2,13 +2,13 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbType } from '@data/db/types'
 import { createClient } from '@libsql/client'
-import { BlockType, type MessageData } from '@shared/data/types/message'
+import type { MessageData } from '@shared/data/types/message'
 import { eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 function mainText(content: string): MessageData {
-  return { blocks: [{ type: BlockType.MAIN_TEXT, content, createdAt: 0 }] }
+  return { parts: [{ type: 'text', text: content }] }
 }
 
 // Module-level holder so the DbService override (hoisted-evaluated) sees the

@@ -5,14 +5,14 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { DataApiError } from '@shared/data/api'
-import { BlockType, type MessageData } from '@shared/data/types/message'
+import type { MessageData } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 function mainText(content: string): MessageData {
-  return { blocks: [{ type: BlockType.MAIN_TEXT, content, createdAt: 0 }] }
+  return { parts: [{ type: 'text', text: content }] }
 }
 
 describe('MessageService', () => {
@@ -165,6 +165,10 @@ describe('MessageService', () => {
       const followNode = result.nodes.find((n) => n.id === 'm-follow')
       expect(rootNode?.parentId).toBeNull()
       expect(followNode?.parentId).toBe('m-a2')
+
+      // Regression: preview is derived from data.parts text (was always '' when it read data.blocks).
+      expect(rootNode?.preview).toBe('hi')
+      expect(followNode?.preview).toBe('follow up')
     })
   })
 
@@ -195,8 +199,8 @@ describe('MessageService', () => {
           dto: { role: 'user', parentId: null, data: mainText('hi'), status: 'success' }
         },
         placeholders: [
-          { id: suppliedId, role: 'assistant', data: { blocks: [] }, status: 'pending' },
-          { role: 'assistant', data: { blocks: [] }, status: 'pending' }
+          { id: suppliedId, role: 'assistant', data: { parts: [] }, status: 'pending' },
+          { role: 'assistant', data: { parts: [] }, status: 'pending' }
         ]
       })
 

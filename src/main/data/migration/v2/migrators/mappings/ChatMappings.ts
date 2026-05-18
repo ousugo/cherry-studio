@@ -12,7 +12,7 @@
  *
  * ### Messages:
  * - Source: Dexie `topics.messages[]` (embedded in topic) + `message_blocks` table
- * - Target: SQLite `messageTable` with inline blocks in `data.blocks`
+ * - Target: SQLite `messageTable` with AI SDK parts in `data.parts`
  *
  * ## Key Transformations:
  *
@@ -24,9 +24,9 @@
  *    - Old: Multiple messages share same `askId`, `foldSelected` marks active
  *    - New: Same `parentId` + non-zero `siblingsGroupId` groups siblings
  *
- * 3. **Block Storage**
+ * 3. **Block → Parts**
  *    - Old: `message.blocks: string[]` (IDs) + separate `message_blocks` table
- *    - New: `message.data.blocks: MessageDataBlock[]` (inline JSON)
+ *    - New: `message.data.parts` (AI SDK UIMessage parts, inline JSON)
  *
  * 4. **Citations → References**
  *    - Old: Separate `CitationMessageBlock` with response/knowledge/memories

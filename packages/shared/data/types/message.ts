@@ -93,23 +93,14 @@ export type MessageStats = z.infer<typeof MessageStatsSchema>
 export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
 
 /**
- * Message data field structure
- * This is the type for the `data` column in the message table.
+ * Message data field structure — the type for the `data` column in the
+ * message table. Messages are stored in AI SDK `UIMessage.parts` format.
  *
- * After v2 migration, messages are stored in `parts` format (AI SDK UIMessage.parts).
- * The `blocks` field is retained for type compatibility during migration but
- * should not be used for new messages.
+ * Accepts the generic `UIMessagePart[]` for writes — the DB stores whatever
+ * parts the AI SDK produces. Readers can narrow to `CherryMessagePart[]` when
+ * they need Cherry-specific data part type safety.
  */
 export interface MessageData {
-  /** @deprecated Use `parts` for new messages. Retained for v1→v2 migration compatibility. */
-  blocks?: MessageDataBlock[]
-  /**
-   * AI SDK UIMessage.parts format — the canonical storage format after v2 migration.
-   *
-   * Accepts `UIMessagePart[]` (the generic AI SDK type) for writes — the DB stores
-   * whatever parts the AI SDK produces. Readers can narrow to `CherryMessagePart[]`
-   * when they need Cherry-specific data part type safety.
-   */
   parts?: CherryMessagePart[]
 }
 
@@ -498,19 +489,14 @@ export type MessageDataBlock =
   | CompactBlock
 
 /**
- * Runtime schema for `MessageData`. Both `blocks` (deprecated v1) and
- * `parts` (v2 canonical) are optional on the TypeScript interface and
- * the DB column, so the runtime check mirrors that: accept any object,
- * reject only if either present field is the wrong shape. The previous
- * implementation required `Array.isArray(value.blocks)` which broke
- * v2-native writes like `{ data: { parts: [...] } }` from `MessageEditor`.
- * The discriminated-union block / part types stay runtime-opaque for
- * now; tighten with per-entry schemas in a follow-up.
+ * Runtime schema for `MessageData`. `parts` is optional on the TS interface
+ * and the DB column, so the runtime check mirrors that: accept any object,
+ * reject only if `parts` is present and the wrong shape. Part entry types
+ * stay runtime-opaque for now; tighten with per-entry schemas in a follow-up.
  */
 export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
-  if (v.blocks !== undefined && !Array.isArray(v.blocks)) return false
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
   return true
 })
