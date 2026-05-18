@@ -1,5 +1,7 @@
-import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
+import { FinderIcon } from '@renderer/components/Icons/SVGIcon'
+import { isMac, isWin } from '@renderer/config/constant'
 import { getEditorIcon } from '@renderer/utils/editorUtils'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
@@ -26,6 +28,17 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
   const availableEditors = ui?.externalCodeEditors ?? []
   const hasEditorActions = Boolean(openInExternalApp && availableEditors.length > 0)
   const hasMoreActions = Boolean(showInFolder) || hasEditorActions
+  const fileManagerName = useMemo(() => {
+    if (isMac) {
+      return t('agent.session.file_manager.finder')
+    }
+    if (isWin) {
+      return t('agent.session.file_manager.file_explorer')
+    }
+    return t('agent.session.file_manager.files')
+  }, [t])
+
+  const renderFileManagerIcon = () => (isMac ? <FinderIcon className="size-4" /> : <FolderOpen size={16} />)
 
   const openInEditor = useCallback(
     (app: ExternalAppInfo) => {
@@ -88,8 +101,8 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
             <MenuList>
               {showInFolder && (
                 <MenuItem
-                  label={t('chat.input.tools.reveal_in_finder')}
-                  icon={<FolderOpen size={16} />}
+                  label={fileManagerName}
+                  icon={renderFileManagerIcon()}
                   onClick={(e) => {
                     e.stopPropagation()
                     Promise.resolve(showInFolder(path)).catch(() => {
@@ -98,7 +111,6 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
                   }}
                 />
               )}
-              {showInFolder && hasEditorActions && <MenuDivider />}
               {openInExternalApp &&
                 availableEditors.map((app) => (
                   <MenuItem

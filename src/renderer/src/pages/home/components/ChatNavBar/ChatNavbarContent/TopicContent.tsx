@@ -50,7 +50,7 @@ const TopicContent = ({ assistantId, topicId, onOpenSettings }: TopicContentProp
 
   return (
     <>
-      <HorizontalScrollContainer className="ml-2 flex-initial">
+      <HorizontalScrollContainer className="flex-initial">
         <div className="flex flex-nowrap items-center gap-2">
           <AssistantSelector
             multi={false}

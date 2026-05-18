@@ -721,7 +721,7 @@ function HeaderItem({ actions, className, icon, label, ref, variant = 'ghost', .
         ref={ref}
         variant={variant}
         className={cn(
-          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1.5 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-[18px] [&_svg]:shrink-0',
+          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] shadow-none outline-none transition-all duration-150 hover:bg-accent focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-[18px] [&_svg]:shrink-0',
           className
         )}
         {...props}>
@@ -730,7 +730,7 @@ function HeaderItem({ actions, className, icon, label, ref, variant = 'ghost', .
             {icon}
           </span>
         )}
-        <span className="min-w-0 flex-1 truncate text-left font-medium text-sidebar-foreground/70 text-sm leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
+        <span className="min-w-0 flex-1 truncate text-left font-medium text-sidebar-foreground/70 text-[13px] leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
           {label}
         </span>
       </Button>
@@ -1060,7 +1060,7 @@ function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left font-medium text-sidebar-foreground/70 text-sm leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground',
+        'min-w-0 flex-1 truncate text-left font-normal text-sidebar-foreground/70 text-sm leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
         className
       )}
       {...props}

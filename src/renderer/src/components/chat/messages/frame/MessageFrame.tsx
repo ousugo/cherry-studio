@@ -30,6 +30,9 @@ import MessageHeader from './MessageHeader'
 import MessageMenuBar from './MessageMenuBar'
 import MessageOutline from './MessageOutline'
 
+const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
+  'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100'
+
 interface Props {
   message: MessageListItem
   topic: Topic
@@ -199,7 +202,7 @@ const MessageItem: FC<Props> = ({
       <div
         key={message.id}
         className={classNames({
-          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] px-6 pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
+          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] px-5 pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage
         })}
@@ -252,20 +255,22 @@ const MessageItem: FC<Props> = ({
               </Scrollbar>
             )}
             {showUserFooterActions && (
-              <div className="MessageFooter mt-1 ml-0 flex min-h-6.5 max-w-full items-center gap-2 text-foreground-muted text-xs leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100">
-                <MessageMenuBar
-                  message={message}
-                  topic={topic}
-                  isLastMessage={isLastMessage}
-                  isAssistantMessage={false}
-                  isGrouped={isGrouped}
-                  isProcessing={isProcessing}
-                  messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                  onStartEditing={handleStartEditing}
-                  onUpdateUseful={onUpdateUseful}
-                  variant="header"
-                />
-                <SiblingNavigator messageId={message.id} />
+              <div className="MessageFooter relative mt-1 ml-0 flex min-h-6.5 w-full max-w-full items-center text-foreground-muted text-xs leading-none">
+                <div className={USER_MESSAGE_FOOTER_ACTIONS_CLASS}>
+                  <MessageMenuBar
+                    message={message}
+                    topic={topic}
+                    isLastMessage={isLastMessage}
+                    isAssistantMessage={false}
+                    isGrouped={isGrouped}
+                    isProcessing={isProcessing}
+                    messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                    onStartEditing={handleStartEditing}
+                    onUpdateUseful={onUpdateUseful}
+                    variant="header"
+                  />
+                  <SiblingNavigator messageId={message.id} />
+                </div>
               </div>
             )}
             {showAssistantFooterActions && (
@@ -352,33 +357,35 @@ const UserBubbleMessage = ({
           <EmojiAvatar
             className={`shrink-0 rounded-full ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
             onClick={canOpenUserProfile ? openUserProfile : undefined}
-            size={26}
-            fontSize={15}>
+            size={35}
+            fontSize={20}>
             {avatar}
           </EmojiAvatar>
         ) : (
           <Avatar
-            className={`size-6.5 shrink-0 rounded-full ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
+            className={`size-[35px] shrink-0 rounded-full ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
             onClick={canOpenUserProfile ? openUserProfile : undefined}>
             <AvatarImage src={avatar} />
           </Avatar>
         )}
       </div>
-      <div className="MessageFooter mt-1 mr-8.5 flex min-h-6.5 max-w-full items-center justify-end gap-2 text-foreground-muted text-xs leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100">
-        <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
-        <MessageMenuBar
-          message={message}
-          topic={topic}
-          isLastMessage={isLastMessage}
-          isAssistantMessage={false}
-          isGrouped={isGrouped}
-          isProcessing={isProcessing}
-          messageContainerRef={messageContainerRef}
-          onStartEditing={onStartEditing}
-          onUpdateUseful={onUpdateUseful}
-          variant="header"
-        />
-        <SiblingNavigator messageId={message.id} />
+      <div className="MessageFooter relative mt-1 mr-8.5 flex min-h-6.5 w-[calc(100%-2.125rem)] max-w-full items-center justify-end text-foreground-muted text-xs leading-none">
+        <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>
+          <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
+          <MessageMenuBar
+            message={message}
+            topic={topic}
+            isLastMessage={isLastMessage}
+            isAssistantMessage={false}
+            isGrouped={isGrouped}
+            isProcessing={isProcessing}
+            messageContainerRef={messageContainerRef}
+            onStartEditing={onStartEditing}
+            onUpdateUseful={onUpdateUseful}
+            variant="header"
+          />
+          <SiblingNavigator messageId={message.id} />
+        </div>
       </div>
     </div>
   )

@@ -31,8 +31,8 @@ import { type ReactNode, type Ref } from 'react'
 
 import { type MessageVirtualListHandle, useMessageVirtualListRuntime } from './useMessageVirtualListRuntime'
 
-const DEFAULT_TOP_PADDING_PX = 10
-const DEFAULT_BOTTOM_PADDING_PX = 18
+const DEFAULT_TOP_PADDING_PX = 6
+const DEFAULT_BOTTOM_PADDING_PX = 12
 
 export type { MessageVirtualListHandle }
 

@@ -1095,6 +1095,8 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'Pin Alpha' }).className).not.toContain(
       'group-data-[selected=true]:opacity-100'
     )
+    expect(screen.getByText('Alpha')).toHaveClass('font-normal', 'group-data-[selected=true]:font-medium')
+    expect(screen.getByText('Beta')).toHaveClass('font-normal')
     expect(screen.getByRole('button', { name: 'Delete Alpha' })).toHaveClass('opacity-0', 'group-hover:opacity-100')
     expect(screen.getByRole('button', { name: 'Delete Alpha' }).className).not.toContain(
       'group-data-[selected=true]:opacity-100'

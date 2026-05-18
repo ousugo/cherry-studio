@@ -21,11 +21,17 @@ vi.mock('react-i18next', () => ({
       const map: Record<string, string> = {
         'chat.input.tools.open_file': 'Open File',
         'chat.input.tools.reveal_in_finder': 'Reveal in Finder',
+        'agent.session.file_manager.finder': 'Finder',
         'common.more': 'More'
       }
       return map[key] ?? key
     }
   })
+}))
+
+vi.mock('@renderer/config/constant', () => ({
+  isMac: true,
+  isWin: false
 }))
 
 vi.mock('@renderer/utils/editorUtils', () => ({
@@ -93,6 +99,20 @@ describe('ClickableFilePath', () => {
   it('should render ellipsis dropdown trigger for external editor capability', () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openInExternalApp: mockOpenInExternalApp })
     expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument()
+  })
+
+  it('should align the file manager menu item with the agent navbar style without separators', () => {
+    const { container } = renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, {
+      showInFolder: mockShowInFolder,
+      openInExternalApp: mockOpenInExternalApp
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+
+    expect(screen.getByText('Finder')).toBeInTheDocument()
+    expect(screen.queryByText('Reveal in Finder')).not.toBeInTheDocument()
+    expect(screen.getByText('Visual Studio Code')).toBeInTheDocument()
+    expect(container.querySelector('[role="separator"], hr')).toBeNull()
   })
 
   it('should have role="link" and tabIndex for keyboard accessibility', () => {

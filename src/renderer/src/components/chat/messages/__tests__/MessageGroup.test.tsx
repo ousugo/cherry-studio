@@ -336,6 +336,34 @@ describe('MessageGroup', () => {
     expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('visible')
   })
 
+  it('keeps user message footer actions hidden by default without a divider', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+
+    const message = {
+      ...createMessage('user-1', 0, 'vertical'),
+      role: 'user'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup messages={[message]} topic={topic} />)
+
+    const footer = container.querySelector('#message-user-1 .MessageFooter')
+    const actions = footer?.querySelector('.message-menubar')?.parentElement
+
+    expect(footer).toHaveClass('w-full')
+    expect(footer).not.toHaveClass('opacity-0')
+    expect(footer?.querySelector('[aria-hidden="true"]')).toBeNull()
+    expect(actions).toHaveClass('opacity-0', 'group-hover/message:opacity-100')
+  })
+
   it('shows multi-model group controls even when the provider has no write actions', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'fold',

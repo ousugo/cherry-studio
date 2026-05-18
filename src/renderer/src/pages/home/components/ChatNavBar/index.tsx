@@ -37,7 +37,7 @@ const HeaderNavbar: FC<Props> = ({ assistantId, topicId, onOpenSettings }) => {
         )}
         {!showSidebar && (
           <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
-            <NavbarIcon onClick={toggleShowSidebar} style={{ marginRight: 8 }}>
+            <NavbarIcon onClick={toggleShowSidebar}>
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
