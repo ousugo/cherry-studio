@@ -10,6 +10,10 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
   const query = inputParse.success ? inputParse.data.query : ''
   const resultCount = outputParse.success ? outputParse.data.length : 0
+  const resultText =
+    resultCount === 0
+      ? t('message.websearch.fetch_empty')
+      : t('message.websearch.fetch_complete', { count: resultCount })
 
   return toolResponse.status !== 'done' ? (
     <Spinner
@@ -21,9 +25,9 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
       }
     />
   ) : (
-    <span className="flex items-center gap-1 p-1.25 text-foreground-secondary">
+    <span className="flex items-center gap-1 py-1.25 text-foreground-secondary">
       <Search size={16} style={{ color: 'unset' }} />
-      {t('message.websearch.fetch_complete', { count: resultCount })}
+      {resultText}
     </span>
   )
 }

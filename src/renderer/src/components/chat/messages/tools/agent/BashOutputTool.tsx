@@ -62,7 +62,7 @@ export function BashOutputTool({
 
     if (parsed.tool_use_error) {
       return {
-        color: 'danger',
+        color: 'neutral',
         icon: <XCircle className="h-3.5 w-3.5" />,
         text: t('message.tools.status.error')
       } as const
@@ -81,7 +81,7 @@ export function BashOutputTool({
 
     if (isCompleted) {
       return {
-        color: 'danger',
+        color: 'neutral',
         icon: <XCircle className="h-3.5 w-3.5" />,
         text: t('message.tools.status.failed')
       } as const
@@ -107,7 +107,7 @@ export function BashOutputTool({
       {/* Status Info */}
       <div className="flex flex-wrap items-center gap-2">
         {parsedOutput.exit_code !== undefined && (
-          <Badge variant={parsedOutput.exit_code === 0 ? 'secondary' : 'destructive'}>
+          <Badge variant={parsedOutput.exit_code === 0 ? 'secondary' : 'outline'}>
             {t('message.tools.sections.exitCode')}: {parsedOutput.exit_code}
           </Badge>
         )}
@@ -129,8 +129,10 @@ export function BashOutputTool({
 
       {/* Standard Error */}
       {truncatedStderr.data && (
-        <div className="border border-danger-200">
-          <div className="mb-2 font-medium text-danger-600 text-xs">{t('message.tools.sections.stderr')}:</div>
+        <div className="border border-border-muted">
+          <div className="mb-2 font-medium text-foreground-secondary text-xs">
+            {t('message.tools.sections.stderr')}:
+          </div>
           <TerminalOutput content={truncatedStderr.data} />
           {truncatedStderr.isTruncated && <TruncatedIndicator originalLength={truncatedStderr.originalLength} />}
         </div>
@@ -138,10 +140,10 @@ export function BashOutputTool({
 
       {/* Tool Use Error */}
       {truncatedError.data && (
-        <div className="border border-danger-200">
+        <div className="border border-border-muted">
           <div className="mb-2 flex items-center gap-2">
-            <XCircle className="h-4 w-4 text-danger" />
-            <span className="font-medium text-danger-600 text-xs">{t('message.tools.status.error')}:</span>
+            <XCircle className="h-4 w-4 text-foreground-secondary" />
+            <span className="font-medium text-foreground-secondary text-xs">{t('message.tools.status.error')}:</span>
           </div>
           <TerminalOutput content={truncatedError.data} />
           {truncatedError.isTruncated && <TruncatedIndicator originalLength={truncatedError.originalLength} />}
@@ -169,7 +171,7 @@ export function BashOutputTool({
             </Badge>
             {statusConfig && (
               <Badge
-                variant={statusConfig.color === 'danger' ? 'destructive' : 'secondary'}
+                variant={statusConfig.color === 'neutral' ? 'outline' : 'secondary'}
                 className="flex flex-row items-center gap-0.5">
                 {statusConfig.icon}
                 {statusConfig.text}

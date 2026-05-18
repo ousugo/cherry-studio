@@ -3285,6 +3285,7 @@
     "websearch": {
       "cutoff": "Truncando o conteúdo da pesquisa...",
       "fetch_complete": "{{count}} resultados da pesquisa",
+      "fetch_empty": "Nenhum resultado de pesquisa encontrado",
       "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },

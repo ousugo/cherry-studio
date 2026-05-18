@@ -108,6 +108,7 @@ describe('AgentToolRenderer', () => {
     'message.tools.labels.notebookEdit': 'NotebookEdit',
     'message.tools.labels.mcpServerTool': 'MCP Server Tool',
     'message.tools.labels.tool': 'Tool',
+    'message.tools.error': 'Error',
     'message.tools.sections.command': 'Command',
     'message.tools.sections.output': 'Output',
     'message.tools.sections.prompt': 'Prompt',
@@ -280,6 +281,7 @@ describe('AgentToolRenderer', () => {
 
       // Should still render the tool component
       expect(screen.getByText('Read File')).toBeInTheDocument()
+      expect(screen.getByText('Error')).toHaveStyle('color: var(--color-foreground-secondary)')
     })
   })
 
@@ -362,7 +364,10 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       // Should render the DEDICATED BashTool component
-      expect(screen.getByText('Bash')).toBeInTheDocument()
+      const bashLabel = screen.getByText('Bash')
+      expect(bashLabel.parentElement?.parentElement).toHaveClass('text-[13px]')
+      expect(bashLabel.parentElement?.parentElement).not.toHaveClass('text-sm')
+      expect(bashLabel.parentElement).toHaveClass('font-normal text-foreground-secondary')
       // Command should be visible in the dedicated renderer (ANSI colorizer splits tokens across spans)
       const container = screen.getByTestId('collapse-content-Bash')
       expect(container.textContent).toContain('npm install')

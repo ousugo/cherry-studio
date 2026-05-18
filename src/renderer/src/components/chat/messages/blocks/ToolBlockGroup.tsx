@@ -156,7 +156,7 @@ interface ToolListContentProps {
 }
 
 const ToolListContent = React.memo(({ items, scrollRef }: ToolListContentProps) => (
-  <div ref={scrollRef} className="flex w-full flex-col gap-2.5">
+  <div ref={scrollRef} className="flex w-full flex-col gap-2">
     {items.map((item) => {
       return (
         <div key={item.id} data-block-id={item.id} className="w-full">
@@ -205,7 +205,7 @@ const ToolBlockGroup: React.FC<Props> = ({ items }) => {
         type="button"
         aria-expanded={isExpanded}
         aria-controls={contentId}
-        className="flex w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        className="flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
         onClick={() => setIsExpanded((expanded) => !expanded)}>
         <GroupHeaderContent items={items} allCompleted={allCompleted} />
         <ChevronDown
@@ -214,7 +214,7 @@ const ToolBlockGroup: React.FC<Props> = ({ items }) => {
         />
       </button>
       {isExpanded && (
-        <div id={contentId} className="mt-3.5">
+        <div id={contentId} className="mt-1.5">
           <ToolListContent items={items} scrollRef={scrollRef} />
         </div>
       )}
