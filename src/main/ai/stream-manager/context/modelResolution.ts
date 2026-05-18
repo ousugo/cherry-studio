@@ -63,7 +63,7 @@ export async function resolveAssistantModelId(
  * - Multi-model: always a fresh group id so parallel responses are rendered as siblings.
  * - Regenerate: inherit existing sibling group if present, otherwise allocate a new one.
  *   The actual backfill of existing children with `siblingsGroupId = 0` is handled
- *   atomically inside `messageService.reserveAssistantTurn`.
+ *   atomically inside `messageService.createUserMessageWithPlaceholders`.
  * - Single-model fresh turn: undefined (no sibling grouping needed).
  *
  * Persistent-topic only helper; temporary topics have no branching / siblings concept.

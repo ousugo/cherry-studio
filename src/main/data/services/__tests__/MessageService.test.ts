@@ -187,12 +187,12 @@ describe('MessageService', () => {
     })
   })
 
-  describe('reserveAssistantTurn — placeholder id override', () => {
+  describe('createUserMessageWithPlaceholders — placeholder id override', () => {
     it('uses the caller-supplied id when provided, generates otherwise', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-res', activeNodeId: null, orderKey: 'a0' })
 
       const suppliedId = '11111111-1111-4111-8111-111111111111'
-      const { userMessage, placeholders } = await messageService.reserveAssistantTurn({
+      const { userMessage, placeholders } = await messageService.createUserMessageWithPlaceholders({
         topicId: 'topic-res',
         userMessage: {
           mode: 'create',
@@ -213,6 +213,223 @@ describe('MessageService', () => {
       // activeNodeId points at the last placeholder regardless of id source.
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-res')).limit(1)
       expect(topic.activeNodeId).toBe(placeholders[1].id)
+    })
+  })
+
+  describe('createUserMessageWithPlaceholders', () => {
+    async function seedTopic(id = 'topic-1') {
+      await dbh.db.insert(topicTable).values({ id, orderKey: 'a0' })
+    }
+
+    describe('fresh single-model turn', () => {
+      it('creates user + 1 placeholder and points activeNodeId at the placeholder', async () => {
+        await seedTopic()
+
+        const { userMessage, placeholders } = await messageService.createUserMessageWithPlaceholders({
+          topicId: 'topic-1',
+          userMessage: {
+            mode: 'create',
+            dto: { role: 'user', parentId: null, data: mainText('hi'), status: 'success' }
+          },
+          placeholders: [{ role: 'assistant', data: mainText(''), status: 'pending' }]
+        })
+
+        expect(userMessage.parentId).toBeNull()
+        expect(userMessage.role).toBe('user')
+        expect(placeholders).toHaveLength(1)
+        expect(placeholders[0].parentId).toBe(userMessage.id)
+        expect(placeholders[0].siblingsGroupId).toBe(0)
+
+        const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
+        expect(topic.activeNodeId).toBe(placeholders[0].id)
+      })
+    })
+
+    describe('fresh multi-model turn', () => {
+      it('creates user + N placeholders sharing siblingsGroupId, activeNodeId = last placeholder', async () => {
+        await seedTopic()
+
+        const { userMessage, placeholders } = await messageService.createUserMessageWithPlaceholders({
+          topicId: 'topic-1',
+          userMessage: {
+            mode: 'create',
+            dto: { role: 'user', parentId: null, data: mainText('hi'), status: 'success' }
+          },
+          siblingsGroupId: 42,
+          placeholders: [
+            { role: 'assistant', data: mainText(''), status: 'pending' },
+            { role: 'assistant', data: mainText(''), status: 'pending' },
+            { role: 'assistant', data: mainText(''), status: 'pending' }
+          ]
+        })
+
+        expect(placeholders).toHaveLength(3)
+        for (const p of placeholders) {
+          expect(p.parentId).toBe(userMessage.id)
+          expect(p.siblingsGroupId).toBe(42)
+        }
+
+        const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
+        expect(topic.activeNodeId).toBe(placeholders.at(-1)!.id)
+      })
+    })
+
+    describe('regenerate — inherit existing group', () => {
+      it('adds a new placeholder under existing user message, sharing the inherited group', async () => {
+        await seedTopic()
+        await dbh.db.insert(messageTable).values([
+          {
+            id: 'u1',
+            topicId: 'topic-1',
+            parentId: null,
+            role: 'user',
+            data: mainText('q'),
+            status: 'success',
+            siblingsGroupId: 0
+          },
+          {
+            id: 'a1',
+            topicId: 'topic-1',
+            parentId: 'u1',
+            role: 'assistant',
+            data: mainText('v1'),
+            status: 'success',
+            siblingsGroupId: 7
+          }
+        ])
+
+        const { userMessage, placeholders } = await messageService.createUserMessageWithPlaceholders({
+          topicId: 'topic-1',
+          userMessage: { mode: 'existing', id: 'u1' },
+          siblingsGroupId: 7,
+          placeholders: [{ role: 'assistant', data: mainText(''), status: 'pending' }]
+        })
+
+        expect(userMessage.id).toBe('u1')
+        expect(placeholders[0].siblingsGroupId).toBe(7)
+
+        const [a1Row] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'a1'))
+        expect(a1Row.siblingsGroupId).toBe(7)
+      })
+    })
+
+    describe('regenerate — allocate new group and backfill groupId=0 children', () => {
+      it('backfills existing sibling with groupId=0 and inserts placeholder with the new group', async () => {
+        await seedTopic()
+        await dbh.db.insert(messageTable).values([
+          {
+            id: 'u1',
+            topicId: 'topic-1',
+            parentId: null,
+            role: 'user',
+            data: mainText('q'),
+            status: 'success',
+            siblingsGroupId: 0
+          },
+          {
+            id: 'a-old',
+            topicId: 'topic-1',
+            parentId: 'u1',
+            role: 'assistant',
+            data: mainText('old'),
+            status: 'success',
+            siblingsGroupId: 0
+          }
+        ])
+
+        const { placeholders } = await messageService.createUserMessageWithPlaceholders({
+          topicId: 'topic-1',
+          userMessage: { mode: 'existing', id: 'u1' },
+          siblingsGroupId: 1234,
+          placeholders: [{ role: 'assistant', data: mainText(''), status: 'pending' }]
+        })
+
+        expect(placeholders[0].siblingsGroupId).toBe(1234)
+
+        const [oldRow] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'a-old'))
+        expect(oldRow.siblingsGroupId).toBe(1234)
+      })
+
+      it('leaves siblings in other groups alone (only backfills groupId=0)', async () => {
+        await seedTopic()
+        await dbh.db.insert(messageTable).values([
+          {
+            id: 'u1',
+            topicId: 'topic-1',
+            parentId: null,
+            role: 'user',
+            data: mainText('q'),
+            status: 'success',
+            siblingsGroupId: 0
+          },
+          {
+            id: 'a-other',
+            topicId: 'topic-1',
+            parentId: 'u1',
+            role: 'assistant',
+            data: mainText('x'),
+            status: 'success',
+            siblingsGroupId: 99
+          }
+        ])
+
+        await messageService.createUserMessageWithPlaceholders({
+          topicId: 'topic-1',
+          userMessage: { mode: 'existing', id: 'u1' },
+          siblingsGroupId: 1234,
+          placeholders: [{ role: 'assistant', data: mainText(''), status: 'pending' }]
+        })
+
+        const [otherRow] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'a-other'))
+        expect(otherRow.siblingsGroupId).toBe(99)
+      })
+    })
+
+    describe('input validation', () => {
+      it('throws when user message id does not exist (existing mode)', async () => {
+        await seedTopic()
+
+        await expect(
+          messageService.createUserMessageWithPlaceholders({
+            topicId: 'topic-1',
+            userMessage: { mode: 'existing', id: 'does-not-exist' },
+            placeholders: [{ role: 'assistant', data: mainText(''), status: 'pending' }]
+          })
+        ).rejects.toThrow()
+
+        const allRows = await dbh.db.select().from(messageTable)
+        expect(allRows).toHaveLength(0)
+      })
+
+      it('throws when parent does not belong to the same topic', async () => {
+        await dbh.db.insert(topicTable).values([
+          { id: 'topic-1', orderKey: 'a0' },
+          { id: 'topic-2', orderKey: 'a1' }
+        ])
+        await dbh.db.insert(messageTable).values({
+          id: 'u-in-t2',
+          topicId: 'topic-2',
+          parentId: null,
+          role: 'user',
+          data: mainText('other'),
+          status: 'success',
+          siblingsGroupId: 0
+        })
+
+        await expect(
+          messageService.createUserMessageWithPlaceholders({
+            topicId: 'topic-1',
+            userMessage: {
+              mode: 'create',
+              dto: { role: 'user', parentId: 'u-in-t2', data: mainText('hi'), status: 'success' }
+            },
+            placeholders: [{ role: 'assistant', data: mainText(''), status: 'pending' }]
+          })
+        ).rejects.toThrow()
+
+        const t1Rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+        expect(t1Rows).toHaveLength(0)
+      })
     })
   })
 
