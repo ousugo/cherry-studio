@@ -1,4 +1,5 @@
 import { Button, Checkbox, Input } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import type { MessageToolApprovalInput, MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
 import { cn } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -15,6 +16,8 @@ import {
 } from '../../messages/tools/agent/types'
 import { APPROVAL_REQUESTED } from '../../messages/tools/toolResponse'
 import type { ComposerOverride } from '../ComposerContext'
+
+const logger = loggerService.withContext('AskUserQuestionComposer')
 
 export type AskUserQuestionComposerRequest = {
   messageId: string
@@ -160,12 +163,17 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
       setIsSubmitting(true)
       try {
         await onRespond(input)
-      } catch {
+      } catch (error) {
+        logger.error('Failed to send ask-user-question response', error as Error, {
+          approvalId: request.approvalId,
+          messageId: request.messageId,
+          toolCallId: request.toolCallId
+        })
         window.toast.error(t('agent.toolPermission.error.sendFailed'))
         setIsSubmitting(false)
       }
     },
-    [onRespond, t]
+    [onRespond, request.approvalId, request.messageId, request.toolCallId, t]
   )
 
   const submitAnswers = useCallback(

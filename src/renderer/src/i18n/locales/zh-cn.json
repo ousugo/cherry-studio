@@ -1846,6 +1846,7 @@
     "reset": "重置",
     "retry": "重试",
     "save": "保存",
+    "save_failed": "保存失败",
     "saved": "已保存",
     "search": "搜索",
     "select": "选择",
@@ -2984,6 +2985,7 @@
       "chunk_overlap_too_large": "分段重叠不能大于分段大小",
       "copy": "复制失败",
       "dimension_too_large": "内容尺寸过大",
+      "dismiss_failed": "关闭错误消息失败",
       "enter": {
         "api": {
           "host": "请输入您的 API 地址",
@@ -3034,6 +3036,7 @@
         "no_api_key": "未配置 Notion API Key 或 Notion Database ID",
         "no_content": "无可导出到 Notion 的内容"
       },
+      "operation_unavailable": "当前消息操作不可用，请重试。",
       "siyuan": {
         "export": "导出思源笔记失败，请检查连接状态并对照文档检查配置",
         "no_config": "未配置思源笔记 API 地址或令牌"

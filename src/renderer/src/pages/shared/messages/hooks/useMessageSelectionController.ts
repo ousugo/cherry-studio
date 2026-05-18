@@ -9,6 +9,7 @@ import {
   createSelectedMessageExportViews,
   getSelectedMessagesPlainText
 } from '@renderer/components/chat/messages/utils/messageSelection'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { messagesToMarkdown } from '@renderer/utils/export'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -103,9 +104,14 @@ export function useMessageSelectionController({
       const contentToCopy = getSelectedMessagesPlainText(ids, messages, partsByMessageId)
       if (!contentToCopy) return
 
-      await navigator.clipboard.writeText(contentToCopy)
-      window.toast.success(t('message.copied'))
-      toggleMultiSelectMode(false)
+      try {
+        await navigator.clipboard.writeText(contentToCopy)
+        window.toast.success(t('message.copied'))
+        toggleMultiSelectMode(false)
+      } catch (error) {
+        logger.error('Failed to copy selected messages:', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
+      }
     },
     [ensureSelection, messages, partsByMessageId, t, toggleMultiSelectMode]
   )
@@ -129,9 +135,14 @@ export function useMessageSelectionController({
       if (!contentToSave) return
 
       const fileName = `chat_export_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.md`
-      await saveTextFile(fileName, contentToSave)
-      window.toast.success(t('message.save.success.title'))
-      toggleMultiSelectMode(false)
+      try {
+        await saveTextFile(fileName, contentToSave)
+        window.toast.success(t('message.save.success.title'))
+        toggleMultiSelectMode(false)
+      } catch (error) {
+        logger.error('Failed to save selected messages:', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('common.save_failed')))
+      }
     },
     [ensureSelection, messages, partsByMessageId, saveTextFile, t, toggleMultiSelectMode]
   )

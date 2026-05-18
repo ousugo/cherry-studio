@@ -1846,6 +1846,7 @@
     "reset": "Reset",
     "retry": "Retry",
     "save": "Save",
+    "save_failed": "Save failed",
     "saved": "Saved",
     "search": "Search",
     "select": "Select",
@@ -2984,6 +2985,7 @@
       "chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "copy": "Copy failed",
       "dimension_too_large": "Content size is too large",
+      "dismiss_failed": "Failed to dismiss error message",
       "enter": {
         "api": {
           "host": "Please enter your API host first",
@@ -3034,6 +3036,7 @@
         "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
         "no_content": "There is nothing to export to Notion."
       },
+      "operation_unavailable": "Message operation is unavailable. Please try again.",
       "siyuan": {
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
         "no_config": "Siyuan Note API address or token is not configured"

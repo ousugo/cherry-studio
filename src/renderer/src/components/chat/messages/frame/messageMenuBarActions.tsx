@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import InspectMessagePopup from '@renderer/components/Popups/InspectMessagePopup'
 import {
@@ -9,6 +10,7 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { TranslateLanguage } from '@renderer/types'
 import type { MessageExportView } from '@renderer/types/messageExport'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { messageToMarkdown, messageToPlainText } from '@renderer/utils/export'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
@@ -104,6 +106,7 @@ const toolbarOrder = new Map(DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS.map((id, index) 
 const toolbarRenderers = new Map<string, MessageMenuBarToolbarRenderer>()
 
 const messageMenuBarActionRegistry = createActionRegistry<MessageMenuBarActionContext>()
+const logger = loggerService.withContext('MessageMenuBarActions')
 
 function toolbarAvailability(
   id: MessageMenuBarButtonId,
@@ -116,6 +119,11 @@ function toolbarAvailability(
       enabled: visible && !(context.isProcessing && STREAMING_DISABLED_BUTTON_IDS.has(id))
     }
   }
+}
+
+function notifyCommandError(id: string, context: MessageMenuBarActionContext, error: unknown) {
+  logger.error(`Message menu action failed: ${id}`, error as Error)
+  context.actions.notifyError?.(formatErrorMessageWithPrefix(error, context.t('message.error.unknown')))
 }
 
 function registerCommand(id: string, run: (context: MessageMenuBarActionContext) => void | Promise<void>) {
@@ -194,21 +202,21 @@ registerCommand('message.multiSelect', ({ actions }) => {
   actions.toggleMultiSelectMode?.(true)
 })
 
-registerCommand('message.saveFile', ({ actions, mainTextContent, message }) => {
+registerCommand('message.saveFile', async ({ actions, mainTextContent, message }) => {
   const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
-  void actions.saveTextFile?.(fileName, mainTextContent)
+  await actions.saveTextFile?.(fileName, mainTextContent)
 })
 
-registerCommand('message.saveKnowledge', ({ actions, messageForExport }) => {
-  void actions.saveToKnowledge?.(messageForExport)
+registerCommand('message.saveKnowledge', async ({ actions, messageForExport }) => {
+  await actions.saveToKnowledge?.(messageForExport)
 })
 
 registerCommand('message.exportNotes', async ({ actions, messageForExport }) => {
   await actions.exportToNotes?.(messageForExport)
 })
 
-registerCommand('message.copyPlainText', ({ actions, messageForExport, t }) => {
-  void actions.copyText?.(messageToPlainText(messageForExport), {
+registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }) => {
+  await actions.copyText?.(messageToPlainText(messageForExport), {
     successMessage: t('message.copy.success')
   })
 })
@@ -224,44 +232,51 @@ registerCommand('message.copyImage', async ({ actions, messageContainerRef }) =>
 registerCommand('message.exportImage', async ({ actions, messageContainerRef, messageForExport, t }) => {
   const imageData = await captureScrollableAsDataURL(messageContainerRef)
   const title = await getMessageTitle(messageForExport)
-  if (title && imageData) {
-    const success = await actions.saveImage?.(title, imageData)
-    if (success) actions.notifySuccess?.(t('chat.topics.export.image_saved'))
+  if (!title || !imageData || !actions.saveImage) {
+    actions.notifyError?.(t('message.error.unknown'))
+    return
+  }
+
+  const success = await actions.saveImage(title, imageData)
+  if (success) {
+    actions.notifySuccess?.(t('chat.topics.export.image_saved'))
+  } else {
+    actions.notifyError?.(t('message.error.unknown'))
   }
 })
 
-registerCommand('message.exportMarkdown', ({ actions, messageForExport }) => {
-  void actions.exportMessageAsMarkdown?.(messageForExport)
+registerCommand('message.exportMarkdown', async ({ actions, messageForExport }) => {
+  await actions.exportMessageAsMarkdown?.(messageForExport)
 })
 
-registerCommand('message.exportMarkdownReason', ({ actions, messageForExport }) => {
-  void actions.exportMessageAsMarkdown?.(messageForExport, true)
+registerCommand('message.exportMarkdownReason', async ({ actions, messageForExport }) => {
+  await actions.exportMessageAsMarkdown?.(messageForExport, true)
 })
 
 registerCommand('message.exportWord', async ({ actions, messageForExport }) => {
   const markdown = await messageToMarkdown(messageForExport)
   const title = await getMessageTitle(messageForExport)
-  void actions.exportToWord?.(markdown, title)
+  await actions.exportToWord?.(markdown, title)
 })
 
-registerCommand('message.exportNotion', ({ actions, messageForExport }) => {
-  void actions.exportToNotion?.(messageForExport)
+registerCommand('message.exportNotion', async ({ actions, messageForExport }) => {
+  await actions.exportToNotion?.(messageForExport)
 })
 
-registerCommand('message.exportYuque', ({ actions, messageForExport }) => {
-  void actions.exportToYuque?.(messageForExport)
+registerCommand('message.exportYuque', async ({ actions, messageForExport }) => {
+  await actions.exportToYuque?.(messageForExport)
 })
 
-registerCommand('message.exportObsidian', ({ actions, messageForExport }) => {
-  void actions.exportToObsidian?.(messageForExport)
+registerCommand('message.exportObsidian', async ({ actions, messageForExport }) => {
+  await actions.exportToObsidian?.(messageForExport)
 })
 
-registerCommand('message.exportJoplin', ({ actions, messageForExport }) => {
-  void actions.exportToJoplin?.(messageForExport)
+registerCommand('message.exportJoplin', async ({ actions, messageForExport }) => {
+  await actions.exportToJoplin?.(messageForExport)
 })
 
-registerCommand('message.exportSiyuan', ({ actions, messageForExport }) => {
-  void actions.exportToSiyuan?.(messageForExport)
+registerCommand('message.exportSiyuan', async ({ actions, messageForExport }) => {
+  await actions.exportToSiyuan?.(messageForExport)
 })
 
 registerCommand('message.useful', ({ message, onUpdateUseful }) => {
@@ -550,7 +565,13 @@ export function resolveMessageMenuBarTranslationItems(
     ? context.translateLanguages.map((language) => ({
         label: getTranslationLanguageLabel?.(language) ?? language.langCode,
         key: language.langCode,
-        onSelect: () => actions.translateMessage?.(message.id, language, mainTextContent)
+        onSelect: async () => {
+          try {
+            await actions.translateMessage?.(message.id, language, mainTextContent)
+          } catch (error) {
+            notifyCommandError('message.translate', context, error)
+          }
+        }
       }))
     : []
 
@@ -564,16 +585,20 @@ export function resolveMessageMenuBarTranslationItems(
     {
       label: '📋 ' + t('common.copy'),
       key: 'translate-copy',
-      onSelect: () => {
+      onSelect: async () => {
         const translationContent = getTranslationFromParts(messageParts)
           .map((item) => item.content || '')
           .join('\n\n')
           .trim()
 
         if (translationContent) {
-          void actions.copyText?.(translationContent, {
-            successMessage: t('translate.copied')
-          })
+          try {
+            await actions.copyText?.(translationContent, {
+              successMessage: t('translate.copied')
+            })
+          } catch (error) {
+            notifyCommandError('message.copyTranslation', context, error)
+          }
         } else {
           actions.notifyWarning?.(t('translate.empty'))
         }
@@ -597,6 +622,14 @@ export function resolveMessageMenuBarMenuActions(context: MessageMenuBarActionCo
     .filter((action) => !!action.commandId || action.children.length > 0)
 }
 
-export function executeMessageMenuBarAction(actionId: string, context: MessageMenuBarActionContext): Promise<boolean> {
-  return messageMenuBarActionRegistry.execute(actionId, context)
+export async function executeMessageMenuBarAction(
+  actionId: string,
+  context: MessageMenuBarActionContext
+): Promise<boolean> {
+  try {
+    return await messageMenuBarActionRegistry.execute(actionId, context)
+  } catch (error) {
+    notifyCommandError(actionId, context, error)
+    return false
+  }
 }

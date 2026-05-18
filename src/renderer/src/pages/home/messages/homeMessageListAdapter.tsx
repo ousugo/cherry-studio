@@ -133,12 +133,30 @@ export function useHomeMessageListProviderValue({
     partsByMessageIdRef.current = partsByMessageId
   }, [partsByMessageId])
 
+  const requireChatWrite = useCallback(
+    (actionName: string) => {
+      if (chatWrite) return chatWrite
+
+      logger.warn('Chat write action unavailable', {
+        actionName,
+        topicId: topic.id
+      })
+      throw new Error(t('message.error.operation_unavailable'))
+    },
+    [chatWrite, t, topic.id]
+  )
+
   const clearTopic = useCallback(
     async (data: Topic) => {
       if (data && data.id !== topic.id) return
-      await chatWrite?.clearTopicMessages()
+      try {
+        await requireChatWrite('clearTopicMessages').clearTopicMessages()
+      } catch (error) {
+        logger.error('Failed to clear topic messages:', error as Error)
+        window.toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+      }
     },
-    [chatWrite, topic.id]
+    [requireChatWrite, t, topic.id]
   )
 
   useEffect(() => {
@@ -173,8 +191,13 @@ export function useHomeMessageListProviderValue({
     if (lastMessage) {
       const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
       const text = getTextFromParts(parts)
-      void navigator.clipboard.writeText(text)
-      window.toast.success(t('message.copy.success'))
+      void navigator.clipboard
+        .writeText(text)
+        .then(() => window.toast.success(t('message.copy.success')))
+        .catch((error) => {
+          logger.error('Failed to copy last message:', error as Error)
+          window.toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
+        })
     }
   })
 
@@ -251,7 +274,7 @@ export function useHomeMessageListProviderValue({
         window.toast.error(t('code_block.edit.save.failed.label'))
       } catch (error) {
         logger.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error as Error)
-        window.toast.error(t('code_block.edit.save.failed.label'))
+        window.toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
     },
     [t]
@@ -344,7 +367,7 @@ export function useHomeMessageListProviderValue({
         const resolved = resolvePartFromParts({ [messageId]: persistedParts }, partId)
         if (!resolved || resolved.messageId !== messageId || (resolved.part.type as string) !== 'data-error') return
 
-        await chatWrite?.editMessage(
+        await requireChatWrite('removeMessageErrorPart').editMessage(
           messageId,
           persistedParts.filter((_, index) => index !== resolved.index)
         )
@@ -353,7 +376,7 @@ export function useHomeMessageListProviderValue({
         throw error
       }
     },
-    [chatWrite]
+    [requireChatWrite]
   )
 
   const createTranslationUpdater = useCallback(
@@ -362,7 +385,8 @@ export function useHomeMessageListProviderValue({
       targetLanguage: TranslateLangCode,
       sourceLanguage?: TranslateLangCode
     ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
-      if (!topic.id || !chatWrite) return null
+      if (!topic.id) return null
+      const write = requireChatWrite('translateMessage')
 
       const currentParts = partsByMessageIdRef.current[messageId]
       if (!currentParts) {
@@ -379,7 +403,7 @@ export function useHomeMessageListProviderValue({
           ...(sourceLanguage && { sourceLanguage })
         }
       }
-      await chatWrite.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
+      await write.editMessage(messageId, [...baseParts, loadingPart as CherryMessagePart])
 
       return (accumulatedText: string) => {
         const translationPart = {
@@ -391,20 +415,25 @@ export function useHomeMessageListProviderValue({
           }
         }
 
-        void chatWrite.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart])
+        void write.editMessage(messageId, [...baseParts, translationPart as CherryMessagePart]).catch((error) => {
+          logger.error('Failed to update message translation:', error as Error, { messageId })
+        })
       }
     },
-    [topic.id, chatWrite]
+    [requireChatWrite, topic.id]
   )
 
   const translateMessage = useCallback<NonNullable<MessageListActions['translateMessage']>>(
     async (messageId, language, sourceText) => {
       if (!sourceText.trim()) return
 
-      const translationUpdater = await createTranslationUpdater(messageId, language.langCode)
-      if (!translationUpdater) return
-
       try {
+        const translationUpdater = await createTranslationUpdater(messageId, language.langCode)
+        if (!translationUpdater) {
+          window.toast.error(t('message.error.unknown'))
+          return
+        }
+
         await translateText(sourceText, language, translationUpdater, createTranslationAbortKey(messageId))
       } catch (error) {
         if (!isAbortError(error)) {
@@ -435,33 +464,33 @@ export function useHomeMessageListProviderValue({
   )
 
   const editMessage = useCallback<NonNullable<MessageListActions['editMessage']>>(
-    (messageId, parts) => chatWrite?.editMessage(messageId, parts),
-    [chatWrite]
+    (messageId, parts) => requireChatWrite('editMessage').editMessage(messageId, parts),
+    [requireChatWrite]
   )
 
   const forkAndResendMessage = useCallback<NonNullable<MessageListActions['forkAndResendMessage']>>(
-    (messageId, parts) => chatWrite?.forkAndResend(messageId, parts),
-    [chatWrite]
+    (messageId, parts) => requireChatWrite('forkAndResendMessage').forkAndResend(messageId, parts),
+    [requireChatWrite]
   )
 
   const deleteMessage = useCallback<NonNullable<MessageListActions['deleteMessage']>>(
-    (messageId, traceOptions) => chatWrite?.deleteMessage(messageId, traceOptions),
-    [chatWrite]
+    (messageId, traceOptions) => requireChatWrite('deleteMessage').deleteMessage(messageId, traceOptions),
+    [requireChatWrite]
   )
 
   const startMessageBranch = useCallback<NonNullable<MessageListActions['startMessageBranch']>>(
-    (messageId) => chatWrite?.setActiveNode(messageId),
-    [chatWrite]
+    (messageId) => requireChatWrite('startMessageBranch').setActiveNode(messageId),
+    [requireChatWrite]
   )
 
   const setActiveBranch = useCallback<NonNullable<MessageListActions['setActiveBranch']>>(
-    (messageId) => chatWrite?.setActiveBranch(messageId),
-    [chatWrite]
+    (messageId) => requireChatWrite('setActiveBranch').setActiveBranch(messageId),
+    [requireChatWrite]
   )
 
   const deleteMessageGroup = useCallback<NonNullable<MessageListActions['deleteMessageGroup']>>(
-    (parentId) => chatWrite?.deleteMessageGroup(parentId),
-    [chatWrite]
+    (parentId) => requireChatWrite('deleteMessageGroup').deleteMessageGroup(parentId),
+    [requireChatWrite]
   )
 
   const deleteMessageGroupWithConfirm = useCallback<NonNullable<MessageListActions['deleteMessageGroupWithConfirm']>>(
@@ -474,21 +503,28 @@ export function useHomeMessageListProviderValue({
           danger: true
         },
         okText: t('common.delete'),
-        onOk: () => deleteMessageGroup(parentId)
+        onOk: async () => {
+          try {
+            await deleteMessageGroup(parentId)
+          } catch (error) {
+            logger.error('Failed to delete message group:', error as Error)
+            window.toast.error(formatErrorMessageWithPrefix(error, t('message.delete.failed')))
+          }
+        }
       })
     },
     [deleteMessageGroup, t]
   )
 
   const regenerateMessage = useCallback<NonNullable<MessageListActions['regenerateMessage']>>(
-    (messageId) => chatWrite?.regenerate(messageId),
-    [chatWrite]
+    (messageId) => requireChatWrite('regenerateMessage').regenerate(messageId),
+    [requireChatWrite]
   )
 
   const regenerateMessageUsingModel = useCallback(
     (messageId: string, modelId: UniqueModelId, modelSnapshot?: ModelSnapshot) =>
-      chatWrite?.regenerate(messageId, { modelId, modelSnapshot }),
-    [chatWrite]
+      requireChatWrite('regenerateMessageUsingModel').regenerate(messageId, { modelId, modelSnapshot }),
+    [requireChatWrite]
   )
 
   const renderRegenerateModelPicker = useCallback<NonNullable<MessageListActions['renderRegenerateModelPicker']>>(
@@ -513,12 +549,17 @@ export function useHomeMessageListProviderValue({
       const onSelectMentionModel = async (selected: SharedModel | undefined) => {
         if (!selected) return
         const { providerId, modelId } = parseUniqueModelId(selected.id)
-        await regenerateMessageUsingModel?.(message.id, selected.id, {
-          id: modelId,
-          name: selected.name,
-          provider: providerId,
-          ...(selected.group && { group: selected.group })
-        })
+        try {
+          await regenerateMessageUsingModel(message.id, selected.id, {
+            id: modelId,
+            name: selected.name,
+            provider: providerId,
+            ...(selected.group && { group: selected.group })
+          })
+        } catch (error) {
+          logger.error('Failed to regenerate message using selected model:', error as Error)
+          window.toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+        }
       }
 
       return (
@@ -531,7 +572,7 @@ export function useHomeMessageListProviderValue({
         />
       )
     },
-    [regenerateMessageUsingModel]
+    [regenerateMessageUsingModel, t]
   )
 
   const selectionController = useMessageSelectionController({

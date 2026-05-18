@@ -5,9 +5,9 @@
  * block conversion — each part type is rendered from its raw data.
  *
  * Grouping logic:
- * - Consecutive file parts with image mediaType → ImageGroup
+ * - Consecutive file parts with image mediaType → image block row
  * - Consecutive tool-* / dynamic-tool parts → ToolBlockGroup
- * - data-video parts with same filePath → VideoGroup
+ * - data-video parts with same filePath → video block row
  */
 
 import { loggerService } from '@logger'

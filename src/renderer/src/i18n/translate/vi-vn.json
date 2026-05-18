@@ -1801,6 +1801,7 @@
     "reset": "Đặt lại",
     "retry": "Thử lại",
     "save": "Lưu",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Đã lưu",
     "search": "Tìm kiếm",
     "select": "Chọn",
@@ -2924,6 +2925,8 @@
       "table": {
         "invalid": "Không thể truy xuất dữ liệu bảng hợp lệ"
       },
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "unknown": "Lỗi không xác định",
       "yuque": {
         "export": "Không thể xuất ra Yuque. Vui lòng kiểm tra trạng thái kết nối và cấu hình theo tài liệu.",

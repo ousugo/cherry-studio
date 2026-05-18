@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react'
 
 /**
  * Preserves the user's visual scroll position when an element's height changes
- * (e.g. accordion expand/collapse) inside a `column-reverse` scroll container.
+ * (e.g. disclosure expand/collapse) inside the messages scroll container.
  *
  * Usage:
  *   const { anchorRef, withScrollAnchor } = useScrollAnchor()

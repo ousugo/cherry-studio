@@ -133,7 +133,10 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       setSelectedMessageIdState(message.id)
 
       if (message.role === 'assistant' && message.id !== selectedMessageId) {
-        void actions.setActiveBranch?.(message.id)
+        void Promise.resolve(actions.setActiveBranch?.(message.id)).catch((error) => {
+          logger.error('Failed to set active branch from message group', error as Error, { messageId: message.id })
+          actions.notifyError?.(error instanceof Error ? error.message : String(error))
+        })
       }
 
       setTimeoutTimer(

@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
@@ -15,6 +16,8 @@ import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './PermissionRequestComposerRequest'
 export type { PermissionRequestComposerRequest } from './PermissionRequestComposerRequest'
 export { findLatestPendingPermissionRequest } from './PermissionRequestComposerRequest'
+
+const logger = loggerService.withContext('PermissionRequestComposer')
 
 type PermissionRequestComposerProps = {
   request: PermissionRequestComposerRequest
@@ -180,13 +183,17 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
       setIsSubmitting(true)
       try {
         await onRespond(input)
-      } catch {
+      } catch (error) {
+        logger.error('Failed to send permission response', error as Error, {
+          action,
+          approvalId: request.approvalId
+        })
         window.toast.error(t('agent.toolPermission.error.sendFailed'))
         setSelectedAction(null)
         setIsSubmitting(false)
       }
     },
-    [onRespond, t]
+    [onRespond, request.approvalId, t]
   )
 
   const approve = useCallback(async () => {

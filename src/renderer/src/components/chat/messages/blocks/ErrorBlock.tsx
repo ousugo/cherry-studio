@@ -1,7 +1,9 @@
 import { Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import { Link } from '@tanstack/react-router'
 import { AlertTriangle, ChevronRight, Settings, X } from 'lucide-react'
@@ -12,6 +14,7 @@ import { useMessageListActions } from '../MessageListProvider'
 import type { MessageErrorDiagnosisResult, MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 
+const logger = loggerService.withContext('ErrorBlock')
 const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
 
 interface Props {
@@ -75,7 +78,8 @@ const MessageErrorInfo: React.FC<{
   message: MessageListItem
   cachedDiagnosis?: MessageErrorDiagnosisResult
 }> = ({ partId, error, message, cachedDiagnosis }) => {
-  const { diagnoseMessageError, removeMessageErrorPart, openErrorDetail, navigateErrorTarget } = useMessageListActions()
+  const { diagnoseMessageError, removeMessageErrorPart, openErrorDetail, navigateErrorTarget, notifyError } =
+    useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
   const [aiSummary, setAiSummary] = useState<string>('')
@@ -134,12 +138,15 @@ const MessageErrorInfo: React.FC<{
         async () => {
           try {
             await removeMessageErrorPart?.({ messageId: message.id, partId })
-          } catch {}
+          } catch (error) {
+            logger.error('Failed to dismiss message error part:', error as Error, { messageId: message.id, partId })
+            notifyError?.(formatErrorMessageWithPrefix(error, t('message.error.dismiss_failed')))
+          }
         },
         350
       )
     },
-    [removeMessageErrorPart, setTimeoutTimer, message.id, partId]
+    [message.id, notifyError, partId, removeMessageErrorPart, setTimeoutTimer, t]
   )
 
   const showErrorDetail = () => {

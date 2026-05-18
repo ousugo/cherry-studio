@@ -1,9 +1,9 @@
 import { Button } from '@cherrystudio/ui'
 import type { FileMetadata } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils'
-import { t } from 'i18next'
 import { Paperclip } from 'lucide-react'
 import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
 
@@ -12,6 +12,7 @@ interface Props {
 }
 
 const MessageAttachments: FC<Props> = ({ file }) => {
+  const { t } = useTranslation()
   const actions = useOptionalMessageListActions()
   const messageUi = useOptionalMessageListUi()
 

@@ -1846,6 +1846,7 @@
     "reset": "重設",
     "retry": "重試",
     "save": "儲存",
+    "save_failed": "儲存失敗",
     "saved": "已儲存",
     "search": "搜尋",
     "select": "選擇",
@@ -2984,6 +2985,7 @@
       "chunk_overlap_too_large": "分段重疊不能大於分段大小",
       "copy": "複製失敗",
       "dimension_too_large": "內容尺寸過大",
+      "dismiss_failed": "關閉錯誤訊息失敗",
       "enter": {
         "api": {
           "host": "請先輸入您的 API 主機位址",
@@ -3034,6 +3036,7 @@
         "no_api_key": "未設定 Notion API Key 或 Notion Database ID",
         "no_content": "沒有可匯出至 Notion 的內容"
       },
+      "operation_unavailable": "目前訊息操作無法使用，請重試。",
       "siyuan": {
         "export": "匯出思源筆記失敗，請檢查連線狀態並參考說明文件確認設定",
         "no_config": "未設定思源筆記 API 位址或權杖"

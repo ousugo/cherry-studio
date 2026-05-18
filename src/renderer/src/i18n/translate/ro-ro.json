@@ -1801,6 +1801,7 @@
     "reset": "Resetează",
     "retry": "Reîncercare",
     "save": "Salvează",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Salvat",
     "search": "Caută",
     "select": "Selectează",
@@ -2924,6 +2925,8 @@
       "table": {
         "invalid": "Imposibil de recuperat date valide din tabel"
       },
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "unknown": "Eroare necunoscută",
       "yuque": {
         "export": "Nu s-a putut exporta în Yuque. Te rugăm să verifici starea conexiunii și configurarea conform documentației",

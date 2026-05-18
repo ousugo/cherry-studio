@@ -1,4 +1,6 @@
 import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { Columns2, Folder, Grid2X2, RotateCcw, Rows3, Trash2 } from 'lucide-react'
@@ -11,6 +13,8 @@ import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
 import MessageGroupModelList from './MessageGroupModelList'
 import MessageGroupSettings from './MessageGroupSettings'
+
+const logger = loggerService.withContext('MessageGroupMenuBar')
 
 interface Props {
   multiModelMessageStyle: MultiModelMessageStyle
@@ -57,13 +61,21 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   const handleRetryAll = async () => {
     const candidates = messages.filter((m) => isFailedMessage(m) && !isTransmittingMessage(m))
+    let failedCount = 0
+    let lastError: unknown
 
     for (const msg of candidates) {
       try {
         await actions.regenerateMessage?.(msg.id)
       } catch (e) {
-        // swallow per-item errors to continue others
+        failedCount++
+        lastError = e
+        logger.warn('Failed to retry grouped message', e as Error, { messageId: msg.id })
       }
+    }
+
+    if (failedCount > 0) {
+      actions.notifyError?.(formatErrorMessageWithPrefix(lastError, t('message.group.retry_failed')))
     }
   }
 

@@ -57,6 +57,7 @@ const MessageList = () => {
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
 
   const groupedMessages = useMemo(() => Object.entries(groupMessageListItems(messages)), [messages])
+  const { bindRuntime, copyImage, saveImage } = actions
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
@@ -99,24 +100,24 @@ const MessageList = () => {
   }, [groupedMessages])
 
   useEffect(() => {
-    return actions.bindRuntime?.({
+    return bindRuntime?.({
       scrollToBottom,
       copyTopicImage: async () => {
         await captureScrollableAsBlob(scrollContainerRef, async (blob) => {
           if (blob) {
-            await actions.copyImage?.(blob)
+            await copyImage?.(blob)
           }
         })
       },
       exportTopicImage: async () => {
-        if (!meta.imageExportFileName || !actions.saveImage) return
+        if (!meta.imageExportFileName || !saveImage) return
         const imageData = await captureScrollableAsDataURL(scrollContainerRef)
         if (imageData) {
-          void actions.saveImage(removeSpecialCharactersForFileName(meta.imageExportFileName), imageData)
+          await saveImage(removeSpecialCharactersForFileName(meta.imageExportFileName), imageData)
         }
       }
     })
-  }, [actions, meta.imageExportFileName, scrollToBottom])
+  }, [bindRuntime, copyImage, meta.imageExportFileName, saveImage, scrollToBottom])
 
   if (data.isInitialLoading) {
     return <MessageListInitialLoading />

@@ -300,4 +300,19 @@ describe('messageMenuBarActions', () => {
     expect(copyText).toHaveBeenCalledWith('hello', { successMessage: 'message.copied' })
     expect(setCopied).toHaveBeenCalledWith(true)
   })
+
+  it('reports command failures without marking copy as complete', async () => {
+    const copyText = vi.fn().mockRejectedValue(new Error('clipboard denied'))
+    const notifyError = vi.fn()
+    const setCopied = vi.fn()
+    const context = createContext({
+      actions: { copyText, notifyError } as MessageListActions,
+      setCopied
+    })
+
+    await expect(executeMessageMenuBarAction('copy', context)).resolves.toBe(false)
+
+    expect(notifyError).toHaveBeenCalledWith(expect.stringContaining('clipboard denied'))
+    expect(setCopied).not.toHaveBeenCalled()
+  })
 })

@@ -57,7 +57,7 @@ const ConfirmActionButton = ({
   onConfirm,
   onOpenChange
 }: {
-  children: ReactNode
+  children: (open: () => void) => ReactNode
   destructive?: boolean
   title: ReactNode
   confirmText?: string
@@ -76,7 +76,7 @@ const ConfirmActionButton = ({
 
   return (
     <>
-      <span onClickCapture={() => handleOpenChange(true)}>{children}</span>
+      {children(() => handleOpenChange(true))}
       <ConfirmDialog
         open={open}
         onOpenChange={handleOpenChange}
@@ -129,7 +129,18 @@ const ActionButtonWithConfirm = ({
       onConfirm={() => executeAction(action)}
       onOpenChange={(open) => open && onConfirmOpen?.()}
       disabled={disabled}>
-      {button}
+      {(open) => (
+        <ActionButton
+          className="message-action-button"
+          onClick={(e) => {
+            e.stopPropagation()
+            open()
+          }}
+          disabled={disabled}
+          $softHoverBg={softHoverBg}>
+          {icon}
+        </ActionButton>
+      )}
     </ConfirmActionButton>
   ) : (
     button

@@ -40,10 +40,10 @@ Page-only UI should stay in the page directory. If a component is only a Home or
 - `markdown/`: markdown renderer and markdown-only support components/plugins.
 - `stream/`: message stream collectors and stream-specific plumbing.
 - `layout/`: message-list local layout helpers.
-- `adapters/`: thin provider-value assembly for page variants when keeping them near the message contract is useful.
+- `utils/`: shared projections and formatting helpers for the message contract.
 
-`MessageListProvider` owns the internal parts context. Pages and adapters should pass
-`state.partsByMessageId`; they should not wrap `PartsProvider` manually.
+`MessageContentProvider` owns the internal parts context. Pages and adapters should pass
+`state.partsByMessageId` into the message-list provider value; they should not wrap `PartsProvider` manually.
 
 Directory names stay lowercase. React component files stay PascalCase.
 
@@ -161,7 +161,7 @@ For changes in this directory, prefer focused tests around the affected componen
 
 ```bash
 pnpm exec vitest run \
-  src/renderer/src/components/chat/messages/__tests__/MessageGroup.test.tsx \
+  src/renderer/src/components/chat/messages \
   src/renderer/src/pages/home/__tests__/ChatContent.test.tsx
 ```
 

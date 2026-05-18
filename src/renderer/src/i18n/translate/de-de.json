@@ -1801,6 +1801,7 @@
     "reset": "Zurücksetzen",
     "retry": "Wiederholen",
     "save": "Speichern",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Gespeichert",
     "search": "Suchen",
     "select": "Auswählen",
@@ -2924,6 +2925,8 @@
       "table": {
         "invalid": "Konnte keine gültigen Tabellendaten abrufen"
       },
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "unknown": "Unbekannter Fehler",
       "yuque": {
         "export": "Export nach Yuque fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",

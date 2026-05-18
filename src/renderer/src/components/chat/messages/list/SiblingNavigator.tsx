@@ -34,6 +34,7 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
         await actions.setActiveBranch(target.id)
       } catch (error) {
         logger.error('Failed to switch sibling branch', error as Error)
+        actions.notifyError?.(error instanceof Error ? error.message : String(error))
       }
     },
     [actions, siblings]

@@ -19,8 +19,8 @@ import { MessageAttachmentButton, MessageAttachmentPreview } from './MessageAtta
 
 interface Props {
   message: MessageListItem
-  onSave: (parts: CherryMessagePart[]) => void
-  onResend: (parts: CherryMessagePart[]) => void
+  onSave: (parts: CherryMessagePart[]) => void | Promise<void>
+  onResend: (parts: CherryMessagePart[]) => void | Promise<void>
   onCancel: () => void
 }
 
@@ -90,16 +90,6 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     }, 0)
 
     return () => clearTimeout(timer)
-  }, [])
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      const realTextarea = textareaRef.current
-      realTextarea.scrollTo({ top: realTextarea.scrollHeight })
-      const textLength = realTextarea.value.length
-      realTextarea.focus()
-      realTextarea.setSelectionRange(textLength, textLength)
-    }
   }, [])
 
   const onPaste = useCallback(
@@ -176,10 +166,11 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
       }
     } catch (error) {
       logger.error('Failed to select files:', error as Error)
+      actions.notifyError?.(formatErrorMessageWithPrefix(error, t('common.error')))
     } finally {
       setIsSelectingFiles(false)
     }
-  }, [actions.selectFiles, extensions, isSelectingFiles])
+  }, [actions, extensions, isSelectingFiles, t])
 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -188,22 +179,19 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
 
     if (!getDroppedEditorFiles) return
 
-    const droppedFiles = await getDroppedEditorFiles(e).catch((err) => {
-      logger.error('handleDrop error:', err)
-      return null
-    })
-    if (droppedFiles) {
-      let supportedFiles = 0
-      droppedFiles.forEach((file) => {
-        if (extensions.includes(file.ext.toLowerCase())) {
-          addFiles([file])
-          supportedFiles++
-        }
-      })
+    try {
+      const droppedFiles = await getDroppedEditorFiles(e)
+      if (droppedFiles) {
+        const supportedFiles = droppedFiles.filter((file) => extensions.includes(file.ext.toLowerCase()))
+        addFiles(supportedFiles)
 
-      if (droppedFiles.length > 0 && supportedFiles === 0) {
-        actions.notifyInfo?.(t('chat.input.file_not_supported'))
+        if (droppedFiles.length > 0 && supportedFiles.length === 0) {
+          actions.notifyInfo?.(t('chat.input.file_not_supported'))
+        }
       }
+    } catch (error) {
+      logger.error('handleDrop error:', error as Error)
+      actions.notifyError?.(formatErrorMessageWithPrefix(error, t('common.error')))
     }
   }
 
@@ -221,9 +209,10 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     setIsProcessing(true)
     try {
       const finalParts = await buildFinalParts()
-      onSave(finalParts)
+      await onSave(finalParts)
     } catch (error) {
       logger.error('Failed to save:', error as Error)
+      actions.notifyError?.(formatErrorMessageWithPrefix(error, t('common.save_failed')))
     } finally {
       setIsProcessing(false)
     }
@@ -234,9 +223,10 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     setIsProcessing(true)
     try {
       const finalParts = await buildFinalParts()
-      onResend(finalParts)
+      await onResend(finalParts)
     } catch (error) {
       logger.error('Failed to resend:', error as Error)
+      actions.notifyError?.(formatErrorMessageWithPrefix(error, t('chat.resend')))
     } finally {
       setIsProcessing(false)
     }

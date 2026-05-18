@@ -1,6 +1,6 @@
 # Chat Adapters
 
-PR-03 establishes the contract layer used by the next chat UI slices. These adapters are intentionally thin: they project current business entities into stable UI-facing shapes, but they do not fetch data, own cache, read preferences, or replace existing UI components.
+This directory contains the contract layer used by shared chat UI slices. These adapters are intentionally thin: they project current business entities into stable UI-facing shapes, but they do not fetch data, own cache, read preferences, or replace existing UI components.
 
 Import from the chat package entry unless you are working inside this folder:
 
@@ -62,7 +62,7 @@ Registering the same id replaces the previous descriptor. Disposing an older reg
 
 ## Message Action Registry
 
-Use `createMessageActionRegistry()` to register message action providers. Providers receive a `MessageActionContext` and return action references. PR-04 will define the full command/action model; this registry is only the minimum extension point.
+Use `createMessageActionRegistry()` to register message action providers. The current command/action model is defined by `actions/actionTypes.ts`, including `ActionDescriptor`, `CommandDescriptor`, and `ResolvedAction`.
 
 ```ts
 const registry = createMessageActionRegistry()

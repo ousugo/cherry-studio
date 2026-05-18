@@ -1801,6 +1801,7 @@
     "reset": "Επαναφορά",
     "retry": "Επανάληψη",
     "save": "Αποθήκευση",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Αποθηκεύτηκε",
     "search": "Αναζήτηση",
     "select": "Επιλογή",
@@ -2924,6 +2925,8 @@
       "table": {
         "invalid": "Αδυναμία ανάκτησης έγκυρων δεδομένων πίνακα"
       },
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "unknown": "Άγνωστο σφάλμα",
       "yuque": {
         "export": "Σφάλμα στην εξαγωγή της Yuque, παρακαλείστε να ελέγξετε τη σύνδεση και τη διαμόρφωση κατά τη διατύπωση του χειρισμού",

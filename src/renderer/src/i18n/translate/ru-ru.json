@@ -1801,6 +1801,7 @@
     "reset": "Сбросить",
     "retry": "Повторить",
     "save": "Сохранить",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Сохранено",
     "search": "Поиск",
     "select": "Выбрать",
@@ -2924,6 +2925,8 @@
       "table": {
         "invalid": "Не удалось получить корректные данные таблицы"
       },
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "unknown": "Неизвестная ошибка",
       "yuque": {
         "export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",

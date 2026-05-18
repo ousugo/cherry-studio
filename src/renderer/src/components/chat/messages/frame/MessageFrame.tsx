@@ -1,5 +1,4 @@
 import { Avatar, AvatarImage, EmojiAvatar, Scrollbar } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -45,8 +44,6 @@ interface Props {
   isHorizontalMultiModelLayout?: boolean
   multiModelMessageStyle?: MultiModelMessageStyle
 }
-
-const logger = loggerService.withContext('MessageItem')
 
 const WrapperContainer = ({
   isMultiSelectMode,
@@ -112,12 +109,8 @@ const MessageItem: FC<Props> = ({
   const handleEditSave = useCallback(
     async (parts: CherryMessagePart[]) => {
       if (!actions.editMessage) return
-      try {
-        await actions.editMessage(message.id, parts)
-        stopEditing()
-      } catch (error) {
-        logger.error('Failed to save message parts:', error as Error)
-      }
+      await actions.editMessage(message.id, parts)
+      stopEditing()
     },
     [actions, message.id, stopEditing]
   )
@@ -125,12 +118,8 @@ const MessageItem: FC<Props> = ({
   const handleEditResend = useCallback(
     async (parts: CherryMessagePart[]) => {
       if (!actions.forkAndResendMessage) return
-      try {
-        stopEditing()
-        await actions.forkAndResendMessage(message.id, parts)
-      } catch (error) {
-        logger.error('Failed to resend message with parts:', error as Error)
-      }
+      await actions.forkAndResendMessage(message.id, parts)
+      stopEditing()
     },
     [actions, message.id, stopEditing]
   )

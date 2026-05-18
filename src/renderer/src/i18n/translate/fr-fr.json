@@ -1801,6 +1801,7 @@
     "reset": "Réinitialiser",
     "retry": "Réessayer",
     "save": "Enregistrer",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "enregistré",
     "search": "Rechercher",
     "select": "Sélectionner",
@@ -2924,6 +2925,8 @@
       "table": {
         "invalid": "Impossible de récupérer des données de table valides"
       },
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "unknown": "Erreur inconnue",
       "yuque": {
         "export": "Erreur lors de l'exportation vers Yuque, veuillez vérifier l'état de la connexion et la configuration dans la documentation",
