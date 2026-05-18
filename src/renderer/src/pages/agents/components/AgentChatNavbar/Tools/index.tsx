@@ -5,13 +5,16 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { PanelLeftClose, PanelRightClose } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import ArtifactPaneToggleButton from './ArtifactPaneToggleButton'
 import SettingsButton from './SettingsButton'
 
 interface Props {
   onOpenSettings: () => void
+  artifactPaneOpen: boolean
+  onToggleArtifactPane: () => void
 }
 
-const Tools = ({ onOpenSettings }: Props) => {
+const Tools = ({ onOpenSettings, artifactPaneOpen, onToggleArtifactPane }: Props) => {
   const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
@@ -26,6 +29,7 @@ const Tools = ({ onOpenSettings }: Props) => {
   return (
     <div className="flex items-center gap-2">
       <SettingsButton onOpenSettings={onOpenSettings} />
+      <ArtifactPaneToggleButton open={artifactPaneOpen} onToggle={onToggleArtifactPane} />
       {isTopNavbar && (
         <Tooltip content={t('navbar.expand')} delay={800}>
           <NavbarIcon className="max-[1000px]:hidden" onClick={handleNarrowModeToggle}>

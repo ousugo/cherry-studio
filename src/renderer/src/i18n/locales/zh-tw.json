@@ -337,6 +337,21 @@
         "failed": "無法列出 Agent。"
       }
     },
+    "preview_pane": {
+      "close": "關閉預覽",
+      "code": "程式碼",
+      "empty": {
+        "description": "開始與 Agent 對話，生成的程式碼與即時預覽將在此處顯示。",
+        "title": "準備就緒"
+      },
+      "file_tree": "檔案樹",
+      "items_one": "{{count}} 個項目",
+      "items_other": "{{count}} 個項目",
+      "maximize": "最大化",
+      "preview": "預覽",
+      "refresh": "重新整理",
+      "toggle": "顯示預覽面板"
+    },
     "reorder": {
       "error": {
         "failed": "Agent 排序失敗"

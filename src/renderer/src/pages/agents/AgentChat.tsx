@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
+import { ChatAppShell, type ChatPanePosition, RightPaneHost } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
 import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
@@ -9,6 +9,7 @@ import { MessageListInitialLoading } from '@renderer/components/chat/messages/la
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import ArtifactPane, { ARTIFACT_PANE_WIDTH } from '@renderer/components/chat/panes/ArtifactPane'
 import SettingsPanel from '@renderer/components/chat/settings/SettingsPanel'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -68,6 +69,7 @@ const AgentChat = ({
   const { messageStyle } = useSettings()
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
+  const [artifactPaneOpen, setArtifactPaneOpen] = useState(false)
 
   const { session: activeSession, isLoading: isSessionLoading } = useActiveSession()
   const temporaryAgentConversation = temporaryConversation?.type === 'agent' ? temporaryConversation : null
@@ -143,6 +145,9 @@ const AgentChat = ({
     [onPersistTemporarySession, refreshPersistedSession, temporaryAgentConversation, watchTemporaryStream]
   )
 
+  const closeArtifactPane = useCallback(() => setArtifactPaneOpen(false), [])
+  const toggleArtifactPane = useCallback(() => setArtifactPaneOpen((prev) => !prev), [])
+
   const isInitializing = isSessionLoading || ((activeSession || temporaryAgentConversation) && isAgentLoading)
 
   if (isInitializing) {
@@ -151,6 +156,9 @@ const AgentChat = ({
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
+        artifactPaneOpen={artifactPaneOpen}
+        artifactPaneWorkspacePath={activeSession?.accessiblePaths?.[0] ?? temporaryAgentConversation?.accessiblePaths?.[0]}
+        onCloseArtifactPane={closeArtifactPane}
         main={<MessageListInitialLoading />}
       />
     )
@@ -184,12 +192,17 @@ const AgentChat = ({
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
+        artifactPaneOpen={artifactPaneOpen}
+        artifactPaneWorkspacePath={temporaryAgentConversation.accessiblePaths?.[0]}
+        onCloseArtifactPane={closeArtifactPane}
         topBar={
           <div className="flex h-fit w-full min-w-0">
             <AgentChatNavbar
               className="min-w-0"
               activeAgent={activeAgent ?? null}
               onOpenSettings={() => undefined}
+              artifactPaneOpen={artifactPaneOpen}
+              onToggleArtifactPane={toggleArtifactPane}
               onDraftAgentChange={onDraftAgentChange}
               creatingSession={replacingTemporaryAgent}
               draftMode
@@ -210,6 +223,9 @@ const AgentChat = ({
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
+        artifactPaneOpen={artifactPaneOpen}
+        artifactPaneWorkspacePath={activeSession.accessiblePaths?.[0]}
+        onCloseArtifactPane={closeArtifactPane}
         main={
           <div className="flex h-full w-full items-center justify-center">
             <WarningAlert message={t('agent.session.orphan.message', 'This session’s agent has been deleted')} />
@@ -230,6 +246,10 @@ const AgentChat = ({
       messageNavigation={messageNavigation}
       messageStyle={messageStyle}
       isMultiSelectMode={isMultiSelectMode}
+      artifactPaneOpen={artifactPaneOpen}
+      artifactPaneWorkspacePath={activeSession.accessiblePaths?.[0]}
+      onToggleArtifactPane={toggleArtifactPane}
+      onCloseArtifactPane={closeArtifactPane}
       onNewSessionDraft={() =>
         onStartTemporarySession?.({
           agentId: activeSession.agentId,
@@ -253,6 +273,10 @@ interface InnerProps {
   messageNavigation: string
   messageStyle: string
   isMultiSelectMode: boolean
+  artifactPaneOpen: boolean
+  artifactPaneWorkspacePath?: string
+  onToggleArtifactPane: () => void
+  onCloseArtifactPane: () => void
   onNewSessionDraft?: () => void | Promise<void>
 }
 
@@ -266,6 +290,10 @@ const AgentChatInner = ({
   messageNavigation,
   messageStyle,
   isMultiSelectMode,
+  artifactPaneOpen,
+  artifactPaneWorkspacePath,
+  onToggleArtifactPane,
+  onCloseArtifactPane,
   onNewSessionDraft
 }: InnerProps) => {
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -378,10 +406,19 @@ const AgentChatInner = ({
       pane={pane}
       paneOpen={paneOpen}
       panePosition={panePosition}
+      artifactPaneOpen={artifactPaneOpen}
+      artifactPaneWorkspacePath={artifactPaneWorkspacePath}
+      onCloseArtifactPane={onCloseArtifactPane}
       topBar={
         activeAgent && (
           <div className="flex h-fit w-full min-w-0">
-            <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} onOpenSettings={handleOpenSettings} />
+            <AgentChatNavbar
+              className="min-w-0"
+              activeAgent={activeAgent}
+              onOpenSettings={handleOpenSettings}
+              artifactPaneOpen={artifactPaneOpen}
+              onToggleArtifactPane={onToggleArtifactPane}
+            />
           </div>
         )
       }
@@ -448,6 +485,9 @@ interface AgentChatFrameProps {
   sidePanel?: ReactNode
   overlay?: ReactNode
   className?: string
+  artifactPaneOpen?: boolean
+  artifactPaneWorkspacePath?: string
+  onCloseArtifactPane?: () => void
 }
 
 const AgentChatFrame = ({
@@ -459,7 +499,10 @@ const AgentChatFrame = ({
   bottomComposer,
   sidePanel,
   overlay,
-  className
+  className,
+  artifactPaneOpen,
+  artifactPaneWorkspacePath,
+  onCloseArtifactPane
 }: AgentChatFrameProps) => (
   <Container className={className}>
     <QuickPanelProvider>
@@ -474,6 +517,9 @@ const AgentChatFrame = ({
         overlay={overlay}
       />
     </QuickPanelProvider>
+    <RightPaneHost open={artifactPaneOpen} width={ARTIFACT_PANE_WIDTH} className="p-2">
+      {onCloseArtifactPane && <ArtifactPane workspacePath={artifactPaneWorkspacePath} onClose={onCloseArtifactPane} />}
+    </RightPaneHost>
   </Container>
 )
 

@@ -337,6 +337,21 @@
         "failed": "Αποτυχία καταχώρησης πρακτόρων."
       }
     },
+    "preview_pane": {
+      "close": "[to be translated]:Close preview",
+      "code": "[to be translated]:Code",
+      "empty": {
+        "description": "[to be translated]:Start chatting with the agent; generated code and live previews will appear here.",
+        "title": "[to be translated]:Ready"
+      },
+      "file_tree": "[to be translated]:File tree",
+      "items_one": "[to be translated]:{{count}} item",
+      "items_other": "[to be translated]:{{count}} items",
+      "maximize": "[to be translated]:Maximize",
+      "preview": "[to be translated]:Preview",
+      "refresh": "[to be translated]:Refresh",
+      "toggle": "[to be translated]:Show preview panel"
+    },
     "reorder": {
       "error": {
         "failed": "Αποτυχία αναδιάταξης πρακτόρων"

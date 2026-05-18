@@ -9,6 +9,8 @@ import AgentContent from './AgentContent'
 interface Props {
   activeAgent: AgentEntity | null
   onOpenSettings: () => void
+  artifactPaneOpen: boolean
+  onToggleArtifactPane: () => void
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   creatingSession?: boolean
   draftMode?: boolean
@@ -18,6 +20,8 @@ interface Props {
 const AgentChatNavbar = ({
   activeAgent,
   onOpenSettings,
+  artifactPaneOpen,
+  onToggleArtifactPane,
   onDraftAgentChange,
   creatingSession,
   draftMode,
@@ -33,6 +37,8 @@ const AgentChatNavbar = ({
         <AgentContent
           activeAgent={activeAgent}
           onOpenSettings={onOpenSettings}
+          artifactPaneOpen={artifactPaneOpen}
+          onToggleArtifactPane={onToggleArtifactPane}
           onDraftAgentChange={onDraftAgentChange}
           creatingSession={creatingSession}
           draftMode={draftMode}

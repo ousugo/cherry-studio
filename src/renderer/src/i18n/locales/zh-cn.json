@@ -337,6 +337,21 @@
         "failed": "获取智能体列表失败"
       }
     },
+    "preview_pane": {
+      "close": "关闭预览",
+      "code": "代码",
+      "empty": {
+        "description": "开始与智能体对话，生成的代码和实时预览将在此处显示。",
+        "title": "准备就绪"
+      },
+      "file_tree": "文件树",
+      "items_one": "{{count}} 个项目",
+      "items_other": "{{count}} 个项目",
+      "maximize": "最大化",
+      "preview": "预览",
+      "refresh": "刷新",
+      "toggle": "显示预览面板"
+    },
     "reorder": {
       "error": {
         "failed": "智能体排序失败"

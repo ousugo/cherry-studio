@@ -337,6 +337,21 @@
         "failed": "Failed to list agents."
       }
     },
+    "preview_pane": {
+      "close": "Close preview",
+      "code": "Code",
+      "empty": {
+        "description": "Start chatting with the agent; generated code and live previews will appear here.",
+        "title": "Ready"
+      },
+      "file_tree": "File tree",
+      "items_one": "{{count}} item",
+      "items_other": "{{count}} items",
+      "maximize": "Maximize",
+      "preview": "Preview",
+      "refresh": "Refresh",
+      "toggle": "Show preview panel"
+    },
     "reorder": {
       "error": {
         "failed": "Failed to reorder agents"

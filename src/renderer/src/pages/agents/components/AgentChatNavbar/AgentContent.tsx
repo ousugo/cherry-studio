@@ -25,6 +25,8 @@ import Tools from './Tools'
 type AgentContentProps = {
   activeAgent: AgentEntity | null
   onOpenSettings: () => void
+  artifactPaneOpen: boolean
+  onToggleArtifactPane: () => void
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   creatingSession?: boolean
   draftMode?: boolean
@@ -33,6 +35,8 @@ type AgentContentProps = {
 const AgentContent = ({
   activeAgent,
   onOpenSettings,
+  artifactPaneOpen,
+  onToggleArtifactPane,
   onDraftAgentChange,
   creatingSession,
   draftMode
@@ -161,7 +165,13 @@ const AgentContent = ({
         {activeAgent && activeSession && activeSession.accessiblePaths?.[0] && (
           <OpenExternalAppButton workdir={activeSession.accessiblePaths[0]} className="mr-2" />
         )}
-        {activeAgent && <Tools onOpenSettings={onOpenSettings} />}
+        {activeAgent && (
+          <Tools
+            onOpenSettings={onOpenSettings}
+            artifactPaneOpen={artifactPaneOpen}
+            onToggleArtifactPane={onToggleArtifactPane}
+          />
+        )}
       </div>
     </div>
   )

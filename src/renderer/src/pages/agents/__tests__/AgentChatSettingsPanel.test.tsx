@@ -33,7 +33,12 @@ vi.mock('@renderer/components/chat', () => ({
       <div>{overlay}</div>
     </div>
   ),
-  LoadingState: () => <div data-testid="loading-state" />
+  LoadingState: () => <div data-testid="loading-state" />,
+  RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
+    <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
+      {open ? children : null}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/chat/messages/stream/useMessagePartsById', () => ({
