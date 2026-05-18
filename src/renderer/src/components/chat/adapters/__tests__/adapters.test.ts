@@ -129,7 +129,7 @@ describe('chat adapters', () => {
     const adapter = ComposerAdapter.createChat({
       assistantId: 'assistant-1',
       topicId: 'topic-1',
-      draft: { text: 'hello' },
+      draft: { text: 'hello', tokens: [{ id: 'file-1', kind: 'file', label: 'chat.ts' }] },
       streaming: true,
       capabilities: { stop: true },
       send,
@@ -140,7 +140,10 @@ describe('chat adapters', () => {
     await adapter.stop?.(adapter.target)
 
     expect(adapter.target).toEqual({ kind: 'chat', id: 'topic-1', assistantId: 'assistant-1' })
-    expect(send).toHaveBeenCalledWith({ target: adapter.target, draft: { text: 'hello' } })
+    expect(send).toHaveBeenCalledWith({
+      target: adapter.target,
+      draft: { text: 'hello', tokens: [{ id: 'file-1', kind: 'file', label: 'chat.ts' }] }
+    })
     expect(stop).toHaveBeenCalledWith(adapter.target)
   })
 

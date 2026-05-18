@@ -10,6 +10,7 @@ export type {
   ResolvedAction
 } from './actions/actionTypes'
 export * from './adapters'
+export * from './composer'
 export { MessageVirtualList, type MessageVirtualListHandle } from './messages/list/MessageVirtualList'
 export { default as MessageList } from './messages/MessageList'
 export { MessageListProvider } from './messages/MessageListProvider'

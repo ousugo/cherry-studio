@@ -1,3 +1,5 @@
+import type { ComposerDraftToken } from '../composer/tokens'
+
 export type ComposerTargetKind = 'chat' | 'session'
 
 export interface ComposerTarget {
@@ -23,6 +25,7 @@ export interface ComposerToolReference {
 
 export interface ComposerDraft {
   text: string
+  tokens?: readonly ComposerDraftToken[]
   attachments?: readonly ComposerAttachment[]
   tools?: readonly ComposerToolReference[]
 }
