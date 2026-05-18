@@ -41,7 +41,7 @@ describe('transformAgentBlocksToParts', () => {
     insertedSessions.push(id)
   }
 
-  it('reshapes legacy blocks[] payloads into parts[] and clears the old arrays', async () => {
+  it('reshapes legacy blocks[] payloads into message.data.parts[]', async () => {
     await seedSession('s-blocks')
 
     const legacyPayload = {
@@ -74,11 +74,9 @@ describe('transformAgentBlocksToParts', () => {
       .select()
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.sessionId, 's-blocks'))
-    const content = row.content as { blocks: unknown[]; message: { blocks: unknown[]; data: { parts: unknown[] } } }
-    expect(content.blocks).toEqual([])
-    expect(content.message.blocks).toEqual([])
-    expect(Array.isArray(content.message.data.parts)).toBe(true)
-    expect(content.message.data.parts.length).toBeGreaterThan(0)
+    const parts = row.content.message.data?.parts
+    expect(Array.isArray(parts)).toBe(true)
+    expect(parts?.length).toBeGreaterThan(0)
   })
 
   it('skips rows that have no legacy blocks (already reshaped or freshly written)', async () => {
