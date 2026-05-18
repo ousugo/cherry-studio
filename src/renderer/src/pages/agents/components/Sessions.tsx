@@ -16,7 +16,7 @@ import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { Check, ChevronsUpDown, Clock3, ListFilter, Plus } from 'lucide-react'
+import { Check, Clock3, ListFilter, Plus, SquarePen } from 'lucide-react'
 import { memo, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -422,33 +422,25 @@ const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps)
       onRenameItem={handleRenameSession}
       onReorder={handleSessionReorder}
       onCollapsedGroupIdsChange={handleCollapsedSessionGroupIdsChange}>
-      <ResourceList.Header
-        icon={<Clock3 size={12} />}
-        title={t('agent.session.list.title')}
-        count={listLoading ? undefined : sessionItems.length}
-        className="gap-1 pb-0"
-        actions={
-          <>
-            <SessionDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setSessionDisplayMode(nextMode)} />
-            <ResourceList.HeaderActionButton
-              type="button"
-              aria-label={onOpenHistory ? t('history.records.agentTitle') : t('shortcut.general.toggle_sidebar')}
-              onClick={handleOpenHistoryOrToggleSidebar}>
-              <ChevronsUpDown size={12} className="block rotate-45" />
-            </ResourceList.HeaderActionButton>
-          </>
-        }>
-        <ResourceList.Search placeholder={t('agent.session.search.placeholder')} />
-        <Button
+      <ResourceList.Header className="gap-1 px-1.5 pb-1">
+        <ResourceList.HeaderItem
           type="button"
-          variant="ghost"
-          aria-label={t('agent.session.add.title')}
+          aria-label={t('chat.conversation.new')}
           disabled={creatingSession}
-          className="h-7 w-full justify-start gap-1.5 rounded-lg px-2.5 font-normal text-[12px] text-muted-foreground/70 shadow-none hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground"
-          onClick={handleHeaderCreateSession}>
-          <Plus size={13} className="block shrink-0" />
-          <span className="truncate">{t('agent.session.add.title')}</span>
-        </Button>
+          icon={<SquarePen size={14} />}
+          label={t('chat.conversation.new')}
+          onClick={handleHeaderCreateSession}
+          actions={
+            <SessionDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setSessionDisplayMode(nextMode)} />
+          }
+        />
+        <ResourceList.HeaderItem
+          type="button"
+          aria-label={onOpenHistory ? t('history.records.agentTitle') : t('shortcut.general.toggle_sidebar')}
+          icon={<Clock3 size={14} />}
+          label={t('history.records.shortTitle')}
+          onClick={handleOpenHistoryOrToggleSidebar}
+        />
       </ResourceList.Header>
       <SessionListBody
         channelTypeMap={channelTypeMap}

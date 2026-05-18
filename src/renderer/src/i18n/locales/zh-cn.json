@@ -1195,6 +1195,9 @@
         "placeholder": "搜索"
       }
     },
+    "conversation": {
+      "new": "新对话"
+    },
     "deeply_thought": "已深度思考（用时 {{seconds}} 秒）",
     "default": {
       "description": "你好，我是默认助手。你可以立刻开始跟我聊天",
@@ -1592,9 +1595,9 @@
         "yuque": "导出到语雀"
       },
       "group": {
-        "collapse": "折叠话题",
+        "collapse": "折叠显示",
         "earlier": "更早",
-        "show_more": "显示更多话题",
+        "show_more": "展开显示",
         "this_week": "本周",
         "today": "今天",
         "unknown_assistant": "未知助手",
@@ -2108,6 +2111,7 @@
       "resultCount": "{{count}} 条结果",
       "searchSession": "搜索会话...",
       "searchTopic": "搜索话题...",
+      "shortTitle": "历史记录",
       "sidebar": {
         "searchAssistant": "搜索助手...",
         "status": "状态",

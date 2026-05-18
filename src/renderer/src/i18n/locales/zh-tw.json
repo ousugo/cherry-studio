@@ -1195,6 +1195,9 @@
         "placeholder": "搜尋"
       }
     },
+    "conversation": {
+      "new": "新對話"
+    },
     "deeply_thought": "已深度思考（用時 {{seconds}} 秒）",
     "default": {
       "description": "你好，我是預設助手。你可以立即開始與我聊天",
@@ -1592,9 +1595,9 @@
         "yuque": "匯出到語雀"
       },
       "group": {
-        "collapse": "摺疊話題",
+        "collapse": "折疊顯示",
         "earlier": "更早",
-        "show_more": "顯示更多話題",
+        "show_more": "展開顯示",
         "this_week": "本週",
         "today": "今天",
         "unknown_assistant": "未知助手",
@@ -2108,6 +2111,7 @@
       "resultCount": "{{count}} 筆結果",
       "searchSession": "搜尋會話...",
       "searchTopic": "搜尋話題...",
+      "shortTitle": "歷史記錄",
       "sidebar": {
         "searchAssistant": "搜尋助手...",
         "status": "狀態",

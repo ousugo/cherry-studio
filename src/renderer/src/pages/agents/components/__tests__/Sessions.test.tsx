@@ -422,7 +422,7 @@ describe('Sessions', () => {
 
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 50 })
     expect(screen.getByText('Sessions')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Search sessions')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toHaveClass('text-[12px]', 'font-medium', 'text-sidebar-foreground/70')
     expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
   })
@@ -433,7 +433,7 @@ describe('Sessions', () => {
     render(<Sessions />)
 
     expect(screen.getByText('Sessions')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Search sessions')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to get sessions')
     expect(screen.getByRole('alert')).toHaveTextContent('Failed request')
 
@@ -564,15 +564,12 @@ describe('Sessions', () => {
 
     const { rerender } = render(<Sessions />)
 
-    fireEvent.change(screen.getByPlaceholderText('Search sessions'), { target: { value: 'missing' } })
-    expect(screen.getByPlaceholderText('Search sessions')).toHaveValue('missing')
     expect(screen.queryByText('Session 6')).not.toBeInTheDocument()
 
     vi.useFakeTimers()
     rerender(<Sessions revealRequest={{ itemId: 'session-6', requestId: 1, clearFilters: true, clearQuery: true }} />)
 
     expect(screen.getByText('Session 6')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Search sessions')).toHaveValue('')
     const revealedRow = screen.getByText('Session 6').closest('[role="option"]')
     expect(revealedRow).not.toBeNull()
     expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')

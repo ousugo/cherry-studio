@@ -20,7 +20,7 @@ import {
   type GroupedVirtualListGroup
 } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
-import { ChevronDown, ChevronsDown, ChevronsUp, SearchIcon } from 'lucide-react'
+import { ChevronDown, SearchIcon } from 'lucide-react'
 import type { ComponentProps, CSSProperties, ReactNode, Ref, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
@@ -169,7 +169,7 @@ type ProviderAction =
   | { type: 'hoverItem'; id: string | null }
   | { type: 'startRename'; id: string }
   | { type: 'cancelRename' }
-  | { type: 'showMoreInGroup'; groupId: string; defaultCount: number; step: number }
+  | { type: 'showMoreInGroup'; groupId: string }
   | { type: 'collapseGroupItems'; groupId: string; defaultCount: number }
   | { type: 'toggleGroup'; groupId: string }
   | {
@@ -203,12 +203,11 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
     case 'cancelRename':
       return { ...state, renamingId: null }
     case 'showMoreInGroup': {
-      const current = state.groupVisibleCounts[action.groupId] ?? action.defaultCount
       return {
         ...state,
         groupVisibleCounts: {
           ...state.groupVisibleCounts,
-          [action.groupId]: current + action.step
+          [action.groupId]: Number.POSITIVE_INFINITY
         }
       }
     }
@@ -508,8 +507,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       },
       cancelRename: () => dispatch({ type: 'cancelRename' }),
       openContextMenu: (id: string) => onOpenContextMenu?.(id),
-      showMoreInGroup: (groupId: string) =>
-        dispatch({ type: 'showMoreInGroup', groupId, defaultCount: defaultGroupVisibleCount, step: groupLoadStep }),
+      showMoreInGroup: (groupId: string) => dispatch({ type: 'showMoreInGroup', groupId }),
       collapseGroupItems: (groupId: string) =>
         dispatch({ type: 'collapseGroupItems', groupId, defaultCount: defaultGroupVisibleCount }),
       toggleGroup: (groupId: string) => {
@@ -709,6 +707,38 @@ type HeaderActionButtonProps = ComponentProps<typeof Button> & {
   ref?: Ref<HTMLButtonElement>
 }
 
+type HeaderItemProps = Omit<ComponentProps<typeof Button>, 'children'> & {
+  actions?: ReactNode
+  icon?: ReactNode
+  label: ReactNode
+  ref?: Ref<HTMLButtonElement>
+}
+
+function HeaderItem({ actions, className, icon, label, ref, variant = 'ghost', ...props }: HeaderItemProps) {
+  return (
+    <div className="flex min-h-8 items-center gap-1">
+      <Button
+        ref={ref}
+        variant={variant}
+        className={cn(
+          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1.5 text-sm outline-none shadow-none transition-all duration-150 hover:bg-accent focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-3.5 [&_svg]:shrink-0',
+          className
+        )}
+        {...props}>
+        {icon && (
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground">
+            {icon}
+          </span>
+        )}
+        <span className="min-w-0 flex-1 truncate text-left font-medium text-[12px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
+          {label}
+        </span>
+      </Button>
+      {actions && <div className="flex shrink-0 items-center gap-1 text-muted-foreground/55">{actions}</div>}
+    </div>
+  )
+}
+
 function HeaderActionButton({ className, ref, size, variant = 'ghost', ...props }: HeaderActionButtonProps) {
   return (
     <Button
@@ -828,7 +858,7 @@ function GroupHeader({ group, className, ref, style, ...props }: GroupHeaderProp
       ref={ref}
       style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
       className={cn(
-        'group/resource-list-group flex h-7 items-center gap-1.5 px-1.5 pt-2 pb-1 font-medium text-[11px]',
+        'group/resource-list-group flex h-8 w-full items-center gap-1.5 px-1.5 text-sm',
         GROUP_HEADER_TEXT_CLASS,
         className
       )}
@@ -836,19 +866,18 @@ function GroupHeader({ group, className, ref, style, ...props }: GroupHeaderProp
       <button
         type="button"
         aria-expanded={!collapsed}
-        className={cn(
-          'flex min-w-0 flex-1 items-center gap-1.5 rounded-sm text-left outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring',
-          GROUP_HEADER_TEXT_CLASS
-        )}
+        className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left outline-none"
         onClick={() => actions.toggleGroup(group.id)}>
         {groupHeaderIcon && (
           <span
             aria-hidden="true"
-            className="flex size-5 shrink-0 items-center justify-center text-inherit [&_svg]:stroke-current [&_svg]:text-inherit">
+            className="flex size-5 shrink-0 items-center justify-center rounded-lg text-inherit [&_svg]:stroke-current [&_svg]:text-inherit">
             {groupHeaderIcon}
           </span>
         )}
-        <span className="truncate text-inherit">{group.label}</span>
+        <span className="min-w-0 flex-1 truncate text-left font-medium text-[12px] text-inherit leading-5">
+          {group.label}
+        </span>
       </button>
       {groupHeaderAction && (
         <div className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100">
@@ -874,15 +903,14 @@ function GroupShowMore({ groupId, className, ref, style, ...props }: GroupShowMo
     <div
       ref={ref}
       style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
-      className={cn('flex justify-center px-2 py-1', className)}
+      className={cn('flex justify-start py-1 pr-1.5 pl-8', className)}
       {...props}>
       <button
         type="button"
-        aria-label={label}
         className={cn(
-          'flex h-6 min-w-10 items-center justify-center rounded-lg px-2 transition-all duration-150',
+          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] leading-4 transition-colors duration-150',
           GROUP_HEADER_TEXT_CLASS,
-          'hover:bg-accent hover:text-muted-foreground/55 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring'
+          'hover:text-muted-foreground/55 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring'
         )}
         onClick={() => {
           if (canCollapseToDefault) {
@@ -891,11 +919,7 @@ function GroupShowMore({ groupId, className, ref, style, ...props }: GroupShowMo
           }
           actions.showMoreInGroup(groupId)
         }}>
-        {canCollapseToDefault ? (
-          <ChevronsUp size={14} className={GROUP_HEADER_TEXT_CLASS} />
-        ) : (
-          <ChevronsDown size={14} className={GROUP_HEADER_TEXT_CLASS} />
-        )}
+        {label}
       </button>
     </div>
   )
@@ -1131,7 +1155,7 @@ type ResourceListVirtualGroup<T extends ResourceListItemBase> = GroupedVirtualLi
   ResourceListVirtualFooter
 >
 
-const estimateResourceListGroupHeaderSize = () => 24
+const estimateResourceListGroupHeaderSize = () => 32
 const estimateResourceListGroupFooterSize = () => 32
 
 function buildVirtualGroups<T extends ResourceListItemBase>(
@@ -1572,6 +1596,7 @@ const ResourceList = {
   Frame,
   Header,
   HeaderActionButton,
+  HeaderItem,
   Search,
   FilterBar,
   GroupHeader,

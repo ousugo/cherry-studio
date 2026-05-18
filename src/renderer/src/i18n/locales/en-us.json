@@ -1195,6 +1195,9 @@
         "placeholder": "Search"
       }
     },
+    "conversation": {
+      "new": "New Chat"
+    },
     "deeply_thought": "Deeply thought ({{seconds}} seconds)",
     "default": {
       "description": "Hello, I'm Default Assistant. You can start chatting with me right away",
@@ -1592,9 +1595,9 @@
         "yuque": "Export to Yuque"
       },
       "group": {
-        "collapse": "Collapse topics",
+        "collapse": "Collapse display",
         "earlier": "Earlier",
-        "show_more": "Show more topics",
+        "show_more": "Expand display",
         "this_week": "This week",
         "today": "Today",
         "unknown_assistant": "Unknown Assistant",
@@ -2108,6 +2111,7 @@
       "resultCount": "{{count}} results",
       "searchSession": "Search sessions...",
       "searchTopic": "Search topics...",
+      "shortTitle": "History",
       "sidebar": {
         "searchAssistant": "Search assistants...",
         "status": "Status",

@@ -38,13 +38,13 @@ import { findIndex } from 'lodash'
 import {
   Check,
   CheckSquare,
-  ChevronsUpDown,
   Clock3,
   ListChecks,
   ListFilter,
   PinIcon,
   Plus,
   Square,
+  SquarePen,
   Trash2,
   XIcon
 } from 'lucide-react'
@@ -691,42 +691,36 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
         onRenameItem={handleRenameTopic}
         onReorder={handleTopicReorder}
         onCollapsedGroupIdsChange={handleCollapsedTopicGroupIdsChange}>
-        <ResourceList.Header
-          icon={<Clock3 size={12} />}
-          title={t('chat.topics.title')}
-          count={listLoading ? undefined : topics.length}
-          className="gap-1 pb-0"
-          actions={
-            <>
-              <TopicDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setTopicDisplayMode(nextMode)} />
-              <Tooltip title={t('chat.topics.manage.title')} delay={500}>
-                <ResourceList.HeaderActionButton
-                  type="button"
-                  aria-label={t('chat.topics.manage.title')}
-                  aria-pressed={isManageMode}
-                  className={cn(isManageMode && 'text-foreground')}
-                  onClick={isManageMode ? exitManageMode : enterManageMode}>
-                  <ListChecks size={12} className="block" />
-                </ResourceList.HeaderActionButton>
-              </Tooltip>
-              <ResourceList.HeaderActionButton
-                type="button"
-                aria-label={onOpenHistory ? t('history.records.title') : t('shortcut.general.toggle_sidebar')}
-                onClick={handleOpenHistoryOrToggleSidebar}>
-                <ChevronsUpDown size={12} className="block rotate-45" />
-              </ResourceList.HeaderActionButton>
-            </>
-          }>
-          <ResourceList.Search placeholder={t('chat.topics.search.placeholder')} />
-          <Button
+        <ResourceList.Header className="gap-1 px-1.5 pb-1">
+          <ResourceList.HeaderItem
             type="button"
-            variant="ghost"
-            aria-label={t('chat.add.topic.title')}
-            className="h-7 w-full justify-start gap-1.5 rounded-lg px-2.5 font-normal text-[12px] text-muted-foreground/70 shadow-none hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground"
-            onClick={() => void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
-            <Plus size={13} className="block shrink-0" />
-            <span className="truncate">{t('chat.add.topic.title')}</span>
-          </Button>
+            aria-label={t('chat.conversation.new')}
+            icon={<SquarePen size={14} />}
+            label={t('chat.conversation.new')}
+            onClick={() => void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}
+            actions={
+              <>
+                <TopicDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setTopicDisplayMode(nextMode)} />
+                <Tooltip title={t('chat.topics.manage.title')} delay={500}>
+                  <ResourceList.HeaderActionButton
+                    type="button"
+                    aria-label={t('chat.topics.manage.title')}
+                    aria-pressed={isManageMode}
+                    className={cn(isManageMode && 'text-foreground')}
+                    onClick={isManageMode ? exitManageMode : enterManageMode}>
+                    <ListChecks size={12} className="block" />
+                  </ResourceList.HeaderActionButton>
+                </Tooltip>
+              </>
+            }
+          />
+          <ResourceList.HeaderItem
+            type="button"
+            aria-label={onOpenHistory ? t('history.records.title') : t('shortcut.general.toggle_sidebar')}
+            icon={<Clock3 size={14} />}
+            label={t('history.records.shortTitle')}
+            onClick={handleOpenHistoryOrToggleSidebar}
+          />
         </ResourceList.Header>
 
         <TopicListBody

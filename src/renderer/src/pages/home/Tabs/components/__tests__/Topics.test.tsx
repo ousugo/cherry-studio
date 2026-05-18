@@ -539,7 +539,7 @@ describe('Topics', () => {
     vi.useRealTimers()
   })
 
-  it('renders pinned and time groups, searches topics, and protects pinned rows from inline delete', () => {
+  it('renders pinned and time groups and protects pinned rows from inline delete', () => {
     const { getByText, setActiveTopic } = renderTopicList()
 
     expect(screen.getByText('Pinned')).toBeInTheDocument()
@@ -556,11 +556,6 @@ describe('Topics', () => {
 
     fireEvent.click(screen.getByText('Gamma topic'))
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
-
-    fireEvent.change(screen.getByPlaceholderText('Search topics'), { target: { value: 'gamma' } })
-
-    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
-    expect(screen.getByText('Gamma topic')).toBeInTheDocument()
   })
 
   it('pins from the leading row button without selecting the topic', async () => {
@@ -870,7 +865,7 @@ describe('Topics', () => {
 
     expect(screen.getByText('Topics')).toBeInTheDocument()
     expect(screen.getByText('5')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Search topics')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Search topics')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByLabelText('Display mode'))
 
@@ -1057,7 +1052,12 @@ describe('Topics', () => {
     renderTopicList()
 
     fireEvent.click(screen.getByLabelText('Manage topics'))
-    fireEvent.change(screen.getByPlaceholderText('Search topics'), { target: { value: 'gamma' } })
+    const manageSearchButton = document.querySelector('[data-title="Search topics"] button')
+    expect(manageSearchButton).toBeInTheDocument()
+    fireEvent.click(manageSearchButton as HTMLElement)
+    const manageSearch = screen.getAllByPlaceholderText('Search topics').at(-1)
+    expect(manageSearch).toBeInTheDocument()
+    fireEvent.change(manageSearch as HTMLElement, { target: { value: 'gamma' } })
 
     await vi.waitFor(() => {
       expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
@@ -1066,16 +1066,12 @@ describe('Topics', () => {
 
     fireEvent.click(getTopicRow('Gamma topic'))
 
-    const deleteTooltip = screen
-      .getAllByTestId('tooltip')
-      .filter((tooltip) => tooltip.getAttribute('data-title') === 'Delete')
-      .at(-1)
-    expect(deleteTooltip).toBeInTheDocument()
+    const deleteButton = screen.getAllByRole('button', { name: 'Delete' }).at(-1)
+    expect(deleteButton).toBeInTheDocument()
 
-    fireEvent.click(within(deleteTooltip as HTMLElement).getByRole('button'))
+    fireEvent.click(deleteButton as HTMLElement, { ctrlKey: true })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-c'))
-    expect(confirm).toHaveBeenCalled()
     expect(patchSpy).not.toHaveBeenCalled()
   })
 
