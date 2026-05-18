@@ -173,6 +173,21 @@ function droppableData(id: string) {
 }
 
 describe('ResourceList', () => {
+  it('renders loading placeholders that match grouped list rhythm', () => {
+    const { container } = render(<ResourceList.LoadingState />)
+
+    const groups = container.querySelectorAll('[data-resource-list-loading-group]')
+    const groupHeaders = container.querySelectorAll('[data-resource-list-loading-group-header]')
+    const items = container.querySelectorAll('[data-resource-list-loading-item]')
+
+    expect(groups).toHaveLength(2)
+    expect(groupHeaders).toHaveLength(2)
+    expect(items).toHaveLength(5)
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(19)
+    expect(groupHeaders[0]).toHaveClass('h-7', 'px-1.5', 'pt-2', 'pb-1')
+    expect(items[0]).toHaveClass('min-h-8', 'rounded-md', 'px-1.5', 'py-1.5', 'gap-1.5')
+  })
+
   it('uses a border-only reveal focus animation without changing row background', () => {
     const revealFocusStart = animationStyles.indexOf('@keyframes animation-resource-list-reveal-focus')
     const revealFocusEnd = animationStyles.indexOf('/* 流光动画 */', revealFocusStart)

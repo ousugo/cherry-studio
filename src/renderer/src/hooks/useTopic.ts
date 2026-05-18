@@ -221,15 +221,18 @@ export function useAllTopics(opts?: { q?: string; loadAll?: boolean }) {
     limit: 50
   })
   const topics = useInfiniteFlatItems(pages)
+  const loadAll = opts?.loadAll === true
+  const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
+  const isLoadingAll = isLoading || (loadAll && hasNext)
 
   // Auto-paginate to completion when the caller wants the full list. The
   // sidebar leaves `loadAll` unset and drives `loadNext` from scroll
   // position so paging is visible to the user.
   useEffect(() => {
-    if (opts?.loadAll && hasNext && !isLoading && !isRefreshing) {
+    if (loadAll && hasNext && !isLoading && !isRefreshing) {
       loadNext()
     }
-  }, [opts?.loadAll, hasNext, isLoading, isRefreshing, loadNext])
+  }, [loadAll, hasNext, isLoading, isRefreshing, loadNext])
 
   return {
     topics: topics.length > 0 ? topics : EMPTY_TOPICS,
@@ -237,6 +240,8 @@ export function useAllTopics(opts?: { q?: string; loadAll?: boolean }) {
     hasNext,
     loadNext,
     isLoading,
+    isLoadingAll,
+    isFullyLoaded,
     isRefreshing,
     error,
     refetch: refresh,

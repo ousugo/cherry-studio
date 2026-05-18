@@ -21,6 +21,7 @@ export type TopicListGroupKind = 'pinned' | 'time' | 'assistant' | 'unknown-assi
 export type TopicDisplayAssistant = {
   id: string
   name: string
+  orderKey?: string
 }
 
 export type TopicDisplayGroupLabels = {
@@ -205,10 +206,6 @@ function withTopicGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): Reso
     if (!group) return null
     return { ...group, id: `topic:${group.id}` }
   }
-}
-
-export function getTopicAssistantGroupId(assistantId: string) {
-  return `${TOPIC_ASSISTANT_GROUP_ID_PREFIX}${assistantId}`
 }
 
 export function getAssistantIdFromTopicGroupId(groupId: string): string | undefined {

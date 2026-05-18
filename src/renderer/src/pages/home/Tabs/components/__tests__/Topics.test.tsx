@@ -111,6 +111,9 @@ vi.mock('@renderer/hooks/useTopic', async () => {
   const actual = await vi.importActual<typeof TopicDataApiModule>('@renderer/hooks/useTopic')
   return {
     ...actual,
+    finishTopicRenaming: vi.fn(),
+    getTopicMessages: vi.fn().mockResolvedValue([]),
+    startTopicRenaming: vi.fn(),
     useTopicMutations: () => ({
       updateTopic: topicDataMocks.updateTopic,
       deleteTopic: topicDataMocks.deleteTopic,
@@ -130,12 +133,6 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
       status: undefined
     }
   }
-}))
-
-vi.mock('@renderer/hooks/useTopic', () => ({
-  finishTopicRenaming: vi.fn(),
-  getTopicMessages: vi.fn().mockResolvedValue([]),
-  startTopicRenaming: vi.fn()
 }))
 
 vi.mock('@renderer/services/ApiService', () => ({
@@ -316,6 +313,18 @@ function createTopicPin(overrides: Partial<Pin> = {}): Pin {
   }
 }
 
+function createAssistant(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'assistant-1',
+    name: 'Alpha Assistant',
+    emoji: '🧪',
+    orderKey: 'a',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides
+  }
+}
+
 function renderTopicList({
   onOpenHistory,
   revealRequest
@@ -422,10 +431,11 @@ describe('Topics', () => {
       }
       return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
-    mockUseQuery.mockImplementation((path) => {
+    mockUseQuery.mockImplementation((path, options) => {
       if (path === '/pins') {
+        const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
         return {
-          data: [{ id: 'pin-topic-b', entityId: 'topic-b', entityType: 'topic' }],
+          data: entityType === 'assistant' ? [] : [{ id: 'pin-topic-b', entityId: 'topic-b', entityType: 'topic' }],
           isLoading: false,
           isRefreshing: false,
           error: undefined,
@@ -437,20 +447,13 @@ describe('Topics', () => {
         return {
           data: {
             items: [
-              {
-                id: 'assistant-1',
-                name: 'Alpha Assistant',
-                emoji: '🧪',
-                createdAt: '2026-01-01T00:00:00.000Z',
-                updatedAt: '2026-01-01T00:00:00.000Z'
-              },
-              {
+              createAssistant(),
+              createAssistant({
                 id: 'assistant-2',
                 name: 'Beta Assistant',
                 emoji: '✍️',
-                createdAt: '2026-01-01T00:00:00.000Z',
-                updatedAt: '2026-01-01T00:00:00.000Z'
-              }
+                orderKey: 'b'
+              })
             ],
             total: 2
           },
@@ -902,6 +905,45 @@ describe('Topics', () => {
 
     expect(onOpenHistory).toHaveBeenCalledTimes(1)
     expect(onOpenHistory).toHaveBeenCalledWith({ x: 10, y: 20, width: 30, height: 40 })
+  })
+
+  it('keeps assistant grouped topics in the generic loading state until all pages are ready', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-first-page',
+              name: 'First page topic',
+              assistantId: 'assistant-1',
+              orderKey: 'a'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: true,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    expect(screen.getByText('Topics')).toBeInTheDocument()
+    expect(screen.queryByTestId('resource-list-grouped-loading')).not.toBeInTheDocument()
+    expect(screen.queryByText('Alpha Assistant')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta Assistant')).not.toBeInTheDocument()
+    expect(screen.queryByText('First page topic')).not.toBeInTheDocument()
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
+    expect(screen.queryAllByTestId('topic-list-row')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
+    expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
+    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 
   it('reveals a history-selected topic hidden by manage search, a collapsed group, and show-more', async () => {

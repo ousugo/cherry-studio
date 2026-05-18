@@ -176,6 +176,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
   })
 
   const {
+    isLoading: isTopicPinsLoading,
     isMutating: isPinsMutating,
     isRefreshing: isPinsRefreshing,
     pinnedIds: topicPinnedIds,
@@ -187,7 +188,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
     onTogglePin: toggleTopicPin
   })
   const { isPinned: isTopicPinned, togglePinned: toggleTopicPinned } = topicPinState
-  const { topics: apiTopics, isLoading, error } = useAllTopics({ loadAll: true })
+  const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = useAllTopics({ loadAll: true })
   const displayMode = topicDisplayMode ?? 'time'
   const isAssistantDisplayMode = displayMode === 'assistant'
   const {
@@ -463,7 +464,9 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
   )
 
   const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)
-  const listLoading = isLoading || (isAssistantDisplayMode && isAssistantsLoading)
+  const listLoading =
+    isLoadingAll || !isFullyLoaded || isTopicPinsLoading || (isAssistantDisplayMode && isAssistantsLoading)
+  const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const singlealone = topicPosition === 'right' && position === 'right'
 
@@ -689,13 +692,22 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
         }
       }
     },
-    [assistantById, isAssistantDisplayMode, isManageMode, orderedAssistants, refreshAssistants, refreshTopics, topics]
+    [
+      assistantById,
+      isAssistantDisplayMode,
+      isManageMode,
+      orderedAssistants,
+      refreshAssistants,
+      refreshTopics,
+      t,
+      topics
+    ]
   )
 
   return (
     <>
       <TopicResourceList<Topic>
-        items={filteredTopics}
+        items={visibleFilteredTopics}
         status={listStatus}
         selectedId={isManageMode ? null : activeTopic?.id}
         estimateItemSize={() => 34}
@@ -724,7 +736,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
         <ResourceList.Header
           icon={<Clock3 size={12} />}
           title={t('chat.topics.title')}
-          count={topics.length}
+          count={listLoading ? undefined : topics.length}
           className="gap-1 pb-0"
           actions={
             <>

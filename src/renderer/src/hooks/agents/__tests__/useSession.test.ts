@@ -118,6 +118,26 @@ describe('useSessions', () => {
     expect(loadNext).toHaveBeenCalledTimes(1)
   })
 
+  it('exposes full-load and pin-loading state for grouped sidebars', async () => {
+    mockUseInfiniteQuery.mockReturnValue(
+      buildInfiniteReturn({
+        pages: [{ items: [{ id: 's-1', name: 'Session 1' }], nextCursor: 'c1' }],
+        hasNext: true
+      }) as never
+    )
+    MockUseDataApiUtils.mockQueryResult('/pins', {
+      data: [],
+      isLoading: true
+    })
+
+    const { result } = renderHook(() => useSessions('agent-1', { loadAll: true }))
+    await act(async () => {})
+
+    expect(result.current.isFullyLoaded).toBe(false)
+    expect(result.current.isLoadingAll).toBe(true)
+    expect(result.current.isPinsLoading).toBe(true)
+  })
+
   it('does not auto-load more pages by default', async () => {
     const loadNext = vi.fn()
     mockUseInfiniteQuery.mockReturnValue(

@@ -155,6 +155,10 @@ const agentDataMocks = vi.hoisted(() => ({
   useAgents: vi.fn()
 }))
 
+const pinMocks = vi.hoisted(() => ({
+  usePins: vi.fn()
+}))
+
 const preferenceMocks = vi.hoisted(() => ({
   values: new Map<string, unknown>(),
   setPreference: vi.fn()
@@ -243,14 +247,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({
-  usePins: vi.fn(() => ({
-    isLoading: false,
-    isRefreshing: false,
-    isMutating: false,
-    pinnedIds: [],
-    refetch: vi.fn(),
-    togglePin: vi.fn()
-  }))
+  usePins: pinMocks.usePins
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
@@ -375,7 +372,10 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
     error: undefined,
     deleteSession: sessionDataMocks.deleteSession,
     hasMore: false,
+    isFullyLoaded: true,
+    isLoadingAll: false,
     isLoadingMore: false,
+    isPinsLoading: false,
     isValidating: false,
     reload: sessionDataMocks.reload,
     reorderSession: sessionDataMocks.reorderSession,
@@ -392,6 +392,15 @@ describe('Sessions', () => {
     preferenceMocks.values.set('topic.tab.show', true)
     cacheMocks.state.activeSessionId = 'session-a'
     setupSessions()
+    pinMocks.usePins.mockReturnValue({
+      isLoading: false,
+      isRefreshing: false,
+      isMutating: false,
+      error: undefined,
+      pinnedIds: [],
+      refetch: vi.fn(),
+      togglePin: vi.fn()
+    })
     sessionDataMocks.useUpdateSession.mockReturnValue({ updateSession: sessionDataMocks.updateSession })
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
@@ -449,6 +458,36 @@ describe('Sessions', () => {
     render(<Sessions />)
 
     expect(screen.getByRole('button', { name: 'Alpha agent' }).closest('div')).toHaveTextContent('🧠')
+  })
+
+  it('keeps agent grouped sessions in the generic loading state until all pages are ready', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions({
+      sessions: [createSession({ id: 'session-first-page', name: 'First page session', agentId: 'agent-a' })],
+      hasMore: true,
+      isFullyLoaded: false,
+      isLoadingAll: true
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+
+    render(<Sessions />)
+
+    expect(screen.queryByTestId('resource-list-grouped-loading')).not.toBeInTheDocument()
+    expect(screen.queryByText('Alpha agent')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta agent')).not.toBeInTheDocument()
+    expect(screen.queryByText('First page session')).not.toBeInTheDocument()
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
+    expect(screen.queryAllByTestId('agent-session-row')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
+    expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
+    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 
   it('clears the active session from the header without creating inline', () => {

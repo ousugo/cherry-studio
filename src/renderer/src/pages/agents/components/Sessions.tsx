@@ -130,6 +130,9 @@ const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps)
     sessions,
     pinIdBySessionId,
     isLoading,
+    isLoadingAll,
+    isFullyLoaded,
+    isPinsLoading: isSessionPinsLoading,
     error,
     deleteSession,
     hasMore,
@@ -157,7 +160,7 @@ const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps)
 
   const displayMode = sessionDisplayMode ?? 'time'
   const isDraggableMode = displayMode !== 'time'
-  const dragReady = isDraggableMode && !hasMore && !isLoadingMore && !isValidating && !isLoading
+  const dragReady = isDraggableMode && isFullyLoaded && !isLoadingAll && !isLoadingMore && !isValidating && !isLoading
 
   const sessionItems = useMemo<SessionListItem[]>(
     () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
@@ -422,13 +425,15 @@ const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps)
     [agentById, createSessionForGroup, creatingSession, displayMode, fallbackAgentId, t]
   )
 
-  const listError = error || (displayMode === 'agent' ? agentsError : undefined)
-  const listLoading = isLoading || (displayMode === 'agent' && isAgentsLoading)
+  const isAgentDisplayMode = displayMode === 'agent'
+  const listError = error || (isAgentDisplayMode ? agentsError : undefined)
+  const listLoading = isLoadingAll || !isFullyLoaded || isSessionPinsLoading || (isAgentDisplayMode && isAgentsLoading)
+  const visibleGroupedSessions = useMemo(() => (listLoading ? [] : groupedSessions), [groupedSessions, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : groupedSessions.length === 0 ? 'empty' : 'idle'
 
   return (
     <SessionResourceList<SessionListItem>
-      items={groupedSessions}
+      items={visibleGroupedSessions}
       status={listStatus}
       selectedId={activeSessionId}
       estimateItemSize={() => 34}
@@ -455,7 +460,7 @@ const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps)
       <ResourceList.Header
         icon={<Clock3 size={12} />}
         title={t('agent.session.list.title')}
-        count={sessionItems.length}
+        count={listLoading ? undefined : sessionItems.length}
         className="gap-1 pb-0"
         actions={
           <>
@@ -492,7 +497,7 @@ const Sessions = ({ onOpenHistory, onSelectItem, revealRequest }: SessionsProps)
         onTogglePin={togglePin}
         setActiveSessionId={handleSelectSession}
       />
-      {(isLoadingMore || hasMore) && (
+      {!listLoading && (isLoadingMore || hasMore) && (
         <div className="shrink-0 px-3 py-2 text-center text-[11px] text-muted-foreground/55">{t('common.loading')}</div>
       )}
     </SessionResourceList>

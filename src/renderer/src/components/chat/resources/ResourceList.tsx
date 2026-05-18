@@ -1474,12 +1474,34 @@ type LoadingStateProps = ComponentProps<'div'> & {
   ref?: Ref<HTMLDivElement>
 }
 
+const RESOURCE_LIST_LOADING_GROUPS = [
+  { id: 'primary', headerWidth: 'w-20', itemWidths: ['w-36', 'w-28', 'w-32'] },
+  { id: 'secondary', headerWidth: 'w-16', itemWidths: ['w-32', 'w-24'] }
+] as const
+
 function LoadingState({ className, ref, ...props }: LoadingStateProps) {
   return (
-    <div ref={ref} className={cn('flex flex-col gap-2 p-3', className)} {...props}>
-      <Skeleton className="h-8 w-full" />
-      <Skeleton className="h-8 w-full" />
-      <Skeleton className="h-8 w-3/4" />
+    <div ref={ref} className={cn('flex flex-col px-1.5 py-1.5', className)} {...props}>
+      {RESOURCE_LIST_LOADING_GROUPS.map((group) => (
+        <div key={group.id} data-resource-list-loading-group="true" className="flex flex-col pb-1">
+          <div
+            data-resource-list-loading-group-header="true"
+            className="flex h-7 items-center gap-1.5 px-1.5 pt-2 pb-1">
+            <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
+            <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', group.headerWidth)} />
+          </div>
+          {group.itemWidths.map((width, index) => (
+            <div
+              key={`${group.id}-${index}`}
+              data-resource-list-loading-item="true"
+              className="flex min-h-8 w-full items-center gap-1.5 rounded-md px-1.5 py-1.5">
+              <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
+              <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', width)} />
+              <Skeleton data-slot="skeleton" className="ml-auto size-5 shrink-0 rounded-md opacity-60" />
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   )
 }

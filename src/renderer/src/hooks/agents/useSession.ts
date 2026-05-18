@@ -91,13 +91,15 @@ export const useSessions = (
   // see `listByCursor` (`pin:` / `session:` / `session:` sentinel). The `/pins`
   // map is kept only for the per-row pinned indicator and the toggle handler.
   const sessions = useInfiniteFlatItems(pages)
-  const { data: pinList } = useQuery('/pins', { query: { entityType: 'session' } })
+  const { data: pinList, isLoading: isPinsLoading } = useQuery('/pins', { query: { entityType: 'session' } })
   const pinIdBySessionId = useMemo(
     () => new Map(Array.isArray(pinList) ? pinList.map((p) => [p.entityId, p.id] as const) : []),
     [pinList]
   )
   const total = sessions.length
   const hasMore = hasNext
+  const isFullyLoaded = !loadAll || (!isLoading && !hasMore)
+  const isLoadingAll = isLoading || (loadAll && hasMore)
   const isLoadingMore = isRefreshing && pages.length > 1
 
   useEffect(() => {
@@ -204,7 +206,10 @@ export const useSessions = (
     deleteSession,
     reorderSession,
     reorderSessions,
-    togglePin
+    togglePin,
+    isFullyLoaded,
+    isLoadingAll,
+    isPinsLoading
   }
 }
 
