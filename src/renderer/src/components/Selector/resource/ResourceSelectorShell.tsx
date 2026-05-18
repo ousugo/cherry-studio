@@ -1,7 +1,7 @@
 import { Checkbox, CustomTag, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { Pin, Plus } from 'lucide-react'
+import { Pin, Plus, SquarePen } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactElement,
@@ -36,6 +36,7 @@ export type ResourceSelectorShellLabels = {
   searchPlaceholder: string
   pin: string
   unpin: string
+  edit: string
   createNew: string
   emptyText: string
   /** Heading rendered above the pinned group in the list. */
@@ -76,6 +77,7 @@ type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
   isPinActionDisabled?: boolean
 
   onCreateNew?: () => void
+  onEditItem?: (item: T) => void
 
   emptyState?: ResourceSelectorShellEmptyState
 
@@ -212,6 +214,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     isPinActionDisabled = false,
     onOpen,
     onCreateNew,
+    onEditItem,
     emptyState,
     labels,
     loading,
@@ -223,6 +226,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const isItemType = 'selectionType' in props && props.selectionType === 'item'
 
   const [internalOpen, setInternalOpen] = useState(false)
+  const [shellKey, setShellKey] = useState(0)
   const open = openProp ?? internalOpen
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -244,10 +248,12 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     (action: () => void) => {
       pendingCloseActionRef.current = action
       if (!open) {
+        setShellKey((key) => key + 1)
         runPendingCloseAction()
         return
       }
 
+      setShellKey((key) => key + 1)
       handleOpenChange(false)
     },
     [handleOpenChange, open, runPendingCloseAction]
@@ -263,8 +269,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     if (open) return
 
     setSearchValue('')
-    const timer = window.setTimeout(runPendingCloseAction, 0)
-    return () => window.clearTimeout(timer)
+    const frameId = window.requestAnimationFrame(runPendingCloseAction)
+    return () => window.cancelAnimationFrame(frameId)
   }, [open, runPendingCloseAction])
 
   const onOpenRef = useRef(onOpen)
@@ -486,6 +492,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         <ModelSelectorRowActionButton
           disabled={item.disabled || isPinActionDisabled}
           aria-label={isPinned ? labels.unpin : labels.pin}
+          className="size-4 rounded-sm hover:bg-transparent"
           pinned={isPinned}
           selected={selectedSet.has(item.id)}
           onClick={() => {
@@ -496,6 +503,25 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       )
     },
     [isPinActionDisabled, labels.pin, labels.unpin, pinnedSet, selectedSet, togglePin]
+  )
+
+  const renderEditAction = useCallback(
+    (item: T) => {
+      if (!onEditItem) return null
+
+      return (
+        <ModelSelectorRowActionButton
+          disabled={item.disabled}
+          aria-label={labels.edit}
+          className="size-4 rounded-sm hover:bg-transparent"
+          onClick={() => {
+            closeBeforeAction(() => onEditItem(item))
+          }}>
+          <SquarePen className="size-3" />
+        </ModelSelectorRowActionButton>
+      )
+    },
+    [closeBeforeAction, labels.edit, onEditItem]
   )
 
   const multiToggleLabel = 'multiToggleLabel' in props ? props.multiToggleLabel : null
@@ -552,6 +578,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const renderOptionRow = (item: T, flatIndex: number) => {
     const isSelected = selectedSet.has(item.id)
     const isActive = flatIndex === activeIndex
+    const editAction = renderEditAction(item)
     const pinAction = renderPinAction(item)
 
     const leading = item.emoji ? (
@@ -562,7 +589,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
     const trailing =
       item.tags && item.tags.length > 0 ? (
-        <div className="ml-2 flex h-4 max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+        <div
+          className="ml-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
+          data-resource-selector-tags={item.id}>
           {item.tags.map((tag) => (
             <ResourceTagChip key={`${item.id}-${tag}`} tag={tag} color={tagColorByName.get(tag)} />
           ))}
@@ -588,12 +617,18 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
           }
           leading={leading}
           trailing={trailing}
-          actions={pinAction}
+          actions={
+            <>
+              {editAction}
+              {pinAction}
+            </>
+          }
           onSelect={() => handleSelectItem(item)}
           rootProps={{
             onMouseEnter: () => {
               if (!item.disabled) setActiveIndex(flatIndex)
             },
+            className: 'pr-0.5',
             'data-option-row': item.id
           }}
           optionProps={{
@@ -602,7 +637,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
             'data-option-id': item.id,
             'data-active': isActive || undefined
           }}>
-          <span className="truncate">{item.name}</span>
+          <span className="min-w-0 truncate" data-resource-selector-name={item.id}>
+            {item.name}
+          </span>
         </ModelSelectorRow>
       </div>
     )
@@ -634,6 +671,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   return (
     <SelectorShell
+      key={shellKey}
       trigger={trigger}
       open={open}
       onOpenChange={handleOpenChange}

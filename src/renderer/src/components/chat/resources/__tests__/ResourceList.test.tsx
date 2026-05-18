@@ -331,8 +331,13 @@ describe('ResourceList', () => {
     expect(screen.getByLabelText('Rename Alpha')).toBeInTheDocument()
   })
 
-  it('renders resolved actions through the shared action menu', () => {
+  it('defers resolved actions until the shared context menu is recreated', () => {
     const onAction = vi.fn()
+    let deferredAction: FrameRequestCallback | undefined
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      deferredAction = callback
+      return 1
+    })
     const Provider = ResourceList.Provider<TestItem>
     const actions: ResolvedAction[] = [
       {
@@ -361,16 +366,26 @@ describe('ResourceList', () => {
       )
     }
 
-    render(
-      <Provider items={ITEMS}>
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
-        </ResourceList.Frame>
-      </Provider>
-    )
+    try {
+      render(
+        <Provider items={ITEMS}>
+          <ResourceList.Frame>
+            <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
+          </ResourceList.Frame>
+        </Provider>
+      )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0])
-    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'delete' }))
+      fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0])
+      expect(onAction).not.toHaveBeenCalled()
+
+      act(() => {
+        deferredAction?.(0)
+      })
+
+      expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'delete' }))
+    } finally {
+      requestAnimationFrameSpy.mockRestore()
+    }
   })
 
   it('combines virtualization and drag reorder for large resource lists', () => {

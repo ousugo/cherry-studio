@@ -18,6 +18,7 @@ import { useSessionMenuActions } from './useSessionMenuActions'
 interface SessionItemProps {
   channelType?: string
   onDelete: (id: string) => void | Promise<void>
+  onEditAgent: (agentId: string) => void
   onPress: (id: string) => void
   onSelectItem?: () => void
   onTogglePin?: (id: string) => void | Promise<void>
@@ -30,6 +31,7 @@ const DELETE_CONFIRMATION_TIMEOUT = 3000
 const SessionItem = ({
   channelType,
   onDelete,
+  onEditAgent,
   onPress,
   onSelectItem,
   onTogglePin,
@@ -65,17 +67,33 @@ const SessionItem = ({
   const handleTogglePin = useCallback(() => {
     void onTogglePin?.(session.id)
   }, [onTogglePin, session.id])
+  const handleEditAgent = useCallback(() => {
+    if (session.agentId) {
+      onEditAgent(session.agentId)
+    }
+  }, [onEditAgent, session.agentId])
 
   const actionContext = useMemo<SessionActionContext>(
     () => ({
       onDelete: handleDelete,
+      onEditAgent: session.agentId ? handleEditAgent : undefined,
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
       pinned,
       sessionName: session.name ?? '',
       startEdit: startMenuEdit,
       t
     }),
-    [handleDelete, handleTogglePin, onTogglePin, pinned, session.name, startMenuEdit, t]
+    [
+      handleDelete,
+      handleEditAgent,
+      handleTogglePin,
+      onTogglePin,
+      pinned,
+      session.agentId,
+      session.name,
+      startMenuEdit,
+      t
+    ]
   )
 
   const { menuActions, handleMenuAction } = useSessionMenuActions(actionContext)

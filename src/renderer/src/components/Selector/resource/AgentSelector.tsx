@@ -1,7 +1,9 @@
 import { loggerService } from '@logger'
+import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { usePins } from '@renderer/hooks/usePins'
+import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { Bot } from 'lucide-react'
 import { type ReactElement, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,6 +41,7 @@ export type AgentSelectorProps = AgentSelectorSingleIdProps | AgentSelectorSingl
 export function AgentSelector(props: AgentSelectorProps) {
   const { trigger, open, onOpenChange, mountStrategy } = props
   const { t } = useTranslation()
+  const tabs = useOptionalTabsContext()
   const modelFilter = useAgentModelFilter('claude-code')
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -89,6 +92,13 @@ export function AgentSelector(props: AgentSelectorProps) {
       }
     },
     [isPinActionDisabled, togglePin, t]
+  )
+
+  const handleEditItem = useCallback(
+    (item: AgentSelectorItem) => {
+      tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('agent', item.id)), { forceNew: true })
+    },
+    [tabs]
   )
 
   const handleSubmitCreate = useCallback(
@@ -143,12 +153,14 @@ export function AgentSelector(props: AgentSelectorProps) {
     emptyState: { preset: 'no-agent' as const },
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
+    ...(tabs ? { onEditItem: handleEditItem } : {}),
     onCreateNew: () => setCreateDialogOpen(true),
     loading: isLoading || isPinnedLoading,
     labels: {
       searchPlaceholder: t('selector.agent.search_placeholder'),
       pin: t('selector.common.pin'),
       unpin: t('selector.common.unpin'),
+      edit: t('agent.edit.title'),
       createNew: t('selector.agent.create_new'),
       emptyText: t('selector.agent.empty_text'),
       pinnedTitle: t('selector.common.pinned_title')

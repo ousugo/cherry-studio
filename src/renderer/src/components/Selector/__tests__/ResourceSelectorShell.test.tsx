@@ -30,6 +30,7 @@ const LABELS: ResourceSelectorShellLabels = {
   searchPlaceholder: 'Search',
   pin: 'Pin',
   unpin: 'Unpin',
+  edit: 'Edit',
   createNew: 'Create new',
   emptyText: 'Nothing',
   pinnedTitle: 'Pinned'
@@ -521,13 +522,16 @@ describe('ResourceSelectorShell', () => {
   })
 
   describe('edit button', () => {
-    it('keeps row action buttons outside the option subtree', () => {
+    it('places edit and pin together in the row action area', () => {
+      const taggedItems: Item[] = [{ ...ITEMS[0], tags: ['Cherry', 'DEV'] }, ...ITEMS.slice(1)]
+
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
-          items={ITEMS}
+          items={taggedItems}
           pinnedIds={[]}
           onTogglePin={vi.fn()}
+          onEditItem={vi.fn()}
           onCreateNew={vi.fn()}
           labels={LABELS}
           value={null}
@@ -537,7 +541,64 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       const alphaOption = getRow('Alpha')
-      expect(within(alphaOption).queryByRole('button')).not.toBeInTheDocument()
+      const row = alphaOption.closest('[data-model-selector-row]') as HTMLElement
+      const nameArea = row.querySelector('[data-resource-selector-name="1"]') as HTMLElement
+      const tagArea = row.querySelector('[data-resource-selector-tags="1"]')
+      const editButton = within(row).getByRole('button', { name: 'Edit' })
+
+      expect(row).toHaveClass('pr-0.5')
+      expect(nameArea).toHaveTextContent('Alpha')
+      expect(within(nameArea).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+      expect(editButton).toHaveClass('size-4', 'hover:bg-transparent')
+      expect(within(alphaOption).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+      expect(within(alphaOption).queryByRole('button', { name: 'Pin' })).not.toBeInTheDocument()
+      expect(within(row).getByRole('button', { name: 'Pin' })).toHaveClass('size-4', 'hover:bg-transparent')
+      expect(tagArea).toHaveClass('max-w-[48%]')
+      expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(ITEMS.length)
+    })
+
+    it('closes and recreates the popover before running the edit action on requestAnimationFrame', async () => {
+      const animationFrameCallbacks: FrameRequestCallback[] = []
+      let popoverAtCallback: HTMLElement | null = null
+      const onChange = vi.fn()
+      const onEditItem = vi.fn((item: Item) => {
+        popoverAtCallback = screen.queryByPlaceholderText('Search')
+        expect(item.id).toBe('1')
+      })
+
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onEditItem={onEditItem}
+          labels={LABELS}
+          value={null}
+          onChange={onChange}
+        />
+      )
+      openPopover()
+
+      const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        animationFrameCallbacks.push(callback)
+        return animationFrameCallbacks.length
+      })
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+      expect(onEditItem).not.toHaveBeenCalled()
+
+      await waitFor(() => expect(animationFrameCallbacks.length).toBeGreaterThan(0))
+      act(() => {
+        for (const callback of animationFrameCallbacks.splice(0)) {
+          callback(0)
+        }
+      })
+
+      expect(onEditItem).toHaveBeenCalledTimes(1)
+      expect(onChange).not.toHaveBeenCalled()
+      expect(popoverAtCallback).toBeNull()
+      requestAnimationFrameSpy.mockRestore()
     })
 
     it('uses the model selector row styling', () => {

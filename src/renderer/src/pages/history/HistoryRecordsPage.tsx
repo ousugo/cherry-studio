@@ -1,5 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
@@ -23,6 +24,7 @@ import type {
   TopicExportMenuOptions
 } from '@renderer/pages/home/Tabs/components/topicContextMenuActions'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/home/Tabs/components/useTopicMenuActions'
+import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic as RendererTopic } from '@renderer/types'
@@ -152,6 +154,7 @@ const AssistantHistoryRecordsContent = ({
   onRecordSelect
 }: AssistantHistoryRecordsContentProps) => {
   const { t } = useTranslation()
+  const tabs = useOptionalTabsContext()
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [searchText, setSearchText] = useState('')
 
@@ -327,6 +330,14 @@ const AssistantHistoryRecordsContent = ({
     },
     [rendererTopicById, t, updateTopic]
   )
+  const handleEditAssistant = useCallback(
+    (topic: RendererTopic) => {
+      if (topic.assistantId) {
+        tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('assistant', topic.assistantId)), { forceNew: true })
+      }
+    },
+    [tabs]
+  )
 
   const getTopicActionContext = useCallback(
     (apiTopic: Topic): TopicActionContext => {
@@ -338,6 +349,7 @@ const AssistantHistoryRecordsContent = ({
         onAutoRename: handleAutoRename,
         onClearMessages: handleClearMessages,
         onDelete: handleDeleteTopicFromMenu,
+        onEditAssistant: handleEditAssistant,
         onPinTopic: handlePinTopic,
         onStartRename: () => undefined,
         notesPath,
@@ -352,6 +364,7 @@ const AssistantHistoryRecordsContent = ({
       handleAutoRename,
       handleClearMessages,
       handleDeleteTopicFromMenu,
+      handleEditAssistant,
       handlePinTopic,
       isTopicRenaming,
       notesPath,
@@ -392,6 +405,7 @@ const AssistantHistoryRecordsContent = ({
 
 const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }: AgentHistoryRecordsContentProps) => {
   const { t } = useTranslation()
+  const tabs = useOptionalTabsContext()
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
   const [searchText, setSearchText] = useState('')
@@ -509,6 +523,14 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     },
     [sessions, t, updateSession]
   )
+  const handleEditAgent = useCallback(
+    (session: AgentSessionEntity) => {
+      if (session.agentId) {
+        tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('agent', session.agentId)), { forceNew: true })
+      }
+    },
+    [tabs]
+  )
 
   const getSessionActionContext = useCallback(
     (session: AgentSessionEntity): SessionActionContext =>
@@ -516,6 +538,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
         onDelete: () => {
           void handleDeleteSession(session.id)
         },
+        onEditAgent: session.agentId ? () => handleEditAgent(session) : undefined,
         onTogglePin: () => {
           void togglePin(session.id)
         },
@@ -524,7 +547,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
         startEdit: () => undefined,
         t
       }),
-    [handleDeleteSession, pinIdBySessionId, t, togglePin]
+    [handleDeleteSession, handleEditAgent, pinIdBySessionId, t, togglePin]
   )
 
   const sessionMenuPreset = useSessionMenuPreset<AgentSessionEntity>({ getActionContext: getSessionActionContext })

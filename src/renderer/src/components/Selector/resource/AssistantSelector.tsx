@@ -1,7 +1,9 @@
 import { loggerService } from '@logger'
+import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
 import { isSelectableAssistantModel } from '@renderer/pages/library/editor/assistant/modelFilter'
+import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { type ReactElement, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -67,6 +69,7 @@ export type AssistantSelectorProps =
 export function AssistantSelector(props: AssistantSelectorProps) {
   const { trigger, open, onOpenChange, mountStrategy } = props
   const { t } = useTranslation()
+  const tabs = useOptionalTabsContext()
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const selectorOpen = open ?? internalOpen
@@ -134,6 +137,13 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [isPinActionDisabled, togglePin, t]
   )
 
+  const handleEditItem = useCallback(
+    (item: AssistantSelectorItem) => {
+      tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('assistant', item.id)), { forceNew: true })
+    },
+    [tabs]
+  )
+
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateDialogValues) => {
       try {
@@ -186,11 +196,13 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     emptyState: { preset: 'no-assistant' as const },
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
+    ...(tabs ? { onEditItem: handleEditItem } : {}),
     onCreateNew: () => setCreateDialogOpen(true),
     labels: {
       searchPlaceholder: t('selector.assistant.search_placeholder'),
       pin: t('selector.common.pin'),
       unpin: t('selector.common.unpin'),
+      edit: t('assistants.edit.title'),
       createNew: t('selector.assistant.create_new'),
       emptyText: t('selector.assistant.empty_text'),
       pinnedTitle: t('selector.common.pinned_title'),

@@ -215,6 +215,7 @@ function ModelRow({
         <ModelSelectorRowActionButton
           disabled={isPinActionDisabled}
           aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
+          className="size-4 rounded-sm hover:bg-transparent"
           pinned={item.isPinned}
           selected={isSelected}
           onClick={() => onPin(item.modelId)}>
@@ -222,6 +223,7 @@ function ModelRow({
         </ModelSelectorRowActionButton>
       }
       onSelect={() => onSelect(item)}
+      rootProps={{ className: 'pr-0.5' }}
       optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
       <span className="truncate">{item.model.name}</span>
       {item.showIdentifier && item.modelIdentifier !== item.model.name && (

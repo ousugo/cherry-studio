@@ -615,7 +615,7 @@ describe('Sessions', () => {
 
     expect(sessionDataMocks.updateSession).not.toHaveBeenCalled()
 
-    const dialog = screen.getByRole('dialog')
+    const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveTextContent('Edit session')
     const input = within(dialog).getByLabelText('Name')
     expect(sessionDataMocks.updateSession).not.toHaveBeenCalled()

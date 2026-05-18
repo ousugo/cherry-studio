@@ -15,6 +15,7 @@ import {
 } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { isMac } from '@renderer/config/constant'
+import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -28,6 +29,7 @@ import {
   useTopicMutations
 } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
@@ -39,6 +41,7 @@ import {
   Check,
   CheckSquare,
   Clock3,
+  Edit3,
   ListChecks,
   ListFilter,
   PinIcon,
@@ -143,6 +146,7 @@ function TopicDisplayModeMenu({
 
 export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTopic, position }: Props) {
   const { t } = useTranslation()
+  const tabs = useOptionalTabsContext()
   const [groupNow] = useState(() => dayjs())
   const { notesPath } = useNotesSettings()
   const { updateTopic: patchTopic, deleteTopic: deleteTopicById, refreshTopics } = useTopicMutations()
@@ -460,10 +464,17 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const singlealone = topicPosition === 'right' && position === 'right'
+  const openAssistantEditor = useCallback(
+    (assistantId: string) => {
+      tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('assistant', assistantId)), { forceNew: true })
+    },
+    [tabs]
+  )
 
   const getGroupHeaderAction = useCallback(
     (group: { id: string }) => {
       let payload: { assistantId: string | null } | undefined
+      let editableAssistantId: string | undefined
 
       if (displayMode === 'time') {
         if (group.id !== TOPIC_TODAY_GROUP_ID) return null
@@ -474,24 +485,37 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
         if (!assistantId || !assistantById.has(assistantId)) return null
 
         payload = { assistantId }
+        editableAssistantId = assistantId
       }
 
       return (
-        <Tooltip title={t('chat.add.topic.title')} delay={500}>
-          <ResourceList.HeaderActionButton
-            type="button"
-            aria-label={t('chat.add.topic.title')}
-            onClick={() =>
-              payload === undefined
-                ? void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
-                : void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC, payload)
-            }>
-            <Plus className="block" />
-          </ResourceList.HeaderActionButton>
-        </Tooltip>
+        <>
+          {editableAssistantId && (
+            <Tooltip title={t('assistants.edit.title')} delay={500}>
+              <ResourceList.HeaderActionButton
+                type="button"
+                aria-label={t('assistants.edit.title')}
+                onClick={() => openAssistantEditor(editableAssistantId)}>
+                <Edit3 className="block" />
+              </ResourceList.HeaderActionButton>
+            </Tooltip>
+          )}
+          <Tooltip title={t('chat.add.topic.title')} delay={500}>
+            <ResourceList.HeaderActionButton
+              type="button"
+              aria-label={t('chat.add.topic.title')}
+              onClick={() =>
+                payload === undefined
+                  ? void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
+                  : void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC, payload)
+              }>
+              <Plus className="block" />
+            </ResourceList.HeaderActionButton>
+          </Tooltip>
+        </>
       )
     },
-    [assistantById, displayMode, t]
+    [assistantById, displayMode, openAssistantEditor, t]
   )
 
   const handleCollapsedTopicGroupIdsChange = useCallback(
@@ -687,7 +711,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
         onRenameItem={handleRenameTopic}
         onReorder={handleTopicReorder}
         onCollapsedGroupIdsChange={handleCollapsedTopicGroupIdsChange}>
-        <ResourceList.Header className="gap-1 px-1.5 pb-1">
+        <ResourceList.Header className="gap-1 px-1.5 pb-0">
           <ResourceList.HeaderItem
             type="button"
             aria-label={t('chat.conversation.new')}
@@ -732,6 +756,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
           onConfirmDelete={handleConfirmDelete}
           onDeleteClick={handleDeleteClick}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
+          onEditAssistant={openAssistantEditor}
           onPinTopic={handlePinTopic}
           onSwitchTopic={setActiveTopic}
           rowLayout={singlealone ? 'single' : 'grouped'}
@@ -867,6 +892,7 @@ interface TopicListBodyProps {
   onConfirmDelete: (topic: Topic, event?: MouseEvent) => Promise<void>
   onDeleteClick: (topicId: string, event: MouseEvent) => void
   onDeleteFromMenu: (topic: Topic) => Promise<void>
+  onEditAssistant: (assistantId: string) => void
   onPinTopic: (topic: Topic) => Promise<void>
   onSwitchTopic: (topic: Topic) => void
   rowLayout: TopicRowLayout
@@ -945,6 +971,7 @@ function TopicRow({
   onConfirmDelete,
   onDeleteClick,
   onDeleteFromMenu,
+  onEditAssistant,
   onPinTopic,
   onSwitchTopic,
   selectedIds,
@@ -981,6 +1008,11 @@ function TopicRow({
     onAutoRename,
     onClearMessages,
     onDelete: onDeleteFromMenu,
+    onEditAssistant: (topic) => {
+      if (topic.assistantId) {
+        onEditAssistant(topic.assistantId)
+      }
+    },
     onPinTopic,
     onStartRename: startMenuRename,
     t,

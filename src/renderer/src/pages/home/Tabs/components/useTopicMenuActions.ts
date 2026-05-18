@@ -34,6 +34,7 @@ export interface TopicMenuActionOptions {
   onAutoRename: TopicMenuHandler
   onClearMessages: TopicMenuHandler
   onDelete: TopicMenuHandler
+  onEditAssistant?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
   onStartRename: TopicMenuHandler
   t: TFunction
@@ -48,6 +49,7 @@ export function createTopicActionContext({
   onAutoRename,
   onClearMessages,
   onDelete,
+  onEditAssistant,
   onPinTopic,
   onStartRename,
   t,
@@ -63,6 +65,7 @@ export function createTopicActionContext({
     onCopyMarkdown: copyTopicAsMarkdown,
     onCopyPlainText: copyTopicAsPlainText,
     onDelete,
+    onEditAssistant,
     onExportImage: (topic) => void EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic),
     onExportJoplin: async (topic) => {
       const topicMessages = await getTopicMessages(topic.id)
@@ -167,6 +170,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onAutoRename,
     onClearMessages,
     onDelete,
+    onEditAssistant,
     onPinTopic,
     onStartRename,
     t,
@@ -182,6 +186,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onAutoRename,
         onClearMessages,
         onDelete,
+        onEditAssistant,
         onPinTopic,
         onStartRename,
         t,
@@ -195,6 +200,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onAutoRename,
       onClearMessages,
       onDelete,
+      onEditAssistant,
       onPinTopic,
       onStartRename,
       t,

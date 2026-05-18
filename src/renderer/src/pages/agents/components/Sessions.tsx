@@ -8,16 +8,18 @@ import {
   SessionResourceList,
   useResourceList
 } from '@renderer/components/chat/resources'
+import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
+import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { Check, Clock3, ListFilter, Plus, SquarePen } from 'lucide-react'
+import { Check, Clock3, Edit3, ListFilter, Plus, SquarePen } from 'lucide-react'
 import { memo, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -118,6 +120,7 @@ const Sessions = ({
   revealRequest
 }: SessionsProps) => {
   const { t } = useTranslation()
+  const tabs = useOptionalTabsContext()
   const [groupNow] = useState(() => new Date())
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
@@ -310,6 +313,12 @@ const Sessions = ({
   const handleHeaderCreateSession = useCallback(() => {
     void createSessionForGroup(fallbackAgentId)
   }, [createSessionForGroup, fallbackAgentId])
+  const openAgentEditor = useCallback(
+    (agentId: string) => {
+      tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('agent', agentId)), { forceNew: true })
+    },
+    [tabs]
+  )
 
   const handleSelectSession = useCallback(
     (id: string | null) => {
@@ -364,6 +373,7 @@ const Sessions = ({
       if (group.id === SESSION_PINNED_GROUP_ID) return null
 
       let payload: { agentId: string | null | undefined; accessiblePaths?: string[] } | null = null
+      let editableAgentId: string | undefined
       if (displayMode === 'time') {
         if (group.id !== SESSION_TODAY_GROUP_ID) return null
         payload = { agentId: fallbackAgentId }
@@ -371,6 +381,7 @@ const Sessions = ({
         const agentId = getAgentIdFromSessionGroupId(group.id)
         if (!agentId || !agentById.has(agentId)) return null
         payload = { agentId }
+        editableAgentId = agentId
       } else {
         const path = getWorkdirPathFromSessionGroupId(group.id)
         if (!path) return null
@@ -380,18 +391,30 @@ const Sessions = ({
       if (!payload.agentId) return null
 
       return (
-        <Tooltip title={t('agent.session.add.title')} delay={500}>
-          <ResourceList.HeaderActionButton
-            type="button"
-            aria-label={t('agent.session.add.title')}
-            disabled={creatingSession || !agentById.has(payload.agentId)}
-            onClick={() => void createSessionForGroup(payload.agentId, payload.accessiblePaths)}>
-            <Plus className="block" />
-          </ResourceList.HeaderActionButton>
-        </Tooltip>
+        <>
+          {editableAgentId && (
+            <Tooltip title={t('agent.edit.title')} delay={500}>
+              <ResourceList.HeaderActionButton
+                type="button"
+                aria-label={t('agent.edit.title')}
+                onClick={() => openAgentEditor(editableAgentId)}>
+                <Edit3 className="block" />
+              </ResourceList.HeaderActionButton>
+            </Tooltip>
+          )}
+          <Tooltip title={t('agent.session.add.title')} delay={500}>
+            <ResourceList.HeaderActionButton
+              type="button"
+              aria-label={t('agent.session.add.title')}
+              disabled={creatingSession || !agentById.has(payload.agentId)}
+              onClick={() => void createSessionForGroup(payload.agentId, payload.accessiblePaths)}>
+              <Plus className="block" />
+            </ResourceList.HeaderActionButton>
+          </Tooltip>
+        </>
       )
     },
-    [agentById, createSessionForGroup, creatingSession, displayMode, fallbackAgentId, t]
+    [agentById, createSessionForGroup, creatingSession, displayMode, fallbackAgentId, openAgentEditor, t]
   )
 
   const isAgentDisplayMode = displayMode === 'agent'
@@ -425,7 +448,7 @@ const Sessions = ({
       onRenameItem={handleRenameSession}
       onReorder={handleSessionReorder}
       onCollapsedGroupIdsChange={handleCollapsedSessionGroupIdsChange}>
-      <ResourceList.Header className="gap-1 px-1.5 pb-1">
+      <ResourceList.Header className="gap-1 px-1.5 pb-0">
         <ResourceList.HeaderItem
           type="button"
           aria-label={t('chat.conversation.new')}
@@ -452,6 +475,7 @@ const Sessions = ({
         isValidating={isValidating}
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
+        onEditAgent={openAgentEditor}
         onRetry={reload}
         onSelectItem={onSelectItem}
         onTogglePin={togglePin}
@@ -471,6 +495,7 @@ interface SessionListBodyProps {
   isValidating: boolean
   listRef: RefObject<HTMLDivElement | null>
   onDeleteSession: (id: string) => Promise<void>
+  onEditAgent: (agentId: string) => void
   onRetry: () => Promise<unknown>
   onSelectItem?: () => void
   onTogglePin: (id: string) => Promise<void>
@@ -484,6 +509,7 @@ function SessionListBody({
   isValidating,
   listRef,
   onDeleteSession,
+  onEditAgent,
   onRetry,
   onSelectItem,
   onTogglePin,
@@ -522,16 +548,17 @@ function SessionListBody({
       pinned={session.pinned}
       onTogglePin={onTogglePin}
       onDelete={onDeleteSession}
+      onEditAgent={onEditAgent}
       onPress={setActiveSessionId}
       onSelectItem={onSelectItem}
     />
   )
 
   if (isDraggable) {
-    return <ResourceList.VirtualDraggableItems ref={listRef} className="pb-3" renderItem={renderItem} />
+    return <ResourceList.VirtualDraggableItems ref={listRef} className="pt-0 pb-3" renderItem={renderItem} />
   }
 
-  return <ResourceList.VirtualItems ref={listRef} className="pb-3" renderItem={renderItem} />
+  return <ResourceList.VirtualItems ref={listRef} className="pt-0 pb-3" renderItem={renderItem} />
 }
 
 export default memo(Sessions)

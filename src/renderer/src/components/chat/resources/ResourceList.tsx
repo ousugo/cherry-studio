@@ -1291,6 +1291,15 @@ function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
     [actions, item, meta]
   )
   const [contextMenuKey, setContextMenuKey] = useState(0)
+  const handleAction = useCallback(
+    (action: ResolvedAction<TActionContext>) => {
+      setContextMenuKey((key) => key + 1)
+      window.requestAnimationFrame(() => {
+        void onAction?.(action)
+      })
+    },
+    [onAction]
+  )
 
   return (
     <UiContextMenu key={contextMenuKey} onOpenChange={handleOpenChange}>
@@ -1301,7 +1310,7 @@ function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
           className={actionMenuClass}
           confirmDialogContentClassName={confirmDialogContentClassName}
           confirmDialogOverlayClassName={confirmDialogOverlayClassName}
-          onAction={(action) => onAction?.(action)}
+          onAction={handleAction}
           onConfirmActionComplete={() => setContextMenuKey((key) => key + 1)}
         />
       ) : (

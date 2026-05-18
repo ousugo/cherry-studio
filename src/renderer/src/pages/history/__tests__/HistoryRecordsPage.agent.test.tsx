@@ -212,6 +212,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.delete.title': 'Delete session',
         'agent.session.edit.title': 'Edit session',
         'agent.session.update.error.failed': 'Failed to update session',
+        'agent.edit.title': 'Edit Agent',
         'chat.topics.pin': 'Pin',
         'chat.topics.unpin': 'Unpin',
         'common.agent': 'Agent',
@@ -458,6 +459,7 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(menuContent).toHaveClass('z-50')
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
       'Rename',
+      'Edit Agent',
       'Pin',
       '',
       'Delete'

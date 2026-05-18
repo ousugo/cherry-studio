@@ -69,7 +69,7 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
 }))
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: useProvidersMock
 }))
 

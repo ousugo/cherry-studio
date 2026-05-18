@@ -206,6 +206,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.unpin') return 'Unpin Topic'
       if (key === 'chat.topics.auto_rename') return 'Generate topic name'
       if (key === 'chat.topics.edit.title') return 'Edit topic name'
+      if (key === 'assistants.edit.title') return 'Edit Assistant'
       if (key === 'chat.topics.clear.title') return 'Clear messages'
       if (key === 'notes.save') return 'Save to notes'
       if (key === 'chat.save.topic.knowledge.menu_title') return 'Save to knowledge base'
@@ -629,6 +630,7 @@ describe('Topics', () => {
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
       'Generate topic name',
       'Edit topic name',
+      'Edit Assistant',
       'Pin Topic',
       'Clear messages',
       '',
@@ -654,7 +656,7 @@ describe('Topics', () => {
 
     expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
 
-    const dialog = screen.getByRole('dialog')
+    const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveTextContent('Edit topic name')
     const input = within(dialog).getByLabelText('Name')
     expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
