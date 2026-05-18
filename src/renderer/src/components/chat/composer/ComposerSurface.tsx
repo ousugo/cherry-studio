@@ -307,7 +307,8 @@ export default function ComposerSurface({
     editorProps: {
       attributes: {
         class:
-          'min-h-[30px] max-h-[500px] w-full overflow-y-auto px-[15px] py-1.5 text-foreground outline-none break-words whitespace-pre-wrap [&_p]:m-0'
+          'box-border flex min-h-[30px]! max-h-[500px]! w-full overflow-auto rounded-none px-[15px]! pt-1.5! pb-0! text-foreground outline-none transition-none! break-words whitespace-pre-wrap after:hidden! [&::-webkit-scrollbar]:w-[3px] [&_.placeholder:before]:not-italic! [&_p]:m-0! [&_p]:whitespace-pre-wrap! [&_p]:leading-[1.4]!',
+        style: `font-size: ${fontSize}px; line-height: 1.4; min-height: 30px;`
       },
       handleKeyDown: (_view, event) => {
         if (event.key === 'Escape' && isExpanded) {
@@ -526,15 +527,16 @@ export default function ComposerSurface({
   return (
     <NarrowLayout narrowMode={narrowMode} style={{ width: '100%' }}>
       <div
-        className="relative z-2 flex flex-col px-[18px] pt-0 in-[[navbar-position=top]]:pb-2.5 pb-[18px]"
+        className="inputbar relative z-2 flex flex-col px-[18px] pt-0"
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}>
         {quickPanelElement}
         <div
+          id="inputbar"
           className={cn(
-            'inputbar inputbar-container relative rounded-[17px] border-(--color-border) border-[0.5px] bg-background pt-2 transition-all duration-200 ease-in-out',
+            'inputbar-container relative mb-6 rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) pt-2 transition-all duration-200 ease-in-out [[navbar-position=top]_&]:mb-3.5',
             isDragging &&
               "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[14px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
             isExpanded && 'expanded'
@@ -542,10 +544,6 @@ export default function ComposerSurface({
           <div style={customHeight ? { height: customHeight } : undefined}>
             <EditorContent
               editor={editor}
-              style={{
-                fontSize,
-                minHeight: 30
-              }}
               onFocus={() => {
                 onFocus?.()
                 PasteService.setLastFocusedComponent('inputbar')
@@ -555,9 +553,7 @@ export default function ComposerSurface({
 
           <div className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-[5px]">
             <div className="flex min-w-0 flex-1 items-center">
-              {assistant && model && (
-                <ComposerSurfaceToolMenu scope={scope} assistant={assistant} model={model} session={session} />
-              )}
+              <ComposerSurfaceToolMenu scope={scope} assistant={assistant} model={model} session={session} />
             </div>
             <div className="flex flex-row items-center gap-1.5">
               <TranslateButton text={text} disabled={sendDisabled} onTranslated={onTranslated} />
@@ -584,8 +580,8 @@ export default function ComposerSurface({
 
 interface ComposerSurfaceToolMenuProps {
   scope: InputbarScope
-  assistant: Assistant
-  model: Model
+  assistant?: Assistant
+  model?: Model
   session?: ToolContext['session']
 }
 
@@ -652,9 +648,11 @@ const ComposerSurfaceToolMenu = ({ scope, assistant, model, session }: ComposerS
         </PopoverContent>
       </Popover>
 
-      <div className="hidden" aria-hidden>
-        <InputbarTools scope={scope} assistant={assistant} model={model} session={session} />
-      </div>
+      {assistant && model && (
+        <div className="hidden" aria-hidden>
+          <InputbarTools scope={scope} assistant={assistant} model={model} session={session} />
+        </div>
+      )}
     </>
   )
 }

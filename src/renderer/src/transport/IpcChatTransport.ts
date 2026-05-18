@@ -64,7 +64,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             trigger: 'submit-message',
             topicId,
             parentAnchorId: mergedBody.parentAnchorId,
-            userMessageParts: lastMessage?.parts ?? [],
+            userMessageParts: mergedBody.userMessageParts ?? lastMessage?.parts ?? [],
             mentionedModelIds: mergedBody.mentionedModels
           }
 

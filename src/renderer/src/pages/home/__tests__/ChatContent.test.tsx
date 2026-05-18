@@ -9,7 +9,9 @@ const mockUseChatWithHistory = vi.fn()
 const mockUseTopicMessages = vi.fn()
 const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
 const mockRespondToolApproval = vi.hoisted(() => vi.fn())
-let capturedOnSend: ((text: string) => Promise<void> | void) | undefined
+let capturedOnSend:
+  | ((text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void)
+  | undefined
 
 vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: (...args: unknown[]) => mockUseChatWithHistory(...args)
@@ -49,10 +51,16 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
-  default: ({ onSend }: { onSend: (text: string) => Promise<void> | void }) => (
+  default: ({
+    onSend
+  }: {
+    onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
+  }) => (
     (capturedOnSend = onSend),
     (
-      <button type="button" onClick={() => onSend('hello')}>
+      <button
+        type="button"
+        onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })}>
         send
       </button>
     )
@@ -188,7 +196,7 @@ describe('ChatContent', () => {
     render(<ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
 
     await act(async () => {
-      await capturedOnSend?.('hello')
+      await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
       await Promise.resolve()
     })
 
@@ -197,7 +205,8 @@ describe('ChatContent', () => {
         { text: 'hello' },
         expect.objectContaining({
           body: expect.objectContaining({
-            parentAnchorId: 'branch-a'
+            parentAnchorId: 'branch-a',
+            userMessageParts: [{ type: 'text', text: 'hello' }]
           })
         })
       )

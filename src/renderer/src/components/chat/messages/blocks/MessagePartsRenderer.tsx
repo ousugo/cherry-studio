@@ -320,6 +320,7 @@ function renderPart(
           citations={citations}
           citationReferences={citationReferences}
           role={message.role}
+          composer={cherryMeta?.composer}
         />
       )
     }

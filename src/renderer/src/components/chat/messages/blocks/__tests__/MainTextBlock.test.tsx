@@ -1,5 +1,6 @@
 import type { Citation, Model } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
+import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,7 +12,8 @@ const mockRenderConfig = vi.hoisted(() => ({
 }))
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => mockRenderConfig
+  useMessageRenderConfig: () => mockRenderConfig,
+  useOptionalMessageListActions: () => undefined
 }))
 
 // Mock citation utilities
@@ -67,6 +69,7 @@ describe('MainTextBlock', () => {
     citationReferences?: { citationBlockId?: string; citationBlockSource?: any }[]
     role: 'user' | 'assistant'
     mentions?: Model[]
+    composer?: ComposerMessageSnapshot
   }) => {
     return render(
       <MainTextBlock
@@ -77,6 +80,7 @@ describe('MainTextBlock', () => {
         citationReferences={props.citationReferences}
         role={props.role}
         mentions={props.mentions}
+        composer={props.composer}
       />
     )
   }
@@ -133,6 +137,32 @@ describe('MainTextBlock', () => {
       }).not.toThrow()
 
       expect(getRenderedMarkdown()).toBeInTheDocument()
+    })
+
+    it('should render composer tokens as inline chips without leaking hidden prompt text', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = false
+      renderMainTextBlock({
+        content: 'Open src/chat.ts now',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'file-1',
+              kind: 'file',
+              label: 'chat.ts',
+              index: 0,
+              textOffset: 5,
+              promptText: 'src/chat.ts'
+            }
+          ]
+        }
+      })
+
+      const textElement = getRenderedPlainText()!
+      expect(textElement).toHaveTextContent('Open chat.ts now')
+      expect(textElement).not.toHaveTextContent('src/chat.ts')
+      expect(textElement.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
     })
   })
 

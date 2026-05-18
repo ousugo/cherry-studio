@@ -224,8 +224,33 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('send'))
 
     expect(mocks.sendMessage).toHaveBeenCalledWith(
-      { text: 'hello\n\nAttached files:\n/tmp/notes.md' },
-      { body: { agentId: 'agent-1', sessionId: 'session-1' } }
+      { text: 'hello' },
+      {
+        body: {
+          agentId: 'agent-1',
+          sessionId: 'session-1',
+          userMessageParts: [
+            {
+              type: 'text',
+              text: 'hello',
+              providerMetadata: {
+                cherry: {
+                  composer: {
+                    version: 1,
+                    tokens: [{ id: 'file:file-1', kind: 'file', label: 'notes.md', index: 0, textOffset: 5 }]
+                  }
+                }
+              }
+            },
+            {
+              type: 'file',
+              url: '/tmp/notes.md',
+              mediaType: 'application/octet-stream',
+              filename: 'notes.md'
+            }
+          ]
+        }
+      }
     )
     expect(mocks.setFiles).toHaveBeenLastCalledWith([])
   })

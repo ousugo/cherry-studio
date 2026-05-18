@@ -402,4 +402,27 @@ describe('MessagePartsRenderer', () => {
     expect(md.textContent).toContain('data-citation')
     expect(md.textContent).toContain('https://ex.com')
   })
+
+  it('renders user text composer metadata as inline token chips', () => {
+    renderParts(
+      [
+        {
+          type: 'text',
+          text: 'Open ',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [{ id: 'kb-1', kind: 'knowledge', label: 'Docs', index: 0, textOffset: 5 }]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(screen.getByText('Docs')).toBeInTheDocument()
+    expect(document.querySelector('[data-composer-token-kind="knowledge"]')).toBeInTheDocument()
+  })
 })

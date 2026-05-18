@@ -11,7 +11,8 @@ const ResourceQuickPanelManager = ({ context }: ManagerProps) => {
   const {
     quickPanel,
     quickPanelController,
-    actions: { onTextChange },
+    state: { files },
+    actions: { onTextChange, setFiles },
     session
   } = context
 
@@ -25,6 +26,8 @@ const ResourceQuickPanelManager = ({ context }: ManagerProps) => {
       quickPanelController,
       accessiblePaths,
       agentId: session?.agentId,
+      files,
+      setFiles,
       setText: onTextChange as React.Dispatch<React.SetStateAction<string>>
     },
     'manager'

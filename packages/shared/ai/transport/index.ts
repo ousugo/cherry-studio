@@ -1,3 +1,4 @@
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 export interface AiChatRequestBody {
@@ -7,6 +8,10 @@ export interface AiChatRequestBody {
   parentAnchorId?: string
   /** Models mentioned via @ in the input (multi-model fan-out). */
   mentionedModels?: UniqueModelId[]
+  /** User message parts to persist/display for submit-message turns. */
+  userMessageParts?: CherryMessagePart[]
+  /** Knowledge base ids selected by composer tokens. */
+  knowledgeBaseIds?: string[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
 }

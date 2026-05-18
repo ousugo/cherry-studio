@@ -17,13 +17,13 @@ const resourceTool = defineTool({
   visibleInScopes: [TopicType.Session],
 
   dependencies: {
-    state: [] as const,
-    actions: ['onTextChange'] as const
+    state: ['files'] as const,
+    actions: ['onTextChange', 'setFiles'] as const
   },
 
   render: function ResourceToolRender(context) {
-    const { quickPanel, quickPanelController, actions, session } = context
-    const { onTextChange } = actions
+    const { quickPanel, quickPanelController, state, actions, session } = context
+    const { onTextChange, setFiles } = actions
 
     // Get accessible paths from session data
     const accessiblePaths = session?.accessiblePaths ?? []
@@ -38,6 +38,8 @@ const resourceTool = defineTool({
         quickPanel={quickPanel}
         quickPanelController={quickPanelController}
         accessiblePaths={accessiblePaths}
+        files={state.files}
+        setFiles={setFiles}
         setText={onTextChange as React.Dispatch<React.SetStateAction<string>>}
       />
     )

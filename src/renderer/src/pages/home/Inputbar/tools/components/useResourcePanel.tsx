@@ -1,10 +1,17 @@
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type { ComposerDraftToken } from '@renderer/components/chat/composer'
+import type {
+  QuickPanelCallBackOptions,
+  QuickPanelInputAdapter,
+  QuickPanelListItem
+} from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
+import { FILE_TYPE, type FileMetadata } from '@renderer/types'
 import { getFileIconName } from '@renderer/utils/fileIconName'
+import { getFileTypeByExt } from '@shared/file/types'
 import type { InstalledSkill } from '@types'
 import { Folder, Zap } from 'lucide-react'
 import type React from 'react'
@@ -14,6 +21,57 @@ import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('useResourcePanel')
 const MAX_FILE_RESULTS = 500
 const MAX_SEARCH_RESULTS = 20
+
+const getBaseName = (filePath: string) => {
+  const normalized = filePath.replace(/\\/g, '/')
+  return normalized.split('/').pop() || normalized
+}
+
+const getFileExtension = (fileName: string) => {
+  const lastDotIndex = fileName.lastIndexOf('.')
+  return lastDotIndex > 0 ? fileName.slice(lastDotIndex) : ''
+}
+
+const createFileMetadataFromPath = (filePath: string): FileMetadata => {
+  const name = getBaseName(filePath)
+  const ext = getFileExtension(name)
+  return {
+    id: filePath,
+    name,
+    origin_name: name,
+    path: filePath,
+    size: 0,
+    ext,
+    type: ext ? getFileTypeByExt(ext) : FILE_TYPE.OTHER,
+    created_at: new Date().toISOString(),
+    count: 1
+  }
+}
+
+const createFileToken = (file: FileMetadata): ComposerDraftToken => ({
+  id: `file:${file.id || file.path}`,
+  kind: 'file',
+  label: file.origin_name || file.name,
+  payload: file
+})
+
+const createSkillToken = (skill: InstalledSkill): ComposerDraftToken => ({
+  id: `skill:${skill.folderName || skill.name}`,
+  kind: 'skill',
+  label: skill.name,
+  description: skill.description || undefined,
+  payload: {
+    skillId: skill.folderName || skill.name,
+    name: skill.name,
+    folderName: skill.folderName,
+    description: skill.description
+  }
+})
+
+const deleteActiveTriggerText = (inputAdapter: QuickPanelInputAdapter, searchText?: string) => {
+  if (!searchText) return
+  inputAdapter.deleteTriggerRange({ from: 0, to: searchText.length })
+}
 
 const areFileListsEqual = (prev: string[], next: string[]) => {
   if (prev === next) return true
@@ -36,11 +94,13 @@ interface Params {
   quickPanelController: ToolQuickPanelController
   accessiblePaths: string[]
   agentId?: string
+  files: FileMetadata[]
+  setFiles: React.Dispatch<React.SetStateAction<FileMetadata[]>>
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
 export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'button') => {
-  const { quickPanel, quickPanelController, accessiblePaths, agentId, setText } = params
+  const { quickPanel, quickPanelController, accessiblePaths, agentId, files, setFiles, setText } = params
   const { registerTrigger, registerRootMenu } = quickPanel
   const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { t } = useTranslation()
@@ -238,12 +298,34 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
    * Handle file selection
    */
   const onSelectFile = useCallback(
-    (filePath: string) => {
+    (filePath: string, options?: QuickPanelCallBackOptions) => {
       const trigger = triggerInfoRef.current
+      const selectedFile = files.find((file) => file.path === filePath || file.id === filePath)
+      const inputAdapter = options?.inputAdapter
+
+      if (inputAdapter?.insertToken) {
+        const file = selectedFile ?? createFileMetadataFromPath(filePath)
+        const token = createFileToken(file)
+
+        if (selectedFile) {
+          setFiles((prevFiles) =>
+            prevFiles.filter((currentFile) => currentFile.path !== filePath && currentFile.id !== filePath)
+          )
+        } else {
+          deleteActiveTriggerText(inputAdapter, options?.searchText)
+          inputAdapter.insertToken(token)
+          setFiles((prevFiles) => [...prevFiles, file])
+        }
+
+        inputAdapter.focus()
+        close()
+        return
+      }
+
       insertFilePath(filePath, trigger)
       close()
     },
-    [close, insertFilePath]
+    [close, files, insertFilePath, setFiles]
   )
 
   /**
@@ -277,8 +359,18 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
    * Handle skill selection
    */
   const onSelectSkill = useCallback(
-    (skill: InstalledSkill) => {
+    (skill: InstalledSkill, options?: QuickPanelCallBackOptions) => {
       const trigger = triggerInfoRef.current
+      const inputAdapter = options?.inputAdapter
+
+      if (inputAdapter?.insertToken) {
+        deleteActiveTriggerText(inputAdapter, options?.searchText)
+        inputAdapter.insertToken(createSkillToken(skill))
+        inputAdapter.focus()
+        close()
+        return
+      }
+
       insertText(skill.name, trigger)
       close()
     },
@@ -289,8 +381,8 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
    * Create file list items for QuickPanel
    */
   const createFileItems = useCallback(
-    (files: string[]): QuickPanelListItem[] => {
-      return files.map((filePath) => {
+    (sourceFiles: string[]): QuickPanelListItem[] => {
+      return sourceFiles.map((filePath) => {
         const relativePath = getRelativePath(filePath)
         const fileName = relativePath.split('/').pop() || relativePath
 
@@ -301,12 +393,12 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
           label: relativePath,
           icon: <Icon icon={`material-icon-theme:${getFileIconName(filePath)}`} style={{ fontSize: 16 }} />,
           filterText: filterText,
-          action: () => onSelectFile(filePath),
-          isSelected: false
+          action: (options) => onSelectFile(filePath, options),
+          isSelected: files.some((file) => file.path === filePath || file.id === filePath)
         }
       })
     },
-    [getRelativePath, onSelectFile]
+    [files, getRelativePath, onSelectFile]
   )
 
   /**
@@ -319,7 +411,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
         description: skill.description || '',
         icon: <Zap size={16} />,
         filterText: `${skill.name} ${skill.description || ''} ${skill.folderName}`,
-        action: () => onSelectSkill(skill),
+        action: (options) => onSelectSkill(skill, options),
         isSelected: false
       }))
     },

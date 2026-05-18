@@ -1,5 +1,9 @@
 export { default as ComposerCore } from './ComposerCore'
-export { type LegacyComposerPayload, serializeComposerDocument, toLegacyComposerPayload } from './composerDraft'
+export {
+  createComposerMessageSnapshot,
+  createComposerUserMessageParts,
+  serializeComposerDocument
+} from './composerDraft'
 export { type ComposerEditorPresetOptions, createComposerEditorPreset } from './composerPreset'
 export { ComposerToken, type ComposerTokenProps } from './ComposerToken'
 export {

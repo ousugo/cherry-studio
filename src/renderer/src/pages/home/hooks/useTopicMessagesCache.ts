@@ -47,9 +47,10 @@ function synthesizeOptimisticUserMessage(params: {
   parentId: string | null
   text: string
   files?: FileMetadata[]
+  parts?: CherryMessagePart[]
 }): SharedMessage {
-  const parts: CherryMessagePart[] = [{ type: 'text', text: params.text }]
-  if (params.files?.length) {
+  const parts: CherryMessagePart[] = params.parts ? [...params.parts] : [{ type: 'text', text: params.text }]
+  if (!params.parts && params.files?.length) {
     for (const file of params.files) {
       parts.push({
         type: 'file',
@@ -133,7 +134,12 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
    * Main's id reservation) overwrites this entry on the next revalidation.
    */
   const seedOptimisticUser = useCallback(
-    async (params: { text: string; parentId: string | null; files?: FileMetadata[] }): Promise<string | undefined> => {
+    async (params: {
+      text: string
+      parentId: string | null
+      files?: FileMetadata[]
+      parts?: CherryMessagePart[]
+    }): Promise<string | undefined> => {
       let tempId: string | undefined
       await mutate(
         (pages) => {

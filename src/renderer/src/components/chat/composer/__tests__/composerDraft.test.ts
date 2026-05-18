@@ -1,7 +1,11 @@
 import type { JSONContent } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
 
-import { serializeComposerDocument, toLegacyComposerPayload } from '../composerDraft'
+import {
+  createComposerMessageSnapshot,
+  createComposerUserMessageParts,
+  serializeComposerDocument
+} from '../composerDraft'
 import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
 
 function tokenNode(attrs: Record<string, unknown>): JSONContent {
@@ -76,28 +80,78 @@ describe('composer draft serialization', () => {
     expect(draft).toEqual({ text: 'Browser 电脑 chat.ts', tokens: [] })
   })
 
-  it('bridges file model skill and command tokens to the legacy payload shape', () => {
+  it('creates a display-only composer snapshot without token payload objects', () => {
     const draft = serializeComposerDocument({
       type: 'doc',
       content: [
         {
           type: 'paragraph',
           content: [
-            tokenNode({ id: 'file-1', kind: 'file', label: 'chat.ts', payload: { path: 'src/chat.ts' } }),
-            tokenNode({ id: 'model-1', kind: 'model', label: '5.5', payload: { modelId: 'gpt-5.5' } }),
-            tokenNode({ id: 'skill-1', kind: 'skill', label: 'Browser', payload: { skillId: 'browser' } }),
-            tokenNode({ id: 'cmd-1', kind: 'command', label: '/plan', payload: { command: 'plan' } })
+            { type: 'text', text: 'Open ' },
+            tokenNode({
+              id: 'file-1',
+              kind: 'file',
+              label: 'chat.ts',
+              promptText: 'src/chat.ts',
+              payload: { path: 'src/chat.ts' }
+            })
           ]
         }
       ]
     })
 
-    expect(toLegacyComposerPayload(draft)).toMatchObject({
-      text: '',
-      files: [{ path: 'src/chat.ts' }],
-      mentionedModels: [{ modelId: 'gpt-5.5' }],
-      mentionedSkills: [{ skillId: 'browser' }],
-      commands: [{ command: 'plan' }]
+    expect(createComposerMessageSnapshot(draft)).toEqual({
+      version: 1,
+      tokens: [
+        {
+          id: 'file-1',
+          kind: 'file',
+          label: 'chat.ts',
+          index: 0,
+          textOffset: 5,
+          promptText: 'src/chat.ts'
+        }
+      ]
     })
+  })
+
+  it('builds user message parts with composer metadata and file parts', () => {
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Read ' },
+            tokenNode({ id: 'kb-1', kind: 'knowledge', label: 'Docs', payload: { id: 'kb-1' } })
+          ]
+        }
+      ]
+    })
+
+    expect(
+      createComposerUserMessageParts(draft, {
+        files: [{ path: '/tmp/notes.md', name: 'notes.md', origin_name: 'notes.md', ext: '.md' }]
+      })
+    ).toEqual([
+      {
+        type: 'text',
+        text: 'Read ',
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [{ id: 'kb-1', kind: 'knowledge', label: 'Docs', index: 0, textOffset: 5 }]
+            }
+          }
+        }
+      },
+      {
+        type: 'file',
+        url: '/tmp/notes.md',
+        mediaType: '.md',
+        filename: 'notes.md'
+      }
+    ])
   })
 })

@@ -16,7 +16,7 @@ import { sessionService } from '@data/services/SessionService'
 import { application } from '@main/core/application'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { trace } from '@opentelemetry/api'
-import type { Message } from '@shared/data/types/message'
+import type { CherryMessagePart, Message } from '@shared/data/types/message'
 
 import {
   extractAgentSessionId,
@@ -31,6 +31,30 @@ import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './C
 import type { MainDispatchRequest } from './dispatch'
 
 const rawTracer = trace.getTracer(TRACER_NAME)
+
+function getUserDisplayText(parts: readonly CherryMessagePart[] | undefined): string {
+  return (
+    parts
+      ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n') || ''
+  )
+}
+
+function getFilePartPath(part: CherryMessagePart): string | undefined {
+  if (part.type !== 'file' || !('url' in part) || typeof part.url !== 'string') return undefined
+  return part.url.replace(/^file:\/\//, '')
+}
+
+function getAgentModelText(parts: readonly CherryMessagePart[] | undefined): string {
+  const displayText = getUserDisplayText(parts)
+  const filePaths = parts?.map(getFilePartPath).filter((path): path is string => !!path) ?? []
+
+  if (filePaths.length === 0) return displayText
+
+  const attachedFilesText = `Attached files:\n${filePaths.join('\n')}`
+  return displayText ? `${displayText}\n\n${attachedFilesText}` : attachedFilesText
+}
 
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
@@ -73,14 +97,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const uniqueModelId = parseAgentSessionModel(agent.model)
 
-    const userText =
-      req.userMessageParts
-        ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-        .map((p) => p.text)
-        .join('\n') || ''
+    const displayText = getUserDisplayText(req.userMessageParts)
+    const userText = getAgentModelText(req.userMessageParts)
 
     const userMessageId = crypto.randomUUID()
-    const userMessageParts = req.userMessageParts ?? [{ type: 'text', text: userText }]
+    const userMessageParts = req.userMessageParts ?? [{ type: 'text', text: displayText }]
     const createdAt = new Date().toISOString()
 
     const userMessage: Message = {

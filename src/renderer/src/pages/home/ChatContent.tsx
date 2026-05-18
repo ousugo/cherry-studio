@@ -19,7 +19,7 @@ import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import type { FileMetadata, Topic } from '@renderer/types'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -232,7 +232,15 @@ const ChatContentInner: FC<InnerProps> = ({
   })
 
   const handleSend = useCallback(
-    async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
+    async (
+      text: string,
+      options?: {
+        files?: FileMetadata[]
+        mentionedModels?: UniqueModelId[]
+        knowledgeBaseIds?: string[]
+        userMessageParts?: CherryMessagePart[]
+      }
+    ) => {
       if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
         try {
           // Seed the new topic with the user's first message as a placeholder
@@ -246,7 +254,8 @@ const ChatContentInner: FC<InnerProps> = ({
       const optimisticUserId = await cache.seedOptimisticUser({
         text,
         parentId: activeNodeId ?? null,
-        files: options?.files
+        files: options?.files,
+        parts: options?.userMessageParts
       })
       if (optimisticUserId && !options?.mentionedModels?.length) {
         await cache.seedOptimisticAssistant({ parentId: optimisticUserId })
@@ -259,7 +268,9 @@ const ChatContentInner: FC<InnerProps> = ({
               parentAnchorId: activeNodeId ?? undefined,
               files: options?.files,
               mentionedModels: options?.mentionedModels,
-              ...capabilityBody
+              userMessageParts: options?.userMessageParts,
+              ...capabilityBody,
+              ...(options?.knowledgeBaseIds?.length && { knowledgeBaseIds: options.knowledgeBaseIds })
             }
           }
         )

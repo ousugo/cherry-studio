@@ -30,7 +30,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { toLegacyComposerPayload } from '../composerDraft'
+import { createComposerUserMessageParts } from '../composerDraft'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { agentComposerTokenId, agentFileToComposerToken, getAgentComposerTokenIds } from './agentComposerTokens'
 
@@ -65,7 +65,15 @@ const emptyActions: ProviderActionHandlers = {
   toggleExpanded: () => undefined
 }
 
-const AgentComposer = ({ agentId, sessionId, sessionOverride, sendMessage, stop, onNewSessionDraft, isStreaming }: Props) => {
+const AgentComposer = ({
+  agentId,
+  sessionId,
+  sessionOverride,
+  sendMessage,
+  stop,
+  onNewSessionDraft,
+  isStreaming
+}: Props) => {
   const { t } = useTranslation()
   const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
   const session = sessionOverride ?? loadedSession
@@ -271,18 +279,15 @@ const AgentComposerInner = ({
     (draft: ComposerSerializedDraft) => {
       if (text.trim().length === 0 && files.length === 0) return
 
-      const legacyPayload = toLegacyComposerPayload(draft)
-      const attachedFiles = (legacyPayload.files?.length ? legacyPayload.files : files) as FileMetadata[]
-      let messageText = legacyPayload.text
+      const fileTokenIds = getAgentComposerTokenIds(draft.tokens, 'file')
+      const attachedFiles = files.filter((file) => fileTokenIds.has(agentComposerTokenId.file(file)))
+      const userMessageParts = createComposerUserMessageParts(draft, { files: attachedFiles })
 
-      if (attachedFiles.length > 0) {
-        const filePaths = attachedFiles.map((file) => file.path).join('\n')
-        messageText = messageText ? `${messageText}\n\nAttached files:\n${filePaths}` : `Attached files:\n${filePaths}`
-      }
-
-      void chatSendMessage({ text: messageText }, { body: { agentId, sessionId } }).catch((error: unknown) => {
-        logger.warn('Failed to send message:', error as Error)
-      })
+      void chatSendMessage({ text: draft.text }, { body: { agentId, sessionId, userMessageParts } }).catch(
+        (error: unknown) => {
+          logger.warn('Failed to send message:', error as Error)
+        }
+      )
       void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
 
       setText('')

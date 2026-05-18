@@ -1,26 +1,25 @@
+import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryProviderMetadata, ComposerMessageSnapshot } from '@shared/data/types/uiParts'
 import type { Editor, JSONContent } from '@tiptap/core'
 
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import type { ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
+const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
+
 type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
 
-export interface LegacyComposerPayload {
-  text: string
-  tokens: readonly ComposerSerializedToken[]
-  files?: readonly unknown[]
-  mentionedModels?: readonly unknown[]
-  mentionedSkills?: readonly unknown[]
-  commands?: readonly unknown[]
+interface ComposerFilePartSource {
+  path?: string
+  url?: string
+  ext?: string
+  name?: string
+  origin_name?: string
 }
 
 function isEditorSource(source: ComposerSerializableSource): source is Pick<Editor, 'getJSON'> {
   return typeof (source as Pick<Editor, 'getJSON'>).getJSON === 'function'
-}
-
-function appendTokenPayload(target: unknown[], token: ComposerSerializedToken) {
-  target.push(token.payload ?? token)
 }
 
 export function serializeComposerDocument(source: ComposerSerializableSource): ComposerSerializedDraft {
@@ -68,35 +67,59 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
   return { text, tokens }
 }
 
-export function toLegacyComposerPayload(draft: ComposerSerializedDraft): LegacyComposerPayload {
-  const files: unknown[] = []
-  const mentionedModels: unknown[] = []
-  const mentionedSkills: unknown[] = []
-  const commands: unknown[] = []
-
-  for (const token of draft.tokens) {
-    switch (token.kind) {
-      case 'file':
-        appendTokenPayload(files, token)
-        break
-      case 'model':
-        appendTokenPayload(mentionedModels, token)
-        break
-      case 'skill':
-        appendTokenPayload(mentionedSkills, token)
-        break
-      case 'command':
-        appendTokenPayload(commands, token)
-        break
-    }
-  }
+export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): ComposerMessageSnapshot | undefined {
+  if (draft.tokens.length === 0) return undefined
 
   return {
-    text: draft.text,
-    tokens: draft.tokens,
-    ...(files.length > 0 && { files }),
-    ...(mentionedModels.length > 0 && { mentionedModels }),
-    ...(mentionedSkills.length > 0 && { mentionedSkills }),
-    ...(commands.length > 0 && { commands })
+    version: COMPOSER_MESSAGE_SNAPSHOT_VERSION,
+    tokens: draft.tokens.map(({ id, kind, label, icon, description, index, textOffset, promptText }) => ({
+      id,
+      kind,
+      label,
+      ...(icon && { icon }),
+      ...(description && { description }),
+      index,
+      textOffset,
+      ...(promptText && { promptText })
+    }))
   }
+}
+
+function createComposerTextPart(text: string, composer?: ComposerMessageSnapshot): CherryMessagePart {
+  if (!composer) return { type: 'text', text } as CherryMessagePart
+
+  const cherry: CherryProviderMetadata = { composer }
+  return {
+    type: 'text',
+    text,
+    providerMetadata: {
+      cherry
+    }
+  } as unknown as CherryMessagePart
+}
+
+function createComposerFilePart(file: ComposerFilePartSource): CherryMessagePart | undefined {
+  const url = file.path ?? file.url
+  if (!url) return undefined
+
+  return {
+    type: 'file',
+    url,
+    mediaType: file.ext ?? 'application/octet-stream',
+    filename: file.origin_name ?? file.name
+  } as CherryMessagePart
+}
+
+export function createComposerUserMessageParts(
+  draft: ComposerSerializedDraft,
+  options: { files?: readonly ComposerFilePartSource[] } = {}
+): CherryMessagePart[] {
+  const parts: CherryMessagePart[] = [createComposerTextPart(draft.text, createComposerMessageSnapshot(draft))]
+
+  for (const file of options.files ?? []) {
+    const filePart = createComposerFilePart(file)
+    if (filePart) parts.push(filePart)
+  }
+
+  return parts
 }

@@ -730,7 +730,7 @@ function HeaderItem({ actions, className, icon, label, ref, variant = 'ghost', .
             {icon}
           </span>
         )}
-        <span className="min-w-0 flex-1 truncate text-left font-medium text-sidebar-foreground/70 text-[13px] leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
+        <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
           {label}
         </span>
       </Button>

@@ -30,7 +30,7 @@ import { isPerExecutionOnly } from '@renderer/transport/IpcChatTransport'
 import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -126,17 +126,21 @@ const AgentChat = ({
   )
 
   const sendTemporaryMessage = useCallback(
-    async (message?: { text: string }) => {
+    async (message?: { text: string }, options?: { body?: Record<string, unknown> }) => {
       if (!temporaryAgentConversation || !onPersistTemporarySession) return
       const persisted = await onPersistTemporarySession(message?.text)
       if (persisted?.type !== 'agent') return
+
+      const userMessageParts =
+        (options?.body?.userMessageParts as CherryMessagePart[] | undefined) ??
+        (message?.text ? [{ type: 'text', text: message.text }] : [])
 
       const cleanupStreamWatcher = watchTemporaryStream(persisted.topicId, persisted.sessionId)
       try {
         await window.api.ai.streamOpen({
           trigger: 'submit-message',
           topicId: persisted.topicId,
-          userMessageParts: message?.text ? [{ type: 'text', text: message.text }] : []
+          userMessageParts
         })
       } catch (err) {
         cleanupStreamWatcher()

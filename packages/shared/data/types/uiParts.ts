@@ -78,6 +78,31 @@ export type CherryDataPartTypes = {
 // Cherry-specific providerMetadata shape
 // ============================================================================
 
+export type ComposerMessageTokenKind =
+  | 'skill'
+  | 'file'
+  | 'command'
+  | 'model'
+  | 'knowledge'
+  | 'reference'
+  | 'environment'
+
+export interface ComposerMessageToken {
+  id: string
+  kind: ComposerMessageTokenKind
+  label: string
+  icon?: string
+  description?: string
+  index: number
+  textOffset: number
+  promptText?: string
+}
+
+export interface ComposerMessageSnapshot {
+  version: 1
+  tokens: ComposerMessageToken[]
+}
+
 /**
  * Cherry-specific metadata stored in providerMetadata.cherry
  * on TextUIPart and ReasoningUIPart.
@@ -97,6 +122,8 @@ export interface CherryProviderMetadata {
   }
   /** Content references (citations, mentions) — on TextUIPart only */
   references?: unknown[]
+  /** Composer inline token display snapshot — on user TextUIPart only */
+  composer?: ComposerMessageSnapshot
   /** Thinking duration in ms — on ReasoningUIPart only */
   thinkingMs?: number
 }

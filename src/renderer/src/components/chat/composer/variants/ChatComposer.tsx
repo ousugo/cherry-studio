@@ -8,7 +8,7 @@ import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionMod
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -29,11 +29,12 @@ import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { toLegacyComposerPayload } from '../composerDraft'
+import { createComposerUserMessageParts } from '../composerDraft'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import {
   chatComposerTokenId,
@@ -62,7 +63,12 @@ interface ChatComposerProps {
   topic: Topic
   onSend: (
     text: string,
-    options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }
+    options?: {
+      files?: FileMetadata[]
+      mentionedModels?: UniqueModelId[]
+      knowledgeBaseIds?: KnowledgeBase['id'][]
+      userMessageParts?: CherryMessagePart[]
+    }
   ) => void | Promise<void>
 }
 
@@ -125,6 +131,7 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases } = useInputbarToolsDispatch()
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
   const { assistant, model, updateAssistant } = useAssistant(topic.assistantId)
+  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { createTopic } = useTopicMutations()
   const { knowledgeBases: allKnowledgeBases } = useKnowledgeBases()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -150,6 +157,7 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   }, [topic.id])
 
   const loading = isPending || isSending || awaitingApproval
+  const runtimeAssistant = assistant ?? defaultAssistant
   const isVisionAssistant = useMemo(() => (model ? isVisionModel(model) : false), [model])
   const isGenerateImageAssistant = useMemo(() => (model ? isGenerateImageModel(model) : false), [model])
 
@@ -322,19 +330,30 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   }, [addNewTopic])
 
   useEffect(() => {
+    if (!assistant?.id) return
     const ids = assistant?.knowledgeBaseIds ?? []
     if (ids.length === 0) {
       setSelectedKnowledgeBases([])
       return
     }
     setSelectedKnowledgeBases(allKnowledgeBases.filter((kb): kb is KnowledgeBase => ids.includes(kb.id)))
-  }, [assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases])
+  }, [assistant?.id, assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases])
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
-      const legacyPayload = toLegacyComposerPayload(draft)
-      const nextText = legacyPayload.text.trim()
+      const nextText = draft.text.trim()
       if (!nextText) return
+      const tokenIds = getComposerTokenIds(draft.tokens)
+      const payloadFiles = files.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
+      const payloadModels = mentionedModels.filter((currentModel) =>
+        tokenIds.has(chatComposerTokenId.model(currentModel))
+      )
+      const payloadKnowledgeBases = selectedKnowledgeBases.filter((base) =>
+        tokenIds.has(chatComposerTokenId.knowledge(base))
+      )
+      const userMessageParts = createComposerUserMessageParts(draft, { files: payloadFiles })
+
+      const knowledgeBaseIds = payloadKnowledgeBases.map((base) => base.id)
 
       setIsSending(true)
       setText('')
@@ -342,10 +361,10 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
 
       try {
         await onSend(nextText, {
-          files: legacyPayload.files?.length ? (legacyPayload.files as FileMetadata[]) : undefined,
-          mentionedModels: legacyPayload.mentionedModels?.length
-            ? (legacyPayload.mentionedModels as Model[]).map((currentModel) => currentModel.id)
-            : undefined
+          files: payloadFiles.length ? payloadFiles : undefined,
+          mentionedModels: payloadModels.length ? payloadModels.map((currentModel) => currentModel.id) : undefined,
+          knowledgeBaseIds: knowledgeBaseIds?.length ? knowledgeBaseIds : undefined,
+          userMessageParts
         })
       } catch (error) {
         logger.warn('send failed', { error })
@@ -353,7 +372,7 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
         setIsSending(false)
       }
     },
-    [onSend, setFiles, setText]
+    [files, mentionedModels, onSend, selectedKnowledgeBases, setFiles, setText]
   )
 
   if (isMultiSelectMode) return null
@@ -372,7 +391,7 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
       onPause={onPause}
       supportedExts={supportedExts}
       scope={scope}
-      assistant={assistant}
+      assistant={runtimeAssistant}
       model={model}
       quickPanelEnabled={config.enableQuickPanel ?? true}
       enableQuickPanelTriggers={enableQuickPanelTriggers}
