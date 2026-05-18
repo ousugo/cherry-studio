@@ -1,11 +1,3 @@
-/**
- * Vertex AI model listing helpers — ported from v2 hotfix #14611.
- *
- * Renderer-side originals lived in `src/renderer/src/aiCore/services/listModels/vertex.ts`
- * and pulled credentials from Redux + IPC; backend port reads them straight from
- * the provider's auth config (`iam-gcp`) and calls `vertexAIService` directly.
- */
-
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { vertexAIService } from '@main/services/VertexAIService'
@@ -15,7 +7,7 @@ import { withoutTrailingSlash } from '@shared/utils/api/utils'
 
 import { getBaseUrl } from '../../utils/provider'
 
-const logger = loggerService.withContext('VertexModelList')
+const logger = loggerService.withContext('ModelListService')
 
 export const DEFAULT_VERTEX_MODEL_PUBLISHERS = [
   'google',
@@ -32,10 +24,6 @@ export type VertexModelListRequest = {
   headers: Record<string, string>
 }
 
-const VERTEX_RESOURCE_PATH_REGEX = /\/v1(?:beta1)?\/projects\/[^/]+\/locations\/[^/]+$/
-
-/** Resolve the Vertex API host. Prefer a user-customized `endpointConfigs` baseUrl
- *  (e.g. through a reverse proxy), otherwise fall back to the regional default. */
 function getVertexServiceEndpoint(provider: Provider, location: string): string {
   const apiHost = withoutTrailingSlash(getBaseUrl(provider))
   const defaultHost =
@@ -45,8 +33,9 @@ function getVertexServiceEndpoint(provider: Provider, location: string): string 
     return defaultHost
   }
 
-  if (VERTEX_RESOURCE_PATH_REGEX.test(apiHost)) {
-    return apiHost.replace(VERTEX_RESOURCE_PATH_REGEX, '')
+  const vertexResourcePath = /\/v1(?:beta1)?\/projects\/[^/]+\/locations\/[^/]+$/
+  if (vertexResourcePath.test(apiHost)) {
+    return apiHost.replace(vertexResourcePath, '')
   }
 
   return apiHost.replace(/\/v1(?:beta1)?$/, '')
@@ -135,22 +124,32 @@ export async function createVertexModelListRequest(
 export function getVertexModelId(name: string): string {
   const marker = '/models/'
   const markerIndex = name.lastIndexOf(marker)
-  if (markerIndex >= 0) return name.slice(markerIndex + marker.length)
+
+  if (markerIndex >= 0) {
+    return name.slice(markerIndex + marker.length)
+  }
+
   return name.split('/').pop() || name
 }
 
 export function getVertexModelPublisher(name: string): string {
   const marker = 'publishers/'
   const markerIndex = name.indexOf(marker)
-  if (markerIndex < 0) return 'google'
+
+  if (markerIndex < 0) {
+    return 'google'
+  }
+
   const publisher = name.slice(markerIndex + marker.length).split('/')[0]
   return publisher || 'google'
 }
 
 export function isSupportedVertexPublisherModel(modelId: string): boolean {
   const normalizedModelId = modelId.trim().toLowerCase()
+
   if (EXCLUDED_VERTEX_PUBLISHER_MODEL_KEYWORDS.some((keyword) => normalizedModelId.includes(keyword))) {
     return false
   }
+
   return SUPPORTED_VERTEX_PUBLISHER_MODEL_PATTERNS.some((pattern) => pattern.test(normalizedModelId))
 }
