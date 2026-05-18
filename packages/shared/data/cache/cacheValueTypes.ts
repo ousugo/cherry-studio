@@ -1,6 +1,7 @@
 import type { Topic } from '@types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
+import type { ExternalAppId } from '../../externalApp/types'
 import type { MiniApp } from '../types/miniApp'
 import type { WebSearchStatus } from '../types/webSearch'
 
@@ -69,3 +70,5 @@ export type TranslatingState =
     }
 
 export type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
+
+export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null

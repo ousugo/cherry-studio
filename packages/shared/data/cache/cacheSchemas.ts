@@ -289,6 +289,7 @@ export type RendererPersistCacheSchema = {
   'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
+  'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
   // Multi-model list for @mention parallel answering, keyed by assistantId
   // This is UI-level state, not core assistant config (default model is assistant.modelId)
   'ui.assistant.multi_model_ids': Record<string, string[]>
@@ -302,6 +303,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
+  'agent.open_external_app.last_used_target': null,
   'ui.assistant.multi_model_ids': {}
 }
 

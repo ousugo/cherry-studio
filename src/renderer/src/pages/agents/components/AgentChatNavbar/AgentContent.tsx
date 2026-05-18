@@ -20,7 +20,6 @@ import { useTranslation } from 'react-i18next'
 
 import AgentSidePanelDrawer from '../AgentSidePanelDrawer'
 import OpenExternalAppButton from './OpenExternalAppButton'
-import SessionWorkspaceMeta from './SessionWorkspaceMeta'
 import Tools from './Tools'
 
 type AgentContentProps = {
@@ -140,8 +139,6 @@ const AgentContent = ({ activeAgent, onOpenSettings, onDraftAgentChange, creatin
                     </Button>
                   }
                 />
-
-                {activeSession && <SessionWorkspaceMeta session={activeSession} />}
               </>
             ) : (
               <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs" disabled>

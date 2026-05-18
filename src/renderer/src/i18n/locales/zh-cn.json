@@ -390,6 +390,11 @@
       "edit": {
         "title": "编辑会话"
       },
+      "file_manager": {
+        "file_explorer": "资源管理器",
+        "files": "Files",
+        "finder": "访达"
+      },
       "get": {
         "error": {
           "failed": "获取会话失败",
@@ -6560,7 +6565,7 @@
         "header_name_placeholder": "请求头名称",
         "header_value_placeholder": "请求头取值",
         "headers_description": "自定义请求头（JSON 格式）",
-        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
+        "headers_json_placeholder": "{\n  \"X-自定义头\": \"值\"\n}",
         "invalid_json": "JSON 格式错误",
         "login": "登录 Github",
         "logout": "退出 Github",

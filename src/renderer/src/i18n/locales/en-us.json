@@ -390,6 +390,11 @@
       "edit": {
         "title": "Edit session"
       },
+      "file_manager": {
+        "file_explorer": "File Explorer",
+        "files": "Files",
+        "finder": "Finder"
+      },
       "get": {
         "error": {
           "failed": "Failed to get the session",
