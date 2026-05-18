@@ -1,27 +1,17 @@
-import { useChat } from '@ai-sdk/react'
 import { LoadingOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { MessageContentProvider } from '@renderer/components/chat/messages'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
-import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import db from '@renderer/databases'
-import { useDetectLang, useLanguages } from '@renderer/hooks/translate'
-import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
-import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
-import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
 import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
 import { useMessagePlatformActions } from '@renderer/pages/shared/messages/hooks/useMessagePlatformActions'
-import { pauseTrace } from '@renderer/services/SpanManagerService'
-import { resolveTranslatePayload } from '@renderer/services/TranslateService'
-import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { TranslateLanguage } from '@renderer/types'
-import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { defaultLanguage } from '@shared/config/constant'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -42,11 +32,14 @@ interface Props {
 }
 
 const logger = loggerService.withContext('ActionTranslate')
+const TRANSLATION_MESSAGE_ID = 'selection-translation-result'
+const TRANSLATION_TOPIC_ID = 'selection-translation'
 
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
   const { renderConfig } = useMessageListRenderConfig()
   const platformActions = useMessagePlatformActions()
+  const selectedText = action.selectedText
 
   const [language] = usePreference('app.language')
   const { languages, getLanguage } = useLanguages()
@@ -73,9 +66,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [showOriginal, setShowOriginal] = useState(false)
   const [initialized, setInitialized] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  // Temporary in-memory topic leased for this translate session. No persisted
-  // assistant is attached — main resolves the model directly from the IPC payload.
-  const { topicId: temporaryTopicId, ready: isTopicReady } = useTemporaryTopic({ enabled: true })
+  const [content, setContent] = useState('')
 
   // Use useRef for values that shouldn't trigger re-renders
   const targetLangRef = useRef(targetLanguage)
@@ -122,7 +113,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     }
 
     // Edge case
-    if (action.selectedText === undefined) {
+    if (selectedText === undefined) {
       logger.error('[initialize] No selected text.')
       return
     }
@@ -134,7 +125,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     logger.silly('[initialize] UpdateLanguagePair completed.')
 
     setInitialized(true)
-  }, [initialized, isLanguagesLoaded, updateLanguagePair])
+  }, [initialized, isLanguagesLoaded, selectedText, updateLanguagePair])
 
   // Try to initialize when:
   // 1. action.selectedText change (generally will not)
@@ -147,89 +138,64 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [isPreparing, setIsPreparing] = useState(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
 
-  const { sendMessage, stop: stopChat } = useChat<CherryUIMessage>({
-    id: temporaryTopicId ?? 'pending-temp',
-    transport: ipcChatTransport,
-    experimental_throttle: 50,
-    onError: (err) => {
+  const {
+    translate: runTranslate,
+    isTranslating,
+    cancel: cancelTranslate
+  } = useTranslate({
+    loggerContext: 'ActionTranslate',
+    showErrorToast: false,
+    rethrowError: true,
+    onResponse: (text) => {
       setIsPreparing(false)
-      setCompletionError(err.message)
+      setContent(text)
+      scrollToBottom?.()
     }
   })
 
-  // Primary `useChat` is trigger-only — chunks are tagged with the
-  // execution's modelId by Main, so the per-execution collector below
-  // owns the streaming content. One collector per `activeExecutionId`;
-  // we read the streaming assistant message from its internal state.
-  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose, resetExecutionMessages } =
-    useExecutionMessages()
-
-  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutions)
-
-  // Flatten all collectors' assistant messages — in practice there's at
-  // most one (single-model translate), but keep the shape generic in case
-  // the session ever fans out.
-  const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => {
-    for (const execMessages of Object.values(executionMessagesById)) {
-      for (let i = execMessages.length - 1; i >= 0; i--) {
-        if (execMessages[i].role === 'assistant') return execMessages[i]
-      }
-    }
-    return undefined
-  }, [executionMessagesById])
-
-  useEffect(() => {
-    if (isPending) {
-      setIsPreparing(false)
-      scrollToBottom?.()
-    }
-  }, [isPending, scrollToBottom])
+  const translationParts = useMemo<CherryMessagePart[]>(
+    () => (content ? [{ type: 'text', text: content } as CherryMessagePart] : []),
+    [content]
+  )
 
   const partsMap = useMemo<Record<string, CherryMessagePart[]>>(
-    () =>
-      latestAssistantUIMsg ? { [latestAssistantUIMsg.id]: latestAssistantUIMsg.parts as CherryMessagePart[] } : {},
-    [latestAssistantUIMsg]
+    () => ({ [TRANSLATION_MESSAGE_ID]: translationParts }),
+    [translationParts]
   )
 
   const latestAssistantMessage = useMemo(() => {
-    if (!latestAssistantUIMsg) return null
     return toMessageListItem(
       {
-        ...latestAssistantUIMsg,
+        id: TRANSLATION_MESSAGE_ID,
+        role: 'assistant',
+        parts: translationParts,
         metadata: {
-          ...latestAssistantUIMsg.metadata,
-          status: isPending ? 'pending' : 'success'
+          status: isTranslating ? 'pending' : 'success'
         }
-      },
-      { topicId: temporaryTopicId ?? '' }
+      } as CherryUIMessage,
+      { topicId: TRANSLATION_TOPIC_ID }
     )
-  }, [latestAssistantUIMsg, isPending, temporaryTopicId])
+  }, [isTranslating, translationParts])
 
-  const content = useMemo(
-    () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
-    [latestAssistantUIMsg]
-  )
-
-  const isStreaming = isPending
+  const isStreaming = isTranslating || isPreparing
   const error = completionError
 
   const clear = useCallback(() => {
-    void stopChat()
-    resetExecutionMessages()
+    cancelTranslate()
+    setContent('')
     setCompletionError(null)
     setIsPreparing(false)
-  }, [stopChat, resetExecutionMessages])
+  }, [cancelTranslate])
 
   const fetchResult = useCallback(async () => {
-    if (!isTopicReady || !temporaryTopicId || !action.selectedText || !initialized) return
+    if (!selectedText || !initialized) return
     clear()
     setDetectError(null)
 
     let sourceLanguageCode: TranslateLangCode
 
     try {
-      sourceLanguageCode = await detectLanguage(action.selectedText)
+      sourceLanguageCode = await detectLanguage(selectedText)
     } catch (err) {
       setDetectError(err instanceof Error ? err.message : 'An error occurred')
       logger.error('Error detecting language:', err as Error)
@@ -251,25 +217,19 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
     setActualTargetLanguage(translateLang)
 
-    const { content } = await resolveTranslatePayload(translateLang, action.selectedText)
-    logger.debug('Run translate action stream')
-
     setCompletionError(null)
     setIsPreparing(true)
-    // The temp topic has no assistant attached — main reads the translate
-    // model from the `feature.translate.model_id` preference on its end.
-    void sendMessage({ text: content })
-  }, [
-    action,
-    temporaryTopicId,
-    isTopicReady,
-    alterLanguage,
-    clear,
-    getLanguage,
-    initialized,
-    sendMessage,
-    targetLanguage
-  ])
+
+    try {
+      await runTranslate(selectedText, translateLang)
+    } catch (err) {
+      setContent('')
+      const message = err instanceof Error ? err.message : String(err)
+      setCompletionError(t(message, message))
+    } finally {
+      setIsPreparing(false)
+    }
+  }, [selectedText, initialized, clear, detectLanguage, getLanguage, alterLanguage, targetLanguage, runTranslate, t])
 
   useEffect(() => {
     void fetchResult()
@@ -362,8 +322,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   )
 
   const handlePause = () => {
-    void stopChat()
-    if (temporaryTopicId) void pauseTrace(temporaryTopicId)
+    cancelTranslate()
+    setIsPreparing(false)
   }
 
   const handleRegenerate = () => {
@@ -444,22 +404,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           </OriginalContent>
         )}
         <Result>
-          {temporaryTopicId &&
-            activeExecutions.map(({ executionId }) => {
-              const execChat = executionChats.get(executionId)
-              if (!execChat) return null
-              return (
-                <ExecutionStreamCollector
-                  key={executionId}
-                  executionId={executionId}
-                  chat={execChat}
-                  onMessagesChange={handleExecutionMessagesChange}
-                  onDispose={handleExecutionDispose}
-                />
-              )
-            })}
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-          {!isPreparing && latestAssistantMessage && (
+          {content && (
             <MessageContentProvider
               messages={[latestAssistantMessage]}
               partsByMessageId={partsMap}

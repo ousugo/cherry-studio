@@ -1,38 +1,10 @@
-import { dataApiService } from '@data/DataApiService'
-import { preferenceService } from '@data/PreferenceService'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { isUniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import { isQwenMTModel } from '@shared/utils/model'
 import { t } from 'i18next'
 import { v4 as uuid } from 'uuid'
 
 /** Must stay in sync with main-side prefix (validated in `translateService.open`). */
 const TRANSLATE_STREAM_PREFIX = 'translate:'
-const NOT_CONFIGURED_ERROR = 'translate.error.not_configured'
-
-export async function resolveTranslatePayload(
-  targetLanguage: TranslateLanguage,
-  text: string
-): Promise<{ content: string }> {
-  const modelIdRaw = await preferenceService.get('feature.translate.model_id')
-  if (!modelIdRaw || !isUniqueModelId(modelIdRaw)) {
-    throw new Error(NOT_CONFIGURED_ERROR)
-  }
-
-  const model = await dataApiService.get(`/models/${modelIdRaw}`).catch(() => undefined)
-  if (!model) {
-    throw new Error(NOT_CONFIGURED_ERROR)
-  }
-
-  const content = isQwenMTModel(model)
-    ? text
-    : ((await preferenceService.get('feature.translate.model_prompt')) ?? '')
-        .replaceAll('{{target_language}}', targetLanguage.value)
-        .replaceAll('{{text}}', text)
-
-  return { content }
-}
 
 /**
  * Translate `text` to `targetLanguage` via main's `Ai_Translate_Open` IPC.
