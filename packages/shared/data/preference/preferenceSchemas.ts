@@ -84,8 +84,6 @@ export interface PreferenceSchemas {
     'app.user.name': string
     // electronStore/ZoomFactor/ZoomFactor
     'app.zoom_factor': number
-    // redux/settings/clickAssistantToShowTopic
-    'assistant.click_to_show_topic': boolean
     // redux/settings/assistantIconType
     'assistant.icon_type': PreferenceTypes.AssistantIconType
     // redux/settings/assistantsTabSortType
@@ -472,18 +470,12 @@ export interface PreferenceSchemas {
     'topic.naming.model_id': string | null
     // redux/settings/topicNamingPrompt
     'topic.naming_prompt': string
-    // redux/settings/topicPosition
-    'topic.position': string
     // target-key-definitions/complex/complex
     'topic.tab.collapsed_group_ids': string[]
     // target-key-definitions/complex/complex
     'topic.tab.display_mode': PreferenceTypes.TopicDisplayMode
-    // redux/settings/pinTopicsToTop
-    'topic.tab.pin_to_top': boolean
     // redux/settings/showTopics
     'topic.tab.show': boolean
-    // redux/settings/showTopicTime
-    'topic.tab.show_time': boolean
     // redux/settings/customCss
     'ui.custom_css': string
     // target-key-definitions/complex/complex
@@ -530,7 +522,6 @@ export const DefaultPreferences: PreferenceSchemas = {
     'app.user.id': 'uuid()',
     'app.user.name': '',
     'app.zoom_factor': 1,
-    'assistant.click_to_show_topic': true,
     'assistant.icon_type': 'emoji',
     'assistant.tab.sort_type': 'list',
     'chat.code.collapsible': false,
@@ -751,12 +742,9 @@ export const DefaultPreferences: PreferenceSchemas = {
     'topic.naming.enabled': true,
     'topic.naming.model_id': null,
     'topic.naming_prompt': '',
-    'topic.position': 'left',
     'topic.tab.collapsed_group_ids': [],
     'topic.tab.display_mode': 'time',
-    'topic.tab.pin_to_top': false,
     'topic.tab.show': true,
-    'topic.tab.show_time': false,
     'ui.custom_css': '',
     'ui.sidebar.icons.invisible': [],
     'ui.sidebar.icons.visible': [
@@ -783,9 +771,9 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 232
+ * - 总配置项: 228
  * - electronStore项: 1
- * - redux项: 200
+ * - redux项: 196
  * - localStorage项: 0
  * - dexieSettings项: 4
  */

@@ -4793,7 +4793,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Tự động chuyển sang chủ đề",
       "title": "Cài đặt nâng cao"
     },
     "assistant": {
@@ -7016,17 +7015,6 @@
         "title": "Tìm kiếm Web",
         "url_invalid": "Đã nhập một URL không hợp lệ",
         "url_required": "Vui lòng nhập một URL"
-      }
-    },
-    "topic": {
-      "pin_to_top": "Ghim chủ đề lên đầu",
-      "position": {
-        "label": "Vị trí chủ đề",
-        "left": "Trái",
-        "right": "Đúng"
-      },
-      "show": {
-        "time": "Hiển thị thời gian chủ đề"
       }
     },
     "translate": {

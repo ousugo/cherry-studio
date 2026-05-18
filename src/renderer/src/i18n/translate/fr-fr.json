@@ -4793,7 +4793,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Basculer automatiquement vers les sujets",
       "title": "Paramètres avancés"
     },
     "assistant": {
@@ -7016,17 +7015,6 @@
         "title": "Recherche web",
         "url_invalid": "URL invalide entrée",
         "url_required": "Veuillez entrer l'URL"
-      }
-    },
-    "topic": {
-      "pin_to_top": "Épingler la discussion en haut",
-      "position": {
-        "label": "Position du sujet",
-        "left": "Gauche",
-        "right": "Droite"
-      },
-      "show": {
-        "time": "Afficher l'heure du sujet"
       }
     },
     "translate": {

@@ -60,10 +60,6 @@ vi.mock('@renderer/hooks/agents/useAgentSessionInitializer', () => ({
   useAgentSessionInitializer: vi.fn()
 }))
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({ topicPosition: 'left' })
-}))
-
 vi.mock('@renderer/hooks/useShortcuts', () => ({
   useShortcut: vi.fn()
 }))

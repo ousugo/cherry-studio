@@ -4793,7 +4793,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Cambiar automáticamente a temas",
       "title": "Configuración avanzada"
     },
     "assistant": {
@@ -7016,17 +7015,6 @@
         "title": "Búsqueda web",
         "url_invalid": "Se ingresó una URL no válida",
         "url_required": "Es necesario introducir una URL"
-      }
-    },
-    "topic": {
-      "pin_to_top": "Fijar tema en la parte superior",
-      "position": {
-        "label": "Posición del tema",
-        "left": "Izquierda",
-        "right": "Derecha"
-      },
-      "show": {
-        "time": "Mostrar tiempo del tema"
       }
     },
     "translate": {

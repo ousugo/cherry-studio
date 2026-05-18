@@ -4793,7 +4793,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Automatisch zu Themenansicht wechseln",
       "title": "Erweiterte Einstellungen"
     },
     "assistant": {
@@ -7016,17 +7015,6 @@
         "title": "Websuche",
         "url_invalid": "Ungültige URL eingegeben",
         "url_required": "URL eingeben"
-      }
-    },
-    "topic": {
-      "pin_to_top": "Thema anpinnen",
-      "position": {
-        "label": "Themenposition",
-        "left": "Links",
-        "right": "Rechts"
-      },
-      "show": {
-        "time": "Themenzeit anzeigen"
       }
     },
     "translate": {

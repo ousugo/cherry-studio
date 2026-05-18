@@ -4793,7 +4793,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Auto switch to topic",
       "title": "Advanced Settings"
     },
     "assistant": {
@@ -7016,17 +7015,6 @@
         "title": "Web Search",
         "url_invalid": "Entered an invalid URL",
         "url_required": "Please enter a URL"
-      }
-    },
-    "topic": {
-      "pin_to_top": "Pin Topics to Top",
-      "position": {
-        "label": "Topic position",
-        "left": "Left",
-        "right": "Right"
-      },
-      "show": {
-        "time": "Show topic time"
       }
     },
     "translate": {

@@ -155,18 +155,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'chat.message.font_size'
     },
     {
-      originalKey: 'topicPosition',
-      targetKey: 'topic.position'
-    },
-    {
-      originalKey: 'showTopicTime',
-      targetKey: 'topic.tab.show_time'
-    },
-    {
-      originalKey: 'pinTopicsToTop',
-      targetKey: 'topic.tab.pin_to_top'
-    },
-    {
       originalKey: 'assistantIconType',
       targetKey: 'assistant.icon_type'
     },
@@ -177,10 +165,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'pasteLongTextThreshold',
       targetKey: 'chat.input.paste_long_text_threshold'
-    },
-    {
-      originalKey: 'clickAssistantToShowTopic',
-      targetKey: 'assistant.click_to_show_topic'
     },
     {
       originalKey: 'renderInputMessageAsMarkdown',
@@ -823,11 +807,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 182
+ * - Redux Store项: 178
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 4
  * - localStorage项: 0
- * - 总配置项: 187
+ * - 总配置项: 183
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

@@ -4793,7 +4793,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "トピックに自動的に切り替える",
       "title": "詳細設定"
     },
     "assistant": {
@@ -7016,17 +7015,6 @@
         "title": "ウェブ検索",
         "url_invalid": "無効なURLが入力されました",
         "url_required": "URLの入力が必要です"
-      }
-    },
-    "topic": {
-      "pin_to_top": "固定トピックを上部に表示",
-      "position": {
-        "label": "トピックの位置",
-        "left": "左",
-        "right": "右"
-      },
-      "show": {
-        "time": "トピックの時間を表示"
       }
     },
     "translate": {

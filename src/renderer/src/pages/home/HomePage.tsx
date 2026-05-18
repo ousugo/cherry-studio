@@ -90,14 +90,8 @@ const HomePage: FC = () => {
     [persistTemporaryConversation, refreshTopics]
   )
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-  const [topicPosition] = usePreference('topic.position')
 
   useShortcut('general.toggle_sidebar', () => {
-    if (topicPosition === 'right') {
-      void setShowSidebar(!showSidebar)
-      return
-    }
-
     if (!showSidebar) {
       void setShowSidebar(true)
       requestAnimationFrame(() => {
@@ -110,11 +104,6 @@ const HomePage: FC = () => {
   })
 
   useShortcut('topic.toggle_show_topics', () => {
-    if (topicPosition === 'right') {
-      void setShowSidebar(!showSidebar)
-      return
-    }
-
     if (!showSidebar) {
       void setShowSidebar(true)
       requestAnimationFrame(() => {
@@ -225,7 +214,7 @@ const HomePage: FC = () => {
     return <Container id="home-page">{historyOverlay}</Container>
   }
 
-  const panePosition = topicPosition === 'right' ? 'right' : 'left'
+  const panePosition = 'left'
 
   return (
     <Container id="home-page">
@@ -237,7 +226,6 @@ const HomePage: FC = () => {
             <HomeTabs
               activeTopic={activeTopic}
               setActiveTopic={setActiveTopicAndDiscardTemporary}
-              position={panePosition}
               onOpenHistory={openHistory}
               revealRequest={topicRevealRequest}
             />

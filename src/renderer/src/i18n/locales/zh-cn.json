@@ -4793,7 +4793,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "自动切换到话题",
       "title": "高级设置"
     },
     "assistant": {
@@ -7016,17 +7015,6 @@
         "title": "网络搜索",
         "url_invalid": "输入了无效的URL",
         "url_required": "需要输入URL"
-      }
-    },
-    "topic": {
-      "pin_to_top": "固定话题置顶",
-      "position": {
-        "label": "话题位置",
-        "left": "左侧",
-        "right": "右侧"
-      },
-      "show": {
-        "time": "显示话题时间"
       }
     },
     "translate": {

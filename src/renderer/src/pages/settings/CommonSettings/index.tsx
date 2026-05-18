@@ -9,7 +9,6 @@ import {
   MenuItem,
   MenuList,
   RowFlex,
-  SegmentedControl,
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
@@ -98,10 +97,6 @@ const CommonSettings: FC = () => {
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
-  const [topicPosition, setTopicPosition] = usePreference('topic.position')
-  const [clickAssistantToShowTopic, setClickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
-  const [pinTopicsToTop, setPinTopicsToTop] = usePreference('topic.tab.pin_to_top')
-  const [showTopicTime, setShowTopicTime] = usePreference('topic.tab.show_time')
   const [fontSize] = usePreference('chat.message.font_size')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
   const [notificationSettings, setNotificationSettings] = useMultiplePreferences({
@@ -536,45 +531,6 @@ const CommonSettings: FC = () => {
               <ResetIcon size="14" />
             </Button>
           </SelectRow>
-        </SettingRow>
-      </SettingGroup>
-
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.topic.position.label')}</SettingRowTitle>
-          <SegmentedControl
-            value={topicPosition || 'right'}
-            onValueChange={setTopicPosition}
-            options={[
-              { value: 'left', label: t('settings.topic.position.left') },
-              { value: 'right', label: t('settings.topic.position.right') }
-            ]}
-            size="sm"
-          />
-        </SettingRow>
-        {topicPosition === 'left' && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.advanced.auto_switch_to_topics')}</SettingRowTitle>
-              <Switch
-                checked={clickAssistantToShowTopic}
-                onCheckedChange={(checked) => setClickAssistantToShowTopic(checked)}
-              />
-            </SettingRow>
-          </>
-        )}
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
-          <Switch checked={showTopicTime} onCheckedChange={(checked) => setShowTopicTime(checked)} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.topic.pin_to_top')}</SettingRowTitle>
-          <Switch checked={pinTopicsToTop} onCheckedChange={(checked) => setPinTopicsToTop(checked)} />
         </SettingRow>
       </SettingGroup>
     </>

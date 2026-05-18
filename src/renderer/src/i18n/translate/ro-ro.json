@@ -4793,7 +4793,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Comutare automată la subiect",
       "title": "Setări avansate"
     },
     "assistant": {
@@ -7016,17 +7015,6 @@
         "title": "Căutare web",
         "url_invalid": "S-a introdus un URL invalid",
         "url_required": "Te rugăm să introduci un URL"
-      }
-    },
-    "topic": {
-      "pin_to_top": "Fixează subiectele sus",
-      "position": {
-        "label": "Poziție subiect",
-        "left": "Stânga",
-        "right": "Dreapta"
-      },
-      "show": {
-        "time": "Afișează ora subiectului"
       }
     },
     "translate": {

@@ -1039,25 +1039,25 @@
           "originalKey": "topicPosition",
           "type": "string",
           "defaultValue": "left",
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "topic.position"
+          "status": "deleted",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "showTopicTime",
           "type": "boolean",
           "defaultValue": false,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "topic.tab.show_time"
+          "status": "deleted",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "pinTopicsToTop",
           "type": "boolean",
           "defaultValue": false,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "topic.tab.pin_to_top"
+          "status": "deleted",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "assistantIconType",
@@ -1087,9 +1087,9 @@
           "originalKey": "clickAssistantToShowTopic",
           "type": "boolean",
           "defaultValue": true,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "assistant.click_to_show_topic"
+          "status": "deleted",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "autoCheckUpdate",

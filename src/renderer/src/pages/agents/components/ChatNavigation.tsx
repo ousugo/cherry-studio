@@ -6,7 +6,6 @@ import {
   VerticalAlignTopOutlined
 } from '@ant-design/icons'
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { FC } from 'react'
@@ -40,10 +39,6 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const lastMoveTime = useRef(0)
   const isHoveringNavigationRef = useRef(false)
   const isPointerInTriggerAreaRef = useRef(false)
-  const [topicPosition] = usePreference('topic.position')
-  const [showTopics] = usePreference('topic.tab.show')
-  const showRightTopics = topicPosition === 'right' && showTopics
-
   const clearHideTimer = useCallback(() => {
     clearTimeoutTimer(timerKey)
   }, [clearTimeoutTimer])
@@ -263,11 +258,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       const triggerWidth = 60 // Same as the width in styled component
 
       // Safe way to calculate position when using calc expressions
-      let rightOffset = RIGHT_GAP // Default right offset
-      if (showRightTopics) {
-        // When topics are shown on right, we need to account for topic list width
-        rightOffset += 275 // --topic-list-width
-      }
+      const rightOffset = RIGHT_GAP
 
       const rightPosition = window.innerWidth - rightOffset - triggerWidth
       const topPosition = window.innerHeight * 0.35 // 35% from top
@@ -315,7 +306,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       messagesContainer?.removeEventListener('mouseleave', handleMessagesMouseLeave)
       clearHideTimer()
     }
-  }, [containerId, showRightTopics, manuallyClosedUntil, scheduleHide, showNavigation, clearHideTimer])
+  }, [containerId, manuallyClosedUntil, scheduleHide, showNavigation, clearHideTimer])
 
   return (
     <>

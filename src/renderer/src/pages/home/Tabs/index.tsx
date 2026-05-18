@@ -1,35 +1,25 @@
-import { usePreference } from '@data/hooks/usePreference'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { Topic } from '@renderer/types'
-import { classNames } from '@renderer/utils'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
-import Topics from './TopicsTab'
+import { Topics } from './components/Topics'
 
 interface Props {
   activeTopic: Topic
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
   setActiveTopic: (topic: Topic) => void
-  position: 'left' | 'right'
   revealRequest?: ResourceListRevealRequest
   style?: React.CSSProperties
 }
 
-const HomeTabs: FC<Props> = ({ activeTopic, onOpenHistory, setActiveTopic, position, revealRequest, style }) => {
-  const [topicPosition] = usePreference('topic.position')
-
-  const border = position === 'right' ? { borderTopLeftRadius: 0 } : undefined
-
+const HomeTabs: FC<Props> = ({ activeTopic, onOpenHistory, setActiveTopic, revealRequest, style }) => {
   return (
-    <Container
-      style={{ ...border, ...style }}
-      className={classNames('home-tabs', { right: position === 'right' && topicPosition === 'right' })}>
+    <Container style={style} className="home-tabs">
       <TabContent className="home-tabs-content">
         <Topics
           activeTopic={activeTopic}
           setActiveTopic={setActiveTopic}
-          position={position}
           onOpenHistory={onOpenHistory}
           revealRequest={revealRequest}
         />
@@ -45,10 +35,6 @@ const Container = styled.div`
   transition: width 0.3s;
   height: calc(100vh - var(--navbar-height));
   position: relative;
-
-  &.right {
-    height: calc(100vh - var(--navbar-height));
-  }
 
   overflow: hidden;
   .collapsed {

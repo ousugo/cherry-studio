@@ -178,7 +178,6 @@ describe('HomePage', () => {
     homeMocks.temporaryConversation = null
     homeMocks.preferenceValues.clear()
     homeMocks.preferenceValues.set('topic.tab.show', false)
-    homeMocks.preferenceValues.set('topic.position', 'left')
 
     Object.defineProperty(window, 'api', {
       configurable: true,

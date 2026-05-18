@@ -82,7 +82,6 @@ interface Props {
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
   revealRequest?: ResourceListRevealRequest
   setActiveTopic: (topic: Topic) => void
-  position: 'left' | 'right'
 }
 
 const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
@@ -144,7 +143,7 @@ function TopicDisplayModeMenu({
   )
 }
 
-export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTopic, position }: Props) {
+export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTopic }: Props) {
   const { t } = useTranslation()
   const tabs = useOptionalTabsContext()
   const [groupNow] = useState(() => dayjs())
@@ -153,7 +152,6 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [collapsedTopicGroupIds, setCollapsedTopicGroupIds] = usePreference('topic.tab.collapsed_group_ids')
-  const [topicPosition] = usePreference('topic.position')
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
   const [exportMenuOptions] = useMultiplePreferences({
@@ -463,7 +461,6 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
     isLoadingAll || !isFullyLoaded || isTopicPinsLoading || (isAssistantDisplayMode && isAssistantsLoading)
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
-  const singlealone = topicPosition === 'right' && position === 'right'
   const openAssistantEditor = useCallback(
     (assistantId: string) => {
       tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('assistant', assistantId)), { forceNew: true })
@@ -759,7 +756,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
           onEditAssistant={openAssistantEditor}
           onPinTopic={handlePinTopic}
           onSwitchTopic={setActiveTopic}
-          rowLayout={singlealone ? 'single' : 'grouped'}
+          rowLayout="grouped"
           selectedIds={selectedIds}
           toggleSelectTopic={toggleSelectTopic}
           topicsLength={topics.length}

@@ -237,7 +237,6 @@ vi.mock('react-i18next', () => ({
       if (key === 'common.prompt') return 'Prompt'
       if (key === 'history.records.title') return 'Topic History'
       if (key === 'assistants.reorder.error.failed') return 'Failed to reorder assistants'
-      if (key === 'settings.topic.position.label') return 'Topic position'
       if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
       return key
     }
@@ -338,7 +337,6 @@ function renderTopicList({
     <Topics
       activeTopic={createRendererTopic()}
       setActiveTopic={setActiveTopic}
-      position="left"
       onOpenHistory={onOpenHistory}
       revealRequest={nextRevealRequest}
     />
@@ -404,11 +402,8 @@ describe('Topics', () => {
     vi.setSystemTime(new Date(2026, 0, 3, 12))
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'topic.tab.pin_to_top': true,
       'topic.tab.display_mode': 'time',
       'topic.tab.collapsed_group_ids': [],
-      'topic.tab.show_time': false,
-      'topic.position': 'left',
       'data.export.menus.docx': true,
       'data.export.menus.image': true,
       'data.export.menus.joplin': true,

@@ -4,7 +4,6 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversationDefaults, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
@@ -25,7 +24,6 @@ const AgentPage = () => {
   const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
-  const { topicPosition } = useSettings()
   const { agents } = useAgents()
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
@@ -45,20 +43,11 @@ const AgentPage = () => {
   useAgentSessionInitializer()
 
   useShortcut('general.toggle_sidebar', () => {
-    if (topicPosition === 'left') {
-      toggleShowSidebar()
-      return
-    }
-
-    void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
+    toggleShowSidebar()
   })
 
   useShortcut('topic.toggle_show_topics', () => {
-    if (topicPosition === 'right') {
-      toggleShowSidebar()
-    } else {
-      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-    }
+    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
   })
 
   useEffect(() => {
@@ -167,7 +156,7 @@ const AgentPage = () => {
     )
   }
 
-  const panePosition = topicPosition === 'right' ? 'right' : 'left'
+  const panePosition = 'left'
 
   return (
     <Container>
