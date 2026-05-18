@@ -1,10 +1,15 @@
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 
 import MessageMcpTool from './mcp/MessageMcpTool'
-import MessageTool from './MessageTool'
+import MessageTool, { canRenderMessageToolResponse } from './MessageTool'
 
 interface Props {
   toolResponse: MCPToolResponse | NormalToolResponse
+}
+
+export function canRenderMessageTool(toolResponse: MCPToolResponse | NormalToolResponse) {
+  if (toolResponse.tool.type === 'mcp') return true
+  return canRenderMessageToolResponse(toolResponse as NormalToolResponse)
 }
 
 export default function MessageTools({ toolResponse }: Props) {

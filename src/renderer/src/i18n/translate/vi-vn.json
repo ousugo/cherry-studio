@@ -3285,6 +3285,7 @@
     "websearch": {
       "cutoff": "Đang cắt ngắn nội dung tìm kiếm...",
       "fetch_complete": "{{count}} kết quả tìm kiếm",
+      "fetch_empty": "Không tìm thấy kết quả tìm kiếm",
       "partial_failure": "{{count}} kết quả tìm kiếm, một số tìm kiếm thất bại"
     }
   },

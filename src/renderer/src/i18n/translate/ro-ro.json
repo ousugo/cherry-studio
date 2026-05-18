@@ -3285,6 +3285,7 @@
     "websearch": {
       "cutoff": "Se trunchiază conținutul căutării...",
       "fetch_complete": "{{count}} rezultat(e) căutare",
+      "fetch_empty": "Nu s-au găsit rezultate de căutare",
       "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },

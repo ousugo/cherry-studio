@@ -137,6 +137,14 @@ ul {
   margin-top: 8px;
 }
 
+.bubble:not(.multi-select-mode) .message-thought-wrapper + .message-thought-wrapper {
+  margin-top: 0.5rem;
+}
+
+.bubble:not(.multi-select-mode) .message-thought-wrapper + .message-thought-wrapper .message-thought-container {
+  margin-top: 0;
+}
+
 .bubble:not(.multi-select-mode) .message-user .message-header {
   flex-direction: row-reverse;
   text-align: right;

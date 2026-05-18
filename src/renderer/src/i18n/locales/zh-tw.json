@@ -3285,6 +3285,7 @@
     "websearch": {
       "cutoff": "正在截斷搜尋內容...",
       "fetch_complete": "{{count}} 個搜尋結果",
+      "fetch_empty": "未找到搜尋結果",
       "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },

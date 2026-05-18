@@ -140,19 +140,14 @@ const HeaderContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'
 
 // Label variant: no border/padding, for use inside Collapse header
 const LabelContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['flex min-w-0 items-center gap-1 text-sm', className].filter(Boolean).join(' ')} {...props} />
+  <div
+    className={['flex min-w-0 items-center gap-1 text-[13px] leading-5', className].filter(Boolean).join(' ')}
+    {...props}
+  />
 )
 
 const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>) => (
-  <Flex
-    className={[
-      'shrink-0 font-medium text-foreground [&_.name]:whitespace-nowrap [&_.tool-icon]:text-(--color-primary)',
-      className
-    ]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
+  <Flex className={['shrink-0 [&_.name]:whitespace-nowrap', className].filter(Boolean).join(' ')} {...props} />
 )
 
 const Description = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
@@ -169,7 +164,7 @@ const Description = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) 
 
 const Stats = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span
-    className={['shrink-0 whitespace-nowrap font-normal text-foreground-secondary text-xs', className]
+    className={['shrink-0 whitespace-nowrap font-normal text-[13px] text-foreground-secondary', className]
       .filter(Boolean)
       .join(' ')}
     {...props}
@@ -190,6 +185,7 @@ interface McpToolHeaderProps {
   status?: ToolStatus
   hasError: boolean
   Container: typeof HeaderContainer
+  variant: ToolHeaderProps['variant']
 }
 
 const McpToolHeader: FC<McpToolHeaderProps> = ({
@@ -199,14 +195,22 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
   showStatus,
   status,
   hasError,
-  Container
+  Container,
+  variant
 }) => {
   const { t } = useTranslation()
   const { isToolAutoApproved } = useOptionalMessageListUi() ?? {}
   const autoApproved = isToolAutoApproved?.(tool) ?? false
   return (
     <Container>
-      <ToolName className="items-center gap-1.5">
+      <ToolName
+        className={[
+          'items-center gap-1.5',
+          variant === 'collapse-label' && 'font-normal text-foreground-secondary [&_.tool-icon]:text-foreground-muted',
+          variant === 'standalone' && 'font-medium text-foreground [&_.tool-icon]:text-(--color-primary)'
+        ]
+          .filter(Boolean)
+          .join(' ')}>
         <Wrench size={14} className="tool-icon" />
         <span className="name">
           {tool.serverName} : {tool.name}
@@ -264,13 +268,21 @@ const ToolHeader: FC<ToolHeaderProps> = ({
         status={status}
         hasError={hasError}
         Container={Container}
+        variant={variant}
       />
     )
   }
 
   return (
     <Container>
-      <ToolName className="items-center gap-1.5">
+      <ToolName
+        className={[
+          'items-center gap-1.5',
+          variant === 'collapse-label' && 'font-normal text-foreground-secondary [&_.tool-icon]:text-foreground-muted',
+          variant === 'standalone' && 'font-medium text-foreground [&_.tool-icon]:text-(--color-primary)'
+        ]
+          .filter(Boolean)
+          .join(' ')}>
         <span className="tool-icon">{propIcon || getAgentToolIcon(toolName)}</span>
         <span className="name">{getAgentToolLabel(toolName, t)}</span>
       </ToolName>

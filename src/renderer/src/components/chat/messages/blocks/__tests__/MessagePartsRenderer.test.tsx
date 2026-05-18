@@ -65,6 +65,8 @@ vi.mock('../ImageBlock', () => ({
 
 vi.mock('../../tools/MessageTools', () => ({
   __esModule: true,
+  canRenderMessageTool: (toolResponse: any) =>
+    !(toolResponse?.tool?.type === 'provider' && toolResponse?.tool?.name === 'web__search'),
   default: ({ toolResponse }: any) => (
     <div
       data-testid="mock-message-tools"
@@ -100,7 +102,7 @@ vi.mock('../../tools/toolResponse', () => ({
       tool: {
         id,
         name,
-        type: isMcp ? 'mcp' : 'builtin',
+        type: part.toolType ?? (isMcp ? 'mcp' : 'builtin'),
         ...(isMcp ? { serverId: meta?.serverId ?? 'unknown', serverName: meta?.serverName ?? 'MCP' } : {})
       },
       arguments: part.input,
@@ -282,6 +284,23 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
   })
 
+  it('filters hidden tool responses inside ToolBlockGroup', () => {
+    renderParts([
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'visible-tool', state: 'output-available', output: {} },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'hidden-web-search',
+        toolName: 'web__search',
+        toolType: 'provider',
+        state: 'output-available',
+        output: {}
+      },
+      { type: 'dynamic-tool', toolCallId: 'b', toolName: 'another-visible-tool', state: 'output-available', output: {} }
+    ] as unknown as CherryMessagePart[])
+
+    expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
+  })
+
   it('collapses completed tool history before final result', () => {
     renderParts([
       { type: 'text', text: 'checking project files' },
@@ -298,6 +317,9 @@ describe('MessagePartsRenderer', () => {
 
     fireEvent.click(historyButton)
 
+    expect(document.getElementById(historyButton.getAttribute('aria-controls') ?? '')).toHaveClass(
+      'mt-1.5 flex w-full flex-col gap-2 [&_.message-thought-container]:mb-0! [&_.message-thought-container]:mt-0! [&>.block-wrapper:empty]:hidden'
+    )
     expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
     expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
       'checking project files',
@@ -326,6 +348,51 @@ describe('MessagePartsRenderer', () => {
       'checking project files',
       'final answer'
     ])
+  })
+
+  it('marks consecutive reasoning blocks for consistent spacing', () => {
+    renderParts([
+      { type: 'reasoning', text: 'first thought', state: 'done' },
+      { type: 'reasoning', text: 'second thought', state: 'done' }
+    ] as unknown as CherryMessagePart[])
+
+    const thinkingBlocks = screen.getAllByTestId('mock-thinking-block')
+    expect(thinkingBlocks).toHaveLength(2)
+
+    const wrappers = thinkingBlocks.map((block) => block.closest('.block-wrapper'))
+    expect(wrappers[0]).toHaveClass('message-thought-wrapper')
+    expect(wrappers[1]).toHaveClass('message-thought-wrapper')
+  })
+
+  it('does not render an empty wrapper for unrenderable tool parts', () => {
+    const { container } = renderParts([
+      { type: 'reasoning', text: 'first thought', state: 'done' },
+      { type: 'dynamic-tool', toolName: 'missing-call-id', state: 'output-available', output: {} },
+      { type: 'reasoning', text: 'second thought', state: 'done' }
+    ] as unknown as CherryMessagePart[])
+
+    expect(screen.getAllByTestId('mock-thinking-block')).toHaveLength(2)
+    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+    expect(container.querySelectorAll('.block-wrapper')).toHaveLength(2)
+  })
+
+  it('does not render an empty wrapper for tool responses hidden by the tool renderer', () => {
+    const { container } = renderParts([
+      { type: 'reasoning', text: 'first thought', state: 'done' },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'hidden-web-search',
+        toolName: 'web__search',
+        toolType: 'provider',
+        state: 'output-available',
+        output: {}
+      },
+      { type: 'reasoning', text: 'second thought', state: 'done' }
+    ] as unknown as CherryMessagePart[])
+
+    expect(screen.getAllByTestId('mock-thinking-block')).toHaveLength(2)
+    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+    expect(container.querySelectorAll('.block-wrapper')).toHaveLength(2)
   })
 
   it('does not collapse tool history while message is pending', () => {

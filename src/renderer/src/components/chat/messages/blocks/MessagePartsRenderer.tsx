@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next'
 import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
 import { useMessageListUi } from '../MessageListProvider'
-import MessageTools from '../tools/MessageTools'
+import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { buildToolResponseFromPart, type ToolRenderItem } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
 import { isMessageListItemAwaitingApproval, isMessageListItemProcessing } from '../utils/messageListItem'
@@ -62,19 +62,22 @@ const blockWrapperVariants: Variants = {
   }
 }
 
-const AnimatedBlockWrapper: React.FC<{ children: React.ReactNode; enableAnimation: boolean }> = ({
+const AnimatedBlockWrapper: React.FC<{ children: React.ReactNode; enableAnimation: boolean; className?: string }> = ({
+  className,
   children,
   enableAnimation
 }) => {
+  const wrapperClassName = ['block-wrapper', className].filter(Boolean).join(' ')
+
   if (!enableAnimation) {
     return (
-      <div className="block-wrapper">
+      <div className={wrapperClassName}>
         <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
       </div>
     )
   }
   return (
-    <motion.div className="block-wrapper" variants={blockWrapperVariants} initial="hidden" animate="visible">
+    <motion.div className={wrapperClassName} variants={blockWrapperVariants} initial="hidden" animate="visible">
       <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
     </motion.div>
   )
@@ -413,7 +416,7 @@ const ToolGroupView = React.memo(
     const toolItems = entries.flatMap((e): ToolRenderItem[] => {
       const id = `${messageId}-part-${e.index}`
       const toolResponse = buildToolResponseFromPart(e.part)
-      return toolResponse ? [{ id, toolResponse }] : []
+      return toolResponse && canRenderMessageTool(toolResponse) ? [{ id, toolResponse }] : []
     })
     if (toolItems.length === 0) return null
     if (toolItems.length === 1) return <MessageTools toolResponse={toolItems[0].toolResponse} />
@@ -457,7 +460,7 @@ const CompletedToolHistoryGroup = React.memo(function CompletedToolHistoryGroup(
         type="button"
         aria-expanded={isExpanded}
         aria-controls={contentId}
-        className="flex w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        className="flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
         onClick={() => setIsExpanded((expanded) => !expanded)}>
         <ChevronDown
           size={16}
@@ -470,7 +473,7 @@ const CompletedToolHistoryGroup = React.memo(function CompletedToolHistoryGroup(
       {isExpanded && (
         <div
           id={contentId}
-          className="mt-2 flex w-full flex-col gap-3 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper]:mt-0!">
+          className="mt-1.5 flex w-full flex-col gap-2 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
           {groupedEntries.map((entry) => renderGroupedEntry(entry, message, false))}
         </div>
       )}
@@ -544,6 +547,14 @@ function renderGroupedEntry(entry: GroupedEntry, message: MessageListItem, isStr
     }
 
     if (isToolPart(firstPart)) {
+      if (
+        !entry.some((e) => {
+          const toolResponse = buildToolResponseFromPart(e.part)
+          return toolResponse && canRenderMessageTool(toolResponse)
+        })
+      )
+        return null
+
       const stableGroupKey = `tool-group-${message.id}-part-${entry[0].index}`
       return (
         <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={isStreaming}>
@@ -570,7 +581,10 @@ function renderGroupedEntry(entry: GroupedEntry, message: MessageListItem, isStr
   if (!rendered) return null
 
   return (
-    <AnimatedBlockWrapper key={partId} enableAnimation={isStreaming}>
+    <AnimatedBlockWrapper
+      key={partId}
+      enableAnimation={isStreaming}
+      className={isReasoningMessagePart(entry.part) ? 'message-thought-wrapper' : undefined}>
       {rendered}
     </AnimatedBlockWrapper>
   )

@@ -431,7 +431,7 @@ const ResponseSectionStyled = ({ className, ...props }: ComponentPropsWithoutRef
 const CodeBlock = ({ className, ...props }: ComponentPropsWithoutRef<'pre'>) => (
   <pre
     className={[
-      'm-0 max-h-[300px] overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 font-[var(--font-family-mono,monospace)] text-xs [&[data-error=true]]:text-[var(--status-color-error,#ff4d4f)]',
+      'm-0 max-h-[300px] overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 font-[var(--font-family-mono,monospace)] text-xs [&[data-error=true]]:text-[var(--status-color-error,var(--color-foreground-secondary))]',
       className
     ]
       .filter(Boolean)
