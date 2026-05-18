@@ -6,13 +6,6 @@ import type {
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
 
-/**
- * Runtime-shaped provider: preset metadata merged with the user's
- * `WebSearchProviderOverride`. `WebSearchProvider` already encodes this
- * shape — alias is kept so callers can read intent at the call site.
- */
-export type ResolvedWebSearchProvider = WebSearchProvider
-
 export const DEFAULT_WEB_SEARCH_CUTOFF_LIMIT = 2000
 
 export function normalizeWebSearchCutoffLimit(value: unknown): number {
@@ -46,7 +39,7 @@ export type WebSearchFetchUrlsRequest = {
 
 export type WebSearchCheckProviderRequest = {
   /** Full provider override (including a tentative apiKey/apiHost) — bypasses preferences. */
-  provider: ResolvedWebSearchProvider
+  provider: WebSearchProvider
   /** Capability to exercise. Defaults to 'searchKeywords'. */
   capability?: WebSearchCapability
 }

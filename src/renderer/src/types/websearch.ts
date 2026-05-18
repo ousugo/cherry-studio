@@ -1,5 +1,8 @@
-import type { PreferenceDefaultScopeType, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
+import type {
+  PreferenceDefaultScopeType,
+  WebSearchProvider,
+  WebSearchProviderId
+} from '@shared/data/preference/preferenceTypes'
 
 export type RendererCompressionConfig = {
   method: PreferenceDefaultScopeType['chat.web_search.compression.method']
@@ -8,7 +11,7 @@ export type RendererCompressionConfig = {
 
 export type WebSearchState = {
   defaultProvider: WebSearchProviderId | null
-  providers: ResolvedWebSearchProvider[]
+  providers: WebSearchProvider[]
   maxResults: number
   excludeDomains: string[]
   compressionConfig: RendererCompressionConfig

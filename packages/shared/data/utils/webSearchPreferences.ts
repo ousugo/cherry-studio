@@ -1,18 +1,18 @@
 /**
  * Pure helpers for transforming WebSearch preference values into
- * runtime-shaped `ResolvedWebSearchProvider`s and back. Shared between
+ * runtime-shaped `WebSearchProvider`s and back. Shared between
  * main and renderer; no IO, no preferenceService dependency.
  */
 
 import type {
   PreferenceDefaultScopeType,
   WebSearchCapability,
+  WebSearchProvider,
   WebSearchProviderId,
   WebSearchProviderOverride,
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
-import type { ResolvedWebSearchProvider } from '@shared/data/types/webSearch'
 
 export type WebSearchAvailability = boolean | 'unknown'
 
@@ -60,7 +60,7 @@ export function stringifyApiKeys(apiKeys?: readonly string[]): string {
 
 /** Read the resolved apiHost for a capability, falling back to the preset value. */
 export function getProviderApiHost(
-  provider: Pick<ResolvedWebSearchProvider, 'capabilities'>,
+  provider: Pick<WebSearchProvider, 'capabilities'>,
   capability: WebSearchCapability = 'searchKeywords'
 ): string | undefined {
   return provider.capabilities.find((item) => item.feature === capability)?.apiHost
@@ -72,7 +72,7 @@ export function getProviderApiHost(
  * `'unknown'` fallback — callers handle cache readiness separately).
  */
 export function checkWebSearchAvailability(
-  provider: ResolvedWebSearchProvider,
+  provider: WebSearchProvider,
   webSearchProviderRequiresApiKey: (id: WebSearchProviderId) => boolean,
   capability: WebSearchCapability = 'searchKeywords'
 ): boolean {
@@ -86,7 +86,7 @@ export function checkWebSearchAvailability(
  * Hydrate every preset provider with its user override, returning the
  * runtime/service shape that `createWebSearchProvider` consumes.
  */
-export function resolveWebSearchProviders(overrides: WebSearchProviderOverrides): ResolvedWebSearchProvider[] {
+export function resolveWebSearchProviders(overrides: WebSearchProviderOverrides): WebSearchProvider[] {
   return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
     const override = overrides[preset.id]
     const capabilities = preset.capabilities.map((cap) => {
@@ -113,7 +113,7 @@ export function resolveWebSearchProviders(overrides: WebSearchProviderOverrides)
 
 /** Reverse of `resolveWebSearchProviders` — diff resolved providers against
  *  presets to produce the minimal override map. */
-export function buildWebSearchProviderOverrides(providers: ResolvedWebSearchProvider[]): WebSearchProviderOverrides {
+export function buildWebSearchProviderOverrides(providers: WebSearchProvider[]): WebSearchProviderOverrides {
   return providers.reduce<WebSearchProviderOverrides>((acc, provider) => {
     const preset = PRESETS_WEB_SEARCH_PROVIDERS.find((p) => p.id === provider.id)
     const capabilityOverrides: WebSearchProviderOverride['capabilities'] = {}

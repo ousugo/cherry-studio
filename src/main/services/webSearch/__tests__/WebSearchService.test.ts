@@ -1,10 +1,6 @@
 import { BaseService } from '@main/core/lifecycle'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
-import type {
-  ResolvedWebSearchProvider,
-  WebSearchExecutionConfig,
-  WebSearchResponse
-} from '@shared/data/types/webSearch'
+import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { IpcChannel } from '@shared/IpcChannel'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { ipcMain } from 'electron'
@@ -525,7 +521,7 @@ describe('WebSearchService', () => {
         )
       createWebSearchProviderMock.mockReturnValue({ searchKeywords })
 
-      const tentativeProvider: ResolvedWebSearchProvider = {
+      const tentativeProvider: WebSearchProvider = {
         ...providerOverrides[0],
         apiKeys: ['unsaved-key'],
         capabilities: [{ feature: 'searchKeywords', apiHost: 'https://unsaved.tavily.dev' }]
