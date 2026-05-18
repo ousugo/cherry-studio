@@ -1,11 +1,11 @@
 # Chat Adapters
 
-PR-03 establishes the contract layer used by the next chat UI slices. These adapters are intentionally thin: they project current business entities into stable UI-facing shapes, but they do not fetch data, own cache, read preferences, or replace existing UI components.
+This directory contains the contract layer used by shared chat UI slices. These adapters are intentionally thin: they project current business entities into stable UI-facing shapes, but they do not fetch data, own cache, read preferences, or replace existing UI components.
 
 Import from the chat package entry unless you are working inside this folder:
 
 ```ts
-import { ComposerAdapter, MessageListAdapter, ResourceListAdapter } from '@renderer/components/chat'
+import { ComposerAdapter, ResourceListAdapter } from '@renderer/components/chat'
 import { createMessageActionRegistry, createRightPaneRegistry } from '@renderer/components/chat'
 ```
 
@@ -22,17 +22,6 @@ const item = ResourceListAdapter.fromTopic(topic, {
 ```
 
 Callers still own active state, pin state, streaming state, and persistence. The adapter should not call DataApi, Cache, Preference, Redux, or service hooks.
-
-## Message List
-
-Use `MessageListAdapter` before passing renderer messages or agent session message rows into future message-list components. The output is `ChatMessageItem`, which exposes render fields only: `id`, `role`, `status`, `createdAt`, `updatedAt`, `modelId`, `parts`, and `blocks`.
-
-```ts
-const messages = rendererMessages.map(MessageListAdapter.fromRendererMessage)
-const sessionMessages = sessionRows.map(MessageListAdapter.fromAgentSessionMessage)
-```
-
-The adapter preserves message parts and legacy block ids. It does not run stream collectors, load history, or mutate message state.
 
 ## Composer
 
@@ -73,7 +62,7 @@ Registering the same id replaces the previous descriptor. Disposing an older reg
 
 ## Message Action Registry
 
-Use `createMessageActionRegistry()` to register message action providers. Providers receive a `MessageActionContext` and return action references. PR-04 will define the full command/action model; this registry is only the minimum extension point.
+Use `createMessageActionRegistry()` to register message action providers. The current command/action model is defined by `actions/actionTypes.ts`, including `ActionDescriptor`, `CommandDescriptor`, and `ResolvedAction`.
 
 ```ts
 const registry = createMessageActionRegistry()
@@ -106,7 +95,7 @@ Do not map resources inline in JSX:
 <ResourceList items={topics.map((topic) => ResourceListAdapter.fromTopic(topic))} />
 ```
 
-For messages, project once at the message-list data boundary. Do not call `MessageListAdapter` inside an item renderer; virtualized lists rely on stable item identity and measurement caches.
+For messages, use the `MessageListItem` contract from `components/chat/messages`. Project once at the message-list data boundary; virtualized lists rely on stable item identity and measurement caches.
 
 For composer contracts, wrap `ComposerAdapter.createChat()` and `ComposerAdapter.createSession()` in `useMemo`, and keep `send` / `stop` callbacks stable with the existing business hook output or `useCallback`.
 

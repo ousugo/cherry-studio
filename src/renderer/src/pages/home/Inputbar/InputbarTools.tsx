@@ -40,7 +40,6 @@ import { Check, CircleChevronRight } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 export interface InputbarToolsNewProps {
   scope: InputbarScope
@@ -313,7 +312,8 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
     <>
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <ToolsContainer
+          <div
+            className="relative flex min-w-0 items-center"
             onContextMenu={(e) => {
               const target = e.target as HTMLElement
               const isToolButton = target.closest('[data-key]')
@@ -324,14 +324,18 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
             <DragDropContext onDragEnd={handleDragEnd}>
               <Droppable droppableId="inputbar-tools-visible" direction="horizontal">
                 {(provided) => (
-                  <VisibleTools ref={provided.innerRef} {...provided.droppableProps}>
+                  <div
+                    className="flex h-[30px] items-center overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}>
                     {visibleTools.map((toolConfig, index) => {
                       const context = buildRenderContext(toolConfig.tool)
                       return (
                         <Draggable key={toolConfig.key} draggableId={toolConfig.key} index={index}>
                           {(provided, snapshot) => (
                             <DraggablePortal isDragging={snapshot.isDragging}>
-                              <ToolWrapper
+                              <div
+                                className="mr-1.5 w-[30px] transition-[width,margin-right,opacity] duration-200"
                                 data-key={toolConfig.key}
                                 onContextMenu={() => setTargetTool(toolConfig)}
                                 ref={provided.innerRef}
@@ -339,14 +343,14 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
                                 {...provided.dragHandleProps}
                                 style={provided.draggableProps.style}>
                                 {toolConfig.tool.render?.(context)}
-                              </ToolWrapper>
+                              </div>
                             </DraggablePortal>
                           )}
                         </Draggable>
                       )
                     })}
                     {provided.placeholder}
-                  </VisibleTools>
+                  </div>
                 )}
               </Droppable>
 
@@ -354,16 +358,24 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
 
               <Droppable droppableId="inputbar-tools-hidden" direction="horizontal">
                 {(provided) => (
-                  <HiddenTools ref={provided.innerRef} {...provided.droppableProps}>
+                  <div
+                    className="flex h-[30px] items-center overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}>
                     {hiddenTools.map((toolConfig, index) => {
                       const context = buildRenderContext(toolConfig.tool)
                       return (
                         <Draggable key={toolConfig.key} draggableId={toolConfig.key} index={index}>
                           {(provided, snapshot) => (
                             <DraggablePortal isDragging={snapshot.isDragging}>
-                              <ToolWrapper
+                              <div
                                 data-key={toolConfig.key}
-                                className={classNames({ 'is-collapsed': isCollapse })}
+                                className={classNames(
+                                  'mr-1.5 w-[30px] transition-[width,margin-right,opacity] duration-200',
+                                  {
+                                    'mr-0 w-0 overflow-hidden opacity-0': isCollapse
+                                  }
+                                )}
                                 onContextMenu={() => setTargetTool(toolConfig)}
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
@@ -373,14 +385,14 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
                                   transitionDelay: `${index * 0.02}s`
                                 }}>
                                 {toolConfig.tool.render?.(context)}
-                              </ToolWrapper>
+                              </div>
                             </DraggablePortal>
                           )}
                         </Draggable>
                       )
                     })}
                     {provided.placeholder}
-                  </HiddenTools>
+                  </div>
                 )}
               </Droppable>
             </DragDropContext>
@@ -400,7 +412,7 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
                 />
               </Tooltip>
             )}
-          </ToolsContainer>
+          </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
           {[...visibleTools, ...hiddenTools].map((tool) => (
@@ -426,52 +438,5 @@ const InputbarTools = ({ scope, assistant, model, session }: InputbarToolsNewPro
 }
 
 InputbarTools.displayName = 'InputbarTools'
-
-const ToolsContainer = styled.div`
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  position: relative;
-`
-
-const VisibleTools = styled.div`
-  height: 30px;
-  display: flex;
-  align-items: center;
-  overflow-x: auto;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-`
-
-const HiddenTools = styled.div`
-  height: 30px;
-  display: flex;
-  align-items: center;
-  overflow-x: auto;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-`
-
-const ToolWrapper = styled.div`
-  width: 30px;
-  margin-right: 6px;
-  transition:
-    width 0.2s,
-    margin-right 0.2s,
-    opacity 0.2s;
-
-  &.is-collapsed {
-    width: 0;
-    margin-right: 0;
-    overflow: hidden;
-    opacity: 0;
-  }
-`
 
 export default InputbarTools

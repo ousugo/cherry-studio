@@ -130,7 +130,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   useMultiplePreferences: hookMocks.useMultiplePreferences
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentDataApi', () => ({
+vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useAgents: hookMocks.useAgents
 }))
 
@@ -138,7 +138,7 @@ vi.mock('@renderer/hooks/agents/useAgentSessionStreamStatuses', () => ({
   useAgentSessionStreamStatuses: vi.fn(() => new Map())
 }))
 
-vi.mock('@renderer/hooks/agents/useSessionDataApi', () => ({
+vi.mock('@renderer/hooks/agents/useSession', () => ({
   useSessions: hookMocks.useSessions,
   useUpdateSession: hookMocks.useUpdateSession
 }))
@@ -151,7 +151,7 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: hookMocks.usePins
 }))
 
-vi.mock('@renderer/hooks/useTopicDataApi', () => ({
+vi.mock('@renderer/hooks/useTopic', () => ({
   mapApiTopicToRendererTopic: (topic: Topic) => ({
     id: topic.id,
     assistantId: topic.assistantId,

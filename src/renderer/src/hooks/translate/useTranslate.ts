@@ -16,8 +16,8 @@
  *   - Unmounting the host component aborts any in-flight translation so
  *     stale completions don't run state setters on a dead tree.
  *
- * Out of scope: streaming chat consumers like `ActionTranslate` — those use
- * `useChat` + `sendMessage`, not `translateText`.
+ * Callers that need rich rendering can use `onResponse` to mirror the streamed
+ * accumulated text into their own view state.
  */
 
 import { loggerService } from '@logger'

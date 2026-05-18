@@ -21,8 +21,7 @@
  */
 
 import { loggerService } from '@logger'
-import { useV2Chat } from '@renderer/hooks/V2ChatContext'
-import { useTranslationOverlaySetter } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
+import { useTranslationOverlaySetter } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { TranslateLanguage } from '@renderer/types'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useEffect, useRef } from 'react'
@@ -47,7 +46,6 @@ interface ActiveStream {
 
 export function useTranslateMessage(messageId: string): UseTranslateMessageResult {
   const setOverlay = useTranslationOverlaySetter()
-  const v2 = useV2Chat()
   const activeRef = useRef<ActiveStream | null>(null)
 
   const teardown = useCallback((expectedStreamId: string | null) => {
@@ -112,15 +110,8 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         }
       })
 
-      const unsubDone = window.api.ai.onStreamDone(async ({ topicId, status }) => {
+      const unsubDone = window.api.ai.onStreamDone(({ topicId }) => {
         if (topicId !== streamId) return
-        if (status === 'success') {
-          try {
-            await v2?.refresh()
-          } catch (err) {
-            logger.warn('refresh after translation done failed', err as Error)
-          }
-        }
         setOverlay(messageId, null)
         teardown(streamId)
       })
@@ -147,7 +138,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         throw err
       }
     },
-    [messageId, setOverlay, teardown, v2]
+    [messageId, setOverlay, teardown]
   )
 
   const cancel = useCallback(() => {
