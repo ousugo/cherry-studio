@@ -13,6 +13,7 @@ import { QuickPanelContext } from './provider'
 import type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
+  QuickPanelInputAdapter,
   QuickPanelListItem,
   QuickPanelOpenOptions,
   QuickPanelScrollTrigger
@@ -23,16 +24,6 @@ const ITEM_HEIGHT = 31
 interface Props {
   setInputText: React.Dispatch<React.SetStateAction<string>>
   inputAdapter?: QuickPanelInputAdapter
-}
-
-export interface QuickPanelInputAdapter {
-  getText: () => string
-  getCursorOffset?: () => number
-  insertText: (text: string) => void
-  insertToken?: (token: unknown) => void
-  deleteTriggerRange: (range: { from: number; to: number }) => void
-  focus: () => void
-  subscribeInput?: (listener: (event?: { isComposing?: boolean }) => void) => () => void
 }
 
 /**
@@ -328,7 +319,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
           context: ctx,
           action,
           item: updatedItem,
-          searchText: searchText
+          searchText: searchText,
+          inputAdapter
         }
 
         ctx.beforeAction?.(quickPanelCallBackOptions)
@@ -341,7 +333,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
         context: ctx,
         action,
         item,
-        searchText: searchText
+        searchText: searchText,
+        inputAdapter
       }
 
       ctx.beforeAction?.(quickPanelCallBackOptions)
@@ -373,7 +366,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
 
       handleClose(action)
     },
-    [ctx, searchText, handleClose, clearSearchText, index]
+    [ctx, searchText, handleClose, clearSearchText, index, inputAdapter]
   )
 
   useEffect(() => {

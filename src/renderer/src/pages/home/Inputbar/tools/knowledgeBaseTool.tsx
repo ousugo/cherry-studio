@@ -1,7 +1,7 @@
 import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
-import type { KnowledgeBase } from '@renderer/types'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useCallback } from 'react'
 
 import KnowledgeBaseButton from './components/KnowledgeBaseButton'

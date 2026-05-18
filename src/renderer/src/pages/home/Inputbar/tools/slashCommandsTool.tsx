@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
+import { type QuickPanelInputAdapter, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import SlashCommandsButton from '@renderer/pages/home/Inputbar/tools/components/SlashCommandsButton'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import { getBuiltinSlashCommands } from '@shared/data/types/agentSlashCommands'
@@ -12,11 +12,28 @@ const logger = loggerService.withContext('SlashCommandsTool')
  * @param command - The command to insert (e.g., "/clear")
  * @param replaceSlash - Whether to replace the preceding '/' character
  */
-const insertSlashCommand = (
+export const insertSlashCommand = (
   command: string,
   onTextChange: (updater: (prev: string) => string) => void,
-  replaceSlash: boolean = false
+  replaceSlash: boolean = false,
+  inputAdapter?: QuickPanelInputAdapter
 ) => {
+  if (inputAdapter) {
+    const currentText = inputAdapter.getText()
+    const cursorPosition = inputAdapter.getCursorOffset?.() ?? currentText.length
+
+    if (replaceSlash) {
+      const lastSlashIndex = currentText.slice(0, cursorPosition).lastIndexOf('/')
+      if (lastSlashIndex !== -1 && cursorPosition > lastSlashIndex) {
+        inputAdapter.deleteTriggerRange({ from: lastSlashIndex, to: cursorPosition })
+      }
+    }
+
+    inputAdapter.insertText(`${command} `)
+    inputAdapter.focus()
+    return
+  }
+
   onTextChange((prev: string) => {
     const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
 
@@ -116,9 +133,9 @@ const slashCommandsTool = defineTool({
                     description: cmd.description || '',
                     icon: <Terminal size={16} />,
                     filterText: `${cmd.command} ${cmd.description || ''}`,
-                    action: () => {
+                    action: ({ inputAdapter }) => {
                       // Replace the '/' that triggered the root menu
-                      insertSlashCommand(cmd.command, actions.onTextChange, true)
+                      insertSlashCommand(cmd.command, actions.onTextChange, true, inputAdapter)
                     }
                   }))
                 })
@@ -164,9 +181,9 @@ const slashCommandsTool = defineTool({
                 description: cmd.description || '',
                 icon: <Terminal size={16} />,
                 filterText: `${cmd.command} ${cmd.description || ''}`,
-                action: () => {
+                action: ({ inputAdapter }) => {
                   // Direct insert (no '/' to replace when triggered directly)
-                  insertSlashCommand(cmd.command, actions.onTextChange, false)
+                  insertSlashCommand(cmd.command, actions.onTextChange, false, inputAdapter)
                 }
               }))
             })
@@ -209,9 +226,9 @@ const slashCommandsTool = defineTool({
           description: cmd.description || '',
           icon: <Terminal size={16} />,
           filterText: `${cmd.command} ${cmd.description || ''}`,
-          action: () => {
+          action: ({ inputAdapter }) => {
             // Direct insert (no '/' to replace when opening via button)
-            insertSlashCommand(cmd.command, actions.onTextChange, false)
+            insertSlashCommand(cmd.command, actions.onTextChange, false, inputAdapter)
           }
         }))
       })

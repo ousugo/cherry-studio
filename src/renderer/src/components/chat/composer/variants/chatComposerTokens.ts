@@ -1,4 +1,5 @@
-import type { FileMetadata, KnowledgeBase } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 
 import type { ComposerDraftToken, ComposerSerializedToken } from '../tokens'

@@ -1,7 +1,7 @@
 import { FileSearchOutlined } from '@ant-design/icons'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import type { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FC } from 'react'
 
 const KnowledgeBaseInput: FC<{

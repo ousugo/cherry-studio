@@ -4,6 +4,7 @@ import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
 import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
 import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
+import AgentComposer from '@renderer/components/chat/composer/variants/AgentComposer'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
@@ -30,13 +31,13 @@ import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { ModelSnapshot } from '@shared/data/types/message'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
 import AgentChatNavbar from './components/AgentChatNavbar'
-import AgentSessionInputbar from './components/AgentSessionInputbar'
 import AgentSessionMessages from './components/AgentSessionMessages'
 
 const logger = loggerService.withContext('AgentChat')
@@ -191,7 +192,7 @@ const AgentChat = ({
     }
 
     const bottomComposer = !isMultiSelectMode ? (
-      <AgentSessionInputbar
+      <AgentComposer
         agentId={temporaryAgentConversation.agentId}
         sessionId={temporaryAgentConversation.sessionId}
         sessionOverride={temporaryAgentConversation.session}
@@ -364,11 +365,11 @@ const AgentChatSessionContent = ({
 
   const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
     const modelString = activeAgent?.model
-    if (!modelString) return undefined
-    const [provider, id] = modelString.split(':')
-    if (!provider || !id) return undefined
-    return { id, name: id, provider }
-  }, [activeAgent?.model])
+    if (!isUniqueModelId(modelString)) return undefined
+    const { providerId, modelId } = parseUniqueModelId(modelString)
+    if (!providerId || !modelId) return undefined
+    return { id: modelId, name: activeAgent?.modelName ?? modelId, provider: providerId }
+  }, [activeAgent?.model, activeAgent?.modelName])
 
   const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
   const partsByMessageId = useMessagePartsById(uiMessages, executionMessagesById)
@@ -411,7 +412,7 @@ const AgentChatSessionContent = ({
       <ComposerContextProvider value={composerContext}>
         <ComposerCore
           fallback={
-            <AgentSessionInputbar
+            <AgentComposer
               agentId={agentId}
               sessionId={sessionId}
               sendMessage={chat.sendMessage}

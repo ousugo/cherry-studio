@@ -19,10 +19,11 @@ import {
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import { type AddNewTopicPayload, EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { type FileMetadata, type KnowledgeBase, type Topic, TopicType } from '@renderer/types'
+import { type FileMetadata, type Topic, TopicType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
@@ -290,7 +291,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ topic, actionsRef, onSend: onSe
     (knowledgeBase: KnowledgeBase) => {
       const nextIds = (assistant?.knowledgeBaseIds ?? []).filter((id) => id !== knowledgeBase.id)
       void updateAssistant({ knowledgeBaseIds: nextIds })
-      setSelectedKnowledgeBases(allKnowledgeBases.filter((kb) => nextIds.includes(kb.id)) as unknown as KnowledgeBase[])
+      setSelectedKnowledgeBases(allKnowledgeBases.filter((kb): kb is KnowledgeBase => nextIds.includes(kb.id)))
     },
     [assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases, updateAssistant]
   )
@@ -349,7 +350,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ topic, actionsRef, onSend: onSe
       setSelectedKnowledgeBases([])
       return
     }
-    setSelectedKnowledgeBases(allKnowledgeBases.filter((kb) => ids.includes(kb.id)) as unknown as KnowledgeBase[])
+    setSelectedKnowledgeBases(allKnowledgeBases.filter((kb): kb is KnowledgeBase => ids.includes(kb.id)))
   }, [assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases])
 
   if (isMultiSelectMode) {

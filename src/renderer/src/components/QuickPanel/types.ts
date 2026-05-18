@@ -21,11 +21,22 @@ export type QuickPanelTriggerInfo = {
   originalText?: string
 }
 
+export interface QuickPanelInputAdapter {
+  getText: () => string
+  getCursorOffset?: () => number
+  insertText: (text: string) => void
+  insertToken?: (token: unknown) => void
+  deleteTriggerRange: (range: { from: number; to: number }) => void
+  focus: () => void
+  subscribeInput?: (listener: (event?: { isComposing?: boolean }) => void) => () => void
+}
+
 export type QuickPanelCallBackOptions = {
   context: QuickPanelContextType
   action: QuickPanelCloseAction
   item: QuickPanelListItem
   searchText?: string
+  inputAdapter?: QuickPanelInputAdapter
 }
 
 /**

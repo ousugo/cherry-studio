@@ -131,8 +131,8 @@ vi.mock('../components/AgentChatNavbar', () => ({
   )
 }))
 
-vi.mock('../components/AgentSessionInputbar', () => ({
-  default: () => <div data-testid="agent-inputbar" />
+vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
+  default: () => <div data-testid="agent-composer" />
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
