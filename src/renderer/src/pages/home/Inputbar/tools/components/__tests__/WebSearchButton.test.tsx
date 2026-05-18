@@ -110,10 +110,6 @@ vi.mock('@renderer/utils/assistant', () => ({
   isToolUseModeFunction: () => true
 }))
 
-vi.mock('@renderer/utils/provider', () => ({
-  isGeminiWebSearchProvider: () => false
-}))
-
 describe('WebSearchButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()

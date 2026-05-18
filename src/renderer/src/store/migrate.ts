@@ -39,15 +39,11 @@ import type {
   Model,
   Provider,
   ProviderApiOptions,
+  SystemProviderId,
   WebSearchProvider
 } from '@renderer/types'
 import { isBuiltinMCPServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
-import {
-  isSupportArrayContentProvider,
-  isSupportDeveloperRoleProvider,
-  isSupportStreamOptionsProvider
-} from '@renderer/utils/provider'
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { defaultByPassRules } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
@@ -66,6 +62,42 @@ import { initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
 const logger = loggerService.withContext('Migrate')
+
+// Inlined verbatim from the deleted v1 `@renderer/utils/provider` — this v1
+// Redux-persist migration was its only remaining source consumer.
+const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = [
+  'deepseek',
+  'baichuan',
+  'minimax',
+  'xirang',
+  'poe',
+  'cephalon'
+] as const satisfies SystemProviderId[]
+
+const isSupportArrayContentProvider = (provider: Provider) => {
+  return (
+    provider.apiOptions?.isNotSupportArrayContent !== true &&
+    !NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS.some((pid) => pid === provider.id)
+  )
+}
+
+const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe', 'qiniu'] as const satisfies SystemProviderId[]
+
+const isSupportDeveloperRoleProvider = (provider: Provider) => {
+  return (
+    provider.apiOptions?.isSupportDeveloperRole === true ||
+    (isSystemProvider(provider) && !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.some((pid) => pid === provider.id))
+  )
+}
+
+const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral'] as const satisfies SystemProviderId[]
+
+const isSupportStreamOptionsProvider = (provider: Provider) => {
+  return (
+    provider.apiOptions?.isNotSupportStreamOptions !== true &&
+    !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.some((pid) => pid === provider.id)
+  )
+}
 
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
