@@ -280,10 +280,22 @@ describe('ChatComposer', () => {
     )
   })
 
+  it('does not update the default model while a persisted assistant is loading', () => {
+    mocks.assistant = undefined
+    mocks.model = undefined
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('select model 2'))
+
+    expect(mocks.setDefaultModel).not.toHaveBeenCalled()
+    expect(mocks.setModel).not.toHaveBeenCalled()
+  })
+
   it('shows model selection instead of a fallback model when the assistant has no configured model', () => {
     mocks.model = undefined
 
-    render(<ChatComposer topic={topic} setActiveTopic={vi.fn()} onSend={vi.fn()} />)
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByText('button.select_model')).toBeInTheDocument()
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
@@ -294,7 +306,7 @@ describe('ChatComposer', () => {
     mocks.model = undefined
     const onSend = vi.fn()
 
-    render(<ChatComposer topic={topic} setActiveTopic={vi.fn()} onSend={onSend} />)
+    render(<ChatComposer topic={topic} onSend={onSend} />)
 
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
 
@@ -304,7 +316,7 @@ describe('ChatComposer', () => {
 
   it('routes new topic shortcuts through the explicit parent action', () => {
     const onNewTopic = vi.fn()
-    render(<ChatComposer topic={topic} setActiveTopic={vi.fn()} onSend={vi.fn()} onNewTopic={onNewTopic} />)
+    render(<ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} />)
 
     mocks.shortcutHandlers.get('topic.new')?.()
 
@@ -313,7 +325,7 @@ describe('ChatComposer', () => {
   })
 
   it('renders selectors below the surface in temporary home mode', () => {
-    render(<ChatHomeComposer topic={topic} setActiveTopic={vi.fn()} onSend={vi.fn()} />)
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('tool menu')
     expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Assistant 1')
@@ -323,14 +335,7 @@ describe('ChatComposer', () => {
 
   it('routes temporary home assistant changes to the temporary handler', () => {
     const onTemporaryAssistantChange = vi.fn()
-    render(
-      <ChatHomeComposer
-        topic={topic}
-        setActiveTopic={vi.fn()}
-        onSend={vi.fn()}
-        onTemporaryAssistantChange={onTemporaryAssistantChange}
-      />
-    )
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} onTemporaryAssistantChange={onTemporaryAssistantChange} />)
 
     fireEvent.click(screen.getByText('select assistant 2'))
 

@@ -6,6 +6,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAssistant, useDefaultAssistant } from '../useAssistant'
 
+function queryResult(data?: unknown) {
+  return {
+    data,
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined,
+    refetch: vi.fn().mockResolvedValue(data),
+    mutate: vi.fn().mockResolvedValue(data)
+  } as never
+}
+
 describe('useDefaultAssistant', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -54,13 +65,21 @@ describe('useAssistant', () => {
   it('disables the DataApi query when id is null', () => {
     renderHook(() => useAssistant(null))
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/assistants/:id', { params: { id: '' }, enabled: false })
+    expect(mockUseQuery).toHaveBeenCalledWith('/assistants/:id', {
+      params: { id: '' },
+      enabled: false,
+      swrOptions: { keepPreviousData: false }
+    })
   })
 
   it('disables the DataApi query when id is undefined', () => {
     renderHook(() => useAssistant(undefined))
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/assistants/:id', { params: { id: '' }, enabled: false })
+    expect(mockUseQuery).toHaveBeenCalledWith('/assistants/:id', {
+      params: { id: '' },
+      enabled: false,
+      swrOptions: { keepPreviousData: false }
+    })
   })
 
   it('returns assistant: undefined for a topic without an assistant', () => {
@@ -74,16 +93,49 @@ describe('useAssistant', () => {
 
     renderHook(() => useAssistant(null))
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/provider::default-model', { enabled: true })
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/provider::default-model', {
+      enabled: true,
+      swrOptions: { keepPreviousData: false }
+    })
   })
 
   it('does not fall back to the default model when a persisted assistant has no model', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'provider::default-model')
+    mockUseQuery.mockImplementation((path, options) => {
+      if (options?.enabled === false) return queryResult()
+      if (path === '/assistants/:id') {
+        return queryResult({
+          id: 'assistant-1',
+          name: 'Assistant 1',
+          modelId: null,
+          settings: {},
+          mcpServerIds: [],
+          knowledgeBaseIds: []
+        })
+      }
+      if (String(path).startsWith('/models/provider::default-model')) {
+        return queryResult({ id: 'provider::default-model', name: 'Default Model' })
+      }
+      return queryResult()
+    })
 
     const { result } = renderHook(() => useAssistant('assistant-1'))
 
     expect(result.current.assistant).toBeDefined()
     expect(result.current.model).toBeUndefined()
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/', { enabled: false })
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/', {
+      enabled: false,
+      swrOptions: { keepPreviousData: false }
+    })
+  })
+
+  it('disables previous data for assistant identity switches', () => {
+    renderHook(() => useAssistant('assistant-new'))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/assistants/:id', {
+      params: { id: 'assistant-new' },
+      enabled: true,
+      swrOptions: { keepPreviousData: false }
+    })
   })
 })

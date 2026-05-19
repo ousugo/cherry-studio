@@ -6,7 +6,6 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
-import { type AddNewTopicPayload } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
@@ -18,6 +17,7 @@ import styled from 'styled-components'
 
 import Chat from './Chat'
 import HomeTabs from './Tabs'
+import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
 

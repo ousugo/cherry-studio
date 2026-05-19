@@ -10,7 +10,6 @@ import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
-import type { AddNewTopicPayload } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Citation, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
@@ -21,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavBar'
+import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('Chat')
 

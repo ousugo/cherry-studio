@@ -200,7 +200,8 @@ export function useModelMutations() {
 export function useModelById(uniqueModelId: UniqueModelId | null | undefined) {
   const modelKey = uniqueModelId ?? ''
   const { data, isLoading, error, refetch, mutate } = useQuery(`/models/${modelKey}`, {
-    enabled: !!modelKey
+    enabled: !!modelKey,
+    swrOptions: { keepPreviousData: false }
   })
 
   return {

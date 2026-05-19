@@ -1,9 +1,9 @@
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import type { AddNewTopicPayload } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import type { Topic } from '@renderer/types'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
+import type { AddNewTopicPayload } from '../types'
 import { Topics } from './components/Topics'
 
 interface Props {

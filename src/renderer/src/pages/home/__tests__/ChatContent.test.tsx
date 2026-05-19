@@ -253,7 +253,6 @@ describe('ChatContent', () => {
     render(
       <ChatContent
         topic={topic}
-        setActiveTopic={vi.fn()}
         mainHeight="100px"
         onPersistTemporaryTopic={vi.fn()}
         onTemporaryAssistantChange={onTemporaryAssistantChange}

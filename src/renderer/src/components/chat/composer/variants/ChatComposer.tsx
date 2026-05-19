@@ -27,8 +27,8 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import type { AddNewTopicPayload } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
+import type { AddNewTopicPayload } from '@renderer/pages/home/types'
 import type { FileMetadata, Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
@@ -299,9 +299,9 @@ const ChatComposerInner = ({
   }, [topic.id])
 
   const loading = isPending || isSending || awaitingApproval
-  const runtimeAssistant = assistant ?? defaultAssistant
+  const runtimeAssistant = assistant ?? (topic.assistantId ? undefined : defaultAssistant)
   const selectedAssistantId = topic.assistantId ?? defaultAssistant.id
-  const assistantName = runtimeAssistant.name || t('chat.default.name')
+  const assistantName = runtimeAssistant?.name || t('common.loading')
   const providerName = useProviderDisplayName(model?.providerId)
   const isVisionAssistant = useMemo(() => (model ? isVisionModel(model) : false), [model])
   const isGenerateImageAssistant = useMemo(() => (model ? isGenerateImageModel(model) : false), [model])
@@ -435,6 +435,7 @@ const ChatComposerInner = ({
     (nextModel: Model | undefined) => {
       if (!nextModel) return
       if (!assistant) {
+        if (topic.assistantId) return
         void setDefaultModel(nextModel)
         return
       }
@@ -442,7 +443,7 @@ const ChatComposerInner = ({
       const enabledWebSearch = isWebSearchModel(nextModel)
       setModel(nextModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
     },
-    [assistant, setDefaultModel, setModel]
+    [assistant, setDefaultModel, setModel, topic.assistantId]
   )
 
   const addNewTopic = useCallback(
@@ -527,7 +528,7 @@ const ChatComposerInner = ({
   const controlSlots = renderControls({
     assistantId: selectedAssistantId,
     assistantName,
-    assistantEmoji: runtimeAssistant.emoji,
+    assistantEmoji: runtimeAssistant?.emoji,
     model,
     modelProviderName: providerName,
     selectModelLabel: t('button.select_model'),

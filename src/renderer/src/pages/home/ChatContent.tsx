@@ -18,7 +18,6 @@ import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
-import type { AddNewTopicPayload } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import type { FileMetadata, Topic } from '@renderer/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -28,6 +27,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import { useHomeMessageListProviderValue } from './messages/homeMessageListAdapter'
+import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('ChatContent')
 

@@ -77,7 +77,8 @@ export function useProvider(providerId: string | null | undefined) {
   const resolvedProviderId = providerId ?? ''
   const { data, isLoading, error, refetch } = useQuery('/providers/:providerId', {
     params: { providerId: resolvedProviderId },
-    enabled: !!providerId
+    enabled: !!providerId,
+    swrOptions: { keepPreviousData: false }
   })
   const provider = data
 
@@ -253,11 +254,12 @@ export function getProviderDisplayName(provider: Provider | undefined): string {
  * use `useProviders()` + `getProviderDisplayName` to avoid hook-in-loop.
  */
 export function useProviderDisplayName(providerId: string | undefined): string {
-  const { data: provider } = useQuery('/providers/:providerId', {
+  const { data } = useQuery('/providers/:providerId', {
     params: { providerId: providerId ?? '' },
-    enabled: !!providerId
+    enabled: !!providerId,
+    swrOptions: { keepPreviousData: false }
   })
-  return getProviderDisplayName(provider)
+  return getProviderDisplayName(data)
 }
 
 // ─── Dynamic ID operations (for context menus, URL schema handlers) ──
