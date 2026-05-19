@@ -161,4 +161,18 @@ export interface AiStreamOpenResponse {
   mode: 'started' | 'injected'
   /** Multi-model: execution IDs for frontend to create per-model streams. */
   executionIds?: UniqueModelId[]
+  /**
+   * Authoritative DB id of the user message created for this turn, when the
+   * dispatch created one (submit on a persisted topic; agent session).
+   * Absent for regenerate / continue / temporary topics. The renderer joins
+   * its optimistic user bubble against this.
+   */
+  userMessageId?: string
+  /**
+   * Authoritative DB ids of the assistant placeholder row(s) reserved for
+   * this turn, one per execution (model order matches `executionIds`).
+   * Created atomically with the user message, so the presence of any of
+   * these in `uiMessages` also implies the user row landed.
+   */
+  placeholderIds?: string[]
 }

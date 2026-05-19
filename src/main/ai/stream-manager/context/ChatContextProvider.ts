@@ -43,6 +43,13 @@ export interface PreparedDispatch {
    * support mid-stream message injection leave this undefined.
    */
   userMessage?: Message
+  /**
+   * Authoritative DB id of the user message row this dispatch created, when
+   * it created one (persisted submit; agent submit). Surfaced back to the
+   * renderer in `AiStreamOpenResponse` so it can join its optimistic user
+   * bubble. Absent for regenerate / continue / temporary topics.
+   */
+  userMessageId?: string
   /** Shared sibling group for multi-model parallel responses. */
   siblingsGroupId?: number
   /**

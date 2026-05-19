@@ -4,6 +4,8 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
+import { streamDispatchCoordinator } from './streamDispatchCoordinator'
+
 const logger = loggerService.withContext('IpcChatTransport')
 
 /**
@@ -68,9 +70,9 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             mentionedModelIds: mergedBody.mentionedModels
           }
 
-    window.api.ai.streamOpen(ipcRequest).catch((error: unknown) => {
-      logger.error('streamOpen IPC failed', error instanceof Error ? error : new Error(String(error)))
-    })
+    // Single dispatch, routed through the coordinator so the ack
+    // (userMessageId / placeholderIds) is observable instead of discarded.
+    streamDispatchCoordinator.dispatch(topicId, ipcRequest)
 
     return Promise.resolve(stream)
   }
