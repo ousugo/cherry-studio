@@ -1,4 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
@@ -19,6 +20,8 @@ import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
 import { AgentEmpty } from './components/status'
 
+const logger = loggerService.withContext('AgentPage')
+
 const AgentPage = () => {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
@@ -29,6 +32,7 @@ const AgentPage = () => {
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const sessionRevealRequestIdRef = useRef(0)
   const [replacingTemporaryAgent, setReplacingTemporaryAgent] = useState(false)
+  const [replacingTemporaryWorkspace, setReplacingTemporaryWorkspace] = useState(false)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
   const temporaryConversation = useTemporaryConversation({ type: 'agent' })
@@ -138,6 +142,28 @@ const AgentPage = () => {
     },
     [agents, replaceTemporaryConversation, replacingTemporaryAgent, setActiveSessionId, t, temporaryAgentConversation]
   )
+  const replaceTemporaryWorkspace = useCallback(
+    async (workspaceId: string) => {
+      if (!workspaceId || temporaryAgentConversation?.type !== 'agent') return
+      if (workspaceId === temporaryAgentConversation.session.workspaceId || replacingTemporaryWorkspace) return
+
+      setReplacingTemporaryWorkspace(true)
+      try {
+        await replaceTemporaryConversation({
+          agentId: temporaryAgentConversation.agentId,
+          workspaceId,
+          name: temporaryAgentConversation.name ?? t('common.unnamed')
+        })
+        setActiveSessionId(null)
+      } catch (err) {
+        logger.error('Failed to replace temporary workspace', err as Error, { workspaceId })
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+      } finally {
+        setReplacingTemporaryWorkspace(false)
+      }
+    },
+    [replaceTemporaryConversation, replacingTemporaryWorkspace, setActiveSessionId, t, temporaryAgentConversation]
+  )
   const historyOverlay = (
     <HistoryRecordsPage
       mode="agent"
@@ -179,7 +205,9 @@ const AgentPage = () => {
           onPersistTemporarySession={persistTemporarySession}
           onTemporarySessionReady={discardTemporaryConversation}
           onDraftAgentChange={replaceTemporaryAgent}
+          onDraftWorkspaceChange={replaceTemporaryWorkspace}
           replacingTemporaryAgent={replacingTemporaryAgent}
+          replacingTemporaryWorkspace={replacingTemporaryWorkspace}
         />
       </div>
       {historyOverlay}

@@ -328,6 +328,9 @@
       "success": "Git Bash a fost detectat cu succes!",
       "tooltip": "Git Bash este necesar pentru a rula agenți pe Windows. Instalează-l de pe git-scm.com dacă nu este disponibil."
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda",
       "soul_placeholder": "Ajută-mă să mă conectez la Telegram"
@@ -441,6 +444,14 @@
         "error": {
           "failed": "Nu s-a putut actualiza sesiunea"
         }
+      },
+      "workspace_selector": {
+        "create_failed": "[to be translated]:Failed to add project.",
+        "create_new": "[to be translated]:Add new project",
+        "empty_text": "[to be translated]:No projects",
+        "placeholder": "[to be translated]:Select workspace",
+        "search_placeholder": "[to be translated]:Search projects",
+        "select_failed": "[to be translated]:Failed to select folder."
       }
     },
     "settings": {
@@ -1234,6 +1245,9 @@
       "title": "Istoric chat",
       "user_node": "Utilizator",
       "view_full_content": "Vezi conținutul complet"
+    },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
     },
     "input": {
       "auto_resize": "Redimensionare automată înălțime",
@@ -6505,6 +6519,7 @@
         "description": "AWS Bedrock este serviciul de modele de fundație complet gestionat de Amazon care acceptă diverse modele lingvistice mari avansate",
         "region": "Regiune AWS",
         "region_help": "Regiunea serviciului tău AWS, de ex., us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "Cheie secretă acces AWS",
         "secret_access_key_help": "Cheia ta secretă de acces AWS, te rugăm să o păstrezi în siguranță",
         "title": "Configurare AWS Bedrock"
@@ -6616,6 +6631,7 @@
       },
       "filter_agent": "Furnizori acceptați de agentul de filtrare",
       "get_api_key": "Obține cheie API",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "Altele",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

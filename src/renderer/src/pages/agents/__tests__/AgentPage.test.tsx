@@ -8,6 +8,14 @@ const agentPageMocks = vi.hoisted(() => ({
   setShowSidebar: vi.fn()
 }))
 
+const temporaryConversationMocks = vi.hoisted(() => ({
+  conversation: null as any,
+  start: vi.fn(),
+  replace: vi.fn(),
+  persist: vi.fn(),
+  discard: vi.fn()
+}))
+
 vi.mock('@data/hooks/usePreference', async () => {
   const React = await import('react')
 
@@ -64,6 +72,16 @@ vi.mock('@renderer/hooks/useShortcuts', () => ({
   useShortcut: vi.fn()
 }))
 
+vi.mock('@renderer/hooks/useTemporaryConversation', () => ({
+  useTemporaryConversation: () => ({
+    conversation: temporaryConversationMocks.conversation,
+    start: temporaryConversationMocks.start,
+    replace: temporaryConversationMocks.replace,
+    persist: temporaryConversationMocks.persist,
+    discard: temporaryConversationMocks.discard
+  })
+}))
+
 vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
   default: ({ onClose, onRecordSelect, open }: any) =>
     open ? (
@@ -99,9 +117,20 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../AgentChat', () => ({
-  default: ({ pane, paneOpen }: { pane?: ReactNode; paneOpen?: boolean }) => (
+  default: ({
+    onDraftWorkspaceChange,
+    pane,
+    paneOpen
+  }: {
+    onDraftWorkspaceChange?: (workspaceId: string) => void | Promise<void>
+    pane?: ReactNode
+    paneOpen?: boolean
+  }) => (
     <section>
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      <button type="button" onClick={() => void onDraftWorkspaceChange?.('workspace-next')}>
+        Select workspace
+      </button>
       {pane}
     </section>
   )
@@ -127,6 +156,7 @@ describe('AgentPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     agentPageMocks.activeSessionId = 'session-initial'
+    temporaryConversationMocks.conversation = null
 
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -157,5 +187,55 @@ describe('AgentPage', () => {
       itemId: 'session-history',
       requestId: 1
     })
+  })
+
+  it('replaces the temporary agent conversation when the draft workspace changes', async () => {
+    agentPageMocks.activeSessionId = null
+    temporaryConversationMocks.conversation = {
+      type: 'agent',
+      id: 'temporary-session',
+      sessionId: 'temporary-session',
+      topicId: 'agent-session:temporary-session',
+      agentId: 'agent-a',
+      name: 'Draft',
+      session: {
+        id: 'temporary-session',
+        agentId: 'agent-a',
+        name: 'Draft',
+        description: '',
+        workspaceId: 'workspace-current',
+        workspace: {
+          id: 'workspace-current',
+          name: 'Current Workspace',
+          path: '/workspace/current',
+          orderKey: 'a0',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z'
+        },
+        orderKey: 'a0',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    }
+    temporaryConversationMocks.replace.mockResolvedValue({
+      ...temporaryConversationMocks.conversation,
+      session: {
+        ...temporaryConversationMocks.conversation.session,
+        workspaceId: 'workspace-next'
+      }
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select workspace' }))
+
+    await waitFor(() =>
+      expect(temporaryConversationMocks.replace).toHaveBeenCalledWith({
+        agentId: 'agent-a',
+        workspaceId: 'workspace-next',
+        name: 'Draft'
+      })
+    )
+    expect(agentPageMocks.setActiveSessionId).toHaveBeenCalledWith(null)
   })
 })

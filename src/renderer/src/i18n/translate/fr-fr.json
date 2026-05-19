@@ -328,6 +328,9 @@
       "success": "Git Bash détecté avec succès !",
       "tooltip": "Git Bash est nécessaire pour exécuter des agents sur Windows. Installez-le depuis git-scm.com s'il n'est pas disponible."
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande",
       "soul_placeholder": "Aidez-moi à me connecter à Telegram"
@@ -441,6 +444,14 @@
         "error": {
           "failed": "Échec de la mise à jour de la session"
         }
+      },
+      "workspace_selector": {
+        "create_failed": "[to be translated]:Failed to add project.",
+        "create_new": "[to be translated]:Add new project",
+        "empty_text": "[to be translated]:No projects",
+        "placeholder": "[to be translated]:Select workspace",
+        "search_placeholder": "[to be translated]:Search projects",
+        "select_failed": "[to be translated]:Failed to select folder."
       }
     },
     "settings": {
@@ -1234,6 +1245,9 @@
       "title": "Historique des chats",
       "user_node": "Utilisateur",
       "view_full_content": "Voir le contenu complet"
+    },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
     },
     "input": {
       "auto_resize": "Ajustement automatique de la hauteur",
@@ -6505,6 +6519,7 @@
         "description": "AWS Bedrock est un service de modèles de base entièrement géré proposé par Amazon, prenant en charge divers grands modèles linguistiques avancés.",
         "region": "Région AWS",
         "region_help": "Votre région de service AWS, par exemple us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "Clés d'accès AWS",
         "secret_access_key_help": "Votre clé d'accès AWS, veuillez la conserver en lieu sûr",
         "title": "Configuration AWS Bedrock"
@@ -6616,6 +6631,7 @@
       },
       "filter_agent": "Fournisseurs pris en charge par l'agent de filtrage",
       "get_api_key": "Cliquez ici pour obtenir une clé",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "autre",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

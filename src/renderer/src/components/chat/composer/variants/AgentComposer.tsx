@@ -14,7 +14,7 @@ import {
   useComposerToolState
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
-import { AgentSelector, ModelSelector } from '@renderer/components/Selector'
+import { AgentSelector, ModelSelector, WorkspaceSelector } from '@renderer/components/Selector'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agents/useAgent'
@@ -36,7 +36,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Folder } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -62,6 +62,10 @@ type Props = {
   onNewSessionDraft?: () => void | Promise<void>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
+  workspaceId?: string | null
+  onWorkspaceChange?: (workspaceId: string) => void | Promise<void>
+  showWorkspaceSelector?: boolean
+  workspaceChanging?: boolean
   isStreaming: boolean
 }
 
@@ -90,6 +94,10 @@ const AgentComposerRoot = ({
   onNewSessionDraft,
   onAgentChange,
   agentChanging,
+  workspaceId,
+  onWorkspaceChange,
+  showWorkspaceSelector,
+  workspaceChanging,
   isStreaming,
   topContent,
   renderControls
@@ -163,11 +171,16 @@ const AgentComposerRoot = ({
         agentId={agentId}
         sessionId={sessionId}
         sessionData={sessionData}
+        workspace={session?.workspace ?? null}
+        workspaceId={workspaceId ?? session?.workspaceId ?? null}
         actionsRef={actionsRef}
         chatSendMessage={sendMessage}
         chatStop={stop}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
+        onWorkspaceChange={onWorkspaceChange}
+        showWorkspaceSelector={showWorkspaceSelector}
+        workspaceChanging={workspaceChanging}
         isStreaming={isStreaming}
         topContent={topContent}
         renderControls={renderControls}
@@ -182,11 +195,16 @@ interface InnerProps {
   agentId: string
   sessionId: string
   sessionData?: ToolContext['session']
+  workspace?: AgentSessionEntity['workspace']
+  workspaceId?: string | null
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
   chatStop: Props['stop']
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
+  onWorkspaceChange?: Props['onWorkspaceChange']
+  showWorkspaceSelector?: boolean
+  workspaceChanging?: boolean
   isStreaming: boolean
   topContent?: React.ReactNode
   renderControls: AgentComposerControlsRenderer
@@ -203,6 +221,15 @@ interface AgentComposerContextControlsProps {
   side: 'top' | 'bottom'
   onAgentChange: (agentId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
+}
+
+interface AgentComposerWorkspaceControlProps {
+  workspace?: AgentSessionEntity['workspace']
+  workspaceId?: string | null
+  workspaceChanging?: boolean
+  selectWorkspaceLabel: string
+  side: 'top' | 'bottom'
+  onWorkspaceChange?: (workspaceId: string) => void | Promise<void>
 }
 
 const AgentComposerContextControls = ({
@@ -269,6 +296,37 @@ const AgentComposerContextControls = ({
   )
 }
 
+const AgentComposerWorkspaceControl = ({
+  workspace,
+  workspaceId,
+  workspaceChanging,
+  selectWorkspaceLabel,
+  side,
+  onWorkspaceChange
+}: AgentComposerWorkspaceControlProps) => {
+  return (
+    <WorkspaceSelector
+      value={workspaceId}
+      onChange={onWorkspaceChange ?? (() => undefined)}
+      side={side}
+      align="start"
+      mountStrategy="lazy-keep"
+      disabled={!onWorkspaceChange || workspaceChanging}
+      trigger={
+        <Button
+          variant="ghost"
+          size="sm"
+          className={COMPOSER_SELECTOR_BUTTON_CLASS}
+          disabled={!onWorkspaceChange || workspaceChanging}>
+          <Folder size={14} className="text-muted-foreground" />
+          <span className="max-w-40 truncate">{workspace?.name ?? selectWorkspaceLabel}</span>
+          <ChevronDown size={14} className="text-muted-foreground" />
+        </Button>
+      }
+    />
+  )
+}
+
 interface AgentComposerToolbarControlsProps extends Omit<AgentComposerContextControlsProps, 'side'> {
   inputAdapter?: QuickPanelInputAdapter
 }
@@ -286,15 +344,25 @@ const AgentComposerToolbarControls = ({ inputAdapter, ...contextProps }: AgentCo
   )
 }
 
-type AgentComposerControlProps = Omit<AgentComposerToolbarControlsProps, 'inputAdapter'>
+type AgentComposerControlProps = Omit<AgentComposerToolbarControlsProps, 'inputAdapter'> & {
+  workspace?: AgentSessionEntity['workspace']
+  workspaceId?: string | null
+  workspaceChanging?: boolean
+  showWorkspaceSelector?: boolean
+  selectWorkspaceLabel: string
+  onWorkspaceChange?: (workspaceId: string) => void | Promise<void>
+}
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
 const AgentComposerBelowControls = (contextProps: AgentComposerControlProps) => {
+  const { showWorkspaceSelector = true, ...controlProps } = contextProps
+
   return (
     <div className={COMPOSER_TOOLBAR_CLASS}>
-      <AgentComposerContextControls {...contextProps} side="bottom" />
+      {showWorkspaceSelector ? <AgentComposerWorkspaceControl {...controlProps} side="bottom" /> : null}
+      <AgentComposerContextControls {...controlProps} side="bottom" />
     </div>
   )
 }
@@ -318,11 +386,16 @@ const AgentComposerInner = ({
   agentId,
   sessionId,
   sessionData,
+  workspace,
+  workspaceId,
   actionsRef,
   chatSendMessage,
   chatStop,
   onAgentChange,
   agentChanging,
+  onWorkspaceChange,
+  showWorkspaceSelector,
+  workspaceChanging,
   isStreaming,
   topContent,
   renderControls
@@ -481,10 +554,16 @@ const AgentComposerInner = ({
     model,
     modelProviderName: providerName,
     modelFilter,
+    workspace,
+    workspaceId,
     selectAgentLabel: t('chat.alerts.select_agent'),
     selectModelLabel: t('button.select_model'),
+    selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
     agentChanging,
+    workspaceChanging,
+    showWorkspaceSelector,
     onAgentChange: handleAgentChange,
+    onWorkspaceChange,
     onModelSelect: handleModelSelect
   })
 

@@ -328,6 +328,9 @@
       "success": "Git Bash đã được phát hiện thành công!",
       "tooltip": "Git Bash là bắt buộc để chạy các agent trên Windows. Cài đặt từ git-scm.com nếu chưa có."
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh",
       "soul_placeholder": "Giúp tôi kết nối với Telegram"
@@ -441,6 +444,14 @@
         "error": {
           "failed": "Không cập nhật được phiên"
         }
+      },
+      "workspace_selector": {
+        "create_failed": "[to be translated]:Failed to add project.",
+        "create_new": "[to be translated]:Add new project",
+        "empty_text": "[to be translated]:No projects",
+        "placeholder": "[to be translated]:Select workspace",
+        "search_placeholder": "[to be translated]:Search projects",
+        "select_failed": "[to be translated]:Failed to select folder."
       }
     },
     "settings": {
@@ -1234,6 +1245,9 @@
       "title": "Lịch sử trò chuyện",
       "user_node": "Người dùng",
       "view_full_content": "Xem Toàn Bộ Nội Dung"
+    },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
     },
     "input": {
       "auto_resize": "Tự động điều chỉnh chiều cao",
@@ -6505,6 +6519,7 @@
         "description": "AWS Bedrock es el servicio de modelos fundamentales totalmente gestionado de Amazon que admite varios modelos de lenguaje grandes avanzados.",
         "region": "Khu vực AWS",
         "region_help": "Ihr AWS-Service-Region, z. B. us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "Khóa truy cập bí mật AWS",
         "secret_access_key_help": "Khóa truy cập bí mật AWS của bạn, vui lòng giữ an toàn",
         "title": "Cấu hình AWS Bedrock"
@@ -6616,6 +6631,7 @@
       },
       "filter_agent": "Các nhà cung cấp được Hỗ trợ bởi Agent Lọc",
       "get_api_key": "Lấy Khóa API",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "Khác",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

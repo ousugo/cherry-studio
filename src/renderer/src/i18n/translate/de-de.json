@@ -328,6 +328,9 @@
       "success": "Git Bash erfolgreich erkannt!",
       "tooltip": "Git Bash ist erforderlich, um Agenten unter Windows auszuführen. Installiere es von git-scm.com, falls es nicht verfügbar ist."
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen",
       "soul_placeholder": "Hilf mir, mich mit Telegram zu verbinden"
@@ -441,6 +444,14 @@
         "error": {
           "failed": "Sitzung aktualisieren fehlgeschlagen"
         }
+      },
+      "workspace_selector": {
+        "create_failed": "[to be translated]:Failed to add project.",
+        "create_new": "[to be translated]:Add new project",
+        "empty_text": "[to be translated]:No projects",
+        "placeholder": "[to be translated]:Select workspace",
+        "search_placeholder": "[to be translated]:Search projects",
+        "select_failed": "[to be translated]:Failed to select folder."
       }
     },
     "settings": {
@@ -1234,6 +1245,9 @@
       "title": "Chat-Verlauf",
       "user_node": "Benutzer",
       "view_full_content": "Vollständigen Inhalt anzeigen"
+    },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
     },
     "input": {
       "auto_resize": "Höhe automatisch anpassen",
@@ -6505,6 +6519,7 @@
         "description": "AWS Bedrock ist ein vollständig verwalteter Basismodell-Dienst von Amazon, der eine Vielzahl moderner großer Sprachmodelle unterstützt",
         "region": "AWS-Region",
         "region_help": "Ihre AWS-Serviceregion, z.B. us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "AWS-Zugriffsschlüssel",
         "secret_access_key_help": "Ihre AWS-Zugriffsschlüssel, bitte sorgfältig aufbewahren",
         "title": "AWS Bedrock-Konfiguration"
@@ -6616,6 +6631,7 @@
       },
       "filter_agent": "Von Filter-Agent unterstützte Anbieter",
       "get_api_key": "Hier klicken um Schlüssel zu erhalten",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "Sonstige",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

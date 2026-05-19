@@ -328,6 +328,9 @@
       "success": "Git Bash успешно обнаружен!",
       "tooltip": "Для запуска агентов в Windows требуется Git Bash. Установите его с сайта git-scm.com, если он отсутствует."
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду",
       "soul_placeholder": "Помогите мне подключиться к Telegram"
@@ -441,6 +444,14 @@
         "error": {
           "failed": "Не удалось обновить сеанс"
         }
+      },
+      "workspace_selector": {
+        "create_failed": "[to be translated]:Failed to add project.",
+        "create_new": "[to be translated]:Add new project",
+        "empty_text": "[to be translated]:No projects",
+        "placeholder": "[to be translated]:Select workspace",
+        "search_placeholder": "[to be translated]:Search projects",
+        "select_failed": "[to be translated]:Failed to select folder."
       }
     },
     "settings": {
@@ -1234,6 +1245,9 @@
       "title": "История чата",
       "user_node": "Пользователь",
       "view_full_content": "Показать полное содержимое"
+    },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
     },
     "input": {
       "auto_resize": "Автоматическая высота",
@@ -6505,6 +6519,7 @@
         "description": "AWS Bedrock — это полное управляемое сервисное предложение для моделей, поддерживающее различные современные модели языка",
         "region": "AWS регион",
         "region_help": "Ваш регион AWS, например us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "AWS Ключ доступа",
         "secret_access_key_help": "Ваш AWS Ключ доступа, пожалуйста, храните его в безопасности",
         "title": "AWS Bedrock Конфигурация"
@@ -6616,6 +6631,7 @@
       },
       "filter_agent": "Поддерживаемые поставщики агента фильтрации",
       "get_api_key": "Получить ключ API",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "другие",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

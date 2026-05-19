@@ -648,7 +648,7 @@ describe('Sessions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'chat.conversation.new' }))
 
     expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
-    expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-a', name: 'Untitled' })
+    expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-a', name: 'Untitled', workspaceId: 'ws-a' })
     await vi.waitFor(() => expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null))
   })
 
@@ -661,7 +661,11 @@ describe('Sessions', () => {
     fireEvent.click(addButtons[0])
 
     await vi.waitFor(() =>
-      expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-a', name: 'Untitled' })
+      expect(onStartTemporarySession).toHaveBeenCalledWith({
+        agentId: 'agent-a',
+        name: 'Untitled',
+        workspaceId: 'ws-a'
+      })
     )
   })
 

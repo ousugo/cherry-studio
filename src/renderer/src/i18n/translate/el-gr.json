@@ -328,6 +328,9 @@
       "success": "Το Git Bash εντοπίστηκε με επιτυχία!",
       "tooltip": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Εγκαταστήστε το από το git-scm.com εάν δεν είναι διαθέσιμο."
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή",
       "soul_placeholder": "Βοηθήστε με να συνδεθώ στο Telegram"
@@ -441,6 +444,14 @@
         "error": {
           "failed": "Αποτυχία ενημέρωσης της συνεδρίας"
         }
+      },
+      "workspace_selector": {
+        "create_failed": "[to be translated]:Failed to add project.",
+        "create_new": "[to be translated]:Add new project",
+        "empty_text": "[to be translated]:No projects",
+        "placeholder": "[to be translated]:Select workspace",
+        "search_placeholder": "[to be translated]:Search projects",
+        "select_failed": "[to be translated]:Failed to select folder."
       }
     },
     "settings": {
@@ -1234,6 +1245,9 @@
       "title": "Ιστορικό συνομιλιών",
       "user_node": "Χρήστης",
       "view_full_content": "Προβολή πλήρους περιεχομένου"
+    },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
     },
     "input": {
       "auto_resize": "Αυτόματη μείωση ύψους",
@@ -6505,6 +6519,7 @@
         "description": "Η AWS Bedrock είναι μια πλήρως διαχειριζόμενη υπηρεσία βασικών μοντέλων που παρέχεται από την Amazon και υποστηρίζει διάφορα προηγμένα μεγάλα γλωσσικά μοντέλα.",
         "region": "Περιοχές AWS",
         "region_help": "Η περιοχή υπηρεσίας AWS σας, για παράδειγμα us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "Κλειδιά πρόσβασης AWS",
         "secret_access_key_help": "Ο δικός σας κλειδί πρόσβασης AWS, φυλάξτε τον με ασφάλεια",
         "title": "Ρύθμιση AWS Bedrock"
@@ -6616,6 +6631,7 @@
       },
       "filter_agent": "Υποστηριζόμενοι Πάροχοι του Φίλτρου Πράκτορα",
       "get_api_key": "Κάντε κλικ εδώ για να πάρετε κλειδί",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "Άλλο",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

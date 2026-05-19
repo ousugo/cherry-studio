@@ -51,7 +51,9 @@ interface AgentChatProps {
   onPersistTemporarySession?: (initialName?: string) => Promise<TemporaryConversation | null>
   onTemporarySessionReady?: () => void | Promise<void>
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
+  onDraftWorkspaceChange?: (workspaceId: string) => void | Promise<void>
   replacingTemporaryAgent?: boolean
+  replacingTemporaryWorkspace?: boolean
 }
 
 const AgentChat = ({
@@ -63,7 +65,9 @@ const AgentChat = ({
   onPersistTemporarySession,
   onTemporarySessionReady,
   onDraftAgentChange,
-  replacingTemporaryAgent
+  onDraftWorkspaceChange,
+  replacingTemporaryAgent,
+  replacingTemporaryWorkspace
 }: AgentChatProps) => {
   const { t } = useTranslation()
   const { messageStyle } = useSettings()
@@ -221,6 +225,10 @@ const AgentChat = ({
         isStreaming={false}
         onAgentChange={onDraftAgentChange}
         agentChanging={replacingTemporaryAgent}
+        workspaceId={temporaryAgentConversation.session.workspaceId}
+        onWorkspaceChange={onDraftWorkspaceChange}
+        workspaceChanging={replacingTemporaryWorkspace}
+        showWorkspaceSelector={!temporaryComposerDocked}
         onNewSessionDraft={() =>
           onStartTemporarySession?.({
             agentId: temporaryAgentConversation.agentId,

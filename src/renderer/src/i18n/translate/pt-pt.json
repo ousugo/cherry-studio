@@ -328,6 +328,9 @@
       "success": "Git Bash detectado com sucesso!",
       "tooltip": "O Git Bash é necessário para executar agentes no Windows. Instale-o a partir de git-scm.com, caso não esteja disponível."
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "placeholder": "Digite sua mensagem aqui, envie com {{key}} - @ selecionar caminho, / selecionar comando",
       "soul_placeholder": "Ajude-me a conectar ao Telegram"
@@ -441,6 +444,14 @@
         "error": {
           "failed": "Falha ao atualizar a sessão"
         }
+      },
+      "workspace_selector": {
+        "create_failed": "[to be translated]:Failed to add project.",
+        "create_new": "[to be translated]:Add new project",
+        "empty_text": "[to be translated]:No projects",
+        "placeholder": "[to be translated]:Select workspace",
+        "search_placeholder": "[to be translated]:Search projects",
+        "select_failed": "[to be translated]:Failed to select folder."
       }
     },
     "settings": {
@@ -1234,6 +1245,9 @@
       "title": "Histórico de Chat",
       "user_node": "Usuário",
       "view_full_content": "Ver conteúdo completo"
+    },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
     },
     "input": {
       "auto_resize": "Ajuste automático de altura",
@@ -6505,6 +6519,7 @@
         "description": "A AWS Bedrock é um serviço de modelos fundamentais totalmente gerido fornecido pela Amazon, que suporta diversos modelos avançados de linguagem.",
         "region": "Região da AWS",
         "region_help": "A sua região de serviço da AWS, por exemplo, us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "Chaves de acesso AWS",
         "secret_access_key_help": "A sua chave de acesso AWS, mantenha-a em segurança",
         "title": "Configuração do AWS Bedrock"
@@ -6616,6 +6631,7 @@
       },
       "filter_agent": "Agente de Filtro - Provedores Suportados",
       "get_api_key": "Clique aqui para obter a chave",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "outro",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

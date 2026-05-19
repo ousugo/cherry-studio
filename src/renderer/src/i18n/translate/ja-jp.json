@@ -328,6 +328,9 @@
       "success": "Git Bashが正常に検出されました！",
       "tooltip": "Windowsでエージェントを実行するにはGit Bashが必要です。まだインストールされていない場合は、git-scm.comからインストールしてください。"
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",
       "soul_placeholder": "Telegramに接続するのを手伝ってください"
@@ -441,6 +444,14 @@
         "error": {
           "failed": "セッションの更新に失敗しました"
         }
+      },
+      "workspace_selector": {
+        "create_failed": "[to be translated]:Failed to add project.",
+        "create_new": "[to be translated]:Add new project",
+        "empty_text": "[to be translated]:No projects",
+        "placeholder": "[to be translated]:Select workspace",
+        "search_placeholder": "[to be translated]:Search projects",
+        "select_failed": "[to be translated]:Failed to select folder."
       }
     },
     "settings": {
@@ -1234,6 +1245,9 @@
       "title": "チャット履歴",
       "user_node": "ユーザー",
       "view_full_content": "完全な内容を表示"
+    },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
     },
     "input": {
       "auto_resize": "高さを自動調整",
@@ -6505,6 +6519,7 @@
         "description": "AWS Bedrock は、Amazon が提供する完全に管理されたベースモデルサービスで、さまざまな最先端の大言語モデルをサポートしています",
         "region": "AWS リージョン",
         "region_help": "あなたの AWS サービスリージョン、例：us-east-1",
+        "region_required": "[to be translated]:Enter an AWS region before saving",
         "secret_access_key": "AWS アクセスキー",
         "secret_access_key_help": "あなたの AWS アクセスキー、安全に保管してください",
         "title": "AWS Bedrock 設定"
@@ -6616,6 +6631,7 @@
       },
       "filter_agent": "フィルターエージェント対応プロバイダー",
       "get_api_key": "APIキーを取得",
+      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
       "misc": "その他",
       "more_endpoints": {
         "add": "[to be translated]:Add Endpoint",

@@ -114,6 +114,21 @@ export function resolveCreateSessionAgentId(
   return activeAgentId ?? sessions[0]?.agentId ?? agents[0]?.id ?? null
 }
 
+export function resolveCreateSessionWorkspaceId(
+  sessions: AgentSessionEntity[],
+  activeSessionId: string | null,
+  agentId: string | null | undefined
+): string | undefined {
+  if (!agentId) return undefined
+
+  const activeSession = sessions.find((session) => session.id === activeSessionId)
+  if (activeSession?.agentId === agentId && activeSession.workspaceId) {
+    return activeSession.workspaceId
+  }
+
+  return sessions.find((session) => session.agentId === agentId && session.workspaceId)?.workspaceId ?? undefined
+}
+
 const Sessions = ({
   onOpenHistory,
   onSelectItem,
@@ -345,7 +360,7 @@ const Sessions = ({
           ? workspace.workspaceId
           : workspace?.workspacePath
             ? (await findOrCreateWorkspace({ body: { path: workspace.workspacePath } })).id
-            : undefined
+            : resolveCreateSessionWorkspaceId(sessionItems, activeSessionId, agentId)
 
         await onStartTemporarySession?.({
           agentId,
@@ -363,7 +378,16 @@ const Sessions = ({
         setCreatingSession(false)
       }
     },
-    [agentById, creatingSession, findOrCreateWorkspace, onStartTemporarySession, setActiveSessionId, t]
+    [
+      activeSessionId,
+      agentById,
+      creatingSession,
+      findOrCreateWorkspace,
+      onStartTemporarySession,
+      sessionItems,
+      setActiveSessionId,
+      t
+    ]
   )
 
   const handleHeaderCreateSession = useCallback(() => {

@@ -444,6 +444,14 @@
         "error": {
           "failed": "Failed to update the session"
         }
+      },
+      "workspace_selector": {
+        "create_failed": "Failed to add project.",
+        "create_new": "Add new project",
+        "empty_text": "No projects",
+        "placeholder": "Select workspace",
+        "search_placeholder": "Search projects",
+        "select_failed": "Failed to select folder."
       }
     },
     "settings": {

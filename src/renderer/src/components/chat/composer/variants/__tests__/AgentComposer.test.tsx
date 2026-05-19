@@ -150,7 +150,16 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
       id: 'session-1',
       agentId: 'agent-1',
       name: 'Session',
-      accessiblePaths: ['/workspace']
+      accessiblePaths: ['/workspace'],
+      workspaceId: 'workspace-1',
+      workspace: {
+        id: 'workspace-1',
+        name: 'Workspace 1',
+        path: '/workspace',
+        orderKey: 'a0',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
     }
   }),
   useUpdateSession: () => ({ updateSession: mocks.updateSession })
@@ -185,6 +194,14 @@ vi.mock('@renderer/components/Selector', () => ({
       {trigger}
       <button type="button" onClick={() => onSelect({ id: 'anthropic::claude-opus-4', name: 'Claude Opus 4' })}>
         select model 2
+      </button>
+    </div>
+  ),
+  WorkspaceSelector: ({ onChange, trigger }: any) => (
+    <div>
+      {trigger}
+      <button type="button" onClick={() => onChange('workspace-2')}>
+        select workspace 2
       </button>
     </div>
   )
@@ -389,7 +406,42 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('composer-top-content')).toHaveTextContent('agent.home.welcome_title')
     expect(mocks.surfaceProps?.topContent).toBeDefined()
     expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Agent')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Workspace 1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Agent')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Claude Sonnet 4.5 | Anthropic')
+  })
+
+  it('does not render the workspace selector in docked composer mode', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Workspace 1')
+    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Workspace 1')
+  })
+
+  it('releases draft workspace changes to the provided handler', () => {
+    const onWorkspaceChange = vi.fn()
+
+    render(
+      <AgentHomeComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        onWorkspaceChange={onWorkspaceChange}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('select workspace 2'))
+
+    expect(onWorkspaceChange).toHaveBeenCalledWith('workspace-2')
   })
 })

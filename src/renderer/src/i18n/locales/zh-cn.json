@@ -444,6 +444,14 @@
         "error": {
           "failed": "更新会话失败"
         }
+      },
+      "workspace_selector": {
+        "create_failed": "添加项目失败。",
+        "create_new": "添加新项目",
+        "empty_text": "暂无项目",
+        "placeholder": "选择工作目录",
+        "search_placeholder": "搜索项目",
+        "select_failed": "选择文件夹失败。"
       }
     },
     "settings": {
