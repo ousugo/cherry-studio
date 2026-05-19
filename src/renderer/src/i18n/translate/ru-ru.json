@@ -1169,6 +1169,7 @@
     "download": "Скачать",
     "includes_user_questions": "Включает вопросы пользователей",
     "manage": "Редактировать",
+    "select_assistant": "Выберите помощника",
     "select_model": "Выбрать модель",
     "show": {
       "all": "Показать все"

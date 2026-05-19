@@ -19,9 +19,8 @@ import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionMod
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
-import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
-import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
@@ -121,6 +120,8 @@ const ChatComposerContextControls = ({
   onAssistantChange,
   onModelSelect
 }: ChatComposerContextControlsProps) => {
+  const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
+
   return (
     <>
       <AssistantSelector
@@ -132,7 +133,7 @@ const ChatComposerContextControls = ({
         mountStrategy="lazy-keep"
         trigger={
           <Button variant="ghost" size="sm" className={COMPOSER_SELECTOR_BUTTON_CLASS}>
-            <EmojiIcon emoji={assistantEmoji || getLeadingEmoji(assistantName)} size={20} />
+            {assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : null}
             <span className="max-w-40 truncate">{assistantName}</span>
             <ChevronDown size={14} className="text-muted-foreground" />
           </Button>
@@ -273,11 +274,15 @@ const ChatComposerInner = ({
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, triggers, setIsExpanded } = useComposerToolDispatch()
   const { setCouldAddImageFile, setExtensions } = useComposerToolInternalDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
-  const { assistant, model, isModelPending, isModelMissing, setModel, updateAssistant } = useAssistant(
-    topic.assistantId
-  )
-  const { assistant: defaultAssistant } = useDefaultAssistant()
-  const { setDefaultModel } = useDefaultModel()
+  const {
+    assistant,
+    isLoading: isAssistantLoading,
+    model,
+    isModelPending,
+    isModelMissing,
+    setModel,
+    updateAssistant
+  } = useAssistant(topic.assistantId)
   const { updateTopic } = useTopicMutations()
   const { knowledgeBases: allKnowledgeBases } = useKnowledgeBases()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -292,7 +297,11 @@ const ChatComposerInner = ({
   const { isPending } = useTopicStreamStatus(topic.id)
   const [isSending, setIsSending] = useState(false)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '')
-  const missingModelMessage = isModelMissing ? t('code.model_required') : undefined
+  const selectAssistantMessage = t('button.select_assistant')
+  const runtimeModel = assistant ? model : undefined
+  const runtimeModelPending = isAssistantLoading || (!!assistant && isModelPending)
+  const missingAssistantMessage = !isAssistantLoading && !assistant ? selectAssistantMessage : undefined
+  const missingModelMessage = assistant && isModelMissing ? t('code.model_required') : undefined
 
   useEffect(() => {
     if (isPending) setIsSending(false)
@@ -303,12 +312,14 @@ const ChatComposerInner = ({
   }, [topic.id])
 
   const loading = isPending || isSending || awaitingApproval
-  const runtimeAssistant = assistant ?? (topic.assistantId ? undefined : defaultAssistant)
-  const selectedAssistantId = topic.assistantId ?? defaultAssistant.id
-  const assistantName = runtimeAssistant?.name || t('common.loading')
-  const providerName = useProviderDisplayName(model?.providerId)
-  const isVisionAssistant = useMemo(() => (model ? isVisionModel(model) : false), [model])
-  const isGenerateImageAssistant = useMemo(() => (model ? isGenerateImageModel(model) : false), [model])
+  const selectedAssistantId = assistant?.id ?? null
+  const assistantName = assistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
+  const providerName = useProviderDisplayName(runtimeModel?.providerId)
+  const isVisionAssistant = useMemo(() => (runtimeModel ? isVisionModel(runtimeModel) : false), [runtimeModel])
+  const isGenerateImageAssistant = useMemo(
+    () => (runtimeModel ? isGenerateImageModel(runtimeModel) : false),
+    [runtimeModel]
+  )
 
   const isVisionSupported = useMemo(
     () =>
@@ -438,16 +449,12 @@ const ChatComposerInner = ({
   const handleModelSelect = useCallback(
     (nextModel: Model | undefined) => {
       if (!nextModel) return
-      if (!assistant) {
-        if (topic.assistantId) return
-        void setDefaultModel(nextModel)
-        return
-      }
+      if (!assistant) return
 
       const enabledWebSearch = isWebSearchModel(nextModel)
       setModel(nextModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
     },
-    [assistant, setDefaultModel, setModel, topic.assistantId]
+    [assistant, setModel]
   )
 
   const addNewTopic = useCallback(
@@ -488,7 +495,12 @@ const ChatComposerInner = ({
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
-      if (!model) {
+      if (!assistant) {
+        window.toast?.error(selectAssistantMessage)
+        return
+      }
+
+      if (!runtimeModel) {
         window.toast?.error(t('code.model_required'))
         return
       }
@@ -524,7 +536,18 @@ const ChatComposerInner = ({
         setIsSending(false)
       }
     },
-    [files, mentionedModels, model, onSend, selectedKnowledgeBases, setFiles, setText, t]
+    [
+      assistant,
+      files,
+      mentionedModels,
+      onSend,
+      runtimeModel,
+      selectedKnowledgeBases,
+      selectAssistantMessage,
+      setFiles,
+      setText,
+      t
+    ]
   )
 
   if (isMultiSelectMode) return null
@@ -532,19 +555,19 @@ const ChatComposerInner = ({
   const controlSlots = renderControls({
     assistantId: selectedAssistantId,
     assistantName,
-    assistantEmoji: runtimeAssistant?.emoji,
-    model,
+    assistantEmoji: assistant?.emoji,
+    model: runtimeModel,
     modelProviderName: providerName,
-    modelPending: isModelPending,
-    selectModelLabel: isModelPending ? t('common.loading') : t('button.select_model'),
+    modelPending: runtimeModelPending,
+    selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect
   })
 
   return (
     <>
-      {runtimeAssistant && model && (
-        <ComposerToolRuntimeHost scope={scope} assistant={runtimeAssistant} model={model} />
+      {assistant && runtimeModel && (
+        <ComposerToolRuntimeHost scope={scope} assistant={assistant} model={runtimeModel} />
       )}
       <ComposerSurface
         text={text}
@@ -553,8 +576,15 @@ const ChatComposerInner = ({
         managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
         placeholder={searching ? t('chat.input.translating') : placeholderText}
-        sendDisabled={text.trim().length === 0 || loading || searching || isModelPending || !!missingModelMessage}
-        sendBlockedReason={missingModelMessage}
+        sendDisabled={
+          text.trim().length === 0 ||
+          loading ||
+          searching ||
+          runtimeModelPending ||
+          !!missingAssistantMessage ||
+          !!missingModelMessage
+        }
+        sendBlockedReason={missingAssistantMessage ?? missingModelMessage}
         isLoading={loading}
         onSendDraft={handleSendDraft}
         onPause={onPause}

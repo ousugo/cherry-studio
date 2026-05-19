@@ -1169,6 +1169,7 @@
     "download": "Télécharger",
     "includes_user_questions": "Inclure les questions de l'utilisateur",
     "manage": "Gérer",
+    "select_assistant": "Sélectionner l'assistant",
     "select_model": "Sélectionner le Modèle",
     "show": {
       "all": "Afficher tout"

@@ -1169,6 +1169,7 @@
     "download": "ダウンロード",
     "includes_user_questions": "ユーザーからの質問を含む",
     "manage": "管理",
+    "select_assistant": "アシスタントを選択します",
     "select_model": "モデルを選択",
     "show": {
       "all": "すべて表示"

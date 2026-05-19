@@ -246,6 +246,40 @@ describe('HomePage', () => {
     })
   })
 
+  it('starts generic temporary topics with the active topic assistant', async () => {
+    homeMocks.startTemporaryConversation.mockResolvedValue({
+      assistantId: 'assistant-1',
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
+
+    await waitFor(() => {
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    })
+  })
+
+  it('seeds the first-launch temporary topic from the cached active topic assistant', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.cacheGet.mockImplementation((key: string) => (key === 'topic.active' ? initialTopic : undefined))
+    homeMocks.startTemporaryConversation.mockResolvedValue({
+      assistantId: 'assistant-1',
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    })
+
+    render(<HomePage />)
+
+    await waitFor(() => {
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    })
+  })
+
   it('does not lease another temporary topic while the active temporary topic is still empty', async () => {
     homeMocks.cacheGet.mockReturnValue(true)
     homeMocks.locationState = undefined

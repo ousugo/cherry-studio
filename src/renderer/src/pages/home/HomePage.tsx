@@ -23,7 +23,8 @@ const logger = loggerService.withContext('HomePage')
 
 /**
  * Synthesise a renderer Topic shape from a freshly-leased temporary id.
- * Only explicit assistant-group creation binds an assistant during the draft.
+ * Generic creation inherits the last used assistant, while explicit
+ * assistant-group creation still wins.
  */
 function buildPendingTemporaryTopic(id: string, assistantId?: string | null): Topic {
   const nowIso = new Date().toISOString()
@@ -39,6 +40,10 @@ function buildPendingTemporaryTopic(id: string, assistantId?: string | null): To
   }
 }
 
+function getTopicAssistantId(topic?: Pick<Topic, 'assistantId'> | null): string | undefined {
+  return topic?.assistantId || undefined
+}
+
 const HomePage: FC = () => {
   const navigate = useNavigate()
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -49,6 +54,7 @@ const HomePage: FC = () => {
   const startingTemporaryAssistantIdRef = useRef<string | undefined>(undefined)
   const pendingTemporaryTopicRef = useRef<{ topicId: string; assistantId?: string | null } | null>(null)
   const queuedTemporaryTopicTargetRef = useRef<{ assistantId?: string } | null>(null)
+  const lastUsedAssistantIdRef = useRef<string | undefined>(getTopicAssistantId(cacheService.get('topic.active')))
 
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
@@ -92,6 +98,13 @@ const HomePage: FC = () => {
     // before our blank one shows up.
     autoPickFirst: !shouldUseTemporary
   })
+
+  useEffect(() => {
+    const assistantId = getTopicAssistantId(activeTopic)
+    if (assistantId) {
+      lastUsedAssistantIdRef.current = assistantId
+    }
+  }, [activeTopic])
 
   const persistTemporaryTopicAndRefresh = useCallback(
     async (initialName?: string) => {
@@ -140,7 +153,9 @@ const HomePage: FC = () => {
     async (payload?: AddNewTopicPayload) => {
       try {
         const hasExplicitAssistantTarget = !!payload && 'assistantId' in payload
-        const targetAssistantId = hasExplicitAssistantTarget ? (payload.assistantId ?? undefined) : undefined
+        const targetAssistantId = hasExplicitAssistantTarget
+          ? (payload.assistantId ?? undefined)
+          : lastUsedAssistantIdRef.current
 
         if (temporaryTopicConversation?.type === 'assistant') {
           const currentAssistantId = temporaryTopicConversation.assistantId ?? undefined
@@ -162,7 +177,7 @@ const HomePage: FC = () => {
         }
 
         if (startingTemporaryTopicRef.current) {
-          if (hasExplicitAssistantTarget && startingTemporaryAssistantIdRef.current !== targetAssistantId) {
+          if (startingTemporaryAssistantIdRef.current !== targetAssistantId) {
             queuedTemporaryTopicTargetRef.current = { assistantId: targetAssistantId }
           }
           void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)

@@ -1169,6 +1169,7 @@
     "download": "下载",
     "includes_user_questions": "包含用户提问",
     "manage": "管理",
+    "select_assistant": "选择助手",
     "select_model": "选择模型",
     "show": {
       "all": "显示全部"

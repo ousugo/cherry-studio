@@ -111,8 +111,8 @@ vi.mock('@renderer/components/EmojiIcon', () => ({
 }))
 
 vi.mock('@renderer/components/Selector', () => ({
-  AssistantSelector: ({ onChange, trigger }: any) => (
-    <div>
+  AssistantSelector: ({ onChange, trigger, value }: any) => (
+    <div data-testid="assistant-selector" data-value={value ?? ''}>
       {trigger}
       <button type="button" onClick={() => onChange('assistant-2')}>
         select assistant 2
@@ -230,6 +230,18 @@ const topic = {
   type: 'chat'
 } as any
 
+const unlinkedTopic = {
+  id: 'topic-unlinked',
+  assistantId: undefined,
+  type: 'chat'
+} as any
+
+const missingAssistantTopic = {
+  id: 'topic-missing',
+  assistantId: 'missing-assistant',
+  type: 'chat'
+} as any
+
 describe('ChatComposer', () => {
   beforeEach(() => {
     mocks.createTopic.mockReset()
@@ -308,6 +320,34 @@ describe('ChatComposer', () => {
     expect(screen.getByText('button.select_model')).toBeInTheDocument()
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
+  })
+
+  it('shows assistant selection instead of the default assistant for unlinked home topics', () => {
+    mocks.assistant = undefined
+
+    render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('button.select_assistant')
+    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Default Assistant')
+    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Model A | Provider')
+    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('button.select_assistant')
+  })
+
+  it('blocks sends for missing-assistant topics until a new assistant is selected', async () => {
+    mocks.assistant = undefined
+    const onSend = vi.fn()
+
+    render(<ChatComposer topic={missingAssistantTopic} onSend={onSend} />)
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+    fireEvent.click(screen.getByText('select assistant 2'))
+
+    expect(onSend).not.toHaveBeenCalled()
+    expect(mocks.toastError).toHaveBeenCalledWith('button.select_assistant')
+    expect(mocks.updateTopic).toHaveBeenCalledWith('topic-missing', { assistantId: 'assistant-2' })
+    expect(mocks.setDefaultModel).not.toHaveBeenCalled()
   })
 
   it('shows a loading model state while the assistant model is resolving', () => {
