@@ -157,4 +157,38 @@ describe('useChatWithHistory', () => {
     expect(refresh).toHaveBeenCalledTimes(1)
     expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(resumeStream.mock.invocationCallOrder[1])
   })
+
+  it('refreshes when the topic transitions from a live status to a terminal one', async () => {
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    setMockStatus('topic-1', 'streaming')
+    const { rerender } = renderHook(() => useChatWithHistory('topic-1', [], refresh))
+
+    await waitFor(() => expect(resumeStream).toHaveBeenCalled())
+    refresh.mockClear()
+
+    // streaming → done: ChatStreamLifecycle.onTerminal broadcasts this only
+    // after persistence, so it is the safe point to pull DB-final rows.
+    setMockStatus('topic-1', 'done')
+    rerender()
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+
+    // Idempotent on re-render at the same terminal status.
+    rerender()
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+  })
+
+  it('refreshes on streaming → aborted and → error transitions', async () => {
+    for (const terminal of ['aborted', 'error'] as const) {
+      const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+      setMockStatus('topic-x', 'streaming')
+      const { rerender, unmount } = renderHook(() => useChatWithHistory('topic-x', [], refresh))
+      await waitFor(() => expect(resumeStream).toHaveBeenCalled())
+      refresh.mockClear()
+
+      setMockStatus('topic-x', terminal)
+      rerender()
+      await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+      unmount()
+    }
+  })
 })

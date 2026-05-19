@@ -98,7 +98,20 @@ export function useChatWithHistory(
     if (topicStreamStatus === 'pending' && prev !== 'pending') {
       resumeActiveStream('started-event')
     }
-  }, [resumeActiveStream, topicStreamStatus])
+    // Terminal refresh. `topic.stream.statuses` flips to a terminal status
+    // only in `ChatStreamLifecycle.onTerminal`, which runs AFTER
+    // `broadcastExecutionDone` has awaited every listener (incl. the
+    // persistence listener). So a terminal transition is the earliest safe
+    // point at which the DB holds the final assistant rows — pull them into
+    // `uiMessages` so the overlay can hand off to DB truth (Phase 2).
+    const wasLive = prev === 'pending' || prev === 'streaming'
+    const isTerminal = topicStreamStatus === 'done' || topicStreamStatus === 'aborted' || topicStreamStatus === 'error'
+    if (wasLive && isTerminal) {
+      void refreshRef.current().catch((err) => {
+        logger.warn('Failed to refresh messages after terminal stream status', { topicId, err })
+      })
+    }
+  }, [resumeActiveStream, topicStreamStatus, topicId])
 
   useEffect(() => {
     const errorUnsub = window.api.ai.onStreamError((data) => {

@@ -201,18 +201,18 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
 
   const handleExecutionFinish = useCallback(
-    (_executionId: string, { message, isAbort, isError }: ExecutionFinishEvent) => {
+    (_executionId: string, { message, isError }: ExecutionFinishEvent) => {
       if (isError || !message.parts?.length) {
+        // Error / no content: force a clean revalidate, then drop overlay.
         void cache.rollbackBranch().then(() => disposeOverlay(message.id))
         return
       }
-      void cache
-        .patchMessageInBranch(message.id, {
-          status: isAbort ? 'paused' : 'success',
-          data: { parts: message.parts as never },
-          updatedAt: new Date().toISOString()
-        })
-        .then(() => disposeOverlay(message.id))
+      // Success / aborted-with-content: do NOT write streamed parts to the
+      // SWR cache. Backend persists the final row; the terminal-status
+      // refresh (useChatWithHistory) pulls it into uiMessages, and the
+      // monotonic merge in useV2RenderingPipeline hands off overlay→DB
+      // without a flash. Just drop the overlay entry.
+      disposeOverlay(message.id)
     },
     [cache, disposeOverlay]
   )
