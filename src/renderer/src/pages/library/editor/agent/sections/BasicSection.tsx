@@ -44,7 +44,6 @@ const AVATAR_PRESETS = ['🤖', '🧠', '⚡', '🚀', '🛠️', '🎯', '📊'
  *
  * - name
  * - model (primary + plan + small — all from `AgentBase`)
- * - accessible_paths
  * - configuration.soul_enabled
  * - configuration.heartbeat_enabled / heartbeat_interval
  * - description

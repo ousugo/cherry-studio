@@ -30,13 +30,25 @@ function localIso(year: number, month: number, day: number, hour = 12) {
   return new Date(year, month - 1, day, hour).toISOString()
 }
 
+function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace']> {
+  return {
+    id: `ws-${path}`,
+    name: path,
+    path,
+    orderKey: 'a',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  }
+}
+
 function createSession(overrides: Partial<AgentSessionEntity & { pinned: boolean }> = {}) {
   return {
     id: 'session-1',
     agentId: 'agent-1',
     name: 'Session one',
     description: '',
-    accessiblePaths: ['/Users/jd/project-a'],
+    workspaceId: 'ws-/Users/jd/project-a',
+    workspace: makeWorkspace('/Users/jd/project-a'),
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -148,11 +160,11 @@ describe('SessionList helpers', () => {
       mode: 'workdir',
       workdirLabelByPath: new Map([['/Users/jd/project-a', 'project-a']])
     })
-    expect(workdirGroup(createSession({ accessiblePaths: ['/Users/jd/project-a/'] }))).toEqual({
+    expect(workdirGroup(createSession({ workspace: makeWorkspace('/Users/jd/project-a/') }))).toEqual({
       id: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
       label: 'project-a'
     })
-    expect(workdirGroup(createSession({ accessiblePaths: [] }))).toEqual({
+    expect(workdirGroup(createSession({ workspace: null }))).toEqual({
       id: 'session:workdir:none',
       label: 'No workspace'
     })
@@ -160,13 +172,15 @@ describe('SessionList helpers', () => {
 
   it('normalizes and labels workdir paths without merging duplicate basenames', () => {
     const sessions = [
-      createSession({ accessiblePaths: ['/Users/jd/alpha/app'] }),
-      createSession({ accessiblePaths: ['/Users/jd/beta/app/'] }),
-      createSession({ accessiblePaths: ['/Users/jd/unique'] })
+      createSession({ workspace: makeWorkspace('/Users/jd/alpha/app') }),
+      createSession({ workspace: makeWorkspace('/Users/jd/beta/app/') }),
+      createSession({ workspace: makeWorkspace('/Users/jd/unique') })
     ]
 
     expect(normalizeSessionWorkdirPath('/Users/jd/app/')).toBe('/Users/jd/app')
-    expect(getPrimarySessionWorkdir(createSession({ accessiblePaths: ['  /Users/jd/app/  '] }))).toBe('/Users/jd/app')
+    expect(getPrimarySessionWorkdir(createSession({ workspace: makeWorkspace('  /Users/jd/app/  ') }))).toBe(
+      '/Users/jd/app'
+    )
     expect(createSessionWorkdirLabelMap(sessions)).toEqual(
       new Map([
         ['/Users/jd/alpha/app', 'alpha/app'],

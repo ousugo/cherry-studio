@@ -243,7 +243,12 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
       refetch: vi.fn(),
       mutate: vi.fn()
     }
-  })
+  }),
+  useMutation: vi.fn(() => ({
+    trigger: vi.fn().mockResolvedValue({ id: 'ws-test', name: 'ws', path: '/tmp/ws' }),
+    isLoading: false,
+    error: undefined
+  }))
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({

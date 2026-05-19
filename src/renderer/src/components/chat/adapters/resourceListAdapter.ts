@@ -71,7 +71,7 @@ export function adaptTopicResource(
 }
 
 export function adaptSessionResource(
-  session: Pick<AgentSessionEntity, 'id' | 'agentId' | 'name' | 'description' | 'accessiblePaths'>,
+  session: Pick<AgentSessionEntity, 'id' | 'agentId' | 'name' | 'description' | 'workspace'>,
   options: SessionResourceAdapterOptions = {}
 ): ChatResourceItem {
   const active = options.active ?? false
@@ -90,7 +90,7 @@ export function adaptSessionResource(
     disabled,
     meta: {
       agentId: session.agentId,
-      accessiblePathCount: session.accessiblePaths.length,
+      accessiblePathCount: session.workspace ? 1 : 0,
       ...(options.channel && { channel: options.channel }),
       ...options.meta
     }

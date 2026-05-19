@@ -22,7 +22,6 @@ vi.mock('@data/services/AgentService', () => ({
     getAgent: vi.fn().mockResolvedValue({
       id: 'agent-1',
       configuration: {},
-      accessiblePaths: ['/tmp/test-workspace'],
       model: 'openai::gpt-4'
     })
   }
@@ -120,7 +119,6 @@ describe('ChannelMessageHandler', () => {
     vi.mocked(agentService.getAgent).mockResolvedValue({
       id: 'agent-1',
       configuration: {},
-      accessiblePaths: ['/tmp/test-workspace'],
       model: 'openai::gpt-4'
     } as any)
     // Clear session tracker to ensure clean state
@@ -138,7 +136,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      accessiblePaths: ['/tmp/test-workspace'],
+      workspace: { path: '/tmp/test-workspace' },
       configuration: {}
     }
 
@@ -169,7 +167,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      accessiblePaths: ['/tmp/test-workspace'],
+      workspace: { path: '/tmp/test-workspace' },
       configuration: {}
     }
 
@@ -195,7 +193,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      accessiblePaths: ['/tmp/test-workspace'],
+      workspace: { path: '/tmp/test-workspace' },
       configuration: {}
     }
 
@@ -239,7 +237,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      accessiblePaths: ['/tmp/test-workspace'],
+      workspace: { path: '/tmp/test-workspace' },
       configuration: {}
     }
 
@@ -313,7 +311,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      accessiblePaths: ['/tmp/test-workspace'],
+      workspace: { path: '/tmp/test-workspace' },
       configuration: {}
     }
 
@@ -347,7 +345,7 @@ describe('ChannelMessageHandler', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       model: 'openai::gpt-4',
-      accessiblePaths: ['/tmp/test-workspace'],
+      workspace: { path: '/tmp/test-workspace' },
       configuration: {}
     }
 

@@ -125,7 +125,7 @@ const AgentComposerRoot = ({
       agentId,
       sessionId,
       agentType: agent.type,
-      accessiblePaths: session.accessiblePaths ?? []
+      accessiblePaths: session.workspace?.path ? [session.workspace.path] : []
     }
   }, [session, agent, agentId, sessionId])
 

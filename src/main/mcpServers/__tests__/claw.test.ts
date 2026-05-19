@@ -354,16 +354,14 @@ describe('ClawServer', () => {
       configuration: {
         soul_enabled: true,
         heartbeat_enabled: true
-      },
-      accessible_paths: ['/workspace/test']
+      }
     }
 
     const agentNoConfig = {
       id: 'agent_1',
       name: 'CherryClaw',
       model: 'claude-sonnet-4-20250514',
-      configuration: { soul_enabled: false },
-      accessible_paths: ['/workspace/test']
+      configuration: { soul_enabled: false }
     }
 
     beforeEach(() => {

@@ -215,9 +215,9 @@ export async function buildClaudeCodeSessionSettings(
   }
 
   // 1. Working directory (session-bound)
-  const cwd = session.accessiblePaths[0]
+  const cwd = session.workspace?.path
   if (!cwd) {
-    throw new Error(`No accessible paths defined for session ${session.id}`)
+    throw new Error(`No workspace defined for session ${session.id}`)
   }
 
   // 2. Environment variables
@@ -274,10 +274,6 @@ export async function buildClaudeCodeSessionSettings(
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
     ...(options?.thinkingOptions?.thinking ? { thinking: options.thinkingOptions.thinking } : {}),
     ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
-  }
-
-  if (session.accessiblePaths.length > 1) {
-    settings.additionalDirectories = session.accessiblePaths.slice(1)
   }
 
   return settings

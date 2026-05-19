@@ -256,13 +256,25 @@ function flushAnimationFrame() {
   return new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
 }
 
+function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace']> {
+  return {
+    id: `ws-${path}`,
+    name: path,
+    path,
+    orderKey: 'a',
+    createdAt: '2026-05-13T08:00:00.000Z',
+    updatedAt: '2026-05-14T08:00:00.000Z'
+  }
+}
+
 function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
   return {
     id: 'session-alpha',
     agentId: 'agent-alpha',
     name: 'Alpha session',
     description: 'Planning notes',
-    accessiblePaths: ['/Users/jd/project-a'],
+    workspaceId: 'ws-/Users/jd/project-a',
+    workspace: makeWorkspace('/Users/jd/project-a'),
     orderKey: 'a',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
@@ -298,7 +310,7 @@ function setupAgentHistory({
       agentId: 'agent-beta',
       name: 'Beta session',
       description: 'Runbook audit',
-      accessiblePaths: ['/Users/jd/project-b'],
+      workspace: makeWorkspace('/Users/jd/project-b'),
       orderKey: 'b'
     })
   ],
@@ -433,19 +445,19 @@ describe('HistoryRecordsPage agent mode', () => {
           id: 'session-beta',
           agentId: 'agent-beta',
           name: 'Beta session',
-          accessiblePaths: ['/Users/jd/project-b'],
+          workspace: makeWorkspace('/Users/jd/project-b'),
           orderKey: 'a'
         }),
         createSession({
           id: 'session-alpha-b',
           name: 'Alpha B',
-          accessiblePaths: ['/Users/jd/project-a'],
+          workspace: makeWorkspace('/Users/jd/project-a'),
           orderKey: 'b'
         }),
         createSession({
           id: 'session-alpha-a',
           name: 'Alpha A',
-          accessiblePaths: ['/Users/jd/project-a'],
+          workspace: makeWorkspace('/Users/jd/project-a'),
           orderKey: 'a'
         })
       ]

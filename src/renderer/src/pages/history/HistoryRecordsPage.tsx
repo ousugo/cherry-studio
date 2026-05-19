@@ -715,7 +715,7 @@ function getTopicSourceId(topic: Pick<ApiTopic, 'assistantId'>, assistantById?: 
   return topic.assistantId
 }
 
-function getSessionWorkdirSourceId(session: Pick<AgentSessionEntity, 'accessiblePaths'>) {
+function getSessionWorkdirSourceId(session: Pick<AgentSessionEntity, 'workspace'>) {
   const path = getPrimarySessionWorkdir(session)
   return path ? `${WORKDIR_SOURCE_ID_PREFIX}${encodeURIComponent(path)}` : NO_WORKDIR_SOURCE_ID
 }

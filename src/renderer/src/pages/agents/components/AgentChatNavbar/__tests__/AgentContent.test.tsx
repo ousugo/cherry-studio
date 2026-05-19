@@ -74,7 +74,7 @@ describe('AgentContent', () => {
   })
 
   it('keeps the workspace opener when a session workspace exists', () => {
-    mocks.activeSession = { id: 'session-1', agentId: 'agent-a', accessiblePaths: ['/workspace'] }
+    mocks.activeSession = { id: 'session-1', agentId: 'agent-a', workspace: { path: '/workspace' } }
 
     render(<AgentContent activeAgent={agentA} artifactPaneOpen={false} onToggleArtifactPane={vi.fn()} />)
 

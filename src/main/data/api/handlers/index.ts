@@ -32,6 +32,7 @@ import { tagHandlers } from './tags'
 import { temporaryChatHandlers } from './temporaryChats'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
+import { workspaceHandlers } from './workspaces'
 
 /**
  * Complete API handlers implementation
@@ -58,5 +59,6 @@ export const apiHandlers: ApiImplementation = {
   ...tagHandlers,
   ...groupHandlers,
   ...pinHandlers,
-  ...promptHandlers
+  ...promptHandlers,
+  ...workspaceHandlers
 }

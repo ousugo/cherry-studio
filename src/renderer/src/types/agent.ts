@@ -82,14 +82,14 @@ export type UpdateAgentForm = Partial<Omit<BaseAgentForm, 'type'>> & {
 
 /**
  * Session forms carry instance-level fields plus the workspace binding
- * (`accessiblePaths`). Workspace is set at create time only — `UpdateSessionForm`
+ * (`workspaceId`). Workspace is set at create time only — `UpdateSessionForm`
  * deliberately excludes it so a running session can't be re-pointed.
  */
 export type CreateSessionForm = {
   agentId: string
   name: string
   description?: string
-  accessiblePaths?: string[]
+  workspaceId?: string
   id?: never
 }
 

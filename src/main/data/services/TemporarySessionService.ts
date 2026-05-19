@@ -1,9 +1,11 @@
 import { agentService } from '@data/services/AgentService'
 import { sessionService } from '@data/services/SessionService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { workspaceService } from '@data/services/WorkspaceService'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { CreateTemporarySessionDto } from '@shared/data/api/schemas/temporaryChats'
+import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import { v4 as uuidv4 } from 'uuid'
 
 type TemporarySessionRow = {
@@ -11,18 +13,19 @@ type TemporarySessionRow = {
   agentId: string
   name: string
   description: string
-  accessiblePaths?: string[]
+  workspaceId?: string
   createdAt: number
   updatedAt: number
 }
 
-function rowToSession(row: TemporarySessionRow): AgentSessionEntity {
+function rowToSession(row: TemporarySessionRow, workspace: WorkspaceEntity | null): AgentSessionEntity {
   return {
     id: row.id,
     agentId: row.agentId,
     name: row.name,
     description: row.description,
-    accessiblePaths: row.accessiblePaths ?? [],
+    workspaceId: row.workspaceId ?? null,
+    workspace,
     orderKey: '',
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -38,19 +41,23 @@ export class TemporarySessionService {
       throw DataApiErrorFactory.validation({ agentId: ['is required'] })
     }
 
+    // Resolve the workspace eagerly so the returned entity carries it for
+    // display; an invalid id surfaces as a precise 404 before the row is kept.
+    const workspace = dto.workspaceId ? await workspaceService.getById(dto.workspaceId) : null
+
     const now = Date.now()
     const row: TemporarySessionRow = {
       id: uuidv4(),
       agentId,
       name: dto.name?.trim() || 'Untitled',
       description: dto.description ?? '',
-      accessiblePaths: dto.accessiblePaths,
+      workspaceId: workspace?.id,
       createdAt: now,
       updatedAt: now
     }
 
     this.sessions.set(row.id, row)
-    return rowToSession(row)
+    return rowToSession(row, workspace)
   }
 
   async deleteSession(id: string): Promise<void> {
@@ -80,7 +87,7 @@ export class TemporarySessionService {
           agentId: row.agentId,
           name: row.name,
           description: row.description,
-          accessiblePaths: row.accessiblePaths
+          workspaceId: row.workspaceId
         },
         { id: row.id }
       )

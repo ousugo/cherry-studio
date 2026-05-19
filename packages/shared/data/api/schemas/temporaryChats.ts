@@ -36,7 +36,7 @@ export interface CreateTemporarySessionDto {
   agentId: string
   name?: string
   description?: string
-  accessiblePaths?: string[]
+  workspaceId?: string
 }
 
 export interface UpdateTemporaryTopicDto {

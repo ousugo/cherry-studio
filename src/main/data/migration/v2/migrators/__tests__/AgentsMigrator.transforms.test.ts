@@ -1,6 +1,7 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { workspaceTable } from '@data/db/schemas/workspace'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -32,16 +33,24 @@ describe('transformAgentBlocksToParts', () => {
   })
 
   async function seedSession(id: string): Promise<void> {
+    const workspaceId = `workspace-${id}`
+    await dbh.db.insert(workspaceTable).values({
+      id: workspaceId,
+      name: workspaceId,
+      path: `/tmp/${workspaceId}`,
+      orderKey: 'a0'
+    })
     await dbh.db.insert(agentSessionTable).values({
       id,
       agentId: 'a1',
       name: id,
+      workspaceId,
       orderKey: 'a0'
     })
     insertedSessions.push(id)
   }
 
-  it('reshapes legacy blocks[] payloads into parts[] and clears the old arrays', async () => {
+  it('reshapes legacy blocks[] payloads into message.data.parts[]', async () => {
     await seedSession('s-blocks')
 
     const legacyPayload = {

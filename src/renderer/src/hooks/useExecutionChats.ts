@@ -51,9 +51,27 @@ export function useExecutionChats(
   const onFinishRef = useRef(onFinish)
   onFinishRef.current = onFinish
 
+  // A `Chat` is a stateful stream sink that must live exactly one streaming
+  // turn: AI SDK resumes it by reusing `state.messages.at(-1)`, so a Chat
+  // carrying the previous turn's finished assistant would make the next
+  // answer render as "previous answer + new stream". `executionId` is the
+  // model id (stable per model, not per turn — see `ChatStreamLifecycle`'s
+  // broadcast), so a model-keyed Chat that is never evicted outlives its
+  // turn. Mirror `executionMessagesById`'s per-execution disposal here:
+  // a Chat exists iff its execution is currently streaming. Executions that
+  // left `activeExecutions` (terminal) are dropped, so the same model's
+  // next turn always builds a fresh Chat from its placeholder seed.
   useEffect(() => {
     setChats((prev) => {
+      const liveIds = new Set(activeExecutions.map((e) => e.executionId))
       let next = prev
+
+      for (const executionId of prev.keys()) {
+        if (liveIds.has(executionId)) continue
+        if (next === prev) next = new Map(prev)
+        next.delete(executionId)
+      }
+
       for (const { executionId, anchorMessageId } of activeExecutions) {
         if (next.has(executionId)) continue
         if (next === prev) next = new Map(prev)

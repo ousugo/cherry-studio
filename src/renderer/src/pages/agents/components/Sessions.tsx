@@ -10,7 +10,7 @@ import {
 } from '@renderer/components/chat/resources'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
@@ -269,8 +269,10 @@ const Sessions = ({
     [sessionItems, t, updateSession]
   )
 
+  const { trigger: findOrCreateWorkspace } = useMutation('POST', '/workspaces', { refresh: ['/workspaces'] })
+
   const createSessionForGroup = useCallback(
-    async (agentId: string | null | undefined, accessiblePaths?: string[]) => {
+    async (agentId: string | null | undefined, workspacePath?: string) => {
       if (!agentId || creatingSession) return null
 
       const agent = agentById.get(agentId)
@@ -283,10 +285,16 @@ const Sessions = ({
 
       setCreatingSession(true)
       try {
+        // A workdir group binds new sessions to that folder — resolve it to a
+        // workspace (idempotent on path) before starting the draft session.
+        const workspaceId = workspacePath
+          ? (await findOrCreateWorkspace({ body: { path: workspacePath } })).id
+          : undefined
+
         await onStartTemporarySession?.({
           agentId,
           name: t('common.unnamed'),
-          ...(accessiblePaths && accessiblePaths.length > 0 ? { accessiblePaths } : {})
+          ...(workspaceId ? { workspaceId } : {})
         })
 
         setActiveSessionId(null)
@@ -299,7 +307,7 @@ const Sessions = ({
         setCreatingSession(false)
       }
     },
-    [agentById, creatingSession, onStartTemporarySession, setActiveSessionId, t]
+    [agentById, creatingSession, findOrCreateWorkspace, onStartTemporarySession, setActiveSessionId, t]
   )
 
   const handleHeaderCreateSession = useCallback(() => {
@@ -364,14 +372,14 @@ const Sessions = ({
     (group: { id: string }) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return null
 
-      let payload: { agentId: string | null | undefined; accessiblePaths?: string[] } | null = null
+      let payload: { agentId: string | null | undefined; workspacePath?: string } | null = null
       if (displayMode === 'time') {
         if (group.id !== SESSION_TODAY_GROUP_ID) return null
         payload = { agentId: fallbackAgentId }
       } else {
         const path = getWorkdirPathFromSessionGroupId(group.id)
         if (!path) return null
-        payload = { agentId: fallbackAgentId, accessiblePaths: [path] }
+        payload = { agentId: fallbackAgentId, workspacePath: path }
       }
 
       if (!payload.agentId) return null
@@ -383,7 +391,7 @@ const Sessions = ({
               type="button"
               aria-label={t('agent.session.add.title')}
               disabled={creatingSession || !agentById.has(payload.agentId)}
-              onClick={() => void createSessionForGroup(payload.agentId, payload.accessiblePaths)}>
+              onClick={() => void createSessionForGroup(payload.agentId, payload.workspacePath)}>
               <Plus className="block" />
             </ResourceList.HeaderActionButton>
           </Tooltip>

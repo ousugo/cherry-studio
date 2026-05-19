@@ -126,7 +126,7 @@ const AgentPage = () => {
       try {
         await replaceTemporaryConversation({
           agentId,
-          accessiblePaths: temporaryAgentConversation.accessiblePaths,
+          workspaceId: temporaryAgentConversation.session.workspaceId ?? undefined,
           name: temporaryAgentConversation.name ?? t('common.unnamed')
         })
         setActiveSessionId(null)

@@ -71,8 +71,8 @@ export function normalizeSessionWorkdirPath(path: string | null | undefined): st
   return trimmed.replace(/[\\/]+$/, '') || trimmed
 }
 
-export function getPrimarySessionWorkdir(session: Pick<AgentSessionEntity, 'accessiblePaths'>): string | null {
-  return normalizeSessionWorkdirPath(session.accessiblePaths?.[0])
+export function getPrimarySessionWorkdir(session: Pick<AgentSessionEntity, 'workspace'>): string | null {
+  return normalizeSessionWorkdirPath(session.workspace?.path)
 }
 
 function getPathSegments(path: string): string[] {
@@ -84,7 +84,7 @@ export function getSessionWorkdirFallbackLabel(path: string): string {
   return segments.at(-1) ?? path
 }
 
-export function createSessionWorkdirLabelMap(sessions: readonly Pick<AgentSessionEntity, 'accessiblePaths'>[]) {
+export function createSessionWorkdirLabelMap(sessions: readonly Pick<AgentSessionEntity, 'workspace'>[]) {
   const paths = Array.from(
     new Set(sessions.map(getPrimarySessionWorkdir).filter((path): path is string => typeof path === 'string'))
   )
@@ -109,7 +109,7 @@ export function createSessionWorkdirLabelMap(sessions: readonly Pick<AgentSessio
   )
 }
 
-export function createSessionWorkdirRankMap(sessions: readonly Pick<AgentSessionEntity, 'accessiblePaths'>[]) {
+export function createSessionWorkdirRankMap(sessions: readonly Pick<AgentSessionEntity, 'workspace'>[]) {
   const rankByPath = new Map<string, number>()
 
   for (const session of sessions) {
@@ -170,7 +170,7 @@ function compareOrderKey(a?: string, b?: string) {
 }
 
 function getWorkdirGroupRank(
-  session: Pick<AgentSessionEntity, 'accessiblePaths'>,
+  session: Pick<AgentSessionEntity, 'workspace'>,
   workdirRankByPath?: ReadonlyMap<string, number>
 ) {
   const path = getPrimarySessionWorkdir(session)

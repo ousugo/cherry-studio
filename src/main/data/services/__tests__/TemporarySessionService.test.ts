@@ -2,6 +2,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { workspaceTable } from '@data/db/schemas/workspace'
 import { TemporarySessionService } from '@data/services/TemporarySessionService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -54,11 +55,17 @@ describe('TemporarySessionService', () => {
 
   it('persists with the same id and reuses SessionService workspace fallback', async () => {
     await seedAgent(dbh.db, 'agent-a', 'provider-a:model-a')
+    await dbh.db.insert(workspaceTable).values({
+      id: 'ws-a',
+      name: 'cherry-temporary-session-test',
+      path: '/private/tmp/cherry-temporary-session-test',
+      orderKey: 'a0'
+    })
     await dbh.db.insert(agentSessionTable).values({
       id: 'sibling-session',
       agentId: 'agent-a',
       name: 'Sibling',
-      accessiblePaths: ['/private/tmp/cherry-temporary-session-test'],
+      workspaceId: 'ws-a',
       orderKey: 'a0'
     })
 
@@ -66,7 +73,9 @@ describe('TemporarySessionService', () => {
     const persisted = await service.persist(draft.id)
 
     expect(persisted.id).toBe(draft.id)
-    expect(persisted.accessiblePaths).toEqual(['/private/tmp/cherry-temporary-session-test'])
+    // No workspaceId supplied → SessionService inherits the latest sibling's workspace.
+    expect(persisted.workspaceId).toBe('ws-a')
+    expect(persisted.workspace?.path).toBe('/private/tmp/cherry-temporary-session-test')
 
     const rows = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, draft.id))
     expect(rows).toHaveLength(1)

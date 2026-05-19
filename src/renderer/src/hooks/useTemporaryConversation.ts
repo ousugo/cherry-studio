@@ -13,7 +13,7 @@ export type TemporaryConversationType = 'assistant' | 'agent'
 export type TemporaryConversationDefaults = {
   assistantId?: string | null
   agentId?: string | null
-  accessiblePaths?: string[]
+  workspaceId?: string
   name?: string
 }
 
@@ -31,7 +31,6 @@ export type TemporaryConversation =
       sessionId: string
       topicId: string
       agentId: string
-      accessiblePaths: string[]
       name: string
       session: AgentSessionEntity
     }
@@ -90,7 +89,7 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
       body: {
         agentId: merged.agentId,
         name: merged.name,
-        accessiblePaths: merged.accessiblePaths
+        workspaceId: merged.workspaceId
       }
     })
     const next: TemporaryConversation = {
@@ -99,7 +98,6 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
       sessionId: session.id,
       topicId: buildAgentSessionTopicId(session.id),
       agentId: session.agentId ?? merged.agentId,
-      accessiblePaths: session.accessiblePaths ?? [],
       name: session.name,
       session
     }
@@ -182,7 +180,6 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
       const persisted: TemporaryConversation = {
         ...current,
         agentId: session.agentId ?? current.agentId,
-        accessiblePaths: session.accessiblePaths ?? [],
         name: session.name,
         session
       }

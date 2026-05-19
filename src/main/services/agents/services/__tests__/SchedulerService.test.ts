@@ -174,7 +174,7 @@ describe('SchedulerService', () => {
       id: 'session-1',
       agentId: 'agent-1',
       name: 'Scheduled run',
-      accessiblePaths: ['/tmp/test']
+      workspace: { path: '/tmp/test' }
     } as any)
 
     // Simulate AiStreamManager completing the execution so the scheduler's

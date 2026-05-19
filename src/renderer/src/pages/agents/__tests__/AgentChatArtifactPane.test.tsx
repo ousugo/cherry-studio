@@ -126,11 +126,11 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
 
 const activeSessionMocks = vi.hoisted(() => ({
   result: {
-    session: { id: 'session-1', agentId: 'agent-1', accessiblePaths: ['/tmp/workspace'] },
+    session: { id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
     isLoading: false,
     setActiveSessionId: vi.fn()
   } as {
-    session: { id: string; agentId: string | null; accessiblePaths: string[] } | undefined
+    session: { id: string; agentId: string | null; workspace: { path: string } | null } | undefined
     isLoading: boolean
     setActiveSessionId: ReturnType<typeof vi.fn>
   }
@@ -236,7 +236,7 @@ vi.mock('../../home/Inputbar/components/PinnedTodoPanel', () => ({
 describe('AgentChat artifact pane', () => {
   beforeEach(() => {
     activeSessionMocks.result = {
-      session: { id: 'session-1', agentId: 'agent-1', accessiblePaths: ['/tmp/workspace'] },
+      session: { id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
       isLoading: false,
       setActiveSessionId: vi.fn()
     }
@@ -293,9 +293,9 @@ describe('AgentChat artifact pane', () => {
             sessionId: 'temp-session-1',
             topicId: 'agent-session:temp-session-1',
             agentId: 'agent-1',
-            accessiblePaths: ['/tmp/workspace'],
+            workspace: { path: '/tmp/workspace' },
             name: 'Temp Session',
-            session: { id: 'temp-session-1', agentId: 'agent-1', accessiblePaths: ['/tmp/workspace'] }
+            session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } }
           } as any
         }
       />
@@ -341,7 +341,7 @@ describe('AgentChat artifact pane', () => {
 
   it('shows history without composer for an unlinked session', () => {
     activeSessionMocks.result = {
-      session: { id: 'session-unlinked', agentId: null, accessiblePaths: ['/tmp/workspace'] },
+      session: { id: 'session-unlinked', agentId: null, workspace: { path: '/tmp/workspace' } },
       isLoading: false,
       setActiveSessionId: vi.fn()
     }

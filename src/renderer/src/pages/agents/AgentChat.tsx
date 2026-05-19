@@ -190,7 +190,7 @@ const AgentChat = ({
         panePosition={panePosition}
         artifactPaneOpen={artifactPaneOpen}
         artifactPaneWorkspacePath={
-          activeSession?.accessiblePaths?.[0] ?? temporaryAgentConversation?.accessiblePaths?.[0]
+          activeSession?.workspace?.path ?? temporaryAgentConversation?.session.workspace?.path
         }
         onCloseArtifactPane={closeArtifactPane}
         main={<MessageListInitialLoading />}
@@ -224,7 +224,7 @@ const AgentChat = ({
         onNewSessionDraft={() =>
           onStartTemporarySession?.({
             agentId: temporaryAgentConversation.agentId,
-            accessiblePaths: temporaryAgentConversation.accessiblePaths,
+            workspaceId: temporaryAgentConversation.session.workspaceId ?? undefined,
             name: t('common.unnamed')
           })
         }
@@ -238,7 +238,7 @@ const AgentChat = ({
         paneOpen={paneOpen}
         panePosition={panePosition}
         artifactPaneOpen={artifactPaneOpen}
-        artifactPaneWorkspacePath={temporaryAgentConversation.accessiblePaths?.[0]}
+        artifactPaneWorkspacePath={temporaryAgentConversation.session.workspace?.path}
         onCloseArtifactPane={closeArtifactPane}
         topBar={
           <div className="flex h-fit w-full min-w-0">
@@ -278,7 +278,7 @@ const AgentChat = ({
       paneOpen={paneOpen}
       panePosition={panePosition}
       artifactPaneOpen={artifactPaneOpen}
-      artifactPaneWorkspacePath={activeSession.accessiblePaths?.[0]}
+      artifactPaneWorkspacePath={activeSession.workspace?.path}
       onCloseArtifactPane={closeArtifactPane}
       topBar={
         <div className="flex h-fit w-full min-w-0">
@@ -304,7 +304,7 @@ const AgentChat = ({
               ? () =>
                   onStartTemporarySession?.({
                     agentId: sendableAgentId,
-                    accessiblePaths: activeSession.accessiblePaths,
+                    workspaceId: activeSession.workspaceId ?? undefined,
                     name: t('common.unnamed')
                   })
               : undefined

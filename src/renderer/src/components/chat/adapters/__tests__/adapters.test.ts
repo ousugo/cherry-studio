@@ -27,7 +27,15 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     agentId: 'agent-1',
     name: 'Session title',
     description: 'Session description',
-    accessiblePaths: ['/tmp/workspace'],
+    workspaceId: 'ws-1',
+    workspace: {
+      id: 'ws-1',
+      name: 'workspace',
+      path: '/tmp/workspace',
+      orderKey: 'a0',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    },
     orderKey: 'a0',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',

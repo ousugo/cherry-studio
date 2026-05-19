@@ -56,8 +56,8 @@ const AgentContent = ({ activeAgent, artifactPaneOpen, onToggleArtifactPane }: A
         </AnimatePresence>
       </div>
       <div className="flex items-center">
-        {activeAgent && activeSession && activeSession.accessiblePaths?.[0] && (
-          <OpenExternalAppButton workdir={activeSession.accessiblePaths[0]} className="mr-2" />
+        {activeSession?.workspace?.path && (
+          <OpenExternalAppButton workdir={activeSession.workspace.path} className="mr-2" />
         )}
         {activeAgent && <Tools artifactPaneOpen={artifactPaneOpen} onToggleArtifactPane={onToggleArtifactPane} />}
       </div>

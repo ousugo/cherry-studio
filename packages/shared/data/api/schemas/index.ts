@@ -38,6 +38,7 @@ import type { TagSchemas } from './tags'
 import type { TemporaryChatSchemas } from './temporaryChats'
 import type { TopicSchemas } from './topics'
 import type { TranslateSchemas } from './translate'
+import type { WorkspaceSchemas } from './workspaces'
 
 /**
  * Merged API Schemas - single source of truth for all API endpoints
@@ -69,5 +70,6 @@ export type ApiSchemas = AssertValidSchemas<
     PinSchemas &
     AgentSchemas &
     SessionSchemas &
+    WorkspaceSchemas &
     AgentChannelSchemas
 >

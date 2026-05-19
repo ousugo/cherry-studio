@@ -105,9 +105,9 @@ export function sanitizeAgentConfiguration(raw: unknown): {
 // Agent entity schemas (Rule C: entity schemas live in packages/shared/data/api/schemas/)
 // ============================================================================
 
-/** Core mutable fields on an agent (the cognitive blueprint). Workspace
- *  (`accessiblePaths`) is intentionally NOT here — that's bound to a session at
- *  create time, see `AgentSessionEntitySchema.accessiblePaths`. */
+/** Core mutable fields on an agent (the cognitive blueprint). Workspace is
+ *  intentionally NOT here — that's bound to a session at create time, see
+ *  `AgentSessionEntitySchema.workspace`. */
 export const AgentBaseSchema = z.strictObject({
   name: AgentNameAtomSchema,
   description: z.string().optional(),

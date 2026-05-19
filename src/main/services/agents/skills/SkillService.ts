@@ -10,6 +10,7 @@ import {
 } from '@data/db/schemas/agentGlobalSkill'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { workspaceTable } from '@data/db/schemas/workspace'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { directoryExists } from '@main/utils/file'
@@ -834,24 +835,20 @@ export class SkillService {
 
   private async getAgentSessionWorkspaces(agentId: string): Promise<string[]> {
     const rows = await this.db
-      .select({ accessiblePaths: agentSessionTable.accessiblePaths })
+      .select({ workspacePath: workspaceTable.path })
       .from(agentSessionTable)
+      .leftJoin(workspaceTable, eq(agentSessionTable.workspaceId, workspaceTable.id))
       .where(eq(agentSessionTable.agentId, agentId))
     const seen = new Set<string>()
     const workspaces: string[] = []
     for (const row of rows) {
-      const workspace = this.parseFirstAccessiblePath(row.accessiblePaths)
+      const workspace = row.workspacePath ?? undefined
       if (!workspace || seen.has(workspace)) continue
       if (!(await directoryExists(workspace))) continue
       seen.add(workspace)
       workspaces.push(workspace)
     }
     return workspaces
-  }
-
-  private parseFirstAccessiblePath(paths: string[] | null | undefined): string | undefined {
-    if (!paths || paths.length === 0) return undefined
-    return typeof paths[0] === 'string' ? paths[0] : undefined
   }
 
   private async getSkillById(id: string): Promise<InstalledSkill | null> {
