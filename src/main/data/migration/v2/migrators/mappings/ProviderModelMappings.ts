@@ -5,6 +5,7 @@
 import {
   ENDPOINT_TYPE,
   type EndpointType,
+  inferAdapterFamily,
   MODEL_CAPABILITY,
   type ModelCapability
 } from '@cherrystudio/provider-registry'
@@ -86,6 +87,23 @@ const REASONING_FORMAT_MAP: Partial<Record<LegacyProvider['type'], ReasoningForm
   'new-api': 'openai-chat',
   gateway: 'openai-chat',
   ollama: 'openai-chat'
+}
+
+/**
+ * Legacy `provider.type` → AI SDK adapter family, for custom-id v1 providers
+ * the registry catalog can't supply (no `legacy.id` match in providers.json).
+ * Lets the runtime resolver trust `adapterFamily` as the sole routing signal
+ * instead of re-deriving from heuristics. Catalog-matched system providers get
+ * their (more specific) adapterFamily from `enrichProviderRow`.
+ */
+const LEGACY_TYPE_TO_ADAPTER_FAMILY: Partial<Record<LegacyProvider['type'], string>> = {
+  openai: 'openai-compatible',
+  'openai-response': 'openai',
+  anthropic: 'anthropic',
+  gemini: 'google',
+  'new-api': 'newapi',
+  gateway: 'gateway',
+  ollama: 'ollama'
 }
 
 const SYSTEM_PROVIDER_IDS = new Set([
@@ -215,6 +233,19 @@ function buildEndpointConfigs(
   const reasoningFormatType = REASONING_FORMAT_MAP[legacy.type]
   if (endpointType !== undefined && reasoningFormatType) {
     configs[endpointType] = { ...configs[endpointType], reasoningFormatType }
+  }
+
+  // Backfill `adapterFamily` so the runtime resolver (endpoint.ts) can route
+  // by it alone. ANTHROPIC_MESSAGES skips the legacy-type hint: v1 custom
+  // anthropic relays carried `type:'openai'` (the relay protocol) even when
+  // the endpoint speaks anthropic — the endpoint protocol must win there.
+  // Catalog-matched system providers get a more specific value later in
+  // `enrichProviderRow`; this only covers custom (no-catalog) providers.
+  const legacyTypeFamily = LEGACY_TYPE_TO_ADAPTER_FAMILY[legacy.type]
+  for (const key of Object.keys(configs) as EndpointType[]) {
+    if (configs[key]?.adapterFamily) continue
+    const legacyHint = key === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? undefined : legacyTypeFamily
+    configs[key] = { ...configs[key], adapterFamily: legacyHint ?? inferAdapterFamily(key) }
   }
 
   return Object.keys(configs).length > 0 ? configs : null
