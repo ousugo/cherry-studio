@@ -1,6 +1,7 @@
-// `topicId` change is not exercised here — the hook does not evict stale
-// entries; the caller (V2ChatContent / AgentChat) re-mounts the entire
-// subtree via `key={topic.id}`, so this hook starts fresh on topic switch.
+// `topicId` change is not exercised here — the caller (V2ChatContent /
+// AgentChat) re-mounts the entire subtree via `key={topic.id}`, so this
+// hook starts fresh on topic switch. Within a mount, a Chat is evicted
+// once its execution leaves `activeExecutions` (terminal); see B8.
 
 import { Chat } from '@ai-sdk/react'
 import type { ActiveExecution } from '@shared/ai/transport'
@@ -185,6 +186,54 @@ describe('useExecutionChats', () => {
     await waitFor(() => expect(result.current.get(EXEC_A)).toBeInstanceOf(Chat))
     // Chat is seeded empty (pickSeed returned undefined).
     expect(result.current.get(EXEC_A)!.messages).toEqual([])
+  })
+
+  it('B8 — terminal execution is evicted; same model next turn builds a fresh Chat', async () => {
+    // Regression: `executionId` is the model id (stable per model, not per
+    // turn). Round 1 finishes; its Chat still holds the finished assistant in
+    // `state.messages`. When the execution leaves `activeExecutions` the Chat
+    // is evicted, so round 2 for the SAME model builds a NEW Chat seeded from
+    // the new placeholder. Reusing the old one would make the resumed stream
+    // append round 2's deltas onto round 1's parts ("prev answer + new
+    // stream").
+    const user = makeUserMessage('u1')
+    const round1Anchor = makeAssistantPlaceholder(ANCHOR_A, EXEC_A)
+    const { result, rerender } = renderHook(
+      ({ execs, msgs }) => useExecutionChats(TOPIC_ID, execs, { initialMessages: msgs }),
+      {
+        initialProps: {
+          execs: [exec(EXEC_A, ANCHOR_A)] as readonly ActiveExecution[],
+          msgs: [user, round1Anchor] as CherryUIMessage[]
+        }
+      }
+    )
+    await waitFor(() => expect(result.current.get(EXEC_A)).toBeInstanceOf(Chat))
+    const round1Chat = result.current.get(EXEC_A)!
+    expect(round1Chat.messages.at(-1)?.id).toBe(ANCHOR_A)
+
+    // Round 1 finishes — broadcast clears activeExecutions; Chat is evicted.
+    rerender({ execs: [], msgs: [user, round1Anchor] })
+    await waitFor(() => expect(result.current.get(EXEC_A)).toBeUndefined())
+
+    // Round 2: same model, new placeholder anchor in uiMessages.
+    const round1Done = {
+      id: ANCHOR_A,
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'round 1 answer' }],
+      metadata: { modelId: EXEC_A, status: 'success' }
+    } as unknown as CherryUIMessage
+    const round2Anchor = makeAssistantPlaceholder('msg-a2', EXEC_A)
+    rerender({
+      execs: [exec(EXEC_A, 'msg-a2')],
+      msgs: [user, round1Done, makeUserMessage('u2', 'again'), round2Anchor]
+    })
+
+    await waitFor(() => expect(result.current.get(EXEC_A)).not.toBe(round1Chat))
+    const round2Chat = result.current.get(EXEC_A)!
+    expect(round2Chat).toBeInstanceOf(Chat)
+    // Seeded from the NEW placeholder only — no round-1 tail to pollute.
+    expect(round2Chat.messages.at(-1)?.id).toBe('msg-a2')
+    expect(round2Chat.messages.find((m) => m.id === ANCHOR_A)).toBeUndefined()
   })
 })
 
