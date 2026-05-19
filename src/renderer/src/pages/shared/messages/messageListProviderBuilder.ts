@@ -18,7 +18,7 @@ type MessageLeafActionCapabilities = Pick<
   | 'notifyError'
 >
 
-type MessageHeaderActionCapabilities = Pick<MessageListActions, 'openUserProfile' | 'openProviderApp'>
+type MessageHeaderActionCapabilities = Pick<MessageListActions, 'openUserProfile'>
 
 export function pickMessageLeafState(
   capabilities: Partial<MessageLeafStateCapabilities>
@@ -67,7 +67,6 @@ export function pickMessageHeaderActions(
   const actions: Partial<MessageHeaderActionCapabilities> = {}
 
   if (capabilities.openUserProfile) actions.openUserProfile = capabilities.openUserProfile
-  if (capabilities.openProviderApp) actions.openProviderApp = capabilities.openProviderApp
 
   return actions
 }

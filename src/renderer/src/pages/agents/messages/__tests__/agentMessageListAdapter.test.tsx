@@ -53,8 +53,7 @@ const editorCapabilitiesMock = vi.hoisted(() => ({
 }))
 const headerCapabilitiesMock = vi.hoisted(() => ({
   userProfile: { avatar: '🙂' },
-  openUserProfile: vi.fn(),
-  openProviderApp: vi.fn()
+  openUserProfile: vi.fn()
 }))
 const navigateMock = vi.hoisted(() => vi.fn())
 
@@ -270,7 +269,6 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openInExternalApp).toBe(leafCapabilitiesMock.openInExternalApp)
     expect(value?.actions.navigateToRoute).toEqual(expect.any(Function))
     expect(value?.actions.openUserProfile).toBe(headerCapabilitiesMock.openUserProfile)
-    expect(value?.actions.openProviderApp).toBe(headerCapabilitiesMock.openProviderApp)
     expect(value?.actions.uploadEditorFiles).toBe(editorCapabilitiesMock.uploadEditorFiles)
     expect(value?.actions.handleEditorPaste).toBe(editorCapabilitiesMock.handleEditorPaste)
     expect(value?.actions.bindEditorPasteHandler).toBe(editorCapabilitiesMock.bindEditorPasteHandler)

@@ -78,17 +78,10 @@ const MessageHeader: FC<Props> = memo(({ model, message, isGroupContextMessage, 
     [assistantProfile?.name, username]
   )
 
-  const showMiniApp = useCallback(() => {
-    if (displayModel?.provider) {
-      void actions.openProviderApp?.(displayModel.provider)
-    }
-  }, [actions, displayModel?.provider])
-
   const openUserProfile = useCallback(() => {
     void actions.openUserProfile?.()
   }, [actions])
 
-  const canOpenProviderApp = !!actions.openProviderApp && !!displayModel?.provider
   const canOpenUserProfile = !!actions.openUserProfile
 
   return (
@@ -106,20 +99,16 @@ const MessageHeader: FC<Props> = memo(({ model, message, isGroupContextMessage, 
             </Avatar>
           )
         ) : ModelIcon ? (
-          <div
-            onClick={canOpenProviderApp ? showMiniApp : undefined}
-            className={canOpenProviderApp ? 'cursor-pointer' : undefined}>
+          <div>
             <ModelIcon.Avatar size={MESSAGE_AVATAR_SIZE} shape="circle" className="rounded-full" />
           </div>
         ) : (
           <Avatar
-            className={`${MESSAGE_AVATAR_CLASS} ${canOpenProviderApp ? 'cursor-pointer' : ''}`}
+            className={MESSAGE_AVATAR_CLASS}
             style={{
-              cursor: canOpenProviderApp ? 'pointer' : 'default',
               border: 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
-            }}
-            onClick={canOpenProviderApp ? showMiniApp : undefined}>
+            }}>
             <AvatarFallback className="rounded-full">{avatarName}</AvatarFallback>
           </Avatar>
         )
