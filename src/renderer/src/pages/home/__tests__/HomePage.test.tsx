@@ -137,12 +137,14 @@ vi.mock('../Chat', () => ({
   default: ({
     activeTopic,
     pane,
+    hideNavbar,
     paneOpen,
     onNewTopic,
     onTemporaryAssistantChange
   }: {
     activeTopic: Topic
     pane?: ReactNode
+    hideNavbar?: boolean
     paneOpen?: boolean
     onNewTopic?: () => void | Promise<void>
     onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
@@ -150,6 +152,7 @@ vi.mock('../Chat', () => ({
     <section>
       <output data-testid="active-topic">{activeTopic.id}</output>
       <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
+      <output data-testid="hide-navbar">{String(hideNavbar)}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
       {onNewTopic && (
         <button type="button" onClick={() => onNewTopic()}>
@@ -225,6 +228,7 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
+    expect(screen.getByTestId('hide-navbar')).toHaveTextContent('false')
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history' }))
@@ -257,6 +261,7 @@ describe('HomePage', () => {
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-1')
+    expect(screen.getByTestId('hide-navbar')).toHaveTextContent('true')
 
     fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
 

@@ -267,6 +267,8 @@ const HomePage: FC = () => {
   }
 
   const panePosition = 'left'
+  const isTemporaryTopicActive =
+    temporaryTopicConversation?.type === 'assistant' && activeTopic.id === temporaryTopicConversation.topicId
 
   return (
     <Container id="home-page">
@@ -285,20 +287,13 @@ const HomePage: FC = () => {
           paneOpen={showSidebar}
           panePosition={panePosition}
           onNewTopic={startTemporaryTopic}
+          hideNavbar={isTemporaryTopicActive}
           // Wire the persist callback only while the temp lease is the
           // currently-active topic. If the user clicks a sidebar topic
           // before sending, the active id no longer matches the lease and
           // the next send won't accidentally persist an empty lease.
-          onPersistTemporaryTopic={
-            temporaryTopicConversation?.type === 'assistant' && activeTopic.id === temporaryTopicConversation.topicId
-              ? persistTemporaryTopicAndRefresh
-              : undefined
-          }
-          onTemporaryAssistantChange={
-            temporaryTopicConversation?.type === 'assistant' && activeTopic.id === temporaryTopicConversation.topicId
-              ? updateTemporaryTopicAssistant
-              : undefined
-          }
+          onPersistTemporaryTopic={isTemporaryTopicActive ? persistTemporaryTopicAndRefresh : undefined}
+          onTemporaryAssistantChange={isTemporaryTopicActive ? updateTemporaryTopicAssistant : undefined}
         />
       </ContentContainer>
       {historyOverlay}
