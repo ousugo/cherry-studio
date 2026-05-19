@@ -4,7 +4,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import type { Assistant, Provider } from '@renderer/types'
+import type { Assistant, Provider, ProviderType, SystemProviderId } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
@@ -12,13 +12,22 @@ import { getErrorMessage } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
-import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isEmpty, takeRight } from 'lodash'
 
 import { readDefaultModel, readQuickModel } from './ModelService'
 
 const logger = loggerService.withContext('ApiService')
+
+const NOT_SUPPORT_API_KEY_PROVIDERS: readonly SystemProviderId[] = [
+  'ollama',
+  'lmstudio',
+  'vertexai',
+  'aws-bedrock',
+  'copilot'
+]
+
+const NOT_SUPPORT_API_KEY_PROVIDER_TYPES: readonly ProviderType[] = ['vertexai', 'aws-bedrock']
 
 export async function fetchMessagesSummary({
   messages
