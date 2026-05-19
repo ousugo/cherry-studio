@@ -4,6 +4,8 @@ import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { asc, eq, sql } from 'drizzle-orm'
+import path from 'path'
+import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
@@ -32,12 +34,14 @@ export class AgentsMigrator extends BaseMigrator {
   private sourceDbPath: string | null | undefined = undefined
   private sourceSchemaInfo: AgentsSchemaInfo = createEmptyAgentsSchemaInfo()
   private reader: LegacyAgentsDbReader | null = null
+  private derivedWorkspaceCount = 0
 
   override reset(): void {
     this.sourceCounts = this.createEmptyCounts()
     this.sourceDbPath = undefined
     this.sourceSchemaInfo = createEmptyAgentsSchemaInfo()
     this.reader = null
+    this.derivedWorkspaceCount = 0
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -115,6 +119,8 @@ export class AgentsMigrator extends BaseMigrator {
       await ctx.db.run(sql.raw('PRAGMA foreign_keys = OFF'))
       await ctx.db.run(sql.raw('BEGIN'))
 
+      this.derivedWorkspaceCount = await stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
+
       for (const statement of importStatements) {
         logger.debug('Executing SQL:', { sql: statement.substring(0, 200) })
         await ctx.db.run(sql.raw(statement))
@@ -179,7 +185,7 @@ export class AgentsMigrator extends BaseMigrator {
 
     return {
       success: true,
-      processedCount: getTotalAgentsRowCount(this.sourceCounts)
+      processedCount: getTotalAgentsRowCount(this.sourceCounts) + this.derivedWorkspaceCount
     }
   }
 
@@ -219,6 +225,72 @@ export class AgentsMigrator extends BaseMigrator {
     await ctx.db.run(sql.raw(`ATTACH DATABASE ${quoteSqlitePath(dbPath)} AS agents_legacy`))
 
     try {
+      const expectedWorkspaces = await collectLegacySessionWorkspaces(ctx, this.sourceSchemaInfo)
+      const workspaceRows = await ctx.db.all<{ count: number }>(sql.raw('SELECT COUNT(*) AS count FROM workspace'))
+      const workspaceTargetCount = Number(workspaceRows[0]?.count ?? 0)
+      const workspaceExpectedCount = expectedWorkspaces.workspaces.length
+      this.derivedWorkspaceCount = workspaceExpectedCount
+      targetCount += workspaceTargetCount
+      validationDetails.push({
+        table: 'workspace',
+        source: workspaceExpectedCount,
+        expected: workspaceExpectedCount,
+        target: workspaceTargetCount,
+        filtered: true,
+        ok: workspaceTargetCount === workspaceExpectedCount
+      })
+      if (workspaceTargetCount !== workspaceExpectedCount) {
+        const direction = workspaceTargetCount < workspaceExpectedCount ? 'too low' : 'too high'
+        errors.push({
+          key: 'workspace_count_mismatch',
+          expected: workspaceExpectedCount,
+          actual: workspaceTargetCount,
+          message: `workspace count ${direction}: expected ${workspaceExpectedCount}, got ${workspaceTargetCount}`
+        })
+      }
+
+      const invalidSessionWorkspaceRows = await ctx.db.all<{ count: number }>(
+        sql.raw(
+          `SELECT COUNT(*) AS count
+           FROM agent_session
+           LEFT JOIN workspace ON workspace.id = agent_session.workspace_id
+           WHERE agent_session.workspace_id IS NULL OR workspace.id IS NULL`
+        )
+      )
+      const invalidSessionWorkspaceCount = Number(invalidSessionWorkspaceRows[0]?.count ?? 0)
+      if (invalidSessionWorkspaceCount > 0) {
+        errors.push({
+          key: 'agent_session_workspace_missing',
+          expected: 0,
+          actual: invalidSessionWorkspaceCount,
+          message: `agent_session has ${invalidSessionWorkspaceCount} rows without a valid workspace`
+        })
+      }
+
+      const targetWorkspacePathCounts = await ctx.db.all<{ path: string; count: number }>(
+        sql.raw(
+          `SELECT workspace.path AS path, COUNT(agent_session.id) AS count
+           FROM agent_session
+           INNER JOIN workspace ON workspace.id = agent_session.workspace_id
+           GROUP BY workspace.path`
+        )
+      )
+      const expectedWorkspacePathCounts = countExpectedSessionWorkspacePaths(expectedWorkspaces)
+      const targetWorkspacePathCountMap = new Map(
+        targetWorkspacePathCounts.map((row) => [row.path, Number(row.count ?? 0)])
+      )
+      for (const [workspacePath, expectedCount] of expectedWorkspacePathCounts) {
+        const actualCount = targetWorkspacePathCountMap.get(workspacePath) ?? 0
+        if (actualCount !== expectedCount) {
+          errors.push({
+            key: 'agent_session_workspace_path_mismatch',
+            expected: expectedCount,
+            actual: actualCount,
+            message: `agent_session workspace path mismatch for ${workspacePath}: expected ${expectedCount}, got ${actualCount}`
+          })
+        }
+      }
+
       for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
         // Mirror the execute-side guard in buildAgentsImportStatements: legacy DBs
         // from older app versions may lack tables added later (e.g. agent_skills).
@@ -283,7 +355,7 @@ export class AgentsMigrator extends BaseMigrator {
       success: errors.length === 0,
       errors,
       stats: {
-        sourceCount: getTotalAgentsRowCount(this.sourceCounts),
+        sourceCount: getTotalAgentsRowCount(this.sourceCounts) + this.derivedWorkspaceCount,
         targetCount,
         skippedCount,
         mismatchReason: errors.length > 0 ? 'One or more agent_* tables did not match expected row counts' : undefined
@@ -317,6 +389,227 @@ export class AgentsMigrator extends BaseMigrator {
       session_messages: 0
     }
   }
+}
+
+type LegacySessionWorkspaceRow = {
+  session_id: string
+  agent_id: string
+  session_accessible_paths: string | null
+  agent_accessible_paths: string | null
+  sort_order: number | null
+  created_at: string | number | null
+  updated_at: string | number | null
+}
+
+type DerivedWorkspace = {
+  id: string
+  name: string
+  path: string
+  orderKey: string
+  createdAt: number
+  updatedAt: number
+}
+
+type DerivedSessionWorkspaceMap = {
+  sessionId: string
+  workspaceId: string
+}
+
+type DerivedSessionWorkspaces = {
+  workspaces: DerivedWorkspace[]
+  mappings: DerivedSessionWorkspaceMap[]
+}
+
+function selectLegacySessionColumn(
+  schemaInfo: AgentsSchemaInfo,
+  column: string,
+  alias: string,
+  fallbackExpr: string
+): string {
+  return schemaInfo.sessions.columns.has(column) ? `sessions.${column} AS ${alias}` : `${fallbackExpr} AS ${alias}`
+}
+
+function selectLegacyAgentColumn(
+  schemaInfo: AgentsSchemaInfo,
+  column: string,
+  alias: string,
+  fallbackExpr: string
+): string {
+  return schemaInfo.agents.columns.has(column) ? `agents.${column} AS ${alias}` : `${fallbackExpr} AS ${alias}`
+}
+
+async function selectLegacySessionWorkspaceRows(
+  db: DbType,
+  schemaInfo: AgentsSchemaInfo
+): Promise<LegacySessionWorkspaceRow[]> {
+  if (
+    !schemaInfo.agents.exists ||
+    !schemaInfo.sessions.exists ||
+    !schemaInfo.agents.columns.has('id') ||
+    !schemaInfo.sessions.columns.has('id') ||
+    !schemaInfo.sessions.columns.has('agent_id')
+  ) {
+    return []
+  }
+
+  const sortOrder = schemaInfo.sessions.columns.has('sort_order') ? 'COALESCE(sessions.sort_order, 0)' : '0'
+  const createdAt = schemaInfo.sessions.columns.has('created_at') ? 'sessions.created_at' : 'sessions.id'
+  const columns = [
+    'sessions.id AS session_id',
+    'sessions.agent_id AS agent_id',
+    selectLegacySessionColumn(schemaInfo, 'accessible_paths', 'session_accessible_paths', 'NULL'),
+    selectLegacyAgentColumn(schemaInfo, 'accessible_paths', 'agent_accessible_paths', 'NULL'),
+    selectLegacySessionColumn(schemaInfo, 'sort_order', 'sort_order', 'NULL'),
+    selectLegacySessionColumn(schemaInfo, 'created_at', 'created_at', 'NULL'),
+    selectLegacySessionColumn(schemaInfo, 'updated_at', 'updated_at', 'NULL')
+  ]
+
+  return (await db.all(
+    sql.raw(
+      `SELECT ${columns.join(', ')}
+       FROM agents_legacy.sessions AS sessions
+       INNER JOIN agents_legacy.agents AS agents ON agents.id = sessions.agent_id
+       ORDER BY ${sortOrder} ASC, ${createdAt} ASC, sessions.id ASC`
+    )
+  )) as LegacySessionWorkspaceRow[]
+}
+
+function extractPrimaryWorkspacePath(rawPaths: string | null, source: 'session' | 'agent'): string | null {
+  if (!rawPaths?.trim()) {
+    return null
+  }
+
+  let parsed: unknown = rawPaths
+  try {
+    parsed = JSON.parse(rawPaths)
+  } catch {
+    // Some early local builds wrote a plain path string; accept it.
+  }
+
+  const candidate = Array.isArray(parsed) ? parsed[0] : typeof parsed === 'string' ? parsed : null
+
+  if (typeof candidate !== 'string') {
+    return null
+  }
+
+  const trimmed = candidate?.trim()
+  if (!trimmed) {
+    return null
+  }
+  if (!path.isAbsolute(trimmed)) {
+    logger.warn('Skipping legacy primary workspace because path is not absolute', { source, path: trimmed })
+    return null
+  }
+  return path.normalize(trimmed)
+}
+
+function workspaceNameFromPath(workspacePath: string): string {
+  return path.basename(workspacePath) || workspacePath
+}
+
+function legacyTimestampToMs(value: string | number | null, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+  return fallback
+}
+
+function defaultWorkspacePathForSession(agentWorkspacesDir: string, sessionId: string): string {
+  const safeSessionId = sessionId.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || uuidv4()
+  return path.join(agentWorkspacesDir, `session-${safeSessionId}`)
+}
+
+function agentWorkspacesDirFromContext(ctx: MigrationContext): string {
+  return (
+    (ctx.paths as { agentWorkspacesDir?: string }).agentWorkspacesDir ??
+    path.join(path.dirname(ctx.paths.legacyAgentDbFile), 'Agents')
+  )
+}
+
+function countExpectedSessionWorkspacePaths(derived: DerivedSessionWorkspaces): Map<string, number> {
+  const workspacePathById = new Map(derived.workspaces.map((workspace) => [workspace.id, workspace.path]))
+  const counts = new Map<string, number>()
+  for (const mapping of derived.mappings) {
+    const workspacePath = workspacePathById.get(mapping.workspaceId)
+    if (!workspacePath) continue
+    counts.set(workspacePath, (counts.get(workspacePath) ?? 0) + 1)
+  }
+  return counts
+}
+
+async function collectLegacySessionWorkspaces(
+  ctx: MigrationContext,
+  schemaInfo: AgentsSchemaInfo
+): Promise<DerivedSessionWorkspaces> {
+  const rows = await selectLegacySessionWorkspaceRows(ctx.db, schemaInfo)
+  const byPath = new Map<string, DerivedWorkspace>()
+  const mappings: DerivedSessionWorkspaceMap[] = []
+  const now = Date.now()
+  const agentWorkspacesDir = agentWorkspacesDirFromContext(ctx)
+
+  for (const row of rows) {
+    const workspacePath =
+      extractPrimaryWorkspacePath(row.session_accessible_paths, 'session') ??
+      extractPrimaryWorkspacePath(row.agent_accessible_paths, 'agent') ??
+      defaultWorkspacePathForSession(agentWorkspacesDir, row.session_id)
+
+    let workspace = byPath.get(workspacePath)
+    if (!workspace) {
+      const createdAt = legacyTimestampToMs(row.created_at, now)
+      workspace = {
+        id: uuidv4(),
+        name: workspaceNameFromPath(workspacePath),
+        path: workspacePath,
+        orderKey: '',
+        createdAt,
+        updatedAt: legacyTimestampToMs(row.updated_at, createdAt)
+      }
+      byPath.set(workspacePath, workspace)
+    }
+
+    mappings.push({ sessionId: row.session_id, workspaceId: workspace.id })
+  }
+
+  const workspaces = Array.from(byPath.values())
+  const orderKeys = generateOrderKeySequence(workspaces.length)
+  for (let i = 0; i < workspaces.length; i++) {
+    workspaces[i].orderKey = orderKeys[i]
+  }
+
+  return { workspaces, mappings }
+}
+
+async function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchemaInfo): Promise<number> {
+  const db = ctx.db
+  await db.run(
+    sql.raw('CREATE TEMP TABLE IF NOT EXISTS session_workspace_map (session_id TEXT PRIMARY KEY, workspace_id TEXT)')
+  )
+  await db.run(sql.raw('DELETE FROM session_workspace_map'))
+
+  const derived = await collectLegacySessionWorkspaces(ctx, schemaInfo)
+  for (const workspace of derived.workspaces) {
+    await db.run(
+      sql`INSERT INTO workspace (id, name, path, order_key, created_at, updated_at)
+          VALUES (${workspace.id}, ${workspace.name}, ${workspace.path}, ${workspace.orderKey}, ${workspace.createdAt}, ${workspace.updatedAt})`
+    )
+  }
+  for (const mapping of derived.mappings) {
+    await db.run(
+      sql`INSERT INTO session_workspace_map (session_id, workspace_id) VALUES (${mapping.sessionId}, ${mapping.workspaceId})`
+    )
+  }
+
+  logger.info('Staged legacy session workspaces', {
+    workspaces: derived.workspaces.length,
+    mappedSessions: derived.mappings.length
+  })
+  return derived.workspaces.length
 }
 
 // ── Integrated post-copy shape transforms ────────────────────────────

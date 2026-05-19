@@ -8,6 +8,7 @@ const mockAppendFile = vi.fn()
 const mockReadFile = vi.fn()
 const mockReaddir = vi.fn()
 const mockStat = vi.fn()
+const mockListSessions = vi.fn()
 
 vi.mock('node:fs/promises', () => ({
   mkdir: (...args: unknown[]) => mockMkdir(...args),
@@ -22,6 +23,12 @@ vi.mock('node:fs/promises', () => ({
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: mockGetAgent
+  }
+}))
+
+vi.mock('@data/services/SessionService', () => ({
+  sessionService: {
+    listByCursor: mockListSessions
   }
 }))
 
@@ -51,11 +58,13 @@ async function listTools(server: WorkspaceMemoryServerInstance) {
 }
 
 describe('WorkspaceMemoryServer', () => {
-  const agentWithWorkspace = { accessiblePaths: ['/workspace/test'] }
+  const agent = { id: 'agent_1' }
+  const sessionPageWithWorkspace = { items: [{ workspace: { path: '/workspace/test' } }] }
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetAgent.mockResolvedValue(agentWithWorkspace)
+    mockGetAgent.mockResolvedValue(agent)
+    mockListSessions.mockResolvedValue(sessionPageWithWorkspace)
     mockMkdir.mockResolvedValue(undefined)
     mockWriteFile.mockResolvedValue(undefined)
     mockRename.mockResolvedValue(undefined)
@@ -173,13 +182,13 @@ describe('WorkspaceMemoryServer', () => {
   })
 
   it('should error when agent has no workspace', async () => {
-    mockGetAgent.mockResolvedValue({ accessiblePaths: [] })
+    mockListSessions.mockResolvedValue({ items: [{ workspace: null }] })
 
     const server = createServer('agent_1')
     const result = await callTool(server, { action: 'update', content: 'test' })
 
     expect(result.isError).toBe(true)
-    expect(result.content[0].text).toContain('no workspace path')
+    expect(result.content[0].text).toContain('No session workspace available')
   })
 
   it('should handle unknown action', async () => {

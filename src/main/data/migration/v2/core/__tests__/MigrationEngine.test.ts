@@ -15,6 +15,7 @@ const mockPaths: MigrationPaths = {
   knowledgeBaseDir: '/tmp/test-userdata/Data/KnowledgeBase',
   versionLogFile: '/tmp/test-userdata/version.log',
   legacyAgentDbFile: '/tmp/test-userdata/Data/agents.db',
+  agentWorkspacesDir: '/tmp/test-userdata/Data/Agents',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
   migrationsFolder: '/tmp/test-migrations'
@@ -141,7 +142,7 @@ describe('MigrationEngine', () => {
     await (engine as any).verifyAndClearNewTables()
 
     expect(transactionFn).toHaveBeenCalledTimes(1)
-    expect(deleteFn).toHaveBeenCalledTimes(25)
+    expect(deleteFn).toHaveBeenCalledTimes(26)
     expect(db).not.toHaveProperty('delete')
   })
 })

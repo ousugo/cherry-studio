@@ -62,7 +62,7 @@ export interface BuiltinAgentConfig {
  * Writes .claude/skills/ and .claude/plugins.json to the agent's
  * working directory so the SDK can auto-discover them.
  *
- * @param workspacePath - The agent's working directory (accessible_paths[0])
+ * @param workspacePath - The agent session's workspace directory
  * @param builtinRole - The built-in role identifier ('assistant' or 'skill-creator')
  * @returns The parsed agent.json config, or undefined if not found
  */

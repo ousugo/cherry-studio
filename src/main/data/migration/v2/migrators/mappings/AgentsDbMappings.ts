@@ -147,11 +147,9 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'name',
       notNullCol('description', "''"),
       {
-        name: 'accessible_paths',
-        expr: "COALESCE(accessible_paths, (SELECT a.accessible_paths FROM agents_legacy.agents a WHERE a.id = sessions.agent_id), '[]')",
-        sourceColumn: 'accessible_paths',
-        fallbackExpr:
-          "COALESCE((SELECT a.accessible_paths FROM agents_legacy.agents a WHERE a.id = sessions.agent_id), '[]')"
+        name: 'workspace_id',
+        expr: '(SELECT workspace_id FROM session_workspace_map WHERE session_id = sessions.id)',
+        sourceColumn: 'id'
       },
       // Placeholder; AgentsMigrator backfills real fractional-indexing keys
       // scoped by agentId, ordered by source `sort_order` after INSERT.

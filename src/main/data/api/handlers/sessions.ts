@@ -1,10 +1,10 @@
 /**
  * Session domain API handlers.
  *
- * Sessions are pure agent instances. Config (model / instructions / mcps /
- * allowedTools / accessiblePaths / configuration) lives on the parent agent
- * and is fetched separately — these handlers only read/write session-level
- * state (id, agentId, name, description, orderKey, timestamps).
+ * Sessions are pure agent instances. Cognitive config (model / instructions /
+ * mcps / allowedTools / configuration) lives on the parent agent and is
+ * fetched separately; the selected workspace is exposed as a normalized
+ * read-only session relation.
  */
 
 import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'

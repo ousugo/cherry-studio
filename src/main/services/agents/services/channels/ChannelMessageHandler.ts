@@ -209,7 +209,7 @@ export class ChannelMessageHandler {
       // session.configuration in-place; with config now living on agent, this
       // override needs to flow as a per-dispatch option instead. Tracked separately.
 
-      const workDir = session.accessiblePaths[0]
+      const workDir = session.workspace?.path
 
       // Save images to agent workspace so the agent can read them via the Read tool
       let imagePaths: string[] = []

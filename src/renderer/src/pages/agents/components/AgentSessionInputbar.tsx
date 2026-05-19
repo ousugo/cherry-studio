@@ -112,11 +112,12 @@ const AgentSessionInputbar = ({
 
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
+    const workspacePath = session.workspace?.path
     return {
       agentId,
       sessionId,
       agentType: agent.type,
-      accessiblePaths: session.accessiblePaths ?? []
+      accessiblePaths: workspacePath ? [workspacePath] : []
     }
   }, [session, agent, agentId, sessionId])
 

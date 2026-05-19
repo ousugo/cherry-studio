@@ -1,10 +1,11 @@
 import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
+import { type WorkspaceRow, workspaceTable } from '@data/db/schemas/workspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { pinService } from '@data/services/PinService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import { resolveAccessiblePaths } from '@main/services/agents/agentUtils'
+import { rowToWorkspace, workspaceService } from '@data/services/WorkspaceService'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -23,16 +24,26 @@ import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 
-function rowToSession(row: SessionRow): AgentSessionEntity {
+type JoinedSessionRow = {
+  session: SessionRow
+  workspace: WorkspaceRow | null
+}
+
+function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
+  if (!row.workspace) {
+    throw DataApiErrorFactory.notFound('Workspace', row.session.workspaceId)
+  }
+
   return {
-    id: row.id,
-    agentId: row.agentId,
-    name: row.name,
-    description: row.description,
-    accessiblePaths: row.accessiblePaths,
-    orderKey: row.orderKey,
-    createdAt: timestampToISO(row.createdAt),
-    updatedAt: timestampToISO(row.updatedAt)
+    id: row.session.id,
+    agentId: row.session.agentId,
+    name: row.session.name,
+    description: row.session.description,
+    workspaceId: row.session.workspaceId,
+    workspace: rowToWorkspace(row.workspace),
+    orderKey: row.session.orderKey,
+    createdAt: timestampToISO(row.session.createdAt),
+    updatedAt: timestampToISO(row.session.updatedAt)
   }
 }
 
@@ -49,43 +60,47 @@ export class SessionService {
       .limit(1)
     if (!agent) throw DataApiErrorFactory.notFound('Agent', dto.agentId)
 
-    let workspaceInput = dto.accessiblePaths
-    if (!workspaceInput || workspaceInput.length === 0) {
-      const [sibling] = await db
-        .select({ accessiblePaths: sessionsTable.accessiblePaths })
-        .from(sessionsTable)
-        .where(eq(sessionsTable.agentId, dto.agentId))
-        .orderBy(desc(sessionsTable.createdAt))
-        .limit(1)
-      if (sibling?.accessiblePaths && sibling.accessiblePaths.length > 0) {
-        workspaceInput = sibling.accessiblePaths
-      }
-    }
-    const accessiblePaths = resolveAccessiblePaths(workspaceInput)
-
     const id = uuidv4()
-    const row = await withSqliteErrors(
+    await withSqliteErrors(
       () =>
-        db.transaction((tx) =>
-          insertWithOrderKey(
+        db.transaction(async (tx) => {
+          let workspaceId = dto.workspaceId
+          if (workspaceId) {
+            await workspaceService.getByIdTx(tx, workspaceId)
+          } else {
+            const [sibling] = await tx
+              .select({ workspaceId: sessionsTable.workspaceId })
+              .from(sessionsTable)
+              .where(eq(sessionsTable.agentId, dto.agentId))
+              .orderBy(desc(sessionsTable.createdAt))
+              .limit(1)
+            workspaceId = sibling?.workspaceId ?? (await workspaceService.createDefaultWorkspaceTx(tx)).id
+          }
+
+          return insertWithOrderKey(
             tx,
             sessionsTable,
-            { id, agentId: dto.agentId, name: dto.name, description: dto.description, accessiblePaths },
+            { id, agentId: dto.agentId, name: dto.name, description: dto.description, workspaceId },
             { pkColumn: sessionsTable.id, position: 'first' }
           )
-        ),
+        }),
       {
         ...defaultHandlersFor('Session', id),
-        foreignKey: () => DataApiErrorFactory.notFound('Agent', dto.agentId)
+        foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
       }
     )
 
-    return rowToSession(row as SessionRow)
+    return await this.getById(id)
   }
 
   async getById(id: string): Promise<AgentSessionEntity> {
     const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
+    const [row] = await db
+      .select({ session: sessionsTable, workspace: workspaceTable })
+      .from(sessionsTable)
+      .leftJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
+      .where(eq(sessionsTable.id, id))
+      .limit(1)
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     return rowToSession(row)
   }
@@ -108,8 +123,9 @@ export class SessionService {
     }
 
     const rows = await db
-      .select()
+      .select({ session: sessionsTable, workspace: workspaceTable })
       .from(sessionsTable)
+      .leftJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
       .where(filters.length > 0 ? and(...filters) : undefined)
       .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
       .limit(limit + 1)
@@ -130,7 +146,7 @@ export class SessionService {
       defaultHandlersFor('Session', id)
     )
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
-    return rowToSession(row)
+    return await this.getById(id)
   }
 
   async delete(id: string): Promise<void> {

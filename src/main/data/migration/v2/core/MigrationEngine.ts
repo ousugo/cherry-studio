@@ -25,6 +25,7 @@ import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { workspaceTable } from '@data/db/schemas/workspace'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import type {
@@ -325,6 +326,7 @@ export class MigrationEngine {
       { table: agentTaskTable, name: 'agent_task' },
       { table: agentSkillTable, name: 'agent_skill' },
       { table: agentSessionTable, name: 'agent_session' },
+      { table: workspaceTable, name: 'workspace' },
       { table: agentGlobalSkillTable, name: 'agent_global_skill' },
       { table: agentTable, name: 'agent' }
       // TODO: Add fileTable when created

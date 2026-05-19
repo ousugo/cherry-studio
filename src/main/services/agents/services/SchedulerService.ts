@@ -218,8 +218,8 @@ class SchedulerService {
       // Resolve subscribed channels
       subscribedChannels = await channelService.getSubscribedChannels(task.id)
 
-      // Resolve session BEFORE reading workspace — workspace now lives on the
-      // session (CMA Environment binding). createSession inherits accessiblePaths
+      // Resolve session BEFORE reading workspace — workspace lives on the
+      // session (CMA Environment binding). createSession inherits workspaceId
       // from the latest sibling session of the same agent when omitted.
       const lastSessionId = await taskService.getLastRunSessionId(task.id)
       let session = lastSessionId ? await sessionService.getById(lastSessionId).catch(() => null) : null
@@ -233,7 +233,7 @@ class SchedulerService {
         logger.debug('Created new session for task', { taskId: task.id, sessionId })
       }
 
-      const workspacePath = session.accessiblePaths?.[0]
+      const workspacePath = session.workspace?.path
 
       // For heartbeat tasks, read prompt from workspace heartbeat.md file
       let fullPrompt = task.prompt

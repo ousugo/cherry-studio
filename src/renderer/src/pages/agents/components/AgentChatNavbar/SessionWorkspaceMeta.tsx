@@ -12,13 +12,8 @@ type SessionWorkspaceMetaProps = {
 const SessionWorkspaceMeta = ({ session }: SessionWorkspaceMetaProps) => {
   const { t } = useTranslation()
 
-  const firstAccessiblePath = session.accessiblePaths?.[0]
-
-  const getLastFolderName = (path: string): string => {
-    const trimmedPath = path.replace(/[/\\]+$/, '')
-    const parts = trimmedPath.split(/[/\\]/)
-    return parts[parts.length - 1] || path
-  }
+  const workspacePath = session.workspace?.path
+  const workspaceName = session.workspace?.name
 
   const infoItems: ReactNode[] = []
 
@@ -46,20 +41,18 @@ const SessionWorkspaceMeta = ({ session }: SessionWorkspaceMetaProps) => {
     </div>
   )
 
-  if (firstAccessiblePath) {
+  if (workspacePath) {
     infoItems.push(
       <InfoTag
         key="path"
-        text={getLastFolderName(firstAccessiblePath)}
-        tooltip={firstAccessiblePath}
+        text={workspaceName || workspacePath}
+        tooltip={workspacePath}
         className="max-w-60 transition-colors hover:border-primary hover:text-primary"
         onClick={() => {
           window.api.file
-            .openPath(firstAccessiblePath)
+            .openPath(workspacePath)
             .catch((e) =>
-              window.toast.error(
-                formatErrorMessageWithPrefix(e, t('files.error.open_path', { path: firstAccessiblePath }))
-              )
+              window.toast.error(formatErrorMessageWithPrefix(e, t('files.error.open_path', { path: workspacePath })))
             )
         }}
       />
