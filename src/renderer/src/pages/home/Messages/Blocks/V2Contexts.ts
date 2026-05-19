@@ -104,6 +104,17 @@ export function useTranslationOverlaySetter(): TranslationOverlaySetter {
 }
 
 /**
+ * Non-throwing variant: returns `null` when no provider is mounted (scopes
+ * that intentionally don't offer message translation, e.g. agent sessions /
+ * quick-assistant). `useTranslateMessage` uses this so its menubar can render
+ * in those scopes without the strict guard crashing — the strict
+ * `useTranslationOverlaySetter` above is left intact for the chat path.
+ */
+export function useOptionalTranslationOverlaySetter(): TranslationOverlaySetter | null {
+  return use(TranslationOverlaySetterContext)
+}
+
+/**
  * Get raw parts for a message from PartsContext.
  * Returns empty array if not in V2 mode or no parts exist.
  */

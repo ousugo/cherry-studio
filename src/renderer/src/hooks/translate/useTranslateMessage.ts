@@ -22,7 +22,7 @@
 
 import { loggerService } from '@logger'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
-import { useTranslationOverlaySetter } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
+import { useOptionalTranslationOverlaySetter } from '@renderer/pages/home/Messages/Blocks/V2Contexts'
 import type { TranslateLanguage } from '@renderer/types'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useEffect, useRef } from 'react'
@@ -46,7 +46,11 @@ interface ActiveStream {
 }
 
 export function useTranslateMessage(messageId: string): UseTranslateMessageResult {
-  const setOverlay = useTranslationOverlaySetter()
+  // `null` in scopes that don't mount the translation overlay (agent
+  // sessions, quick-assistant). Those scopes also hide the menubar's
+  // translate button, so `translate` is never invoked there — the guards
+  // below just make the hook safe to mount regardless.
+  const setOverlay = useOptionalTranslationOverlaySetter()
   const v2 = useV2Chat()
   const activeRef = useRef<ActiveStream | null>(null)
 
@@ -71,6 +75,9 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
 
   const translate = useCallback<UseTranslateMessageResult['translate']>(
     async (text, language) => {
+      // No overlay sink in this scope → translation is unavailable here.
+      if (!setOverlay) return
+
       // A second translate on the same message cancels the previous one — the
       // user is explicitly asking for a different target. Server-side abort
       // is best-effort; the renderer teardown is the source of truth.
@@ -92,7 +99,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
       // content="" and every subsequent chunk goes through `addChunk` so
       // the smooth-stream typewriter engages from the very first delta.
       let accumulated = ''
-      setOverlay(messageId, {
+      setOverlay?.(messageId, {
         content: '',
         targetLanguage: language.langCode as TranslateLangCode
       })
@@ -105,7 +112,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
           typeof (chunk as { delta?: unknown }).delta === 'string'
         ) {
           accumulated += (chunk as { delta: string }).delta
-          setOverlay(messageId, {
+          setOverlay?.(messageId, {
             content: accumulated,
             targetLanguage: language.langCode as TranslateLangCode
           })
@@ -121,13 +128,13 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
             logger.warn('refresh after translation done failed', err as Error)
           }
         }
-        setOverlay(messageId, null)
+        setOverlay?.(messageId, null)
         teardown(streamId)
       })
 
       const unsubError = window.api.ai.onStreamError(({ topicId }) => {
         if (topicId !== streamId) return
-        setOverlay(messageId, null)
+        setOverlay?.(messageId, null)
         teardown(streamId)
       })
 
@@ -142,7 +149,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
         })
       } catch (err) {
         logger.error('translate.open failed', err as Error)
-        setOverlay(messageId, null)
+        setOverlay?.(messageId, null)
         teardown(streamId)
         throw err
       }

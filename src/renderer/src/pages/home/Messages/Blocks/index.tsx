@@ -9,6 +9,7 @@ export {
   TranslationOverlaySetterProvider,
   useIsV2Chat,
   useMessageParts,
+  useOptionalTranslationOverlaySetter,
   usePartsMap,
   useRefresh,
   useTranslationOverlay,
