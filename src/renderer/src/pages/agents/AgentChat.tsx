@@ -209,6 +209,8 @@ const AgentChat = ({
         sendMessage={sendTemporaryMessage}
         stop={async () => undefined}
         isStreaming={false}
+        onAgentChange={onDraftAgentChange}
+        agentChanging={replacingTemporaryAgent}
         onNewSessionDraft={() =>
           onStartTemporarySession?.({
             agentId: temporaryAgentConversation.agentId,
@@ -236,9 +238,6 @@ const AgentChat = ({
               onOpenSettings={handleOpenSettings}
               artifactPaneOpen={artifactPaneOpen}
               onToggleArtifactPane={toggleArtifactPane}
-              onDraftAgentChange={onDraftAgentChange}
-              creatingSession={replacingTemporaryAgent}
-              draftMode
             />
           </div>
         }

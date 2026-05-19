@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   modelLookupId: undefined as UniqueModelId | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
+  updateModel: vi.fn(),
+  updateSession: vi.fn(),
   setFiles: vi.fn(),
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   runtimeHostProps: undefined as { assistant?: { modelId?: string | null }; model?: Model } | undefined
@@ -50,6 +52,7 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
       mocks.surfaceProps = props
       return (
         <div>
+          {props.renderLeftControls?.(undefined)}
           <button
             type="button"
             onClick={() =>
@@ -131,7 +134,12 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
       instructions: 'Follow instructions',
       configuration: {}
     }
-  })
+  }),
+  useUpdateAgent: () => ({ updateModel: mocks.updateModel })
+}))
+
+vi.mock('@renderer/hooks/agents/useAgentModelFilter', () => ({
+  useAgentModelFilter: () => undefined
 }))
 
 vi.mock('@renderer/hooks/agents/useSession', () => ({
@@ -142,7 +150,8 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
       name: 'Session',
       accessiblePaths: ['/workspace']
     }
-  })
+  }),
+  useUpdateSession: () => ({ updateSession: mocks.updateSession })
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -150,6 +159,38 @@ vi.mock('@renderer/hooks/useModel', () => ({
     mocks.modelLookupId = id
     return { model }
   }
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviderDisplayName: () => 'Anthropic'
+}))
+
+vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
+  default: () => <span data-testid="model-avatar" />
+}))
+
+vi.mock('@renderer/components/Selector', () => ({
+  AgentSelector: ({ onChange, trigger }: any) => (
+    <div>
+      {trigger}
+      <button type="button" onClick={() => onChange('agent-2')}>
+        select agent 2
+      </button>
+    </div>
+  ),
+  ModelSelector: ({ onSelect, trigger }: any) => (
+    <div>
+      {trigger}
+      <button type="button" onClick={() => onSelect({ id: 'anthropic::claude-opus-4', name: 'Claude Opus 4' })}>
+        select model 2
+      </button>
+    </div>
+  )
+}))
+
+vi.mock('@renderer/pages/agents/AgentSettings/shared', () => ({
+  AgentLabel: ({ agent }: any) => <span>{agent.name}</span>,
+  isSoulModeEnabled: () => false
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -189,6 +230,8 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
+    mocks.updateModel.mockReset()
+    mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
     mocks.surfaceProps = undefined
     mocks.runtimeHostProps = undefined
@@ -270,5 +313,62 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('pause'))
 
     expect(mocks.stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('updates the active session agent from the composer toolbar', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('select agent 2'))
+
+    expect(mocks.updateSession).toHaveBeenCalledWith(
+      { id: 'session-1', agentId: 'agent-2' },
+      { showSuccessToast: false }
+    )
+  })
+
+  it('releases draft session agent changes to the provided handler', () => {
+    const onAgentChange = vi.fn()
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        onAgentChange={onAgentChange}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('select agent 2'))
+
+    expect(onAgentChange).toHaveBeenCalledWith('agent-2')
+    expect(mocks.updateSession).not.toHaveBeenCalled()
+  })
+
+  it('updates the active agent model from the composer toolbar', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('select model 2'))
+
+    expect(mocks.updateModel).toHaveBeenCalledWith('agent-1', 'anthropic::claude-opus-4', {
+      showSuccessToast: false
+    })
   })
 })

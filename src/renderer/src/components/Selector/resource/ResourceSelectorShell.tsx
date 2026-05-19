@@ -19,7 +19,7 @@ import {
   ModelSelectorRow,
   ModelSelectorRowActionButton
 } from '../model/ModelSelectorRow'
-import { SelectorShell, type SelectorShellMountStrategy } from '../shell/SelectorShell'
+import { SelectorShell, type SelectorShellMountStrategy, type SelectorShellProps } from '../shell/SelectorShell'
 
 export type ResourceSelectorShellItem = {
   id: string
@@ -85,6 +85,9 @@ type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
 
   loading?: boolean
   width?: number | string
+  side?: SelectorShellProps['side']
+  align?: SelectorShellProps['align']
+  sideOffset?: SelectorShellProps['sideOffset']
   mountStrategy?: SelectorShellMountStrategy
 }
 
@@ -219,6 +222,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     labels,
     loading,
     width,
+    side,
+    align,
+    sideOffset,
     mountStrategy
   } = props
 
@@ -676,7 +682,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       open={open}
       onOpenChange={handleOpenChange}
       width={width ?? 320}
-      sideOffset={6}
+      side={side}
+      align={align}
+      sideOffset={sideOffset ?? 6}
       contentClassName="min-w-[280px]"
       mountStrategy={mountStrategy}
       search={{

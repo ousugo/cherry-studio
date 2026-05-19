@@ -8,7 +8,7 @@ import { Bot } from 'lucide-react'
 import { type ReactElement, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { SelectorShellMountStrategy } from '../shell/SelectorShell'
+import type { SelectorShellMountStrategy, SelectorShellProps } from '../shell/SelectorShell'
 import { ResourceCreateDialog, type ResourceCreateDialogValues } from './ResourceCreateDialog'
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
 
@@ -21,6 +21,9 @@ type SharedProps = {
   trigger: ReactElement
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  side?: SelectorShellProps['side']
+  align?: SelectorShellProps['align']
+  sideOffset?: SelectorShellProps['sideOffset']
   mountStrategy?: SelectorShellMountStrategy
 }
 
@@ -39,7 +42,7 @@ export type AgentSelectorSingleItemProps = SharedProps & {
 export type AgentSelectorProps = AgentSelectorSingleIdProps | AgentSelectorSingleItemProps
 
 export function AgentSelector(props: AgentSelectorProps) {
-  const { trigger, open, onOpenChange, mountStrategy } = props
+  const { trigger, open, onOpenChange, side, align, sideOffset, mountStrategy } = props
   const { t } = useTranslation()
   const tabs = useOptionalTabsContext()
   const modelFilter = useAgentModelFilter('claude-code')
@@ -145,6 +148,9 @@ export function AgentSelector(props: AgentSelectorProps) {
     trigger,
     open: selectorOpen,
     onOpenChange: handleSelectorOpenChange,
+    side,
+    align,
+    sideOffset,
     mountStrategy,
     onOpen: refetchPins,
     items,

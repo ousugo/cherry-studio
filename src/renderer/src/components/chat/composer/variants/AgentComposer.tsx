@@ -1,5 +1,7 @@
+import { Button } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
   ComposerToolMenu,
@@ -10,13 +12,17 @@ import {
   useComposerToolLauncherController,
   useComposerToolState
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
+import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import { AgentSelector, ModelSelector } from '@renderer/components/Selector'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useSession } from '@renderer/hooks/agents/useSession'
+import { useAgent, useUpdateAgent } from '@renderer/hooks/agents/useAgent'
+import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
+import { useSession, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useModelById } from '@renderer/hooks/useModel'
+import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { isSoulModeEnabled } from '@renderer/pages/agents/AgentSettings/shared'
+import { AgentLabel, isSoulModeEnabled } from '@renderer/pages/agents/AgentSettings/shared'
 import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
 import type { ToolContext } from '@renderer/pages/home/Inputbar/types'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -26,8 +32,10 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentEntity } from '@shared/data/types/agent'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { ChevronDown } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,6 +46,9 @@ import { agentComposerTokenId, agentFileToComposerToken, getAgentComposerTokenId
 const logger = loggerService.withContext('AgentComposer')
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 const AGENT_MANAGED_TOKEN_KINDS = ['file'] as const satisfies readonly ComposerDraftToken['kind'][]
+const COMPOSER_TOOLBAR_CLASS =
+  'flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
 
 const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentId}`
 
@@ -48,6 +59,8 @@ type Props = {
   sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
   stop: () => Promise<void>
   onNewSessionDraft?: () => void | Promise<void>
+  onAgentChange?: (agentId: string | null) => void | Promise<void>
+  agentChanging?: boolean
   isStreaming: boolean
 }
 
@@ -69,6 +82,8 @@ const AgentComposer = ({
   sendMessage,
   stop,
   onNewSessionDraft,
+  onAgentChange,
+  agentChanging,
   isStreaming
 }: Props) => {
   const { t } = useTranslation()
@@ -143,6 +158,8 @@ const AgentComposer = ({
         actionsRef={actionsRef}
         chatSendMessage={sendMessage}
         chatStop={stop}
+        onAgentChange={onAgentChange}
+        agentChanging={agentChanging}
         isStreaming={isStreaming}
       />
     </ComposerToolRuntimeProvider>
@@ -158,7 +175,87 @@ interface InnerProps {
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
   chatStop: Props['stop']
+  onAgentChange?: Props['onAgentChange']
+  agentChanging?: boolean
   isStreaming: boolean
+}
+
+interface AgentComposerToolbarControlsProps {
+  inputAdapter?: QuickPanelInputAdapter
+  agent?: AgentEntity
+  model?: Model
+  modelProviderName?: string
+  modelFilter?: (model: Model) => boolean
+  selectAgentLabel: string
+  selectModelLabel: string
+  agentChanging?: boolean
+  onAgentChange: (agentId: string | null) => void | Promise<void>
+  onModelSelect: (model: Model | undefined) => void
+}
+
+const AgentComposerToolbarControls = ({
+  inputAdapter,
+  agent,
+  model,
+  modelProviderName,
+  modelFilter,
+  selectAgentLabel,
+  selectModelLabel,
+  agentChanging,
+  onAgentChange,
+  onModelSelect
+}: AgentComposerToolbarControlsProps) => {
+  return (
+    <div className={COMPOSER_TOOLBAR_CLASS}>
+      <ComposerToolMenu inputAdapter={inputAdapter} />
+      <AgentSelector
+        value={agent?.id ?? null}
+        onChange={onAgentChange}
+        side="top"
+        align="start"
+        mountStrategy="lazy-keep"
+        trigger={
+          <Button variant="ghost" size="sm" className={COMPOSER_SELECTOR_BUTTON_CLASS} disabled={agentChanging}>
+            {agent ? (
+              <AgentLabel
+                agent={agent}
+                classNames={{ name: 'max-w-40 text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
+              />
+            ) : (
+              <span className="max-w-40 truncate text-muted-foreground">{selectAgentLabel}</span>
+            )}
+            <ChevronDown size={14} className="text-muted-foreground" />
+          </Button>
+        }
+      />
+      {agent ? (
+        <ModelSelector
+          multiple={false}
+          value={model}
+          onSelect={onModelSelect}
+          filter={modelFilter}
+          side="top"
+          align="start"
+          mountStrategy="lazy-keep"
+          trigger={
+            <Button variant="ghost" size="sm" className={COMPOSER_SELECTOR_BUTTON_CLASS}>
+              <ModelAvatar model={model} size={20} />
+              <span className="max-w-52 truncate">
+                {model ? model.name : selectModelLabel}
+                {modelProviderName ? ` | ${modelProviderName}` : ''}
+              </span>
+              <ChevronDown size={14} className="text-muted-foreground" />
+            </Button>
+          }
+        />
+      ) : (
+        <Button variant="ghost" size="sm" className={COMPOSER_SELECTOR_BUTTON_CLASS} disabled>
+          <span className="max-w-52 truncate text-muted-foreground">{selectModelLabel}</span>
+          <ChevronDown size={14} className="text-muted-foreground" />
+        </Button>
+      )}
+    </div>
+  )
 }
 
 const AgentComposerInner = ({
@@ -170,9 +267,13 @@ const AgentComposerInner = ({
   actionsRef,
   chatSendMessage,
   chatStop,
+  onAgentChange,
+  agentChanging,
   isStreaming
 }: InnerProps) => {
   const { agent: agentBase } = useAgent(agentId)
+  const { updateModel } = useUpdateAgent()
+  const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getInputbarConfig(scope)
   const { files, isExpanded } = useComposerToolState()
@@ -186,6 +287,8 @@ const AgentComposerInner = ({
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
   const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
+  const modelFilter = useAgentModelFilter(agentBase?.type)
+  const providerName = useProviderDisplayName(model?.providerId)
   const draftCacheKey = getAgentDraftCacheKey(agentId)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(draftCacheKey) ?? '')
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
@@ -263,6 +366,26 @@ const AgentComposerInner = ({
     await chatStop()
   }, [chatStop, sessionTopicId])
 
+  const handleAgentChange = useCallback(
+    async (nextAgentId: string | null) => {
+      if (!nextAgentId || nextAgentId === agentId) return
+      if (onAgentChange) {
+        await onAgentChange(nextAgentId)
+        return
+      }
+      await updateSession({ id: sessionId, agentId: nextAgentId }, { showSuccessToast: false })
+    },
+    [agentId, onAgentChange, sessionId, updateSession]
+  )
+
+  const handleModelSelect = useCallback(
+    (nextModel: Model | undefined) => {
+      if (!agentBase || !nextModel) return
+      void updateModel(agentBase.id, nextModel.id, { showSuccessToast: false })
+    },
+    [agentBase, updateModel]
+  )
+
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
     return { ...sessionData, reasoningEffort, onReasoningEffortChange: setReasoningEffort }
@@ -327,7 +450,20 @@ const AgentComposerInner = ({
         getToolLaunchers={() => getLaunchers('root-panel')}
         emitToolTrigger={triggers.emit}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        renderLeftControls={(inputAdapter) => <ComposerToolMenu inputAdapter={inputAdapter} />}
+        renderLeftControls={(inputAdapter) => (
+          <AgentComposerToolbarControls
+            inputAdapter={inputAdapter}
+            agent={agentBase}
+            model={model}
+            modelProviderName={providerName}
+            modelFilter={modelFilter}
+            selectAgentLabel={t('chat.alerts.select_agent')}
+            selectModelLabel={t('button.select_model')}
+            agentChanging={agentChanging}
+            onAgentChange={handleAgentChange}
+            onModelSelect={handleModelSelect}
+          />
+        )}
       />
     </>
   )

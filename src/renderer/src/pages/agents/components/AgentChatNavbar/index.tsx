@@ -13,22 +13,10 @@ interface Props {
   onOpenSettings: () => void
   artifactPaneOpen: boolean
   onToggleArtifactPane: () => void
-  onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
-  creatingSession?: boolean
-  draftMode?: boolean
   className?: string
 }
 
-const AgentChatNavbar = ({
-  activeAgent,
-  onOpenSettings,
-  artifactPaneOpen,
-  onToggleArtifactPane,
-  onDraftAgentChange,
-  creatingSession,
-  draftMode,
-  className
-}: Props) => {
+const AgentChatNavbar = ({ activeAgent, onOpenSettings, artifactPaneOpen, onToggleArtifactPane, className }: Props) => {
   const [narrowMode] = usePreference('chat.narrow_mode')
 
   useShortcut('general.search', () => {
@@ -44,9 +32,6 @@ const AgentChatNavbar = ({
             onOpenSettings={onOpenSettings}
             artifactPaneOpen={artifactPaneOpen}
             onToggleArtifactPane={onToggleArtifactPane}
-            onDraftAgentChange={onDraftAgentChange}
-            creatingSession={creatingSession}
-            draftMode={draftMode}
           />
         </div>
       </NarrowLayout>

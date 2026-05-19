@@ -1,20 +1,10 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import { AgentSelector, ModelSelector } from '@renderer/components/Selector'
-import { useUpdateAgent } from '@renderer/hooks/agents/useAgent'
-import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
-import { useActiveSession, useUpdateSession } from '@renderer/hooks/agents/useSession'
-import { useModelById } from '@renderer/hooks/useModel'
-import { useProviderDisplayName } from '@renderer/hooks/useProvider'
-import { AgentLabel } from '@renderer/pages/agents/AgentSettings/shared'
+import { useActiveSession } from '@renderer/hooks/agents/useSession'
 import type { AgentEntity } from '@shared/data/types/agent'
-import type { Model as SharedModel, UniqueModelId } from '@shared/data/types/model'
-import { ChevronDown, Menu, PanelLeftClose, PanelRightClose } from 'lucide-react'
+import { Menu, PanelLeftClose, PanelRightClose } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentSidePanelDrawer from '../AgentSidePanelDrawer'
@@ -26,54 +16,13 @@ type AgentContentProps = {
   onOpenSettings: () => void
   artifactPaneOpen: boolean
   onToggleArtifactPane: () => void
-  onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
-  creatingSession?: boolean
-  draftMode?: boolean
 }
 
-const AgentContent = ({
-  activeAgent,
-  onOpenSettings,
-  artifactPaneOpen,
-  onToggleArtifactPane,
-  onDraftAgentChange,
-  creatingSession,
-  draftMode
-}: AgentContentProps) => {
+const AgentContent = ({ activeAgent, onOpenSettings, artifactPaneOpen, onToggleArtifactPane }: AgentContentProps) => {
   const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { session: activeSession } = useActiveSession()
-  const { updateModel } = useUpdateAgent()
-  const { updateSession } = useUpdateSession()
-  const modelFilter = useAgentModelFilter(activeAgent?.type)
-
-  const { model: currentSharedModel } = useModelById((activeAgent?.model ?? '') as UniqueModelId)
-  const providerName = useProviderDisplayName(currentSharedModel?.providerId)
-
-  const handleAgentChange = useCallback(
-    async (nextAgentId: string | null) => {
-      if (!nextAgentId) return
-
-      if (draftMode) {
-        if (nextAgentId === activeAgent?.id) return
-        await onDraftAgentChange?.(nextAgentId)
-        return
-      }
-
-      if (!activeSession || nextAgentId === activeSession.agentId) return
-      await updateSession({ id: activeSession.id, agentId: nextAgentId }, { showSuccessToast: false })
-    },
-    [activeAgent, activeSession, draftMode, onDraftAgentChange, updateSession]
-  )
-
-  const handleModelSelect = useCallback(
-    (model: SharedModel | undefined) => {
-      if (!activeAgent || !model) return
-      void updateModel(activeAgent.id, model.id, { showSuccessToast: false })
-    },
-    [activeAgent, updateModel]
-  )
 
   return (
     <div className="flex w-full justify-between pr-2">
@@ -105,59 +54,6 @@ const AgentContent = ({
             </motion.div>
           )}
         </AnimatePresence>
-        <HorizontalScrollContainer className="ml-2 min-w-0 flex-initial shrink">
-          <div className="flex flex-nowrap items-center gap-2">
-            <AgentSelector
-              value={activeAgent?.id ?? null}
-              onChange={handleAgentChange}
-              mountStrategy="lazy-keep"
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1.5 rounded-full px-2 text-xs"
-                  disabled={creatingSession}>
-                  {activeAgent ? (
-                    <AgentLabel
-                      agent={activeAgent}
-                      classNames={{ name: 'max-w-40 text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
-                    />
-                  ) : (
-                    <span className="max-w-40 truncate text-muted-foreground">{t('chat.alerts.select_agent')}</span>
-                  )}
-                  <ChevronDown size={14} className="text-muted-foreground" />
-                </Button>
-              }
-            />
-
-            {activeAgent ? (
-              <>
-                <ModelSelector
-                  multiple={false}
-                  value={currentSharedModel}
-                  onSelect={handleModelSelect}
-                  filter={modelFilter}
-                  mountStrategy="lazy-keep"
-                  trigger={
-                    <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs">
-                      <ModelAvatar model={currentSharedModel} size={20} />
-                      <span className="max-w-60 truncate">
-                        {currentSharedModel ? currentSharedModel.name : t('button.select_model')}
-                        {providerName ? ` | ${providerName}` : ''}
-                      </span>
-                      <ChevronDown size={14} className="text-muted-foreground" />
-                    </Button>
-                  }
-                />
-              </>
-            ) : (
-              <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs" disabled>
-                <span className="max-w-60 truncate text-muted-foreground">{t('button.select_model')}</span>
-                <ChevronDown size={14} className="text-muted-foreground" />
-              </Button>
-            )}
-          </div>
-        </HorizontalScrollContainer>
       </div>
       <div className="flex items-center">
         {activeAgent && activeSession && activeSession.accessiblePaths?.[0] && (

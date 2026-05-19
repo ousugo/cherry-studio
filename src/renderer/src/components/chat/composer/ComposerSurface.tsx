@@ -582,7 +582,7 @@ export default function ComposerSurface({
           </div>
 
           <div className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-[5px]">
-            <div className="flex min-w-0 flex-1 items-center">{renderLeftControls?.(inputAdapter)}</div>
+            <div className="flex min-w-0 flex-1 items-center overflow-hidden">{renderLeftControls?.(inputAdapter)}</div>
             <div className="flex flex-row items-center gap-1.5">
               <TranslateButton text={text} disabled={sendDisabled} onTranslated={onTranslated} />
               {isLoading ? (

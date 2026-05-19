@@ -1,7 +1,6 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
-import type { AgentPersistedMessage } from '@shared/data/types/agentMessage'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -75,7 +74,7 @@ describe('transformAgentBlocksToParts', () => {
       .select()
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.sessionId, 's-blocks'))
-    const content = row.content as AgentPersistedMessage
+    const content = row.content
     const parts = content.message.data?.parts
     expect(content.blocks).toEqual([])
     expect('blocks' in content.message).toBe(false)
