@@ -199,6 +199,44 @@ describe('WebContentsListener coalescing', () => {
     expect(wc.send).not.toHaveBeenCalled()
   })
 
+  it('flushes synchronously when the coalesce timer is starved (age guard)', () => {
+    // Repro of "a few chunks then nothing then everything at once": when
+    // pipeStreamLoop drains a buffered provider via a microtask loop, the
+    // 16ms macrotimer never runs. The age guard must flush regardless.
+    const wc = fakeWc()
+    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+
+    let clock = 1000
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => clock)
+
+    l.onChunk(chunk('text-delta', { id: 't1', delta: 'a' })) // arms pending at t=1000
+    clock += 5
+    l.onChunk(chunk('text-delta', { id: 't1', delta: 'b' })) // age 5ms < 16 → still buffered
+    expect(wc.send).not.toHaveBeenCalled()
+
+    clock += 20 // total age now 25ms ≥ 16, WITHOUT advancing the macrotimer
+    l.onChunk(chunk('text-delta', { id: 't1', delta: 'c' }))
+
+    // Flushed synchronously — no fake-timer advance needed.
+    expect(wc.send).toHaveBeenCalledTimes(1)
+    expect(wc.send.mock.calls[0][1].chunk).toEqual({ type: 'text-delta', id: 't1', delta: 'abc' })
+
+    nowSpy.mockRestore()
+  })
+
+  it('flushes synchronously when the pending delta exceeds the size cap', () => {
+    const wc = fakeWc()
+    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
+
+    // Same id, all within the time window — only the size cap can force it.
+    const big = 'x'.repeat(1500)
+    l.onChunk(chunk('text-delta', { id: 't1', delta: big }))
+    l.onChunk(chunk('text-delta', { id: 't1', delta: big })) // total 3000 ≥ 2048
+
+    expect(wc.send).toHaveBeenCalledTimes(1)
+    expect(wc.send.mock.calls[0][1].chunk.delta.length).toBe(3000)
+  })
+
   it('coalesces consecutive tool-input-delta chunks with same toolCallId', () => {
     const wc = fakeWc()
     const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')

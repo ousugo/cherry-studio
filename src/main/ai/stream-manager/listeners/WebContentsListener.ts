@@ -13,6 +13,8 @@ import type {
 } from '../types'
 
 const COALESCE_WINDOW_MS = 16
+const MAX_COALESCE_AGE_MS = 16
+const MAX_COALESCE_CHARS = 2048
 
 interface PendingDelta {
   type: 'text-delta' | 'reasoning-delta' | 'tool-input-delta'
@@ -40,6 +42,7 @@ export class WebContentsListener implements StreamListener {
   readonly id: string
 
   private pending: PendingDelta | null = null
+  private pendingStartedAt = 0
   private flushTimer: NodeJS.Timeout | null = null
 
   constructor(
@@ -71,10 +74,17 @@ export class WebContentsListener implements StreamListener {
         this.pending.sourceModelId === next.sourceModelId
       ) {
         this.pending.text += next.text
+        if (
+          performance.now() - this.pendingStartedAt >= MAX_COALESCE_AGE_MS ||
+          this.pending.text.length >= MAX_COALESCE_CHARS
+        ) {
+          this.flushPending()
+        }
         return
       }
       this.flushPending()
       this.pending = next
+      this.pendingStartedAt = performance.now()
       this.flushTimer = setTimeout(() => this.flushPending(), COALESCE_WINDOW_MS)
       return
     }
