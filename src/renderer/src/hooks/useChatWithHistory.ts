@@ -6,6 +6,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useTopicDbRefreshOnTerminal } from './useTopicDbRefreshOnTerminal'
 import { useTopicStreamStatus } from './useTopicStreamStatus'
 
 const logger = loggerService.withContext('useChatWithHistory')
@@ -91,6 +92,16 @@ export function useChatWithHistory(
     resumeActiveStream('mount')
   }, [resumeActiveStream])
 
+  // Single invalidation signal — extracted into a dedicated hook so the
+  // "DB re-read on any terminal transition" architecture is visible at the
+  // import. Classifier-driven, so `awaiting-approval` participates without
+  // an explicit `=== 'awaiting-approval'` gate here (or anywhere else).
+  useTopicDbRefreshOnTerminal(topicId, refresh)
+
+  // Resume-on-pending — distinct purpose from the invalidation signal: it
+  // re-attaches a stream that started while this window was unmounted /
+  // reloading. Stays here (it's tightly coupled to `resumeActiveStream` and
+  // chat-specific) rather than mingling with the generic invalidation gate.
   const prevTopicStatusRef = useRef<typeof topicStreamStatus>(undefined)
   useEffect(() => {
     const prev = prevTopicStatusRef.current
@@ -98,20 +109,7 @@ export function useChatWithHistory(
     if (topicStreamStatus === 'pending' && prev !== 'pending') {
       resumeActiveStream('started-event')
     }
-    // Terminal refresh. `topic.stream.statuses` flips to a terminal status
-    // only in `ChatStreamLifecycle.onTerminal`, which runs AFTER
-    // `broadcastExecutionDone` has awaited every listener (incl. the
-    // persistence listener). So a terminal transition is the earliest safe
-    // point at which the DB holds the final assistant rows — pull them into
-    // `uiMessages` so the overlay can hand off to DB truth (Phase 2).
-    const wasLive = prev === 'pending' || prev === 'streaming'
-    const isTerminal = topicStreamStatus === 'done' || topicStreamStatus === 'aborted' || topicStreamStatus === 'error'
-    if (wasLive && isTerminal) {
-      void refreshRef.current().catch((err) => {
-        logger.warn('Failed to refresh messages after terminal stream status', { topicId, err })
-      })
-    }
-  }, [resumeActiveStream, topicStreamStatus, topicId])
+  }, [resumeActiveStream, topicStreamStatus])
 
   useEffect(() => {
     const errorUnsub = window.api.ai.onStreamError((data) => {

@@ -16,7 +16,6 @@ import {
   type TranslationMessageBlock,
   type VideoMessageBlock
 } from '@renderer/types/newMessage'
-import { isToolUIPart } from 'ai'
 
 /**
  * Checks if a message block is a Main Text block.
@@ -170,13 +169,3 @@ export function isMessageProcessing(message: Message): boolean {
   )
 }
 
-/**
- * The assistant turn is paused on a tool-approval-request — DB row's status
- * flipped to `paused` AND at least one part is a `ToolUIPart` waiting on
- * the user. Distinct from "user aborted with partial output preserved",
- * which also writes status='paused' but has no approval-requested part.
- */
-export function isMessageAwaitingApproval(message: Message): boolean {
-  if (message.status !== AssistantMessageStatus.PAUSED) return false
-  return message.parts?.some((p) => isToolUIPart(p) && p.state === 'approval-requested') ?? false
-}

@@ -12,7 +12,7 @@
  */
 
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
-import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
+import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
 import { useCallback, useMemo } from 'react'
 
 interface TopicStreamStatusView {
@@ -34,8 +34,9 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   const status = entry?.status
   const activeExecutions = useMemo(() => entry?.activeExecutions ?? [], [entry])
 
-  const isPending = status === 'pending' || status === 'streaming'
-  const isFulfilled = status === 'done' && !seen
+  const flags = classifyTurn(status)
+  const isPending = flags.isStreamLive
+  const isFulfilled = flags.isFulfilledCandidate && !seen
 
   const markSeen = useCallback(() => {
     if (!seen) setSeen(true)

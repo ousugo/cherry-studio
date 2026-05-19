@@ -13,10 +13,11 @@
 
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Message } from '@renderer/types/newMessage'
-import { isMessageAwaitingApproval, isMessageProcessing } from '@renderer/utils/messageUtils/is'
+import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { convertReferencesToCitations, convertReferencesToLegacyCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData } from '@shared/data/types/uiParts'
@@ -397,6 +398,7 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
   const messageParts = useMessageParts(message.id)
 
   const { isPending: isTopicStreaming } = useTopicStreamStatus(message.topicId)
+  const isAwaitingApproval = useTopicAwaitingApproval(message.topicId)
   const isStreaming = isTopicStreaming && message.status === 'pending'
   // Translation runs out-of-band of the topic stream — `isStreaming` above
   // stays false for translation. The overlay map (written by
@@ -410,12 +412,11 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
     return groupSimilarParts(messageParts)
   }, [messageParts])
 
-  // Beat loader visible while the assistant turn is still active —
-  // either streaming (status pending/processing/searching) or paused
-  // on a tool-approval-request waiting for the user. The latter is
-  // semantically "expecting input", which the loader's pulse conveys
-  // better than "frozen with no UI cue".
-  const isProcessing = isMessageProcessing(message) || isMessageAwaitingApproval(message)
+  // Beat loader visible while the assistant turn is still active — either
+  // streaming (the message's own synchronous DB status) or paused on a
+  // tool-approval-request (topic-level classifier; not re-derived from a
+  // message-parts scan, which is the retired `isMessageAwaitingApproval`).
+  const isProcessing = isMessageProcessing(message) || isAwaitingApproval
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder

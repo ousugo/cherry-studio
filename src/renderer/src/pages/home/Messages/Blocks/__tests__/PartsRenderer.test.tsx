@@ -15,8 +15,7 @@ vi.mock('@logger', () => ({
 }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false, vi.fn()]) }))
 vi.mock('@renderer/utils/messageUtils/is', () => ({
-  isMessageProcessing: () => false,
-  isMessageAwaitingApproval: () => false
+  isMessageProcessing: () => false
 }))
 vi.mock('@renderer/types/file', () => ({
   FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }

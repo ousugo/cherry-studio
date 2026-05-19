@@ -79,52 +79,24 @@ export function useV2RenderingPipeline(
     })
   }, [uiMessages, assistant?.id, topic.assistantId, topic.id, lastUserIdInBase, fallbackSnapshot])
 
-  const lastGoodOverlayRef = useRef<{ topicId: string; map: Record<string, CherryMessagePart[]> }>({
-    topicId: topic.id,
-    map: {}
-  })
-
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
-    // A DB row is the final truth for its id once it is terminal AND has
-    // content — this is the gate that lets the overlay hand off to DB
-    // without a flash. `metadata.status` is projected from the persisted
-    // row by `toUIMessage`.
-    const finalIds = new Set<string>()
     for (const m of uiMessages) {
       next[m.id] = (m.parts ?? []) as CherryMessagePart[]
-      const status = m.metadata?.status
-      if ((status === 'success' || status === 'paused' || status === 'error') && (m.parts?.length ?? 0) > 0) {
-        finalIds.add(m.id)
-      }
     }
 
-    if (lastGoodOverlayRef.current.topicId !== topic.id) {
-      lastGoodOverlayRef.current = { topicId: topic.id, map: {} }
-    }
-    const lastGood = lastGoodOverlayRef.current.map
-
-    // Streaming overlay, keyed by anchorMessageId. The `id in next` guard
-    // keeps the rendered list strictly the uiMessages projection (overlay
-    // only ever replaces an existing message's parts, never appends).
-    //
-    // Monotonic hand-off: while the DB row is NOT yet final, the live
-    // (or last non-empty) streamed parts win; once the DB row is final the
-    // DB parts win and the retained overlay is dropped. This makes content
-    // never regress — covering the window between `disposeOverlay` and the
-    // terminal-status SWR refresh, and remount mid-stream.
+    // Pure selector: live overlay (keyed by anchorMessageId) wins while it
+    // has content; otherwise DB parts win. No `lastGood` retention, no
+    // `finalIds` terminal-status gate — those existed to bridge the flash
+    // between `disposeOverlay` and the SWR refresh. The dispose is now
+    // ordered AFTER refresh in `V2ChatContent.handleExecutionFinish`
+    // (`refresh().finally(() => disposeOverlay(...))`), so the moment the
+    // overlay disappears the DB already carries the final parts → no gap to
+    // bridge. The `id in next` guard keeps the rendered list strictly the
+    // uiMessages projection (overlay only ever replaces, never appends).
     for (const messageId of Object.keys(next)) {
-      if (finalIds.has(messageId)) {
-        delete lastGood[messageId]
-        continue
-      }
       const live = overlay[messageId]
-      if (live?.length) {
-        lastGood[messageId] = live
-        next[messageId] = live
-      } else if (lastGood[messageId]?.length) {
-        next[messageId] = lastGood[messageId]
-      }
+      if (live?.length) next[messageId] = live
     }
 
     for (const [messageId, entry] of Object.entries(translationOverlay)) {
@@ -141,8 +113,9 @@ export function useV2RenderingPipeline(
       }
       next[messageId] = [...baseParts, translationPart]
     }
+
     return next
-  }, [uiMessages, overlay, translationOverlay, topic.id])
+  }, [uiMessages, overlay, translationOverlay])
 
   return {
     projectedMessages,
