@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { workspaceTable } from '@data/db/schemas/workspace'
 import { sessionService } from '@data/services/SessionService'
 import { workspaceService } from '@data/services/WorkspaceService'
@@ -83,6 +84,20 @@ describe('SessionService', () => {
     const rows = await dbh.db.select().from(workspaceTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe(session.workspaceId)
+  })
+
+  it('returns migrated sessions without a workspace binding', async () => {
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-without-workspace',
+      agentId: 'agent-session-test',
+      name: 'Migrated',
+      orderKey: 'a0'
+    })
+
+    const session = await sessionService.getById('session-without-workspace')
+
+    expect(session.workspaceId).toBeNull()
+    expect(session.workspace).toBeNull()
   })
 
   it('does not leave an orphan default workspace row when session creation fails', async () => {

@@ -1,13 +1,14 @@
 /**
  * Session domain API Schema definitions.
  *
- * A `Session` is one execution of an `Agent` bound to a normalized workspace
- * row. All cognitive config
+ * A `Session` is one execution of an `Agent` optionally bound to a normalized
+ * workspace row. All cognitive config
  * (model, instructions, mcps, allowedTools, configuration, ...) lives on the
  * parent agent and is fetched separately via `useAgent(session.agentId)`
  * (renderer) or `agentService.getAgent(...)` (main); workspace lives on the
  * session itself and is **insert-only** — `UpdateSessionDto` deliberately does
  * not include it, so a running session can't be re-pointed at a new directory.
+ * Legacy schema migrations may leave it null; newly created sessions bind one.
  */
 
 import * as z from 'zod'
@@ -43,8 +44,8 @@ export const AgentSessionEntitySchema = z.strictObject({
   description: z.string().optional(),
   // Workspace bound at session create time. Read-only post-creation —
   // `UpdateSessionSchema` (below) intentionally doesn't pick this.
-  workspaceId: z.string(),
-  workspace: WorkspaceEntitySchema,
+  workspaceId: z.string().nullable(),
+  workspace: WorkspaceEntitySchema.nullable(),
   orderKey: z.string(),
   createdAt: z.string(),
   updatedAt: z.string()

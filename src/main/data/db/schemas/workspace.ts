@@ -3,7 +3,7 @@ import { sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 
 export const workspaceTable = sqliteTable(
-  'workspace',
+  'agent_workspace',
   {
     id: uuidPrimaryKey(),
     name: text().notNull(),
@@ -11,7 +11,7 @@ export const workspaceTable = sqliteTable(
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },
-  (t) => [uniqueIndex('workspace_path_unique_idx').on(t.path), orderKeyIndex('workspace')(t)]
+  (t) => [uniqueIndex('agent_workspace_path_unique_idx').on(t.path), orderKeyIndex('agent_workspace')(t)]
 )
 
 export type WorkspaceRow = typeof workspaceTable.$inferSelect

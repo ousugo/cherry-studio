@@ -237,14 +237,22 @@ describe('AgentsMigrator', () => {
 
     expect(result.processedCount).toBe(47)
     const executed = getExecutedSql(run)
-    const workspaceInserts = executed.filter((stmt) => stmt?.startsWith('INSERT INTO workspace '))
+    const workspaceInserts = executed.filter((stmt) => stmt?.startsWith('INSERT INTO agent_workspace '))
     const mapInserts = executed.filter((stmt) => stmt?.startsWith('INSERT INTO session_workspace_map '))
+    const firstWorkspaceInsertIndex = executed.findIndex((stmt) => stmt?.startsWith('INSERT INTO agent_workspace '))
+    const firstMapInsertIndex = executed.findIndex((stmt) => stmt?.startsWith('INSERT INTO session_workspace_map '))
+    const agentImportIndex = executed.findIndex((stmt) => stmt?.startsWith('INSERT INTO agent '))
+    const sessionImportIndex = executed.findIndex((stmt) => stmt?.startsWith('INSERT INTO agent_session '))
 
     expect(workspaceInserts).toHaveLength(2)
     expect(workspaceInserts.join('\n')).toContain('/tmp/work-a')
     expect(workspaceInserts.join('\n')).toContain('/tmp/agent-b')
     expect(workspaceInserts.join('\n')).not.toContain('/tmp/ignored-extra')
     expect(mapInserts).toHaveLength(3)
+    expect(firstWorkspaceInsertIndex).toBeGreaterThan(-1)
+    expect(firstMapInsertIndex).toBeGreaterThan(firstWorkspaceInsertIndex)
+    expect(agentImportIndex).toBeGreaterThan(firstMapInsertIndex)
+    expect(sessionImportIndex).toBeGreaterThan(agentImportIndex)
   })
 
   it('validate fails when imported table counts are lower than the expected filtered counts', async () => {

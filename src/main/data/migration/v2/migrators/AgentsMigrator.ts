@@ -226,7 +226,9 @@ export class AgentsMigrator extends BaseMigrator {
 
     try {
       const expectedWorkspaces = await collectLegacySessionWorkspaces(ctx, this.sourceSchemaInfo)
-      const workspaceRows = await ctx.db.all<{ count: number }>(sql.raw('SELECT COUNT(*) AS count FROM workspace'))
+      const workspaceRows = await ctx.db.all<{ count: number }>(
+        sql.raw('SELECT COUNT(*) AS count FROM agent_workspace')
+      )
       const workspaceTargetCount = Number(workspaceRows[0]?.count ?? 0)
       const workspaceExpectedCount = expectedWorkspaces.workspaces.length
       this.derivedWorkspaceCount = workspaceExpectedCount
@@ -253,8 +255,8 @@ export class AgentsMigrator extends BaseMigrator {
         sql.raw(
           `SELECT COUNT(*) AS count
            FROM agent_session
-           LEFT JOIN workspace ON workspace.id = agent_session.workspace_id
-           WHERE agent_session.workspace_id IS NULL OR workspace.id IS NULL`
+           LEFT JOIN agent_workspace ON agent_workspace.id = agent_session.workspace_id
+           WHERE agent_session.workspace_id IS NULL OR agent_workspace.id IS NULL`
         )
       )
       const invalidSessionWorkspaceCount = Number(invalidSessionWorkspaceRows[0]?.count ?? 0)
@@ -269,10 +271,10 @@ export class AgentsMigrator extends BaseMigrator {
 
       const targetWorkspacePathCounts = await ctx.db.all<{ path: string; count: number }>(
         sql.raw(
-          `SELECT workspace.path AS path, COUNT(agent_session.id) AS count
+          `SELECT agent_workspace.path AS path, COUNT(agent_session.id) AS count
            FROM agent_session
-           INNER JOIN workspace ON workspace.id = agent_session.workspace_id
-           GROUP BY workspace.path`
+           INNER JOIN agent_workspace ON agent_workspace.id = agent_session.workspace_id
+           GROUP BY agent_workspace.path`
         )
       )
       const expectedWorkspacePathCounts = countExpectedSessionWorkspacePaths(expectedWorkspaces)
@@ -595,7 +597,7 @@ async function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsS
   const derived = await collectLegacySessionWorkspaces(ctx, schemaInfo)
   for (const workspace of derived.workspaces) {
     await db.run(
-      sql`INSERT INTO workspace (id, name, path, order_key, created_at, updated_at)
+      sql`INSERT INTO agent_workspace (id, name, path, order_key, created_at, updated_at)
           VALUES (${workspace.id}, ${workspace.name}, ${workspace.path}, ${workspace.orderKey}, ${workspace.createdAt}, ${workspace.updatedAt})`
     )
   }

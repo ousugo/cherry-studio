@@ -362,6 +362,9 @@ describe('AgentsDbMappings', () => {
     expect(agentInsert).toContain("'' AS order_key")
 
     const sessionInsert = find('agent_session')
+    expect(sessionInsert).toContain(
+      'INSERT INTO agent_session (id, agent_id, name, description, workspace_id, order_key, created_at, updated_at)'
+    )
     expect(sessionInsert).toContain("COALESCE(description, '') AS description")
     expect(sessionInsert).toContain(
       '(SELECT workspace_id FROM session_workspace_map WHERE session_id = sessions.id) AS workspace_id'

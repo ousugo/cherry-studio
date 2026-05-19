@@ -30,7 +30,7 @@ type JoinedSessionRow = {
 }
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
-  if (!row.workspace) {
+  if (row.session.workspaceId && !row.workspace) {
     throw DataApiErrorFactory.notFound('Workspace', row.session.workspaceId)
   }
 
@@ -40,7 +40,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     name: row.session.name,
     description: row.session.description,
     workspaceId: row.session.workspaceId,
-    workspace: rowToWorkspace(row.workspace),
+    workspace: row.workspace ? rowToWorkspace(row.workspace) : null,
     orderKey: row.session.orderKey,
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)

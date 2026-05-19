@@ -326,7 +326,7 @@ export class MigrationEngine {
       { table: agentTaskTable, name: 'agent_task' },
       { table: agentSkillTable, name: 'agent_skill' },
       { table: agentSessionTable, name: 'agent_session' },
-      { table: workspaceTable, name: 'workspace' },
+      { table: workspaceTable, name: 'agent_workspace' },
       { table: agentGlobalSkillTable, name: 'agent_global_skill' },
       { table: agentTable, name: 'agent' }
       // TODO: Add fileTable when created

@@ -1,7 +1,7 @@
 import type { AssistantSettings } from '@shared/data/types/assistant'
 import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateDeleteTimestamps, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { userModelTable } from './userModel'
 
 /**
@@ -27,7 +27,7 @@ export const assistantTable = sqliteTable(
     // JSON blob: inference params + context source toggles
     // Tunable product value: AssistantService.create() supplies DEFAULT_ASSISTANT_SETTINGS
     settings: text({ mode: 'json' }).$type<AssistantSettings>().notNull(),
-    ...orderKeyColumns,
+    orderKey: text('order_key').notNull().default('a0'),
     ...createUpdateDeleteTimestamps
   },
   (t) => [index('assistant_created_at_idx').on(t.createdAt), orderKeyIndex('assistant')(t)]
