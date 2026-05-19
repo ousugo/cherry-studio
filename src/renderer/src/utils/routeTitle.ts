@@ -9,7 +9,7 @@ const BASE_URL = 'https://www.cherry-ai.com/'
 const routeTitleKeys: Record<string, string> = {
   '/app/chat': 'common.chat',
   '/app/launchpad': 'title.launchpad',
-  '/app/agents': 'common.agent_one',
+  '/app/agents': 'agent.sidebar_title',
   '/app/paintings': 'title.paintings',
   '/app/translate': 'title.translate',
   '/app/mini-app': 'title.apps',
