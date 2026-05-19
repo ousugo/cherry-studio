@@ -149,6 +149,7 @@ vi.mock('../Chat', () => ({
   }) => (
     <section>
       <output data-testid="active-topic">{activeTopic.id}</output>
+      <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
       {onNewTopic && (
         <button type="button" onClick={() => onNewTopic()}>
@@ -255,6 +256,7 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-1')
 
     fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
 

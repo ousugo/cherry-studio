@@ -589,7 +589,7 @@ export default function ComposerSurface({
           id="inputbar"
           className={cn(
             'inputbar-container relative rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) pt-2 transition-all duration-200 ease-in-out',
-            belowControls ? 'mb-2' : 'in-[[navbar-position=top]]:mb-3.5 mb-6',
+            belowControls ? 'mb-3' : 'in-[[navbar-position=top]]:mb-3.5 mb-6',
             isDragging &&
               "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[14px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
             isExpanded && 'expanded'

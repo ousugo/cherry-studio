@@ -15,7 +15,7 @@ const Tools = ({ onOpenSettings }: ToolsProps) => {
   const { t } = useTranslation()
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-0.5">
       <SettingsButton onOpenSettings={onOpenSettings} />
       <NarrowLayoutToggleButton />
       <Tooltip content={t('chat.assistant.search.placeholder')} delay={800}>

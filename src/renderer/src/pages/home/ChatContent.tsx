@@ -39,7 +39,6 @@ export interface ChatContentFrameSlots {
 
 interface Props {
   topic: Topic
-  setActiveTopic: (topic: Topic) => void
   mainHeight: string
   renderFrame?: (slots: ChatContentFrameSlots) => ReactNode
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
@@ -76,7 +75,6 @@ interface Props {
  */
 const ChatContent: FC<Props> = ({
   topic,
-  setActiveTopic,
   mainHeight,
   renderFrame,
   onOpenCitationsPanel,
@@ -117,7 +115,6 @@ const ChatContent: FC<Props> = ({
   return (
     <ChatContentInner
       topic={topic}
-      setActiveTopic={setActiveTopic}
       mainHeight={mainHeight}
       renderFrame={renderFrame}
       onOpenCitationsPanel={onOpenCitationsPanel}
@@ -159,7 +156,6 @@ interface InnerProps extends Props {
 
 const ChatContentInner: FC<InnerProps> = ({
   topic,
-  setActiveTopic,
   mainHeight,
   renderFrame,
   onOpenCitationsPanel,
@@ -373,18 +369,12 @@ const ChatContentInner: FC<InnerProps> = ({
                     shouldRenderHomeComposer ? (
                       <ChatHomeComposer
                         topic={topic}
-                        setActiveTopic={setActiveTopic}
                         onSend={handleSend}
                         onTemporaryAssistantChange={onTemporaryAssistantChange}
                         onNewTopic={onNewTopic}
                       />
                     ) : (
-                      <ChatComposer
-                        topic={topic}
-                        setActiveTopic={setActiveTopic}
-                        onSend={handleSend}
-                        onNewTopic={onNewTopic}
-                      />
+                      <ChatComposer topic={topic} onSend={handleSend} onNewTopic={onNewTopic} />
                     )
                   }
                 />

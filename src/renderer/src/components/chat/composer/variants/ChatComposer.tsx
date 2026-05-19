@@ -71,7 +71,6 @@ const getValidatedCachedModels = (assistantId: string | undefined): Model[] => {
 }
 
 interface ChatComposerProps {
-  setActiveTopic: (topic: Topic) => void
   topic: Topic
   onSend: (
     text: string,
@@ -467,7 +466,7 @@ const ChatComposerInner = ({
   useShortcut(
     'topic.new',
     () => {
-      addNewTopic()
+      void addNewTopic()
     },
     { preventDefault: true, enableOnFormTags: true }
   )

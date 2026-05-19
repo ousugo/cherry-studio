@@ -202,7 +202,7 @@ describe('ChatContent', () => {
       activeExecutions: []
     })
 
-    render(<ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<ChatContent topic={topic} mainHeight="100px" />)
 
     await act(async () => {
       await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
@@ -223,7 +223,7 @@ describe('ChatContent', () => {
   })
 
   it('disables persistent history loading for freshly leased temporary topics', () => {
-    render(<ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" onPersistTemporaryTopic={vi.fn()} />)
+    render(<ChatContent topic={topic} mainHeight="100px" onPersistTemporaryTopic={vi.fn()} />)
 
     expect(mockUseTopicMessages).toHaveBeenCalledWith('topic-1', { enabled: false })
   })
@@ -303,7 +303,7 @@ describe('ChatContent', () => {
       activeExecutions: [{ executionId: 'pending-placeholder', anchorMessageId: 'pending-placeholder' }] as never
     })
 
-    render(<ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<ChatContent topic={topic} mainHeight="100px" />)
 
     // List reflects uiMessages exactly — no extra `live-*` entry appended.
     await waitFor(() => {
@@ -338,7 +338,7 @@ describe('ChatContent', () => {
       activeExecutions: [{ executionId: 'gemini-new-pending', anchorMessageId: 'gemini-new-pending' }] as never
     })
 
-    render(<ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<ChatContent topic={topic} mainHeight="100px" />)
 
     await waitFor(() => {
       expect(screen.getByTestId('messages')).toHaveTextContent('u-1,gemini-old,kimi,claude,gemini-new-pending')
@@ -381,7 +381,7 @@ describe('ChatContent', () => {
       mutate: vi.fn().mockResolvedValue(undefined)
     })
 
-    render(<ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<ChatContent topic={topic} mainHeight="100px" />)
 
     expect(screen.queryByRole('button', { name: 'send' })).not.toBeInTheDocument()
 

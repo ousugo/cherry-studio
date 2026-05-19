@@ -254,7 +254,7 @@ describe('ChatComposer', () => {
   })
 
   it('renders the tool menu before assistant and model selectors', () => {
-    render(<ChatComposer topic={topic} setActiveTopic={vi.fn()} onSend={vi.fn()} />)
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByText('tool menu')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
@@ -262,7 +262,7 @@ describe('ChatComposer', () => {
   })
 
   it('updates the topic assistant from the composer toolbar', () => {
-    render(<ChatComposer topic={topic} setActiveTopic={vi.fn()} onSend={vi.fn()} />)
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     fireEvent.click(screen.getByText('select assistant 2'))
 
@@ -270,7 +270,7 @@ describe('ChatComposer', () => {
   })
 
   it('updates the assistant model from the composer toolbar', () => {
-    render(<ChatComposer topic={topic} setActiveTopic={vi.fn()} onSend={vi.fn()} />)
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     fireEvent.click(screen.getByText('select model 2'))
 

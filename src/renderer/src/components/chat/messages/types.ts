@@ -318,7 +318,6 @@ export interface MessageListActions {
   openInExternalApp?: (app: ExternalAppInfo, path: string) => void | Promise<void>
   navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void | Promise<void>
   openUserProfile?: () => void | Promise<void>
-  openProviderApp?: (providerId: string) => void | Promise<void>
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>
   copyRichContent?: (
     content: { plainText: string; html: string },

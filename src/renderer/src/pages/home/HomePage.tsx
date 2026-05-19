@@ -6,7 +6,7 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
-import { type AddNewTopicPayload, resolveNewTopicAssistantId } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
+import { type AddNewTopicPayload } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
@@ -23,8 +23,7 @@ const logger = loggerService.withContext('HomePage')
 
 /**
  * Synthesise a renderer Topic shape from a freshly-leased temporary id.
- * First-launch temp topics have no associated assistant — `assistantId` is
- * `undefined`, not a sentinel.
+ * Only explicit assistant-group creation binds an assistant during the draft.
  */
 function buildPendingTemporaryTopic(id: string, assistantId?: string | null): Topic {
   const nowIso = new Date().toISOString()
@@ -46,6 +45,10 @@ const HomePage: FC = () => {
   const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
+  const startingTemporaryTopicRef = useRef(false)
+  const startingTemporaryAssistantIdRef = useRef<string | undefined>(undefined)
+  const pendingTemporaryTopicRef = useRef<{ topicId: string; assistantId?: string | null } | null>(null)
+  const queuedTemporaryTopicTargetRef = useRef<{ assistantId?: string } | null>(null)
 
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
@@ -67,6 +70,13 @@ const HomePage: FC = () => {
   } = temporaryConversation
 
   const { refreshTopics } = useTopicMutations()
+
+  useEffect(() => {
+    pendingTemporaryTopicRef.current =
+      temporaryTopicConversation?.type === 'assistant'
+        ? { topicId: temporaryTopicConversation.topicId, assistantId: temporaryTopicConversation.assistantId }
+        : null
+  }, [temporaryTopicConversation])
 
   const initialTopic = useMemo<Topic | undefined>(() => {
     if (state?.topic) return state.topic
@@ -129,24 +139,56 @@ const HomePage: FC = () => {
   const startTemporaryTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
       try {
-        if (
-          temporaryTopicConversation?.type === 'assistant' &&
-          activeTopic?.id === temporaryTopicConversation.topicId
-        ) {
+        const hasExplicitAssistantTarget = !!payload && 'assistantId' in payload
+        const targetAssistantId = hasExplicitAssistantTarget ? (payload.assistantId ?? undefined) : undefined
+
+        if (temporaryTopicConversation?.type === 'assistant') {
+          const currentAssistantId = temporaryTopicConversation.assistantId ?? undefined
+          if (!hasExplicitAssistantTarget || currentAssistantId === targetAssistantId) {
+            setActiveTopic(buildPendingTemporaryTopic(temporaryTopicConversation.topicId, currentAssistantId))
+            void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+            return
+          }
+        }
+
+        if (pendingTemporaryTopicRef.current) {
+          const pending = pendingTemporaryTopicRef.current
+          const pendingAssistantId = pending.assistantId ?? undefined
+          if (!hasExplicitAssistantTarget || pendingAssistantId === targetAssistantId) {
+            setActiveTopic(buildPendingTemporaryTopic(pending.topicId, pendingAssistantId))
+            void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+            return
+          }
+        }
+
+        if (startingTemporaryTopicRef.current) {
+          if (hasExplicitAssistantTarget && startingTemporaryAssistantIdRef.current !== targetAssistantId) {
+            queuedTemporaryTopicTargetRef.current = { assistantId: targetAssistantId }
+          }
           void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
           return
         }
 
-        const assistantId = resolveNewTopicAssistantId(activeTopic?.assistantId, payload)
-        const next = await startTemporaryConversation({ assistantId })
+        startingTemporaryTopicRef.current = true
+        startingTemporaryAssistantIdRef.current = targetAssistantId
+        const next = await startTemporaryConversation({ assistantId: targetAssistantId })
         if (next.type !== 'assistant') return
+        pendingTemporaryTopicRef.current = { topicId: next.topicId, assistantId: next.assistantId }
         setActiveTopic(buildPendingTemporaryTopic(next.topicId, next.assistantId))
         void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
       } catch (err) {
         logger.error('Failed to start temporary topic', err as Error)
+      } finally {
+        startingTemporaryTopicRef.current = false
+        startingTemporaryAssistantIdRef.current = undefined
+        const queuedTarget = queuedTemporaryTopicTargetRef.current
+        queuedTemporaryTopicTargetRef.current = null
+        if (queuedTarget) {
+          void startTemporaryTopic({ assistantId: queuedTarget.assistantId ?? null })
+        }
       }
     },
-    [activeTopic?.assistantId, activeTopic?.id, setActiveTopic, startTemporaryConversation, temporaryTopicConversation]
+    [setActiveTopic, startTemporaryConversation, temporaryTopicConversation]
   )
 
   const updateTemporaryTopicAssistant = useCallback(
@@ -231,7 +273,6 @@ const HomePage: FC = () => {
       <ContentContainer>
         <Chat
           activeTopic={activeTopic}
-          setActiveTopic={setActiveTopicAndDiscardTemporary}
           pane={
             <HomeTabs
               activeTopic={activeTopic}

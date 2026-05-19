@@ -123,6 +123,22 @@ export {
   type SelectItem as CompositeInputSelectItem
 } from './composites/Input'
 export { Sortable } from './composites/Sortable'
+// TreeView
+export {
+  type DragPosition,
+  flattenTree,
+  type FlatTreeItem,
+  type RenderRowArgs,
+  type RenderRowFn,
+  type TreeDragHandleProps,
+  type TreeListSlotArgs,
+  type TreeNodeAdapter,
+  TreeView,
+  type TreeViewProps,
+  useExpandedState,
+  useSelectionState,
+  useTreeDragAndDrop
+} from './composites/TreeView'
 
 /* Shadcn Primitive Components */
 export * from './primitives/accordion'
