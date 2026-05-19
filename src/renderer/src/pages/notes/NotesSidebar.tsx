@@ -4,8 +4,10 @@ import {
   ContextMenuItem,
   ContextMenuItemContent,
   ContextMenuSeparator,
-  ContextMenuTrigger
+  ContextMenuTrigger,
+  type FlatTreeItem
 } from '@cherrystudio/ui'
+import { FileTree, type FileTreeNode, type FileTreeProps } from '@renderer/components/FileTree'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
@@ -13,7 +15,7 @@ import { useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
-import type { FC } from 'react'
+import type { DragEvent, FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -31,6 +33,7 @@ import { useNotesDragAndDrop } from './hooks/useNotesDragAndDrop'
 import { useNotesEditing } from './hooks/useNotesEditing'
 import { useNotesFileUpload } from './hooks/useNotesFileUpload'
 import { useNotesMenu } from './hooks/useNotesMenu'
+import { buildNotesFileTreeModel, getChangedExpandedId } from './NotesFileTree'
 
 interface NotesSidebarProps {
   onCreateFolder: (name: string, targetFolderId?: string) => void
@@ -73,6 +76,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const virtualListRef = useRef<any>(null)
   const trimmedSearchKeyword = useMemo(() => searchKeyword.trim(), [searchKeyword])
   const hasSearchKeyword = trimmedSearchKeyword.length > 0
+  const isNormalTreeView = !isShowStarred && !isShowSearch
 
   const { editingNodeId, renamingNodeIds, newlyRenamedNodeIds, inPlaceEdit, handleStartEdit, handleAutoRename } =
     useNotesEditing({ onRenameNode })
@@ -105,6 +109,16 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     handleAutoRename,
     activeNode
   })
+
+  const fileTreeModel = useMemo(() => buildNotesFileTreeModel(notesTree), [notesTree])
+
+  const fileTreeRenameSlot = useMemo(
+    () => ({
+      isRenaming: (node: FileTreeNode) => node.id === editingNodeId && inPlaceEdit.isEditing,
+      inputProps: inPlaceEdit.inputProps
+    }),
+    [editingNodeId, inPlaceEdit.inputProps, inPlaceEdit.isEditing]
+  )
 
   const searchOptions = useMemo(
     () => ({
@@ -168,6 +182,53 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     },
     [onSortNodes]
   )
+
+  const handleFileTreeExpandedChange = useCallback(
+    (nextExpandedIds: ReadonlySet<string>) => {
+      const changedId = getChangedExpandedId(fileTreeModel.expandedIds, nextExpandedIds)
+      if (changedId) {
+        onToggleExpanded(changedId)
+      }
+    },
+    [fileTreeModel.expandedIds, onToggleExpanded]
+  )
+
+  const handleFileTreeSelectedChange = useCallback(
+    (id: string | null) => {
+      if (!id) return
+      const node = fileTreeModel.byId.get(id)
+      if (node) {
+        onSelectNode(node)
+      }
+    },
+    [fileTreeModel.byId, onSelectNode]
+  )
+
+  const renderFileTreeContextMenu = useCallback(
+    (node: FileTreeNode) => {
+      const notesNode = fileTreeModel.byId.get(node.id)
+      return notesNode ? renderMenuItems(notesNode) : null
+    },
+    [fileTreeModel.byId, renderMenuItems]
+  )
+
+  const renderFileTreeList = useCallback<NonNullable<FileTreeProps['renderList']>>(
+    ({ flat, isSticky, getItemDepth, renderItem }) => (
+      <DynamicVirtualList
+        ref={virtualListRef}
+        list={flat as FlatTreeItem<FileTreeNode>[]}
+        estimateSize={() => 28}
+        itemContainerStyle={{ padding: '8px 8px 0 8px' }}
+        overscan={10}
+        isSticky={isSticky}
+        getItemDepth={getItemDepth}>
+        {(_item, index) => renderItem(index)}
+      </DynamicVirtualList>
+    ),
+    []
+  )
+
+  const hasDraggedFiles = useCallback((event: DragEvent) => event.dataTransfer.types.includes('Files'), [])
 
   const renderEmptyAreaMenuItems = () => (
     <>
@@ -239,7 +300,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   // Scroll to active node
   useEffect(() => {
-    if (activeNode?.id && !isShowStarred && !isShowSearch && virtualListRef.current) {
+    if (activeNode?.id && isNormalTreeView && virtualListRef.current) {
       setTimeout(() => {
         const activeIndex = flattenedNodes.findIndex(({ node }) => node.id === activeNode.id)
         if (activeIndex !== -1) {
@@ -250,7 +311,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         }
       }, 200)
     }
-  }, [activeNode?.id, isShowStarred, isShowSearch, flattenedNodes])
+  }, [activeNode?.id, isNormalTreeView, flattenedNodes])
 
   // Determine which items should be sticky (only folders in normal view)
   const isSticky = useCallback(
@@ -340,13 +401,13 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
               <SidebarContainer
                 onDragOver={(e) => {
                   e.preventDefault()
-                  if (!draggedNodeId) {
+                  if (hasDraggedFiles(e)) {
                     setIsDragOverSidebar(true)
                   }
                 }}
                 onDragLeave={() => setIsDragOverSidebar(false)}
                 onDrop={(e) => {
-                  if (!draggedNodeId) {
+                  if (hasDraggedFiles(e)) {
                     void handleDropFiles(e)
                   }
                 }}>
@@ -386,20 +447,37 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                   )}
                   <ContextMenu>
                     <ContextMenuTrigger asChild>
-                      <DynamicVirtualList
-                        ref={virtualListRef}
-                        list={flattenedNodes}
-                        estimateSize={() => 28}
-                        itemContainerStyle={{ padding: '8px 8px 0 8px' }}
-                        overscan={10}
-                        isSticky={isSticky}
-                        getItemDepth={getItemDepth}>
-                        {({ node, depth }) => <TreeNode node={node} depth={depth} renderChildren={false} />}
-                      </DynamicVirtualList>
+                      <div className="flex min-h-0 flex-1 flex-col">
+                        {isNormalTreeView ? (
+                          <FileTree
+                            nodes={fileTreeModel.nodes}
+                            expandedIds={fileTreeModel.expandedIds}
+                            onExpandedChange={handleFileTreeExpandedChange}
+                            selectedId={selectedFolderId ?? activeNode?.id ?? null}
+                            onSelectedChange={handleFileTreeSelectedChange}
+                            onMove={onMoveNode}
+                            renameSlot={fileTreeRenameSlot}
+                            renderContextMenu={renderFileTreeContextMenu}
+                            renderList={renderFileTreeList}
+                            presorted
+                          />
+                        ) : (
+                          <DynamicVirtualList
+                            ref={virtualListRef}
+                            list={flattenedNodes}
+                            estimateSize={() => 28}
+                            itemContainerStyle={{ padding: '8px 8px 0 8px' }}
+                            overscan={10}
+                            isSticky={isSticky}
+                            getItemDepth={getItemDepth}>
+                            {({ node, depth }) => <TreeNode node={node} depth={depth} renderChildren={false} />}
+                          </DynamicVirtualList>
+                        )}
+                      </div>
                     </ContextMenuTrigger>
                     <ContextMenuContent>{renderEmptyAreaMenuItems()}</ContextMenuContent>
                   </ContextMenu>
-                  {!isShowStarred && !isShowSearch && (
+                  {isNormalTreeView && (
                     <div style={{ padding: '0 8px', marginTop: '6px', marginBottom: '12px' }}>
                       <TreeNode
                         node={{
