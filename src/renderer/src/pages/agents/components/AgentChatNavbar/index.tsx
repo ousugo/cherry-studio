@@ -1,6 +1,4 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
-import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { cn } from '@renderer/utils'
@@ -16,23 +14,19 @@ interface Props {
 }
 
 const AgentChatNavbar = ({ activeAgent, artifactPaneOpen, onToggleArtifactPane, className }: Props) => {
-  const [narrowMode] = usePreference('chat.narrow_mode')
-
   useShortcut('general.search', () => {
     void SearchPopup.show()
   })
 
   return (
     <NavbarHeader className={cn('agent-navbar h-(--navbar-height)', className)}>
-      <NarrowLayout narrowMode={narrowMode} className="h-full">
-        <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
-          <AgentContent
-            activeAgent={activeAgent}
-            artifactPaneOpen={artifactPaneOpen}
-            onToggleArtifactPane={onToggleArtifactPane}
-          />
-        </div>
-      </NarrowLayout>
+      <div className="-mx-1 flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
+        <AgentContent
+          activeAgent={activeAgent}
+          artifactPaneOpen={artifactPaneOpen}
+          onToggleArtifactPane={onToggleArtifactPane}
+        />
+      </div>
     </NavbarHeader>
   )
 }

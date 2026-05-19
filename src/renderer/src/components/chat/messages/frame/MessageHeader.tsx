@@ -1,8 +1,8 @@
-import { Avatar, AvatarFallback, AvatarImage, Checkbox, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
+import { Checkbox, Tooltip } from '@cherrystudio/ui'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { Model } from '@renderer/types'
-import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
+import { firstLetter, removeLeadingEmoji } from '@renderer/utils'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -17,11 +17,8 @@ import {
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel, getMessageListItemModelName } from '../utils/messageListItem'
+import MessageAvatar, { MESSAGE_MODEL_AVATAR_ICON_CLASS, MessageAvatarFrame } from './MessageAvatar'
 import MessageTokens from './MessageTokens'
-
-const MESSAGE_AVATAR_SIZE = 35
-const MESSAGE_EMOJI_AVATAR_FONT_SIZE = 20
-const MESSAGE_AVATAR_CLASS = 'size-[35px] rounded-full'
 
 interface Props {
   message: MessageListItem
@@ -88,48 +85,22 @@ const MessageHeader: FC<Props> = memo(({ model, message, isGroupContextMessage, 
     <div className="message-header group/header relative mb-2 flex items-center gap-2.5">
       {isAssistantMessage ? (
         assistantProfile?.avatar ? (
-          isEmoji(assistantProfile.avatar) ? (
-            <EmojiAvatar className="rounded-full" size={MESSAGE_AVATAR_SIZE} fontSize={MESSAGE_EMOJI_AVATAR_FONT_SIZE}>
-              {assistantProfile.avatar}
-            </EmojiAvatar>
-          ) : (
-            <Avatar className={MESSAGE_AVATAR_CLASS}>
-              <AvatarImage src={assistantProfile.avatar} />
-              <AvatarFallback className="rounded-full">{avatarName}</AvatarFallback>
-            </Avatar>
-          )
+          <MessageAvatar avatar={assistantProfile.avatar} fallback={avatarName} />
         ) : ModelIcon ? (
-          <div>
-            <ModelIcon.Avatar size={MESSAGE_AVATAR_SIZE} shape="circle" className="rounded-full" />
-          </div>
+          <MessageAvatarFrame className="bg-background">
+            <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
+          </MessageAvatarFrame>
         ) : (
-          <Avatar
-            className={MESSAGE_AVATAR_CLASS}
-            style={{
+          <MessageAvatar
+            fallback={avatarName}
+            fallbackAvatarStyle={{
               border: 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
-            }}>
-            <AvatarFallback className="rounded-full">{avatarName}</AvatarFallback>
-          </Avatar>
+            }}
+          />
         )
       ) : (
-        <>
-          {isEmoji(userAvatar) ? (
-            <EmojiAvatar
-              className={`rounded-full ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
-              onClick={canOpenUserProfile ? openUserProfile : undefined}
-              size={MESSAGE_AVATAR_SIZE}
-              fontSize={MESSAGE_EMOJI_AVATAR_FONT_SIZE}>
-              {userAvatar}
-            </EmojiAvatar>
-          ) : (
-            <Avatar
-              className={`${MESSAGE_AVATAR_CLASS} ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
-              onClick={canOpenUserProfile ? openUserProfile : undefined}>
-              <AvatarImage src={userAvatar} />
-            </Avatar>
-          )}
-        </>
+        <MessageAvatar avatar={userAvatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
       )}
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         <span

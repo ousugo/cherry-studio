@@ -6033,7 +6033,8 @@
       "prompt": "Palabra de indicación",
       "show_message_outline": "Mostrar esquema del mensaje",
       "title": "Configuración de mensajes",
-      "use_serif_font": "Usar fuente serif"
+      "use_serif_font": "Usar fuente serif",
+      "wide_mode": "Modo de diseño ancho"
     },
     "miniApps": {
       "cache_change_notice": "Los cambios surtirán efecto cuando el número de miniaplicaciones abiertas aumente o disminuya hasta alcanzar el valor configurado",

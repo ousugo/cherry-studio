@@ -7,13 +7,16 @@ import {
   captureScrollableAsDataURL,
   removeSpecialCharactersForFileName
 } from '@renderer/utils'
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
+import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
 import MessageGroup from './list/MessageGroup'
+import MessageNavigation from './list/MessageNavigation'
 import { MessageVirtualList, type MessageVirtualListHandle } from './list/MessageVirtualList'
 import SelectionBox from './list/SelectionBox'
 import {
@@ -26,6 +29,12 @@ import {
 import { defaultMessageRenderConfig, type MessageListItem } from './types'
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
+const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
+
+interface ActiveMessageOutline {
+  messageId: string
+  multiModelMessageStyle: MultiModelMessageStyle
+}
 
 function groupMessageListItems(messages: MessageListItem[]): Record<string, MessageListItem[]> {
   const grouped: Record<string, MessageListItem[]> = {}
@@ -40,6 +49,10 @@ function groupMessageListItems(messages: MessageListItem[]): Record<string, Mess
   return grouped
 }
 
+function getMessageElementLayout(element: HTMLElement): MultiModelMessageStyle {
+  return MESSAGE_OUTLINE_LAYOUTS.find((layout) => element.classList.contains(layout)) ?? 'fold'
+}
+
 const MessageList = () => {
   const data = useMessageListData()
   const actions = useMessageListActions()
@@ -51,6 +64,7 @@ const MessageList = () => {
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const selectedMessageIds = selection?.selectedMessageIds ?? []
+  const [activeOutline, setActiveOutline] = useState<ActiveMessageOutline | null>(null)
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -82,6 +96,62 @@ const MessageList = () => {
     [messages]
   )
 
+  const updateActiveMessageOutline = useCallback(() => {
+    if (!renderConfig.showMessageOutline || isMultiSelectMode) {
+      setActiveOutline(null)
+      return
+    }
+
+    const scrollElement = scrollContainerRef.current ?? messageListRef.current?.getScrollElement()
+    if (!scrollElement) {
+      setActiveOutline(null)
+      return
+    }
+
+    const containerRect = scrollElement.getBoundingClientRect()
+    const viewportCenter = containerRect.top + containerRect.height / 2
+    let bestMatch: { messageId: string; multiModelMessageStyle: MultiModelMessageStyle; distance: number } | null = null
+
+    for (const message of messages) {
+      if (message.role !== 'assistant' || message.type === 'clear') continue
+
+      const element = document.getElementById(`message-${message.id}`)
+      if (!element || window.getComputedStyle(element).display === 'none') continue
+
+      const rect = element.getBoundingClientRect()
+      const visibleHeight = Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top)
+      if (visibleHeight <= 0) continue
+
+      const distance =
+        rect.top <= viewportCenter && rect.bottom >= viewportCenter
+          ? 0
+          : Math.min(Math.abs(rect.top - viewportCenter), Math.abs(rect.bottom - viewportCenter))
+
+      if (!bestMatch || distance < bestMatch.distance) {
+        bestMatch = {
+          messageId: message.id,
+          multiModelMessageStyle: getMessageElementLayout(element),
+          distance
+        }
+      }
+    }
+
+    setActiveOutline((current) => {
+      if (
+        current?.messageId === bestMatch?.messageId &&
+        current?.multiModelMessageStyle === bestMatch?.multiModelMessageStyle
+      ) {
+        return current
+      }
+      return bestMatch
+        ? {
+            messageId: bestMatch.messageId,
+            multiModelMessageStyle: bestMatch.multiModelMessageStyle
+          }
+        : null
+    })
+  }, [isMultiSelectMode, messages, renderConfig.showMessageOutline])
+
   const loadMoreMessages = useCallback(() => {
     if (!hasOlder || isLoadingMore || !actions.loadOlder) return
     setIsLoadingMore(true)
@@ -98,6 +168,22 @@ const MessageList = () => {
   useEffect(() => {
     scrollContainerRef.current = (messageListRef.current?.getScrollElement() as HTMLDivElement | null) ?? null
   }, [groupedMessages])
+
+  useEffect(() => {
+    const scrollElement = messageListRef.current?.getScrollElement()
+    scrollContainerRef.current = (scrollElement as HTMLDivElement | null) ?? null
+    updateActiveMessageOutline()
+
+    if (!scrollElement) return
+
+    scrollElement.addEventListener('scroll', updateActiveMessageOutline, { passive: true })
+    window.addEventListener('resize', updateActiveMessageOutline)
+
+    return () => {
+      scrollElement.removeEventListener('scroll', updateActiveMessageOutline)
+      window.removeEventListener('resize', updateActiveMessageOutline)
+    }
+  }, [groupedMessages, updateActiveMessageOutline])
 
   useEffect(() => {
     return bindRuntime?.({
@@ -123,10 +209,14 @@ const MessageList = () => {
     return <MessageListInitialLoading />
   }
 
+  const activeOutlineMessage = activeOutline
+    ? messages.find((message) => message.id === activeOutline.messageId)
+    : undefined
+
   return (
     <MessagesContainer id="messages" className="messages-container" key={data.listKey}>
       {beforeList && (
-        <NarrowLayout narrowMode={renderConfig.narrowMode} className="shrink-0">
+        <NarrowLayout narrowMode={renderConfig.narrowMode} withSidePadding className="shrink-0">
           {beforeList}
         </NarrowLayout>
       )}
@@ -142,7 +232,7 @@ const MessageList = () => {
             hasMoreTop={hasOlder}
             onReachTop={loadMoreMessages}
             renderItem={([key, groupMessages]) => (
-              <NarrowLayout narrowMode={renderConfig.narrowMode}>
+              <NarrowLayout narrowMode={renderConfig.narrowMode} withSidePadding>
                 <MessageGroup
                   key={key}
                   messages={groupMessages}
@@ -168,6 +258,12 @@ const MessageList = () => {
           scrollToMessageId={scrollToMessageById}
           scrollToBottom={scrollToBottom}
         />
+      )}
+      {activeOutline && activeOutlineMessage && (
+        <MessageOutline message={activeOutlineMessage} multiModelMessageStyle={activeOutline.multiModelMessageStyle} />
+      )}
+      {messageNavigation === 'buttons' && (
+        <MessageNavigation containerId="messages" messages={messages} scrollToMessageId={scrollToMessageById} />
       )}
       {meta.selectionLayer && (
         <SelectionBox

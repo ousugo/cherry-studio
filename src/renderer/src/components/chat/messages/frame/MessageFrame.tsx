@@ -1,11 +1,10 @@
-import { Avatar, AvatarImage, EmojiAvatar, Scrollbar } from '@cherrystudio/ui'
+import { Scrollbar } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Topic } from '@renderer/types'
-import { classNames, cn, isEmoji } from '@renderer/utils'
+import { classNames, cn } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
-import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import dayjs from 'dayjs'
@@ -23,12 +22,12 @@ import {
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
+import MessageAvatar from './MessageAvatar'
 import MessageContent from './MessageContent'
 import MessageEditor from './MessageEditor'
 import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader from './MessageHeader'
 import MessageMenuBar from './MessageMenuBar'
-import MessageOutline from './MessageOutline'
 
 const USER_MESSAGE_FOOTER_ACTIONS_CLASS =
   'absolute inset-0 flex items-center gap-2 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100'
@@ -45,7 +44,6 @@ interface Props {
   onUpdateUseful?: (msgId: string) => void
   isGroupContextMessage?: boolean
   isHorizontalMultiModelLayout?: boolean
-  multiModelMessageStyle?: MultiModelMessageStyle
 }
 
 const WrapperContainer = ({
@@ -67,8 +65,7 @@ const MessageItem: FC<Props> = ({
   isGrouped,
   onUpdateUseful,
   isGroupContextMessage,
-  isHorizontalMultiModelLayout = false,
-  multiModelMessageStyle = 'fold'
+  isHorizontalMultiModelLayout = false
 }) => {
   const { t } = useTranslation()
   const actions = useMessageListActions()
@@ -82,7 +79,6 @@ const MessageItem: FC<Props> = ({
 
   const messageFont = renderConfig.messageFont
   const fontSize = renderConfig.fontSize
-  const showMessageOutline = renderConfig.showMessageOutline
   const messageStyle = renderConfig.messageStyle
 
   const messageContainerRef = useRef<HTMLDivElement>(null)
@@ -202,7 +198,7 @@ const MessageItem: FC<Props> = ({
       <div
         key={message.id}
         className={classNames({
-          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] px-5 pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
+          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage
         })}
@@ -225,9 +221,6 @@ const MessageItem: FC<Props> = ({
         )}
         {!isEditing && (
           <>
-            {!isMultiSelectMode && message.role === 'assistant' && showMessageOutline && (
-              <MessageOutline message={message} multiModelMessageStyle={multiModelMessageStyle} />
-            )}
             {isUserBubbleMessage ? (
               <UserBubbleMessage
                 message={message}
@@ -353,23 +346,9 @@ const UserBubbleMessage = ({
             </MessageErrorBoundary>
           </Scrollbar>
         </div>
-        {isEmoji(avatar) ? (
-          <EmojiAvatar
-            className={`shrink-0 rounded-full ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
-            onClick={canOpenUserProfile ? openUserProfile : undefined}
-            size={35}
-            fontSize={20}>
-            {avatar}
-          </EmojiAvatar>
-        ) : (
-          <Avatar
-            className={`size-[35px] shrink-0 rounded-full ${canOpenUserProfile ? 'cursor-pointer' : ''}`}
-            onClick={canOpenUserProfile ? openUserProfile : undefined}>
-            <AvatarImage src={avatar} />
-          </Avatar>
-        )}
+        <MessageAvatar avatar={avatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
       </div>
-      <div className="MessageFooter relative mt-1 mr-8.5 flex min-h-6.5 w-[calc(100%-2.125rem)] max-w-full items-center justify-end text-foreground-muted text-xs leading-none">
+      <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-muted text-xs leading-none">
         <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>
           <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
           <MessageMenuBar

@@ -1,5 +1,3 @@
-import NarrowLayoutToggleButton from '@renderer/components/chat/layout/NarrowLayoutToggleButton'
-
 import ArtifactPaneToggleButton from './ArtifactPaneToggleButton'
 
 interface Props {
@@ -10,7 +8,6 @@ interface Props {
 const Tools = ({ artifactPaneOpen, onToggleArtifactPane }: Props) => {
   return (
     <div className="flex items-center gap-0.5">
-      <NarrowLayoutToggleButton />
       <ArtifactPaneToggleButton open={artifactPaneOpen} onToggle={onToggleArtifactPane} />
       {/* TODO: Add search button back when global search supports agent messages */}
     </div>

@@ -6033,7 +6033,8 @@
       "prompt": "Prompt anzeigen",
       "show_message_outline": "Nachrichtenübersicht anzeigen",
       "title": "Nachrichteneinstellungen",
-      "use_serif_font": "Serifenschrift verwenden"
+      "use_serif_font": "Serifenschrift verwenden",
+      "wide_mode": "Breiter Layoutmodus"
     },
     "miniApps": {
       "cache_change_notice": "Änderung wird wirksam wenn Anzahl geöffneter Mini-Apps auf festgelegten Wert angepasst wird",

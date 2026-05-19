@@ -66,7 +66,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
           </div>
         </div>
 
-        <div className="bg-background">
+        <div>
           {isStreaming && !hasContent ? (
             <div className="flex min-h-[78px] items-center justify-center gap-2 p-5">
               <ClipLoader size={20} color="var(--color-primary)" />

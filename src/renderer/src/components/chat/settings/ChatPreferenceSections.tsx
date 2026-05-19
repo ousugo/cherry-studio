@@ -52,6 +52,7 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
     'chat.input.quick_panel.triggers_enabled'
   )
   const [messageNavigation, setMessageNavigation] = usePreference('chat.message.navigation_mode')
+  const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
   const [thoughtAutoCollapse, setThoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
   const [multiModelMessageStyle, setMultiModelMessageStyle] = usePreference('chat.message.multi_model.style')
   const [pasteLongTextAsFile, setPasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
@@ -88,6 +89,8 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
     timeoutMinutes: 'chat.code.execution.timeout_minutes'
   })
   const [codeFancyBlock, setCodeFancyBlock] = usePreference('chat.code.fancy_block')
+  const wideMode = !narrowMode
+  const setWideMode = (checked: boolean) => setNarrowMode(!checked)
 
   const { theme } = useTheme()
   const { themeNames } = useCodeStyle()
@@ -322,6 +325,10 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
               <SettingDivider />
             </>
           )}
+          <SettingRow>
+            <SettingSwitch checked={wideMode} onCheckedChange={setWideMode} label={t('settings.messages.wide_mode')} />
+          </SettingRow>
+          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={messageFont === 'serif'}

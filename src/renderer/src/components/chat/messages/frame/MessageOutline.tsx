@@ -2,7 +2,7 @@ import { Scrollbar } from '@cherrystudio/ui'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
-import React, { useMemo, useRef } from 'react'
+import React, { useMemo } from 'react'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
@@ -75,10 +75,9 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageSty
     return headings.length ? Math.min(...headings.map((heading) => heading.level)) : 1
   }, [headings])
 
-  const messageOutlineContainerRef = useRef<HTMLDivElement>(null)
   const scrollToHeading = (id: string) => {
-    const parent = messageOutlineContainerRef.current?.parentElement
-    const messageContentContainer = parent?.querySelector('.message-content-container')
+    const messageElement = document.getElementById(`message-${message.id}`)
+    const messageContentContainer = messageElement?.querySelector('.message-content-container')
     if (messageContentContainer) {
       const headingElement = messageContentContainer.querySelector<HTMLElement>(`#${id}`)
       if (headingElement) {
@@ -92,12 +91,8 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageSty
   if (multiModelMessageStyle === 'grid' || !headings.length) return null
 
   return (
-    <div ref={messageOutlineContainerRef} className="pointer-events-none absolute inset-[63px_0_36px_10px] z-999">
-      <Scrollbar
-        className="group pointer-events-auto sticky bottom-0 inline-flex max-h-[min(100%,70vh)] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] border border-transparent px-0 pt-2.5 pr-0 pb-2.5 pl-2.5 hover:overflow-y-auto hover:border-border/40 hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]"
-        style={{
-          top: `max(calc(50% - ${Math.floor((headings.length * 24) / 2 + 10)}px), 20px)`
-        }}>
+    <div className="pointer-events-none absolute inset-y-0 right-0 left-2 z-999 flex items-center">
+      <Scrollbar className="group pointer-events-auto inline-flex max-h-[70vh] max-w-1/2 flex-col gap-1 overflow-x-hidden overflow-y-hidden rounded-[10px] border border-transparent px-0 pt-2.5 pr-0 pb-2.5 pl-2.5 hover:overflow-y-auto hover:border-border/40 hover:bg-popover hover:px-2.5 hover:shadow-[0_0_10px_0_rgba(128,128,128,0.2)]">
         {headings.map((heading, index) => (
           <div
             key={index}

@@ -6033,7 +6033,8 @@
       "prompt": "Afișează prompt",
       "show_message_outline": "Afișează conturul mesajului",
       "title": "Setări mesaje",
-      "use_serif_font": "Folosește font serif"
+      "use_serif_font": "Folosește font serif",
+      "wide_mode": "Mod aspect lat"
     },
     "miniApps": {
       "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",

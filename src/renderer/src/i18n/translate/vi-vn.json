@@ -6033,7 +6033,8 @@
       "prompt": "Mostrar indicación",
       "show_message_outline": "Hiển thị dàn bộ tin nhắn",
       "title": "Cài đặt tin nhắn",
-      "use_serif_font": "Dùng phông chữ có chân"
+      "use_serif_font": "Dùng phông chữ có chân",
+      "wide_mode": "Chế độ bố cục rộng"
     },
     "miniApps": {
       "cache_change_notice": "Các thay đổi sẽ có hiệu lực khi số lượng ứng dụng mini đang mở đạt đến giá trị đã đặt",

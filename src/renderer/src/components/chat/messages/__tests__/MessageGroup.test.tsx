@@ -243,6 +243,16 @@ describe('MessageGroup', () => {
     })
   })
 
+  it('does not apply horizontal padding on the message element itself', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup messages={messages} topic={topic} />)
+    const messageElement = container.querySelector('#message-msg-1 .message')
+
+    expect(messageElement).not.toHaveClass('px-4')
+  })
+
   it('keeps vertical scrolling inside the message content area for horizontal layout', () => {
     const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
     const topic = { id: 'topic-1' } as Topic

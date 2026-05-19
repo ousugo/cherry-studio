@@ -99,6 +99,7 @@ export function MessageVirtualList<T>({
   return (
     <Scrollbar
       ref={scrollerRef}
+      data-message-virtual-list-scroller
       className={className}
       style={{ overflowY: 'auto', overflowX: 'hidden', position: 'relative', ...style }}>
       <div style={{ height: scrollHeight, position: 'relative', width: '100%' }}>

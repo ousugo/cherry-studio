@@ -282,7 +282,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       const messageProps = {
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
-        multiModelMessageStyle,
         message,
         topic,
         index

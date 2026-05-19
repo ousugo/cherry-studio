@@ -30,6 +30,7 @@ interface Props {
   panePosition?: ChatPanePosition
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   hideNavbar?: boolean
+  onOpenSidePanelDrawer?: () => void | Promise<void>
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   /**
    * Called by ChatContent before the first message of a freshly-leased
@@ -128,7 +129,7 @@ const Chat: FC<Props> = (props) => {
           pane={props.pane}
           paneOpen={props.paneOpen}
           panePosition={props.panePosition}
-          topBar={props.hideNavbar ? undefined : <ChatNavbar />}
+          topBar={props.hideNavbar ? undefined : <ChatNavbar onOpenSidePanelDrawer={props.onOpenSidePanelDrawer} />}
           sidePanel={
             <CitationsPanel
               open={citationsPanelOpen}

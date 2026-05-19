@@ -187,10 +187,6 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ isPending: false })
 }))
 
-vi.mock('@renderer/pages/agents/components/ChatNavigation', () => ({
-  default: () => <div data-testid="chat-navigation" />
-}))
-
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
 }))

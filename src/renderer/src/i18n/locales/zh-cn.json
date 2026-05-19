@@ -6033,7 +6033,8 @@
       "prompt": "显示提示词",
       "show_message_outline": "显示消息大纲",
       "title": "消息设置",
-      "use_serif_font": "使用衬线字体"
+      "use_serif_font": "使用衬线字体",
+      "wide_mode": "宽布局模式"
     },
     "miniApps": {
       "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",

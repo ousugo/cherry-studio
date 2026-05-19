@@ -9,7 +9,7 @@ describe('NarrowLayout', () => {
 
     const layout = screen.getByText('Content')
     expect(layout).toHaveClass('max-w-full')
-    expect(layout).not.toHaveClass('max-w-[800px]')
+    expect(layout).not.toHaveClass('max-w-[900px]')
     expect(layout).not.toHaveClass('active')
   })
 
@@ -17,7 +17,28 @@ describe('NarrowLayout', () => {
     render(<NarrowLayout narrowMode>Content</NarrowLayout>)
 
     const layout = screen.getByText('Content')
-    expect(layout).toHaveClass('active', 'max-w-[800px]')
+    expect(layout).toHaveClass('active', 'max-w-[900px]')
     expect(layout).not.toHaveClass('max-w-full')
+  })
+
+  it('keeps side padding outside the narrow content width when requested', () => {
+    render(
+      <NarrowLayout narrowMode withSidePadding>
+        Content
+      </NarrowLayout>
+    )
+
+    const layout = screen.getByText('Content')
+    expect(layout).toHaveClass('active', 'max-w-[calc(900px+3rem)]', 'box-border', 'px-6')
+    expect(layout).not.toHaveClass('box-content')
+  })
+
+  it('keeps default side padding in wide layout when requested', () => {
+    render(<NarrowLayout withSidePadding>Content</NarrowLayout>)
+
+    const layout = screen.getByText('Content')
+    expect(layout).toHaveClass('max-w-full', 'box-border', 'px-6')
+    expect(layout).not.toHaveClass('box-content')
+    expect(layout).not.toHaveClass('active')
   })
 })

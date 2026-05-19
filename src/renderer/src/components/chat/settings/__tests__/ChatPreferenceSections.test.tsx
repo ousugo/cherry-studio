@@ -1,10 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatPreferenceSections from '../ChatPreferenceSections'
 
 const mocks = vi.hoisted(() => ({
+  setPreference: vi.fn(),
   preferenceValues: {
     'app.language': 'en-us',
     'chat.message.style': 'plain',
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     'chat.input.translate.show_confirm': true,
     'chat.input.quick_panel.triggers_enabled': false,
     'chat.message.navigation_mode': 'none',
+    'chat.narrow_mode': false,
     'chat.message.thought.auto_collapse': true,
     'chat.message.multi_model.style': 'horizontal',
     'chat.input.paste_long_text_as_file': false,
@@ -48,7 +50,13 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: (key: string) => [mocks.preferenceValues[key], vi.fn()],
+  usePreference: (key: string) => [
+    mocks.preferenceValues[key],
+    (value: unknown) => {
+      mocks.preferenceValues[key] = value
+      mocks.setPreference(key, value)
+    }
+  ],
   useMultiplePreferences: (schema: Record<string, string>) => [
     Object.fromEntries(Object.entries(schema).map(([field, key]) => [field, mocks.preferenceValues[key]])),
     vi.fn()
@@ -82,7 +90,22 @@ vi.mock('@cherrystudio/ui', () => ({
   SelectTrigger: ({ children }: PropsWithChildren) => <button type="button">{children}</button>,
   SelectValue: ({ placeholder }: { placeholder?: ReactNode }) => <span>{placeholder}</span>,
   Slider: ({ value }: { value: number[] }) => <div data-testid="slider" data-value={value.join(',')} />,
-  Switch: ({ 'aria-label': ariaLabel }: { 'aria-label'?: string }) => <button type="button" aria-label={ariaLabel} />,
+  Switch: ({
+    'aria-label': ariaLabel,
+    checked,
+    onCheckedChange
+  }: {
+    'aria-label'?: string
+    checked?: boolean
+    onCheckedChange?: (checked: boolean) => void
+  }) => (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      data-checked={String(Boolean(checked))}
+      onClick={() => onCheckedChange?.(!checked)}
+    />
+  ),
   Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
@@ -94,12 +117,15 @@ vi.mock('react-i18next', () => ({
 describe('ChatPreferenceSections', () => {
   beforeEach(() => {
     mocks.preferenceValues['chat.message.font_size'] = 14
+    mocks.preferenceValues['chat.narrow_mode'] = false
+    mocks.setPreference.mockClear()
   })
 
   it('renders shared chat preferences without assistant-only controls by default', () => {
     render(<ChatPreferenceSections />)
 
     expect(screen.getByText('settings.messages.use_serif_font')).toBeInTheDocument()
+    expect(screen.getByText('settings.messages.wide_mode')).toBeInTheDocument()
     expect(screen.getByText('settings.math.engine.label')).toBeInTheDocument()
     expect(screen.getByText('chat.settings.code_fancy_block.label')).toBeInTheDocument()
     expect(screen.queryByText('settings.messages.prompt')).toBeNull()
@@ -124,6 +150,17 @@ describe('ChatPreferenceSections', () => {
     expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
     expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
+  })
+
+  it('toggles wide layout mode by enabling narrow mode', () => {
+    render(<ChatPreferenceSections />)
+
+    const wideModeSwitch = screen.getByRole('button', { name: 'settings.messages.wide_mode' })
+    expect(wideModeSwitch).toHaveAttribute('data-checked', 'true')
+
+    fireEvent.click(wideModeSwitch)
+
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.narrow_mode', true)
   })
 
   it('renders preference groups without collapsible controls', () => {

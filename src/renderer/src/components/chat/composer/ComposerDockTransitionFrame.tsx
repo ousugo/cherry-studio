@@ -57,8 +57,8 @@ export default function ComposerDockTransitionFrame({
 
         <div
           className={cn(
-            'absolute inset-x-0 z-10 w-full',
-            isDocked ? 'bottom-0' : 'pointer-events-none top-0 bottom-0 flex items-center px-4 pb-[12vh]'
+            'absolute inset-x-0 z-10 w-full px-4',
+            isDocked ? 'bottom-0' : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh]'
           )}>
           <motion.div
             layout="position"

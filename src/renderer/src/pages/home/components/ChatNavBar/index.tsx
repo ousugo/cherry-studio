@@ -1,19 +1,23 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
-import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { t } from 'i18next'
+import { Menu } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 
 import NavbarIcon from '../../../../components/NavbarIcon'
 import ChatNavbarContent from './ChatNavbarContent'
 
-const HeaderNavbar: FC = () => {
+interface HeaderNavbarProps {
+  onOpenSidePanelDrawer?: () => void | Promise<void>
+}
+
+const HeaderNavbar: FC<HeaderNavbarProps> = ({ onOpenSidePanelDrawer }) => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-  const [narrowMode] = usePreference('chat.narrow_mode')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
 
   useShortcut('general.search', () => {
@@ -22,28 +26,39 @@ const HeaderNavbar: FC = () => {
 
   return (
     <NavbarHeader className="home-navbar" style={{ height: 'var(--navbar-height)' }}>
-      <NarrowLayout narrowMode={narrowMode} className="h-full">
-        <div className="flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden">
-          <div className="flex shrink-0 items-center">
-            {showSidebar ? (
-              <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
-                <NavbarIcon onClick={toggleShowSidebar}>
-                  <SidebarCollapseIcon />
+      <div className="-mx-1 flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden">
+        <div className="flex shrink-0 items-center">
+          {showSidebar ? (
+            <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
+              <NavbarIcon onClick={toggleShowSidebar}>
+                <SidebarCollapseIcon />
+              </NavbarIcon>
+            </Tooltip>
+          ) : (
+            <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
+              <NavbarIcon onClick={toggleShowSidebar} style={{ marginRight: 2 }}>
+                <SidebarExpandIcon />
+              </NavbarIcon>
+            </Tooltip>
+          )}
+          <AnimatePresence initial={false}>
+            {!showSidebar && (
+              <motion.div
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 'auto', opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}>
+                <NavbarIcon onClick={() => void onOpenSidePanelDrawer?.()} style={{ marginRight: 5 }}>
+                  <Menu size={18} />
                 </NavbarIcon>
-              </Tooltip>
-            ) : (
-              <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
-                <NavbarIcon onClick={toggleShowSidebar}>
-                  <SidebarExpandIcon />
-                </NavbarIcon>
-              </Tooltip>
+              </motion.div>
             )}
-          </div>
-          <div className="flex shrink-0 items-center">
-            <ChatNavbarContent />
-          </div>
+          </AnimatePresence>
         </div>
-      </NarrowLayout>
+        <div className="flex shrink-0 items-center">
+          <ChatNavbarContent />
+        </div>
+      </div>
     </NavbarHeader>
   )
 }

@@ -25,7 +25,6 @@ import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { TemporaryConversation, TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import ChatNavigation from '@renderer/pages/agents/components/ChatNavigation'
 import { isPerExecutionOnly } from '@renderer/transport/IpcChatTransport'
 import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
@@ -71,7 +70,6 @@ const AgentChat = ({
 }: AgentChatProps) => {
   const { t } = useTranslation()
   const { messageStyle } = useSettings()
-  const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const [artifactPaneOpen, setArtifactPaneOpen] = useState(false)
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
@@ -304,7 +302,6 @@ const AgentChat = ({
           agentId={sendableAgentId}
           sessionId={activeSession.id}
           activeAgent={activeAgent}
-          messageNavigation={messageNavigation}
           isMultiSelectMode={isMultiSelectMode}
           onOpenCitationsPanel={handleOpenCitationsPanel}
           onNewSessionDraft={
@@ -336,7 +333,6 @@ interface InnerProps {
   agentId?: string
   sessionId: string
   activeAgent: GetAgentResponse | undefined
-  messageNavigation: string
   isMultiSelectMode: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onNewSessionDraft?: () => void | Promise<void>
@@ -346,7 +342,6 @@ const AgentChatSessionContent = ({
   agentId,
   sessionId,
   activeAgent,
-  messageNavigation,
   isMultiSelectMode,
   onOpenCitationsPanel,
   onNewSessionDraft
@@ -477,7 +472,6 @@ const AgentChatSessionContent = ({
           <PinnedTodoPanel messages={uiMessages} partsByMessageId={partsByMessageId} />
         </NarrowLayout>
       </div>
-      {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
     </div>
   )
 

@@ -6033,7 +6033,8 @@
       "prompt": "プロンプト表示",
       "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
-      "use_serif_font": "セリフフォントを使用"
+      "use_serif_font": "セリフフォントを使用",
+      "wide_mode": "広いレイアウトモード"
     },
     "miniApps": {
       "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",

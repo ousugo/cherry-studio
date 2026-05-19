@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import Chat from './Chat'
+import HomeSidePanelDrawer from './components/HomeSidePanelDrawer'
 import HomeTabs from './Tabs'
 import type { AddNewTopicPayload } from './types'
 
@@ -277,6 +278,17 @@ const HomePage: FC = () => {
     />
   )
 
+  const openSidePanelDrawer = useCallback(() => {
+    if (!activeTopic) return
+
+    void HomeSidePanelDrawer.show({
+      activeTopic,
+      setActiveTopic: setActiveTopicAndDiscardTemporary,
+      onOpenHistory: openHistory,
+      onNewTopic: startTemporaryTopic
+    })
+  }, [activeTopic, openHistory, setActiveTopicAndDiscardTemporary, startTemporaryTopic])
+
   if (!activeTopic) {
     return <Container id="home-page">{historyOverlay}</Container>
   }
@@ -303,6 +315,7 @@ const HomePage: FC = () => {
           panePosition={panePosition}
           onNewTopic={startTemporaryTopic}
           hideNavbar={isTemporaryTopicActive}
+          onOpenSidePanelDrawer={openSidePanelDrawer}
           // Wire the persist callback only while the temp lease is the
           // currently-active topic. If the user clicks a sidebar topic
           // before sending, the active id no longer matches the lease and

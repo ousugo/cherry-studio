@@ -589,7 +589,7 @@ export default function ComposerSurface({
         'inputbar-container relative rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) pt-2 transition-all duration-200 ease-in-out',
         belowControls
           ? 'mb-0.5 shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:shadow-[0_10px_24px_rgba(0,0,0,0.22)]'
-          : 'in-[[navbar-position=top]]:mb-3.5 mb-6',
+          : 'mb-3',
         isDragging &&
           "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[14px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
         isExpanded && 'expanded'
@@ -634,16 +634,16 @@ export default function ComposerSurface({
   return (
     <NarrowLayout narrowMode={narrowMode} style={{ width: '100%' }}>
       <div className="w-full">
-        {topContent ? <div className="mb-6 flex justify-center px-[18px]">{topContent}</div> : null}
+        {topContent ? <div className="mb-6 flex justify-center">{topContent}</div> : null}
         <div
-          className="inputbar relative z-2 flex flex-col px-[18px] pt-0"
+          className="inputbar relative z-2 flex flex-col pt-0"
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}>
           {quickPanelElement}
           {belowControls ? (
-            <div className="in-[[navbar-position=top]]:mb-3.5 mb-6 rounded-[20px] bg-muted/25 pb-1.5 shadow-[0_14px_36px_rgba(15,23,42,0.07)] dark:bg-muted/15 dark:shadow-[0_14px_36px_rgba(0,0,0,0.24)]">
+            <div className="mb-6 rounded-[20px] bg-muted/25 pb-1.5 shadow-[0_14px_36px_rgba(15,23,42,0.07)] dark:bg-muted/15 dark:shadow-[0_14px_36px_rgba(0,0,0,0.24)]">
               {inputbarElement}
               <div className="px-2">{belowControls}</div>
             </div>

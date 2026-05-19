@@ -6033,7 +6033,8 @@
       "prompt": "Show prompt",
       "show_message_outline": "Show message outline",
       "title": "Message Settings",
-      "use_serif_font": "Use serif font"
+      "use_serif_font": "Use serif font",
+      "wide_mode": "Wide layout mode"
     },
     "miniApps": {
       "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
