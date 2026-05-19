@@ -202,6 +202,14 @@ export interface StreamExecution {
    * lands (e.g. the stream errored before producing any chunks).
    */
   finalMessage?: CherryUIMessage
+  /**
+   * Set the moment the stream emits a `tool-approval-request` chunk and
+   * cleared when that approval is responded/resolved — a first-class record
+   * of the approval lifecycle captured at the transition, NOT re-derived by
+   * scanning the terminal message. The terminal broadcast reads this so the
+   * `topic.stream.statuses` shared cache can carry `awaiting-approval`.
+   */
+  awaitingApproval?: boolean
   error?: SerializedError
   /** Multi-model: shared group id so parallel responses appear as siblings in UI. */
   siblingsGroupId?: number

@@ -28,6 +28,7 @@ export type TopicStreamStatus =
   | 'streaming' // at least one chunk has arrived; content is flowing
   | 'done' // all executions completed successfully
   | 'aborted' // user stopped; partial content may exist
+  | 'awaiting-approval' // paused waiting for the user to approve/deny a tool call (cross-window via shared cache)
   | 'error' // at least one execution errored with isTopicDone
 
 /**

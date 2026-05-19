@@ -9,6 +9,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
+import { applyApprovalDecisions } from '@shared/ai/transport'
 import { type Assistant } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -266,10 +267,44 @@ export class AiService extends BaseService {
           return { ok: false }
         }
 
+        // Main is the single authority for the approval mutation: the
+        // renderer no longer PATCHes (it sourced parts from a DB projection
+        // that didn't carry the overlay-only `approval-requested` part and
+        // raced/overwrote the persisted row). The decision is carried
+        // explicitly in the IPC payload; apply it here to the DB-authoritative
+        // parts (the original stream's terminal persistence wrote the
+        // `approval-requested` part onto this row) and persist.
+        const decision = {
+          approvalId: payload.approvalId,
+          approved: payload.approved,
+          ...(payload.reason !== undefined && { reason: payload.reason })
+        }
         const anchor = await messageService.getById(payload.anchorId)
-        const parts = anchor.data.parts ?? []
-        const stillPending = parts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
-        if (stillPending) {
+        const beforeParts = anchor.data.parts ?? []
+        const targetPresent = beforeParts.some(
+          (p) =>
+            isToolUIPart(p) &&
+            p.state === 'approval-requested' &&
+            (p as { approval?: { id?: string } }).approval?.id === decision.approvalId
+        )
+        const afterParts = applyApprovalDecisions(beforeParts, [decision])
+        // NON-DESTRUCTIVE: only write parts when this approval actually
+        // existed on the DB row and was flipped. `applyApprovalDecisions`
+        // always returns a fresh array, so writing unconditionally would
+        // overwrite real (or not-yet-persisted) parts with an empty/unchanged
+        // set — exactly the destructive pattern removed from the renderer.
+        // When the part isn't on the DB row (overlay-only / persist not landed
+        // yet), the continue dispatch below carries the real decision and the
+        // continue provider applies it authoritatively where it reads parts.
+        if (targetPresent) {
+          await messageService.update(payload.anchorId, { data: { parts: afterParts } })
+        }
+
+        // Only resume once every approval on this turn is decided — a turn
+        // can request several tools at once; the not-yet-decided ones keep
+        // their cards.
+        const anyStillPending = afterParts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
+        if (anyStillPending) {
           return { ok: true }
         }
 
@@ -279,7 +314,11 @@ export class AiService extends BaseService {
           trigger: 'continue-conversation',
           topicId: payload.topicId,
           parentAnchorId: payload.anchorId,
-          approvalDecisions: []
+          // Carry the real decision so the continue provider applies it
+          // authoritatively against the parts it reads — idempotent if Main
+          // already flipped it above, and the safety net when the part wasn't
+          // on the DB row Main re-read.
+          approvalDecisions: [decision]
         })
         return { ok: true }
       }

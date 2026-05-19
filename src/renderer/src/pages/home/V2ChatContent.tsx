@@ -171,7 +171,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
     setMessages(uiMessages)
   }, [uiMessages, status, setMessages])
 
-  const respondToToolApproval = useToolApprovalBridge(topic.id, messages)
+  const respondToToolApproval = useToolApprovalBridge(topic.id)
 
   // Per-topic translation overlay. Lives here (above `useV2RenderingPipeline`)
   // so the merge step can layer in-flight translation chunks on top of the
@@ -219,13 +219,14 @@ const V2ChatContentInner: FC<InnerProps> = ({
         return
       }
       // Success / aborted-with-content: do NOT write streamed parts to the
-      // SWR cache. Backend persists the final row; the terminal-status
-      // refresh (useChatWithHistory) pulls it into uiMessages, and the
-      // monotonic merge in useV2RenderingPipeline hands off overlay→DB
-      // without a flash. Just drop the overlay entry.
-      disposeOverlay(message.id)
+      // SWR cache. Backend persists the final row; refresh DB *first*, THEN
+      // dispose the overlay — this ordering removes the gap that
+      // `useV2RenderingPipeline` previously bridged with the `lastGood`
+      // retention heuristic. `.finally` ensures the overlay is always
+      // released even if the refresh rejects (otherwise it would linger).
+      void refresh().finally(() => disposeOverlay(message.id))
     },
-    [cache, disposeOverlay]
+    [cache, disposeOverlay, refresh]
   )
   finishRef.current = handleExecutionFinish
 

@@ -1,7 +1,4 @@
-import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { applyApprovalDecisions } from '@shared/ai/transport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useCallback } from 'react'
 
 import type { ToolApprovalRespondFn } from './ToolApprovalContext'
@@ -9,56 +6,26 @@ import type { ToolApprovalRespondFn } from './ToolApprovalContext'
 const logger = loggerService.withContext('useToolApprovalBridge')
 
 /**
- * Tool-approval flow:
+ * Tool-approval flow.
  *
- *  1. PATCH /messages/:id with `applyApprovalDecisions(beforeParts, [decision])`
- *     — DataApi `useMutation`'s `refresh` invalidates the topic's messages
- *     query so SWR refetches and `uiMessages` flips to `approval-responded`
- *     immediately, before the dispatched stream produces any chunk.
+ * The renderer is NOT a writer of approval state. It only delivers the
+ * user's decision to Main via `Ai_ToolApproval_Respond`. Main is the single
+ * authority: it applies the decision to the DB-authoritative anchor parts and
+ * persists, then (Claude-Agent) resolves the live `canUseTool` or (MCP)
+ * dispatches `continue-conversation` once every approval on the turn is
+ * decided.
  *
- *  2. IPC `Ai_ToolApproval_Respond` only triggers the transport-specific
- *     dispatch (Claude-Agent registry resolve, or MCP continue-conversation
- *     when all approvals are decided). Main no longer writes parts —
- *     renderer is the canonical writer for this user-driven mutation.
+ * The previous design had the renderer PATCH `applyApprovalDecisions(...)`
+ * itself, sourcing `before` from a DB-projected list that did not contain the
+ * overlay-only `approval-requested` part — so the PATCH was a no-op that also
+ * overwrote the persisted row with empty parts and raced Main's re-read,
+ * causing the approval card to reappear on every click. Removed.
  */
-export function useToolApprovalBridge(topicId: string, uiMessages: CherryUIMessage[]): ToolApprovalRespondFn {
-  const { trigger: patchMessage } = useMutation('PATCH', '/messages/:id', {
-    // SWR cache keys for `/topics/:topicId/messages` use the **resolved** path
-    // (e.g. `/topics/abc/messages`), not the template — `createMultiKeyMatcher`
-    // does exact-string match. Resolve `:topicId` ourselves before handing the
-    // pattern to `refresh`, otherwise no key matches and SWR never refetches.
-    refresh: () => [`/topics/${topicId}/messages`]
-  })
-
+export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
   return useCallback(
     async ({ match, approved, reason, updatedInput }) => {
       const approvalId = match.approvalId
       if (!approvalId) return
-
-      const owner = uiMessages.find((m) => m.id === match.messageId)
-      if (owner) {
-        const before = (owner.parts ?? []) as CherryMessagePart[]
-        const after = applyApprovalDecisions(before, [
-          { approvalId, approved, ...(reason !== undefined && { reason }) }
-        ])
-        try {
-          await patchMessage({
-            params: { id: match.messageId },
-            body: { data: { parts: after }, status: 'pending' }
-          })
-        } catch (err) {
-          logger.error('Failed to PATCH approval state into DB', {
-            approvalId,
-            err: err instanceof Error ? err.message : String(err)
-          })
-          return
-        }
-      } else {
-        logger.warn('Approval click had no matching message in uiMessages — falling back to main DB write', {
-          approvalId,
-          messageId: match.messageId
-        })
-      }
 
       try {
         await window.api.ai.toolApproval.respond({
@@ -78,6 +45,6 @@ export function useToolApprovalBridge(topicId: string, uiMessages: CherryUIMessa
         })
       }
     },
-    [topicId, uiMessages, patchMessage]
+    [topicId]
   )
 }
