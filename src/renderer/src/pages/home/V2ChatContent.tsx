@@ -4,8 +4,8 @@ import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { ToolApprovalProvider } from '@renderer/hooks/ToolApprovalContext'
 import { ChatContextProvider, useChatContextProvider } from '@renderer/hooks/useChatContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
-import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionChats'
-import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
+import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
+import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { V2ChatOverridesProvider } from '@renderer/hooks/V2ChatContext'
@@ -13,7 +13,7 @@ import type { FileMetadata, Topic } from '@renderer/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('V2ChatContent')
@@ -29,7 +29,6 @@ import {
   TranslationOverlaySetterProvider
 } from './Messages/Blocks'
 import type { TranslationOverlayEntry, TranslationOverlaySetter } from './Messages/Blocks/V2Contexts'
-import ExecutionStreamCollector from './Messages/ExecutionStreamCollector'
 import Messages from './Messages/Messages'
 
 interface Props {
@@ -189,15 +188,22 @@ const V2ChatContentInner: FC<InnerProps> = ({
     })
   }, [])
 
-  const { projectedMessages, mergedPartsMap, handleExecutionMessagesChange, handleExecutionDispose } =
-    useV2RenderingPipeline(uiMessages, topic, translationOverlay)
+  // `useExecutionOverlay`'s onFinish needs `disposeOverlay` (returned by the
+  // same hook) and `cache` (declared below), so route through a ref the hook
+  // reads via its own latest-callback ref — keeps hook order stable.
+  const finishRef = useRef<(executionId: string, event: ExecutionFinishEvent) => void>(undefined)
+  const { overlay, disposeOverlay } = useExecutionOverlay(topic.id, activeExecutions, uiMessages, {
+    onFinish: (executionId, event) => finishRef.current?.(executionId, event)
+  })
+
+  const { projectedMessages, mergedPartsMap } = useV2RenderingPipeline(uiMessages, topic, overlay, translationOverlay)
 
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
 
   const handleExecutionFinish = useCallback(
-    (executionId: string, { message, isAbort, isError }: ExecutionFinishEvent) => {
+    (_executionId: string, { message, isAbort, isError }: ExecutionFinishEvent) => {
       if (isError || !message.parts?.length) {
-        void cache.rollbackBranch().then(() => handleExecutionDispose(executionId))
+        void cache.rollbackBranch().then(() => disposeOverlay(message.id))
         return
       }
       void cache
@@ -206,15 +212,11 @@ const V2ChatContentInner: FC<InnerProps> = ({
           data: { parts: message.parts as never },
           updatedAt: new Date().toISOString()
         })
-        .then(() => handleExecutionDispose(executionId))
+        .then(() => disposeOverlay(message.id))
     },
-    [cache, handleExecutionDispose]
+    [cache, disposeOverlay]
   )
-
-  const executionChats = useExecutionChats(topic.id, activeExecutions, {
-    initialMessages: uiMessages,
-    onFinish: handleExecutionFinish
-  })
+  finishRef.current = handleExecutionFinish
 
   // V2Chat write-side handlers (delete / edit / regenerate / resend /
   // fork / setActiveNode / clearTopic). Also exposes `capabilityBody` so
@@ -294,49 +296,6 @@ const V2ChatContentInner: FC<InnerProps> = ({
                     <div
                       className="flex flex-1 flex-col justify-between"
                       style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                      {/*
-                       * Two coupled guards on the per-execution chunk collector:
-                       *
-                       * 1. Mount only after SWR's `uiMessages` ends with an
-                       *    in-flight assistant. Collector's `useChat` seeds AI
-                       *    SDK's `createStreamingUIMessageState` from
-                       *    `initialMessages.at(-1)`; AI SDK reuses that object as
-                       *    the streaming `state.message` and a `start` chunk only
-                       *    overwrites its `id`, leaving the original `parts`
-                       *    array in place. If we mount while last is still the
-                       *    OLD assistant being replaced, new chunks append onto
-                       *    that array — the bubble renders "old content + new
-                       *    stream" once SWR finally flips active to the new
-                       *    placeholder.
-                       *
-                       * 2. Re-key on the in-flight assistant id so subsequent
-                       *    regenerates for the same model REMOUNT the collector.
-                       *    Without this, React reuses the existing `useChat`
-                       *    instance whose `state.messages` already carries the
-                       *    previous turn's assistant; the next regenerate seeds
-                       *    from THAT, accumulating pollution turn over turn.
-                       *
-                       * The collector cannot self-correct: it sees `resume: true`
-                       * only, never the `regenerate` trigger driving the turn.
-                       */}
-                      {(() => {
-                        const last = uiMessages.at(-1)
-                        if (last?.role !== 'assistant') return null
-                        return activeExecutions.map(({ executionId }) => {
-                          const chat = executionChats.get(executionId)
-                          if (!chat) return null
-                          return (
-                            <ExecutionStreamCollector
-                              key={`${executionId}:${last.id}`}
-                              executionId={executionId}
-                              chat={chat}
-                              onMessagesChange={handleExecutionMessagesChange}
-                              onDispose={handleExecutionDispose}
-                            />
-                          )
-                        })
-                      })()}
-
                       <Messages
                         key={topic.id}
                         topic={topic}

@@ -5,8 +5,7 @@ import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useSession'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
-import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
-import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
+import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -23,7 +22,6 @@ import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
 import ChatNavigation from '../home/Messages/ChatNavigation'
-import ExecutionStreamCollector from '../home/Messages/ExecutionStreamCollector'
 import NarrowLayout from '../home/Messages/NarrowLayout'
 import { uiToMessage } from '../home/uiToMessage'
 import AgentChatNavbar from './components/AgentChatNavbar'
@@ -147,21 +145,15 @@ const AgentChatInner = ({
     return map
   }, [uiMessages])
 
-  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
-
-  const executionChats = useExecutionChats(sessionTopicId, chat.activeExecutions)
+  const { overlay } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages)
 
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next = { ...basePartsMap }
-    for (const execMessages of Object.values(executionMessagesById)) {
-      for (const uiMessage of execMessages) {
-        if (uiMessage.role === 'assistant' && uiMessage.parts?.length) {
-          next[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
-        }
-      }
+    for (const [messageId, parts] of Object.entries(overlay)) {
+      if (parts.length) next[messageId] = parts
     }
     return next
-  }, [basePartsMap, executionMessagesById])
+  }, [basePartsMap, overlay])
 
   const { isPending } = useTopicStreamStatus(sessionTopicId)
 
@@ -174,20 +166,6 @@ const AgentChatInner = ({
           </div>
 
           <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-            {chat.activeExecutions.map(({ executionId }) => {
-              const execChat = executionChats.get(executionId)
-              if (!execChat) return null
-              return (
-                <ExecutionStreamCollector
-                  key={executionId}
-                  executionId={executionId}
-                  chat={execChat}
-                  onMessagesChange={handleExecutionMessagesChange}
-                  onDispose={handleExecutionDispose}
-                />
-              )
-            })}
-
             <AgentSessionMessages
               agentId={agentId}
               sessionId={sessionId}

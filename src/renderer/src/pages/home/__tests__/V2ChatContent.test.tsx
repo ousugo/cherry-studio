@@ -1,7 +1,7 @@
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { render, screen, waitFor } from '@testing-library/react'
-import { act, type ReactNode, useEffect } from 'react'
+import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import V2ChatContent from '../V2ChatContent'
@@ -61,7 +61,9 @@ vi.mock('../Inputbar/Inputbar', () => ({
 
 vi.mock('../Messages/Blocks', () => ({
   PartsProvider: ({ children }: { children: ReactNode }) => children,
-  RefreshProvider: ({ children }: { children: ReactNode }) => children
+  RefreshProvider: ({ children }: { children: ReactNode }) => children,
+  TranslationOverlayProvider: ({ children }: { children: ReactNode }) => children,
+  TranslationOverlaySetterProvider: ({ children }: { children: ReactNode }) => children
 }))
 
 vi.mock('../Messages/Messages', () => ({
@@ -70,27 +72,17 @@ vi.mock('../Messages/Messages', () => ({
   )
 }))
 
-vi.mock('../Messages/ExecutionStreamCollector', () => ({
-  default: function ExecutionStreamCollectorMock({
-    executionId,
-    onMessagesChange
-  }: {
-    executionId: string
-    onMessagesChange: (executionId: string, messages: CherryUIMessage[]) => void
-  }) {
-    useEffect(() => {
-      onMessagesChange(executionId, [
-        {
-          id: `live-${executionId}`,
-          role: 'assistant',
-          parts: [{ type: 'text', text: `reply-${executionId}` }],
-          metadata: { createdAt: '2026-01-02T00:00:00.000Z' }
-        }
-      ])
-    }, [executionId, onMessagesChange])
-
-    return null
-  }
+// The streaming overlay is now a headless hook (no mounted collector). Mock
+// it to return an empty overlay: the rendered list must still be exactly the
+// uiMessages projection — the overlay only ever replaces parts of an
+// existing message id, never appends a list entry.
+vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
+  useExecutionOverlay: () => ({
+    overlay: {},
+    liveAssistants: [],
+    disposeOverlay: vi.fn(),
+    reset: vi.fn()
+  })
 }))
 
 vi.mock('@renderer/components/Popups/MultiSelectionPopup', () => ({

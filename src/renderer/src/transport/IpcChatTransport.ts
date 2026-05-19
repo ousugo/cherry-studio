@@ -239,44 +239,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
       }
     })
   }
-  buildExecutionStream(topicId: string, executionId: UniqueModelId): ReadableStream<UIMessageChunk> {
-    return this.buildListenerStream(topicId, undefined, undefined, executionId)
-  }
-
-  async reconnectExecutionStream(
-    topicId: string,
-    executionId: UniqueModelId
-  ): Promise<ReadableStream<UIMessageChunk> | null> {
-    const result = await window.api.ai.streamAttach({ topicId })
-
-    if (result.status === 'not-found') return null
-    if (result.status === 'done' || result.status === 'paused') {
-      return new ReadableStream<UIMessageChunk>({ start: (c) => c.close() })
-    }
-    if (result.status === 'error') {
-      return new ReadableStream<UIMessageChunk>({
-        start: (c) => c.error(new Error(result.error?.message ?? 'Stream error'))
-      })
-    }
-
-    return this.buildListenerStream(topicId, result.bufferedChunks, undefined, executionId)
-  }
 }
 
 /** Shared singleton — IpcChatTransport is stateless, safe to reuse everywhere. */
 export const ipcChatTransport = new IpcChatTransport()
-
-export class ExecutionTransport implements ChatTransport<CherryUIMessage> {
-  constructor(
-    private readonly topicId: string,
-    private readonly executionId: UniqueModelId
-  ) {}
-
-  sendMessages(): Promise<ReadableStream<UIMessageChunk>> {
-    return Promise.resolve(ipcChatTransport.buildExecutionStream(this.topicId, this.executionId))
-  }
-
-  reconnectToStream(): Promise<ReadableStream<UIMessageChunk> | null> {
-    return ipcChatTransport.reconnectExecutionStream(this.topicId, this.executionId)
-  }
-}

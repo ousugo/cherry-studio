@@ -16,7 +16,6 @@
  *     `Messages` / `PartsProvider`
  */
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
@@ -29,14 +28,12 @@ import { uiToMessage } from '../uiToMessage'
 export interface V2RenderingPipeline {
   projectedMessages: Message[]
   mergedPartsMap: Record<string, CherryMessagePart[]>
-  executionMessagesById: Record<string, CherryUIMessage[]>
-  handleExecutionMessagesChange: (executionId: string, messages: CherryUIMessage[]) => void
-  handleExecutionDispose: (executionId: string) => void
 }
 
 export function useV2RenderingPipeline(
   uiMessages: CherryUIMessage[],
   topic: Topic,
+  overlay: Record<string, CherryMessagePart[]> = {},
   translationOverlay: Record<string, TranslationOverlayEntry> = {}
 ): V2RenderingPipeline {
   const { assistant, model } = useAssistant(topic.assistantId)
@@ -82,19 +79,18 @@ export function useV2RenderingPipeline(
     })
   }, [uiMessages, assistant?.id, topic.assistantId, topic.id, lastUserIdInBase, fallbackSnapshot])
 
-  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
-
   const mergedPartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
     for (const m of uiMessages) {
       next[m.id] = (m.parts ?? []) as CherryMessagePart[]
     }
-    for (const execMessages of Object.values(executionMessagesById)) {
-      for (const uiMessage of execMessages) {
-        if (uiMessage.role !== 'assistant' || !uiMessage.parts?.length) continue
-        if (!(uiMessage.id in next)) continue
-        next[uiMessage.id] = uiMessage.parts as CherryMessagePart[]
-      }
+    // Streaming overlay, keyed by anchorMessageId. Keep the `id in next`
+    // guard so the overlay can only replace parts of a message that already
+    // exists in the DB-backed projection — it never adds a list entry (the
+    // rendered list stays strictly the uiMessages projection).
+    for (const [messageId, parts] of Object.entries(overlay)) {
+      if (!(messageId in next) || !parts.length) continue
+      next[messageId] = parts
     }
 
     for (const [messageId, entry] of Object.entries(translationOverlay)) {
@@ -112,13 +108,10 @@ export function useV2RenderingPipeline(
       next[messageId] = [...baseParts, translationPart]
     }
     return next
-  }, [uiMessages, executionMessagesById, translationOverlay])
+  }, [uiMessages, overlay, translationOverlay])
 
   return {
     projectedMessages,
-    mergedPartsMap,
-    executionMessagesById,
-    handleExecutionMessagesChange,
-    handleExecutionDispose
+    mergedPartsMap
   }
 }
