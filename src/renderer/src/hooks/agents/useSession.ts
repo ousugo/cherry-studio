@@ -116,7 +116,7 @@ export const useSessions = (
     }
   }, [hasMore, isLoadingMore, loadNext])
 
-  const { trigger: createTrigger } = useMutation('POST', '/sessions', { refresh: ['/sessions'] })
+  const { trigger: createTrigger } = useMutation('POST', '/sessions', { refresh: ['/sessions', '/workspaces'] })
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
       try {

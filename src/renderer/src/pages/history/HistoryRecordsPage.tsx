@@ -16,11 +16,11 @@ import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@rend
 import { mapApiTopicToRendererTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopic'
 import type { SessionActionContext } from '@renderer/pages/agents/components/sessionItemActions'
 import {
-  createSessionWorkdirLabelMap,
-  createSessionWorkdirRankMap,
+  createSessionWorkdirDisplayMaps,
   getPrimarySessionWorkdir,
   getSessionWorkdirFallbackLabel,
   type SessionListItem,
+  type SessionWorkdirDisplayMaps,
   sortSessionsForDisplayGroups
 } from '@renderer/pages/agents/components/SessionList.helpers'
 import {
@@ -461,8 +461,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     () => sessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
     [isSessionPinned, sessions]
   )
-  const workdirLabelByPath = useMemo(() => createSessionWorkdirLabelMap(sessionItems), [sessionItems])
-  const workdirRankByPath = useMemo(() => createSessionWorkdirRankMap(sessionItems), [sessionItems])
+  const workdirDisplay = useMemo(() => createSessionWorkdirDisplayMaps(sessionItems), [sessionItems])
   const timeSortedSessions = useMemo(
     () => sortSessionsForDisplayGroups(sessionItems, { mode: 'time', now: groupNow }),
     [groupNow, sessionItems]
@@ -472,9 +471,9 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
       sortSessionsForDisplayGroups(sessionItems, {
         mode: 'workdir',
         now: groupNow,
-        workdirRankByPath
+        workdirDisplay
       }),
-    [groupNow, sessionItems, workdirRankByPath]
+    [groupNow, sessionItems, workdirDisplay]
   )
   const sessionIds = useMemo(() => sessionItems.map((session) => session.id), [sessionItems])
   const streamStatusBySessionId = useAgentSessionStreamStatuses(sessionIds)
@@ -486,8 +485,8 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     [sessions, streamStatusBySessionId, t]
   )
   const workdirSources = useMemo(
-    () => buildWorkdirSources(sessionItems, workdirLabelByPath, workdirRankByPath, noWorkdirLabel, t),
-    [noWorkdirLabel, sessionItems, t, workdirLabelByPath, workdirRankByPath]
+    () => buildWorkdirSources(sessionItems, workdirDisplay, noWorkdirLabel, t),
+    [noWorkdirLabel, sessionItems, t, workdirDisplay]
   )
 
   const statusFilteredSessions = useMemo(() => {
@@ -715,7 +714,7 @@ function getTopicSourceId(topic: Pick<ApiTopic, 'assistantId'>, assistantById?: 
   return topic.assistantId
 }
 
-function getSessionWorkdirSourceId(session: Pick<AgentSessionEntity, 'workspace'>) {
+function getSessionWorkdirSourceId(session: Pick<AgentSessionEntity, 'workspace' | 'workspaceId'>) {
   const path = getPrimarySessionWorkdir(session)
   return path ? `${WORKDIR_SOURCE_ID_PREFIX}${encodeURIComponent(path)}` : NO_WORKDIR_SOURCE_ID
 }
@@ -832,8 +831,7 @@ function getAssistantSourceRank(sourceId: string, assistantRankById: ReadonlyMap
 
 function buildWorkdirSources(
   sessions: readonly AgentSessionEntity[],
-  workdirLabelByPath: ReadonlyMap<string, string>,
-  workdirRankByPath: ReadonlyMap<string, number>,
+  workdirDisplay: SessionWorkdirDisplayMaps,
   noWorkdirLabel: string,
   t: ReturnType<typeof useTranslation>['t']
 ): HistorySourceItem[] {
@@ -853,32 +851,30 @@ function buildWorkdirSources(
     ...Array.from(counts.entries())
       .sort(
         ([leftId], [rightId]) =>
-          getWorkdirSourceRank(leftId, workdirRankByPath) - getWorkdirSourceRank(rightId, workdirRankByPath)
+          getWorkdirSourceRank(leftId, workdirDisplay) - getWorkdirSourceRank(rightId, workdirDisplay)
       )
       .map(([sourceId, count]) => ({
         id: sourceId,
-        label: getWorkdirSourceLabel(sourceId, workdirLabelByPath, noWorkdirLabel),
+        label: getWorkdirSourceLabel(sourceId, workdirDisplay, noWorkdirLabel),
         count,
         icon: <Folder size={15} />
       }))
   ]
 }
 
-function getWorkdirSourceRank(sourceId: string, workdirRankByPath: ReadonlyMap<string, number>) {
+function getWorkdirSourceRank(sourceId: string, workdirDisplay: SessionWorkdirDisplayMaps) {
   if (sourceId === NO_WORKDIR_SOURCE_ID) return Number.MAX_SAFE_INTEGER
   const path = getWorkdirSourcePath(sourceId)
-  return path ? (workdirRankByPath.get(path) ?? Number.MAX_SAFE_INTEGER - 1) : Number.MAX_SAFE_INTEGER
+  const groupId = path ? workdirDisplay.groupIdByPath.get(path) : undefined
+  return groupId ? (workdirDisplay.rankByGroupId.get(groupId) ?? Number.MAX_SAFE_INTEGER - 1) : Number.MAX_SAFE_INTEGER
 }
 
-function getWorkdirSourceLabel(
-  sourceId: string,
-  workdirLabelByPath: ReadonlyMap<string, string>,
-  noWorkdirLabel: string
-) {
+function getWorkdirSourceLabel(sourceId: string, workdirDisplay: SessionWorkdirDisplayMaps, noWorkdirLabel: string) {
   if (sourceId === NO_WORKDIR_SOURCE_ID) return noWorkdirLabel
   const path = getWorkdirSourcePath(sourceId)
   if (!path) return noWorkdirLabel
-  return workdirLabelByPath.get(path) ?? getSessionWorkdirFallbackLabel(path)
+  const groupId = workdirDisplay.groupIdByPath.get(path)
+  return (groupId ? workdirDisplay.labelByGroupId.get(groupId) : undefined) ?? getSessionWorkdirFallbackLabel(path)
 }
 
 export default HistoryRecordsPage

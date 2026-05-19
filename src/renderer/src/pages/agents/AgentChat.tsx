@@ -92,7 +92,7 @@ const AgentChat = ({
 
   const refreshPersistedSession = useCallback(
     async (sessionId: string) => {
-      await invalidateCache(['/sessions', `/sessions/${sessionId}`, `/sessions/${sessionId}/messages`])
+      await invalidateCache(['/sessions', '/workspaces', `/sessions/${sessionId}`, `/sessions/${sessionId}/messages`])
     },
     [invalidateCache]
   )

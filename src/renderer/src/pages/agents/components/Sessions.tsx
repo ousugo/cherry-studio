@@ -2,6 +2,7 @@ import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, To
 import { loggerService } from '@logger'
 import {
   ResourceList,
+  type ResourceListGroup,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
@@ -18,6 +19,7 @@ import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporary
 import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { Check, Clock3, ListFilter, Plus, SquarePen } from 'lucide-react'
 import { memo, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -28,11 +30,12 @@ import {
   type AgentSessionDisplayMode,
   applyOptimisticSessionDisplayMove,
   buildSessionDropAnchor,
+  buildSessionWorkdirGroupDropAnchor,
   canDropSessionItemInDisplayGroup,
   createSessionDisplayGroupResolver,
-  createSessionWorkdirLabelMap,
-  createSessionWorkdirRankMap,
+  createSessionWorkdirDisplayMaps,
   getWorkdirPathFromSessionGroupId,
+  moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
   SESSION_PINNED_GROUP_ID,
   type SessionListItem,
@@ -55,6 +58,7 @@ const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
   time: 'agent.session.display.time',
   workdir: 'agent.session.display.workdir'
 }
+const EMPTY_WORKSPACE_ROWS: WorkspaceEntity[] = []
 
 function SessionDisplayModeMenu({
   mode,
@@ -143,6 +147,7 @@ const Sessions = ({
   const { agents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
+  const [optimisticWorkspaceOrderIds, setOptimisticWorkspaceOrderIds] = useState<string[] | null>(null)
   const [creatingSession, setCreatingSession] = useState(false)
 
   const { data: channels } = useQuery('/channels')
@@ -170,17 +175,50 @@ const Sessions = ({
   const { updateSession } = useUpdateSession()
 
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
-  const workdirLabelByPath = useMemo(() => createSessionWorkdirLabelMap(sessionItems), [sessionItems])
-  const workdirRankByPath = useMemo(() => createSessionWorkdirRankMap(sessionItems), [sessionItems])
+  const {
+    data: workspaces,
+    error: workspacesError,
+    isLoading: isWorkspacesLoading,
+    isRefreshing: isWorkspacesRefreshing,
+    refetch: refetchWorkspaces
+  } = useQuery('/workspaces', { enabled: displayMode === 'workdir' })
+  const workspaceRows = workspaces ?? EMPTY_WORKSPACE_ROWS
+  const isWorkdirMetadataLoading = displayMode === 'workdir' && isWorkspacesLoading
+  const isWorkdirMetadataRefreshing = displayMode === 'workdir' && isWorkspacesRefreshing
+  const workdirDragReady = dragReady && !isWorkdirMetadataLoading && !isWorkdirMetadataRefreshing
+  const workspaceRowsForDisplay = useMemo(() => {
+    if (!optimisticWorkspaceOrderIds) return workspaceRows
+
+    const workspaceById = new Map(workspaceRows.map((workspace) => [workspace.id, workspace]))
+    const orderedWorkspaces: typeof workspaceRows = []
+    for (const workspaceId of optimisticWorkspaceOrderIds) {
+      const workspace = workspaceById.get(workspaceId)
+      if (workspace) {
+        orderedWorkspaces.push(workspace)
+      }
+    }
+    const orderedIds = new Set(orderedWorkspaces.map((workspace) => workspace.id))
+    const remainingWorkspaces = workspaceRows.filter((workspace) => !orderedIds.has(workspace.id))
+
+    return [...orderedWorkspaces, ...remainingWorkspaces]
+  }, [optimisticWorkspaceOrderIds, workspaceRows])
+  const workdirDisplay = useMemo(
+    () => createSessionWorkdirDisplayMaps(sessionItems, workspaceRowsForDisplay),
+    [sessionItems, workspaceRowsForDisplay]
+  )
+  const workspaceOrderSignature = useMemo(
+    () => workspaceRows.map((workspace) => `${workspace.id}:${workspace.orderKey}`).join('|'),
+    [workspaceRows]
+  )
 
   const baseGroupedSessions = useMemo(
     () =>
       sortSessionsForDisplayGroups(sessionItems, {
         mode: displayMode,
         now: groupNow,
-        workdirRankByPath
+        workdirDisplay
       }),
-    [displayMode, groupNow, sessionItems, workdirRankByPath]
+    [displayMode, groupNow, sessionItems, workdirDisplay]
   )
 
   const groupedSessions = useMemo(
@@ -201,6 +239,10 @@ const Sessions = ({
     setOptimisticMove(null)
   }, [sessionOrderSignature])
 
+  useEffect(() => {
+    setOptimisticWorkspaceOrderIds(null)
+  }, [workspaceOrderSignature])
+
   const sessionGroupBy = useMemo(
     () =>
       createSessionDisplayGroupResolver({
@@ -218,10 +260,23 @@ const Sessions = ({
         },
         mode: displayMode,
         now: groupNow,
-        workdirLabelByPath
+        workdirDisplay
       }),
-    [displayMode, groupNow, t, workdirLabelByPath]
+    [displayMode, groupNow, t, workdirDisplay]
   )
+
+  const effectiveCollapsedSessionGroupIds = useMemo(() => {
+    if (displayMode !== 'workdir') return collapsedSessionGroupIds
+
+    return Array.from(
+      new Set(
+        collapsedSessionGroupIds.map((groupId) => {
+          const path = getWorkdirPathFromSessionGroupId(groupId)
+          return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
+        })
+      )
+    )
+  }, [collapsedSessionGroupIds, displayMode, workdirDisplay])
 
   const handleCollapsedSessionGroupIdsChange = useCallback(
     (nextGroupIds: string[]) => void setCollapsedSessionGroupIds(nextGroupIds),
@@ -270,9 +325,10 @@ const Sessions = ({
   )
 
   const { trigger: findOrCreateWorkspace } = useMutation('POST', '/workspaces', { refresh: ['/workspaces'] })
+  const { trigger: reorderWorkspace } = useMutation('PATCH', '/workspaces/:id/order')
 
   const createSessionForGroup = useCallback(
-    async (agentId: string | null | undefined, workspacePath?: string) => {
+    async (agentId: string | null | undefined, workspace?: { workspaceId?: string; workspacePath?: string }) => {
       if (!agentId || creatingSession) return null
 
       const agent = agentById.get(agentId)
@@ -285,11 +341,11 @@ const Sessions = ({
 
       setCreatingSession(true)
       try {
-        // A workdir group binds new sessions to that folder — resolve it to a
-        // workspace (idempotent on path) before starting the draft session.
-        const workspaceId = workspacePath
-          ? (await findOrCreateWorkspace({ body: { path: workspacePath } })).id
-          : undefined
+        const workspaceId = workspace?.workspaceId
+          ? workspace.workspaceId
+          : workspace?.workspacePath
+            ? (await findOrCreateWorkspace({ body: { path: workspace.workspacePath } })).id
+            : undefined
 
         await onStartTemporarySession?.({
           agentId,
@@ -313,6 +369,14 @@ const Sessions = ({
   const handleHeaderCreateSession = useCallback(() => {
     void createSessionForGroup(fallbackAgentId)
   }, [createSessionForGroup, fallbackAgentId])
+
+  const handleRetry = useCallback(async () => {
+    await reload()
+    if (displayMode === 'workdir') {
+      await refetchWorkspaces()
+    }
+  }, [displayMode, refetchWorkspaces, reload])
+
   const openAgentEditor = useCallback(
     (agentId: string) => {
       tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('agent', agentId)), { forceNew: true })
@@ -329,20 +393,78 @@ const Sessions = ({
   )
 
   const canDragSessionItem = useCallback(
-    ({ item }: { item: SessionListItem }) => dragReady && !item.pinned,
-    [dragReady]
+    ({ item }: { item: SessionListItem }) => workdirDragReady && !item.pinned,
+    [workdirDragReady]
   )
 
   const canDropSessionItem = useCallback(
     ({ sourceGroupId, targetGroupId }: { sourceGroupId: string; targetGroupId: string }) =>
-      dragReady && canDropSessionItemInDisplayGroup({ mode: displayMode, sourceGroupId, targetGroupId }),
-    [displayMode, dragReady]
+      workdirDragReady && canDropSessionItemInDisplayGroup({ mode: displayMode, sourceGroupId, targetGroupId }),
+    [displayMode, workdirDragReady]
+  )
+
+  const canDragSessionGroup = useCallback(
+    (group: ResourceListGroup) => workdirDragReady && workdirDisplay.workspaceIdByGroupId.has(group.id),
+    [workdirDragReady, workdirDisplay]
+  )
+
+  const canDropSessionGroup = useCallback(
+    ({ activeGroupId, overGroupId }: { activeGroupId: string; overGroupId: string }) => {
+      const activeWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(activeGroupId)
+      const overWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(overGroupId)
+
+      return workdirDragReady && !!activeWorkspaceId && !!overWorkspaceId && activeWorkspaceId !== overWorkspaceId
+    },
+    [workdirDragReady, workdirDisplay]
   )
 
   const handleSessionReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {
-      if (payload.type !== 'item') return
-      if (!dragReady) return
+      if (payload.type === 'group') {
+        if (!workdirDragReady) return
+
+        const activeWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(payload.activeGroupId)
+        const overWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(payload.overGroupId)
+
+        if (!activeWorkspaceId || !overWorkspaceId || activeWorkspaceId === overWorkspaceId) return
+
+        const nextWorkspaceRows = moveSessionWorkdirGroupAfterDrop(
+          workspaceRowsForDisplay,
+          activeWorkspaceId,
+          overWorkspaceId,
+          payload
+        )
+        const anchor = buildSessionWorkdirGroupDropAnchor(payload, overWorkspaceId)
+
+        setOptimisticWorkspaceOrderIds(nextWorkspaceRows.map((workspace) => workspace.id))
+
+        try {
+          await reorderWorkspace({ params: { id: activeWorkspaceId }, body: anchor })
+          await refetchWorkspaces()
+          setOptimisticWorkspaceOrderIds(null)
+        } catch (err) {
+          setOptimisticWorkspaceOrderIds(null)
+          logger.error('Failed to reorder workspace group', {
+            activeWorkspaceId,
+            err,
+            overWorkspaceId
+          })
+          window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
+
+          try {
+            await refetchWorkspaces()
+          } catch (refreshErr) {
+            logger.error('Failed to refresh workspaces after group reorder failure', {
+              activeWorkspaceId,
+              refreshErr
+            })
+          }
+        }
+
+        return
+      }
+
+      if (!workdirDragReady) return
       if (
         !canDropSessionItemInDisplayGroup({
           mode: displayMode,
@@ -365,21 +487,37 @@ const Sessions = ({
         setOptimisticMove(null)
       }
     },
-    [displayMode, dragReady, reorderSession, sessionItems]
+    [
+      displayMode,
+      refetchWorkspaces,
+      reorderSession,
+      reorderWorkspace,
+      sessionItems,
+      t,
+      workdirDragReady,
+      workdirDisplay,
+      workspaceRowsForDisplay
+    ]
   )
 
   const getGroupHeaderAction = useCallback(
     (group: { id: string }) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return null
 
-      let payload: { agentId: string | null | undefined; workspacePath?: string } | null = null
+      let payload: { agentId: string | null | undefined; workspaceId?: string; workspacePath?: string } | null = null
       if (displayMode === 'time') {
         if (group.id !== SESSION_TODAY_GROUP_ID) return null
         payload = { agentId: fallbackAgentId }
       } else {
+        const workspaceId = workdirDisplay.workspaceIdByGroupId.get(group.id)
         const path = getWorkdirPathFromSessionGroupId(group.id)
-        if (!path) return null
-        payload = { agentId: fallbackAgentId, workspacePath: path }
+        if (workspaceId) {
+          payload = { agentId: fallbackAgentId, workspaceId }
+        } else if (path) {
+          payload = { agentId: fallbackAgentId, workspacePath: path }
+        } else {
+          return null
+        }
       }
 
       if (!payload.agentId) return null
@@ -391,18 +529,26 @@ const Sessions = ({
               type="button"
               aria-label={t('agent.session.add.title')}
               disabled={creatingSession || !agentById.has(payload.agentId)}
-              onClick={() => void createSessionForGroup(payload.agentId, payload.workspacePath)}>
+              onClick={() => {
+                const workspace = payload.workspaceId
+                  ? { workspaceId: payload.workspaceId }
+                  : payload.workspacePath
+                    ? { workspacePath: payload.workspacePath }
+                    : undefined
+                void createSessionForGroup(payload.agentId, workspace)
+              }}>
               <Plus className="block" />
             </ResourceList.HeaderActionButton>
           </Tooltip>
         </>
       )
     },
-    [agentById, createSessionForGroup, creatingSession, displayMode, fallbackAgentId, t]
+    [agentById, createSessionForGroup, creatingSession, displayMode, fallbackAgentId, t, workdirDisplay]
   )
 
-  const listError = error
-  const listLoading = isLoadingAll || !isFullyLoaded || isSessionPinsLoading
+  const listError = error ?? (displayMode === 'workdir' ? workspacesError : undefined)
+  const listLoading = isLoadingAll || !isFullyLoaded || isSessionPinsLoading || isWorkdirMetadataLoading
+  const listValidating = isValidating || isWorkdirMetadataRefreshing
   const visibleGroupedSessions = useMemo(() => (listLoading ? [] : groupedSessions), [groupedSessions, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : groupedSessions.length === 0 ? 'empty' : 'idle'
 
@@ -413,17 +559,19 @@ const Sessions = ({
       selectedId={activeSessionId}
       estimateItemSize={() => 34}
       groupBy={sessionGroupBy}
-      collapsedGroupIds={collapsedSessionGroupIds}
+      collapsedGroupIds={effectiveCollapsedSessionGroupIds}
       revealRequest={revealRequest}
       defaultGroupVisibleCount={5}
       groupLoadStep={5}
       getGroupHeaderAction={getGroupHeaderAction}
       dragCapabilities={{
-        groups: false,
-        items: dragReady,
-        itemSameGroup: dragReady,
+        groups: workdirDragReady,
+        items: workdirDragReady,
+        itemSameGroup: workdirDragReady,
         itemCrossGroup: false
       }}
+      canDragGroup={canDragSessionGroup}
+      canDropGroup={canDropSessionGroup}
       canDragItem={canDragSessionItem}
       canDropItem={canDropSessionItem}
       groupShowMoreLabel={t('agent.session.group.show_more')}
@@ -455,11 +603,11 @@ const Sessions = ({
         channelTypeMap={channelTypeMap}
         error={listError}
         isDraggable={dragReady}
-        isValidating={isValidating}
+        isValidating={listValidating}
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
         onEditAgent={openAgentEditor}
-        onRetry={reload}
+        onRetry={handleRetry}
         onSelectItem={onSelectItem}
         onTogglePin={togglePin}
         setActiveSessionId={handleSelectSession}

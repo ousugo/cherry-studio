@@ -1,13 +1,20 @@
-import type { ResourceListItemReorderPayload } from '@renderer/components/chat/resources'
+import type {
+  ResourceListGroupReorderPayload,
+  ResourceListItemReorderPayload
+} from '@renderer/components/chat/resources'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import { describe, expect, it } from 'vitest'
 
 import {
   buildSessionDropAnchor,
+  buildSessionWorkdirGroupDropAnchor,
   canDropSessionItemInDisplayGroup,
   createSessionDisplayGroupResolver,
+  createSessionWorkdirDisplayMaps,
   createSessionWorkdirLabelMap,
   getPrimarySessionWorkdir,
+  moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
   normalizeSessionWorkdirPath,
   sortSessionsForDisplayGroups
@@ -30,14 +37,15 @@ function localIso(year: number, month: number, day: number, hour = 12) {
   return new Date(year, month - 1, day, hour).toISOString()
 }
 
-function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace']> {
+function makeWorkspace(path: string, overrides: Partial<WorkspaceEntity> = {}): WorkspaceEntity {
   return {
     id: `ws-${path}`,
     name: path,
     path,
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z'
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides
   }
 }
 
@@ -78,6 +86,22 @@ describe('SessionList helpers', () => {
     ).toEqual({ position: 'last' })
   })
 
+  it('builds workspace group order anchors from group drop direction', () => {
+    const payload: ResourceListGroupReorderPayload = {
+      type: 'group',
+      activeGroupId: 'session:workspace:ws-a',
+      overGroupId: 'session:workspace:ws-b',
+      overType: 'group',
+      sourceIndex: 0,
+      targetIndex: 1
+    }
+
+    expect(buildSessionWorkdirGroupDropAnchor(payload, 'ws-b')).toEqual({ after: 'ws-b' })
+    expect(buildSessionWorkdirGroupDropAnchor({ ...payload, sourceIndex: 2, targetIndex: 1 }, 'ws-b')).toEqual({
+      before: 'ws-b'
+    })
+  })
+
   it('preserves same-group item drop positions from the insertion line', () => {
     const payload: ResourceListItemReorderPayload = {
       type: 'item',
@@ -105,15 +129,15 @@ describe('SessionList helpers', () => {
     expect(
       canDropSessionItemInDisplayGroup({
         mode: 'workdir',
-        sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
-        targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a'
+        sourceGroupId: 'session:workspace:ws-a',
+        targetGroupId: 'session:workspace:ws-a'
       })
     ).toBe(true)
     expect(
       canDropSessionItemInDisplayGroup({
         mode: 'workdir',
-        sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
-        targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-b'
+        sourceGroupId: 'session:workspace:ws-a',
+        targetGroupId: 'session:workspace:ws-b'
       })
     ).toBe(false)
     expect(
@@ -126,8 +150,8 @@ describe('SessionList helpers', () => {
     expect(
       canDropSessionItemInDisplayGroup({
         mode: 'time',
-        sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
-        targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a'
+        sourceGroupId: 'session:workspace:ws-a',
+        targetGroupId: 'session:workspace:ws-a'
       })
     ).toBe(false)
   })
@@ -155,14 +179,21 @@ describe('SessionList helpers', () => {
   })
 
   it('groups sessions by workdir', () => {
+    const session = createSession({
+      workspaceId: 'ws-project-a',
+      workspace: makeWorkspace('/Users/jd/project-a/', { id: 'ws-project-a' })
+    })
     const workdirGroup = createSessionDisplayGroupResolver({
       labels: SESSION_GROUP_LABELS,
       mode: 'workdir',
-      workdirLabelByPath: new Map([['/Users/jd/project-a', 'project-a']])
+      workdirDisplay: createSessionWorkdirDisplayMaps(
+        [session],
+        [makeWorkspace('/Users/jd/project-a', { id: 'ws-project-a', name: 'Project A Workspace' })]
+      )
     })
-    expect(workdirGroup(createSession({ workspace: makeWorkspace('/Users/jd/project-a/') }))).toEqual({
-      id: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
-      label: 'project-a'
+    expect(workdirGroup(session)).toEqual({
+      id: 'session:workspace:ws-project-a',
+      label: 'Project A Workspace'
     })
     expect(workdirGroup(createSession({ workspace: null }))).toEqual({
       id: 'session:workdir:none',
@@ -183,11 +214,95 @@ describe('SessionList helpers', () => {
     )
     expect(createSessionWorkdirLabelMap(sessions)).toEqual(
       new Map([
-        ['/Users/jd/alpha/app', 'alpha/app'],
-        ['/Users/jd/beta/app', 'beta/app'],
-        ['/Users/jd/unique', 'unique']
+        ['session:workdir:%2FUsers%2Fjd%2Falpha%2Fapp', 'alpha/app'],
+        ['session:workdir:%2FUsers%2Fjd%2Fbeta%2Fapp', 'beta/app'],
+        ['session:workdir:%2FUsers%2Fjd%2Funique', 'unique']
       ])
     )
+  })
+
+  it('uses workspace rows for workdir labels and ranks independent of session order', () => {
+    const sessions = [
+      createSession({
+        id: 'session-a',
+        workspaceId: 'ws-a',
+        workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Embedded A', orderKey: 'z' })
+      }),
+      createSession({
+        id: 'session-b',
+        workspaceId: 'ws-b',
+        workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Embedded B', orderKey: 'z' })
+      })
+    ]
+    const workspaces = [
+      makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'DB Beta', orderKey: 'a' }),
+      makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'DB Alpha', orderKey: 'b' })
+    ]
+
+    expect(createSessionWorkdirLabelMap(sessions, workspaces)).toEqual(
+      new Map([
+        ['session:workspace:ws-b', 'DB Beta'],
+        ['session:workspace:ws-a', 'DB Alpha']
+      ])
+    )
+    expect(
+      sortSessionsForDisplayGroups(sessions, {
+        mode: 'workdir',
+        workdirDisplay: createSessionWorkdirDisplayMaps(sessions, workspaces)
+      }).map((session) => session.id)
+    ).toEqual(['session-b', 'session-a'])
+  })
+
+  it('keeps session-derived fallback workdirs after known workspace rows', () => {
+    const sessions = [
+      createSession({
+        id: 'unknown',
+        workspaceId: 'ws-unknown',
+        workspace: makeWorkspace('/Users/jd/unknown', { id: 'ws-unknown', name: 'Embedded Unknown' }),
+        orderKey: 'a'
+      }),
+      createSession({
+        id: 'known',
+        workspaceId: 'ws-known',
+        workspace: makeWorkspace('/Users/jd/known', { id: 'ws-known', name: 'Embedded Known' }),
+        orderKey: 'z'
+      })
+    ]
+    const workspaces = [makeWorkspace('/Users/jd/known', { id: 'ws-known', name: 'Known Workspace' })]
+
+    expect(createSessionWorkdirLabelMap(sessions, workspaces)).toEqual(
+      new Map([
+        ['session:workspace:ws-known', 'Known Workspace'],
+        ['session:workdir:%2FUsers%2Fjd%2Funknown', 'unknown']
+      ])
+    )
+    expect(
+      sortSessionsForDisplayGroups(sessions, {
+        mode: 'workdir',
+        workdirDisplay: createSessionWorkdirDisplayMaps(sessions, workspaces)
+      }).map((session) => session.id)
+    ).toEqual(['known', 'unknown'])
+  })
+
+  it('moves workspace rows optimistically after group drops', () => {
+    const workspaces = [
+      makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
+      makeWorkspace('/Users/jd/project-b', { id: 'ws-b' }),
+      makeWorkspace('/Users/jd/project-c', { id: 'ws-c' })
+    ]
+
+    expect(
+      moveSessionWorkdirGroupAfterDrop(workspaces, 'ws-a', 'ws-c', {
+        sourceIndex: 0,
+        targetIndex: 2
+      }).map((workspace) => workspace.id)
+    ).toEqual(['ws-b', 'ws-c', 'ws-a'])
+    expect(
+      moveSessionWorkdirGroupAfterDrop(workspaces, 'ws-c', 'ws-a', {
+        sourceIndex: 2,
+        targetIndex: 0
+      }).map((workspace) => workspace.id)
+    ).toEqual(['ws-c', 'ws-a', 'ws-b'])
   })
 
   it('sorts display groups by mode-specific ranks', () => {
@@ -207,7 +322,7 @@ describe('SessionList helpers', () => {
     expect(
       sortSessionsForDisplayGroups(sessions, {
         mode: 'workdir',
-        workdirRankByPath: new Map([['/Users/jd/project-a', 0]])
+        workdirDisplay: createSessionWorkdirDisplayMaps(sessions, [makeWorkspace('/Users/jd/project-a')])
       }).map((session) => session.id)
     ).toEqual(['pinned', 'newer', 'older'])
   })
@@ -222,7 +337,7 @@ describe('SessionList helpers', () => {
     expect(
       sortSessionsForDisplayGroups(sessions, {
         mode: 'workdir',
-        workdirRankByPath: new Map([['/Users/jd/project-a', 0]])
+        workdirDisplay: createSessionWorkdirDisplayMaps(sessions, [makeWorkspace('/Users/jd/project-a')])
       }).map((session) => session.id)
     ).toEqual(['inserted-before-that', 'inserted-before-first', 'first-created'])
   })

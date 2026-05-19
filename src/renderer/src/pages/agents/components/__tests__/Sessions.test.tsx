@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -169,6 +170,26 @@ const cacheMocks = vi.hoisted(() => ({
   setActiveSessionId: vi.fn()
 }))
 
+const dataApiMocks = vi.hoisted(() => ({
+  findOrCreateWorkspace: vi.fn(async ({ body }: { body: { path: string } }) => {
+    const workspace = dataApiMocks.workspaces.find((candidate) => candidate.path === body.path)
+    return workspace ?? { id: 'ws-test', name: 'Test Workspace', path: body.path }
+  }),
+  refetchWorkspaces: vi.fn().mockResolvedValue(undefined),
+  reorderWorkspace: vi.fn().mockResolvedValue(undefined),
+  workspaces: [] as Array<{
+    id: string
+    name: string
+    path: string
+    orderKey: string
+    createdAt: string
+    updatedAt: string
+  }>,
+  workspacesError: undefined as unknown,
+  workspacesLoading: false,
+  workspacesRefreshing: false
+}))
+
 const topicStreamStatusMocks = vi.hoisted(() => ({
   useTopicStreamStatus: vi.fn(() => ({
     activeExecutions: [],
@@ -218,7 +239,18 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useQuery: vi.fn((path: string) => {
+  useQuery: vi.fn((path: string, options?: { enabled?: boolean }) => {
+    if (options?.enabled === false) {
+      return {
+        data: undefined,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn(),
+        mutate: vi.fn()
+      }
+    }
+
     if (path === '/agents') {
       const agentResult = agentDataMocks.useAgents()
       return {
@@ -235,6 +267,17 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
       }
     }
 
+    if (path === '/workspaces') {
+      return {
+        data: dataApiMocks.workspaces,
+        isLoading: dataApiMocks.workspacesLoading,
+        isRefreshing: dataApiMocks.workspacesRefreshing,
+        error: dataApiMocks.workspacesError,
+        refetch: dataApiMocks.refetchWorkspaces,
+        mutate: vi.fn()
+      }
+    }
+
     return {
       data: [],
       isLoading: false,
@@ -244,8 +287,11 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
       mutate: vi.fn()
     }
   }),
-  useMutation: vi.fn(() => ({
-    trigger: vi.fn().mockResolvedValue({ id: 'ws-test', name: 'ws', path: '/tmp/ws' }),
+  useMutation: vi.fn((method: string, path: string) => ({
+    trigger:
+      method === 'PATCH' && path === '/workspaces/:id/order'
+        ? dataApiMocks.reorderWorkspace
+        : dataApiMocks.findOrCreateWorkspace,
     isLoading: false,
     error: undefined
   }))
@@ -321,13 +367,26 @@ import Sessions from '../Sessions'
 
 const CURRENT_SESSION_ISO = new Date().toISOString()
 
+function makeWorkspace(path: string, overrides: Partial<WorkspaceEntity> = {}): WorkspaceEntity {
+  return {
+    id: `ws-${path}`,
+    name: path.split('/').at(-1) ?? path,
+    path,
+    orderKey: 'a',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides
+  }
+}
+
 function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
   return {
     id: 'session-a',
     agentId: 'agent-a',
     name: 'Alpha session',
     description: '',
-    accessiblePaths: ['/Users/jd/project-a'],
+    workspaceId: 'ws-a',
+    workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Embedded Project A' }),
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: CURRENT_SESSION_ISO,
@@ -349,6 +408,18 @@ function startDraggingSession(id: string) {
       active: {
         data: sortableData(`item:${id}`),
         id: `item:${id}`,
+        rect: { current: { initial: { height: 32, width: 240 }, translated: null } }
+      }
+    })
+  })
+}
+
+function startDraggingGroup(groupId: string) {
+  act(() => {
+    dndMocks.onDragStart?.({
+      active: {
+        data: sortableData(`group:${groupId}`),
+        id: `group:${groupId}`,
         rect: { current: { initial: { height: 32, width: 240 }, translated: null } }
       }
     })
@@ -393,6 +464,13 @@ describe('Sessions', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     preferenceMocks.values.set('agent.session.collapsed_group_ids', [])
     preferenceMocks.values.set('topic.tab.show', true)
+    dataApiMocks.workspaces = [
+      makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'a' }),
+      makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Project B Workspace', orderKey: 'b' })
+    ]
+    dataApiMocks.workspacesError = undefined
+    dataApiMocks.workspacesLoading = false
+    dataApiMocks.workspacesRefreshing = false
     cacheMocks.state.activeSessionId = 'session-a'
     setupSessions()
     pinMocks.usePins.mockReturnValue({
@@ -426,9 +504,41 @@ describe('Sessions', () => {
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 50 })
     expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'project-a' })).toBeInTheDocument()
-    expect(screen.getByText('Alpha session')).toHaveClass('text-sm', 'font-normal', 'text-sidebar-foreground/70')
+    expect(screen.getByRole('button', { name: 'Project A Workspace' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'project-a' })).not.toBeInTheDocument()
+    expect(screen.getByText('Alpha session')).toHaveClass('font-normal', 'text-sidebar-foreground/70')
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+  })
+
+  it('orders workspace groups by workspace DataApi order', () => {
+    dataApiMocks.workspaces = [
+      makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'DB Project B', orderKey: 'a' }),
+      makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'DB Project A', orderKey: 'b' })
+    ]
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Embedded Project A' }),
+          orderKey: 'a'
+        }),
+        createSession({
+          id: 'session-b',
+          name: 'Beta session',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Embedded Project B' }),
+          orderKey: 'b'
+        })
+      ]
+    })
+
+    render(<Sessions />)
+
+    const projectB = screen.getByRole('button', { name: 'DB Project B' })
+    const projectA = screen.getByRole('button', { name: 'DB Project A' })
+    expect(projectB.compareDocumentPosition(projectA) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('renders load errors inside the shared ResourceList shell', () => {
@@ -473,6 +583,53 @@ describe('Sessions', () => {
     expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
     expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
     expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
+  })
+
+  it('keeps workdir sessions loading until workspace rows are ready', () => {
+    dataApiMocks.workspacesLoading = true
+
+    render(<Sessions />)
+
+    expect(screen.queryByText('Project A Workspace')).not.toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+    expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
+    expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
+  })
+
+  it('keeps workdir sessions visible while workspace rows refresh', () => {
+    dataApiMocks.workspacesRefreshing = true
+
+    render(<Sessions />)
+
+    expect(screen.getByRole('button', { name: 'Project A Workspace' })).toBeInTheDocument()
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(0)
+  })
+
+  it('renders workspace load errors in workdir mode', async () => {
+    dataApiMocks.workspacesError = new Error('Workspace request failed')
+
+    render(<Sessions />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Failed to get sessions')
+    expect(screen.getByRole('alert')).toHaveTextContent('Workspace request failed')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await vi.waitFor(() => expect(dataApiMocks.refetchWorkspaces).toHaveBeenCalled())
+  })
+
+  it('does not block time grouping on workspace loading state', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    dataApiMocks.workspacesLoading = true
+    dataApiMocks.workspacesError = new Error('Workspace request failed')
+
+    render(<Sessions />)
+
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Today' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('starts a temporary session from the header without creating inline', async () => {
@@ -634,7 +791,7 @@ describe('Sessions', () => {
 
     render(<Sessions />)
 
-    expect(screen.getByRole('button', { name: 'project-a' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Project A Workspace' })).toBeInTheDocument()
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-a')
     expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-b')
@@ -656,19 +813,22 @@ describe('Sessions', () => {
         createSession({
           id: 'session-a',
           name: 'Alpha session',
-          accessiblePaths: ['/Users/jd/project-a'],
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
           orderKey: 'a'
         }),
         createSession({
           id: 'session-b',
           name: 'Beta session',
-          accessiblePaths: ['/Users/jd/project-a'],
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
           orderKey: 'b'
         }),
         createSession({
           id: 'session-c',
           name: 'Gamma session',
-          accessiblePaths: ['/Users/jd/project-b'],
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' }),
           orderKey: 'c'
         })
       ],
@@ -682,7 +842,7 @@ describe('Sessions', () => {
 
     expectGroupBlocked('Pinned')
     expectSessionBlocked('Gamma session')
-    expect(screen.getByRole('button', { name: 'project-a' }).closest('[data-drop-blocked="true"]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Project A Workspace' }).closest('[data-drop-blocked="true"]')).toBeNull()
     expect(screen.getByText('Beta session').closest('[data-drop-blocked="true"]')).toBeNull()
 
     act(() => {
@@ -701,12 +861,61 @@ describe('Sessions', () => {
     )
   })
 
+  it('reorders workspace groups through the workspace order endpoint', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
+          orderKey: 'a'
+        }),
+        createSession({
+          id: 'session-b',
+          name: 'Beta session',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' }),
+          orderKey: 'b'
+        })
+      ]
+    })
+
+    render(<Sessions />)
+
+    const projectAGroupId = 'session:workspace:ws-a'
+    const projectBGroupId = 'session:workspace:ws-b'
+    startDraggingGroup(projectAGroupId)
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData(`group:${projectAGroupId}`),
+          id: `group:${projectAGroupId}`
+        },
+        over: {
+          data: sortableData(`group:${projectBGroupId}`),
+          id: `group:${projectBGroupId}`
+        }
+      })
+    })
+
+    await vi.waitFor(() =>
+      expect(dataApiMocks.reorderWorkspace).toHaveBeenCalledWith({
+        body: { after: 'ws-b' },
+        params: { id: 'ws-a' }
+      })
+    )
+    expect(dataApiMocks.refetchWorkspaces).toHaveBeenCalled()
+  })
+
   it('creates sessions from workspace group actions', async () => {
     const onStartTemporarySession = vi.fn()
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 
-    const workdirGroup = screen.getByRole('button', { name: 'project-a' }).closest('div')
+    const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
     fireEvent.click(workdirGroup!.querySelector('[aria-label="Add session"]')!)
 
@@ -714,8 +923,9 @@ describe('Sessions', () => {
       expect(onStartTemporarySession).toHaveBeenCalledWith({
         agentId: 'agent-a',
         name: 'Untitled',
-        accessiblePaths: ['/Users/jd/project-a']
+        workspaceId: 'ws-a'
       })
     )
+    expect(dataApiMocks.findOrCreateWorkspace).not.toHaveBeenCalled()
   })
 })

@@ -99,7 +99,7 @@ const AgentPage = () => {
     async (initialName?: string) => {
       const persisted = await persistTemporaryConversation(initialName)
       if (persisted?.type === 'agent') {
-        await invalidateCache(['/sessions', `/sessions/${persisted.sessionId}`])
+        await invalidateCache(['/sessions', '/workspaces', `/sessions/${persisted.sessionId}`])
         setActiveSessionId(persisted.sessionId)
         return persisted
       }
