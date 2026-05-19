@@ -17,6 +17,12 @@ interface Props {
   [key: string]: any
 }
 
+const INLINE_CODE_CLASS =
+  'inline-flex items-center whitespace-pre-wrap! break-words! rounded-[5px] px-1! py-0.5! text-[0.95em]! leading-normal'
+const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} max-w-full align-middle break-all! [&>span]:translate-y-px`
+
+const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')
+
 const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
   const isMultiline = children?.includes('\n')
@@ -70,17 +76,13 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   // On Windows, Unix-style paths are not valid local paths, so skip detection there.
   if (!isWin && typeof children === 'string' && isInlineAbsoluteFilePath(children)) {
     return (
-      <code className={className} style={{ textWrap: 'wrap', fontSize: '95%', padding: '2px 4px' }}>
+      <code className={mergeClassNames(className, INLINE_FILE_PATH_CODE_CLASS)}>
         <ClickableFilePath path={children} />
       </code>
     )
   }
 
-  return (
-    <code className={className} style={{ textWrap: 'wrap', fontSize: '95%', padding: '2px 4px' }}>
-      {children}
-    </code>
-  )
+  return <code className={mergeClassNames(className, INLINE_CODE_CLASS)}>{children}</code>
 }
 
 export default memo(CodeBlock)
