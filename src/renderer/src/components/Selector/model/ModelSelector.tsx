@@ -346,7 +346,9 @@ export function ModelSelector(props: ModelSelectorProps) {
     isPinActionDisabled,
     listItems,
     modelItems,
+    refetchModels,
     refetchPinnedModels,
+    refetchProviders,
     resetTags,
     resolvedSelectedModelIds,
     selectableModelsById,
@@ -530,10 +532,17 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [open])
 
   useEffect(() => {
-    if (open && showPinnedModels) {
+    if (!open) {
+      return
+    }
+
+    void refetchModels()
+    void refetchProviders()
+
+    if (showPinnedModels) {
       void refetchPinnedModels()
     }
-  }, [open, refetchPinnedModels, showPinnedModels])
+  }, [open, refetchModels, refetchPinnedModels, refetchProviders, showPinnedModels])
 
   useEffect(() => {
     if (!open) {

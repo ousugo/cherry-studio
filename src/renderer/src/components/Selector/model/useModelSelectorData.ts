@@ -16,6 +16,7 @@ import type {
 import { getProviderDisplayName } from './utils'
 
 const EMPTY_TAGS: ModelSelectorTag[] = []
+const SELECTOR_LIST_SWR_OPTIONS = { revalidateOnFocus: true } as const
 
 function matchKeywords(keywords: string, model: Model, provider: Provider) {
   const normalizedKeywords = keywords.toLowerCase().split(/\s+/).filter(Boolean)
@@ -82,8 +83,16 @@ export function useModelSelectorData({
   showPinnedModels = true,
   prioritizedProviderIds = []
 }: UseModelSelectorDataOptions): UseModelSelectorDataResult {
-  const { providers, isLoading: isProvidersLoading } = useProviders({ enabled: true })
-  const { models, isLoading: isModelsLoading } = useModels({ enabled: true })
+  const {
+    providers,
+    isLoading: isProvidersLoading,
+    refetch: refetchProviders
+  } = useProviders({ enabled: true }, { swrOptions: SELECTOR_LIST_SWR_OPTIONS })
+  const {
+    models,
+    isLoading: isModelsLoading,
+    refetch: refetchModels
+  } = useModels({ enabled: true }, { swrOptions: SELECTOR_LIST_SWR_OPTIONS })
   const {
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
@@ -301,7 +310,9 @@ export function useModelSelectorData({
     listItems,
     modelItems,
     pinnedIds,
+    refetchModels,
     refetchPinnedModels,
+    refetchProviders,
     resetTags,
     resolvedSelectedModelIds,
     selectableModelsById,

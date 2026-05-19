@@ -240,7 +240,9 @@ function makeData(overrides: Partial<UseModelSelectorDataResult> = {}): UseModel
     listItems,
     modelItems: [itemA, itemB],
     pinnedIds: [],
+    refetchModels: vi.fn(),
     refetchPinnedModels: vi.fn(),
+    refetchProviders: vi.fn(),
     resetTags: vi.fn(),
     resolvedSelectedModelIds: [],
     selectableModelsById: new Map([
@@ -432,6 +434,88 @@ describe('ModelSelector', () => {
     rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />)
 
     await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalledWith(2, { align: 'auto' }))
+  })
+
+  it('refetches models, providers, and pinned models when controlled open switches to true', async () => {
+    const refetchModels = vi.fn(async () => undefined)
+    const refetchProviders = vi.fn(async () => undefined)
+    const refetchPinnedModels = vi.fn(async () => undefined)
+    mockUseModelSelectorData.mockReturnValue(makeData({ refetchModels, refetchPinnedModels, refetchProviders }))
+
+    const { rerender } = render(
+      <ModelSelector open={false} multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
+    )
+
+    expect(refetchModels).not.toHaveBeenCalled()
+    expect(refetchProviders).not.toHaveBeenCalled()
+    expect(refetchPinnedModels).not.toHaveBeenCalled()
+
+    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    await waitFor(() => expect(refetchModels).toHaveBeenCalledTimes(1))
+    expect(refetchProviders).toHaveBeenCalledTimes(1)
+    expect(refetchPinnedModels).toHaveBeenCalledTimes(1)
+  })
+
+  it('refetches models and providers without pinned models when pinned section is hidden', async () => {
+    const refetchModels = vi.fn(async () => undefined)
+    const refetchProviders = vi.fn(async () => undefined)
+    const refetchPinnedModels = vi.fn(async () => undefined)
+    mockUseModelSelectorData.mockReturnValue(makeData({ refetchModels, refetchPinnedModels, refetchProviders }))
+
+    const { rerender } = render(
+      <ModelSelector
+        open={false}
+        multiple={false}
+        showPinnedModels={false}
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+
+    rerender(
+      <ModelSelector
+        open
+        multiple={false}
+        showPinnedModels={false}
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(refetchModels).toHaveBeenCalledTimes(1))
+    expect(refetchProviders).toHaveBeenCalledTimes(1)
+    expect(refetchPinnedModels).not.toHaveBeenCalled()
+  })
+
+  it('does not refetch repeatedly while already open, but refetches after close and reopen', async () => {
+    const refetchModels = vi.fn(async () => undefined)
+    const refetchProviders = vi.fn(async () => undefined)
+    const refetchPinnedModels = vi.fn(async () => undefined)
+    mockUseModelSelectorData.mockReturnValue(makeData({ refetchModels, refetchPinnedModels, refetchProviders }))
+
+    const { rerender } = render(
+      <ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
+    )
+
+    await waitFor(() => expect(refetchModels).toHaveBeenCalledTimes(1))
+    expect(refetchProviders).toHaveBeenCalledTimes(1)
+    expect(refetchPinnedModels).toHaveBeenCalledTimes(1)
+
+    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(refetchModels).toHaveBeenCalledTimes(1)
+    expect(refetchProviders).toHaveBeenCalledTimes(1)
+    expect(refetchPinnedModels).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <ModelSelector open={false} multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
+    )
+    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    await waitFor(() => expect(refetchModels).toHaveBeenCalledTimes(2))
+    expect(refetchProviders).toHaveBeenCalledTimes(2)
+    expect(refetchPinnedModels).toHaveBeenCalledTimes(2)
   })
 
   it('lazy keeps the popover content mounted only after the first open', () => {

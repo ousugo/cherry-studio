@@ -59,11 +59,14 @@ function wireDeps(opts: {
   isPinsLoading?: boolean
   isPinsRefreshing?: boolean
   isPinsMutating?: boolean
+  refetchModels?: () => Promise<unknown>
+  refetchPinnedModels?: () => Promise<unknown>
+  refetchProviders?: () => Promise<unknown>
 }) {
   mockUseProvidersFn.mockReturnValue({
     providers: opts.providers,
     isLoading: false,
-    refetch: vi.fn().mockResolvedValue(undefined),
+    refetch: opts.refetchProviders ?? vi.fn().mockResolvedValue(undefined),
     createProvider: vi.fn(),
     isCreating: false,
     createError: undefined
@@ -71,7 +74,7 @@ function wireDeps(opts: {
   mockUseModelsFn.mockReturnValue({
     models: opts.models,
     isLoading: opts.isModelsLoading ?? false,
-    refetch: vi.fn().mockResolvedValue(undefined)
+    refetch: opts.refetchModels ?? vi.fn().mockResolvedValue(undefined)
   })
   mockUsePinsFn.mockReturnValue({
     isLoading: opts.isPinsLoading ?? false,
@@ -79,7 +82,7 @@ function wireDeps(opts: {
     isMutating: opts.isPinsMutating ?? false,
     error: undefined,
     pinnedIds: opts.pinnedIds ?? [],
-    refetch: vi.fn().mockResolvedValue(undefined),
+    refetch: opts.refetchPinnedModels ?? vi.fn().mockResolvedValue(undefined),
     togglePin: vi.fn()
   })
 }
@@ -92,6 +95,37 @@ beforeEach(() => {
 
 // ─── Tests ────────────────────────────────────────────────────────────
 describe('useModelSelectorData', () => {
+  it('exposes model, provider, and pinned refetch callbacks', () => {
+    const refetchModels = vi.fn(async () => undefined)
+    const refetchProviders = vi.fn(async () => undefined)
+    const refetchPinnedModels = vi.fn(async () => undefined)
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [makeModel('gpt-4', 'openai')],
+      refetchModels,
+      refetchProviders,
+      refetchPinnedModels
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    expect(result.current.refetchModels).toBe(refetchModels)
+    expect(result.current.refetchProviders).toBe(refetchProviders)
+    expect(result.current.refetchPinnedModels).toBe(refetchPinnedModels)
+  })
+
+  it('enables local focus revalidation for model and provider list queries', () => {
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [makeModel('gpt-4', 'openai')]
+    })
+
+    renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    expect(mockUseProvidersFn).toHaveBeenCalledWith({ enabled: true }, { swrOptions: { revalidateOnFocus: true } })
+    expect(mockUseModelsFn).toHaveBeenCalledWith({ enabled: true }, { swrOptions: { revalidateOnFocus: true } })
+  })
+
   it('groups models by their enabled provider', () => {
     wireDeps({
       providers: [makeProvider('openai'), makeProvider('anthropic')],

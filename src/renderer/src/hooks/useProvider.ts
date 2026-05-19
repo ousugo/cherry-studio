@@ -12,6 +12,7 @@ import type {
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
 import { isUndefined, omitBy } from 'lodash'
 import { useCallback } from 'react'
+import type { SWRConfiguration } from 'swr'
 
 const EMPTY_PROVIDERS: Provider[] = []
 const logger = loggerService.withContext('useProviders')
@@ -34,9 +35,16 @@ function providerRefreshPaths(providerId: string): ConcreteApiPaths[] {
 }
 
 // ─── Layer 1: List + Create ────────────────────────────────────────────
-export function useProviders(query?: ListProvidersQuery) {
+export function useProviders(query?: ListProvidersQuery, options?: { swrOptions?: SWRConfiguration }) {
   const filtered = query ? (omitBy(query, isUndefined) as ListProvidersQuery) : undefined
-  const queryOptions = filtered && Object.keys(filtered).length > 0 ? { query: filtered } : undefined
+  const hasQuery = filtered && Object.keys(filtered).length > 0
+  const queryOptions =
+    hasQuery || options?.swrOptions
+      ? {
+          ...(hasQuery && { query: filtered }),
+          ...(options?.swrOptions && { swrOptions: options.swrOptions })
+        }
+      : undefined
 
   const { data, isLoading, refetch } = useQuery('/providers', queryOptions)
 

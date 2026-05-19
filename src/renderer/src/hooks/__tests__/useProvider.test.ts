@@ -98,6 +98,15 @@ describe('useProviders', () => {
     expect(mockUseQuery).toHaveBeenCalledWith('/providers', { query: { enabled: false } })
   })
 
+  it('should pass local SWR options when provided', () => {
+    renderHook(() => useProviders({ enabled: true }, { swrOptions: { refreshInterval: 3000 } }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers', {
+      query: { enabled: true },
+      swrOptions: { refreshInterval: 3000 }
+    })
+  })
+
   it('should filter undefined query fields before passing to useQuery', () => {
     renderHook(() => useProviders({ enabled: undefined as any }))
 
