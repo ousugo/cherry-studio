@@ -1,15 +1,20 @@
+import { application } from '@application'
 import { workspaceTable } from '@data/db/schemas/workspace'
 import { WorkspaceService, workspaceService } from '@data/services/WorkspaceService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { mkdtemp, stat } from 'fs/promises'
+import { mkdtemp, stat, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 describe('WorkspaceService', () => {
   const dbh = setupTestDatabase()
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
 
   it('should export a module-level singleton of WorkspaceService', () => {
     expect(workspaceService).toBeInstanceOf(WorkspaceService)
@@ -49,5 +54,76 @@ describe('WorkspaceService', () => {
     await expect(workspaceService.findOrCreateByPath('relative/project')).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR
     })
+  })
+
+  it('throws not found for missing workspaces', async () => {
+    await expect(workspaceService.getById('missing-workspace')).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+  })
+
+  it('surfaces directory creation failures', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
+    const filePath = path.join(root, 'not-a-directory')
+    await writeFile(filePath, 'file blocks recursive mkdir')
+
+    await expect(workspaceService.findOrCreateByPath(path.join(filePath, 'child'))).rejects.toThrow()
+  })
+
+  it('translates findOrCreateByPathTx unique races to conflict errors', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
+    const workspacePath = path.join(root, 'race')
+    await workspaceService.findOrCreateByPath(workspacePath)
+
+    const emptyRows = { limit: async () => [] }
+    const afterWhere = { ...emptyRows, orderBy: () => emptyRows }
+    const racingTx = {
+      select: () => ({
+        from: () => ({
+          where: () => afterWhere,
+          orderBy: () => emptyRows,
+          limit: async () => []
+        })
+      }),
+      insert: dbh.db.insert.bind(dbh.db)
+    }
+
+    await expect(workspaceService.findOrCreateByPathTx(racingTx as never, workspacePath)).rejects.toMatchObject({
+      code: ErrorCode.CONFLICT
+    })
+  })
+
+  it('reorders workspaces with single and batch moves', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
+    const first = await workspaceService.findOrCreateByPath(path.join(root, 'first'))
+    const second = await workspaceService.findOrCreateByPath(path.join(root, 'second'))
+    const third = await workspaceService.findOrCreateByPath(path.join(root, 'third'))
+
+    await workspaceService.reorder(first.id, { position: 'first' })
+    let workspaces = await workspaceService.list()
+    expect(workspaces.map((workspace) => workspace.id)).toEqual([first.id, third.id, second.id])
+
+    await workspaceService.reorderBatch([
+      { id: second.id, anchor: { before: first.id } },
+      { id: third.id, anchor: { position: 'last' } }
+    ])
+    workspaces = await workspaceService.list()
+    expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id, third.id])
+  })
+
+  it('creates default workspaces under the agents workspace root', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-default-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.workspaces') {
+        return filename ? path.join(root, filename) : root
+      }
+      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
+    })
+
+    const workspace = await workspaceService.createDefaultWorkspace()
+
+    expect(workspace.path.startsWith(root)).toBe(true)
+    const stats = await stat(workspace.path)
+    expect(stats.isDirectory()).toBe(true)
   })
 })
