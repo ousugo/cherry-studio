@@ -158,3 +158,50 @@
   white-space: nowrap;
   animation: animation-reveal 0.5s linear both;
 }
+
+@keyframes animation-animated-reveal-text {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  99% {
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.animated-reveal-text {
+  grid-template-areas: 'text';
+}
+
+.animated-reveal-text__base,
+.animated-reveal-text__fill {
+  grid-area: text;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.animated-reveal-text__base {
+  color: transparent;
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--color-foreground-muted) 72%, transparent);
+}
+
+.animated-reveal-text__fill {
+  color: color-mix(in srgb, var(--color-foreground-muted) 86%, var(--color-foreground));
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--color-foreground-muted) 10%, transparent));
+  clip-path: inset(0 100% 0 0);
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--color-foreground-muted) 86%, var(--color-foreground));
+  animation: animation-animated-reveal-text 0.9s ease-out 0.12s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-reveal-text__fill {
+    filter: none;
+    clip-path: inset(0 0 0 0);
+    animation: none;
+  }
+}

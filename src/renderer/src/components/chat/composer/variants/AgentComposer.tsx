@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import AnimatedRevealText from '@renderer/components/AnimatedRevealText'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
@@ -66,6 +67,7 @@ type Props = {
 
 type AgentComposerRootProps = Props & {
   renderControls: AgentComposerControlsRenderer
+  topContent?: React.ReactNode
 }
 
 type ProviderActionHandlers = ComposerSurfaceActions & {
@@ -89,6 +91,7 @@ const AgentComposerRoot = ({
   onAgentChange,
   agentChanging,
   isStreaming,
+  topContent,
   renderControls
 }: AgentComposerRootProps) => {
   const { t } = useTranslation()
@@ -166,6 +169,7 @@ const AgentComposerRoot = ({
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
         isStreaming={isStreaming}
+        topContent={topContent}
         renderControls={renderControls}
       />
     </ComposerToolRuntimeProvider>
@@ -184,6 +188,7 @@ interface InnerProps {
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
   isStreaming: boolean
+  topContent?: React.ReactNode
   renderControls: AgentComposerControlsRenderer
 }
 
@@ -319,6 +324,7 @@ const AgentComposerInner = ({
   onAgentChange,
   agentChanging,
   isStreaming,
+  topContent,
   renderControls
 }: InnerProps) => {
   const { agent: agentBase } = useAgent(agentId)
@@ -511,6 +517,7 @@ const AgentComposerInner = ({
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers('root-panel')}
         emitToolTrigger={triggers.emit}
+        topContent={topContent}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}
       />
@@ -523,7 +530,14 @@ const AgentComposer = (props: Props) => {
 }
 
 export const AgentHomeComposer = (props: Props) => {
-  return <AgentComposerRoot {...props} renderControls={renderAgentHomeControls} />
+  const { t } = useTranslation()
+  return (
+    <AgentComposerRoot
+      {...props}
+      topContent={<AnimatedRevealText text={t('agent.home.welcome_title')} />}
+      renderControls={renderAgentHomeControls}
+    />
+  )
 }
 
 export default AgentComposer

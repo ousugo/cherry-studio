@@ -66,6 +66,7 @@ export interface ComposerSurfaceProps {
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   getToolLaunchers?: () => ComposerToolLauncher[]
   emitToolTrigger?: (symbol: QuickPanelReservedSymbol, payload?: unknown) => void
+  topContent?: React.ReactNode
   onToolLauncherSelect?: (
     launcher: ComposerToolLauncher,
     options: {
@@ -161,10 +162,14 @@ function deleteComposerTextBeforeCursor(editor: Editor, range: { from: number; t
 
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
 
+function getComposerEditorMinHeight(fontSize: number) {
+  return Math.ceil(fontSize * 1.4 * 2 + 6)
+}
+
 function getComposerEditorStyle(fontSize: number) {
   return [
     '--composer-editor-padding: 6px 15px 0',
-    '--composer-editor-min-height: 30px',
+    `--composer-editor-min-height: ${getComposerEditorMinHeight(fontSize)}px`,
     `--composer-editor-font-size: ${fontSize}px`,
     '--composer-editor-line-height: 1.4'
   ].join('; ')
@@ -199,6 +204,7 @@ export default function ComposerSurface({
   onActionsChange,
   getToolLaunchers,
   emitToolTrigger,
+  topContent,
   onToolLauncherSelect,
   renderLeftControls,
   renderBelowControls
@@ -210,6 +216,7 @@ export default function ComposerSurface({
   const quickPanel = useQuickPanel()
   const { setTimeoutTimer } = useTimer()
   const [customHeight, setCustomHeight] = useState<number | undefined>()
+  const editorMinHeight = getComposerEditorMinHeight(fontSize)
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
   const inputListenersRef = useRef(new Set<(event?: { isComposing?: boolean }) => void>())
@@ -587,9 +594,10 @@ export default function ComposerSurface({
           "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[14px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
         isExpanded && 'expanded'
       )}>
-      <div style={customHeight ? { height: customHeight } : undefined}>
+      <div style={customHeight ? { height: customHeight } : { minHeight: editorMinHeight }}>
         <EditorContent
           editor={editor}
+          style={{ minHeight: editorMinHeight }}
           onFocus={() => {
             onFocus?.()
             PasteService.setLastFocusedComponent('inputbar')
@@ -625,21 +633,24 @@ export default function ComposerSurface({
 
   return (
     <NarrowLayout narrowMode={narrowMode} style={{ width: '100%' }}>
-      <div
-        className="inputbar relative z-2 flex flex-col px-[18px] pt-0"
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}>
-        {quickPanelElement}
-        {belowControls ? (
-          <div className="in-[[navbar-position=top]]:mb-3.5 mb-6 rounded-[20px] bg-muted/25 pb-1.5 shadow-[0_14px_36px_rgba(15,23,42,0.07)] dark:bg-muted/15 dark:shadow-[0_14px_36px_rgba(0,0,0,0.24)]">
-            {inputbarElement}
-            <div className="px-2">{belowControls}</div>
-          </div>
-        ) : (
-          inputbarElement
-        )}
+      <div className="w-full">
+        {topContent ? <div className="mb-6 flex justify-center px-[18px]">{topContent}</div> : null}
+        <div
+          className="inputbar relative z-2 flex flex-col px-[18px] pt-0"
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}>
+          {quickPanelElement}
+          {belowControls ? (
+            <div className="in-[[navbar-position=top]]:mb-3.5 mb-6 rounded-[20px] bg-muted/25 pb-1.5 shadow-[0_14px_36px_rgba(15,23,42,0.07)] dark:bg-muted/15 dark:shadow-[0_14px_36px_rgba(0,0,0,0.24)]">
+              {inputbarElement}
+              <div className="px-2">{belowControls}</div>
+            </div>
+          ) : (
+            inputbarElement
+          )}
+        </div>
       </div>
     </NarrowLayout>
   )
