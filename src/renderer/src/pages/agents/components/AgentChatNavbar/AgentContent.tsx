@@ -45,7 +45,7 @@ const AgentContent = ({
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { session: activeSession } = useActiveSession()
   const { updateModel } = useUpdateAgent()
-  const { updateSession } = useUpdateSession(activeAgent?.id ?? null)
+  const { updateSession } = useUpdateSession()
   const modelFilter = useAgentModelFilter(activeAgent?.type)
 
   const { model: currentSharedModel } = useModelById((activeAgent?.model ?? '') as UniqueModelId)
@@ -55,13 +55,13 @@ const AgentContent = ({
     async (nextAgentId: string | null) => {
       if (!nextAgentId) return
 
-      if (draftMode || !activeAgent) {
+      if (draftMode) {
         if (nextAgentId === activeAgent?.id) return
         await onDraftAgentChange?.(nextAgentId)
         return
       }
 
-      if (!activeSession || nextAgentId === activeAgent.id) return
+      if (!activeSession || nextAgentId === activeSession.agentId) return
       await updateSession({ id: activeSession.id, agentId: nextAgentId }, { showSuccessToast: false })
     },
     [activeAgent, activeSession, draftMode, onDraftAgentChange, updateSession]

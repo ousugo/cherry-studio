@@ -258,24 +258,7 @@ const AgentChat = ({
     )
   }
 
-  if (!activeSession.agentId) {
-    return (
-      <AgentChatFrame
-        className={messageStyle}
-        pane={pane}
-        paneOpen={paneOpen}
-        panePosition={panePosition}
-        artifactPaneOpen={artifactPaneOpen}
-        artifactPaneWorkspacePath={activeSession.accessiblePaths?.[0]}
-        onCloseArtifactPane={closeArtifactPane}
-        main={
-          <div className="flex h-full w-full items-center justify-center">
-            <WarningAlert message={t('agent.session.orphan.message', 'This session’s agent has been deleted')} />
-          </div>
-        }
-      />
-    )
-  }
+  const sendableAgentId = activeAgent ? (activeSession.agentId ?? undefined) : undefined
 
   return (
     <AgentChatFrame
@@ -287,33 +270,34 @@ const AgentChat = ({
       artifactPaneWorkspacePath={activeSession.accessiblePaths?.[0]}
       onCloseArtifactPane={closeArtifactPane}
       topBar={
-        activeAgent && (
-          <div className="flex h-fit w-full min-w-0">
-            <AgentChatNavbar
-              className="min-w-0"
-              activeAgent={activeAgent}
-              onOpenSettings={handleOpenSettings}
-              artifactPaneOpen={artifactPaneOpen}
-              onToggleArtifactPane={toggleArtifactPane}
-            />
-          </div>
-        )
+        <div className="flex h-fit w-full min-w-0">
+          <AgentChatNavbar
+            className="min-w-0"
+            activeAgent={activeAgent ?? null}
+            onOpenSettings={handleOpenSettings}
+            artifactPaneOpen={artifactPaneOpen}
+            onToggleArtifactPane={toggleArtifactPane}
+          />
+        </div>
       }
       centerContent={
         <AgentChatSessionContent
           key={activeSession.id}
-          agentId={activeSession.agentId}
+          agentId={sendableAgentId}
           sessionId={activeSession.id}
           activeAgent={activeAgent}
           messageNavigation={messageNavigation}
           isMultiSelectMode={isMultiSelectMode}
           onOpenCitationsPanel={handleOpenCitationsPanel}
-          onNewSessionDraft={() =>
-            onStartTemporarySession?.({
-              agentId: activeSession.agentId,
-              accessiblePaths: activeSession.accessiblePaths,
-              name: t('common.unnamed')
-            })
+          onNewSessionDraft={
+            sendableAgentId
+              ? () =>
+                  onStartTemporarySession?.({
+                    agentId: sendableAgentId,
+                    accessiblePaths: activeSession.accessiblePaths,
+                    name: t('common.unnamed')
+                  })
+              : undefined
           }
         />
       }
@@ -331,10 +315,10 @@ const AgentChat = ({
   )
 }
 
-// ── Inner: mounted only when agentId + sessionId are resolved ──
+// ── Inner: session-scoped history; agentId is present only while the session is sendable ──
 
 interface InnerProps {
-  agentId: string
+  agentId?: string
   sessionId: string
   activeAgent: GetAgentResponse | undefined
   messageNavigation: string
@@ -361,7 +345,7 @@ const AgentChatSessionContent = ({
     loadOlder,
     refresh,
     deleteMessage: deleteSessionMessage
-  } = useAgentSessionParts(agentId, sessionId)
+  } = useAgentSessionParts(sessionId)
   const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
   const deleteMessage = useCallback(
     async (messageId: string) => {
@@ -414,7 +398,7 @@ const AgentChatSessionContent = ({
   )
 
   const bottomComposer = useMemo(() => {
-    if (isMultiSelectMode) return undefined
+    if (isMultiSelectMode || !agentId) return undefined
 
     return (
       <ComposerContextProvider value={composerContext}>
@@ -471,8 +455,8 @@ const AgentChatSessionContent = ({
           hasOlder={hasOlder}
           loadOlder={loadOlder}
           onOpenCitationsPanel={onOpenCitationsPanel}
-          deleteMessage={deleteMessage}
-          respondToolApproval={handleToolApprovalRespond}
+          deleteMessage={agentId ? deleteMessage : undefined}
+          respondToolApproval={agentId ? handleToolApprovalRespond : undefined}
         />
         <div className="mt-auto px-4.5 pb-2">
           <NarrowLayout narrowMode={narrowMode}>
@@ -575,13 +559,5 @@ const Container = ({ children, className }: PropsWithChildren<{ className?: stri
     </div>
   )
 }
-
-const WarningAlert = ({ message }: { message: string }) => (
-  <div
-    role="alert"
-    className="mx-4 my-1 rounded-md border border-(--color-warning) bg-(--color-warning)/10 px-3 py-2 text-sm">
-    {message}
-  </div>
-)
 
 export default AgentChat

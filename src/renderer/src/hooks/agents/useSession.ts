@@ -33,7 +33,7 @@ type UseSessionsOptions = {
 /**
  * Fetch a single session by id. Config (model / instructions / ...) lives on
  * the parent agent — fetch via `useAgent(session.agentId)` separately. For
- * mutations call `useUpdateSession(agentId)` directly.
+ * mutations call `useUpdateSession()` directly.
  */
 export const useSession = (sessionId: string | null) => {
   const {
@@ -214,11 +214,11 @@ export const useSessions = (
 }
 
 /**
- * Patch session-level fields (only `name`, `description`). Config fields
+ * Patch session-level fields (`name`, `description`, `agentId`). Config fields
  * (model, instructions, configuration, ...) live on the parent agent — use
  * {@link import('./useAgent').useUpdateAgent} for those.
  */
-export const useUpdateSession = (agentId: string | null) => {
+export const useUpdateSession = () => {
   const { t } = useTranslation()
   const { trigger: updateTrigger } = useMutation('PATCH', '/sessions/:sessionId', {
     // `args.params.sessionId` is always supplied by `updateSession` below.
@@ -230,7 +230,6 @@ export const useUpdateSession = (agentId: string | null) => {
 
   const updateSession: UpdateAgentSessionFunction = useCallback(
     async (form: UpdateSessionForm, options?: UpdateAgentBaseOptions): Promise<AgentSessionEntity | undefined> => {
-      if (!agentId) return
       try {
         const { id, ...patch } = form
         const result = await updateTrigger({ params: { sessionId: id }, body: patch })
@@ -243,7 +242,7 @@ export const useUpdateSession = (agentId: string | null) => {
         return undefined
       }
     },
-    [agentId, updateTrigger, t]
+    [updateTrigger, t]
   )
 
   return { updateSession }

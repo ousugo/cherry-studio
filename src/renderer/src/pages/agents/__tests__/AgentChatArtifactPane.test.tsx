@@ -299,7 +299,7 @@ describe('AgentChat artifact pane', () => {
     expect(paneMounts).toEqual(['mounted'])
   })
 
-  it('shows a read-only warning for an unlinked session', () => {
+  it('shows history without composer for an unlinked session', () => {
     activeSessionMocks.result = {
       session: { id: 'session-unlinked', agentId: null, accessiblePaths: ['/tmp/workspace'] },
       isLoading: false,
@@ -308,8 +308,8 @@ describe('AgentChat artifact pane', () => {
 
     render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('agent.session.orphan.message')
-    expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-messages')).toBeInTheDocument()
     expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
   })
 })

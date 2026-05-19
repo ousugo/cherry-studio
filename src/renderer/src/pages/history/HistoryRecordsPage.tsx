@@ -516,15 +516,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
       return searchFields.some((value) => value?.toLowerCase().includes(keywords))
     })
   }, [agentById, filteredSessions, searchText])
-  const sessionUpdateAgentId = useMemo(
-    () =>
-      searchedSessions.find((session) => session.agentId)?.agentId ??
-      sessions.find((session) => session.agentId)?.agentId ??
-      agents[0]?.id ??
-      null,
-    [agents, searchedSessions, sessions]
-  )
-  const { updateSession } = useUpdateSession(sessionUpdateAgentId)
+  const { updateSession } = useUpdateSession()
 
   useEffect(() => {
     if (selectedSourceId === ALL_SOURCE_ID) return

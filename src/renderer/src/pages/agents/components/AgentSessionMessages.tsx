@@ -15,7 +15,7 @@ import { useAgentMessageListProviderValue } from '../messages/agentMessageListAd
 const logger = loggerService.withContext('AgentSessionMessages')
 
 type Props = {
-  agentId: string
+  agentId?: string
   sessionId: string
   messages: CherryUIMessage[]
   activeAgent?: GetAgentResponse

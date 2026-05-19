@@ -185,4 +185,27 @@ describe('AgentContent', () => {
     fireEvent.click(screen.getByRole('button', { name: 'select model b' }))
     expect(mocks.updateModel).toHaveBeenCalledWith('agent-a', 'provider:model-b', { showSuccessToast: false })
   })
+
+  it('rebinds an unlinked persisted session when selecting an agent', async () => {
+    mocks.activeSession = { id: 'session-unlinked', agentId: null, accessiblePaths: [] }
+
+    render(
+      <AgentContent
+        activeAgent={null}
+        onOpenSettings={vi.fn()}
+        artifactPaneOpen={false}
+        onToggleArtifactPane={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'select agent b' }))
+
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-unlinked', agentId: 'agent-b' },
+        { showSuccessToast: false }
+      )
+    )
+    expect(mocks.updateModel).not.toHaveBeenCalled()
+  })
 })

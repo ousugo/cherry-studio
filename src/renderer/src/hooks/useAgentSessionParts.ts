@@ -49,7 +49,7 @@ function toUIMessage(row: AgentSessionMessageEntity): CherryUIMessage | null {
   } as CherryUIMessage
 }
 
-export function useAgentSessionParts(_agentId: string, sessionId: string) {
+export function useAgentSessionParts(sessionId: string) {
   const sessionMessagesCachePath = `/sessions/${sessionId}/messages` as const
   const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/sessions/:sessionId/messages', {
     params: { sessionId },

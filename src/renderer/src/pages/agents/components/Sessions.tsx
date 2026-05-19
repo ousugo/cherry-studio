@@ -167,7 +167,7 @@ const Sessions = ({
     () => resolveCreateSessionAgentId(sessionItems, activeSessionId, agents),
     [sessionItems, activeSessionId, agents]
   )
-  const { updateSession } = useUpdateSession(fallbackAgentId)
+  const { updateSession } = useUpdateSession()
 
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
   const workdirLabelByPath = useMemo(() => createSessionWorkdirLabelMap(sessionItems), [sessionItems])
