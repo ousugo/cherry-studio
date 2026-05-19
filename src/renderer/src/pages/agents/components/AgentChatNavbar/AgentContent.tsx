@@ -26,7 +26,7 @@ const AgentContent = ({ activeAgent, onOpenSettings, artifactPaneOpen, onToggleA
   const { session: activeSession } = useActiveSession()
 
   return (
-    <div className="flex w-full justify-between pr-2">
+    <div className="flex w-full justify-between">
       <div className="flex min-w-0 shrink items-center">
         {showSidebar && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>

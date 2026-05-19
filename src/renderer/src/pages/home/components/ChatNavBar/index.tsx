@@ -30,7 +30,7 @@ const HeaderNavbar: FC<Props> = ({ assistantId, topicId, onOpenSettings }) => {
   return (
     <NavbarHeader className="home-navbar" style={{ height: 'var(--navbar-height)' }}>
       <NarrowLayout narrowMode={narrowMode} className="h-full">
-        <div className="flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden pr-2">
+        <div className="flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden">
           <div className="flex shrink-0 items-center">
             {showSidebar ? (
               <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
