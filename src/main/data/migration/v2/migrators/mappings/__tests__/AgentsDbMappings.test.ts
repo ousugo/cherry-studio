@@ -362,10 +362,14 @@ describe('AgentsDbMappings', () => {
     expect(agentInsert).toContain("'' AS order_key")
 
     const sessionInsert = find('agent_session')
+    expect(sessionInsert).toContain(
+      'INSERT INTO agent_session (id, agent_id, name, description, workspace_id, order_key, created_at, updated_at)'
+    )
     expect(sessionInsert).toContain("COALESCE(description, '') AS description")
     expect(sessionInsert).toContain(
-      "COALESCE(accessible_paths, (SELECT a.accessible_paths FROM agents_legacy.agents a WHERE a.id = sessions.agent_id), '[]') AS accessible_paths"
+      '(SELECT workspace_id FROM session_workspace_map WHERE session_id = sessions.id) AS workspace_id'
     )
+    expect(sessionInsert).not.toContain('accessible_paths')
     expect(sessionInsert).toContain("'' AS order_key")
 
     const skillInsert = find('agent_global_skill')

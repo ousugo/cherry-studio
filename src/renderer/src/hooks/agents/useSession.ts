@@ -101,7 +101,9 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
       if (!agentId) return null
       try {
-        const result = await createTrigger({ body: { agentId, name: form.name, description: form.description } })
+        const result = await createTrigger({
+          body: { agentId, name: form.name, description: form.description, workspaceId: form.workspaceId }
+        })
         return result
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))

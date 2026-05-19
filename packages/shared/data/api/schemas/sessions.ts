@@ -1,13 +1,14 @@
 /**
  * Session domain API Schema definitions.
  *
- * A `Session` is one execution of an `Agent` bound to a workspace
- * (`accessiblePaths`, the CMA-Environment equivalent). All cognitive config
+ * A `Session` is one execution of an `Agent` optionally bound to a normalized
+ * workspace row. All cognitive config
  * (model, instructions, mcps, allowedTools, configuration, ...) lives on the
  * parent agent and is fetched separately via `useAgent(session.agentId)`
  * (renderer) or `agentService.getAgent(...)` (main); workspace lives on the
  * session itself and is **insert-only** — `UpdateSessionDto` deliberately does
  * not include it, so a running session can't be re-pointed at a new directory.
+ * Legacy schema migrations may leave it null; newly created sessions bind one.
  */
 
 import * as z from 'zod'
@@ -16,6 +17,7 @@ import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
 import type { AgentSessionMessageEntitySchema } from './agents'
 import { AgentNameAtomSchema } from './agents'
+import { WorkspaceEntitySchema } from './workspaces'
 
 /** Cursor-paginated query for `/sessions/:sessionId/messages`. Walks history
  *  newest-first; an absent `cursor` returns the most recent page, then each
@@ -42,7 +44,8 @@ export const AgentSessionEntitySchema = z.strictObject({
   description: z.string().optional(),
   // Workspace bound at session create time. Read-only post-creation —
   // `UpdateSessionSchema` (below) intentionally doesn't pick this.
-  accessiblePaths: z.array(z.string()),
+  workspaceId: z.string().nullable(),
+  workspace: WorkspaceEntitySchema.nullable(),
   orderKey: z.string(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -50,13 +53,13 @@ export const AgentSessionEntitySchema = z.strictObject({
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 
 // Create requires a real `agentId` — orphans only happen via cascade, never on insert.
-// `accessiblePaths` is optional at create time — when omitted, the service
-// inherits from the latest sibling session of the same agent.
+// `workspaceId` is optional at create time — when omitted, the service inherits
+// from the latest sibling session of the same agent, or creates a default workspace.
 export const CreateSessionSchema = z.strictObject({
   agentId: z.string().min(1),
   name: AgentNameAtomSchema,
   description: z.string().optional(),
-  accessiblePaths: z.array(z.string()).optional()
+  workspaceId: z.string().min(1).optional()
 })
 export type CreateSessionDto = z.infer<typeof CreateSessionSchema>
 

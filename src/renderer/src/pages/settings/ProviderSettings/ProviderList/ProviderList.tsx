@@ -7,6 +7,7 @@ import {
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import type { Provider } from '@shared/data/types/provider'
+import { canManageProvider, isAnthropicSupportedProvider } from '@shared/utils/provider'
 import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +23,6 @@ import ProviderListItemWithContextMenu from './ProviderListItemWithContextMenu'
 import ProviderListSearchField from './ProviderListSearchField'
 import { useProviderDelete } from './useProviderDelete'
 import { type SubmitProviderEditorParams, useProviderEditor } from './useProviderEditor'
-import { canManageProvider, isAnthropicSupportedProvider } from '@shared/utils/provider'
 
 export interface ProviderListProps {
   selectedProviderId?: string

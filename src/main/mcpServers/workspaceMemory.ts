@@ -163,7 +163,7 @@ class WorkspaceMemoryServer {
     // session — if it gets wired into a per-session context later, swap to
     // accepting sessionId directly.
     const sessions = await sessionService.listByCursor({ agentId: this.agentId, limit: 1 })
-    const workspace = sessions.items[0]?.accessiblePaths?.[0]
+    const workspace = sessions.items[0]?.workspace?.path
     if (!workspace) throw new McpError(ErrorCode.InternalError, 'No session workspace available for this agent')
     return workspace
   }

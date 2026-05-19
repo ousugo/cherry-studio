@@ -130,8 +130,8 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
         </HorizontalScrollContainer>
       </div>
       <div className="flex items-center">
-        {activeSession && activeSession.accessiblePaths?.[0] && (
-          <OpenExternalAppButton workdir={activeSession.accessiblePaths[0]} className="mr-2" />
+        {activeSession?.workspace?.path && (
+          <OpenExternalAppButton workdir={activeSession.workspace.path} className="mr-2" />
         )}
         <Tools />
       </div>

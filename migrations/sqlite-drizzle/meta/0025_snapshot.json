@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8463815f-86d2-4ab2-9737-7a13518dfbd2",
+  "id": "009711d2-99e8-43e9-81c0-09f2543505c7",
   "prevId": "95151cb9-d35d-4a62-b6fb-5d48d05eefdd",
   "tables": {
     "agent": {
@@ -510,13 +510,12 @@
           "autoincrement": false,
           "default": "''"
         },
-        "accessible_paths": {
-          "name": "accessible_paths",
+        "workspace_id": {
+          "name": "workspace_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
+          "notNull": false,
+          "autoincrement": false
         },
         "order_key": {
           "name": "order_key",
@@ -553,6 +552,15 @@
           "tableFrom": "agent_session",
           "tableTo": "agent",
           "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_session_workspace_id_agent_workspace_id_fk": {
+          "name": "agent_session_workspace_id_agent_workspace_id_fk",
+          "tableFrom": "agent_session",
+          "tableTo": "agent_workspace",
+          "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
@@ -1067,7 +1075,8 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "'a0'"
         },
         "created_at": {
           "name": "created_at",
@@ -3267,6 +3276,69 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "agent_workspace": {
+      "name": "agent_workspace",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "agent_workspace_path_unique_idx": {
+          "name": "agent_workspace_path_unique_idx",
+          "columns": ["path"],
+          "isUnique": true
+        },
+        "agent_workspace_order_key_idx": {
+          "name": "agent_workspace_order_key_idx",
+          "columns": ["order_key"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     }
   },
   "views": {},
@@ -3274,7 +3346,10 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {}
+    "columns": {
+      "\"agent\".\"sort_order\"": "\"agent\".\"order_key\"",
+      "\"agent_session\".\"sort_order\"": "\"agent_session\".\"order_key\""
+    }
   },
   "internal": {
     "indexes": {

@@ -1,23 +1,19 @@
-PRAGMA foreign_keys=OFF;--> statement-breakpoint
-CREATE TABLE `__new_agent_session` (
+CREATE TABLE `agent_workspace` (
 	`id` text PRIMARY KEY NOT NULL,
-	`agent_id` text,
 	`name` text NOT NULL,
-	`description` text DEFAULT '' NOT NULL,
-	`accessible_paths` text DEFAULT '[]' NOT NULL,
+	`path` text NOT NULL,
 	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`agent_id`) REFERENCES `agent`(`id`) ON UPDATE no action ON DELETE set null
+	`updated_at` integer NOT NULL
 );
 --> statement-breakpoint
--- Old agent_session has no order_key column; substitute the 'a0' constant.
--- AgentsMigrator.backfillAgentOrderKeys replaces it with real fractional keys when importing legacy v1 sessions.
-INSERT INTO `__new_agent_session`("id", "agent_id", "name", "description", "accessible_paths", "order_key", "created_at", "updated_at") SELECT "id", "agent_id", "name", "description", "accessible_paths", 'a0' AS "order_key", "created_at", "updated_at" FROM `agent_session`;--> statement-breakpoint
-DROP TABLE `agent_session`;--> statement-breakpoint
-ALTER TABLE `__new_agent_session` RENAME TO `agent_session`;--> statement-breakpoint
-PRAGMA foreign_keys=ON;--> statement-breakpoint
-CREATE INDEX `agent_session_order_key_idx` ON `agent_session` (`order_key`);--> statement-breakpoint
+CREATE UNIQUE INDEX `agent_workspace_path_unique_idx` ON `agent_workspace` (`path`);--> statement-breakpoint
+CREATE INDEX `agent_workspace_order_key_idx` ON `agent_workspace` (`order_key`);--> statement-breakpoint
+PRAGMA foreign_keys=OFF;--> statement-breakpoint
+-- Manual fix-up over drizzle-kit auto-generation: the previous schema has
+-- `sort_order` / `accessible_paths`, but not `order_key` / `workspace_id`.
+-- Use a transient constant key so the rebuild can run against existing dev DBs;
+-- runtime/migrator paths assign real fractional keys for imported rows.
 CREATE TABLE `__new_agent` (
 	`id` text PRIMARY KEY NOT NULL,
 	`type` text NOT NULL,
@@ -39,19 +35,33 @@ CREATE TABLE `__new_agent` (
 	FOREIGN KEY (`small_model`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
--- Same pattern as the agent_session rebuild: old agent table has no order_key,
--- so substitute the 'a0' constant. AgentsMigrator.backfillAgentOrderKeys
--- replaces it with real fractional keys when importing legacy v1 agents.
 INSERT INTO `__new_agent`("id", "type", "name", "description", "instructions", "model", "plan_model", "small_model", "mcps", "allowed_tools", "configuration", "order_key", "created_at", "updated_at", "deleted_at") SELECT "id", "type", "name", "description", "instructions", "model", "plan_model", "small_model", "mcps", "allowed_tools", "configuration", 'a0' AS "order_key", "created_at", "updated_at", "deleted_at" FROM `agent`;--> statement-breakpoint
 DROP TABLE `agent`;--> statement-breakpoint
 ALTER TABLE `__new_agent` RENAME TO `agent`;--> statement-breakpoint
+PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE INDEX `agent_name_idx` ON `agent` (`name`);--> statement-breakpoint
 CREATE INDEX `agent_type_idx` ON `agent` (`type`);--> statement-breakpoint
 CREATE INDEX `agent_order_key_idx` ON `agent` (`order_key`);--> statement-breakpoint
--- DEFAULT 'a0' covers existing rows; new inserts from AssistantMigrator and
--- AssistantService always pass an explicit fractional key.
-ALTER TABLE `assistant` ADD `order_key` text NOT NULL DEFAULT 'a0';--> statement-breakpoint
-CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);--> statement-breakpoint
+CREATE TABLE `__new_agent_session` (
+	`id` text PRIMARY KEY NOT NULL,
+	`agent_id` text,
+	`name` text NOT NULL,
+	`description` text DEFAULT '' NOT NULL,
+	`workspace_id` text,
+	`order_key` text NOT NULL,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	FOREIGN KEY (`agent_id`) REFERENCES `agent`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`workspace_id`) REFERENCES `agent_workspace`(`id`) ON UPDATE no action ON DELETE set null
+);
+--> statement-breakpoint
+INSERT INTO `__new_agent_session`("id", "agent_id", "name", "description", "workspace_id", "order_key", "created_at", "updated_at") SELECT "id", "agent_id", "name", "description", NULL AS "workspace_id", 'a0' AS "order_key", "created_at", "updated_at" FROM `agent_session`;--> statement-breakpoint
+DROP TABLE `agent_session`;--> statement-breakpoint
+ALTER TABLE `__new_agent_session` RENAME TO `agent_session`;--> statement-breakpoint
+CREATE INDEX `agent_session_order_key_idx` ON `agent_session` (`order_key`);--> statement-breakpoint
+ALTER TABLE `assistant` ADD `order_key` text DEFAULT 'a0' NOT NULL;--> statement-breakpoint
+CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);
+--> statement-breakpoint
 -- Strip v1 fields from assistant.settings JSON.
 -- `qwenThinkMode` is redundant (replaced by `reasoning_effort !== undefined`);
 -- `contextCount` is replaced by reading `model.contextWindow` at runtime.
