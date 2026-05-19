@@ -162,14 +162,24 @@ export interface UseTopicMessagesResult {
   mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>
 }
 
-export function useTopicMessages(topicId: string, options?: { enabled?: boolean }): UseTopicMessagesResult {
+export function useTopicMessages(
+  topicId: string,
+  options?: { enabled?: boolean; fetchOnMount?: boolean }
+): UseTopicMessagesResult {
   const enabled = options?.enabled !== false
+  const fetchOnMount = options?.fetchOnMount ?? enabled
   const { pages, isLoading, isRefreshing, mutate, loadNext, hasNext } = useInfiniteQuery('/topics/:topicId/messages', {
     params: { topicId },
     query: { includeSiblings: true },
     limit: PAGE_SIZE,
     enabled,
-    swrOptions: { dedupingInterval: 0 }
+    swrOptions: {
+      dedupingInterval: 0,
+      ...(!fetchOnMount && {
+        revalidateIfStale: false,
+        revalidateOnMount: false
+      })
+    }
   })
 
   // Branch endpoint paginates newest-page-first; flipping page order gives a
@@ -192,15 +202,15 @@ export function useTopicMessages(topicId: string, options?: { enabled?: boolean 
   // On remount with stale SWR cache, SWR may expose cached data while it
   // revalidates. Track freshness per topic so the loading gate blocks stale
   // cached rows without issuing an extra mutate() on top of SWR's own fetch.
-  const [readyTopicId, setReadyTopicId] = useState<string | null>(null)
+  const [readyTopicId, setReadyTopicId] = useState<string | null>(() => (!fetchOnMount ? topicId : null))
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !fetchOnMount) {
       setReadyTopicId(topicId)
       return
     }
 
     setReadyTopicId((current) => (current === topicId ? current : null))
-  }, [topicId, enabled])
+  }, [topicId, enabled, fetchOnMount])
 
   useEffect(() => {
     if (!enabled || isLoading || isRefreshing || !pagesBelongToTopic) return

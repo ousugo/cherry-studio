@@ -51,6 +51,25 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
+vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => ({
+  default: ({
+    placement,
+    main,
+    composer,
+    mainVisible
+  }: {
+    placement: string
+    main: ReactNode
+    composer: ReactNode
+    mainVisible?: boolean
+  }) => (
+    <div data-testid="composer-dock-frame" data-placement={placement} data-main-visible={String(Boolean(mainVisible))}>
+      {main}
+      {composer}
+    </div>
+  )
+}))
+
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [false]
 }))

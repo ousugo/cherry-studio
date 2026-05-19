@@ -76,6 +76,25 @@ vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
   )
 }))
 
+vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => ({
+  default: ({
+    placement,
+    main,
+    composer,
+    mainVisible
+  }: {
+    placement: string
+    main: ReactNode
+    composer: ReactNode
+    mainVisible?: boolean
+  }) => (
+    <div data-testid="composer-dock-frame" data-placement={placement} data-main-visible={String(Boolean(mainVisible))}>
+      <div data-testid="composer-dock-main">{main}</div>
+      <div data-testid="composer-dock-composer">{composer}</div>
+    </div>
+  )
+}))
+
 vi.mock('@renderer/components/chat/messages/blocks', () => ({
   PartsProvider: ({ children }: { children: ReactNode }) => children,
   RefreshProvider: ({ children }: { children: ReactNode }) => children
@@ -222,10 +241,10 @@ describe('ChatContent', () => {
     })
   })
 
-  it('disables persistent history loading for freshly leased temporary topics', () => {
+  it('keeps a message cache key without fetching history for freshly leased temporary topics', () => {
     render(<ChatContent topic={topic} mainHeight="100px" onPersistTemporaryTopic={vi.fn()} />)
 
-    expect(mockUseTopicMessages).toHaveBeenCalledWith('topic-1', { enabled: false })
+    expect(mockUseTopicMessages).toHaveBeenCalledWith('topic-1', { fetchOnMount: false })
   })
 
   it('centers the home composer for a fresh empty temporary topic and routes assistant changes', () => {
@@ -265,6 +284,8 @@ describe('ChatContent', () => {
       />
     )
 
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'false')
     expect(screen.getByTestId('frame-main')).toHaveTextContent('home composer')
     expect(screen.getByTestId('frame-bottom')).toBeEmptyDOMElement()
 

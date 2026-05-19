@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
 import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
+import ComposerDockTransitionFrame from '@renderer/components/chat/composer/ComposerDockTransitionFrame'
 import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import ChatComposer, { ChatHomeComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks'
@@ -94,7 +95,7 @@ const ChatContent: FC<Props> = ({
     loadOlder,
     hasOlder,
     mutate: messagesCacheMutate
-  } = useTopicMessages(topic.id, { enabled: !isFreshTemporaryTopic })
+  } = useTopicMessages(topic.id, { fetchOnMount: !isFreshTemporaryTopic })
 
   if (isHistoryLoading) {
     const main = <MessageListInitialLoading />
@@ -247,22 +248,24 @@ const ChatContentInner: FC<InnerProps> = ({
         userMessageParts?: CherryMessagePart[]
       }
     ) => {
-      if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
-        try {
-          // Seed the new topic with the user's first message as a placeholder
-          // name so the sidebar entry isn't blank while the auto-namer runs.
-          await onPersistTemporaryTopic(text)
-          onTemporaryTopicPersisted()
-        } catch (err) {
-          logger.warn('failed to persist temporary topic, falling back', err as Error)
-        }
-      }
       const optimisticUserId = await cache.seedOptimisticUser({
         text,
         parentId: activeNodeId ?? null,
         files: options?.files,
         parts: options?.userMessageParts
       })
+      if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
+        try {
+          // Seed the new topic with the user's first message as a placeholder
+          // name so the sidebar entry isn't blank pre-auto-name.
+          await onPersistTemporaryTopic(text)
+          onTemporaryTopicPersisted()
+        } catch (err) {
+          logger.warn('failed to persist temporary topic', err as Error)
+          await cache.rollbackBranch()
+          throw err
+        }
+      }
       if (optimisticUserId && !options?.mentionedModels?.length) {
         await cache.seedOptimisticAssistant({ parentId: optimisticUserId })
       }
@@ -380,19 +383,17 @@ const ChatContentInner: FC<InnerProps> = ({
                 />
               </ComposerContextProvider>
             )
+            const dockedFrame = (
+              <ComposerDockTransitionFrame
+                placement={shouldRenderHomeComposer ? 'home' : 'docked'}
+                main={main}
+                composer={composer}
+                mainVisible={!shouldRenderHomeComposer}
+              />
+            )
 
             if (renderFrame) {
-              if (shouldRenderHomeComposer) {
-                return renderFrame({
-                  main: (
-                    <div className="flex h-full min-h-0 flex-1 items-center justify-center px-4 pb-[12vh]">
-                      <div className="w-full">{composer}</div>
-                    </div>
-                  )
-                })
-              }
-
-              return renderFrame({ main, bottomComposer: composer })
+              return renderFrame({ main: dockedFrame })
             }
 
             return (
@@ -400,16 +401,7 @@ const ChatContentInner: FC<InnerProps> = ({
                 <div
                   className="flex flex-1 flex-col justify-between"
                   style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                  {shouldRenderHomeComposer ? (
-                    <div className="flex h-full min-h-0 flex-1 items-center justify-center px-4 pb-[12vh]">
-                      <div className="w-full">{composer}</div>
-                    </div>
-                  ) : (
-                    <>
-                      {main}
-                      {composer}
-                    </>
-                  )}
+                  {dockedFrame}
                 </div>
               </>
             )

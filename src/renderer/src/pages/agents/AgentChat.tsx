@@ -3,6 +3,7 @@ import { ChatAppShell, type ChatPanePosition, RightPaneHost } from '@renderer/co
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
 import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
+import ComposerDockTransitionFrame from '@renderer/components/chat/composer/ComposerDockTransitionFrame'
 import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import AgentComposer, { AgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
@@ -70,6 +71,7 @@ const AgentChat = ({
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const [artifactPaneOpen, setArtifactPaneOpen] = useState(false)
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
+  const [temporaryComposerDocked, setTemporaryComposerDocked] = useState(false)
 
   const { session: activeSession, isLoading: isSessionLoading } = useActiveSession()
   const temporaryAgentConversation = temporaryConversation?.type === 'agent' ? temporaryConversation : null
@@ -77,6 +79,10 @@ const AgentChat = ({
   const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(
     activeSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
   )
+
+  useEffect(() => {
+    setTemporaryComposerDocked(false)
+  }, [temporaryAgentConversation?.id])
 
   useEffect(() => {
     if (!activeSession || !temporaryAgentConversation || activeSession.id !== temporaryAgentConversation.sessionId)
@@ -126,8 +132,18 @@ const AgentChat = ({
   const sendTemporaryMessage = useCallback(
     async (message?: { text: string }, options?: { body?: Record<string, unknown> }) => {
       if (!temporaryAgentConversation || !onPersistTemporarySession) return
-      const persisted = await onPersistTemporarySession(message?.text)
-      if (persisted?.type !== 'agent') return
+      setTemporaryComposerDocked(true)
+      let persisted: TemporaryConversation | null
+      try {
+        persisted = await onPersistTemporarySession(message?.text)
+      } catch (err) {
+        setTemporaryComposerDocked(false)
+        throw err
+      }
+      if (persisted?.type !== 'agent') {
+        setTemporaryComposerDocked(false)
+        return
+      }
 
       const userMessageParts =
         (options?.body?.userMessageParts as CherryMessagePart[] | undefined) ??
@@ -142,6 +158,7 @@ const AgentChat = ({
         })
       } catch (err) {
         cleanupStreamWatcher()
+        setTemporaryComposerDocked(false)
         await refreshPersistedSession(persisted.sessionId)
         throw err
       }
@@ -234,9 +251,12 @@ const AgentChat = ({
           </div>
         }
         main={
-          <div className="flex h-full min-h-0 flex-1 items-center justify-center px-4 pb-[12vh]">
-            <div className="w-full">{homeComposer}</div>
-          </div>
+          <ComposerDockTransitionFrame
+            placement={temporaryComposerDocked ? 'docked' : 'home'}
+            main={<div className="h-full min-h-0 flex-1" />}
+            composer={homeComposer}
+            mainVisible={temporaryComposerDocked}
+          />
         }
         sidePanel={
           <CitationsPanel
@@ -414,47 +434,46 @@ const AgentChatSessionContent = ({
     sessionId
   ])
 
-  return (
-    <>
-      <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-        {chat.activeExecutions.map(({ executionId }) => {
-          const execChat = executionChats.get(executionId)
-          if (!execChat) return null
-          return (
-            <ExecutionStreamCollector
-              key={executionId}
-              executionId={executionId}
-              chat={execChat}
-              onMessagesChange={handleExecutionMessagesChange}
-              onDispose={handleExecutionDispose}
-            />
-          )
-        })}
+  const main = (
+    <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
+      {chat.activeExecutions.map(({ executionId }) => {
+        const execChat = executionChats.get(executionId)
+        if (!execChat) return null
+        return (
+          <ExecutionStreamCollector
+            key={executionId}
+            executionId={executionId}
+            chat={execChat}
+            onMessagesChange={handleExecutionMessagesChange}
+            onDispose={handleExecutionDispose}
+          />
+        )
+      })}
 
-        <AgentSessionMessages
-          agentId={agentId}
-          sessionId={sessionId}
-          messages={uiMessages}
-          activeAgent={activeAgent}
-          partsByMessageId={partsByMessageId}
-          modelFallback={fallbackSnapshot}
-          isLoading={isLoading}
-          hasOlder={hasOlder}
-          loadOlder={loadOlder}
-          onOpenCitationsPanel={onOpenCitationsPanel}
-          deleteMessage={agentId ? deleteMessage : undefined}
-          respondToolApproval={agentId ? handleToolApprovalRespond : undefined}
-        />
-        <div className="mt-auto px-4.5 pb-2">
-          <NarrowLayout narrowMode={narrowMode}>
-            <PinnedTodoPanel messages={uiMessages} partsByMessageId={partsByMessageId} />
-          </NarrowLayout>
-        </div>
-        {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+      <AgentSessionMessages
+        agentId={agentId}
+        sessionId={sessionId}
+        messages={uiMessages}
+        activeAgent={activeAgent}
+        partsByMessageId={partsByMessageId}
+        modelFallback={fallbackSnapshot}
+        isLoading={isLoading}
+        hasOlder={hasOlder}
+        loadOlder={loadOlder}
+        onOpenCitationsPanel={onOpenCitationsPanel}
+        deleteMessage={agentId ? deleteMessage : undefined}
+        respondToolApproval={agentId ? handleToolApprovalRespond : undefined}
+      />
+      <div className="mt-auto px-4.5 pb-2">
+        <NarrowLayout narrowMode={narrowMode}>
+          <PinnedTodoPanel messages={uiMessages} partsByMessageId={partsByMessageId} />
+        </NarrowLayout>
       </div>
-      {bottomComposer}
-    </>
+      {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+    </div>
   )
+
+  return <ComposerDockTransitionFrame placement="docked" main={main} composer={bottomComposer} mainVisible />
 }
 
 interface AgentChatFrameBaseProps {

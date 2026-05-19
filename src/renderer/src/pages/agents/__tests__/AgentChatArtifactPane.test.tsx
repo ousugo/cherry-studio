@@ -75,6 +75,25 @@ vi.mock('@renderer/components/chat/composer/useToolApprovalComposerOverrides', (
   useToolApprovalComposerOverrides: () => ({})
 }))
 
+vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => ({
+  default: ({
+    placement,
+    main,
+    composer,
+    mainVisible
+  }: {
+    placement: string
+    main: ReactNode
+    composer: ReactNode
+    mainVisible?: boolean
+  }) => (
+    <div data-testid="composer-dock-frame" data-placement={placement} data-main-visible={String(Boolean(mainVisible))}>
+      {main}
+      {composer}
+    </div>
+  )
+}))
+
 vi.mock('@renderer/components/chat/messages/stream/useMessagePartsById', () => ({
   useMessagePartsById: () => ({})
 }))
@@ -256,6 +275,35 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByTestId('session-pane')).toBeInTheDocument()
+  })
+
+  it('renders the temporary session composer in home placement', () => {
+    activeSessionMocks.result = {
+      session: undefined,
+      isLoading: false,
+      setActiveSessionId: vi.fn()
+    }
+
+    render(
+      <AgentChat
+        temporaryConversation={
+          {
+            type: 'agent',
+            id: 'temp-session-1',
+            sessionId: 'temp-session-1',
+            topicId: 'agent-session:temp-session-1',
+            agentId: 'agent-1',
+            accessiblePaths: ['/tmp/workspace'],
+            name: 'Temp Session',
+            session: { id: 'temp-session-1', agentId: 'agent-1', accessiblePaths: ['/tmp/workspace'] }
+          } as any
+        }
+      />
+    )
+
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'false')
+    expect(screen.getByTestId('agent-home-composer')).toBeInTheDocument()
   })
 
   it('keeps the session pane mounted while a selected session reloads', () => {

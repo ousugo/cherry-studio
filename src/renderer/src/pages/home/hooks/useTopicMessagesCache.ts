@@ -104,6 +104,10 @@ export interface UseTopicMessagesCacheParams {
   mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>
 }
 
+function ensureWritablePages(pages: BranchMessagesResponse[] | undefined): BranchMessagesResponse[] {
+  return pages?.length ? pages : [{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null }]
+}
+
 export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCacheParams) {
   const messagesCachePath = `/topics/${topicId}/messages` as const
 
@@ -143,10 +147,10 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
       let tempId: string | undefined
       await mutate(
         (pages) => {
-          if (!pages?.length) return pages
+          const writablePages = ensureWritablePages(pages)
           const message = synthesizeOptimisticUserMessage({ ...params, topicId })
           tempId = message.id
-          const [firstPage, ...rest] = pages
+          const [firstPage, ...rest] = writablePages
           return [
             {
               ...firstPage,
@@ -190,10 +194,10 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
       let tempId: string | undefined
       await mutate(
         (pages) => {
-          if (!pages?.length) return pages
+          const writablePages = ensureWritablePages(pages)
           const message = synthesizeOptimisticAssistantPlaceholder({ topicId, parentId: params.parentId })
           tempId = message.id
-          const [firstPage, ...rest] = pages
+          const [firstPage, ...rest] = writablePages
           return [
             {
               ...firstPage,

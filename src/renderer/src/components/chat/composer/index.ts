@@ -1,4 +1,5 @@
 export { default as ComposerCore } from './ComposerCore'
+export { type ComposerDockPlacement, default as ComposerDockTransitionFrame } from './ComposerDockTransitionFrame'
 export {
   createComposerMessageSnapshot,
   createComposerUserMessageParts,

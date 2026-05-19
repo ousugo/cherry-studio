@@ -471,7 +471,7 @@ const ChatComposerInner = ({
   useShortcut(
     'topic.new',
     () => {
-      void addNewTopic()
+      addNewTopic()
     },
     { preventDefault: true, enableOnFormTags: true }
   )
