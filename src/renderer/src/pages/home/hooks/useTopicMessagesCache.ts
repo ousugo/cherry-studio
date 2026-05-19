@@ -17,13 +17,7 @@
  * caller since it holds `setMessages` from `useChatWithHistory`.
  */
 import { useMutation } from '@data/hooks/useDataApi'
-import type { FileMetadata } from '@renderer/types'
-import type {
-  BranchMessage,
-  BranchMessagesResponse,
-  CherryMessagePart,
-  Message as SharedMessage
-} from '@shared/data/types/message'
+import type { BranchMessage, BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
 import { useCallback } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
@@ -34,68 +28,6 @@ function branchWithoutIds(items: BranchMessage[], removedIds: Set<string>): Bran
     .map((item) =>
       item.siblingsGroup ? { ...item, siblingsGroup: item.siblingsGroup.filter((s) => !removedIds.has(s.id)) } : item
     )
-}
-
-/**
- * Synthesize a SharedMessage for an optimistic user bubble. Only fields the
- * renderer's projection reads are filled meaningfully — the rest get safe
- * defaults that the real DB row overwrites on the next SWR revalidation
- * (triggered by Main's cache invalidate ~30–80ms after streamOpen).
- */
-function synthesizeOptimisticUserMessage(params: {
-  topicId: string
-  parentId: string | null
-  text: string
-  files?: FileMetadata[]
-}): SharedMessage {
-  const parts: CherryMessagePart[] = [{ type: 'text', text: params.text }]
-  if (params.files?.length) {
-    for (const file of params.files) {
-      parts.push({
-        type: 'file',
-        url: file.path,
-        mediaType: file.ext ?? 'application/octet-stream',
-        filename: file.origin_name ?? file.name
-      } as CherryMessagePart)
-    }
-  }
-  const now = new Date().toISOString()
-  return {
-    id: `optimistic-${crypto.randomUUID()}`,
-    topicId: params.topicId,
-    parentId: params.parentId,
-    role: 'user',
-    data: { parts },
-    searchableText: params.text,
-    status: 'success',
-    siblingsGroupId: 0,
-    modelId: null,
-    modelSnapshot: null,
-    traceId: null,
-    stats: null,
-    createdAt: now,
-    updatedAt: now
-  }
-}
-
-function synthesizeOptimisticAssistantPlaceholder(params: { topicId: string; parentId: string }): SharedMessage {
-  const now = new Date().toISOString()
-  return {
-    id: `optimistic-asst-${crypto.randomUUID()}`,
-    topicId: params.topicId,
-    parentId: params.parentId,
-    role: 'assistant',
-    data: { parts: [] },
-    searchableText: '',
-    status: 'pending',
-    siblingsGroupId: 0,
-    modelId: null,
-    modelSnapshot: null,
-    traceId: null,
-    stats: null,
-    createdAt: now,
-    updatedAt: now
-  }
 }
 
 export interface UseTopicMessagesCacheParams {
@@ -125,38 +57,6 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     [mutate]
   )
 
-  /**
-   * Seed a synthesized user message as the new activeNode so the bubble
-   * renders immediately after the user clicks send. Appends to the end of
-   * page 0's items (page 0 = newest chunk; within-page oldest→newest order
-   * means "end of page 0" is "newest overall"). The real row (allocated by
-   * Main's id reservation) overwrites this entry on the next revalidation.
-   */
-  const seedOptimisticUser = useCallback(
-    async (params: { text: string; parentId: string | null; files?: FileMetadata[] }): Promise<string | undefined> => {
-      let tempId: string | undefined
-      await mutate(
-        (pages) => {
-          if (!pages?.length) return pages
-          const message = synthesizeOptimisticUserMessage({ ...params, topicId })
-          tempId = message.id
-          const [firstPage, ...rest] = pages
-          return [
-            {
-              ...firstPage,
-              items: [...firstPage.items, { message }],
-              activeNodeId: message.id
-            },
-            ...rest
-          ]
-        },
-        { revalidate: false }
-      )
-      return tempId
-    },
-    [mutate, topicId]
-  )
-
   const patchMessageInBranch = useCallback(
     async (messageId: string, patch: Partial<SharedMessage>) => {
       await mutate(
@@ -177,31 +77,6 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
       )
     },
     [mutate]
-  )
-
-  const seedOptimisticAssistant = useCallback(
-    async (params: { parentId: string }): Promise<string | undefined> => {
-      let tempId: string | undefined
-      await mutate(
-        (pages) => {
-          if (!pages?.length) return pages
-          const message = synthesizeOptimisticAssistantPlaceholder({ topicId, parentId: params.parentId })
-          tempId = message.id
-          const [firstPage, ...rest] = pages
-          return [
-            {
-              ...firstPage,
-              items: [...firstPage.items, { message }],
-              activeNodeId: message.id
-            },
-            ...rest
-          ]
-        },
-        { revalidate: false }
-      )
-      return tempId
-    },
-    [mutate, topicId]
   )
 
   /** Full rollback: force a revalidation against the server. */
@@ -233,8 +108,6 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   return {
     branchWithoutIds,
     seedOptimisticBranch,
-    seedOptimisticUser,
-    seedOptimisticAssistant,
     patchMessageInBranch,
     rollbackBranch,
     clearBranchCache,

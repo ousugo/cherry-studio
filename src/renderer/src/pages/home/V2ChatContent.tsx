@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('V2ChatContent')
 
+import { usePendingMessages } from './hooks/usePendingMessages'
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import { useV2ChatOverrides } from './hooks/useV2ChatOverrides'
 import { useV2RenderingPipeline } from './hooks/useV2RenderingPipeline'
@@ -154,13 +155,23 @@ const V2ChatContentInner: FC<InnerProps> = ({
     refresh
   )
 
+  // Pending overlay (Phase 4): the just-sent turn shown instantly, in local
+  // state, never written to the authoritative SWR cache. `messages` is the
+  // single render selector = DB truth ++ unclaimed pending.
+  const { pendingMessages, addPending } = usePendingMessages(topic.id, uiMessages)
+  const messages = useMemo(
+    () => (pendingMessages.length > 0 ? [...uiMessages, ...pendingMessages] : uiMessages),
+    [uiMessages, pendingMessages]
+  )
+
   useEffect(() => {
     if (status === 'streaming' || status === 'submitted') return
-    const canonical = uiMessages.filter((m) => !m.id.startsWith('optimistic-'))
-    setMessages(canonical)
+    // Trigger Chat is seeded with DB truth only (pending is client-local and
+    // must not be serialized into the next send/regenerate request).
+    setMessages(uiMessages)
   }, [uiMessages, status, setMessages])
 
-  const respondToToolApproval = useToolApprovalBridge(topic.id, uiMessages)
+  const respondToToolApproval = useToolApprovalBridge(topic.id, messages)
 
   // Per-topic translation overlay. Lives here (above `useV2RenderingPipeline`)
   // so the merge step can layer in-flight translation chunks on top of the
@@ -192,11 +203,11 @@ const V2ChatContentInner: FC<InnerProps> = ({
   // same hook) and `cache` (declared below), so route through a ref the hook
   // reads via its own latest-callback ref — keeps hook order stable.
   const finishRef = useRef<(executionId: string, event: ExecutionFinishEvent) => void>(undefined)
-  const { overlay, disposeOverlay } = useExecutionOverlay(topic.id, activeExecutions, uiMessages, {
+  const { overlay, disposeOverlay } = useExecutionOverlay(topic.id, activeExecutions, messages, {
     onFinish: (executionId, event) => finishRef.current?.(executionId, event)
   })
 
-  const { projectedMessages, mergedPartsMap } = useV2RenderingPipeline(uiMessages, topic, overlay, translationOverlay)
+  const { projectedMessages, mergedPartsMap } = useV2RenderingPipeline(messages, topic, overlay, translationOverlay)
 
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
 
@@ -223,7 +234,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   // the send path below mirrors the same shape.
   const { overrides: v2ChatOverrides, capabilityBody } = useV2ChatOverrides({
     topic,
-    uiMessages,
+    uiMessages: messages,
     projectedMessages,
     regenerate,
     setMessages,
@@ -244,32 +255,26 @@ const V2ChatContentInner: FC<InnerProps> = ({
           logger.warn('failed to persist temporary topic, falling back', err as Error)
         }
       }
-      const optimisticUserId = await cache.seedOptimisticUser({
+      // Instant echo in local state only (not the SWR cache). The pending
+      // group is reconciled / dropped by `usePendingMessages` off the
+      // `streamOpen` ack — no rollbackBranch needed here.
+      addPending({
         text,
         parentId: activeNodeId ?? null,
-        files: options?.files
+        files: options?.files,
+        withAssistantPlaceholder: !options?.mentionedModels?.length
       })
-      if (optimisticUserId && !options?.mentionedModels?.length) {
-        await cache.seedOptimisticAssistant({ parentId: optimisticUserId })
-      }
-      try {
-        await sendMessage(
-          { text },
-          {
-            body: {
-              parentAnchorId: activeNodeId ?? undefined,
-              files: options?.files,
-              mentionedModels: options?.mentionedModels,
-              ...capabilityBody
-            }
+      await sendMessage(
+        { text },
+        {
+          body: {
+            parentAnchorId: activeNodeId ?? undefined,
+            files: options?.files,
+            mentionedModels: options?.mentionedModels,
+            ...capabilityBody
           }
-        )
-      } catch (err) {
-        // IPC reject / Main persistence error: drop the phantom bubble
-        // by forcing a revalidation against the server.
-        await cache.rollbackBranch()
-        throw err
-      }
+        }
+      )
     },
     [
       isFreshTemporaryTopic,
@@ -278,7 +283,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
       activeNodeId,
       sendMessage,
       capabilityBody,
-      cache
+      addPending
     ]
   )
 
