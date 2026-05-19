@@ -93,14 +93,18 @@ function getIpcHandleHandler(service: SettingsWindowService, channel: string) {
 
 function mockManagedWindows({
   mainWindow,
-  settingsWindow
+  settingsWindow,
+  settingsWindowAlreadyExists = Boolean(settingsWindow)
 }: {
   mainWindow: MockBrowserWindow
   settingsWindow?: MockBrowserWindow
+  settingsWindowAlreadyExists?: boolean
 }) {
   windowManagerMock.getWindowsByType.mockImplementation((type: string) => {
     if (type === WindowType.Main) return [{ id: 'main-window-id' }]
-    if (type === WindowType.Settings && settingsWindow) return [{ id: 'settings-window-id' }]
+    if (type === WindowType.Settings && settingsWindow && settingsWindowAlreadyExists) {
+      return [{ id: 'settings-window-id' }]
+    }
     return []
   })
   windowManagerMock.getWindow.mockImplementation((id: string) => {
@@ -161,7 +165,7 @@ describe('SettingsWindowService', () => {
     const mainWindow = createMockWindow()
     const settingsWindow = createMockWindow()
     mainWindow.getBounds.mockReturnValue({ x: 20, y: 40, width: 1440, height: 900 })
-    mockManagedWindows({ mainWindow, settingsWindow })
+    mockManagedWindows({ mainWindow, settingsWindow, settingsWindowAlreadyExists: false })
 
     service.open('/settings/about')
 
@@ -177,6 +181,32 @@ describe('SettingsWindowService', () => {
       })
     )
     expect(settingsWindow.setBounds).toHaveBeenCalledWith({ x: 20, y: 40, width: 1440, height: 900 })
+  })
+
+  it('preserves existing settings window bounds when reopening', () => {
+    const mainWindow = createMockWindow()
+    const settingsWindow = createMockWindow()
+    mainWindow.getBounds.mockReturnValue({ x: 20, y: 40, width: 1440, height: 900 })
+    mockManagedWindows({ mainWindow, settingsWindow })
+
+    service.open('/settings/about')
+
+    const openArgs = windowManagerMock.open.mock.calls.at(-1)?.[1]
+    expect(openArgs).toEqual(
+      expect.objectContaining({
+        initData: '/settings/about'
+      })
+    )
+    expect(openArgs?.options).not.toEqual(
+      expect.objectContaining({
+        x: 20,
+        y: 40,
+        width: 1440,
+        height: 900
+      })
+    )
+    expect(mainWindow.getBounds).not.toHaveBeenCalled()
+    expect(settingsWindow.setBounds).not.toHaveBeenCalled()
   })
 
   it('keeps the native title empty even when the page title changes', () => {
