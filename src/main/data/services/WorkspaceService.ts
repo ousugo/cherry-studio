@@ -87,6 +87,12 @@ export class WorkspaceService {
     return row
   }
 
+  async delete(id: string): Promise<void> {
+    const db = application.get('DbService').getDb()
+    const [row] = await db.delete(workspaceTable).where(eq(workspaceTable.id, id)).returning({ id: workspaceTable.id })
+    if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
+  }
+
   async findOrCreateByPath(rawPath: string, options: { name?: string } = {}): Promise<WorkspaceEntity> {
     const workspacePath = normalizeWorkspacePath(rawPath)
     ensureWorkspaceDirectory(workspacePath)

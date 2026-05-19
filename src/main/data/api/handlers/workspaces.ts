@@ -17,6 +17,10 @@ export const workspaceHandlers: HandlersFor<WorkspaceSchemas> = {
   '/workspaces/:workspaceId': {
     GET: async ({ params }) => {
       return await workspaceService.getById(params.workspaceId)
+    },
+    DELETE: async ({ params }) => {
+      await workspaceService.delete(params.workspaceId)
+      return undefined
     }
   },
 

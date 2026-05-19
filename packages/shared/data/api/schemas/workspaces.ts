@@ -36,5 +36,9 @@ export type WorkspaceSchemas = {
       params: { workspaceId: string }
       response: WorkspaceEntity
     }
+    DELETE: {
+      params: { workspaceId: string }
+      response: void
+    }
   }
 } & OrderEndpoints<'/workspaces'>

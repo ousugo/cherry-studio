@@ -64,6 +64,44 @@ describe('WorkspaceService', () => {
     })
   })
 
+  it('deletes only the workspace row and clears session workspace bindings', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
+    const workspacePath = path.join(root, 'db-only-delete')
+    const workspace = await workspaceService.findOrCreateByPath(workspacePath)
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-with-deleted-workspace',
+      type: 'claude-code',
+      name: 'Deleted Workspace Agent',
+      instructions: 'Test instructions',
+      model: null,
+      orderKey: 'a0'
+    })
+    const session = await sessionService.createSession({
+      agentId: 'agent-with-deleted-workspace',
+      name: 'Workspace binding clears',
+      workspaceId: workspace.id
+    })
+
+    await workspaceService.delete(workspace.id)
+
+    await expect(workspaceService.getById(workspace.id)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    const stats = await stat(workspacePath)
+    expect(stats.isDirectory()).toBe(true)
+    await expect(sessionService.getById(session.id)).resolves.toMatchObject({
+      id: session.id,
+      workspaceId: null,
+      workspace: null
+    })
+  })
+
+  it('throws not found when deleting a missing workspace', async () => {
+    await expect(workspaceService.delete('missing-workspace')).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+  })
+
   it('returns database workspace data when the backing directory is missing', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
     const workspacePath = path.join(root, 'deleted-on-disk')
