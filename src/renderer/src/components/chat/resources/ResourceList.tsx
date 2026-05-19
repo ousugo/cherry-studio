@@ -957,7 +957,7 @@ function Item<T extends ResourceListItemBase>({
       data-reveal-focus={revealFocused || undefined}
       tabIndex={tabIndex ?? 0}
       className={cn(
-        'group flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-sm outline-none transition-all duration-150',
+        'group flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] outline-none transition-all duration-150',
         'hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring',
         selected && 'bg-accent text-foreground',
         revealFocused && 'animation-resource-list-reveal-focus',
@@ -1029,7 +1029,7 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
       ref={setInputRef}
       defaultValue={meta.getItemLabel(item)}
       className={cn(
-        'h-6 flex-1 border-none bg-transparent px-0 text-sidebar-foreground/70 text-sm shadow-none focus-visible:ring-0',
+        'h-6 flex-1 border-none bg-transparent px-0 text-sidebar-foreground/70 text-[13px] shadow-none focus-visible:ring-0',
         className
       )}
       onBlur={(event) => commitRename(event.currentTarget.value)}
@@ -1060,7 +1060,7 @@ function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left font-normal text-sidebar-foreground/70 text-sm leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
+        'min-w-0 flex-1 truncate text-left font-normal text-sidebar-foreground/70 text-[13px] leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
         className
       )}
       {...props}
