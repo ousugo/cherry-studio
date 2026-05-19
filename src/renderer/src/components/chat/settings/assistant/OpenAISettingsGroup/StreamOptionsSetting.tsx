@@ -49,12 +49,12 @@ const StreamOptionsSetting: FC<Props> = ({ includeUsage, disabled, onIncludeUsag
         onValueChange={(value) => {
           onIncludeUsageChange(toRealValue(value as IncludeUsageOption['value']))
         }}>
-        <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
+        <SelectTrigger disabled={disabled} size="sm" className="w-[220px] text-sm">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="text-xs">
+        <SelectContent className="text-sm">
           {includeUsageOptions.map((option) => (
-            <SelectItem className="text-xs" key={option.value} value={option.value}>
+            <SelectItem className="text-sm" key={option.value} value={option.value}>
               {option.label}
             </SelectItem>
           ))}

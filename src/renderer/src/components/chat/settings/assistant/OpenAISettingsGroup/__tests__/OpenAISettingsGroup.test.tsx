@@ -1,7 +1,7 @@
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, REASONING_EFFORT } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { PropsWithChildren, ReactNode } from 'react'
+import type { PropsWithChildren } from 'react'
 import { createContext, use } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -9,16 +9,9 @@ import OpenAISettingsGroup from '..'
 
 vi.mock('@renderer/pages/settings', () => ({
   SettingDivider: () => <hr />,
-  SettingRow: ({ children }: PropsWithChildren) => <div>{children}</div>
-}))
-
-vi.mock('@renderer/pages/settings/SettingGroup', () => ({
-  CollapsibleSettingGroup: ({ title, children }: PropsWithChildren<{ title: ReactNode }>) => (
-    <section>
-      <h2>{title}</h2>
-      {children}
-    </section>
-  )
+  SettingGroup: ({ children }: PropsWithChildren) => <section>{children}</section>,
+  SettingRow: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  SettingTitle: ({ children }: PropsWithChildren) => <h2>{children}</h2>
 }))
 
 vi.mock('@renderer/components/chat/settings/settingsPanelPrimitives', () => ({
@@ -69,7 +62,11 @@ const model = {
   supportsStreaming: true,
   isEnabled: true,
   isHidden: false,
-  endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+  endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+  reasoning: {
+    type: 'openai',
+    supportedEfforts: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH]
+  }
 } satisfies Model
 
 const provider = {

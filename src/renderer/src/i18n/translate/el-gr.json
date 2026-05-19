@@ -5632,6 +5632,7 @@
       },
       "common": {
         "sections": {
+          "chat_settings": "[to be translated]:Chat Settings",
           "custom_css": "Προσαρμοσμένη CSS",
           "display_language": "Εμφάνιση & Γλώσσα",
           "privacy_advanced": "Ιδιωτικότητα & Προηγμένα",

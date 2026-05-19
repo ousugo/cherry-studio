@@ -10,13 +10,12 @@ import AgentContent from './AgentContent'
 
 interface Props {
   activeAgent: AgentEntity | null
-  onOpenSettings: () => void
   artifactPaneOpen: boolean
   onToggleArtifactPane: () => void
   className?: string
 }
 
-const AgentChatNavbar = ({ activeAgent, onOpenSettings, artifactPaneOpen, onToggleArtifactPane, className }: Props) => {
+const AgentChatNavbar = ({ activeAgent, artifactPaneOpen, onToggleArtifactPane, className }: Props) => {
   const [narrowMode] = usePreference('chat.narrow_mode')
 
   useShortcut('general.search', () => {
@@ -29,7 +28,6 @@ const AgentChatNavbar = ({ activeAgent, onOpenSettings, artifactPaneOpen, onTogg
         <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
           <AgentContent
             activeAgent={activeAgent}
-            onOpenSettings={onOpenSettings}
             artifactPaneOpen={artifactPaneOpen}
             onToggleArtifactPane={onToggleArtifactPane}
           />

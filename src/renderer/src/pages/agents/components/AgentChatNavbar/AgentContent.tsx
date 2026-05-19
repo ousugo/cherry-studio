@@ -14,12 +14,11 @@ import Tools from './Tools'
 
 type AgentContentProps = {
   activeAgent: AgentEntity | null
-  onOpenSettings: () => void
   artifactPaneOpen: boolean
   onToggleArtifactPane: () => void
 }
 
-const AgentContent = ({ activeAgent, onOpenSettings, artifactPaneOpen, onToggleArtifactPane }: AgentContentProps) => {
+const AgentContent = ({ activeAgent, artifactPaneOpen, onToggleArtifactPane }: AgentContentProps) => {
   const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
@@ -60,13 +59,7 @@ const AgentContent = ({ activeAgent, onOpenSettings, artifactPaneOpen, onToggleA
         {activeAgent && activeSession && activeSession.accessiblePaths?.[0] && (
           <OpenExternalAppButton workdir={activeSession.accessiblePaths[0]} className="mr-2" />
         )}
-        {activeAgent && (
-          <Tools
-            onOpenSettings={onOpenSettings}
-            artifactPaneOpen={artifactPaneOpen}
-            onToggleArtifactPane={onToggleArtifactPane}
-          />
-        )}
+        {activeAgent && <Tools artifactPaneOpen={artifactPaneOpen} onToggleArtifactPane={onToggleArtifactPane} />}
       </div>
     </div>
   )

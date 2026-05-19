@@ -76,12 +76,12 @@ const VerbositySetting: FC<Props> = ({ model, verbosity, disabled, onVerbosityCh
         onValueChange={(value) => {
           onVerbosityChange(toRealValue(value as VerbosityOption['value']))
         }}>
-        <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
+        <SelectTrigger disabled={disabled} size="sm" className="w-[220px] text-sm">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="text-xs">
+        <SelectContent className="text-sm">
           {verbosityOptions.map((option) => (
-            <SelectItem className="text-xs" key={option.value} value={option.value}>
+            <SelectItem className="text-sm" key={option.value} value={option.value}>
               {option.label}
             </SelectItem>
           ))}

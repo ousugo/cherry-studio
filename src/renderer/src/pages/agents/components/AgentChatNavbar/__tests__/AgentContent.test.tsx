@@ -66,14 +66,7 @@ describe('AgentContent', () => {
   })
 
   it('keeps agent page tools in the navbar', () => {
-    render(
-      <AgentContent
-        activeAgent={agentA}
-        onOpenSettings={vi.fn()}
-        artifactPaneOpen={false}
-        onToggleArtifactPane={vi.fn()}
-      />
-    )
+    render(<AgentContent activeAgent={agentA} artifactPaneOpen={false} onToggleArtifactPane={vi.fn()} />)
 
     expect(screen.getByText('tools')).toBeInTheDocument()
     expect(screen.queryByText('select agent b')).not.toBeInTheDocument()
@@ -83,27 +76,13 @@ describe('AgentContent', () => {
   it('keeps the workspace opener when a session workspace exists', () => {
     mocks.activeSession = { id: 'session-1', agentId: 'agent-a', accessiblePaths: ['/workspace'] }
 
-    render(
-      <AgentContent
-        activeAgent={agentA}
-        onOpenSettings={vi.fn()}
-        artifactPaneOpen={false}
-        onToggleArtifactPane={vi.fn()}
-      />
-    )
+    render(<AgentContent activeAgent={agentA} artifactPaneOpen={false} onToggleArtifactPane={vi.fn()} />)
 
     expect(screen.getByRole('button', { name: 'open workspace' })).toBeInTheDocument()
   })
 
   it('hides agent-scoped navbar actions when no agent is active', () => {
-    render(
-      <AgentContent
-        activeAgent={null}
-        onOpenSettings={vi.fn()}
-        artifactPaneOpen={false}
-        onToggleArtifactPane={vi.fn()}
-      />
-    )
+    render(<AgentContent activeAgent={null} artifactPaneOpen={false} onToggleArtifactPane={vi.fn()} />)
 
     expect(screen.queryByText('tools')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'open workspace' })).not.toBeInTheDocument()

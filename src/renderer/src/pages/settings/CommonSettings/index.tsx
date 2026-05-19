@@ -15,12 +15,14 @@ import {
 import { Flex } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { AssistantSettingsTab } from '@renderer/components/chat/settings/assistant'
 import { ResetIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { isLinux, isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import i18n from '@renderer/i18n'
@@ -31,7 +33,7 @@ import { cn } from '@renderer/utils/style'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Code, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
+import { Code, MessageSquare, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -53,7 +55,7 @@ import {
 import ThemeColorPicker from './components/ThemeColorPicker'
 
 type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
-type CommonSettingsSection = 'display-language' | 'system-startup' | 'privacy-advanced' | 'custom-css'
+type CommonSettingsSection = 'display-language' | 'chat-settings' | 'system-startup' | 'privacy-advanced' | 'custom-css'
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 const logger = loggerService.withContext('CommonSettings')
@@ -78,6 +80,7 @@ const CommonSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
   const { activeCmTheme } = useCodeStyle()
+  const { assistant: defaultAssistant } = useDefaultAssistant()
 
   const [activeSection, setActiveSection] = useState<CommonSettingsSection>('display-language')
   const [language, setLanguage] = usePreference('app.language')
@@ -116,6 +119,11 @@ const CommonSettings: FC = () => {
         key: 'display-language' as const,
         label: t('settings.general.common.sections.display_language'),
         icon: <Palette />
+      },
+      {
+        key: 'chat-settings' as const,
+        label: t('settings.general.common.sections.chat_settings'),
+        icon: <MessageSquare />
       },
       {
         key: 'system-startup' as const,
@@ -645,6 +653,8 @@ const CommonSettings: FC = () => {
     </>
   )
 
+  const renderChatSettingsSection = () => <AssistantSettingsTab assistant={defaultAssistant} scrollable={false} />
+
   const renderPrivacyAdvancedSection = () => (
     <>
       <SettingGroup theme={theme}>
@@ -748,6 +758,8 @@ const CommonSettings: FC = () => {
     switch (activeSection) {
       case 'display-language':
         return renderDisplayLanguageSection()
+      case 'chat-settings':
+        return renderChatSettingsSection()
       case 'system-startup':
         return renderSystemStartupSection()
       case 'privacy-advanced':

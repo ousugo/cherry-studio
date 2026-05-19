@@ -11,14 +11,7 @@ import type { FC } from 'react'
 import NavbarIcon from '../../../../components/NavbarIcon'
 import ChatNavbarContent from './ChatNavbarContent'
 
-interface Props {
-  /** `undefined` when the topic has no associated assistant. */
-  assistantId: string | undefined
-  topicId: string
-  onOpenSettings: () => void
-}
-
-const HeaderNavbar: FC<Props> = ({ assistantId, topicId, onOpenSettings }) => {
+const HeaderNavbar: FC = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
@@ -47,7 +40,7 @@ const HeaderNavbar: FC<Props> = ({ assistantId, topicId, onOpenSettings }) => {
             )}
           </div>
           <div className="flex shrink-0 items-center">
-            <ChatNavbarContent assistantId={assistantId} topicId={topicId} onOpenSettings={onOpenSettings} />
+            <ChatNavbarContent />
           </div>
         </div>
       </NarrowLayout>

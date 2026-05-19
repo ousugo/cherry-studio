@@ -10,11 +10,11 @@ export const SettingRowTitleSmall = ({
   hint,
   ...rest
 }: ComponentPropsWithoutRef<typeof SettingRowTitle> & { hint?: string }) => (
-  <SettingRowTitle className={cn('min-w-0 gap-1.5 text-muted-foreground text-xs leading-none', className)} {...rest}>
+  <SettingRowTitle className={cn('min-w-0 gap-1.5 text-foreground text-sm leading-4.5', className)} {...rest}>
     <span className="min-w-0 truncate">{children}</span>
     {hint && (
       <Tooltip content={hint} placement="top" className="w-fit max-w-sm px-2.5 py-1.5 text-xs leading-relaxed">
-        <Info size={9} className="shrink-0 cursor-help text-muted-foreground" />
+        <Info size={12} className="shrink-0 cursor-help text-muted-foreground" />
       </Tooltip>
     )}
   </SettingRowTitle>
@@ -23,7 +23,7 @@ export const SettingRowTitleSmall = ({
 export const SettingSwitch = ({
   label,
   hint,
-  size = 'sm',
+  size,
   'aria-label': ariaLabel,
   ...props
 }: ComponentPropsWithoutRef<typeof Switch> & { label: ReactNode; hint?: string }) => (
@@ -34,11 +34,11 @@ export const SettingSwitch = ({
 )
 
 export const SettingRow = ({ className, ...rest }: ComponentPropsWithoutRef<typeof BaseSettingRow>) => (
-  <BaseSettingRow className={cn('min-h-7 gap-3 py-1', className)} {...rest} />
+  <BaseSettingRow className={cn('min-h-6 gap-3', className)} {...rest} />
 )
 
 export const SettingGroup = ({ className, ...rest }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-1.5 flex w-full flex-col gap-0.5 px-1 py-1', className)} {...rest} />
+  <div className={cn('flex w-full flex-col gap-0', className)} {...rest} />
 )
 
 export { SettingDivider }

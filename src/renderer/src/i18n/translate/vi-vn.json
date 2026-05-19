@@ -5632,6 +5632,7 @@
       },
       "common": {
         "sections": {
+          "chat_settings": "[to be translated]:Chat Settings",
           "custom_css": "CSS Tùy chỉnh",
           "display_language": "Hiển thị & Ngôn ngữ",
           "privacy_advanced": "Quyền riêng tư & Nâng cao",

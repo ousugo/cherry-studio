@@ -11,7 +11,6 @@ import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/
 import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import ArtifactPane, { ARTIFACT_PANE_WIDTH } from '@renderer/components/chat/panes/ArtifactPane'
-import SettingsPanel from '@renderer/components/chat/settings/SettingsPanel'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
@@ -70,7 +69,6 @@ const AgentChat = ({
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const [artifactPaneOpen, setArtifactPaneOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
 
   const { session: activeSession, isLoading: isSessionLoading } = useActiveSession()
@@ -153,12 +151,7 @@ const AgentChat = ({
 
   const closeArtifactPane = useCallback(() => setArtifactPaneOpen(false), [])
   const toggleArtifactPane = useCallback(() => setArtifactPaneOpen((prev) => !prev), [])
-  const handleOpenSettings = useCallback(() => {
-    setCitationPanelCitations(null)
-    setSettingsOpen(true)
-  }, [])
   const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
-    setSettingsOpen(false)
     setCitationPanelCitations(citations)
   }, [])
 
@@ -235,7 +228,6 @@ const AgentChat = ({
             <AgentChatNavbar
               className="min-w-0"
               activeAgent={activeAgent ?? null}
-              onOpenSettings={handleOpenSettings}
               artifactPaneOpen={artifactPaneOpen}
               onToggleArtifactPane={toggleArtifactPane}
             />
@@ -247,14 +239,11 @@ const AgentChat = ({
           </div>
         }
         sidePanel={
-          <>
-            <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />
-            <CitationsPanel
-              open={citationsPanelOpen}
-              onClose={() => setCitationPanelCitations(null)}
-              citations={citationPanelCitations ?? []}
-            />
-          </>
+          <CitationsPanel
+            open={citationsPanelOpen}
+            onClose={() => setCitationPanelCitations(null)}
+            citations={citationPanelCitations ?? []}
+          />
         }
       />
     )
@@ -276,7 +265,6 @@ const AgentChat = ({
           <AgentChatNavbar
             className="min-w-0"
             activeAgent={activeAgent ?? null}
-            onOpenSettings={handleOpenSettings}
             artifactPaneOpen={artifactPaneOpen}
             onToggleArtifactPane={toggleArtifactPane}
           />
@@ -304,14 +292,11 @@ const AgentChat = ({
         />
       }
       sidePanel={
-        <>
-          <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />
-          <CitationsPanel
-            open={citationsPanelOpen}
-            onClose={() => setCitationPanelCitations(null)}
-            citations={citationPanelCitations ?? []}
-          />
-        </>
+        <CitationsPanel
+          open={citationsPanelOpen}
+          onClose={() => setCitationPanelCitations(null)}
+          citations={citationPanelCitations ?? []}
+        />
       }
     />
   )

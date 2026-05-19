@@ -5632,6 +5632,7 @@
       },
       "common": {
         "sections": {
+          "chat_settings": "对话设置",
           "custom_css": "自定义 CSS",
           "display_language": "显示与语言",
           "privacy_advanced": "隐私与高级",

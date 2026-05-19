@@ -5632,6 +5632,7 @@
       },
       "common": {
         "sections": {
+          "chat_settings": "[to be translated]:Chat Settings",
           "custom_css": "CSS personnalisé",
           "display_language": "Affichage et langue",
           "privacy_advanced": "Confidentialité et avancé",

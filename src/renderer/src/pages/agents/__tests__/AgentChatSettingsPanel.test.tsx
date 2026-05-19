@@ -133,11 +133,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  default: ({ onOpenSettings }: { onOpenSettings: () => void }) => (
-    <button type="button" onClick={onOpenSettings}>
-      open settings
-    </button>
-  )
+  default: () => <div data-testid="agent-navbar" />
 }))
 
 vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
@@ -151,18 +147,6 @@ vi.mock('../components/AgentSessionMessages', () => ({
       <button type="button" onClick={() => onOpenCitationsPanel({ citations: [{ number: 1 }] })}>
         open citations
       </button>
-    </div>
-  )
-}))
-
-vi.mock('@renderer/components/chat/settings/SettingsPanel', () => ({
-  default: ({ open, onClose }: { open: boolean; onClose: () => void }) => (
-    <div data-testid="settings-panel" data-open={String(open)}>
-      {open && (
-        <button type="button" onClick={onClose}>
-          close settings
-        </button>
-      )}
     </div>
   )
 }))
@@ -200,35 +184,16 @@ describe('AgentChat settings panel', () => {
     })
   })
 
-  it('keeps the settings panel open when the settings button is clicked repeatedly', () => {
+  it('opens and closes the citations panel from agent messages', () => {
     render(<AgentChat />)
 
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'false')
-
-    fireEvent.click(screen.getByRole('button', { name: 'open settings' }))
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'true')
-
-    fireEvent.click(screen.getByRole('button', { name: 'open settings' }))
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'true')
-
-    fireEvent.click(screen.getByRole('button', { name: 'close settings' }))
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'false')
-  })
-
-  it('keeps settings and citations panels mutually exclusive', () => {
-    render(<AgentChat />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'open settings' }))
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
 
     fireEvent.click(screen.getByRole('button', { name: 'open citations' }))
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'false')
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-count', '1')
 
-    fireEvent.click(screen.getByRole('button', { name: 'open settings' }))
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
   })
 

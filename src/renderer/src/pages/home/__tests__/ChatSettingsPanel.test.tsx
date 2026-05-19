@@ -91,11 +91,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/ChatNavBar', () => ({
-  default: ({ onOpenSettings }: { onOpenSettings: () => void }) => (
-    <button type="button" onClick={onOpenSettings}>
-      open settings
-    </button>
-  )
+  default: () => <div data-testid="chat-navbar" />
 }))
 
 vi.mock('../ChatContent', () => ({
@@ -119,18 +115,6 @@ vi.mock('../ChatContent', () => ({
   )
 }))
 
-vi.mock('@renderer/components/chat/settings/SettingsPanel', () => ({
-  default: ({ open, onClose }: { open: boolean; onClose: () => void }) => (
-    <div data-testid="settings-panel" data-open={String(open)}>
-      {open && (
-        <button type="button" onClick={onClose}>
-          close settings
-        </button>
-      )}
-    </div>
-  )
-}))
-
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
   default: ({ open, onClose, citations }: { open: boolean; onClose: () => void; citations: unknown[] }) => (
     <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
@@ -143,8 +127,8 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
   )
 }))
 
-describe('Chat settings panel', () => {
-  it('keeps the settings panel open when the settings button is clicked repeatedly', () => {
+describe('Chat panels', () => {
+  it('opens and closes the citations panel from chat content', () => {
     const activeTopic: Topic = {
       id: 'topic-1',
       name: 'Topic',
@@ -156,41 +140,13 @@ describe('Chat settings panel', () => {
 
     render(<Chat activeTopic={activeTopic} />)
 
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'false')
-
-    fireEvent.click(screen.getByRole('button', { name: 'open settings' }))
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'true')
-
-    fireEvent.click(screen.getByRole('button', { name: 'open settings' }))
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'true')
-
-    fireEvent.click(screen.getByRole('button', { name: 'close settings' }))
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'false')
-  })
-
-  it('keeps settings and citations panels mutually exclusive', () => {
-    const activeTopic: Topic = {
-      id: 'topic-1',
-      name: 'Topic',
-      assistantId: 'assistant-1',
-      createdAt: '2026-05-14T00:00:00.000Z',
-      updatedAt: '2026-05-14T00:00:00.000Z',
-      messages: []
-    }
-
-    render(<Chat activeTopic={activeTopic} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'open settings' }))
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
 
     fireEvent.click(screen.getByRole('button', { name: 'open citations' }))
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'false')
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-count', '1')
 
-    fireEvent.click(screen.getByRole('button', { name: 'open settings' }))
-    expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
   })
 })

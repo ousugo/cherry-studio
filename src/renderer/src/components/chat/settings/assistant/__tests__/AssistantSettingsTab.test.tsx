@@ -52,12 +52,12 @@ vi.mock('@renderer/config/models/_bridge', () => ({
   fromSharedModel: (model: unknown) => model
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ defaultModel: undefined }),
   useModelById: () => ({ model: modelMock })
 }))
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: () => ({
     provider: providerStateMock.provider,
     updateProvider: updateProviderMock,
@@ -152,6 +152,15 @@ describe('AssistantSettingsTab', () => {
 
     expect(screen.getByTestId('openai-settings-group')).toBeDisabled()
     expect(screen.getByTestId('openai-settings-group')).toHaveAttribute('data-disabled', 'true')
+  })
+
+  it('renders provider settings after chat preferences', () => {
+    render(<AssistantSettingsTab assistant={{ id: 'assistant-1', modelId: 'openai::gpt-5.1' } as any} />)
+
+    expect(
+      screen.getByTestId('chat-preferences').compareDocumentPosition(screen.getByTestId('openai-settings-group')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it('reports provider settings update failures from the panel handler', async () => {

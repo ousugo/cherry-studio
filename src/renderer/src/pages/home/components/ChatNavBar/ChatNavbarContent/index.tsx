@@ -1,18 +1,11 @@
 import type { FC } from 'react'
 
-import TopicContent from './TopicContent'
+import Tools from '../Tools'
 
-interface Props {
-  /** `undefined` when the topic has no associated assistant. */
-  assistantId: string | undefined
-  topicId: string
-  onOpenSettings: () => void
-}
-
-const ChatNavbarContent: FC<Props> = ({ assistantId, topicId, onOpenSettings }) => {
+const ChatNavbarContent: FC = () => {
   return (
     <div className="flex min-w-0 flex-1 items-center justify-between">
-      <TopicContent assistantId={assistantId} topicId={topicId} onOpenSettings={onOpenSettings} />
+      <Tools />
     </div>
   )
 }

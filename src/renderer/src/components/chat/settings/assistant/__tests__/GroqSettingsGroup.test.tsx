@@ -1,22 +1,16 @@
 import type { Provider } from '@shared/data/types/provider'
 import { render, screen } from '@testing-library/react'
-import type { PropsWithChildren, ReactNode } from 'react'
+import type { PropsWithChildren } from 'react'
 import { createContext, use } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import GroqSettingsGroup from '../GroqSettingsGroup'
 
 vi.mock('@renderer/pages/settings', () => ({
-  SettingRow: ({ children }: PropsWithChildren) => <div>{children}</div>
-}))
-
-vi.mock('@renderer/pages/settings/SettingGroup', () => ({
-  CollapsibleSettingGroup: ({ title, children }: PropsWithChildren<{ title: ReactNode }>) => (
-    <section>
-      <h2>{title}</h2>
-      {children}
-    </section>
-  )
+  SettingDivider: () => <hr />,
+  SettingGroup: ({ children }: PropsWithChildren) => <section>{children}</section>,
+  SettingRow: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  SettingTitle: ({ children }: PropsWithChildren) => <h2>{children}</h2>
 }))
 
 vi.mock('@renderer/components/chat/settings/settingsPanelPrimitives', () => ({

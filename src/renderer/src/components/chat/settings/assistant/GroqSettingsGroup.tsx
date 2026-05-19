@@ -1,7 +1,6 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { SettingGroup, SettingRowTitleSmall } from '@renderer/components/chat/settings/settingsPanelPrimitives'
-import { SettingRow } from '@renderer/pages/settings'
-import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
+import { SettingDivider, SettingGroup as PageSettingGroup, SettingRow, SettingTitle } from '@renderer/pages/settings'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { GroqServiceTier, Provider, ProviderSettings, ServiceTier } from '@shared/data/types/provider'
 import type { FC } from 'react'
@@ -43,7 +42,9 @@ const GroqSettingsGroup: FC<Props> = ({ provider, disabled, onProviderSettingsCh
   }, [t])
 
   return (
-    <CollapsibleSettingGroup title={t('settings.groq.title')} defaultExpanded={true}>
+    <PageSettingGroup>
+      <SettingTitle>{t('settings.groq.title')}</SettingTitle>
+      <SettingDivider />
       <SettingGroup>
         <SettingRow>
           <SettingRowTitleSmall hint={t('settings.openai.service_tier.tip')}>
@@ -55,12 +56,12 @@ const GroqSettingsGroup: FC<Props> = ({ provider, disabled, onProviderSettingsCh
             onValueChange={(value) => {
               onProviderSettingsChange({ serviceTier: toRealValue(value as ServiceTierOptions['value']) })
             }}>
-            <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
+            <SelectTrigger disabled={disabled} size="sm" className="w-[220px] text-sm">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="text-xs">
+            <SelectContent className="text-sm">
               {serviceTierOptions.map((option) => (
-                <SelectItem className="text-xs" key={option.value} value={option.value}>
+                <SelectItem className="text-sm" key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
               ))}
@@ -68,7 +69,7 @@ const GroqSettingsGroup: FC<Props> = ({ provider, disabled, onProviderSettingsCh
           </Select>
         </SettingRow>
       </SettingGroup>
-    </CollapsibleSettingGroup>
+    </PageSettingGroup>
   )
 }
 

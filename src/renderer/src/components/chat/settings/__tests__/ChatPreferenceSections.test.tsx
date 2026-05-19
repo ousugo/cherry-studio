@@ -70,15 +70,6 @@ vi.mock('@renderer/hooks/translate', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/settings/SettingGroup', () => ({
-  CollapsibleSettingGroup: ({ title, children }: PropsWithChildren<{ title: ReactNode }>) => (
-    <section>
-      <h2>{title}</h2>
-      {children}
-    </section>
-  )
-}))
-
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
@@ -133,6 +124,26 @@ describe('ChatPreferenceSections', () => {
     expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
     expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
+  })
+
+  it('renders preference groups without collapsible controls', () => {
+    render(<ChatPreferenceSections />)
+
+    for (const heading of [
+      'settings.messages.input.title',
+      'settings.messages.title',
+      'settings.math.title',
+      'chat.settings.code.title'
+    ]) {
+      expect(screen.getByText(heading)).toBeInTheDocument()
+    }
+
+    expect(
+      screen
+        .getByText('settings.messages.input.title')
+        .compareDocumentPosition(screen.getByText('settings.messages.title')) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'settings.messages.title' })).toBeNull()
   })
 
   it('syncs the font-size slider draft when the preference changes externally', async () => {

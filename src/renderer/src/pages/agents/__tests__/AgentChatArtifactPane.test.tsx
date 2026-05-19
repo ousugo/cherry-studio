@@ -184,17 +184,12 @@ vi.mock('react-i18next', async (importOriginal) => ({
 vi.mock('../components/AgentChatNavbar', () => ({
   default: ({
     artifactPaneOpen,
-    onToggleArtifactPane,
-    onOpenSettings
+    onToggleArtifactPane
   }: {
     artifactPaneOpen?: boolean
     onToggleArtifactPane?: () => void
-    onOpenSettings: () => void
   }) => (
     <div>
-      <button type="button" onClick={onOpenSettings}>
-        open settings
-      </button>
       <button type="button" aria-pressed={Boolean(artifactPaneOpen)} onClick={onToggleArtifactPane}>
         toggle artifact pane
       </button>
@@ -209,10 +204,6 @@ vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
 
 vi.mock('../components/AgentSessionMessages', () => ({
   default: () => <div data-testid="agent-messages" />
-}))
-
-vi.mock('@renderer/components/chat/settings/SettingsPanel', () => ({
-  default: ({ open }: { open: boolean }) => <div data-testid="settings-panel" data-open={String(open)} />
 }))
 
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({

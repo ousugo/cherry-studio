@@ -5632,6 +5632,7 @@
       },
       "common": {
         "sections": {
+          "chat_settings": "[to be translated]:Chat Settings",
           "custom_css": "カスタムCSS",
           "display_language": "表示と言語",
           "privacy_advanced": "プライバシーと高度な設定",

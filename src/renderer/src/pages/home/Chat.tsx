@@ -2,7 +2,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ChatAppShell, type ChatPanePosition, OverlayHost } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import SettingsPanel from '@renderer/components/chat/settings/SettingsPanel'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -45,7 +44,6 @@ const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
@@ -114,13 +112,7 @@ const Chat: FC<Props> = (props) => {
   const mainHeight = 'calc(100vh - var(--navbar-height) - 6px)'
   const citationsPanelOpen = citationPanelCitations !== null
 
-  const handleOpenSettings = useCallback(() => {
-    setCitationPanelCitations(null)
-    setSettingsOpen(true)
-  }, [])
-
   const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
-    setSettingsOpen(false)
     setCitationPanelCitations(citations)
   }, [])
 
@@ -136,29 +128,13 @@ const Chat: FC<Props> = (props) => {
           pane={props.pane}
           paneOpen={props.paneOpen}
           panePosition={props.panePosition}
-          topBar={
-            props.hideNavbar ? undefined : (
-              <ChatNavbar
-                assistantId={props.activeTopic.assistantId}
-                topicId={props.activeTopic.id}
-                onOpenSettings={handleOpenSettings}
-              />
-            )
-          }
+          topBar={props.hideNavbar ? undefined : <ChatNavbar />}
           sidePanel={
-            <>
-              <SettingsPanel
-                open={settingsOpen}
-                onClose={() => setSettingsOpen(false)}
-                mode="assistant"
-                assistantId={props.activeTopic.assistantId}
-              />
-              <CitationsPanel
-                open={citationsPanelOpen}
-                onClose={() => setCitationPanelCitations(null)}
-                citations={citationPanelCitations ?? []}
-              />
-            </>
+            <CitationsPanel
+              open={citationsPanelOpen}
+              onClose={() => setCitationPanelCitations(null)}
+              citations={citationPanelCitations ?? []}
+            />
           }
           centerContent={
             <ChatContent

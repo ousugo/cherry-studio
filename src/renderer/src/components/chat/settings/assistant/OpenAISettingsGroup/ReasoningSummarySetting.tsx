@@ -54,12 +54,12 @@ const ReasoningSummarySetting: FC<Props> = ({ summaryText, disabled, onSummaryTe
         onValueChange={(value) => {
           onSummaryTextChange(toRealValue(value as SummaryTextOption['value']))
         }}>
-        <SelectTrigger disabled={disabled} size="sm" className="w-45 text-xs">
+        <SelectTrigger disabled={disabled} size="sm" className="w-[220px] text-sm">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="text-xs">
+        <SelectContent className="text-sm">
           {summaryTextOptions.map((option) => (
-            <SelectItem className="text-xs" key={option.value} value={option.value}>
+            <SelectItem className="text-sm" key={option.value} value={option.value}>
               {option.label}
             </SelectItem>
           ))}

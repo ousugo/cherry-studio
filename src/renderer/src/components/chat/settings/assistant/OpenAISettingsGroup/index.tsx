@@ -1,7 +1,6 @@
 import { SettingGroup } from '@renderer/components/chat/settings/settingsPanelPrimitives'
 import { isSupportedReasoningEffortOpenAIModel, isSupportVerbosityModel } from '@renderer/config/models'
-import { SettingDivider } from '@renderer/pages/settings'
-import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
+import { SettingDivider, SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/pages/settings'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider, ProviderSettings, ServiceTier } from '@shared/data/types/provider'
@@ -73,7 +72,9 @@ const OpenAISettingsGroup: FC<Props> = ({ model, provider, disabled, onProviderS
   }
 
   return (
-    <CollapsibleSettingGroup title={t('settings.openai.title')} defaultExpanded={true}>
+    <PageSettingGroup>
+      <SettingTitle>{t('settings.openai.title')}</SettingTitle>
+      <SettingDivider />
       <SettingGroup>
         {showServiceTierSetting && (
           <>
@@ -117,7 +118,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, provider, disabled, onProviderS
           />
         )}
       </SettingGroup>
-    </CollapsibleSettingGroup>
+    </PageSettingGroup>
   )
 }
 
