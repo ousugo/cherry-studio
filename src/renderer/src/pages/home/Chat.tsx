@@ -25,7 +25,6 @@ const logger = loggerService.withContext('Chat')
 
 interface Props {
   activeTopic: Topic
-  setActiveTopic: (topic: Topic) => void
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
@@ -159,7 +158,6 @@ const Chat: FC<Props> = (props) => {
             <ChatContent
               key={props.activeTopic.id}
               topic={props.activeTopic}
-              setActiveTopic={props.setActiveTopic}
               mainHeight={mainHeight}
               onOpenCitationsPanel={handleOpenCitationsPanel}
               onPersistTemporaryTopic={props.onPersistTemporaryTopic}

@@ -24,11 +24,9 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
+import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { resolveNewTopicAssistantId } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
 import { type AddNewTopicPayload, EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata, Topic } from '@renderer/types'
@@ -73,7 +71,6 @@ const getValidatedCachedModels = (assistantId: string | undefined): Model[] => {
 }
 
 interface ChatComposerProps {
-  setActiveTopic: (topic: Topic) => void
   topic: Topic
   onSend: (
     text: string,
@@ -162,7 +159,7 @@ const ChatComposerToolbarControls = ({
   )
 }
 
-const ChatComposer = ({ setActiveTopic, topic, onSend }: ChatComposerProps) => {
+const ChatComposer = ({ topic, onSend }: ChatComposerProps) => {
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
   const [initialMentionedModels] = useState(() => getValidatedCachedModels(topic.assistantId))
 
@@ -187,7 +184,7 @@ const ChatComposer = ({ setActiveTopic, topic, onSend }: ChatComposerProps) => {
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         toggleExpanded: (next) => actionsRef.current.toggleExpanded(next)
       }}>
-      <ChatComposerInner setActiveTopic={setActiveTopic} topic={topic} actionsRef={actionsRef} onSend={onSend} />
+      <ChatComposerInner topic={topic} actionsRef={actionsRef} onSend={onSend} />
     </ComposerToolRuntimeProvider>
   )
 }
@@ -196,7 +193,7 @@ interface ChatComposerInnerProps extends ChatComposerProps {
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
 }
 
-const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatComposerInnerProps) => {
+const ChatComposerInner = ({ topic, actionsRef, onSend }: ChatComposerInnerProps) => {
   const awaitingApproval = useTopicAwaitingApproval(topic.id)
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
@@ -207,7 +204,7 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   const { assistant, model, setModel, updateAssistant } = useAssistant(topic.assistantId)
   const { assistant: defaultAssistant } = useDefaultAssistant()
   const { setDefaultModel } = useDefaultModel()
-  const { createTopic, updateTopic } = useTopicMutations()
+  const { updateTopic } = useTopicMutations()
   const { knowledgeBases: allKnowledgeBases } = useKnowledgeBases()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
@@ -219,7 +216,6 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   const { t } = useTranslation()
   const chatWrite = useChatWrite()
   const { isPending } = useTopicStreamStatus(topic.id)
-  const { setTimeoutTimer } = useTimer()
   const [isSending, setIsSending] = useState(false)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '')
 
@@ -374,16 +370,9 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
     [assistant, setDefaultModel, setModel]
   )
 
-  const addNewTopic = useCallback(
-    async (payload?: AddNewTopicPayload) => {
-      const assistantId = resolveNewTopicAssistantId(topic.assistantId, payload)
-      const persisted = await createTopic({ assistantId, name: t('chat.default.topic.name') })
-      if (!persisted) return
-      setActiveTopic(mapApiTopicToRendererTopic(persisted))
-      setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-    },
-    [createTopic, topic.assistantId, t, setActiveTopic, setTimeoutTimer]
-  )
+  const addNewTopic = useCallback((payload?: AddNewTopicPayload) => {
+    void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC, payload)
+  }, [])
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
@@ -400,17 +389,9 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
     'topic.new',
     () => {
       void addNewTopic()
-      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     },
     { preventDefault: true, enableOnFormTags: true }
   )
-
-  useEffect(() => {
-    const unsubscribes = [EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)]
-    return () => {
-      unsubscribes.forEach((unsubscribe) => unsubscribe())
-    }
-  }, [addNewTopic])
 
   useEffect(() => {
     if (!assistant?.id) return

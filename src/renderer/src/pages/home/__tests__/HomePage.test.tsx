@@ -1,5 +1,5 @@
 import type { Topic } from '@renderer/types'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -139,6 +139,7 @@ vi.mock('../Chat', () => ({
   default: ({ activeTopic, pane, paneOpen }: { activeTopic: Topic; pane?: ReactNode; paneOpen?: boolean }) => (
     <section>
       <output data-testid="active-topic">{activeTopic.id}</output>
+      <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
       {pane}
     </section>
@@ -225,10 +226,146 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-1')
 
-    homeMocks.eventHandlers.get(EVENT_NAMES.ADD_NEW_TOPIC)?.()
+    await act(async () => {
+      homeMocks.eventHandlers.get(EVENT_NAMES.ADD_NEW_TOPIC)?.()
+    })
 
     expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
     expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+  })
+
+  it('uses the explicit assistant group target in the temporary topic UI context', async () => {
+    homeMocks.startTemporaryConversation.mockResolvedValue({
+      assistantId: 'assistant-2',
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    })
+
+    render(<HomePage />)
+
+    await act(async () => {
+      homeMocks.eventHandlers.get(EVENT_NAMES.ADD_NEW_TOPIC)?.({ assistantId: 'assistant-2' })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic'))
+
+    expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
+  })
+
+  it('replaces the temporary topic when an explicit assistant group target changes', async () => {
+    homeMocks.cacheGet.mockReturnValue(true)
+    homeMocks.locationState = undefined
+    homeMocks.temporaryConversation = {
+      assistantId: 'assistant-1',
+      id: 'temp-topic',
+      topic: initialTopic,
+      topicId: 'temp-topic',
+      type: 'assistant'
+    }
+    homeMocks.startTemporaryConversation.mockResolvedValue({
+      assistantId: 'assistant-2',
+      id: 'temp-topic-2',
+      topicId: 'temp-topic-2',
+      type: 'assistant'
+    })
+
+    render(<HomePage />)
+
+    await act(async () => {
+      homeMocks.eventHandlers.get(EVENT_NAMES.ADD_NEW_TOPIC)?.({ assistantId: 'assistant-2' })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic-2'))
+
+    expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
+  })
+
+  it('does not inherit the current assistant when starting a default temporary topic', async () => {
+    render(<HomePage />)
+
+    await act(async () => {
+      homeMocks.eventHandlers.get(EVENT_NAMES.ADD_NEW_TOPIC)?.()
+    })
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic'))
+
+    expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: undefined })
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('')
+  })
+
+  it('coalesces repeated new-topic clicks while a temporary topic is being leased', async () => {
+    let resolveStart!: (value: unknown) => void
+    homeMocks.startTemporaryConversation.mockReturnValue(
+      new Promise((resolve) => {
+        resolveStart = resolve
+      })
+    )
+
+    render(<HomePage />)
+
+    await act(async () => {
+      homeMocks.eventHandlers.get(EVENT_NAMES.ADD_NEW_TOPIC)?.()
+      homeMocks.eventHandlers.get(EVENT_NAMES.ADD_NEW_TOPIC)?.()
+    })
+
+    expect(homeMocks.startTemporaryConversation).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveStart({
+        id: 'temp-topic',
+        topicId: 'temp-topic',
+        type: 'assistant'
+      })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic'))
+  })
+
+  it('rebuilds the temporary topic when the assistant group target changes while leasing', async () => {
+    const resolvers: Array<(value: unknown) => void> = []
+    homeMocks.startTemporaryConversation.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve)
+        })
+    )
+
+    render(<HomePage />)
+
+    act(() => {
+      homeMocks.eventHandlers.get(EVENT_NAMES.ADD_NEW_TOPIC)?.({ assistantId: 'assistant-1' })
+      homeMocks.eventHandlers.get(EVENT_NAMES.ADD_NEW_TOPIC)?.({ assistantId: 'assistant-2' })
+    })
+
+    expect(homeMocks.startTemporaryConversation).toHaveBeenNthCalledWith(1, { assistantId: 'assistant-1' })
+
+    await act(async () => {
+      resolvers[0]?.({
+        assistantId: 'assistant-1',
+        id: 'temp-topic-1',
+        topicId: 'temp-topic-1',
+        type: 'assistant'
+      })
+    })
+
+    await waitFor(() => expect(homeMocks.startTemporaryConversation).toHaveBeenCalledTimes(2))
+    expect(homeMocks.startTemporaryConversation).toHaveBeenLastCalledWith({ assistantId: 'assistant-2' })
+
+    await act(async () => {
+      resolvers[1]?.({
+        assistantId: 'assistant-2',
+        id: 'temp-topic-2',
+        topicId: 'temp-topic-2',
+        type: 'assistant'
+      })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic-2'))
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 })

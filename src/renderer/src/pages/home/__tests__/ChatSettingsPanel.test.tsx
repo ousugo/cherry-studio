@@ -154,7 +154,7 @@ describe('Chat settings panel', () => {
       messages: []
     }
 
-    render(<Chat activeTopic={activeTopic} setActiveTopic={vi.fn()} />)
+    render(<Chat activeTopic={activeTopic} />)
 
     expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'false')
 
@@ -178,7 +178,7 @@ describe('Chat settings panel', () => {
       messages: []
     }
 
-    render(<Chat activeTopic={activeTopic} setActiveTopic={vi.fn()} />)
+    render(<Chat activeTopic={activeTopic} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'open settings' }))
     expect(screen.getByTestId('settings-panel')).toHaveAttribute('data-open', 'true')
