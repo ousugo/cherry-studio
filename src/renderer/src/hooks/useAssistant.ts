@@ -226,7 +226,9 @@ export function useAssistant(id: string | null | undefined) {
   const { defaultModel } = useDefaultModel()
 
   const modelId = assistant?.modelId ?? (!id ? defaultModel?.id : undefined)
-  const { model } = useModelById(modelId)
+  const { model, isLoading: isModelLoading } = useModelById(modelId)
+  const isModelPending = (!!id && isLoading) || (!!modelId && isModelLoading)
+  const isModelMissing = !isModelPending && !model
 
   const updateAssistantSettings = useCallback(
     (settings: Partial<AssistantSettings>) => {
@@ -241,6 +243,8 @@ export function useAssistant(id: string | null | undefined) {
     isLoading,
     error,
     model,
+    isModelPending,
+    isModelMissing,
     setModel: (next: Model, extraSettings?: Partial<AssistantSettings>) => {
       if (!id || !assistant) return
       // reconcile* are v2-native; next.id is the UniqueModelId.

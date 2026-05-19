@@ -21,6 +21,9 @@ const mocks = vi.hoisted(() => ({
   shortcutHandlers: new Map<string, () => void>(),
   assistant: undefined as any,
   model: undefined as Model | undefined,
+  assistantLoading: false,
+  modelPending: false,
+  modelMissing: undefined as boolean | undefined,
   surfaceProps: undefined as ComposerSurfaceProps | undefined
 }))
 
@@ -157,8 +160,10 @@ vi.mock('@renderer/hooks/ChatWriteContext', () => ({
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({
     assistant: mocks.assistant,
-    isLoading: false,
+    isLoading: mocks.assistantLoading,
     model: mocks.model,
+    isModelPending: mocks.modelPending,
+    isModelMissing: mocks.modelMissing ?? (!mocks.assistantLoading && !mocks.modelPending && !mocks.model),
     setModel: mocks.setModel,
     updateAssistant: mocks.updateAssistant
   }),
@@ -246,6 +251,9 @@ describe('ChatComposer', () => {
       knowledgeBaseIds: []
     }
     mocks.model = model
+    mocks.assistantLoading = false
+    mocks.modelPending = false
+    mocks.modelMissing = undefined
     mocks.surfaceProps = undefined
     Object.defineProperty(window, 'toast', {
       configurable: true,
@@ -300,6 +308,20 @@ describe('ChatComposer', () => {
     expect(screen.getByText('button.select_model')).toBeInTheDocument()
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
+  })
+
+  it('shows a loading model state while the assistant model is resolving', () => {
+    mocks.assistant = undefined
+    mocks.model = undefined
+    mocks.assistantLoading = true
+    mocks.modelPending = true
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getAllByText('common.loading').length).toBeGreaterThan(0)
+    expect(screen.queryByText('button.select_model')).not.toBeInTheDocument()
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
   it('blocks send with a model-required toast when the assistant has no configured model', async () => {

@@ -102,6 +102,7 @@ interface ChatComposerContextControlsProps {
   assistantEmoji?: string
   model?: Model
   modelProviderName?: string
+  modelPending?: boolean
   selectModelLabel: string
   side: 'top' | 'bottom'
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
@@ -114,6 +115,7 @@ const ChatComposerContextControls = ({
   assistantEmoji,
   model,
   modelProviderName,
+  modelPending,
   selectModelLabel,
   side,
   onAssistantChange,
@@ -146,7 +148,7 @@ const ChatComposerContextControls = ({
         align="start"
         mountStrategy="lazy-keep"
         trigger={
-          <Button variant="ghost" size="sm" className={COMPOSER_SELECTOR_BUTTON_CLASS}>
+          <Button variant="ghost" size="sm" className={COMPOSER_SELECTOR_BUTTON_CLASS} disabled={modelPending}>
             <ModelAvatar model={model} size={20} />
             <span className="max-w-52 truncate">
               {model ? model.name : selectModelLabel}
@@ -271,7 +273,9 @@ const ChatComposerInner = ({
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, triggers, setIsExpanded } = useComposerToolDispatch()
   const { setCouldAddImageFile, setExtensions } = useComposerToolInternalDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
-  const { assistant, isLoading: assistantLoading, model, setModel, updateAssistant } = useAssistant(topic.assistantId)
+  const { assistant, model, isModelPending, isModelMissing, setModel, updateAssistant } = useAssistant(
+    topic.assistantId
+  )
   const { assistant: defaultAssistant } = useDefaultAssistant()
   const { setDefaultModel } = useDefaultModel()
   const { updateTopic } = useTopicMutations()
@@ -288,7 +292,7 @@ const ChatComposerInner = ({
   const { isPending } = useTopicStreamStatus(topic.id)
   const [isSending, setIsSending] = useState(false)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '')
-  const missingModelMessage = !assistantLoading && !model ? t('code.model_required') : undefined
+  const missingModelMessage = isModelMissing ? t('code.model_required') : undefined
 
   useEffect(() => {
     if (isPending) setIsSending(false)
@@ -531,7 +535,8 @@ const ChatComposerInner = ({
     assistantEmoji: runtimeAssistant?.emoji,
     model,
     modelProviderName: providerName,
-    selectModelLabel: t('button.select_model'),
+    modelPending: isModelPending,
+    selectModelLabel: isModelPending ? t('common.loading') : t('button.select_model'),
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect
   })
@@ -548,7 +553,7 @@ const ChatComposerInner = ({
         managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
         placeholder={searching ? t('chat.input.translating') : placeholderText}
-        sendDisabled={text.trim().length === 0 || loading || searching || !!missingModelMessage}
+        sendDisabled={text.trim().length === 0 || loading || searching || isModelPending || !!missingModelMessage}
         sendBlockedReason={missingModelMessage}
         isLoading={loading}
         onSendDraft={handleSendDraft}

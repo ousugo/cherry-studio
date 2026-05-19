@@ -1029,7 +1029,7 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
       ref={setInputRef}
       defaultValue={meta.getItemLabel(item)}
       className={cn(
-        'h-6 flex-1 border-none bg-transparent px-0 text-sidebar-foreground/70 text-[13px] shadow-none focus-visible:ring-0',
+        'h-6 flex-1 border-none bg-transparent px-0 text-[13px] text-sidebar-foreground/70 shadow-none focus-visible:ring-0',
         className
       )}
       onBlur={(event) => commitRename(event.currentTarget.value)}
@@ -1060,7 +1060,7 @@ function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left font-normal text-sidebar-foreground/70 text-[13px] leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
+        'min-w-0 flex-1 truncate text-left font-normal text-[13px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
         className
       )}
       {...props}

@@ -6,10 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAssistant, useDefaultAssistant } from '../useAssistant'
 
-function queryResult(data?: unknown) {
+function queryResult(data?: unknown, options: { isLoading?: boolean } = {}) {
   return {
     data,
-    isLoading: false,
+    isLoading: options.isLoading ?? false,
     isRefreshing: false,
     error: undefined,
     refetch: vi.fn().mockResolvedValue(data),
@@ -123,10 +123,48 @@ describe('useAssistant', () => {
 
     expect(result.current.assistant).toBeDefined()
     expect(result.current.model).toBeUndefined()
+    expect(result.current.isModelPending).toBe(false)
+    expect(result.current.isModelMissing).toBe(true)
     expect(mockUseQuery).toHaveBeenCalledWith('/models/', {
       enabled: false,
       swrOptions: { keepPreviousData: false }
     })
+  })
+
+  it('marks the model pending while a persisted assistant is loading', () => {
+    mockUseQuery.mockImplementation((path, options) => {
+      if (options?.enabled === false) return queryResult()
+      if (path === '/assistants/:id') return queryResult(undefined, { isLoading: true })
+      return queryResult()
+    })
+
+    const { result } = renderHook(() => useAssistant('assistant-1'))
+
+    expect(result.current.isModelPending).toBe(true)
+    expect(result.current.isModelMissing).toBe(false)
+  })
+
+  it('marks the model pending while the assistant model record is loading', () => {
+    mockUseQuery.mockImplementation((path, options) => {
+      if (options?.enabled === false) return queryResult()
+      if (path === '/assistants/:id') {
+        return queryResult({
+          id: 'assistant-1',
+          name: 'Assistant 1',
+          modelId: 'provider::model-a',
+          settings: {},
+          mcpServerIds: [],
+          knowledgeBaseIds: []
+        })
+      }
+      if (path === '/models/provider::model-a') return queryResult(undefined, { isLoading: true })
+      return queryResult()
+    })
+
+    const { result } = renderHook(() => useAssistant('assistant-1'))
+
+    expect(result.current.isModelPending).toBe(true)
+    expect(result.current.isModelMissing).toBe(false)
   })
 
   it('disables previous data for assistant identity switches', () => {
