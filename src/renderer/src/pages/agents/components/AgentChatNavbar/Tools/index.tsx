@@ -11,7 +11,7 @@ interface Props {
 
 const Tools = ({ onOpenSettings, artifactPaneOpen, onToggleArtifactPane }: Props) => {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-0.5">
       <SettingsButton onOpenSettings={onOpenSettings} />
       <NarrowLayoutToggleButton />
       <ArtifactPaneToggleButton open={artifactPaneOpen} onToggle={onToggleArtifactPane} />

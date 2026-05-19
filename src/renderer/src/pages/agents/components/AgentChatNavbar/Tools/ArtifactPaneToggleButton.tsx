@@ -1,7 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { t } from 'i18next'
-import { Columns2 } from 'lucide-react'
 
 interface ArtifactPaneToggleButtonProps {
   open: boolean
@@ -16,7 +16,7 @@ const ArtifactPaneToggleButton = ({ open, onToggle }: ArtifactPaneToggleButtonPr
         aria-pressed={open}
         aria-label={t('agent.preview_pane.toggle')}
         data-state={open ? 'open' : 'closed'}>
-        <Columns2 size={18} />
+        {open ? <RightSidebarCollapseIcon /> : <RightSidebarExpandIcon />}
       </NavbarIcon>
     </Tooltip>
   )

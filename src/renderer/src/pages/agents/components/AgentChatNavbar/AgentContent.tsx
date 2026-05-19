@@ -1,9 +1,10 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useActiveSession } from '@renderer/hooks/agents/useSession'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { Menu, PanelLeftClose, PanelRightClose } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 
@@ -30,14 +31,14 @@ const AgentContent = ({ activeAgent, onOpenSettings, artifactPaneOpen, onToggleA
         {showSidebar && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
             <NavbarIcon onClick={toggleShowSidebar}>
-              <PanelLeftClose size={18} />
+              <SidebarCollapseIcon />
             </NavbarIcon>
           </Tooltip>
         )}
         {!showSidebar && (
           <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
-            <NavbarIcon onClick={toggleShowSidebar} style={{ marginRight: 8 }}>
-              <PanelRightClose size={18} />
+            <NavbarIcon onClick={toggleShowSidebar} style={{ marginRight: 2 }}>
+              <SidebarExpandIcon />
             </NavbarIcon>
           </Tooltip>
         )}
