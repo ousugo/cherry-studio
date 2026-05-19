@@ -2,6 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import {
@@ -455,13 +456,17 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     loadAll: true,
     pageSize: 50
   })
+  const { data: workspaces } = useQuery('/workspaces')
   const { agents } = useAgents()
   const isSessionPinned = useCallback((sessionId: string) => pinIdBySessionId.has(sessionId), [pinIdBySessionId])
   const sessionItems = useMemo<SessionListItem[]>(
     () => sessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
     [isSessionPinned, sessions]
   )
-  const workdirDisplay = useMemo(() => createSessionWorkdirDisplayMaps(sessionItems), [sessionItems])
+  const workdirDisplay = useMemo(
+    () => createSessionWorkdirDisplayMaps(sessionItems, workspaces ?? []),
+    [sessionItems, workspaces]
+  )
   const timeSortedSessions = useMemo(
     () => sortSessionsForDisplayGroups(sessionItems, { mode: 'time', now: groupNow }),
     [groupNow, sessionItems]

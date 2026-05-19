@@ -1,4 +1,5 @@
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { InputHTMLAttributes, ReactNode } from 'react'
@@ -16,6 +17,7 @@ const hookMocks = vi.hoisted(() => ({
   useAgents: vi.fn(),
   useAllTopics: vi.fn(),
   useAssistants: vi.fn(),
+  useDataApiQuery: vi.fn(),
   useMultiplePreferences: vi.fn(),
   usePins: vi.fn(),
   useSessions: vi.fn(),
@@ -119,6 +121,10 @@ vi.mock('@renderer/components/VirtualList', () => ({
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   useMultiplePreferences: hookMocks.useMultiplePreferences
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useQuery: hookMocks.useDataApiQuery
 }))
 
 vi.mock('@renderer/hooks/agents/useAgent', () => ({
@@ -267,6 +273,18 @@ function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace'
   }
 }
 
+function makeWorkspaceEntity(path: string, overrides: Partial<WorkspaceEntity> = {}): WorkspaceEntity {
+  return {
+    id: `ws-${path}`,
+    name: path,
+    path,
+    orderKey: 'a',
+    createdAt: '2026-05-13T08:00:00.000Z',
+    updatedAt: '2026-05-14T08:00:00.000Z',
+    ...overrides
+  }
+}
+
 function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
   return {
     id: 'session-alpha',
@@ -373,6 +391,8 @@ describe('HistoryRecordsPage agent mode', () => {
     hookMocks.useAgents.mockReset()
     hookMocks.useAllTopics.mockReset()
     hookMocks.useAssistants.mockReset()
+    hookMocks.useDataApiQuery.mockReset()
+    hookMocks.useDataApiQuery.mockReturnValue({ data: [], error: undefined, isLoading: false })
     hookMocks.useMultiplePreferences.mockReset()
     hookMocks.useMultiplePreferences.mockReturnValue([
       {
@@ -438,34 +458,46 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(screen.getByText('Beta session')).toBeInTheDocument()
   })
 
-  it('orders workspace sources and selected workspace rows by session order', () => {
+  it('orders workspace sources and selected workspace rows by workspace order', () => {
+    hookMocks.useDataApiQuery.mockReturnValue({
+      data: [
+        makeWorkspaceEntity('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'a' }),
+        makeWorkspaceEntity('/Users/jd/project-b', { id: 'ws-b', name: 'Project B Workspace', orderKey: 'b' })
+      ],
+      error: undefined,
+      isLoading: false
+    })
     setupAgentHistory({
       sessions: [
         createSession({
           id: 'session-beta',
           agentId: 'agent-beta',
           name: 'Beta session',
+          workspaceId: 'ws-b',
           workspace: makeWorkspace('/Users/jd/project-b'),
           orderKey: 'a'
         }),
         createSession({
           id: 'session-alpha-b',
           name: 'Alpha B',
+          workspaceId: 'ws-a',
           workspace: makeWorkspace('/Users/jd/project-a'),
           orderKey: 'b'
         }),
         createSession({
           id: 'session-alpha-a',
           name: 'Alpha A',
+          workspaceId: 'ws-a',
           workspace: makeWorkspace('/Users/jd/project-a'),
           orderKey: 'a'
         })
       ]
     })
 
-    const betaSource = screen.getByRole('button', { name: /project-b 1/ })
-    const alphaSource = screen.getByRole('button', { name: /project-a 2/ })
-    expect(Boolean(betaSource.compareDocumentPosition(alphaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(hookMocks.useDataApiQuery).toHaveBeenCalledWith('/workspaces')
+    const alphaSource = screen.getByRole('button', { name: /Project A Workspace 2/ })
+    const betaSource = screen.getByRole('button', { name: /Project B Workspace 1/ })
+    expect(Boolean(alphaSource.compareDocumentPosition(betaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
 
     fireEvent.click(alphaSource)
 
