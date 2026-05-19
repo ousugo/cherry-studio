@@ -1,5 +1,5 @@
 import type { Model } from '@shared/data/types/model'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   updateAssistant: vi.fn(),
   toastError: vi.fn(),
   shortcutHandlers: new Map<string, () => void>(),
+  mentionedModels: undefined as Model[] | undefined,
   assistant: undefined as any,
   model: undefined as Model | undefined,
   assistantLoading: false,
@@ -32,6 +33,17 @@ const model = {
   providerId: 'provider',
   apiModelId: 'model-a',
   name: 'Model A',
+  capabilities: [],
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false
+} satisfies Model
+
+const modelB = {
+  id: 'provider::model-b',
+  providerId: 'provider',
+  apiModelId: 'model-b',
+  name: 'Model B',
   capabilities: [],
   supportsStreaming: true,
   isEnabled: true,
@@ -60,12 +72,23 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
 })
 
 vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
-  ComposerToolRuntimeProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ComposerToolRuntimeProvider: ({
+    children,
+    initialState
+  }: {
+    children: ReactNode
+    initialState?: { mentionedModels?: Model[] }
+  }) => {
+    if (mocks.mentionedModels === undefined) {
+      mocks.mentionedModels = initialState?.mentionedModels ?? []
+    }
+    return <>{children}</>
+  },
   ComposerToolRuntimeHost: () => null,
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   useComposerToolState: () => ({
     files: [],
-    mentionedModels: [],
+    mentionedModels: mocks.mentionedModels ?? [],
     selectedKnowledgeBases: [],
     isExpanded: false,
     couldAddImageFile: false,
@@ -119,12 +142,42 @@ vi.mock('@renderer/components/Selector', () => ({
       </button>
     </div>
   ),
-  ModelSelector: ({ onSelect, trigger }: any) => (
-    <div>
+  ModelSelector: ({
+    onSelect,
+    trigger,
+    multiple,
+    value,
+    defaultMultiSelectMode,
+    multiSelectMode,
+    onMultiSelectModeChange
+  }: any) => (
+    <div
+      data-testid="model-selector"
+      data-multiple={String(multiple)}
+      data-default-multi-select={String(Boolean(defaultMultiSelectMode))}
+      data-multi-select-mode={String(Boolean(multiSelectMode))}
+      data-value-count={Array.isArray(value) ? String(value.length) : ''}>
       {trigger}
-      <button type="button" onClick={() => onSelect({ id: 'provider::model-b', name: 'Model B' })}>
+      <button
+        type="button"
+        onClick={() => {
+          onSelect(multiple ? [modelB] : modelB)
+        }}>
         select model 2
       </button>
+      {multiple ? (
+        <>
+          <button type="button" onClick={() => onMultiSelectModeChange?.(!multiSelectMode)}>
+            toggle model multi select
+          </button>
+          <button type="button" onClick={() => onSelect([model, modelB])}>
+            select models 1 and 2
+          </button>
+          <button type="button" onClick={() => onSelect([])}>
+            clear model selection
+          </button>
+        </>
+      ) : null}
     </div>
   )
 }))
@@ -219,7 +272,10 @@ vi.mock('react-i18next', async (importOriginal) => {
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string, options?: Record<string, unknown>) => String(options?.defaultValue ?? key)
+      t: (key: string, options?: Record<string, unknown>) => {
+        if (key === 'common.selectedItems') return `${options?.count ?? 0} selected`
+        return String(options?.defaultValue ?? key)
+      }
     })
   }
 })
@@ -250,11 +306,15 @@ describe('ChatComposer', () => {
     mocks.setDefaultModel.mockReset()
     mocks.setFiles.mockReset()
     mocks.setMentionedModels.mockReset()
+    mocks.setMentionedModels.mockImplementation((nextModels: Model[] | ((previous: Model[]) => Model[])) => {
+      mocks.mentionedModels = typeof nextModels === 'function' ? nextModels(mocks.mentionedModels ?? []) : nextModels
+    })
     mocks.setSelectedKnowledgeBases.mockReset()
     mocks.setIsExpanded.mockReset()
     mocks.updateAssistant.mockReset()
     mocks.toastError.mockReset()
     mocks.shortcutHandlers.clear()
+    mocks.mentionedModels = undefined
     mocks.assistant = {
       id: 'assistant-1',
       name: 'Assistant 1',
@@ -294,10 +354,7 @@ describe('ChatComposer', () => {
 
     fireEvent.click(screen.getByText('select model 2'))
 
-    expect(mocks.setModel).toHaveBeenCalledWith(
-      { id: 'provider::model-b', name: 'Model B' },
-      { enableWebSearch: false }
-    )
+    expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
   })
 
   it('does not update the default model while a persisted assistant is loading', () => {
@@ -395,13 +452,102 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
   })
 
-  it('routes temporary home assistant changes to the temporary handler', () => {
+  it('routes temporary home assistant changes to the temporary handler', async () => {
     const onTemporaryAssistantChange = vi.fn()
-    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} onTemporaryAssistantChange={onTemporaryAssistantChange} />)
+    const view = render(
+      <ChatHomeComposer topic={topic} onSend={vi.fn()} onTemporaryAssistantChange={onTemporaryAssistantChange} />
+    )
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
+    expect(mocks.setMentionedModels).not.toHaveBeenCalledWith([model])
+    mocks.setMentionedModels.mockClear()
 
     fireEvent.click(screen.getByText('select assistant 2'))
 
+    mocks.assistant = { ...mocks.assistant, id: 'assistant-2' }
+    mocks.model = modelB
+    mocks.mentionedModels = []
+    view.rerender(
+      <ChatHomeComposer
+        topic={{ ...topic, assistantId: 'assistant-2' }}
+        onSend={vi.fn()}
+        onTemporaryAssistantChange={onTemporaryAssistantChange}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+      expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B | Provider')
+    })
+    expect(mocks.setMentionedModels).not.toHaveBeenCalledWith([modelB])
     expect(onTemporaryAssistantChange).toHaveBeenCalledWith('assistant-2')
     expect(mocks.updateTopic).not.toHaveBeenCalled()
+  })
+
+  it('uses the temporary home model selector as a mentioned-model multi-select', () => {
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    const selector = screen.getByTestId('model-selector')
+    expect(selector).toHaveAttribute('data-multiple', 'true')
+    expect(selector).toHaveAttribute('data-default-multi-select', 'false')
+    expect(selector).toHaveAttribute('data-multi-select-mode', 'false')
+    expect(selector).toHaveAttribute('data-value-count', '1')
+
+    fireEvent.click(screen.getByText('select model 2'))
+
+    expect(mocks.setMentionedModels).toHaveBeenCalledWith([])
+    expect(mocks.setModel).not.toHaveBeenCalled()
+  })
+
+  it('fills mentioned-model tokens only after enabling multi-select and selecting multiple models', () => {
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
+    expect(mocks.setMentionedModels).toHaveBeenCalledWith([model, modelB])
+  })
+
+  it('keeps the temporary home model selector empty after manual clear', () => {
+    const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+
+    fireEvent.click(screen.getByText('clear model selection'))
+
+    expect(mocks.setMentionedModels).toHaveBeenCalledWith([])
+
+    mocks.mentionedModels = []
+    view.rerender(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '0')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('button.select_model')
+  })
+
+  it('reinitializes the temporary home selector when a new topic is created', async () => {
+    const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('clear model selection'))
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '0')
+
+    view.rerender(<ChatHomeComposer topic={{ ...topic, id: 'topic-2' }} onSend={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+      expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
+    })
+  })
+
+  it('summarizes multiple temporary home model selections in the trigger', () => {
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
+
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
   })
 })

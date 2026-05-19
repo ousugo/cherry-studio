@@ -575,6 +575,53 @@ export default function ComposerSurface({
     <QuickPanelView setInputText={setText} inputAdapter={inputAdapter} />
   ) : null
   const belowControls = renderBelowControls?.(inputAdapter)
+  const inputbarElement = (
+    <div
+      id="inputbar"
+      className={cn(
+        'inputbar-container relative rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) pt-2 transition-all duration-200 ease-in-out',
+        belowControls
+          ? 'mb-0.5 shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:shadow-[0_10px_24px_rgba(0,0,0,0.22)]'
+          : 'in-[[navbar-position=top]]:mb-3.5 mb-6',
+        isDragging &&
+          "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[14px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
+        isExpanded && 'expanded'
+      )}>
+      <div style={customHeight ? { height: customHeight } : undefined}>
+        <EditorContent
+          editor={editor}
+          onFocus={() => {
+            onFocus?.()
+            PasteService.setLastFocusedComponent('inputbar')
+          }}
+        />
+      </div>
+
+      <div className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-[5px]">
+        <div className="flex min-w-0 flex-1 items-center overflow-hidden">{renderLeftControls?.(inputAdapter)}</div>
+        <div className="flex flex-row items-center gap-1.5">
+          <TranslateButton text={text} disabled={sendDisabled} onTranslated={onTranslated} />
+          {isLoading ? (
+            <Tooltip content={t('chat.input.pause')} placement="top">
+              <button
+                type="button"
+                className="flex size-[30px] items-center justify-center rounded-full text-(--color-error-base) hover:bg-accent"
+                aria-label={t('chat.input.pause')}
+                onClick={() => void onPause()}>
+                <CirclePause size={20} />
+              </button>
+            </Tooltip>
+          ) : (
+            <SendMessageButton
+              sendMessage={sendDraft}
+              disabled={sendDisabled}
+              onDisabledClick={showBlockedSendReason}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <NarrowLayout narrowMode={narrowMode} style={{ width: '100%' }}>
@@ -585,50 +632,14 @@ export default function ComposerSurface({
         onDragOver={handleDragOver}
         onDrop={handleDrop}>
         {quickPanelElement}
-        <div
-          id="inputbar"
-          className={cn(
-            'inputbar-container relative rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) pt-2 transition-all duration-200 ease-in-out',
-            belowControls ? 'mb-3' : 'in-[[navbar-position=top]]:mb-3.5 mb-6',
-            isDragging &&
-              "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[14px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
-            isExpanded && 'expanded'
-          )}>
-          <div style={customHeight ? { height: customHeight } : undefined}>
-            <EditorContent
-              editor={editor}
-              onFocus={() => {
-                onFocus?.()
-                PasteService.setLastFocusedComponent('inputbar')
-              }}
-            />
+        {belowControls ? (
+          <div className="in-[[navbar-position=top]]:mb-3.5 mb-6 rounded-[20px] bg-muted/25 pb-1.5 shadow-[0_14px_36px_rgba(15,23,42,0.07)] dark:bg-muted/15 dark:shadow-[0_14px_36px_rgba(0,0,0,0.24)]">
+            {inputbarElement}
+            <div className="px-2">{belowControls}</div>
           </div>
-
-          <div className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-[5px]">
-            <div className="flex min-w-0 flex-1 items-center overflow-hidden">{renderLeftControls?.(inputAdapter)}</div>
-            <div className="flex flex-row items-center gap-1.5">
-              <TranslateButton text={text} disabled={sendDisabled} onTranslated={onTranslated} />
-              {isLoading ? (
-                <Tooltip content={t('chat.input.pause')} placement="top">
-                  <button
-                    type="button"
-                    className="flex size-[30px] items-center justify-center rounded-full text-(--color-error-base) hover:bg-accent"
-                    aria-label={t('chat.input.pause')}
-                    onClick={() => void onPause()}>
-                    <CirclePause size={20} />
-                  </button>
-                </Tooltip>
-              ) : (
-                <SendMessageButton
-                  sendMessage={sendDraft}
-                  disabled={sendDisabled}
-                  onDisabledClick={showBlockedSendReason}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-        {belowControls && <div className="in-[[navbar-position=top]]:mb-3.5 mb-6 px-2">{belowControls}</div>}
+        ) : (
+          inputbarElement
+        )}
       </div>
     </NarrowLayout>
   )

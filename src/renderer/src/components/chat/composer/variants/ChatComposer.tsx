@@ -59,6 +59,8 @@ const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
 const COMPOSER_TOOLBAR_CLASS =
   'flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
+const COMPOSER_BELOW_SELECTOR_BUTTON_CLASS =
+  'h-8 shrink-0 gap-1.5 rounded-lg border border-transparent bg-transparent px-2.5 text-xs font-medium text-muted-foreground/75 shadow-none hover:bg-transparent hover:text-muted-foreground/75 disabled:bg-transparent disabled:text-muted-foreground/50 [&_svg]:text-muted-foreground/60 hover:[&_svg]:text-muted-foreground/60'
 
 const getMentionedModelsCacheKey = (assistantId: string | undefined) =>
   `inputbar-mentioned-models-${assistantId ?? 'no-assistant'}`
@@ -66,7 +68,8 @@ const getMentionedModelsCacheKey = (assistantId: string | undefined) =>
 const getValidatedCachedModels = (assistantId: string | undefined): Model[] => {
   const cached = cacheService.getCasual<Model[]>(getMentionedModelsCacheKey(assistantId))
   if (!Array.isArray(cached)) return []
-  return cached.filter((model) => model?.id && model?.name)
+  const cachedModels = cached.filter((model) => model?.id && model?.name)
+  return cachedModels.length > 1 ? cachedModels : []
 }
 
 interface ChatComposerProps {
@@ -96,31 +99,103 @@ const emptyActions: ProviderActionHandlers = {
 }
 
 interface ChatComposerContextControlsProps {
+  topicId: string
   assistantId: string | null
   assistantName: string
   assistantEmoji?: string
   model?: Model
   modelProviderName?: string
   modelPending?: boolean
+  mentionedModels: Model[]
   selectModelLabel: string
+  useMentionedModelSelector?: boolean
   side: 'top' | 'bottom'
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
+  onMentionedModelsSelect: (models: Model[]) => void
 }
 
 const ChatComposerContextControls = ({
+  topicId,
   assistantId,
   assistantName,
   assistantEmoji,
   model,
   modelProviderName,
   modelPending,
+  mentionedModels,
   selectModelLabel,
+  useMentionedModelSelector,
   side,
   onAssistantChange,
-  onModelSelect
+  onModelSelect,
+  onMentionedModelsSelect
 }: ChatComposerContextControlsProps) => {
+  const { t } = useTranslation()
+  const [mentionedModelMultiSelectMode, setMentionedModelMultiSelectMode] = useState(false)
+  const [mentionedModelSelectorValue, setMentionedModelSelectorValue] = useState<Model[]>([])
+  const mentionedModelSelectorInitKeyRef = useRef<string | null>(null)
   const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
+  const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
+  const selectedMentionedModels = useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
+  const selectedMentionedModel = selectedMentionedModels[0]
+  const displayModel = useMentionedModelSelector ? selectedMentionedModel : model
+  const assistantModelLabel = model
+    ? `${model.name}${modelProviderName ? ` | ${modelProviderName}` : ''}`
+    : selectModelLabel
+  const selectedMentionedModelLabel = selectedMentionedModel
+    ? `${selectedMentionedModel.name}${
+        selectedMentionedModel.id === model?.id && modelProviderName ? ` | ${modelProviderName}` : ''
+      }`
+    : selectModelLabel
+  const mentionedModelLabel =
+    selectedMentionedModels.length > 1
+      ? t('common.selectedItems', { count: selectedMentionedModels.length })
+      : selectedMentionedModelLabel
+  const modelLabel = useMentionedModelSelector ? mentionedModelLabel : assistantModelLabel
+
+  useEffect(() => {
+    if (!useMentionedModelSelector) {
+      mentionedModelSelectorInitKeyRef.current = null
+      return
+    }
+
+    const initializationKey = `${topicId}:${assistantId ?? 'no-assistant'}:${model?.id ?? 'no-model'}`
+    if (mentionedModelSelectorInitKeyRef.current === initializationKey) return
+
+    const isInitialSelection = mentionedModelSelectorInitKeyRef.current === null
+    mentionedModelSelectorInitKeyRef.current = initializationKey
+    setMentionedModelSelectorValue(
+      isInitialSelection && mentionedModels.length > 1 ? mentionedModels : model ? [model] : []
+    )
+    setMentionedModelMultiSelectMode(false)
+
+    if (!isInitialSelection && mentionedModels.length > 0) {
+      onMentionedModelsSelect([])
+    }
+  }, [assistantId, mentionedModels, model, onMentionedModelsSelect, topicId, useMentionedModelSelector])
+
+  const handleMentionedModelSelect = useCallback(
+    (nextModels: Model[]) => {
+      setMentionedModelSelectorValue(nextModels)
+      onMentionedModelsSelect(mentionedModelMultiSelectMode && nextModels.length > 1 ? nextModels : [])
+    },
+    [mentionedModelMultiSelectMode, onMentionedModelsSelect]
+  )
+
+  const handleMentionedModelMultiSelectModeChange = useCallback(
+    (nextEnabled: boolean) => {
+      setMentionedModelMultiSelectMode(nextEnabled)
+
+      if (nextEnabled) {
+        return
+      }
+
+      setMentionedModelSelectorValue((currentModels) => currentModels.slice(0, 1))
+      onMentionedModelsSelect([])
+    },
+    [onMentionedModelsSelect]
+  )
 
   return (
     <>
@@ -132,33 +207,52 @@ const ChatComposerContextControls = ({
         align="start"
         mountStrategy="lazy-keep"
         trigger={
-          <Button variant="ghost" size="sm" className={COMPOSER_SELECTOR_BUTTON_CLASS}>
+          <Button variant="ghost" size="sm" className={triggerClassName}>
             {assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : null}
             <span className="max-w-40 truncate">{assistantName}</span>
             <ChevronDown size={14} className="text-muted-foreground" />
           </Button>
         }
       />
-      <ModelSelector
-        multiple={false}
-        value={model}
-        onSelect={onModelSelect}
-        filter={CHAT_MODEL_FILTER}
-        shortcut="chat.select_model"
-        side={side}
-        align="start"
-        mountStrategy="lazy-keep"
-        trigger={
-          <Button variant="ghost" size="sm" className={COMPOSER_SELECTOR_BUTTON_CLASS} disabled={modelPending}>
-            <ModelAvatar model={model} size={20} />
-            <span className="max-w-52 truncate">
-              {model ? model.name : selectModelLabel}
-              {modelProviderName ? ` | ${modelProviderName}` : ''}
-            </span>
-            <ChevronDown size={14} className="text-muted-foreground" />
-          </Button>
-        }
-      />
+      {useMentionedModelSelector ? (
+        <ModelSelector
+          multiple
+          value={mentionedModelSelectorValue}
+          onSelect={handleMentionedModelSelect}
+          multiSelectMode={mentionedModelMultiSelectMode}
+          onMultiSelectModeChange={handleMentionedModelMultiSelectModeChange}
+          filter={CHAT_MODEL_FILTER}
+          shortcut="chat.select_model"
+          side={side}
+          align="start"
+          mountStrategy="lazy-keep"
+          trigger={
+            <Button variant="ghost" size="sm" className={triggerClassName} disabled={modelPending}>
+              <ModelAvatar model={displayModel} size={20} />
+              <span className="max-w-52 truncate">{modelLabel}</span>
+              <ChevronDown size={14} className="text-muted-foreground" />
+            </Button>
+          }
+        />
+      ) : (
+        <ModelSelector
+          multiple={false}
+          value={model}
+          onSelect={onModelSelect}
+          filter={CHAT_MODEL_FILTER}
+          shortcut="chat.select_model"
+          side={side}
+          align="start"
+          mountStrategy="lazy-keep"
+          trigger={
+            <Button variant="ghost" size="sm" className={triggerClassName} disabled={modelPending}>
+              <ModelAvatar model={model} size={20} />
+              <span className="max-w-52 truncate">{modelLabel}</span>
+              <ChevronDown size={14} className="text-muted-foreground" />
+            </Button>
+          }
+        />
+      )}
     </>
   )
 }
@@ -185,7 +279,7 @@ type ChatComposerControlProps = Omit<ChatComposerToolbarControlsProps, 'inputAda
 const ChatComposerBelowControls = (contextProps: ChatComposerControlProps) => {
   return (
     <div className={COMPOSER_TOOLBAR_CLASS}>
-      <ChatComposerContextControls {...contextProps} side="bottom" />
+      <ChatComposerContextControls {...contextProps} side="bottom" useMentionedModelSelector />
     </div>
   )
 }
@@ -219,7 +313,9 @@ const ChatComposerRoot = ({
   renderControls
 }: ChatComposerRootProps) => {
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-  const [initialMentionedModels] = useState(() => getValidatedCachedModels(topic.assistantId))
+  const initialMentionedModels = useMemo(() => {
+    return getValidatedCachedModels(topic.assistantId)
+  }, [topic.assistantId])
 
   const initialState = useMemo(
     () => ({
@@ -315,6 +411,7 @@ const ChatComposerInner = ({
   const selectedAssistantId = assistant?.id ?? null
   const assistantName = assistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const providerName = useProviderDisplayName(runtimeModel?.providerId)
+
   const isVisionAssistant = useMemo(() => (runtimeModel ? isVisionModel(runtimeModel) : false), [runtimeModel])
   const isGenerateImageAssistant = useMemo(
     () => (runtimeModel ? isGenerateImageModel(runtimeModel) : false),
@@ -456,6 +553,12 @@ const ChatComposerInner = ({
     },
     [assistant, setModel]
   )
+  const handleMentionedModelsSelect = useCallback(
+    (nextModels: Model[]) => {
+      setMentionedModels(nextModels)
+    },
+    [setMentionedModels]
+  )
 
   const addNewTopic = useCallback(
     (payload?: AddNewTopicPayload) => {
@@ -553,15 +656,18 @@ const ChatComposerInner = ({
   if (isMultiSelectMode) return null
 
   const controlSlots = renderControls({
+    topicId: topic.id,
     assistantId: selectedAssistantId,
     assistantName,
     assistantEmoji: assistant?.emoji,
     model: runtimeModel,
     modelProviderName: providerName,
     modelPending: runtimeModelPending,
+    mentionedModels,
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
     onAssistantChange: handleAssistantChange,
-    onModelSelect: handleModelSelect
+    onModelSelect: handleModelSelect,
+    onMentionedModelsSelect: handleMentionedModelsSelect
   })
 
   return (
