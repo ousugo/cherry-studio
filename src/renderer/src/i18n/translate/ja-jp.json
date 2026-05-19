@@ -6468,7 +6468,7 @@
           },
           "label": "API設定",
           "service_tier": {
-            "help": "このプロバイダーがservice_tierパラメータの設定をサポートしているかどうか。有効にすると、チャットページのサービスレベル設定でこのパラメータを調整できます。（OpenAIモデルのみ対象）",
+            "help": "このプロバイダーが service_tier パラメータの設定をサポートしているかどうか。有効にすると、この API 設定ドロワーでサービス階層の値を調整できます。（OpenAI/Groq 互換モデルのみ対象）",
             "label": "service_tier をサポート"
           },
           "stream_options": {

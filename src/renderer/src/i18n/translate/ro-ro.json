@@ -6468,7 +6468,7 @@
           },
           "label": "Setări API",
           "service_tier": {
-            "help": "Dacă furnizorul acceptă configurarea parametrului service_tier. Când este activat, acest parametru poate fi ajustat în setările nivelului de serviciu de pe pagina de chat. (Doar modele OpenAI)",
+            "help": "Dacă furnizorul acceptă configurarea parametrului service_tier. Când este activat, valoarea nivelului de serviciu poate fi ajustată în acest panou de setări API. (Doar modele compatibile OpenAI/Groq)",
             "label": "Suportă service_tier"
           },
           "stream_options": {

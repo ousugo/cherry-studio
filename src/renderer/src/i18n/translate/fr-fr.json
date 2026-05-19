@@ -6468,7 +6468,7 @@
           },
           "label": "Paramètres de l'API",
           "service_tier": {
-            "help": "Le fournisseur prend-il en charge la configuration du paramètre service_tier ? Lorsqu'il est activé, ce paramètre peut être ajusté dans les paramètres de niveau de service sur la page de conversation. (Modèles OpenAI uniquement)",
+            "help": "Indique si le fournisseur prend en charge la configuration du paramètre service_tier. Lorsqu'il est activé, la valeur du niveau de service peut être ajustée dans ce tiroir de paramètres API. (Modèles compatibles OpenAI/Groq uniquement)",
             "label": "Prend en charge service_tier"
           },
           "stream_options": {

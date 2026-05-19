@@ -15,14 +15,15 @@ import {
 import { Flex } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { AssistantSettingsTab } from '@renderer/components/chat/settings/assistant'
+import ChatPreferenceSections, {
+  type ChatPreferenceSectionsFeatures
+} from '@renderer/components/chat/settings/ChatPreferenceSections'
 import { ResetIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { isLinux, isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import i18n from '@renderer/i18n'
@@ -59,6 +60,12 @@ type CommonSettingsSection = 'display-language' | 'chat-settings' | 'system-star
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 const logger = loggerService.withContext('CommonSettings')
+const chatPreferenceFeatures: ChatPreferenceSectionsFeatures = {
+  showPrompt: true,
+  showMessageOutline: true,
+  showMultiModelStyle: true,
+  showInputEstimatedTokens: true
+}
 
 const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
@@ -80,7 +87,6 @@ const CommonSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
   const { activeCmTheme } = useCodeStyle()
-  const { assistant: defaultAssistant } = useDefaultAssistant()
 
   const [activeSection, setActiveSection] = useState<CommonSettingsSection>('display-language')
   const [language, setLanguage] = usePreference('app.language')
@@ -653,7 +659,7 @@ const CommonSettings: FC = () => {
     </>
   )
 
-  const renderChatSettingsSection = () => <AssistantSettingsTab assistant={defaultAssistant} scrollable={false} />
+  const renderChatSettingsSection = () => <ChatPreferenceSections features={chatPreferenceFeatures} />
 
   const renderPrivacyAdvancedSection = () => (
     <>

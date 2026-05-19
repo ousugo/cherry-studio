@@ -6468,7 +6468,7 @@
           },
           "label": "Cài đặt API",
           "service_tier": {
-            "help": "Liệu nhà cung cấp có hỗ trợ cấu hình tham số service_tier hay không. Khi được bật, tham số này có thể điều chỉnh trong cài đặt service tier trên trang chat. (Chỉ dành cho mô hình OpenAI)",
+            "help": "Nhà cung cấp có hỗ trợ cấu hình tham số service_tier hay không. Khi bật, giá trị tầng dịch vụ có thể được điều chỉnh trong ngăn cài đặt API này. (Chỉ dành cho mô hình tương thích OpenAI/Groq)",
             "label": "Hỗ trợ service_tier"
           },
           "stream_options": {

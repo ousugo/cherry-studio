@@ -6468,7 +6468,7 @@
           },
           "label": "Definições da API",
           "service_tier": {
-            "help": "Se o fornecedor suporta a configuração do parâmetro service_tier. Quando ativado, este parâmetro pode ser ajustado nas definições do nível de serviço na página de conversa. (Apenas para modelos OpenAI)",
+            "help": "Se o fornecedor suporta a configuração do parâmetro service_tier. Quando ativado, o valor do nível de serviço pode ser ajustado neste painel de definições da API. (Apenas modelos compatíveis com OpenAI/Groq)",
             "label": "Suporta service_tier"
           },
           "stream_options": {

@@ -6468,7 +6468,7 @@
           },
           "label": "API-Einstellungen",
           "service_tier": {
-            "help": "Unterstützt service_tier",
+            "help": "Ob der Anbieter die Konfiguration des Parameters service_tier unterstützt. Wenn aktiviert, kann der Service-Tier-Wert in diesem API-Einstellungsbereich angepasst werden. (Nur OpenAI/Groq-kompatible Modelle)",
             "label": "Unterstützt service_tier"
           },
           "stream_options": {

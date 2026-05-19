@@ -6468,7 +6468,7 @@
           },
           "label": "API 设置",
           "service_tier": {
-            "help": "该提供商是否支持配置 service_tier 参数。开启后，可在对话页面的服务层级设置中调整该参数。（仅限OpenAI模型）",
+            "help": "该提供商是否支持配置 service_tier 参数。开启后，可在当前 API 设置中调整服务层级值。（仅限 OpenAI/Groq 兼容模型）",
             "label": "支持 service_tier"
           },
           "stream_options": {
