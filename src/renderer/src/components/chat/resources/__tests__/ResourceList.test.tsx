@@ -184,8 +184,11 @@ describe('ResourceList', () => {
     expect(groupHeaders).toHaveLength(2)
     expect(items).toHaveLength(5)
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(19)
-    expect(groupHeaders[0]).toHaveClass('h-7', 'px-1.5', 'pt-2', 'pb-1')
-    expect(items[0]).toHaveClass('mb-[2px]', 'min-h-8', 'rounded-lg', 'px-1.5', 'py-1.5', 'gap-1.5')
+    expect(groupHeaders[0]).toHaveClass('h-7', 'px-1', 'pt-2', 'pb-1', 'gap-1')
+    expect(groupHeaders[0].querySelector('[data-slot="skeleton"]')).toHaveClass('size-4.5')
+    expect(items[0]).toHaveClass('mb-[2px]', 'min-h-8', 'rounded-lg', 'px-1', 'py-1.5', 'gap-1')
+    expect(items[0].querySelector('[data-slot="skeleton"]')).toHaveClass('size-4.5')
+    expect(items[0].querySelectorAll('[data-slot="skeleton"]')[2]).toHaveClass('size-4.5')
   })
 
   it('uses a border-only reveal focus animation without changing row background', () => {
@@ -751,7 +754,7 @@ describe('ResourceList', () => {
     expect(viewport).toHaveAttribute('data-scrolling', 'false')
   })
 
-  it('limits each group to the default visible count and loads the next batch independently', () => {
+  it('limits each group to the default visible count and expands the group independently', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 12 }, (_, index) => ({
       id: `item-${index + 1}`,
@@ -782,15 +785,8 @@ describe('ResourceList', () => {
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     const showMoreButton = screen.getByRole('button', { name: 'Show more' })
     expect(showMoreButton).toHaveClass('text-[color:var(--resource-list-group-color)]')
-    expect(showMoreButton.querySelector('svg')).toHaveClass('text-[color:var(--resource-list-group-color)]')
-    expect(showMoreButton.querySelector('svg')).not.toHaveClass('opacity-[0.65]')
+    expect(showMoreButton).not.toHaveClass('opacity-[0.65]')
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 7 }))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
-
-    expect(screen.getByText('Item 10')).toBeInTheDocument()
-    expect(screen.queryByText('Item 11')).not.toBeInTheDocument()
-    expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 12 }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
 
@@ -1064,8 +1060,10 @@ describe('ResourceList', () => {
     expect(screen.getByText(String(ITEMS.length))).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search resources')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
-    expect(screen.getByTestId('alpha-icon')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Action Alpha' })).toBeInTheDocument()
+    expect(screen.getByRole('listbox')).toHaveClass('px-1')
+    expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass('gap-1', 'px-1')
+    expect(screen.getByTestId('alpha-icon')).toHaveClass('size-4.5')
+    expect(screen.getByRole('button', { name: 'Action Alpha' })).toHaveClass('size-4.5')
   })
 
   it('does not reveal item actions just because a row is selected', () => {
