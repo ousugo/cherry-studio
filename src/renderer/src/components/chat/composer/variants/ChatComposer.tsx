@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import AnimatedRevealText from '@renderer/components/AnimatedRevealText'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
@@ -303,6 +304,7 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
 
 type ChatComposerRootProps = ChatComposerProps & {
   renderControls: ChatComposerControlsRenderer
+  topContent?: React.ReactNode
 }
 
 const ChatComposerRoot = ({
@@ -310,6 +312,7 @@ const ChatComposerRoot = ({
   onSend,
   onTemporaryAssistantChange,
   onNewTopic,
+  topContent,
   renderControls
 }: ChatComposerRootProps) => {
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
@@ -344,6 +347,7 @@ const ChatComposerRoot = ({
         onSend={onSend}
         onTemporaryAssistantChange={onTemporaryAssistantChange}
         onNewTopic={onNewTopic}
+        topContent={topContent}
         renderControls={renderControls}
       />
     </ComposerToolRuntimeProvider>
@@ -352,6 +356,7 @@ const ChatComposerRoot = ({
 
 interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'setActiveTopic'> {
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
+  topContent?: React.ReactNode
   renderControls: ChatComposerControlsRenderer
 }
 
@@ -361,6 +366,7 @@ const ChatComposerInner = ({
   onSend,
   onTemporaryAssistantChange,
   onNewTopic,
+  topContent,
   renderControls
 }: ChatComposerInnerProps) => {
   const awaitingApproval = useTopicAwaitingApproval(topic.id)
@@ -711,6 +717,7 @@ const ChatComposerInner = ({
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers('root-panel')}
         emitToolTrigger={triggers.emit}
+        topContent={topContent}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}
       />
@@ -723,7 +730,14 @@ const ChatComposer = (props: ChatComposerProps) => {
 }
 
 export const ChatHomeComposer = (props: ChatComposerProps) => {
-  return <ChatComposerRoot {...props} renderControls={renderChatHomeControls} />
+  const { t } = useTranslation()
+  return (
+    <ChatComposerRoot
+      {...props}
+      topContent={<AnimatedRevealText text={t('chat.home.welcome_title')} />}
+      renderControls={renderChatHomeControls}
+    />
+  )
 }
 
 export default ChatComposer
