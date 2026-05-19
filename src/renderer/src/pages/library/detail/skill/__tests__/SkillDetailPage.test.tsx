@@ -64,15 +64,16 @@ vi.mock('@cherrystudio/ui', () => ({
         </button>
       </div>
     ) : null,
+  Scrollbar: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
   Separator: () => <hr />
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
-  default: () => <pre>code viewer</pre>
+  default: ({ value }: { value: string }) => <pre>code viewer: {value}</pre>
 }))
 
 vi.mock('@renderer/components/RichEditor', () => ({
-  default: () => <article>rich editor</article>
+  default: ({ initialContent }: { initialContent: string }) => <article>rich editor: {initialContent}</article>
 }))
 
 vi.mock('../../../editor/ConfigEditorShell', () => ({
@@ -182,10 +183,46 @@ describe('SkillDetailPage', () => {
     await user.click(screen.getByRole('button', { name: 'common.back' }))
     expect(onBack).toHaveBeenCalledTimes(1)
 
-    expect(await screen.findAllByText('SKILL.md')).toHaveLength(2)
+    expect(await screen.findByRole('button', { name: 'SKILL.md' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'library.action.uninstall' }))
 
     expect(await screen.findByRole('dialog')).toHaveTextContent('library.delete.skill.title')
+  })
+
+  it('keeps source files and file preview in one section', async () => {
+    render(<SkillDetailPage skill={createSkill()} onBack={vi.fn()} />)
+
+    await screen.findByText('rich editor: # Review Helper')
+
+    const sourceFile = screen.getByRole('button', { name: 'SKILL.md' })
+    const previewHeading = screen.getByText('library.skill_detail.file_preview')
+
+    expect(sourceFile.closest('section')).toBe(previewHeading.closest('section'))
+    expect(readSkillFileMock).toHaveBeenCalledWith('skill-1', 'SKILL.md')
+  })
+
+  it('loads the selected source file into the preview', async () => {
+    const user = userEvent.setup()
+    listFilesMock.mockResolvedValueOnce({
+      success: true,
+      data: [
+        { name: 'SKILL.md', path: 'SKILL.md', type: 'file' },
+        { name: 'script.ts', path: 'scripts/script.ts', type: 'file' }
+      ]
+    })
+    readSkillFileMock.mockImplementation(async (_skillId: string, filename: string) => ({
+      success: true,
+      data: filename === 'SKILL.md' ? '# Review Helper' : 'export const run = true'
+    }))
+
+    render(<SkillDetailPage skill={createSkill()} onBack={vi.fn()} />)
+
+    await screen.findByText('rich editor: # Review Helper')
+    await user.click(screen.getByRole('button', { name: 'script.ts' }))
+
+    await screen.findByText('code viewer: export const run = true')
+    expect(readSkillFileMock).toHaveBeenCalledWith('skill-1', 'SKILL.md')
+    expect(readSkillFileMock).toHaveBeenCalledWith('skill-1', 'scripts/script.ts')
   })
 
   it('uses the uninstall fallback message for uninstall failures', async () => {

@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, ConfirmDialog, Separator } from '@cherrystudio/ui'
+import { Alert, Badge, Button, ConfirmDialog, Scrollbar, Separator } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
@@ -76,7 +76,6 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
   const [confirmUninstallOpen, setConfirmUninstallOpen] = useState(false)
 
   const isBuiltin = skill.source === 'builtin'
-  const selectedFileName = selectedFile ? (selectedFile.split('/').pop() ?? selectedFile) : null
   const sourceTags = skill.sourceTags ?? []
 
   // Load the skill's file tree on mount / id change. Auto-select SKILL.md when
@@ -242,32 +241,25 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
           <Separator className="bg-border/20" />
 
           <section className="flex flex-col gap-4">
-            <h2 className="font-medium text-muted-foreground/70 text-sm">{t('library.skill_detail.source_files')}</h2>
-            <div className="rounded-xs bg-muted/30 p-3">
-              {loadingTree ? (
-                <div className="py-6" aria-hidden="true" />
-              ) : fileTree.length === 0 ? (
-                <p className="py-5 text-center text-muted-foreground/40 text-xs">{t('settings.skills.noSkillFile')}</p>
-              ) : (
-                <div className="max-h-72 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
-                  {tree}
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section className="flex flex-col gap-4">
             <h2 className="font-medium text-muted-foreground/70 text-sm">{t('library.skill_detail.file_preview')}</h2>
-            <div className="min-h-[360px] overflow-hidden rounded-xs bg-muted/30">
+            <div className="grid max-h-130 min-h-90 grid-cols-[15rem_minmax(0,1fr)] items-stretch overflow-hidden rounded-xs bg-card">
+              <Scrollbar className="max-h-130 min-h-90 border-border-muted border-r px-3 py-3">
+                {loadingTree ? (
+                  <div className="py-6" aria-hidden="true" />
+                ) : fileTree.length === 0 ? (
+                  <p className="py-5 text-center text-muted-foreground/40 text-xs">
+                    {t('settings.skills.noSkillFile')}
+                  </p>
+                ) : (
+                  tree
+                )}
+              </Scrollbar>
+
               {selectedFile && fileContent !== null ? (
                 loadingContent ? (
-                  <div className="min-h-[360px]" aria-hidden="true" />
+                  <Scrollbar className="max-h-130 min-h-90 min-w-0" aria-hidden="true" />
                 ) : isMarkdownFile(selectedFile) ? (
-                  <div className="max-h-[520px] overflow-auto px-5 py-4">
-                    <div className="mb-4 flex items-center gap-2 text-muted-foreground/45 text-xs">
-                      <FileText size={13} />
-                      <span>{selectedFileName}</span>
-                    </div>
+                  <Scrollbar className="max-h-130 min-h-90 min-w-0 px-5 py-4">
                     <RichEditor
                       key={selectedFile}
                       initialContent={fileContent}
@@ -276,21 +268,21 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
                       showToolbar={false}
                       isFullWidth={true}
                     />
-                  </div>
+                  </Scrollbar>
                 ) : (
-                  <div className="max-h-[520px] overflow-auto">
+                  <Scrollbar className="max-h-130 min-h-90 min-w-0 overflow-auto">
                     <CodeViewer key={selectedFile} value={fileContent} language={guessLanguage(selectedFile)} />
-                  </div>
+                  </Scrollbar>
                 )
               ) : loadingContent ? (
-                <div className="min-h-[360px]" aria-hidden="true" />
+                <Scrollbar className="max-h-130 min-h-90 min-w-0" aria-hidden="true" />
               ) : (
-                <div className="flex min-h-[360px] flex-col items-center justify-center gap-2 text-muted-foreground/40">
+                <Scrollbar className="flex max-h-130 min-h-90 min-w-0 flex-col items-center justify-center gap-2 text-muted-foreground/40">
                   <FileText size={28} strokeWidth={1.2} />
                   <span className="text-xs">
                     {selectedFile ? t('settings.skills.noSkillFile') : t('settings.skills.selectFile')}
                   </span>
-                </div>
+                </Scrollbar>
               )}
             </div>
           </section>
