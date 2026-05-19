@@ -116,8 +116,8 @@ export const useSmoothStream = ({
       // 5. 更新队列
       chunkQueueRef.current = chunkQueueRef.current.slice(charsToRenderCount)
 
-      // 6. 如果还有内容需要渲染，继续下一帧
-      if (chunkQueueRef.current.length > 0) {
+      // 6. 保持循环存活
+      if (chunkQueueRef.current.length > 0 || !streamDone) {
         animationFrameRef.current = requestAnimationFrame(renderLoop)
       }
     },
