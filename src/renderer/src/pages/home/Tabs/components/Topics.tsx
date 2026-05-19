@@ -29,6 +29,7 @@ import {
   useTopicMutations
 } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import type { AddNewTopicPayload } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -78,6 +79,7 @@ const logger = loggerService.withContext('Topics')
 
 interface Props {
   activeTopic: Topic
+  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
   revealRequest?: ResourceListRevealRequest
   setActiveTopic: (topic: Topic) => void
@@ -138,7 +140,7 @@ function TopicDisplayModeMenu({
   )
 }
 
-export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTopic }: Props) {
+export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, setActiveTopic }: Props) {
   const { t } = useTranslation()
   const tabs = useOptionalTabsContext()
   const [groupNow] = useState(() => dayjs())
@@ -493,18 +495,14 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
             <ResourceList.HeaderActionButton
               type="button"
               aria-label={t('chat.add.topic.title')}
-              onClick={() =>
-                payload === undefined
-                  ? void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)
-                  : void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC, payload)
-              }>
+              onClick={() => void onNewTopic?.(payload)}>
               <Plus className="block" />
             </ResourceList.HeaderActionButton>
           </Tooltip>
         </>
       )
     },
-    [assistantById, displayMode, openAssistantEditor, t]
+    [assistantById, displayMode, onNewTopic, openAssistantEditor, t]
   )
 
   const handleCollapsedTopicGroupIdsChange = useCallback(
@@ -706,7 +704,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
             aria-label={t('chat.conversation.new')}
             icon={<SquarePen />}
             label={t('chat.conversation.new')}
-            onClick={() => void EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}
+            onClick={() => void onNewTopic?.()}
             actions={
               <>
                 <TopicDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setTopicDisplayMode(nextMode)} />

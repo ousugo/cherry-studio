@@ -45,6 +45,7 @@ export interface ComposerSurfaceProps {
   onTokensChange: (tokens: readonly ComposerSerializedToken[]) => void
   placeholder: string
   sendDisabled: boolean
+  sendBlockedReason?: string
   isLoading: boolean
   onSendDraft: (draft: ComposerSerializedDraft) => void | Promise<void>
   onPause: () => void | Promise<void>
@@ -76,6 +77,7 @@ export interface ComposerSurfaceProps {
     }
   ) => void
   renderLeftControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
+  renderBelowControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
 }
 
 function createPlainTextContent(text: string): JSONContent {
@@ -176,6 +178,7 @@ export default function ComposerSurface({
   onTokensChange,
   placeholder,
   sendDisabled,
+  sendBlockedReason,
   isLoading,
   onSendDraft,
   onPause,
@@ -197,7 +200,8 @@ export default function ComposerSurface({
   getToolLaunchers,
   emitToolTrigger,
   onToolLauncherSelect,
-  renderLeftControls
+  renderLeftControls,
+  renderBelowControls
 }: ComposerSurfaceProps) {
   const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
   const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
@@ -211,6 +215,7 @@ export default function ComposerSurface({
   const inputListenersRef = useRef(new Set<(event?: { isComposing?: boolean }) => void>())
   const isSyncingTokensRef = useRef(false)
   const sendDisabledRef = useRef(sendDisabled)
+  const sendBlockedReasonRef = useRef(sendBlockedReason)
   const onSendDraftRef = useRef(onSendDraft)
   const previousTextRef = useRef(text)
   const managedTokenKindSet = useMemo(() => new Set(managedTokenKinds), [managedTokenKinds])
@@ -225,8 +230,18 @@ export default function ComposerSurface({
   }, [sendDisabled])
 
   useEffect(() => {
+    sendBlockedReasonRef.current = sendBlockedReason
+  }, [sendBlockedReason])
+
+  useEffect(() => {
     onSendDraftRef.current = onSendDraft
   }, [onSendDraft])
+
+  const showBlockedSendReason = useCallback(() => {
+    if (sendBlockedReasonRef.current) {
+      window.toast?.error(sendBlockedReasonRef.current)
+    }
+  }, [])
 
   const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
     (value) => {
@@ -352,6 +367,8 @@ export default function ComposerSurface({
           if (!sendDisabledRef.current && editorRef.current) {
             const draft = serializeComposerDocument(editorRef.current)
             void Promise.resolve(onSendDraftRef.current(draft)).finally(focusEditor)
+          } else {
+            showBlockedSendReason()
           }
           event.preventDefault()
           return true
@@ -537,10 +554,14 @@ export default function ComposerSurface({
   }, [handlePaste])
 
   const sendDraft = useCallback(() => {
-    if (!editor || sendDisabled) return
+    if (!editor) return
+    if (sendDisabled) {
+      showBlockedSendReason()
+      return
+    }
     const draft = serializeComposerDocument(editor)
     void Promise.resolve(onSendDraft(draft)).finally(focusEditor)
-  }, [editor, focusEditor, onSendDraft, sendDisabled])
+  }, [editor, focusEditor, onSendDraft, sendDisabled, showBlockedSendReason])
 
   const onTranslated = useCallback(
     (translatedText: string) => {
@@ -553,6 +574,7 @@ export default function ComposerSurface({
   const quickPanelElement = quickPanelEnabled ? (
     <QuickPanelView setInputText={setText} inputAdapter={inputAdapter} />
   ) : null
+  const belowControls = renderBelowControls?.(inputAdapter)
 
   return (
     <NarrowLayout narrowMode={narrowMode} style={{ width: '100%' }}>
@@ -566,7 +588,8 @@ export default function ComposerSurface({
         <div
           id="inputbar"
           className={cn(
-            'inputbar-container relative mb-6 rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) pt-2 transition-all duration-200 ease-in-out [[navbar-position=top]_&]:mb-3.5',
+            'inputbar-container relative rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) pt-2 transition-all duration-200 ease-in-out',
+            belowControls ? 'mb-2' : 'in-[[navbar-position=top]]:mb-3.5 mb-6',
             isDragging &&
               "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[14px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
             isExpanded && 'expanded'
@@ -596,11 +619,16 @@ export default function ComposerSurface({
                   </button>
                 </Tooltip>
               ) : (
-                <SendMessageButton sendMessage={sendDraft} disabled={sendDisabled} />
+                <SendMessageButton
+                  sendMessage={sendDraft}
+                  disabled={sendDisabled}
+                  onDisabledClick={showBlockedSendReason}
+                />
               )}
             </div>
           </div>
         </div>
+        {belowControls && <div className="in-[[navbar-position=top]]:mb-3.5 mb-6 px-2">{belowControls}</div>}
       </div>
     </NarrowLayout>
   )

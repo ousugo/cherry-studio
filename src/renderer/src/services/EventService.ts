@@ -2,10 +2,6 @@ import Emittery from 'emittery'
 
 export const EventEmitter = new Emittery()
 
-export type AddNewTopicPayload = {
-  assistantId?: string | null
-}
-
 export const EVENT_NAMES = {
   SEND_MESSAGE: 'SEND_MESSAGE',
   CLEAR_MESSAGES: 'CLEAR_MESSAGES',
@@ -19,7 +15,6 @@ export const EVENT_NAMES = {
   EXPORT_TOPIC_IMAGE: 'EXPORT_TOPIC_IMAGE',
   LOCATE_MESSAGE: 'LOCATE_MESSAGE',
   LOCATE_NOTE_LINE: 'LOCATE_NOTE_LINE',
-  ADD_NEW_TOPIC: 'ADD_NEW_TOPIC',
   EDIT_CODE_BLOCK: 'EDIT_CODE_BLOCK',
   CHANGE_TOPIC: 'CHANGE_TOPIC'
 }

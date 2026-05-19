@@ -5,9 +5,10 @@ import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
-import ChatComposer from '../ChatComposer'
+import ChatComposer, { ChatHomeComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
+  createTopic: vi.fn(),
   updateTopic: vi.fn(),
   setModel: vi.fn(),
   setDefaultModel: vi.fn(),
@@ -15,6 +16,11 @@ const mocks = vi.hoisted(() => ({
   setMentionedModels: vi.fn(),
   setSelectedKnowledgeBases: vi.fn(),
   setIsExpanded: vi.fn(),
+  updateAssistant: vi.fn(),
+  toastError: vi.fn(),
+  shortcutHandlers: new Map<string, () => void>(),
+  assistant: undefined as any,
+  model: undefined as Model | undefined,
   surfaceProps: undefined as ComposerSurfaceProps | undefined
 }))
 
@@ -40,7 +46,12 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
   return {
     default: (props: ComposerSurfaceProps) => {
       mocks.surfaceProps = props
-      return <div>{props.renderLeftControls?.(undefined)}</div>
+      return (
+        <div>
+          <div data-testid="composer-left-controls">{props.renderLeftControls?.(undefined)}</div>
+          <div data-testid="composer-below-controls">{props.renderBelowControls?.(undefined)}</div>
+        </div>
+      )
     }
   }
 })
@@ -145,16 +156,11 @@ vi.mock('@renderer/hooks/ChatWriteContext', () => ({
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({
-    assistant: {
-      id: 'assistant-1',
-      name: 'Assistant 1',
-      emoji: 'A',
-      settings: { enableWebSearch: true },
-      knowledgeBaseIds: []
-    },
-    model,
+    assistant: mocks.assistant,
+    isLoading: false,
+    model: mocks.model,
     setModel: mocks.setModel,
-    updateAssistant: vi.fn()
+    updateAssistant: mocks.updateAssistant
   }),
   useDefaultAssistant: () => ({
     assistant: {
@@ -174,21 +180,18 @@ vi.mock('@renderer/hooks/useModel', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviderDisplayName: () => 'Provider'
+  useProviderDisplayName: (providerId?: string) => (providerId ? 'Provider' : undefined)
 }))
 
 vi.mock('@renderer/hooks/useShortcuts', () => ({
-  useShortcut: vi.fn()
-}))
-
-vi.mock('@renderer/hooks/useTimer', () => ({
-  useTimer: () => ({ setTimeoutTimer: vi.fn() })
+  useShortcut: (key: string, handler: () => void) => {
+    mocks.shortcutHandlers.set(key, handler)
+  }
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
-  mapApiTopicToRendererTopic: (topic: unknown) => topic,
   useTopicMutations: () => ({
-    createTopic: vi.fn(),
+    createTopic: mocks.createTopic,
     updateTopic: mocks.updateTopic
   })
 }))
@@ -224,6 +227,7 @@ const topic = {
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
     mocks.setModel.mockReset()
     mocks.setDefaultModel.mockReset()
@@ -231,7 +235,22 @@ describe('ChatComposer', () => {
     mocks.setMentionedModels.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
     mocks.setIsExpanded.mockReset()
+    mocks.updateAssistant.mockReset()
+    mocks.toastError.mockReset()
+    mocks.shortcutHandlers.clear()
+    mocks.assistant = {
+      id: 'assistant-1',
+      name: 'Assistant 1',
+      emoji: 'A',
+      settings: { enableWebSearch: true },
+      knowledgeBaseIds: []
+    }
+    mocks.model = model
     mocks.surfaceProps = undefined
+    Object.defineProperty(window, 'toast', {
+      configurable: true,
+      value: { error: mocks.toastError }
+    })
   })
 
   it('renders the tool menu before assistant and model selectors', () => {
@@ -259,5 +278,63 @@ describe('ChatComposer', () => {
       { id: 'provider::model-b', name: 'Model B' },
       { enableWebSearch: false }
     )
+  })
+
+  it('shows model selection instead of a fallback model when the assistant has no configured model', () => {
+    mocks.model = undefined
+
+    render(<ChatComposer topic={topic} setActiveTopic={vi.fn()} onSend={vi.fn()} />)
+
+    expect(screen.getByText('button.select_model')).toBeInTheDocument()
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
+  })
+
+  it('blocks send with a model-required toast when the assistant has no configured model', async () => {
+    mocks.model = undefined
+    const onSend = vi.fn()
+
+    render(<ChatComposer topic={topic} setActiveTopic={vi.fn()} onSend={onSend} />)
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(onSend).not.toHaveBeenCalled()
+    expect(mocks.toastError).toHaveBeenCalledWith('code.model_required')
+  })
+
+  it('routes new topic shortcuts through the explicit parent action', () => {
+    const onNewTopic = vi.fn()
+    render(<ChatComposer topic={topic} setActiveTopic={vi.fn()} onSend={vi.fn()} onNewTopic={onNewTopic} />)
+
+    mocks.shortcutHandlers.get('topic.new')?.()
+
+    expect(onNewTopic).toHaveBeenCalledWith(undefined)
+    expect(mocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('renders selectors below the surface in temporary home mode', () => {
+    render(<ChatHomeComposer topic={topic} setActiveTopic={vi.fn()} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('tool menu')
+    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Assistant 1')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Assistant 1')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
+  })
+
+  it('routes temporary home assistant changes to the temporary handler', () => {
+    const onTemporaryAssistantChange = vi.fn()
+    render(
+      <ChatHomeComposer
+        topic={topic}
+        setActiveTopic={vi.fn()}
+        onSend={vi.fn()}
+        onTemporaryAssistantChange={onTemporaryAssistantChange}
+      />
+    )
+
+    fireEvent.click(screen.getByText('select assistant 2'))
+
+    expect(onTemporaryAssistantChange).toHaveBeenCalledWith('assistant-2')
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
   })
 })

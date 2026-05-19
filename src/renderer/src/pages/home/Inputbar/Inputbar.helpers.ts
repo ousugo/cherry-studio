@@ -1,4 +1,6 @@
-import type { AddNewTopicPayload } from '@renderer/services/EventService'
+export type AddNewTopicPayload = {
+  assistantId?: string | null
+}
 
 export function resolveNewTopicAssistantId(activeAssistantId: string | undefined, payload?: AddNewTopicPayload) {
   if (payload && 'assistantId' in payload) {

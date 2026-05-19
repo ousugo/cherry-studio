@@ -64,6 +64,15 @@ vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
         send
       </button>
     )
+  ),
+  ChatHomeComposer: ({
+    onTemporaryAssistantChange
+  }: {
+    onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
+  }) => (
+    <button type="button" data-testid="chat-home-composer" onClick={() => onTemporaryAssistantChange?.('assistant-2')}>
+      home composer
+    </button>
   )
 }))
 
@@ -217,6 +226,52 @@ describe('ChatContent', () => {
     render(<ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" onPersistTemporaryTopic={vi.fn()} />)
 
     expect(mockUseTopicMessages).toHaveBeenCalledWith('topic-1', { enabled: false })
+  })
+
+  it('centers the home composer for a fresh empty temporary topic and routes assistant changes', () => {
+    const onTemporaryAssistantChange = vi.fn()
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: null,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: []
+    })
+
+    render(
+      <ChatContent
+        topic={topic}
+        setActiveTopic={vi.fn()}
+        mainHeight="100px"
+        onPersistTemporaryTopic={vi.fn()}
+        onTemporaryAssistantChange={onTemporaryAssistantChange}
+        renderFrame={({ main, bottomComposer }) => (
+          <>
+            <div data-testid="frame-main">{main}</div>
+            <div data-testid="frame-bottom">{bottomComposer}</div>
+          </>
+        )}
+      />
+    )
+
+    expect(screen.getByTestId('frame-main')).toHaveTextContent('home composer')
+    expect(screen.getByTestId('frame-bottom')).toBeEmptyDOMElement()
+
+    fireEvent.click(screen.getByTestId('chat-home-composer'))
+
+    expect(onTemporaryAssistantChange).toHaveBeenCalledWith('assistant-2')
   })
 
   it('renders only uiMessages in the list (execution overlay affects parts, not the list itself)', async () => {

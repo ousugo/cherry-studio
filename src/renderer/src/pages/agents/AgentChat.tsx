@@ -4,7 +4,7 @@ import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
 import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
 import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
-import AgentComposer from '@renderer/components/chat/composer/variants/AgentComposer'
+import AgentComposer, { AgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
@@ -201,8 +201,8 @@ const AgentChat = ({
       )
     }
 
-    const bottomComposer = !isMultiSelectMode ? (
-      <AgentComposer
+    const homeComposer = !isMultiSelectMode ? (
+      <AgentHomeComposer
         agentId={temporaryAgentConversation.agentId}
         sessionId={temporaryAgentConversation.sessionId}
         sessionOverride={temporaryAgentConversation.session}
@@ -219,7 +219,7 @@ const AgentChat = ({
           })
         }
       />
-    ) : undefined
+    ) : null
 
     return (
       <AgentChatFrame
@@ -241,8 +241,11 @@ const AgentChat = ({
             />
           </div>
         }
-        main={<div className="h-full w-full" />}
-        bottomComposer={bottomComposer}
+        main={
+          <div className="flex h-full min-h-0 flex-1 items-center justify-center px-4 pb-[12vh]">
+            <div className="w-full">{homeComposer}</div>
+          </div>
+        }
         sidePanel={
           <>
             <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} mode="agent" />

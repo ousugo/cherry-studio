@@ -24,13 +24,11 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
+import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { resolveNewTopicAssistantId } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
+import type { AddNewTopicPayload } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
-import { type AddNewTopicPayload, EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata, Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
@@ -84,6 +82,8 @@ interface ChatComposerProps {
       userMessageParts?: CherryMessagePart[]
     }
   ) => void | Promise<void>
+  onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
+  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
 }
 
 type ProviderActionHandlers = ComposerSurfaceActions & {
@@ -97,37 +97,36 @@ const emptyActions: ProviderActionHandlers = {
   toggleExpanded: () => undefined
 }
 
-interface ChatComposerToolbarControlsProps {
-  inputAdapter?: QuickPanelInputAdapter
+interface ChatComposerContextControlsProps {
   assistantId: string | null
   assistantName: string
   assistantEmoji?: string
   model?: Model
   modelProviderName?: string
   selectModelLabel: string
+  side: 'top' | 'bottom'
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
 }
 
-const ChatComposerToolbarControls = ({
-  inputAdapter,
+const ChatComposerContextControls = ({
   assistantId,
   assistantName,
   assistantEmoji,
   model,
   modelProviderName,
   selectModelLabel,
+  side,
   onAssistantChange,
   onModelSelect
-}: ChatComposerToolbarControlsProps) => {
+}: ChatComposerContextControlsProps) => {
   return (
-    <div className={COMPOSER_TOOLBAR_CLASS}>
-      <ComposerToolMenu inputAdapter={inputAdapter} />
+    <>
       <AssistantSelector
         multi={false}
         value={assistantId}
         onChange={onAssistantChange}
-        side="top"
+        side={side}
         align="start"
         mountStrategy="lazy-keep"
         trigger={
@@ -144,7 +143,7 @@ const ChatComposerToolbarControls = ({
         onSelect={onModelSelect}
         filter={CHAT_MODEL_FILTER}
         shortcut="chat.select_model"
-        side="top"
+        side={side}
         align="start"
         mountStrategy="lazy-keep"
         trigger={
@@ -158,11 +157,65 @@ const ChatComposerToolbarControls = ({
           </Button>
         }
       />
+    </>
+  )
+}
+
+interface ChatComposerToolbarControlsProps extends Omit<ChatComposerContextControlsProps, 'side'> {
+  inputAdapter?: QuickPanelInputAdapter
+}
+
+const ChatComposerToolMenuControls = ({ inputAdapter }: { inputAdapter?: QuickPanelInputAdapter }) => {
+  return <ComposerToolMenu inputAdapter={inputAdapter} />
+}
+
+const ChatComposerToolbarControls = ({ inputAdapter, ...contextProps }: ChatComposerToolbarControlsProps) => {
+  return (
+    <div className={COMPOSER_TOOLBAR_CLASS}>
+      <ChatComposerToolMenuControls inputAdapter={inputAdapter} />
+      <ChatComposerContextControls {...contextProps} side="top" />
     </div>
   )
 }
 
-const ChatComposer = ({ setActiveTopic, topic, onSend }: ChatComposerProps) => {
+type ChatComposerControlProps = Omit<ChatComposerToolbarControlsProps, 'inputAdapter'>
+
+const ChatComposerBelowControls = (contextProps: ChatComposerControlProps) => {
+  return (
+    <div className={COMPOSER_TOOLBAR_CLASS}>
+      <ChatComposerContextControls {...contextProps} side="bottom" />
+    </div>
+  )
+}
+
+type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
+type ChatComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
+type ChatComposerControlsRenderer = (props: ChatComposerControlProps) => ChatComposerControlSlots
+
+const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
+  renderLeftControls: (inputAdapter) => <ChatComposerToolbarControls inputAdapter={inputAdapter} {...props} />
+})
+
+const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
+  renderLeftControls: (inputAdapter) => (
+    <div className={COMPOSER_TOOLBAR_CLASS}>
+      <ChatComposerToolMenuControls inputAdapter={inputAdapter} />
+    </div>
+  ),
+  renderBelowControls: () => <ChatComposerBelowControls {...props} />
+})
+
+type ChatComposerRootProps = ChatComposerProps & {
+  renderControls: ChatComposerControlsRenderer
+}
+
+const ChatComposerRoot = ({
+  topic,
+  onSend,
+  onTemporaryAssistantChange,
+  onNewTopic,
+  renderControls
+}: ChatComposerRootProps) => {
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
   const [initialMentionedModels] = useState(() => getValidatedCachedModels(topic.assistantId))
 
@@ -187,16 +240,31 @@ const ChatComposer = ({ setActiveTopic, topic, onSend }: ChatComposerProps) => {
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         toggleExpanded: (next) => actionsRef.current.toggleExpanded(next)
       }}>
-      <ChatComposerInner setActiveTopic={setActiveTopic} topic={topic} actionsRef={actionsRef} onSend={onSend} />
+      <ChatComposerInner
+        topic={topic}
+        actionsRef={actionsRef}
+        onSend={onSend}
+        onTemporaryAssistantChange={onTemporaryAssistantChange}
+        onNewTopic={onNewTopic}
+        renderControls={renderControls}
+      />
     </ComposerToolRuntimeProvider>
   )
 }
 
-interface ChatComposerInnerProps extends ChatComposerProps {
+interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'setActiveTopic'> {
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
+  renderControls: ChatComposerControlsRenderer
 }
 
-const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatComposerInnerProps) => {
+const ChatComposerInner = ({
+  topic,
+  actionsRef,
+  onSend,
+  onTemporaryAssistantChange,
+  onNewTopic,
+  renderControls
+}: ChatComposerInnerProps) => {
   const awaitingApproval = useTopicAwaitingApproval(topic.id)
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
@@ -204,10 +272,10 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, triggers, setIsExpanded } = useComposerToolDispatch()
   const { setCouldAddImageFile, setExtensions } = useComposerToolInternalDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
-  const { assistant, model, setModel, updateAssistant } = useAssistant(topic.assistantId)
+  const { assistant, isLoading: assistantLoading, model, setModel, updateAssistant } = useAssistant(topic.assistantId)
   const { assistant: defaultAssistant } = useDefaultAssistant()
   const { setDefaultModel } = useDefaultModel()
-  const { createTopic, updateTopic } = useTopicMutations()
+  const { updateTopic } = useTopicMutations()
   const { knowledgeBases: allKnowledgeBases } = useKnowledgeBases()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
@@ -219,9 +287,9 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   const { t } = useTranslation()
   const chatWrite = useChatWrite()
   const { isPending } = useTopicStreamStatus(topic.id)
-  const { setTimeoutTimer } = useTimer()
   const [isSending, setIsSending] = useState(false)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '')
+  const missingModelMessage = !assistantLoading && !model ? t('code.model_required') : undefined
 
   useEffect(() => {
     if (isPending) setIsSending(false)
@@ -355,9 +423,13 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   const handleAssistantChange = useCallback(
     async (nextId: string | null) => {
       if (!nextId || nextId === selectedAssistantId) return
+      if (onTemporaryAssistantChange) {
+        await onTemporaryAssistantChange(nextId)
+        return
+      }
       await updateTopic(topic.id, { assistantId: nextId })
     },
-    [selectedAssistantId, topic.id, updateTopic]
+    [onTemporaryAssistantChange, selectedAssistantId, topic.id, updateTopic]
   )
 
   const handleModelSelect = useCallback(
@@ -375,14 +447,10 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   )
 
   const addNewTopic = useCallback(
-    async (payload?: AddNewTopicPayload) => {
-      const assistantId = resolveNewTopicAssistantId(topic.assistantId, payload)
-      const persisted = await createTopic({ assistantId, name: t('chat.default.topic.name') })
-      if (!persisted) return
-      setActiveTopic(mapApiTopicToRendererTopic(persisted))
-      setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
+    (payload?: AddNewTopicPayload) => {
+      void onNewTopic?.(payload)
     },
-    [createTopic, topic.assistantId, t, setActiveTopic, setTimeoutTimer]
+    [onNewTopic]
   )
 
   const handleSurfaceActionsChange = useCallback(
@@ -399,18 +467,10 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
   useShortcut(
     'topic.new',
     () => {
-      void addNewTopic()
-      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      addNewTopic()
     },
     { preventDefault: true, enableOnFormTags: true }
   )
-
-  useEffect(() => {
-    const unsubscribes = [EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)]
-    return () => {
-      unsubscribes.forEach((unsubscribe) => unsubscribe())
-    }
-  }, [addNewTopic])
 
   useEffect(() => {
     if (!assistant?.id) return
@@ -424,6 +484,11 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
+      if (!model) {
+        window.toast?.error(t('code.model_required'))
+        return
+      }
+
       const nextText = draft.text.trim()
       if (!nextText) return
       const tokenIds = getComposerTokenIds(draft.tokens)
@@ -455,10 +520,21 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
         setIsSending(false)
       }
     },
-    [files, mentionedModels, onSend, selectedKnowledgeBases, setFiles, setText]
+    [files, mentionedModels, model, onSend, selectedKnowledgeBases, setFiles, setText, t]
   )
 
   if (isMultiSelectMode) return null
+
+  const controlSlots = renderControls({
+    assistantId: selectedAssistantId,
+    assistantName,
+    assistantEmoji: runtimeAssistant.emoji,
+    model,
+    modelProviderName: providerName,
+    selectModelLabel: t('button.select_model'),
+    onAssistantChange: handleAssistantChange,
+    onModelSelect: handleModelSelect
+  })
 
   return (
     <>
@@ -472,7 +548,8 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
         managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
         placeholder={searching ? t('chat.input.translating') : placeholderText}
-        sendDisabled={text.trim().length === 0 || loading || searching}
+        sendDisabled={text.trim().length === 0 || loading || searching || !!missingModelMessage}
+        sendBlockedReason={missingModelMessage}
         isLoading={loading}
         onSendDraft={handleSendDraft}
         onPause={onPause}
@@ -494,22 +571,18 @@ const ChatComposerInner = ({ setActiveTopic, topic, actionsRef, onSend }: ChatCo
         getToolLaunchers={() => getLaunchers('root-panel')}
         emitToolTrigger={triggers.emit}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        renderLeftControls={(inputAdapter) => (
-          <ChatComposerToolbarControls
-            inputAdapter={inputAdapter}
-            assistantId={selectedAssistantId}
-            assistantName={assistantName}
-            assistantEmoji={runtimeAssistant.emoji}
-            model={model}
-            modelProviderName={providerName}
-            selectModelLabel={t('button.select_model')}
-            onAssistantChange={handleAssistantChange}
-            onModelSelect={handleModelSelect}
-          />
-        )}
+        {...controlSlots}
       />
     </>
   )
+}
+
+const ChatComposer = (props: ChatComposerProps) => {
+  return <ChatComposerRoot {...props} renderControls={renderChatToolbarControls} />
+}
+
+export const ChatHomeComposer = (props: ChatComposerProps) => {
+  return <ChatComposerRoot {...props} renderControls={renderChatHomeControls} />
 }
 
 export default ChatComposer

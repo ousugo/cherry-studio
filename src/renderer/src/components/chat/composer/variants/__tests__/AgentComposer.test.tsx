@@ -6,7 +6,7 @@ import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
-import AgentComposer from '../AgentComposer'
+import AgentComposer, { AgentHomeComposer } from '../AgentComposer'
 
 const mocks = vi.hoisted(() => ({
   draftText: 'hello',
@@ -52,7 +52,8 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
       mocks.surfaceProps = props
       return (
         <div>
-          {props.renderLeftControls?.(undefined)}
+          <div data-testid="composer-left-controls">{props.renderLeftControls?.(undefined)}</div>
+          <div data-testid="composer-below-controls">{props.renderBelowControls?.(undefined)}</div>
           <button
             type="button"
             onClick={() =>
@@ -370,5 +371,21 @@ describe('AgentComposer', () => {
     expect(mocks.updateModel).toHaveBeenCalledWith('agent-1', 'anthropic::claude-opus-4', {
       showSuccessToast: false
     })
+  })
+
+  it('renders agent and model selectors below the surface in temporary home mode', () => {
+    render(
+      <AgentHomeComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Agent')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Agent')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Claude Sonnet 4.5 | Anthropic')
   })
 })

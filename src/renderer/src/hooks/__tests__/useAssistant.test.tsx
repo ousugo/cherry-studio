@@ -68,4 +68,22 @@ describe('useAssistant', () => {
 
     expect(result.current.assistant).toBeUndefined()
   })
+
+  it('uses the default model only when the topic has no persisted assistant', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'provider::default-model')
+
+    renderHook(() => useAssistant(null))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/provider::default-model', { enabled: true })
+  })
+
+  it('does not fall back to the default model when a persisted assistant has no model', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'provider::default-model')
+
+    const { result } = renderHook(() => useAssistant('assistant-1'))
+
+    expect(result.current.assistant).toBeDefined()
+    expect(result.current.model).toBeUndefined()
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/', { enabled: false })
+  })
 })

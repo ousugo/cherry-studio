@@ -197,9 +197,10 @@ export function useModelMutations() {
  * the canonical v2 {@link Model} shape; consumers that need a bare modelId
  * should use `parseUniqueModelId(model.id)`.
  */
-export function useModelById(uniqueModelId: UniqueModelId) {
-  const { data, isLoading, error, refetch, mutate } = useQuery(`/models/${uniqueModelId}`, {
-    enabled: !!uniqueModelId
+export function useModelById(uniqueModelId: UniqueModelId | null | undefined) {
+  const modelKey = uniqueModelId ?? ''
+  const { data, isLoading, error, refetch, mutate } = useQuery(`/models/${modelKey}`, {
+    enabled: !!modelKey
   })
 
   return {

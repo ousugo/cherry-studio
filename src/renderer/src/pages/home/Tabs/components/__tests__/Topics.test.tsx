@@ -141,7 +141,6 @@ vi.mock('@renderer/services/ApiService', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    ADD_NEW_TOPIC: 'ADD_NEW_TOPIC',
     CLEAR_MESSAGES: 'CLEAR_MESSAGES',
     COPY_TOPIC_IMAGE: 'COPY_TOPIC_IMAGE',
     EXPORT_TOPIC_IMAGE: 'EXPORT_TOPIC_IMAGE'
@@ -247,7 +246,6 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type * as TopicDataApiModule from '@renderer/hooks/useTopic'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import type { Pin } from '@shared/data/types/pin'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
@@ -326,9 +324,11 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
 }
 
 function renderTopicList({
+  onNewTopic = vi.fn(),
   onOpenHistory,
   revealRequest
 }: {
+  onNewTopic?: (payload?: { assistantId?: string | null }) => void
   onOpenHistory?: () => void
   revealRequest?: ResourceListRevealRequest
 } = {}) {
@@ -337,6 +337,7 @@ function renderTopicList({
     <Topics
       activeTopic={createRendererTopic()}
       setActiveTopic={setActiveTopic}
+      onNewTopic={onNewTopic}
       onOpenHistory={onOpenHistory}
       revealRequest={nextRevealRequest}
     />
@@ -344,6 +345,7 @@ function renderTopicList({
   const view = render(renderNode())
   return {
     ...view,
+    onNewTopic,
     rerenderTopicList: (nextRevealRequest = revealRequest) => view.rerender(renderNode(nextRevealRequest)),
     setActiveTopic
   }
@@ -984,7 +986,7 @@ describe('Topics', () => {
   })
 
   it('adds a new topic from the header create action', () => {
-    renderTopicList()
+    const { onNewTopic } = renderTopicList()
 
     const createButton = screen.getAllByRole('button', { name: 'New Topic' })[0]
     expect(createButton).toBeInTheDocument()
@@ -994,12 +996,12 @@ describe('Topics', () => {
 
     fireEvent.click(createButton)
 
-    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC, { assistantId: 'assistant-1' })
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
   })
 
   it('renders group create action only on the today group when grouped by time', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
-    renderTopicList()
+    const { onNewTopic } = renderTopicList()
 
     const todayHeader = screen.getByRole('button', { name: 'Today' }).closest('div')
     expect(todayHeader).toBeInTheDocument()
@@ -1015,7 +1017,7 @@ describe('Topics', () => {
     )
     fireEvent.click(todayCreateButton)
 
-    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC)
+    expect(onNewTopic).toHaveBeenCalledWith(undefined)
 
     const otherGroups = ['Pinned', 'Yesterday', 'This week', 'Earlier'] as const
     for (const groupName of otherGroups) {
@@ -1024,7 +1026,7 @@ describe('Topics', () => {
       expect(within(header as HTMLElement).queryByRole('button', { name: 'New Topic' })).not.toBeInTheDocument()
     }
 
-    expect(EventEmitter.emit).toHaveBeenCalledTimes(1)
+    expect(onNewTopic).toHaveBeenCalledTimes(1)
   })
 
   it('does not enable drag reorder in time mode', () => {
@@ -1172,7 +1174,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    renderTopicList()
+    const { onNewTopic } = renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Default Assistant' })).not.toBeInTheDocument()
@@ -1188,7 +1190,7 @@ describe('Topics', () => {
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     expect(assistantHeader).toBeInTheDocument()
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'New Topic' }))
-    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC, { assistantId: 'assistant-1' })
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
 
     for (const groupName of ['Pinned', 'Unlinked Assistant'] as const) {
       const header = screen.getByRole('button', { name: groupName }).closest('div')

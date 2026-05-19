@@ -65,6 +65,49 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
     }
   }, [])
 
+  const create = useCallback(async (merged: UseTemporaryConversationOptions) => {
+    if (merged.type === 'assistant') {
+      const topic = await dataApiService.post('/temporary/topics', {
+        body: merged.assistantId ? { assistantId: merged.assistantId } : {}
+      })
+      const next: TemporaryConversation = {
+        type: 'assistant',
+        id: topic.id,
+        topicId: topic.id,
+        assistantId: merged.assistantId,
+        topic
+      }
+      activeRef.current = next
+      setConversation(next)
+      return next
+    }
+
+    if (!merged.agentId) {
+      throw new Error('agentId is required to start a temporary agent conversation')
+    }
+
+    const session = await dataApiService.post('/temporary/sessions', {
+      body: {
+        agentId: merged.agentId,
+        name: merged.name,
+        accessiblePaths: merged.accessiblePaths
+      }
+    })
+    const next: TemporaryConversation = {
+      type: 'agent',
+      id: session.id,
+      sessionId: session.id,
+      topicId: buildAgentSessionTopicId(session.id),
+      agentId: session.agentId ?? merged.agentId,
+      accessiblePaths: session.accessiblePaths ?? [],
+      name: session.name,
+      session
+    }
+    activeRef.current = next
+    setConversation(next)
+    return next
+  }, [])
+
   const start = useCallback(
     async (defaults?: TemporaryConversationDefaults) => {
       const merged = { ...defaultsRef.current, ...defaults }
@@ -73,51 +116,37 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
       setConversation(null)
       await release(previous)
 
-      if (merged.type === 'assistant') {
-        const topic = await dataApiService.post('/temporary/topics', {
-          body: merged.assistantId ? { assistantId: merged.assistantId } : {}
-        })
-        const next: TemporaryConversation = {
-          type: 'assistant',
-          id: topic.id,
-          topicId: topic.id,
-          assistantId: merged.assistantId,
-          topic
-        }
-        activeRef.current = next
-        setConversation(next)
-        return next
-      }
-
-      if (!merged.agentId) {
-        throw new Error('agentId is required to start a temporary agent conversation')
-      }
-
-      const session = await dataApiService.post('/temporary/sessions', {
-        body: {
-          agentId: merged.agentId,
-          name: merged.name,
-          accessiblePaths: merged.accessiblePaths
-        }
-      })
-      const next: TemporaryConversation = {
-        type: 'agent',
-        id: session.id,
-        sessionId: session.id,
-        topicId: buildAgentSessionTopicId(session.id),
-        agentId: session.agentId ?? merged.agentId,
-        accessiblePaths: session.accessiblePaths ?? [],
-        name: session.name,
-        session
-      }
-      activeRef.current = next
-      setConversation(next)
-      return next
+      return create(merged)
     },
-    [release]
+    [create, release]
   )
 
   const reset = useCallback((defaults?: TemporaryConversationDefaults) => start(defaults), [start])
+
+  const replace = useCallback(
+    async (defaults?: TemporaryConversationDefaults) => {
+      const previous = activeRef.current
+      const next = await create({ ...defaultsRef.current, ...defaults })
+      await release(previous)
+      return next
+    },
+    [create, release]
+  )
+
+  const updateAssistant = useCallback(async (assistantId: string | null) => {
+    const current = activeRef.current
+    if (!current || current.type !== 'assistant') return null
+
+    const topic = await dataApiService.patch(`/temporary/topics/${current.id}`, { body: { assistantId } })
+    const next: TemporaryConversation = {
+      ...current,
+      assistantId: topic.assistantId,
+      topic
+    }
+    activeRef.current = next
+    setConversation(next)
+    return next
+  }, [])
 
   const persist = useCallback(async (initialName?: string) => {
     const current = activeRef.current
@@ -183,6 +212,8 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
   return {
     conversation,
     start,
+    replace,
+    updateAssistant,
     reset,
     persist,
     discard,

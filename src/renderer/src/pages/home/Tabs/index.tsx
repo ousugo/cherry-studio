@@ -1,4 +1,5 @@
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import type { AddNewTopicPayload } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import type { Topic } from '@renderer/types'
 import type { FC } from 'react'
 import styled from 'styled-components'
@@ -7,19 +8,21 @@ import { Topics } from './components/Topics'
 
 interface Props {
   activeTopic: Topic
+  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
   setActiveTopic: (topic: Topic) => void
   revealRequest?: ResourceListRevealRequest
   style?: React.CSSProperties
 }
 
-const HomeTabs: FC<Props> = ({ activeTopic, onOpenHistory, setActiveTopic, revealRequest, style }) => {
+const HomeTabs: FC<Props> = ({ activeTopic, onNewTopic, onOpenHistory, setActiveTopic, revealRequest, style }) => {
   return (
     <Container style={style} className="home-tabs">
       <TabContent className="home-tabs-content">
         <Topics
           activeTopic={activeTopic}
           setActiveTopic={setActiveTopic}
+          onNewTopic={onNewTopic}
           onOpenHistory={onOpenHistory}
           revealRequest={revealRequest}
         />

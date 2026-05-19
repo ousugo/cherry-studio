@@ -203,7 +203,8 @@ vi.mock('../components/AgentChatNavbar', () => ({
 }))
 
 vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
-  default: () => <div data-testid="agent-composer" />
+  default: () => <div data-testid="agent-composer" />,
+  AgentHomeComposer: () => <div data-testid="agent-home-composer" />
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({

@@ -6,8 +6,8 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
-import { resolveNewTopicAssistantId } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
-import { type AddNewTopicPayload, EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { type AddNewTopicPayload, resolveNewTopicAssistantId } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -61,6 +61,7 @@ const HomePage: FC = () => {
   const {
     conversation: temporaryTopicConversation,
     start: startTemporaryConversation,
+    updateAssistant: updateTemporaryAssistant,
     persist: persistTemporaryConversation,
     discard: discardTemporaryConversation
   } = temporaryConversation
@@ -148,19 +149,28 @@ const HomePage: FC = () => {
     [activeTopic?.assistantId, activeTopic?.id, setActiveTopic, startTemporaryConversation, temporaryTopicConversation]
   )
 
+  const updateTemporaryTopicAssistant = useCallback(
+    async (assistantId: string | null) => {
+      if (!assistantId || temporaryTopicConversation?.type !== 'assistant') return
+      if (assistantId === temporaryTopicConversation.assistantId) return
+
+      try {
+        const next = await updateTemporaryAssistant(assistantId)
+        if (!next || next.type !== 'assistant') return
+        setActiveTopic(buildPendingTemporaryTopic(next.topicId, next.assistantId))
+      } catch (err) {
+        logger.error('Failed to update temporary topic assistant', err as Error)
+      }
+    },
+    [setActiveTopic, temporaryTopicConversation, updateTemporaryAssistant]
+  )
+
   const firstTemporaryStartedRef = useRef(false)
   useEffect(() => {
     if (!shouldUseTemporary || firstTemporaryStartedRef.current || state?.topic) return
     firstTemporaryStartedRef.current = true
     void startTemporaryTopic()
   }, [shouldUseTemporary, startTemporaryTopic, state?.topic])
-
-  useEffect(() => {
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, (payload) => {
-      void startTemporaryTopic(payload as AddNewTopicPayload | undefined)
-    })
-    return () => unsubscribe()
-  }, [startTemporaryTopic])
 
   const setActiveTopicAndDiscardTemporary = useCallback(
     (topic: Topic) => {
@@ -227,11 +237,13 @@ const HomePage: FC = () => {
               activeTopic={activeTopic}
               setActiveTopic={setActiveTopicAndDiscardTemporary}
               onOpenHistory={openHistory}
+              onNewTopic={startTemporaryTopic}
               revealRequest={topicRevealRequest}
             />
           }
           paneOpen={showSidebar}
           panePosition={panePosition}
+          onNewTopic={startTemporaryTopic}
           // Wire the persist callback only while the temp lease is the
           // currently-active topic. If the user clicks a sidebar topic
           // before sending, the active id no longer matches the lease and
@@ -239,6 +251,11 @@ const HomePage: FC = () => {
           onPersistTemporaryTopic={
             temporaryTopicConversation?.type === 'assistant' && activeTopic.id === temporaryTopicConversation.topicId
               ? persistTemporaryTopicAndRefresh
+              : undefined
+          }
+          onTemporaryAssistantChange={
+            temporaryTopicConversation?.type === 'assistant' && activeTopic.id === temporaryTopicConversation.topicId
+              ? updateTemporaryTopicAssistant
               : undefined
           }
         />

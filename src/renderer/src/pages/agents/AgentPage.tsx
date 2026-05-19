@@ -35,6 +35,7 @@ const AgentPage = () => {
   const {
     conversation: temporaryAgentConversation,
     start: startTemporaryConversation,
+    replace: replaceTemporaryConversation,
     persist: persistTemporaryConversation,
     discard: discardTemporaryConversation
   } = temporaryConversation
@@ -123,18 +124,19 @@ const AgentPage = () => {
 
       setReplacingTemporaryAgent(true)
       try {
-        await startTemporarySession({
+        await replaceTemporaryConversation({
           agentId,
           accessiblePaths: temporaryAgentConversation.accessiblePaths,
-          name: temporaryAgentConversation.name
+          name: temporaryAgentConversation.name ?? t('common.unnamed')
         })
+        setActiveSessionId(null)
       } catch (err) {
         window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
         setReplacingTemporaryAgent(false)
       }
     },
-    [agents, replacingTemporaryAgent, startTemporarySession, t, temporaryAgentConversation]
+    [agents, replaceTemporaryConversation, replacingTemporaryAgent, setActiveSessionId, t, temporaryAgentConversation]
   )
   const historyOverlay = (
     <HistoryRecordsPage

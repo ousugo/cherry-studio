@@ -10,6 +10,7 @@ import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
+import type { AddNewTopicPayload } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Citation, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
@@ -29,6 +30,8 @@ interface Props {
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
+  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   /**
    * Called by ChatContent before the first message of a freshly-leased
    * temporary topic is sent. HomePage owns the lease so it also owns the
@@ -162,6 +165,8 @@ const Chat: FC<Props> = (props) => {
               setActiveTopic={props.setActiveTopic}
               mainHeight={mainHeight}
               onOpenCitationsPanel={handleOpenCitationsPanel}
+              onNewTopic={props.onNewTopic}
+              onTemporaryAssistantChange={props.onTemporaryAssistantChange}
               onPersistTemporaryTopic={props.onPersistTemporaryTopic}
               renderFrame={({ main, bottomComposer, overlay }) => (
                 <>

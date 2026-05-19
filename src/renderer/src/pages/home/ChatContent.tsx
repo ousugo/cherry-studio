@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
 import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
 import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
-import ChatComposer from '@renderer/components/chat/composer/variants/ChatComposer'
+import ChatComposer, { ChatHomeComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import MessageList from '@renderer/components/chat/messages/MessageList'
@@ -18,6 +18,7 @@ import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
 import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
+import type { AddNewTopicPayload } from '@renderer/pages/home/Inputbar/Inputbar.helpers'
 import type { FileMetadata, Topic } from '@renderer/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -42,6 +43,8 @@ interface Props {
   mainHeight: string
   renderFrame?: (slots: ChatContentFrameSlots) => ReactNode
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
+  onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
+  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   /**
    * If the active topic is a freshly-leased temporary one, this callback
    * migrates it into SQLite (with the same id) before the first message
@@ -77,6 +80,8 @@ const ChatContent: FC<Props> = ({
   mainHeight,
   renderFrame,
   onOpenCitationsPanel,
+  onTemporaryAssistantChange,
+  onNewTopic,
   onPersistTemporaryTopic
 }) => {
   const [hasPersistedTemporaryTopic, setHasPersistedTemporaryTopic] = useState(false)
@@ -116,6 +121,8 @@ const ChatContent: FC<Props> = ({
       mainHeight={mainHeight}
       renderFrame={renderFrame}
       onOpenCitationsPanel={onOpenCitationsPanel}
+      onTemporaryAssistantChange={onTemporaryAssistantChange}
+      onNewTopic={onNewTopic}
       onPersistTemporaryTopic={onPersistTemporaryTopic}
       isFreshTemporaryTopic={isFreshTemporaryTopic}
       onTemporaryTopicPersisted={() => setHasPersistedTemporaryTopic(true)}
@@ -156,6 +163,8 @@ const ChatContentInner: FC<InnerProps> = ({
   mainHeight,
   renderFrame,
   onOpenCitationsPanel,
+  onTemporaryAssistantChange,
+  onNewTopic,
   onPersistTemporaryTopic,
   isFreshTemporaryTopic,
   onTemporaryTopicPersisted,
@@ -217,6 +226,7 @@ const ChatContentInner: FC<InnerProps> = ({
     initialMessages: uiMessages,
     onFinish: handleExecutionFinish
   })
+  const shouldRenderHomeComposer = isFreshTemporaryTopic && uiMessages.length === 0 && activeExecutions.length === 0
 
   // Chat write-side handlers (delete / edit / regenerate / resend / fork /
   // setActiveNode / clearTopic). Also exposes `capabilityBody` so the send
@@ -356,16 +366,43 @@ const ChatContentInner: FC<InnerProps> = ({
                 />
               </>
             )
-            const bottomComposer = (
+            const composer = (
               <ComposerContextProvider value={composerContext}>
                 <ComposerCore
-                  fallback={<ChatComposer topic={topic} setActiveTopic={setActiveTopic} onSend={handleSend} />}
+                  fallback={
+                    shouldRenderHomeComposer ? (
+                      <ChatHomeComposer
+                        topic={topic}
+                        setActiveTopic={setActiveTopic}
+                        onSend={handleSend}
+                        onTemporaryAssistantChange={onTemporaryAssistantChange}
+                        onNewTopic={onNewTopic}
+                      />
+                    ) : (
+                      <ChatComposer
+                        topic={topic}
+                        setActiveTopic={setActiveTopic}
+                        onSend={handleSend}
+                        onNewTopic={onNewTopic}
+                      />
+                    )
+                  }
                 />
               </ComposerContextProvider>
             )
 
             if (renderFrame) {
-              return renderFrame({ main, bottomComposer })
+              if (shouldRenderHomeComposer) {
+                return renderFrame({
+                  main: (
+                    <div className="flex h-full min-h-0 flex-1 items-center justify-center px-4 pb-[12vh]">
+                      <div className="w-full">{composer}</div>
+                    </div>
+                  )
+                })
+              }
+
+              return renderFrame({ main, bottomComposer: composer })
             }
 
             return (
@@ -373,8 +410,16 @@ const ChatContentInner: FC<InnerProps> = ({
                 <div
                   className="flex flex-1 flex-col justify-between"
                   style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                  {main}
-                  {bottomComposer}
+                  {shouldRenderHomeComposer ? (
+                    <div className="flex h-full min-h-0 flex-1 items-center justify-center px-4 pb-[12vh]">
+                      <div className="w-full">{composer}</div>
+                    </div>
+                  ) : (
+                    <>
+                      {main}
+                      {composer}
+                    </>
+                  )}
                 </div>
               </>
             )

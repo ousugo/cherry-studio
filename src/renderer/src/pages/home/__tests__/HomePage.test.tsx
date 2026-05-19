@@ -29,15 +29,16 @@ const homeMocks = vi.hoisted(() => ({
   cacheGet: vi.fn(),
   cacheSet: vi.fn(),
   discardTemporaryConversation: vi.fn(),
-  eventHandlers: new Map<string, (payload?: unknown) => void>(),
   historyTopic: undefined as Topic | undefined,
   locationState: undefined as { topic: Topic } | undefined,
   persistTemporaryConversation: vi.fn(),
   preferenceValues: new Map<string, unknown>(),
   refreshTopics: vi.fn(),
+  replaceTemporaryConversation: vi.fn(),
   setShowSidebar: vi.fn(),
   startTemporaryConversation: vi.fn(),
-  temporaryConversation: null as any
+  temporaryConversation: null as any,
+  updateTemporaryAssistant: vi.fn()
 }))
 
 vi.mock('@data/CacheService', () => ({
@@ -75,7 +76,9 @@ vi.mock('@renderer/hooks/useTemporaryConversation', () => ({
     conversation: homeMocks.temporaryConversation,
     discard: homeMocks.discardTemporaryConversation,
     persist: homeMocks.persistTemporaryConversation,
-    start: homeMocks.startTemporaryConversation
+    replace: homeMocks.replaceTemporaryConversation,
+    start: homeMocks.startTemporaryConversation,
+    updateAssistant: homeMocks.updateTemporaryAssistant
   })
 }))
 
@@ -109,16 +112,11 @@ vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    ADD_NEW_TOPIC: 'ADD_NEW_TOPIC',
     SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
     SHOW_TOPIC_SIDEBAR: 'SHOW_TOPIC_SIDEBAR'
   },
   EventEmitter: {
-    emit: vi.fn(),
-    on: vi.fn((eventName: string, handler: (payload?: unknown) => void) => {
-      homeMocks.eventHandlers.set(eventName, handler)
-      return () => homeMocks.eventHandlers.delete(eventName)
-    })
+    emit: vi.fn()
   }
 }))
 
@@ -136,10 +134,32 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('../Chat', () => ({
-  default: ({ activeTopic, pane, paneOpen }: { activeTopic: Topic; pane?: ReactNode; paneOpen?: boolean }) => (
+  default: ({
+    activeTopic,
+    pane,
+    paneOpen,
+    onNewTopic,
+    onTemporaryAssistantChange
+  }: {
+    activeTopic: Topic
+    pane?: ReactNode
+    paneOpen?: boolean
+    onNewTopic?: () => void | Promise<void>
+    onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
+  }) => (
     <section>
       <output data-testid="active-topic">{activeTopic.id}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      {onNewTopic && (
+        <button type="button" onClick={() => onNewTopic()}>
+          New topic
+        </button>
+      )}
+      {onTemporaryAssistantChange && (
+        <button type="button" onClick={() => onTemporaryAssistantChange('assistant-2')}>
+          Switch temporary assistant
+        </button>
+      )}
       {pane}
     </section>
   )
@@ -166,10 +186,20 @@ import HomePage from '../HomePage'
 describe('HomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    homeMocks.eventHandlers.clear()
     homeMocks.historyTopic = historyTopic
     homeMocks.locationState = { topic: initialTopic }
     homeMocks.persistTemporaryConversation.mockResolvedValue(null)
+    homeMocks.replaceTemporaryConversation.mockResolvedValue({
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    })
+    homeMocks.updateTemporaryAssistant.mockResolvedValue({
+      assistantId: 'assistant-2',
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    })
     homeMocks.startTemporaryConversation.mockResolvedValue({
       id: 'temp-topic',
       topicId: 'temp-topic',
@@ -226,9 +256,36 @@ describe('HomePage', () => {
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
 
-    homeMocks.eventHandlers.get(EVENT_NAMES.ADD_NEW_TOPIC)?.()
+    fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
 
     expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
     expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+  })
+
+  it('updates the active temporary topic assistant without changing the topic id', async () => {
+    homeMocks.cacheGet.mockReturnValue(true)
+    homeMocks.locationState = undefined
+    homeMocks.temporaryConversation = {
+      assistantId: 'assistant-1',
+      id: 'temp-topic',
+      topic: initialTopic,
+      topicId: 'temp-topic',
+      type: 'assistant'
+    }
+    homeMocks.updateTemporaryAssistant.mockResolvedValue({
+      assistantId: 'assistant-2',
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch temporary assistant' }))
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic'))
+    expect(homeMocks.updateTemporaryAssistant).toHaveBeenCalledWith('assistant-2')
+    expect(homeMocks.replaceTemporaryConversation).not.toHaveBeenCalled()
+    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
   })
 })

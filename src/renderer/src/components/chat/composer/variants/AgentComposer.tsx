@@ -64,6 +64,10 @@ type Props = {
   isStreaming: boolean
 }
 
+type AgentComposerRootProps = Props & {
+  renderControls: AgentComposerControlsRenderer
+}
+
 type ProviderActionHandlers = ComposerSurfaceActions & {
   addNewTopic: () => void
 }
@@ -75,7 +79,7 @@ const emptyActions: ProviderActionHandlers = {
   toggleExpanded: () => undefined
 }
 
-const AgentComposer = ({
+const AgentComposerRoot = ({
   agentId,
   sessionId,
   sessionOverride,
@@ -84,8 +88,9 @@ const AgentComposer = ({
   onNewSessionDraft,
   onAgentChange,
   agentChanging,
-  isStreaming
-}: Props) => {
+  isStreaming,
+  renderControls
+}: AgentComposerRootProps) => {
   const { t } = useTranslation()
   const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
   const session = sessionOverride ?? loadedSession
@@ -161,6 +166,7 @@ const AgentComposer = ({
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
         isStreaming={isStreaming}
+        renderControls={renderControls}
       />
     </ComposerToolRuntimeProvider>
   )
@@ -178,10 +184,10 @@ interface InnerProps {
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
   isStreaming: boolean
+  renderControls: AgentComposerControlsRenderer
 }
 
-interface AgentComposerToolbarControlsProps {
-  inputAdapter?: QuickPanelInputAdapter
+interface AgentComposerContextControlsProps {
   agent?: AgentEntity
   model?: Model
   modelProviderName?: string
@@ -189,12 +195,12 @@ interface AgentComposerToolbarControlsProps {
   selectAgentLabel: string
   selectModelLabel: string
   agentChanging?: boolean
+  side: 'top' | 'bottom'
   onAgentChange: (agentId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
 }
 
-const AgentComposerToolbarControls = ({
-  inputAdapter,
+const AgentComposerContextControls = ({
   agent,
   model,
   modelProviderName,
@@ -202,16 +208,16 @@ const AgentComposerToolbarControls = ({
   selectAgentLabel,
   selectModelLabel,
   agentChanging,
+  side,
   onAgentChange,
   onModelSelect
-}: AgentComposerToolbarControlsProps) => {
+}: AgentComposerContextControlsProps) => {
   return (
-    <div className={COMPOSER_TOOLBAR_CLASS}>
-      <ComposerToolMenu inputAdapter={inputAdapter} />
+    <>
       <AgentSelector
         value={agent?.id ?? null}
         onChange={onAgentChange}
-        side="top"
+        side={side}
         align="start"
         mountStrategy="lazy-keep"
         trigger={
@@ -234,7 +240,7 @@ const AgentComposerToolbarControls = ({
           value={model}
           onSelect={onModelSelect}
           filter={modelFilter}
-          side="top"
+          side={side}
           align="start"
           mountStrategy="lazy-keep"
           trigger={
@@ -254,9 +260,52 @@ const AgentComposerToolbarControls = ({
           <ChevronDown size={14} className="text-muted-foreground" />
         </Button>
       )}
+    </>
+  )
+}
+
+interface AgentComposerToolbarControlsProps extends Omit<AgentComposerContextControlsProps, 'side'> {
+  inputAdapter?: QuickPanelInputAdapter
+}
+
+const AgentComposerToolMenuControls = ({ inputAdapter }: { inputAdapter?: QuickPanelInputAdapter }) => {
+  return <ComposerToolMenu inputAdapter={inputAdapter} />
+}
+
+const AgentComposerToolbarControls = ({ inputAdapter, ...contextProps }: AgentComposerToolbarControlsProps) => {
+  return (
+    <div className={COMPOSER_TOOLBAR_CLASS}>
+      <AgentComposerToolMenuControls inputAdapter={inputAdapter} />
+      <AgentComposerContextControls {...contextProps} side="top" />
     </div>
   )
 }
+
+type AgentComposerControlProps = Omit<AgentComposerToolbarControlsProps, 'inputAdapter'>
+type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
+type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
+type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
+
+const AgentComposerBelowControls = (contextProps: AgentComposerControlProps) => {
+  return (
+    <div className={COMPOSER_TOOLBAR_CLASS}>
+      <AgentComposerContextControls {...contextProps} side="bottom" />
+    </div>
+  )
+}
+
+const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => ({
+  renderLeftControls: (inputAdapter) => <AgentComposerToolbarControls inputAdapter={inputAdapter} {...props} />
+})
+
+const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => ({
+  renderLeftControls: (inputAdapter) => (
+    <div className={COMPOSER_TOOLBAR_CLASS}>
+      <AgentComposerToolMenuControls inputAdapter={inputAdapter} />
+    </div>
+  ),
+  renderBelowControls: () => <AgentComposerBelowControls {...props} />
+})
 
 const AgentComposerInner = ({
   assistant,
@@ -269,7 +318,8 @@ const AgentComposerInner = ({
   chatStop,
   onAgentChange,
   agentChanging,
-  isStreaming
+  isStreaming,
+  renderControls
 }: InnerProps) => {
   const { agent: agentBase } = useAgent(agentId)
   const { updateModel } = useUpdateAgent()
@@ -420,6 +470,18 @@ const AgentComposerInner = ({
     [agentId, chatSendMessage, files, sessionId, sessionTopicId, setFiles, setText, setTimeoutTimer, text]
   )
 
+  const controlSlots = renderControls({
+    agent: agentBase,
+    model,
+    modelProviderName: providerName,
+    modelFilter,
+    selectAgentLabel: t('chat.alerts.select_agent'),
+    selectModelLabel: t('button.select_model'),
+    agentChanging,
+    onAgentChange: handleAgentChange,
+    onModelSelect: handleModelSelect
+  })
+
   return (
     <>
       {model && <ComposerToolRuntimeHost scope={scope} assistant={assistant} model={model} session={toolsSession} />}
@@ -450,23 +512,18 @@ const AgentComposerInner = ({
         getToolLaunchers={() => getLaunchers('root-panel')}
         emitToolTrigger={triggers.emit}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        renderLeftControls={(inputAdapter) => (
-          <AgentComposerToolbarControls
-            inputAdapter={inputAdapter}
-            agent={agentBase}
-            model={model}
-            modelProviderName={providerName}
-            modelFilter={modelFilter}
-            selectAgentLabel={t('chat.alerts.select_agent')}
-            selectModelLabel={t('button.select_model')}
-            agentChanging={agentChanging}
-            onAgentChange={handleAgentChange}
-            onModelSelect={handleModelSelect}
-          />
-        )}
+        {...controlSlots}
       />
     </>
   )
+}
+
+const AgentComposer = (props: Props) => {
+  return <AgentComposerRoot {...props} renderControls={renderAgentToolbarControls} />
+}
+
+export const AgentHomeComposer = (props: Props) => {
+  return <AgentComposerRoot {...props} renderControls={renderAgentHomeControls} />
 }
 
 export default AgentComposer
