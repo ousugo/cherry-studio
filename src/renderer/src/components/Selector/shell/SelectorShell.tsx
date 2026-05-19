@@ -380,12 +380,14 @@ export function SelectorShell({
             </div>
           ) : null}
 
-          <div ref={setListBodyElement} className="min-h-0 flex-1" data-selector-shell-body="true">
+          <div ref={setListBodyElement} className="min-h-0 flex-1 overflow-hidden" data-selector-shell-body="true">
             {body}
           </div>
           {bottomAction ? (
-            <div ref={setBottomActionElement} data-selector-shell-chrome="bottom-action">
-              <div className="border-border border-t" />
+            <div
+              ref={setBottomActionElement}
+              className="relative z-1 shrink-0 border-border border-t bg-popover"
+              data-selector-shell-chrome="bottom-action">
               <button
                 type="button"
                 disabled={bottomAction.disabled}
