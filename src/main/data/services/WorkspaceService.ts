@@ -138,7 +138,7 @@ export class WorkspaceService {
       tx,
       workspaceTable,
       { id, name, path: workspacePath },
-      { pkColumn: workspaceTable.id }
+      { pkColumn: workspaceTable.id, position: 'first' }
     )) as WorkspaceRow
   }
 

@@ -35,6 +35,16 @@ describe('WorkspaceService', () => {
     expect(rows).toHaveLength(1)
   })
 
+  it('inserts newly created workspaces at the front of the list', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
+    const first = await workspaceService.findOrCreateByPath(path.join(root, 'first'))
+    const second = await workspaceService.findOrCreateByPath(path.join(root, 'second'))
+
+    const workspaces = await workspaceService.list()
+
+    expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id])
+  })
+
   it('rejects relative workspace paths', async () => {
     await expect(workspaceService.findOrCreateByPath('relative/project')).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR
