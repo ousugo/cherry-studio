@@ -39,7 +39,7 @@ export function PageSidebar({ children, open, width, className, style }: PageSid
           <div
             data-resource-list-pane-resize-handle
             onMouseDown={startResizing}
-            className="group/resource-list-resize-handle absolute top-0 right-0 bottom-0 z-50 w-2 cursor-col-resize">
+            className="group/resource-list-resize-handle absolute top-0 right-0 bottom-0 z-10 w-2 cursor-col-resize">
             <div className="absolute top-0 right-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/resource-list-resize-handle:opacity-100 group-data-[resizing=true]/resource-list-pane:bg-primary/35 group-data-[resizing=true]/resource-list-pane:opacity-100" />
           </div>
         </motion.div>

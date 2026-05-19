@@ -177,4 +177,12 @@ describe('ChatAppShell', () => {
     expect(document.body.style.userSelect).toBe('')
     expect(pane).not.toHaveAttribute('data-resizing')
   })
+
+  it('keeps the resize handle below history overlays', () => {
+    const { container } = render(<ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />)
+    const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
+
+    expect(handle).toHaveClass('z-10')
+    expect(handle).not.toHaveClass('z-50')
+  })
 })
