@@ -407,7 +407,7 @@ export async function transformAgentBlocksToParts(db: DbType): Promise<BlocksToP
       // doesn't paint them as still-streaming. Parts are already in terminal
       // states after transformBlocksToParts.
       message.status = normalizeStatus(message.status)
-      message.blocks = []
+      delete message.blocks
       parsed.blocks = []
 
       await db.update(agentSessionMessageTable).set({ content: parsed }).where(eq(agentSessionMessageTable.id, row.id))

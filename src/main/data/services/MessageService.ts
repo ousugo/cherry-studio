@@ -167,15 +167,6 @@ function extractPreview(message: Message): string {
     }
   }
 
-  const blocks = message.data?.blocks || []
-  for (const block of blocks) {
-    if ('content' in block && typeof block.content === 'string') {
-      const text = block.content.trim()
-      if (text.length > 0) {
-        return truncatePreview(text)
-      }
-    }
-  }
   return ''
 }
 

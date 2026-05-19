@@ -1,6 +1,7 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import type { AgentPersistedMessage } from '@shared/data/types/agentMessage'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -74,11 +75,12 @@ describe('transformAgentBlocksToParts', () => {
       .select()
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.sessionId, 's-blocks'))
-    const content = row.content as { blocks: unknown[]; message: { blocks: unknown[]; data: { parts: unknown[] } } }
+    const content = row.content as AgentPersistedMessage
+    const parts = content.message.data?.parts
     expect(content.blocks).toEqual([])
-    expect(content.message.blocks).toEqual([])
-    expect(Array.isArray(content.message.data.parts)).toBe(true)
-    expect(content.message.data.parts.length).toBeGreaterThan(0)
+    expect('blocks' in content.message).toBe(false)
+    expect(Array.isArray(parts)).toBe(true)
+    expect(parts?.length ?? 0).toBeGreaterThan(0)
   })
 
   it('skips rows that have no legacy blocks (already reshaped or freshly written)', async () => {
