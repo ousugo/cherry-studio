@@ -110,7 +110,10 @@ export class WorkspaceService {
   ): Promise<WorkspaceEntity> {
     const workspacePath = normalizeWorkspacePath(rawPath)
     ensureWorkspaceDirectory(workspacePath)
-    const row = await this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options)
+    const row = await withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
+      ...defaultHandlersFor('Workspace', workspacePath),
+      unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
+    })
     return rowToWorkspace(row)
   }
 

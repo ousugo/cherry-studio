@@ -11,7 +11,7 @@ export const agentSessionTable = sqliteTable(
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
     name: text().notNull(),
     description: text().notNull().default(''),
-    workspaceId: text().references(() => workspaceTable.id),
+    workspaceId: text().references(() => workspaceTable.id, { onDelete: 'set null' }),
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },

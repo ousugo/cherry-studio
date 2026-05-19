@@ -52,7 +52,7 @@ CREATE TABLE `__new_agent_session` (
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`agent_id`) REFERENCES `agent`(`id`) ON UPDATE no action ON DELETE set null,
-	FOREIGN KEY (`workspace_id`) REFERENCES `agent_workspace`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`workspace_id`) REFERENCES `agent_workspace`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 INSERT INTO `__new_agent_session`("id", "agent_id", "name", "description", "workspace_id", "order_key", "created_at", "updated_at") SELECT "id", "agent_id", "name", "description", NULL AS "workspace_id", 'a0' AS "order_key", "created_at", "updated_at" FROM `agent_session`;--> statement-breakpoint
