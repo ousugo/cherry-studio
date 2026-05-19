@@ -204,7 +204,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: string, options?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
-        'agent.session.group.unknown_agent': 'Unknown agent',
+        'agent.session.display.workdir': 'Workspace',
+        'agent.session.group.no_workdir': 'No workspace',
         'agent.session.delete.content': 'Delete this session?',
         'agent.session.delete.title': 'Delete session',
         'agent.session.edit.title': 'Edit session',
@@ -251,13 +252,17 @@ vi.mock('react-i18next', () => ({
 
 import HistoryRecordsPage from '../HistoryRecordsPage'
 
+function flushAnimationFrame() {
+  return new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+}
+
 function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
   return {
     id: 'session-alpha',
     agentId: 'agent-alpha',
     name: 'Alpha session',
     description: 'Planning notes',
-    accessiblePaths: [],
+    accessiblePaths: ['/Users/jd/project-a'],
     orderKey: 'a',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
@@ -293,6 +298,7 @@ function setupAgentHistory({
       agentId: 'agent-beta',
       name: 'Beta session',
       description: 'Runbook audit',
+      accessiblePaths: ['/Users/jd/project-b'],
       orderKey: 'b'
     })
   ],
@@ -400,33 +406,54 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(screen.queryByText('消息')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     expect(screen.getByText('Planning notes')).toBeInTheDocument()
-    expect(screen.getAllByText('Alpha agent')).toHaveLength(2)
+    expect(screen.getByText('Workspace')).toBeInTheDocument()
+    expect(screen.getByText('Agent')).toBeInTheDocument()
+    expect(screen.getByText('project-a')).toBeInTheDocument()
+    expect(screen.getByText('Alpha agent')).toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Gamma agent 0/ })).toBeInTheDocument()
+    expect(screen.getByText('project-b')).toBeInTheDocument()
+    expect(screen.getByText('Beta agent')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Gamma agent 0/ })).not.toBeInTheDocument()
     expect(screen.queryByText('Agent placeholder')).not.toBeInTheDocument()
   })
 
-  it('filters sessions by selected agent source', () => {
+  it('filters sessions by selected workspace source', () => {
     setupAgentHistory()
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Beta agent/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: /project-b/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
   })
 
-  it('matches external agent ResourceList source and selected-source order', () => {
+  it('orders workspace sources and selected workspace rows by session order', () => {
     setupAgentHistory({
       sessions: [
-        createSession({ id: 'session-beta', agentId: 'agent-beta', name: 'Beta session', orderKey: 'a' }),
-        createSession({ id: 'session-alpha-b', name: 'Alpha B', orderKey: 'b' }),
-        createSession({ id: 'session-alpha-a', name: 'Alpha A', orderKey: 'a' })
+        createSession({
+          id: 'session-beta',
+          agentId: 'agent-beta',
+          name: 'Beta session',
+          accessiblePaths: ['/Users/jd/project-b'],
+          orderKey: 'a'
+        }),
+        createSession({
+          id: 'session-alpha-b',
+          name: 'Alpha B',
+          accessiblePaths: ['/Users/jd/project-a'],
+          orderKey: 'b'
+        }),
+        createSession({
+          id: 'session-alpha-a',
+          name: 'Alpha A',
+          accessiblePaths: ['/Users/jd/project-a'],
+          orderKey: 'a'
+        })
       ]
     })
 
-    const alphaSource = screen.getByRole('button', { name: /Alpha agent 2/ })
-    const betaSource = screen.getByRole('button', { name: /Beta agent 1/ })
-    expect(Boolean(alphaSource.compareDocumentPosition(betaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    const betaSource = screen.getByRole('button', { name: /project-b 1/ })
+    const alphaSource = screen.getByRole('button', { name: /project-a 2/ })
+    expect(Boolean(betaSource.compareDocumentPosition(alphaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
 
     fireEvent.click(alphaSource)
 
@@ -506,7 +533,10 @@ describe('HistoryRecordsPage agent mode', () => {
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Rename' }))
+    await act(async () => {
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Rename' }))
+      await flushAnimationFrame()
+    })
 
     expect(hookMocks.promptShow).not.toHaveBeenCalled()
     expect(onRecordSelect).not.toHaveBeenCalled()
@@ -528,14 +558,17 @@ describe('HistoryRecordsPage agent mode', () => {
     )
   })
 
-  it('pins a session from the history row context menu without selecting the row', () => {
+  it('pins a session from the history row context menu without selecting the row', async () => {
     const { onClose, onRecordSelect } = setupAgentHistory()
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Pin' }))
+    await act(async () => {
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Pin' }))
+      await flushAnimationFrame()
+    })
 
-    expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha')
+    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha'))
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -554,9 +587,10 @@ describe('HistoryRecordsPage agent mode', () => {
 
     await act(async () => {
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await flushAnimationFrame()
     })
 
-    expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha')
+    await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
     expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
   })
 
@@ -572,9 +606,10 @@ describe('HistoryRecordsPage agent mode', () => {
 
     await act(async () => {
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await flushAnimationFrame()
     })
 
-    expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha')
+    await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
     expect(onRecordSelect).toHaveBeenCalledWith(null)
   })
 })

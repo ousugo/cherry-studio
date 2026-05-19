@@ -87,14 +87,6 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [false]
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useInvalidateCache: () => vi.fn(),
-  useMutation: () => ({
-    trigger: vi.fn(),
-    isLoading: false
-  })
-}))
-
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => [key === 'chat.narrow_mode' ? false : 'none', vi.fn()]
 }))
@@ -105,7 +97,10 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
     isLoading: false
   }),
   useAgents: () => ({
-    agents: [{ id: 'agent-1', model: 'provider:model-1' }],
+    agents: [
+      { id: 'agent-1', model: 'provider:model-1' },
+      { id: 'agent-2', model: 'provider:model-2' }
+    ],
     isLoading: false
   })
 }))
@@ -116,10 +111,14 @@ const activeSessionMocks = vi.hoisted(() => ({
     isLoading: false,
     setActiveSessionId: vi.fn()
   } as {
-    session: { id: string; agentId: string; accessiblePaths: string[] } | undefined
+    session: { id: string; agentId: string | null; accessiblePaths: string[] } | undefined
     isLoading: boolean
     setActiveSessionId: ReturnType<typeof vi.fn>
   }
+}))
+
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => vi.fn()
 }))
 
 vi.mock('@renderer/hooks/agents/useSession', () => ({
@@ -298,5 +297,19 @@ describe('AgentChat artifact pane', () => {
 
     expect(screen.getByRole('button', { name: 'pane count 1' })).toBeInTheDocument()
     expect(paneMounts).toEqual(['mounted'])
+  })
+
+  it('shows a read-only warning for an unlinked session', () => {
+    activeSessionMocks.result = {
+      session: { id: 'session-unlinked', agentId: null, accessiblePaths: ['/tmp/workspace'] },
+      isLoading: false,
+      setActiveSessionId: vi.fn()
+    }
+
+    render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('agent.session.orphan.message')
+    expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
   })
 })

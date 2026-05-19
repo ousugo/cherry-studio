@@ -55,6 +55,14 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [false]
 }))
 
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => vi.fn(),
+  useMutation: () => ({
+    trigger: vi.fn(),
+    isLoading: false
+  })
+}))
+
 vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useAgent: () => ({
     agent: { id: 'agent-1', model: 'provider:model-1' },
@@ -68,8 +76,9 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
 
 vi.mock('@renderer/hooks/agents/useSession', () => ({
   useActiveSession: () => ({
-    session: { id: 'session-1', agentId: 'agent-1' },
-    isLoading: false
+    session: { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] },
+    isLoading: false,
+    setActiveSessionId: vi.fn()
   })
 }))
 

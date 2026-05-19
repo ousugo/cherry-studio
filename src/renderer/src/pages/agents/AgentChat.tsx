@@ -162,7 +162,13 @@ const AgentChat = ({
     setCitationPanelCitations(citations)
   }, [])
 
-  const isInitializing = isSessionLoading || ((activeSession || temporaryAgentConversation) && isAgentLoading)
+  const isInitializing =
+    isSessionLoading ||
+    Boolean(
+      (activeSession || temporaryAgentConversation) &&
+        (activeSession?.agentId || temporaryAgentConversation?.agentId) &&
+        isAgentLoading
+    )
   const citationsPanelOpen = citationPanelCitations !== null
 
   if (isInitializing) {
@@ -252,8 +258,6 @@ const AgentChat = ({
     )
   }
 
-  // Orphan session — its agent was deleted. Show a read-only placeholder; user
-  // must reattach to another agent (UX TBD) or delete the session.
   if (!activeSession.agentId) {
     return (
       <AgentChatFrame
@@ -572,8 +576,6 @@ const Container = ({ children, className }: PropsWithChildren<{ className?: stri
   )
 }
 
-// Lightweight warning banner — replaces antd `<Alert type="warning">`.
-// Mirrors the inline pattern in `MessageErrorBoundary.tsx`.
 const WarningAlert = ({ message }: { message: string }) => (
   <div
     role="alert"

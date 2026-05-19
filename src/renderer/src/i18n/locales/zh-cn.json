@@ -397,7 +397,6 @@
         "title": "删除会话"
       },
       "display": {
-        "agent": "智能体",
         "time": "时间",
         "title": "展示方式",
         "workdir": "工作目录"
@@ -423,7 +422,6 @@
         "show_more": "展开显示",
         "this_week": "本周",
         "today": "今天",
-        "unknown_agent": "未知智能体",
         "yesterday": "昨天"
       },
       "label_one": "会话",
@@ -1620,7 +1618,7 @@
         "show_more": "展开显示",
         "this_week": "本周",
         "today": "今天",
-        "unknown_assistant": "未知助手",
+        "unknown_assistant": "未关联助手",
         "yesterday": "昨天"
       },
       "list": "话题列表",
@@ -2135,7 +2133,7 @@
       "sidebar": {
         "searchAssistant": "搜索助手...",
         "status": "状态",
-        "unknownAssistant": "未知助手"
+        "unknownAssistant": "未关联助手"
       },
       "status": {
         "completed": "已完成",

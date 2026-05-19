@@ -397,7 +397,6 @@
         "title": "刪除工作階段"
       },
       "display": {
-        "agent": "[to be translated]:Agent",
         "time": "[to be translated]:Time",
         "title": "[to be translated]:Display mode",
         "workdir": "[to be translated]:Workspace"
@@ -423,7 +422,6 @@
         "show_more": "展開顯示",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
-        "unknown_agent": "[to be translated]:Unknown agent",
         "yesterday": "[to be translated]:Yesterday"
       },
       "label_one": "工作階段",
@@ -1620,7 +1618,7 @@
         "show_more": "展開顯示",
         "this_week": "本週",
         "today": "今天",
-        "unknown_assistant": "未知助手",
+        "unknown_assistant": "未關聯助手",
         "yesterday": "昨天"
       },
       "list": "話題列表",
@@ -2135,7 +2133,7 @@
       "sidebar": {
         "searchAssistant": "搜尋助手...",
         "status": "狀態",
-        "unknownAssistant": "未知助手"
+        "unknownAssistant": "未關聯助手"
       },
       "status": {
         "completed": "已完成",

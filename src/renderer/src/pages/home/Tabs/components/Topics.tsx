@@ -67,10 +67,9 @@ import {
   moveAssistantGroupAfterDrop,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
-  TOPIC_DEFAULT_ASSISTANT_GROUP_ID,
   TOPIC_PINNED_GROUP_ID,
   TOPIC_TODAY_GROUP_ID,
-  TOPIC_UNKNOWN_ASSISTANT_GROUP_ID,
+  TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
   type TopicDisplayMode
 } from './Topics.helpers'
 import { useTopicMenuActions } from './useTopicMenuActions'
@@ -90,10 +89,6 @@ function resolveAssistantIdForTopicGroup(
   groupId: string,
   assistantById: ReadonlyMap<string, unknown>
 ): string | null | undefined {
-  if (groupId === TOPIC_DEFAULT_ASSISTANT_GROUP_ID) {
-    return null
-  }
-
   const assistantId = getAssistantIdFromTopicGroupId(groupId)
   if (!assistantId || !assistantById.has(assistantId)) {
     return undefined
@@ -419,8 +414,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
             earlier: t('chat.topics.group.earlier')
           },
           assistant: {
-            default: t('chat.default.name'),
-            unknown: t('chat.topics.group.unknown_assistant')
+            unlinked: t('chat.topics.group.unknown_assistant')
           }
         },
         now: groupNow
@@ -475,8 +469,6 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
 
       if (displayMode === 'time') {
         if (group.id !== TOPIC_TODAY_GROUP_ID) return null
-      } else if (group.id === TOPIC_DEFAULT_ASSISTANT_GROUP_ID) {
-        payload = { assistantId: null }
       } else {
         const assistantId = getAssistantIdFromTopicGroupId(group.id)
         if (!assistantId || !assistantById.has(assistantId)) return null
@@ -541,7 +533,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
       isAssistantDisplayMode &&
       !isManageMode &&
       targetGroupId !== TOPIC_PINNED_GROUP_ID &&
-      targetGroupId !== TOPIC_UNKNOWN_ASSISTANT_GROUP_ID &&
+      targetGroupId !== TOPIC_UNLINKED_ASSISTANT_GROUP_ID &&
       resolveAssistantIdForTopicGroup(targetGroupId, assistantById) !== undefined,
     [assistantById, isAssistantDisplayMode, isManageMode]
   )
@@ -629,7 +621,7 @@ export function Topics({ activeTopic, onOpenHistory, revealRequest, setActiveTop
       }
 
       if (payload.sourceGroupId === TOPIC_PINNED_GROUP_ID || payload.targetGroupId === TOPIC_PINNED_GROUP_ID) return
-      if (payload.targetGroupId === TOPIC_UNKNOWN_ASSISTANT_GROUP_ID) return
+      if (payload.targetGroupId === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return
 
       const topic = topics.find((candidate) => candidate.id === payload.activeId)
       if (!topic || topic.pinned) return

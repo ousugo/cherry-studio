@@ -21,9 +21,6 @@ const SESSION_GROUP_LABELS = {
     'this-week': 'This week',
     earlier: 'Earlier'
   },
-  agent: {
-    unknown: 'Unknown agent'
-  },
   workdir: {
     none: 'No workspace'
   }
@@ -56,17 +53,17 @@ describe('SessionList helpers', () => {
       overId: 'b',
       position: 'before',
       overType: 'item',
-      sourceGroupId: 'session:agent:agent-1',
-      targetGroupId: 'session:agent:agent-1',
+      sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
+      targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
       sourceIndex: 1,
       targetIndex: 0
     }
 
     expect(buildSessionDropAnchor(payload)).toEqual({ before: 'b' })
     expect(buildSessionDropAnchor({ ...payload, position: 'after' })).toEqual({ after: 'b' })
-    expect(buildSessionDropAnchor({ ...payload, overId: 'session:agent:agent-1', overType: 'group' })).toEqual({
-      position: 'last'
-    })
+    expect(
+      buildSessionDropAnchor({ ...payload, overId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a', overType: 'group' })
+    ).toEqual({ position: 'last' })
   })
 
   it('preserves same-group item drop positions from the insertion line', () => {
@@ -76,8 +73,8 @@ describe('SessionList helpers', () => {
       overId: 'b',
       position: 'before',
       overType: 'item',
-      sourceGroupId: 'session:agent:agent-1',
-      targetGroupId: 'session:agent:agent-1',
+      sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
+      targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
       sourceIndex: 0,
       targetIndex: 1
     }
@@ -86,8 +83,8 @@ describe('SessionList helpers', () => {
 
     const crossGroupPayload = {
       ...payload,
-      sourceGroupId: 'session:agent:agent-1',
-      targetGroupId: 'session:agent:agent-2'
+      sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
+      targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-b'
     }
     expect(normalizeSessionDropPayload(crossGroupPayload)).toBe(crossGroupPayload)
   })
@@ -95,16 +92,16 @@ describe('SessionList helpers', () => {
   it('allows drag only inside the same non-pinned display group', () => {
     expect(
       canDropSessionItemInDisplayGroup({
-        mode: 'agent',
-        sourceGroupId: 'session:agent:agent-1',
-        targetGroupId: 'session:agent:agent-1'
+        mode: 'workdir',
+        sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
+        targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a'
       })
     ).toBe(true)
     expect(
       canDropSessionItemInDisplayGroup({
-        mode: 'agent',
-        sourceGroupId: 'session:agent:agent-1',
-        targetGroupId: 'session:agent:agent-2'
+        mode: 'workdir',
+        sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
+        targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-b'
       })
     ).toBe(false)
     expect(
@@ -117,8 +114,8 @@ describe('SessionList helpers', () => {
     expect(
       canDropSessionItemInDisplayGroup({
         mode: 'time',
-        sourceGroupId: 'session:agent:agent-1',
-        targetGroupId: 'session:agent:agent-1'
+        sourceGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a',
+        targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-a'
       })
     ).toBe(false)
   })
@@ -145,23 +142,7 @@ describe('SessionList helpers', () => {
     })
   })
 
-  it('groups sessions by agent and workdir', () => {
-    const agentById = new Map([['agent-1', { id: 'agent-1', name: 'Alpha agent' }]])
-    const agentGroup = createSessionDisplayGroupResolver({
-      agentById,
-      labels: SESSION_GROUP_LABELS,
-      mode: 'agent'
-    })
-
-    expect(agentGroup(createSession({ agentId: 'agent-1' }))).toEqual({
-      id: 'session:agent:agent-1',
-      label: 'Alpha agent'
-    })
-    expect(agentGroup(createSession({ agentId: 'missing-agent' }))).toEqual({
-      id: 'session:agent:unknown',
-      label: 'Unknown agent'
-    })
-
+  it('groups sessions by workdir', () => {
     const workdirGroup = createSessionDisplayGroupResolver({
       labels: SESSION_GROUP_LABELS,
       mode: 'workdir',
@@ -211,8 +192,8 @@ describe('SessionList helpers', () => {
 
     expect(
       sortSessionsForDisplayGroups(sessions, {
-        agentRankById: new Map([['agent-1', 0]]),
-        mode: 'agent'
+        mode: 'workdir',
+        workdirRankByPath: new Map([['/Users/jd/project-a', 0]])
       }).map((session) => session.id)
     ).toEqual(['pinned', 'newer', 'older'])
   })
@@ -226,8 +207,8 @@ describe('SessionList helpers', () => {
 
     expect(
       sortSessionsForDisplayGroups(sessions, {
-        agentRankById: new Map([['agent-1', 0]]),
-        mode: 'agent'
+        mode: 'workdir',
+        workdirRankByPath: new Map([['/Users/jd/project-a', 0]])
       }).map((session) => session.id)
     ).toEqual(['inserted-before-that', 'inserted-before-first', 'first-created'])
   })

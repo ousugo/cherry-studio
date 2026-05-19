@@ -397,7 +397,6 @@
         "title": "Delete session"
       },
       "display": {
-        "agent": "Agent",
         "time": "Time",
         "title": "Display mode",
         "workdir": "Workspace"
@@ -423,7 +422,6 @@
         "show_more": "Expand display",
         "this_week": "This week",
         "today": "Today",
-        "unknown_agent": "Unknown agent",
         "yesterday": "Yesterday"
       },
       "label_one": "Session",
@@ -1620,7 +1618,7 @@
         "show_more": "Expand display",
         "this_week": "This week",
         "today": "Today",
-        "unknown_assistant": "Unknown Assistant",
+        "unknown_assistant": "Unlinked Assistant",
         "yesterday": "Yesterday"
       },
       "list": "Topic List",
@@ -2135,7 +2133,7 @@
       "sidebar": {
         "searchAssistant": "Search assistants...",
         "status": "Status",
-        "unknownAssistant": "Unknown assistant"
+        "unknownAssistant": "Unlinked assistant"
       },
       "status": {
         "completed": "Completed",

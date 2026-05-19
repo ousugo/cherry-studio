@@ -499,7 +499,7 @@ export interface PreferenceSchemas {
 export const DefaultPreferences: PreferenceSchemas = {
   default: {
     'agent.session.collapsed_group_ids': [],
-    'agent.session.display_mode': 'time',
+    'agent.session.display_mode': 'workdir',
     'app.developer_mode.enabled': false,
     'app.dist.auto_update.enabled': true,
     'app.dist.test_plan.channel': PreferenceTypes.UpgradeChannel.LATEST,
@@ -743,7 +743,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'topic.naming.model_id': null,
     'topic.naming_prompt': '',
     'topic.tab.collapsed_group_ids': [],
-    'topic.tab.display_mode': 'time',
+    'topic.tab.display_mode': 'assistant',
     'topic.tab.show': true,
     'ui.custom_css': '',
     'ui.sidebar.icons.invisible': [],

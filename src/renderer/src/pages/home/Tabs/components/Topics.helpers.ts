@@ -16,7 +16,7 @@ import type { TopicDisplayMode as PreferenceTopicDisplayMode } from '@shared/dat
 
 export type TopicDisplayMode = PreferenceTopicDisplayMode
 
-export type TopicListGroupKind = 'pinned' | 'time' | 'assistant' | 'unknown-assistant'
+export type TopicListGroupKind = 'pinned' | 'time' | 'assistant' | 'unlinked-assistant'
 
 export type TopicDisplayAssistant = {
   id: string
@@ -28,8 +28,7 @@ export type TopicDisplayGroupLabels = {
   pinned: string
   time: Record<ResourceListTimeBucket, string>
   assistant: {
-    default: string
-    unknown: string
+    unlinked: string
   }
 }
 
@@ -60,11 +59,10 @@ const TOPIC_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
 
 export const TOPIC_PINNED_GROUP_ID = 'topic:pinned'
 export const TOPIC_TODAY_GROUP_ID = 'topic:time:today'
-export const TOPIC_DEFAULT_ASSISTANT_GROUP_ID = 'topic:assistant:default'
-export const TOPIC_UNKNOWN_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
+export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
-const TOPIC_UNKNOWN_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER
+const TOPIC_UNLINKED_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER
 
 function compareOrderKey(a?: string, b?: string) {
   if (a && b) {
@@ -218,11 +216,7 @@ function withTopicGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): Reso
 }
 
 export function getAssistantIdFromTopicGroupId(groupId: string): string | undefined {
-  if (
-    groupId === TOPIC_DEFAULT_ASSISTANT_GROUP_ID ||
-    groupId === TOPIC_UNKNOWN_ASSISTANT_GROUP_ID ||
-    !groupId.startsWith(TOPIC_ASSISTANT_GROUP_ID_PREFIX)
-  ) {
+  if (groupId === TOPIC_UNLINKED_ASSISTANT_GROUP_ID || !groupId.startsWith(TOPIC_ASSISTANT_GROUP_ID_PREFIX)) {
     return undefined
   }
 
@@ -258,7 +252,7 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
       const assistantId = topic.assistantId
 
       if (!assistantId) {
-        return { id: 'assistant:default', label: labels.assistant.default }
+        return { id: 'assistant:unknown', label: labels.assistant.unlinked }
       }
 
       const assistant = assistantById?.get(assistantId)
@@ -266,7 +260,7 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
         return { id: `assistant:${assistant.id}`, label: assistant.name }
       }
 
-      return { id: 'assistant:unknown', label: labels.assistant.unknown }
+      return { id: 'assistant:unknown', label: labels.assistant.unlinked }
     })
   )
 }
@@ -284,11 +278,7 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
     return assistantRank + 1
   }
 
-  if (!topic.assistantId) {
-    return TOPIC_UNKNOWN_ASSISTANT_RANK - 1
-  }
-
-  return TOPIC_UNKNOWN_ASSISTANT_RANK
+  return TOPIC_UNLINKED_ASSISTANT_RANK
 }
 
 export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>(

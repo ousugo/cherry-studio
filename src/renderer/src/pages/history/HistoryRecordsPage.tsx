@@ -16,6 +16,10 @@ import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@rend
 import { mapApiTopicToRendererTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopic'
 import type { SessionActionContext } from '@renderer/pages/agents/components/sessionItemActions'
 import {
+  createSessionWorkdirLabelMap,
+  createSessionWorkdirRankMap,
+  getPrimarySessionWorkdir,
+  getSessionWorkdirFallbackLabel,
   type SessionListItem,
   sortSessionsForDisplayGroups
 } from '@renderer/pages/agents/components/SessionList.helpers'
@@ -37,7 +41,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { ArrowLeft, Bot, Wrench } from 'lucide-react'
+import { ArrowLeft, Bot, Folder } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -53,8 +57,9 @@ import HistorySourceSidebar, {
 export type HistoryRecordsMode = 'assistant' | 'agent'
 
 const ALL_SOURCE_ID = 'all'
-const DEFAULT_ASSISTANT_SOURCE_ID = '__default_assistant__'
-const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
+const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
+const NO_WORKDIR_SOURCE_ID = '__no_workdir__'
+const WORKDIR_SOURCE_ID_PREFIX = 'workdir:'
 const EMPTY_ASSISTANT_BY_ID: ReadonlyMap<string, Assistant> = new Map()
 const EMPTY_AGENT_BY_ID: ReadonlyMap<string, AgentEntity> = new Map()
 const logger = loggerService.withContext('HistoryRecordsPage')
@@ -209,7 +214,7 @@ const AssistantHistoryRecordsContent = ({
     () => new Map(assistants.map((assistant, index) => [assistant.id, index])),
     [assistants]
   )
-  const defaultAssistantLabel = t('chat.default.name', '默认助手')
+  const unlinkedAssistantLabel = t('history.records.sidebar.unknownAssistant', '未关联助手')
   const timeSortedTopics = useMemo(
     () => sortTopicsForDisplayGroups(topics, { mode: 'time', now: groupNow }),
     [groupNow, topics]
@@ -246,16 +251,16 @@ const AssistantHistoryRecordsContent = ({
   )
 
   const assistantSources = useMemo(
-    () => buildAssistantSources(topics, assistantById, assistantRankById, defaultAssistantLabel, t),
-    [assistantById, assistantRankById, defaultAssistantLabel, t, topics]
+    () => buildAssistantSources(topics, assistantById, assistantRankById, unlinkedAssistantLabel, t),
+    [assistantById, assistantRankById, t, topics, unlinkedAssistantLabel]
   )
 
   const filteredTopics = useMemo(() => {
     const sortedTopics = selectedSourceId === ALL_SOURCE_ID ? timeSortedTopics : assistantSortedTopics
     if (selectedSourceId === ALL_SOURCE_ID) return sortedTopics
 
-    return sortedTopics.filter((topic) => getTopicSourceId(topic) === selectedSourceId)
-  }, [assistantSortedTopics, selectedSourceId, timeSortedTopics])
+    return sortedTopics.filter((topic) => getTopicSourceId(topic, assistantById) === selectedSourceId)
+  }, [assistantById, assistantSortedTopics, selectedSourceId, timeSortedTopics])
 
   const searchedTopics = useMemo(() => {
     const keywords = searchText.trim().toLowerCase()
@@ -420,8 +425,7 @@ const AssistantHistoryRecordsContent = ({
         sessions={[]}
         assistantById={assistantById}
         agentById={EMPTY_AGENT_BY_ID}
-        defaultAssistantLabel={defaultAssistantLabel}
-        unknownAgentLabel=""
+        unlinkedAssistantLabel={unlinkedAssistantLabel}
         isLoading={isTopicsLoading}
         isTopicPinned={isTopicPinned}
         onToggleTopicPin={handlePinTopic}
@@ -451,53 +455,54 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     loadAll: true,
     pageSize: 50
   })
-  const { agents, isLoading: isAgentsLoading } = useAgents()
+  const { agents } = useAgents()
   const isSessionPinned = useCallback((sessionId: string) => pinIdBySessionId.has(sessionId), [pinIdBySessionId])
   const sessionItems = useMemo<SessionListItem[]>(
     () => sessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
     [isSessionPinned, sessions]
   )
-  const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
+  const workdirLabelByPath = useMemo(() => createSessionWorkdirLabelMap(sessionItems), [sessionItems])
+  const workdirRankByPath = useMemo(() => createSessionWorkdirRankMap(sessionItems), [sessionItems])
   const timeSortedSessions = useMemo(
     () => sortSessionsForDisplayGroups(sessionItems, { mode: 'time', now: groupNow }),
     [groupNow, sessionItems]
   )
-  const agentSortedSessions = useMemo(
+  const workdirSortedSessions = useMemo(
     () =>
       sortSessionsForDisplayGroups(sessionItems, {
-        agentRankById,
-        mode: 'agent',
-        now: groupNow
+        mode: 'workdir',
+        now: groupNow,
+        workdirRankByPath
       }),
-    [agentRankById, groupNow, sessionItems]
+    [groupNow, sessionItems, workdirRankByPath]
   )
   const sessionIds = useMemo(() => sessionItems.map((session) => session.id), [sessionItems])
   const streamStatusBySessionId = useAgentSessionStreamStatuses(sessionIds)
 
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
-  const unknownAgentLabel = t('agent.session.group.unknown_agent', '未知智能体')
+  const noWorkdirLabel = t('agent.session.group.no_workdir', '无工作目录')
   const statusItems = useMemo(
     () => buildAgentStatusItems(sessions, streamStatusBySessionId, t),
     [sessions, streamStatusBySessionId, t]
   )
-  const agentSources = useMemo(
-    () => buildAgentSources(sessionItems, agents, agentById, unknownAgentLabel, t),
-    [agentById, agents, sessionItems, t, unknownAgentLabel]
+  const workdirSources = useMemo(
+    () => buildWorkdirSources(sessionItems, workdirLabelByPath, workdirRankByPath, noWorkdirLabel, t),
+    [noWorkdirLabel, sessionItems, t, workdirLabelByPath, workdirRankByPath]
   )
 
   const statusFilteredSessions = useMemo(() => {
-    const sortedSessions = selectedSourceId === ALL_SOURCE_ID ? timeSortedSessions : agentSortedSessions
+    const sortedSessions = selectedSourceId === ALL_SOURCE_ID ? timeSortedSessions : workdirSortedSessions
     if (selectedStatus === ALL_SOURCE_ID) return sortedSessions
 
     return sortedSessions.filter(
       (session) => getAgentHistoryStatus(streamStatusBySessionId.get(session.id)) === selectedStatus
     )
-  }, [agentSortedSessions, selectedSourceId, selectedStatus, streamStatusBySessionId, timeSortedSessions])
+  }, [selectedSourceId, selectedStatus, streamStatusBySessionId, timeSortedSessions, workdirSortedSessions])
 
   const filteredSessions = useMemo(() => {
     if (selectedSourceId === ALL_SOURCE_ID) return statusFilteredSessions
 
-    return statusFilteredSessions.filter((session) => getSessionSourceId(session) === selectedSourceId)
+    return statusFilteredSessions.filter((session) => getSessionWorkdirSourceId(session) === selectedSourceId)
   }, [selectedSourceId, statusFilteredSessions])
 
   const searchedSessions = useMemo(() => {
@@ -523,10 +528,10 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
 
   useEffect(() => {
     if (selectedSourceId === ALL_SOURCE_ID) return
-    if (agentSources.some((source) => source.id === selectedSourceId)) return
+    if (workdirSources.some((source) => source.id === selectedSourceId)) return
 
     setSelectedSourceId(ALL_SOURCE_ID)
-  }, [agentSources, selectedSourceId])
+  }, [selectedSourceId, workdirSources])
 
   const handleSessionSelect = useCallback(
     (sessionId: string) => {
@@ -604,7 +609,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     <HistoryRecordsLayout
       mode="agent"
       onClose={onClose}
-      sources={agentSources}
+      sources={workdirSources}
       selectedSourceId={selectedSourceId}
       selectedStatus={selectedStatus}
       statusItems={statusItems}
@@ -620,9 +625,8 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
         sessions={searchedSessions}
         assistantById={EMPTY_ASSISTANT_BY_ID}
         agentById={agentById}
-        defaultAssistantLabel=""
-        unknownAgentLabel={unknownAgentLabel}
-        isLoading={isSessionsLoading || isAgentsLoading}
+        unlinkedAssistantLabel=""
+        isLoading={isSessionsLoading}
         isSessionPinned={isSessionPinned}
         onToggleSessionPin={handleToggleSessionPin}
         sessionMenuPreset={sessionMenuPreset}
@@ -712,12 +716,21 @@ const HistoryRecordsLayout = ({
   )
 }
 
-function getTopicSourceId(topic: Pick<ApiTopic, 'assistantId'>) {
-  return topic.assistantId ?? DEFAULT_ASSISTANT_SOURCE_ID
+function getTopicSourceId(topic: Pick<ApiTopic, 'assistantId'>, assistantById?: ReadonlyMap<string, Assistant>) {
+  if (!topic.assistantId) return UNLINKED_ASSISTANT_SOURCE_ID
+  if (assistantById && !assistantById.has(topic.assistantId)) return UNLINKED_ASSISTANT_SOURCE_ID
+
+  return topic.assistantId
 }
 
-function getSessionSourceId(session: AgentSessionEntity) {
-  return session.agentId ?? UNKNOWN_AGENT_SOURCE_ID
+function getSessionWorkdirSourceId(session: Pick<AgentSessionEntity, 'accessiblePaths'>) {
+  const path = getPrimarySessionWorkdir(session)
+  return path ? `${WORKDIR_SOURCE_ID_PREFIX}${encodeURIComponent(path)}` : NO_WORKDIR_SOURCE_ID
+}
+
+function getWorkdirSourcePath(sourceId: string) {
+  if (!sourceId.startsWith(WORKDIR_SOURCE_ID_PREFIX)) return null
+  return decodeURIComponent(sourceId.slice(WORKDIR_SOURCE_ID_PREFIX.length))
 }
 
 function getAgentHistoryStatus(streamStatus?: AgentSessionStreamState): AgentHistorySessionStatus {
@@ -784,13 +797,13 @@ function buildAssistantSources(
   topics: readonly ApiTopic[],
   assistantById: ReadonlyMap<string, Assistant>,
   assistantRankById: ReadonlyMap<string, number>,
-  defaultAssistantLabel: string,
+  unlinkedAssistantLabel: string,
   t: ReturnType<typeof useTranslation>['t']
 ): HistorySourceItem[] {
   const counts = new Map<string, number>()
 
   for (const topic of topics) {
-    const sourceId = getTopicSourceId(topic)
+    const sourceId = getTopicSourceId(topic, assistantById)
     counts.set(sourceId, (counts.get(sourceId) ?? 0) + 1)
   }
 
@@ -806,14 +819,11 @@ function buildAssistantSources(
           getAssistantSourceRank(leftId, assistantRankById) - getAssistantSourceRank(rightId, assistantRankById)
       )
       .map(([sourceId, count]) => {
-        const assistant = sourceId === DEFAULT_ASSISTANT_SOURCE_ID ? undefined : assistantById.get(sourceId)
+        const assistant = sourceId === UNLINKED_ASSISTANT_SOURCE_ID ? undefined : assistantById.get(sourceId)
 
         return {
           id: sourceId,
-          label:
-            sourceId === DEFAULT_ASSISTANT_SOURCE_ID
-              ? defaultAssistantLabel
-              : (assistant?.name ?? t('history.records.sidebar.unknownAssistant', '未知助手')),
+          label: assistant?.name ?? unlinkedAssistantLabel,
           count,
           icon: assistant?.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={15} />
         }
@@ -824,22 +834,21 @@ function buildAssistantSources(
 function getAssistantSourceRank(sourceId: string, assistantRankById: ReadonlyMap<string, number>) {
   const assistantRank = assistantRankById.get(sourceId)
   if (assistantRank !== undefined) return assistantRank
-  if (sourceId === DEFAULT_ASSISTANT_SOURCE_ID) return Number.MAX_SAFE_INTEGER - 1
 
   return Number.MAX_SAFE_INTEGER
 }
 
-function buildAgentSources(
+function buildWorkdirSources(
   sessions: readonly AgentSessionEntity[],
-  agents: readonly AgentEntity[],
-  agentById: ReadonlyMap<string, AgentEntity>,
-  unknownAgentLabel: string,
+  workdirLabelByPath: ReadonlyMap<string, string>,
+  workdirRankByPath: ReadonlyMap<string, number>,
+  noWorkdirLabel: string,
   t: ReturnType<typeof useTranslation>['t']
 ): HistorySourceItem[] {
   const counts = new Map<string, number>()
 
   for (const session of sessions) {
-    const sourceId = getSessionSourceId(session)
+    const sourceId = getSessionWorkdirSourceId(session)
     counts.set(sourceId, (counts.get(sourceId) ?? 0) + 1)
   }
 
@@ -849,25 +858,35 @@ function buildAgentSources(
       label: t('common.all', '全部'),
       count: sessions.length
     },
-    ...agents.map((agent) => {
-      const avatar = agent.configuration?.avatar?.trim()
-
-      return {
-        id: agent.id,
-        label: agent.name,
-        count: counts.get(agent.id) ?? 0,
-        icon: avatar ? <span className="text-sm leading-none">{avatar}</span> : <Wrench size={15} />
-      }
-    }),
     ...Array.from(counts.entries())
-      .filter(([sourceId]) => sourceId === UNKNOWN_AGENT_SOURCE_ID || !agentById.has(sourceId))
+      .sort(
+        ([leftId], [rightId]) =>
+          getWorkdirSourceRank(leftId, workdirRankByPath) - getWorkdirSourceRank(rightId, workdirRankByPath)
+      )
       .map(([sourceId, count]) => ({
         id: sourceId,
-        label: unknownAgentLabel,
+        label: getWorkdirSourceLabel(sourceId, workdirLabelByPath, noWorkdirLabel),
         count,
-        icon: <Wrench size={15} />
+        icon: <Folder size={15} />
       }))
   ]
+}
+
+function getWorkdirSourceRank(sourceId: string, workdirRankByPath: ReadonlyMap<string, number>) {
+  if (sourceId === NO_WORKDIR_SOURCE_ID) return Number.MAX_SAFE_INTEGER
+  const path = getWorkdirSourcePath(sourceId)
+  return path ? (workdirRankByPath.get(path) ?? Number.MAX_SAFE_INTEGER - 1) : Number.MAX_SAFE_INTEGER
+}
+
+function getWorkdirSourceLabel(
+  sourceId: string,
+  workdirLabelByPath: ReadonlyMap<string, string>,
+  noWorkdirLabel: string
+) {
+  if (sourceId === NO_WORKDIR_SOURCE_ID) return noWorkdirLabel
+  const path = getWorkdirSourcePath(sourceId)
+  if (!path) return noWorkdirLabel
+  return workdirLabelByPath.get(path) ?? getSessionWorkdirFallbackLabel(path)
 }
 
 export default HistoryRecordsPage

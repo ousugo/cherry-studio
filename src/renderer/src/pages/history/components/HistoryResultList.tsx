@@ -34,8 +34,7 @@ interface HistoryResultListProps {
   sessions: readonly AgentSessionEntity[]
   assistantById: ReadonlyMap<string, Assistant>
   agentById: ReadonlyMap<string, AgentEntity>
-  defaultAssistantLabel: string
-  unknownAgentLabel: string
+  unlinkedAssistantLabel: string
   isLoading?: boolean
   isSessionPinned?: (sessionId: string) => boolean
   isTopicPinned?: (topicId: string) => boolean
@@ -55,8 +54,7 @@ const HistoryResultList = ({
   sessions,
   assistantById,
   agentById,
-  defaultAssistantLabel,
-  unknownAgentLabel,
+  unlinkedAssistantLabel,
   isLoading = false,
   isSessionPinned = () => false,
   isTopicPinned = () => false,
@@ -117,9 +115,7 @@ const HistoryResultList = ({
                 scrollerStyle={{ overflowX: 'hidden', padding: '4px 12px' }}>
                 {(topic) => {
                   const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
-                  const sourceName = topic.assistantId
-                    ? (assistant?.name ?? t('history.records.sidebar.unknownAssistant', '未知助手'))
-                    : defaultAssistantLabel
+                  const sourceName = assistant?.name ?? unlinkedAssistantLabel
 
                   return (
                     <HistoryTopicRow
@@ -147,7 +143,7 @@ const HistoryResultList = ({
                 scrollerStyle={{ overflowX: 'hidden', padding: '4px 12px' }}>
                 {(session) => {
                   const agent = session.agentId ? agentById.get(session.agentId) : undefined
-                  const sourceName = agent?.name ?? unknownAgentLabel
+                  const sourceName = agent?.name ?? t('common.unknown', '未知')
 
                   return (
                     <HistorySessionRow
@@ -263,6 +259,8 @@ const HistoryTopicRow = ({
       <ResourceList.ContextMenu
         item={topic}
         actions={menuActions}
+        confirmDialogContentClassName="z-50"
+        confirmDialogOverlayClassName="z-40"
         onAction={(action) => menuPreset.onAction(topic, action, menuContextOverride)}>
         {row}
       </ResourceList.ContextMenu>
@@ -352,6 +350,8 @@ const HistorySessionRow = ({
       <ResourceList.ContextMenu
         item={session}
         actions={menuActions}
+        confirmDialogContentClassName="z-50"
+        confirmDialogOverlayClassName="z-40"
         onAction={(action) => menuPreset.onAction(session, action, menuContextOverride)}>
         {row}
       </ResourceList.ContextMenu>

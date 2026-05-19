@@ -19,7 +19,7 @@ import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/li
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { Check, Clock3, Edit3, ListFilter, Plus, SquarePen } from 'lucide-react'
+import { Check, Clock3, ListFilter, Plus, SquarePen } from 'lucide-react'
 import { memo, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -32,7 +32,6 @@ import {
   createSessionDisplayGroupResolver,
   createSessionWorkdirLabelMap,
   createSessionWorkdirRankMap,
-  getAgentIdFromSessionGroupId,
   getWorkdirPathFromSessionGroupId,
   normalizeSessionDropPayload,
   SESSION_PINNED_GROUP_ID,
@@ -50,10 +49,9 @@ interface SessionsProps {
 
 const logger = loggerService.withContext('AgentSessions')
 
-const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'agent', 'workdir']
+const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'workdir']
 const SESSION_TODAY_GROUP_ID = 'session:time:today'
 const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
-  agent: 'agent.session.display.agent',
   time: 'agent.session.display.time',
   workdir: 'agent.session.display.workdir'
 }
@@ -142,7 +140,7 @@ const Sessions = ({
     togglePin
   } = useSessions(undefined, { loadAll: true, pageSize: 50 })
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
-  const { agents, isLoading: isAgentsLoading, error: agentsError } = useAgents()
+  const { agents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
   const [creatingSession, setCreatingSession] = useState(false)
@@ -156,8 +154,8 @@ const Sessions = ({
     return map
   }, [channels])
 
-  const displayMode = sessionDisplayMode ?? 'time'
-  const isDraggableMode = displayMode !== 'time'
+  const displayMode: AgentSessionDisplayMode = sessionDisplayMode === 'workdir' ? 'workdir' : 'time'
+  const isDraggableMode = displayMode === 'workdir'
   const dragReady = isDraggableMode && isFullyLoaded && !isLoadingAll && !isLoadingMore && !isValidating && !isLoading
 
   const sessionItems = useMemo<SessionListItem[]>(
@@ -172,19 +170,17 @@ const Sessions = ({
   const { updateSession } = useUpdateSession(fallbackAgentId)
 
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
-  const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
   const workdirLabelByPath = useMemo(() => createSessionWorkdirLabelMap(sessionItems), [sessionItems])
   const workdirRankByPath = useMemo(() => createSessionWorkdirRankMap(sessionItems), [sessionItems])
 
   const baseGroupedSessions = useMemo(
     () =>
       sortSessionsForDisplayGroups(sessionItems, {
-        agentRankById,
         mode: displayMode,
         now: groupNow,
         workdirRankByPath
       }),
-    [agentRankById, displayMode, groupNow, sessionItems, workdirRankByPath]
+    [displayMode, groupNow, sessionItems, workdirRankByPath]
   )
 
   const groupedSessions = useMemo(
@@ -208,7 +204,6 @@ const Sessions = ({
   const sessionGroupBy = useMemo(
     () =>
       createSessionDisplayGroupResolver({
-        agentById,
         labels: {
           pinned: t('selector.common.pinned_title'),
           time: {
@@ -216,9 +211,6 @@ const Sessions = ({
             yesterday: t('agent.session.group.yesterday'),
             'this-week': t('agent.session.group.this_week'),
             earlier: t('agent.session.group.earlier')
-          },
-          agent: {
-            unknown: t('agent.session.group.unknown_agent')
           },
           workdir: {
             none: t('agent.session.group.no_workdir')
@@ -228,7 +220,7 @@ const Sessions = ({
         now: groupNow,
         workdirLabelByPath
       }),
-    [agentById, displayMode, groupNow, t, workdirLabelByPath]
+    [displayMode, groupNow, t, workdirLabelByPath]
   )
 
   const handleCollapsedSessionGroupIdsChange = useCallback(
@@ -373,15 +365,9 @@ const Sessions = ({
       if (group.id === SESSION_PINNED_GROUP_ID) return null
 
       let payload: { agentId: string | null | undefined; accessiblePaths?: string[] } | null = null
-      let editableAgentId: string | undefined
       if (displayMode === 'time') {
         if (group.id !== SESSION_TODAY_GROUP_ID) return null
         payload = { agentId: fallbackAgentId }
-      } else if (displayMode === 'agent') {
-        const agentId = getAgentIdFromSessionGroupId(group.id)
-        if (!agentId || !agentById.has(agentId)) return null
-        payload = { agentId }
-        editableAgentId = agentId
       } else {
         const path = getWorkdirPathFromSessionGroupId(group.id)
         if (!path) return null
@@ -392,16 +378,6 @@ const Sessions = ({
 
       return (
         <>
-          {editableAgentId && (
-            <Tooltip title={t('agent.edit.title')} delay={500}>
-              <ResourceList.HeaderActionButton
-                type="button"
-                aria-label={t('agent.edit.title')}
-                onClick={() => openAgentEditor(editableAgentId)}>
-                <Edit3 className="block" />
-              </ResourceList.HeaderActionButton>
-            </Tooltip>
-          )}
           <Tooltip title={t('agent.session.add.title')} delay={500}>
             <ResourceList.HeaderActionButton
               type="button"
@@ -414,12 +390,11 @@ const Sessions = ({
         </>
       )
     },
-    [agentById, createSessionForGroup, creatingSession, displayMode, fallbackAgentId, openAgentEditor, t]
+    [agentById, createSessionForGroup, creatingSession, displayMode, fallbackAgentId, t]
   )
 
-  const isAgentDisplayMode = displayMode === 'agent'
-  const listError = error || (isAgentDisplayMode ? agentsError : undefined)
-  const listLoading = isLoadingAll || !isFullyLoaded || isSessionPinsLoading || (isAgentDisplayMode && isAgentsLoading)
+  const listError = error
+  const listLoading = isLoadingAll || !isFullyLoaded || isSessionPinsLoading
   const visibleGroupedSessions = useMemo(() => (listLoading ? [] : groupedSessions), [groupedSessions, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : groupedSessions.length === 0 ? 'empty' : 'idle'
 

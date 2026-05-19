@@ -397,7 +397,6 @@
         "title": "Excluir sessão"
       },
       "display": {
-        "agent": "[to be translated]:Agent",
         "time": "[to be translated]:Time",
         "title": "[to be translated]:Display mode",
         "workdir": "[to be translated]:Workspace"
@@ -423,7 +422,6 @@
         "show_more": "[to be translated]:Show more sessions",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
-        "unknown_agent": "[to be translated]:Unknown agent",
         "yesterday": "[to be translated]:Yesterday"
       },
       "label_one": "Sessão",

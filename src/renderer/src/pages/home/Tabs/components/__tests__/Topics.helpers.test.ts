@@ -17,8 +17,7 @@ import {
   moveTopicAfterDrop,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
-  TOPIC_DEFAULT_ASSISTANT_GROUP_ID,
-  TOPIC_UNKNOWN_ASSISTANT_GROUP_ID
+  TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '../Topics.helpers'
 
 const TOPIC_GROUP_LABELS = {
@@ -30,8 +29,7 @@ const TOPIC_GROUP_LABELS = {
     earlier: 'Earlier'
   },
   assistant: {
-    default: 'Default Assistant',
-    unknown: 'Unknown Assistant'
+    unlinked: 'Unlinked Assistant'
   }
 }
 
@@ -258,7 +256,7 @@ describe('Topics helpers', () => {
     ])
   })
 
-  it('builds assistant display groups with pinned/default/known/unknown buckets', () => {
+  it('builds assistant display groups with pinned/known/unlinked buckets', () => {
     const groupTopic = createTopicDisplayGroupResolver({
       assistantById: new Map([
         ['assistant-1', { id: 'assistant-1', name: 'Research' }],
@@ -273,16 +271,16 @@ describe('Topics helpers', () => {
       label: 'Pinned'
     })
     expect(groupTopic(createTopic({ id: 'default', assistantId: undefined }))).toEqual({
-      id: TOPIC_DEFAULT_ASSISTANT_GROUP_ID,
-      label: 'Default Assistant'
+      id: TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
+      label: 'Unlinked Assistant'
     })
     expect(groupTopic(createTopic({ id: 'known', assistantId: 'assistant-2' }))).toEqual({
       id: 'topic:assistant:assistant-2',
       label: 'Writing'
     })
     expect(groupTopic(createTopic({ id: 'unknown', assistantId: 'missing-assistant' }))).toEqual({
-      id: TOPIC_UNKNOWN_ASSISTANT_GROUP_ID,
-      label: 'Unknown Assistant'
+      id: TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
+      label: 'Unlinked Assistant'
     })
   })
 

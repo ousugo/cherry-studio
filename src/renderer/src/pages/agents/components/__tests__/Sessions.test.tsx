@@ -264,7 +264,6 @@ vi.mock('react-i18next', () => ({
     t: (key: string) => {
       const labels: Record<string, string> = {
         'agent.session.add.title': 'Add session',
-        'agent.session.display.agent': 'Agent',
         'agent.session.display.time': 'Time',
         'agent.session.display.title': 'Display mode',
         'agent.session.display.workdir': 'Workspace',
@@ -276,7 +275,6 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.show_more': 'Expand display',
         'agent.session.group.this_week': 'This week',
         'agent.session.group.today': 'Today',
-        'agent.session.group.unknown_agent': 'Unknown agent',
         'agent.session.group.yesterday': 'Yesterday',
         'agent.session.list.title': 'Sessions',
         'agent.session.reorder.error.failed': 'Failed to reorder sessions',
@@ -387,7 +385,7 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
 describe('Sessions', () => {
   beforeEach(() => {
     preferenceMocks.values.clear()
-    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     preferenceMocks.values.set('agent.session.collapsed_group_ids', [])
     preferenceMocks.values.set('topic.tab.show', true)
     cacheMocks.state.activeSessionId = 'session-a'
@@ -417,14 +415,15 @@ describe('Sessions', () => {
     vi.useRealTimers()
   })
 
-  it('loads all sessions and renders time groups without drag', () => {
+  it('loads all sessions and renders workspace groups with drag by default', () => {
     render(<Sessions />)
 
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 50 })
     expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'project-a' })).toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toHaveClass('text-sm', 'font-normal', 'text-sidebar-foreground/70')
-    expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
   })
 
   it('renders load errors inside the shared ResourceList shell', () => {
@@ -442,28 +441,8 @@ describe('Sessions', () => {
     expect(sessionDataMocks.reload).toHaveBeenCalled()
   })
 
-  it('uses shared disclosure arrows for agent group headers without rendering avatars', () => {
-    agentDataMocks.useAgents.mockReturnValue({
-      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: '🧠' } }],
-      isLoading: false,
-      error: undefined
-    })
-
-    const { unmount } = render(<Sessions />)
-
-    expect(screen.getByText('Alpha session').closest('[data-testid="agent-session-row"]')).not.toHaveTextContent('🧠')
-
-    unmount()
-    preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    render(<Sessions />)
-
-    const agentHeader = screen.getByRole('button', { name: 'Alpha agent' })
-    expect(agentHeader.querySelector('.lucide-chevron-down')).toBeInTheDocument()
-    expect(agentHeader.closest('div')).not.toHaveTextContent('🧠')
-  })
-
-  it('keeps agent grouped sessions in the generic loading state until all pages are ready', () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+  it('keeps grouped sessions in the generic loading state until all pages are ready', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     setupSessions({
       sessions: [createSession({ id: 'session-first-page', name: 'First page session', agentId: 'agent-a' })],
       hasMore: true,
@@ -482,8 +461,7 @@ describe('Sessions', () => {
     render(<Sessions />)
 
     expect(screen.queryByTestId('resource-list-grouped-loading')).not.toBeInTheDocument()
-    expect(screen.queryByText('Alpha agent')).not.toBeInTheDocument()
-    expect(screen.queryByText('Beta agent')).not.toBeInTheDocument()
+    expect(screen.queryByText('project-a')).not.toBeInTheDocument()
     expect(screen.queryByText('First page session')).not.toBeInTheDocument()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
     expect(screen.queryAllByTestId('agent-session-row')).toHaveLength(0)
@@ -513,6 +491,7 @@ describe('Sessions', () => {
   })
 
   it('creates sessions from the time group action', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
     const onStartTemporarySession = vi.fn()
     render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 
@@ -645,12 +624,12 @@ describe('Sessions', () => {
   })
 
   it('subscribes stream status only for visible session rows', () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    preferenceMocks.values.set('agent.session.collapsed_group_ids', ['session:agent:agent-a'])
+    preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    preferenceMocks.values.set('agent.session.collapsed_group_ids', ['session:workdir:%2FUsers%2Fjd%2Fproject-a'])
 
     render(<Sessions />)
 
-    expect(screen.getByRole('button', { name: 'Alpha agent' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'project-a' })).toBeInTheDocument()
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-a')
     expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-b')
@@ -660,107 +639,9 @@ describe('Sessions', () => {
     render(<Sessions />)
 
     fireEvent.click(screen.getByLabelText('Display mode'))
-    fireEvent.click(screen.getByRole('button', { name: 'Agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'agent')
-  })
-
-  it('blocks cross-agent drops and persists same-group ordering', async () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    setupSessions({
-      sessions: [
-        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
-        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-a', orderKey: 'b' }),
-        createSession({ id: 'session-c', name: 'Gamma session', agentId: 'agent-b', orderKey: 'c' })
-      ]
-    })
-    agentDataMocks.useAgents.mockReturnValue({
-      agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
-      ],
-      isLoading: false,
-      error: undefined
-    })
-
-    render(<Sessions />)
-
-    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
-    startDraggingSession('session-a')
-
-    expectGroupBlocked('Beta agent')
-    expectSessionBlocked('Gamma session')
-    expect(screen.getByRole('button', { name: 'Alpha agent' }).closest('[data-drop-blocked="true"]')).toBeNull()
-    expect(screen.getByText('Beta session').closest('[data-drop-blocked="true"]')).toBeNull()
-
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-a'),
-          id: 'item:session-a',
-          rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
-        },
-        over: { data: sortableData('item:session-c'), id: 'item:session-c', rect: { top: 80, height: 20 } }
-      })
-    })
-
-    expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
-
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-a'),
-          id: 'item:session-a',
-          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-        },
-        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 10, height: 20 } }
-      })
-    })
-
-    await vi.waitFor(() =>
-      expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { after: 'session-b' })
-    )
-  })
-
-  it('persists same-agent drops using the last insertion line position', async () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    setupSessions({
-      sessions: [
-        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
-        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-a', orderKey: 'b' })
-      ]
-    })
-
-    render(<Sessions />)
-
-    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
-    startDraggingSession('session-a')
-
-    act(() => {
-      dndMocks.onDragOver?.({
-        active: {
-          data: sortableData('item:session-a'),
-          id: 'item:session-a',
-          rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
-        },
-        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 80, height: 20 } }
-      })
-    })
-
-    act(() => {
-      dndMocks.onDragEnd?.({
-        active: {
-          data: sortableData('item:session-a'),
-          id: 'item:session-a',
-          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-        },
-        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 10, height: 20 } }
-      })
-    })
-
-    await vi.waitFor(() =>
-      expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { before: 'session-b' })
-    )
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
   })
 
   it('blocks cross-workspace groups from drag start while preserving same-workspace reorder', async () => {
@@ -815,36 +696,8 @@ describe('Sessions', () => {
     )
   })
 
-  it('creates sessions from agent and workspace group actions', async () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    setupSessions({
-      sessions: [
-        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
-        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
-      ]
-    })
-    agentDataMocks.useAgents.mockReturnValue({
-      agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
-      ],
-      isLoading: false,
-      error: undefined
-    })
-
+  it('creates sessions from workspace group actions', async () => {
     const onStartTemporarySession = vi.fn()
-    const { unmount } = render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
-
-    const betaGroup = screen.getByRole('button', { name: 'Beta agent' }).closest('div')
-    expect(betaGroup).not.toBeNull()
-    fireEvent.click(betaGroup!.querySelector('[aria-label="Add session"]')!)
-
-    await vi.waitFor(() =>
-      expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-b', name: 'Untitled' })
-    )
-
-    unmount()
-    onStartTemporarySession.mockClear()
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 

@@ -162,7 +162,7 @@ describe('AgentContent', () => {
     expect(mocks.updateModel).toHaveBeenCalledWith('agent-a', 'provider:model-b', { showSuccessToast: false })
   })
 
-  it('keeps persisted session agent and model mutations unchanged', async () => {
+  it('keeps persisted session agent and model mutations available', async () => {
     mocks.activeSession = { id: 'session-1', agentId: 'agent-a', accessiblePaths: [] }
 
     render(

@@ -263,6 +263,7 @@ vi.mock('react-i18next', () => ({
         'history.records.resultCount': '{{count}} results',
         'history.records.searchTopic': 'Search topics...',
         'history.records.shortTitle': 'History',
+        'history.records.sidebar.unknownAssistant': 'Unlinked assistant',
         'history.records.table.emptyValue': '-',
         'history.records.table.time': 'Time',
         'history.records.table.title': 'Title',
@@ -456,6 +457,35 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaA = screen.getByText('Alpha A').closest('[role="option"]') as HTMLElement
     const alphaB = screen.getByText('Alpha B').closest('[role="option"]') as HTMLElement
     expect(Boolean(alphaA.compareDocumentPosition(alphaB) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it('groups empty and missing assistant topics under one unlinked source', () => {
+    hookMocks.useAllTopics.mockReturnValue({
+      topics: [
+        createTopic({ id: 'topic-alpha', name: 'Alpha topic', orderKey: 'a' }),
+        createTopic({ id: 'topic-unlinked', assistantId: undefined, name: 'Local orphan topic', orderKey: 'b' }),
+        createTopic({
+          id: 'topic-missing',
+          assistantId: 'assistant-missing',
+          name: 'Missing assistant topic',
+          orderKey: 'c'
+        })
+      ],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+
+    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
+
+    const unlinkedSource = screen.getByRole('button', { name: /Unlinked assistant 2/ })
+    expect(screen.queryByRole('button', { name: /Default assistant/ })).not.toBeInTheDocument()
+
+    fireEvent.click(unlinkedSource)
+
+    expect(screen.getByText('Local orphan topic')).toBeInTheDocument()
+    expect(screen.getByText('Missing assistant topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
   })
 
   it('unmounts the overlay immediately when closed', () => {

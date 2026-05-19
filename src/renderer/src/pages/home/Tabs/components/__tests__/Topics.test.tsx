@@ -196,7 +196,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.group.yesterday') return 'Yesterday'
       if (key === 'chat.topics.group.this_week') return 'This week'
       if (key === 'chat.topics.group.earlier') return 'Earlier'
-      if (key === 'chat.topics.group.unknown_assistant') return 'Unknown Assistant'
+      if (key === 'chat.topics.group.unknown_assistant') return 'Unlinked Assistant'
       if (key === 'chat.topics.group.show_more') return 'Show more topics'
       if (key === 'chat.topics.group.collapse') return 'Collapse topics'
       if (key === 'chat.topics.search.placeholder') return 'Search topics'
@@ -402,7 +402,7 @@ describe('Topics', () => {
     vi.setSystemTime(new Date(2026, 0, 3, 12))
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'topic.tab.display_mode': 'time',
+      'topic.tab.display_mode': 'assistant',
       'topic.tab.collapsed_group_ids': [],
       'data.export.menus.docx': true,
       'data.export.menus.image': true,
@@ -536,6 +536,7 @@ describe('Topics', () => {
   })
 
   it('renders pinned and time groups and protects pinned rows from inline delete', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     const { getByText, setActiveTopic } = renderTopicList()
 
     expect(screen.getByText('Pinned')).toBeInTheDocument()
@@ -750,6 +751,7 @@ describe('Topics', () => {
   })
 
   it('shows five topics per group and loads five more within that group', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
         return {
@@ -791,10 +793,6 @@ describe('Topics', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show more topics' }))
 
     expect(screen.getByText('Topic 10')).toBeInTheDocument()
-    expect(screen.queryByText('Topic 11')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show more topics' }))
-
     expect(screen.getByText('Topic 11')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse topics' })).toBeInTheDocument()
 
@@ -805,6 +803,7 @@ describe('Topics', () => {
   })
 
   it('keeps the pinned group first and lets each group collapse independently', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     const { rerenderTopicList } = renderTopicList()
 
     const groupButtons = screen.getAllByRole('button', { expanded: true })
@@ -833,6 +832,7 @@ describe('Topics', () => {
   })
 
   it('restores and persists collapsed topic groups from preference', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, ['topic:time:today'])
 
     const { rerenderTopicList } = renderTopicList()
@@ -860,8 +860,7 @@ describe('Topics', () => {
   it('renders the topic header controls and persists display mode selection', () => {
     renderTopicList()
 
-    expect(screen.getByText('Topics')).toBeInTheDocument()
-    expect(screen.getByText('5')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search topics')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByLabelText('Display mode'))
@@ -872,12 +871,12 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Time' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Assistant' }))
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
-
-    fireEvent.click(screen.getByLabelText('Display mode'))
     fireEvent.click(screen.getByRole('button', { name: 'Time' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
+
+    fireEvent.click(screen.getByLabelText('Display mode'))
+    fireEvent.click(screen.getByRole('button', { name: 'Assistant' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
   })
 
   it('opens topic history from the trailing header action when provided', () => {
@@ -926,7 +925,7 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    expect(screen.getByText('Topics')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-list-grouped-loading')).not.toBeInTheDocument()
     expect(screen.queryByText('Alpha Assistant')).not.toBeInTheDocument()
     expect(screen.queryByText('Beta Assistant')).not.toBeInTheDocument()
@@ -939,6 +938,7 @@ describe('Topics', () => {
   })
 
   it('reveals a history-selected topic hidden by manage search, a collapsed group, and show-more', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, ['topic:time:today'])
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -983,20 +983,22 @@ describe('Topics', () => {
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
   })
 
-  it('adds a new topic from the search-area create bar', () => {
+  it('adds a new topic from the header create action', () => {
     renderTopicList()
 
     const createButton = screen.getAllByRole('button', { name: 'New Topic' })[0]
-    expect(createButton).toHaveClass('h-7', 'w-full', 'justify-start', 'rounded-lg', 'text-[12px]')
+    expect(createButton).toBeInTheDocument()
+    expect(createButton).toHaveClass('h-[30px]', 'min-w-[30px]', 'rounded-[8px]')
     expect(createButton).not.toHaveClass('border')
     expect(screen.getByRole('listbox')).toHaveClass('pt-0')
 
     fireEvent.click(createButton)
 
-    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC)
+    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC, { assistantId: 'assistant-1' })
   })
 
   it('renders group create action only on the today group when grouped by time', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     renderTopicList()
 
     const todayHeader = screen.getByRole('button', { name: 'Today' }).closest('div')
@@ -1027,6 +1029,7 @@ describe('Topics', () => {
 
   it('does not enable drag reorder in time mode', () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
 
     renderTopicList()
 
@@ -1172,27 +1175,22 @@ describe('Topics', () => {
     renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Default Assistant' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Default Assistant' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Unknown Assistant' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Alpha Assistant' }).querySelector('.lucide-chevron-down')
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')).not.toHaveTextContent('🧪')
     expect(screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')).not.toHaveTextContent('✍️')
 
-    const defaultHeader = screen.getByRole('button', { name: 'Default Assistant' }).closest('div')
-    expect(defaultHeader).toBeInTheDocument()
-    fireEvent.click(within(defaultHeader as HTMLElement).getByRole('button', { name: 'New Topic' }))
-    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC, { assistantId: null })
-
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     expect(assistantHeader).toBeInTheDocument()
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'New Topic' }))
     expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.ADD_NEW_TOPIC, { assistantId: 'assistant-1' })
 
-    for (const groupName of ['Pinned', 'Unknown Assistant'] as const) {
+    for (const groupName of ['Pinned', 'Unlinked Assistant'] as const) {
       const header = screen.getByRole('button', { name: groupName }).closest('div')
       expect(header).toBeInTheDocument()
       expect(within(header as HTMLElement).queryByRole('button', { name: 'New Topic' })).not.toBeInTheDocument()
@@ -1442,8 +1440,8 @@ describe('Topics', () => {
       createRendererTopic({ id: 'topic-d', name: 'Beta tail', assistantId: 'assistant-2', orderKey: 'd' })
     ]
     const groupBy = (topic: Topic) => ({
-      id: topic.assistantId ? `topic:assistant:${topic.assistantId}` : 'topic:assistant:default',
-      label: topic.assistantId ?? 'default'
+      id: topic.assistantId ? `topic:assistant:${topic.assistantId}` : 'topic:assistant:unknown',
+      label: topic.assistantId ?? 'unlinked'
     })
 
     const next = applyOptimisticTopicDisplayMove(
@@ -1692,7 +1690,7 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
   })
 
-  it('moves topics into the default assistant group with a null assistantId', async () => {
+  it('does not drop topics into the unlinked assistant group for empty assistant ids', () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseQuery.mockImplementation((path) => {
@@ -1762,13 +1760,10 @@ describe('Topics', () => {
       over: { data: sortableData('item:topic-c'), id: 'item:topic-c' }
     })
 
-    await vi.waitFor(() =>
-      expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: null } })
-    )
-    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-c' } })
+    expect(patchSpy).not.toHaveBeenCalled()
   })
 
-  it('allows unknown assistant topics to move into known assistant groups', async () => {
+  it('allows unlinked assistant topics to move into known assistant groups', async () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
@@ -1808,7 +1803,7 @@ describe('Topics', () => {
     expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-e/order', { body: { after: 'topic-a' } })
   })
 
-  it('does not drop topics into pinned or unknown assistant groups', () => {
+  it('does not drop topics into pinned or unlinked assistant groups', () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
