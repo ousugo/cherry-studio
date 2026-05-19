@@ -1390,7 +1390,7 @@
         {
           "originalKey": "messageStyle",
           "type": "PreferenceTypes.ChatMessageStyle",
-          "defaultValue": "plain",
+          "defaultValue": "bubble",
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.message.style"

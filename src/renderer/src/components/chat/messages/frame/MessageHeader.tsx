@@ -158,7 +158,7 @@ const MessageHeader: FC<Props> = memo(({ model, message, isGroupContextMessage, 
         <div
           className={`message-header-info-wrap flex shrink-0 items-center gap-1 text-[10px] text-foreground-muted leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 ${hiddenContentHoverClass}`}>
           <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
-          {isBubbleStyle && message.stats !== undefined && (
+          {isBubbleStyle && !isAssistantMessage && message.stats !== undefined && (
             <>
               |
               <MessageTokens message={message} />

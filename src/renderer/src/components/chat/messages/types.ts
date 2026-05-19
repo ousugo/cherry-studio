@@ -232,7 +232,7 @@ export interface MessageRenderConfig {
 export const defaultMessageRenderConfig: MessageRenderConfig = {
   userName: '',
   narrowMode: false,
-  messageStyle: 'plain',
+  messageStyle: 'bubble',
   messageFont: 'system',
   fontSize: 14,
   renderInputMessageAsMarkdown: false,
