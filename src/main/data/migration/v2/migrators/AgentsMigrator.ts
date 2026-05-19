@@ -527,13 +527,6 @@ function defaultWorkspacePathForSession(agentWorkspacesDir: string, sessionId: s
   return path.join(agentWorkspacesDir, `session-${safeSessionId}`)
 }
 
-function agentWorkspacesDirFromContext(ctx: MigrationContext): string {
-  return (
-    (ctx.paths as { agentWorkspacesDir?: string }).agentWorkspacesDir ??
-    path.join(path.dirname(ctx.paths.legacyAgentDbFile), 'Agents')
-  )
-}
-
 function countExpectedSessionWorkspacePaths(derived: DerivedSessionWorkspaces): Map<string, number> {
   const workspacePathById = new Map(derived.workspaces.map((workspace) => [workspace.id, workspace.path]))
   const counts = new Map<string, number>()
@@ -553,7 +546,7 @@ async function collectLegacySessionWorkspaces(
   const byPath = new Map<string, DerivedWorkspace>()
   const mappings: DerivedSessionWorkspaceMap[] = []
   const now = Date.now()
-  const agentWorkspacesDir = agentWorkspacesDirFromContext(ctx)
+  const agentWorkspacesDir = ctx.paths.agentWorkspacesDir
 
   for (const row of rows) {
     const workspacePath =

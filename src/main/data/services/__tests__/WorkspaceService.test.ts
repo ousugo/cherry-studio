@@ -1,10 +1,12 @@
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
 import { workspaceTable } from '@data/db/schemas/workspace'
+import { sessionService } from '@data/services/SessionService'
 import { WorkspaceService, workspaceService } from '@data/services/WorkspaceService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { mkdtemp, stat, writeFile } from 'fs/promises'
+import { mkdtemp, rm, stat, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -59,6 +61,41 @@ describe('WorkspaceService', () => {
   it('throws not found for missing workspaces', async () => {
     await expect(workspaceService.getById('missing-workspace')).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
+    })
+  })
+
+  it('returns database workspace data when the backing directory is missing', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
+    const workspacePath = path.join(root, 'deleted-on-disk')
+    const workspace = await workspaceService.findOrCreateByPath(workspacePath)
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-with-missing-workspace-dir',
+      type: 'claude-code',
+      name: 'Missing Workspace Dir Agent',
+      instructions: 'Test instructions',
+      model: null,
+      orderKey: 'a0'
+    })
+    const session = await sessionService.createSession({
+      agentId: 'agent-with-missing-workspace-dir',
+      name: 'Session keeps DB workspace',
+      workspaceId: workspace.id
+    })
+
+    await rm(workspacePath, { recursive: true, force: true })
+
+    await expect(stat(workspacePath)).rejects.toThrow()
+    await expect(workspaceService.getById(workspace.id)).resolves.toMatchObject({
+      id: workspace.id,
+      path: workspacePath
+    })
+    await expect(sessionService.getById(session.id)).resolves.toMatchObject({
+      id: session.id,
+      workspaceId: workspace.id,
+      workspace: {
+        id: workspace.id,
+        path: workspacePath
+      }
     })
   })
 
