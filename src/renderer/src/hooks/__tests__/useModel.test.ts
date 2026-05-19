@@ -5,7 +5,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockRendererLoggerService } from '../../../../../tests/__mocks__/RendererLoggerService'
-import { useModelMutations, useModels } from '../useModel'
+import { useModelById, useModelMutations, useModels } from '../useModel'
 
 // ─── Mock data ────────────────────────────────────────────────────────
 const mockModel1: any = {
@@ -142,6 +142,30 @@ describe('useModels', () => {
     const { result } = renderHook(() => useModels())
 
     expect(result.current.refetch).toBe(mockRefetch)
+  })
+})
+
+describe('useModelById', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('disables previous data for model identity switches', () => {
+    renderHook(() => useModelById('openai::gpt-4o'))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/openai::gpt-4o', {
+      enabled: true,
+      swrOptions: { keepPreviousData: false }
+    })
+  })
+
+  it('does not fetch until a model id is available', () => {
+    renderHook(() => useModelById(undefined))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/', {
+      enabled: false,
+      swrOptions: { keepPreviousData: false }
+    })
   })
 })
 

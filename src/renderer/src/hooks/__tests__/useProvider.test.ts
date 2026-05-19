@@ -199,13 +199,19 @@ describe('useProvider', () => {
 
     expect(result.current.provider).toEqual(mockProvider1)
     expect(result.current.isLoading).toBe(false)
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', { params: { providerId: 'openai' } })
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      params: { providerId: 'openai' },
+      swrOptions: { keepPreviousData: false }
+    })
   })
 
   it('should build correct params for hyphenated provider IDs', () => {
     renderHook(() => useProvider('openai-main'))
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', { params: { providerId: 'openai-main' } })
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      params: { providerId: 'openai-main' },
+      swrOptions: { keepPreviousData: false }
+    })
   })
 
   it('should expose error and refetch from useQuery', () => {
@@ -875,6 +881,11 @@ describe('useProviderDisplayName', () => {
 
     const { result } = renderHook(() => useProviderDisplayName(undefined))
     expect(result.current).toBe('')
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      params: { providerId: '' },
+      enabled: false,
+      swrOptions: { keepPreviousData: false }
+    })
   })
 
   it('returns provider.name for non-system provider', () => {
@@ -889,5 +900,10 @@ describe('useProviderDisplayName', () => {
 
     const { result } = renderHook(() => useProviderDisplayName('my-custom'))
     expect(result.current).toBe('My Custom')
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      params: { providerId: 'my-custom' },
+      enabled: true,
+      swrOptions: { keepPreviousData: false }
+    })
   })
 })

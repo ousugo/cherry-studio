@@ -100,7 +100,8 @@ export function useAssistantsApi() {
 export function useAssistantApiById(id: string | undefined) {
   const { data, isLoading, error, refetch, mutate } = useQuery('/assistants/:id', {
     params: { id: id ?? '' },
-    enabled: !!id
+    enabled: !!id,
+    swrOptions: { keepPreviousData: false }
   })
 
   return {
@@ -204,13 +205,25 @@ export function useDefaultAssistant(): { assistant: Assistant } {
  * synthesised default Assistant. There is no special-case branch for the
  * "default assistant" — a topic with no assistant carries
  * `assistantId: undefined`, not a sentinel.
+ *
+ * Model contract:
+ * - no assistant id: use the runtime default model preference;
+ * - persisted assistant id: use only that assistant's `modelId`.
+ *
+ * Do not fall back from a persisted assistant with an empty `modelId` to the
+ * runtime default model. The main send path rejects that state, so the
+ * renderer must expose it as "select model" instead of masking it.
+ *
+ * Single-assistant identity switches opt out of DataApi's default
+ * `keepPreviousData` behavior at the query boundary, so this hook only exposes
+ * the source data for the current id.
  */
 export function useAssistant(id: string | null | undefined) {
   const { assistant } = useAssistantApiById(id ?? undefined)
   const { updateAssistant: patchAssistant } = useAssistantMutations()
   const { defaultModel } = useDefaultModel()
 
-  const modelId = (assistant?.modelId ?? defaultModel?.id) as UniqueModelId
+  const modelId = assistant?.modelId ?? (!id ? defaultModel?.id : undefined)
   const { model } = useModelById(modelId)
 
   const updateAssistantSettings = useCallback(

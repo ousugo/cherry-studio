@@ -222,6 +222,11 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
       })
 
   const sendMessage = useCallback(async () => {
+    if (!model) {
+      window.toast.error(t('code.model_required'))
+      return
+    }
+
     const text_ = text.trim()
     if (!text_) return
     setIsSending(true)
@@ -244,7 +249,19 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     } finally {
       setIsSending(false)
     }
-  }, [onSendProp, text, mentionedModels, files, setText, setFiles, setTimeoutTimer, resizeTextArea, focusTextarea])
+  }, [
+    model,
+    onSendProp,
+    text,
+    mentionedModels,
+    files,
+    setText,
+    setFiles,
+    setTimeoutTimer,
+    resizeTextArea,
+    focusTextarea,
+    t
+  ])
 
   const onPause = useCallback(() => {
     v2Chat?.pause()
