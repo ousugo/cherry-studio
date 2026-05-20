@@ -111,12 +111,20 @@ describe('Table', () => {
 
   const defaultProps = {
     children: (
-      <tbody>
-        <tr>
-          <td>Cell 1</td>
-          <td>Cell 2</td>
-        </tr>
-      </tbody>
+      <>
+        <thead>
+          <tr>
+            <th>Header 1</th>
+            <th>Header 2</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Cell 1</td>
+            <td>Cell 2</td>
+          </tr>
+        </tbody>
+      </>
     ),
     blockId: 'test-block-1',
     node: { position: createTablePosition() }
@@ -135,16 +143,38 @@ describe('Table', () => {
       render(<Table {...defaultProps} />)
 
       expect(screen.getByRole('table')).toBeInTheDocument()
+      expect(screen.getByText('Header 1')).toBeInTheDocument()
       expect(screen.getByText('Cell 1')).toBeInTheDocument()
       expect(screen.getByText('Cell 2')).toBeInTheDocument()
       expect(screen.getAllByTestId('tooltip')).toHaveLength(2)
     })
 
-    it('should render with table-wrapper and table-toolbar classes', () => {
+    it('should render with design-system table and toolbar classes', () => {
       const { container } = render(<Table {...defaultProps} />)
 
-      expect(container.querySelector('.table-wrapper')).toBeInTheDocument()
-      expect(container.querySelector('.table-toolbar')).toBeInTheDocument()
+      const wrapper = container.querySelector('.table-wrapper')
+      const table = screen.getByRole('table')
+      const toolbar = container.querySelector('.table-toolbar')
+      const copyButton = getCopyButton()
+
+      expect(wrapper).toHaveClass('my-2', 'max-w-full', 'overflow-x-auto')
+      expect(table.className).toContain('[&&]:text-[var(--font-size-body-md)]')
+      expect(table.className).toContain('[&&]:rounded-none')
+      expect(table.className).toContain('[&&]:overflow-visible')
+      expect(table.className).toContain('[&&_th]:bg-muted')
+      expect(table.className).toContain('[&&_th]:font-semibold')
+      expect(table.className).toContain('[&&_td]:bg-muted')
+      expect(table.className).toContain('[&&_thead]:bg-transparent')
+      expect(table.className).toContain('[&&_tbody]:bg-transparent')
+      expect(table.className).toContain('[&&_tbody>tr]:border-0')
+      expect(table.className).toContain('[&_td]:rounded-md')
+      expect(table.style.border).toBe('0px')
+      expect(table.style.borderRadius).toBe('0')
+      expect(table.style.borderSpacing).toBe('var(--cs-size-5xs)')
+      expect(table.style.margin).toBe('0px')
+      expect(table.style.overflow).toBe('visible')
+      expect(toolbar).toHaveClass('rounded-lg', 'border-border-subtle', 'bg-popover', 'shadow-md')
+      expect(copyButton).toHaveClass('rounded-md', 'text-foreground-muted', 'hover:bg-ghost-hover')
     })
 
     it('should render copy button with correct tooltip', () => {
