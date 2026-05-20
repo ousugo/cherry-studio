@@ -5,11 +5,6 @@
  * value on the `topic.stream.statuses.${topicId}` shared-cache entry, written
  * by Main when it pauses on an `approval-requested` tool part and cleared
  * cross-window the moment the continue stream broadcasts `pending`.
- *
- * Previously this scanned the per-window `partsMap` for an
- * `approval-requested` ToolUIPart, which lagged behind SWR revalidation and
- * was inconsistent across windows. The shared cache makes it instant and
- * identical in every window.
  */
 
 import { classifyTurn } from '@shared/ai/transport'

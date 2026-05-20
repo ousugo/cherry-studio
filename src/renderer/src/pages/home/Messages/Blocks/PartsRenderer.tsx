@@ -411,10 +411,7 @@ const PartsRenderer: React.FC<Props> = ({ message }) => {
   }, [messageParts])
 
   // Beat loader visible only when THIS specific message is the active turn
-  // target. The 3-way OR (DB status + activeExecutions anchor + paused-and-
-  // awaiting) lives once in `useIsActiveTurnTarget`; previously each
-  // consumer rebuilt it differently and an over-scoped topic-level signal
-  // crept in (Phase-2 regression: user message got a beat loader).
+  // target — see `useIsActiveTurnTarget` for the predicate.
   const isProcessing = useIsActiveTurnTarget(message)
 
   // No parts to render — normal for user messages (content is in message text, not parts)

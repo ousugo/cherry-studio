@@ -220,10 +220,9 @@ const V2ChatContentInner: FC<InnerProps> = ({
       }
       // Success / aborted-with-content: do NOT write streamed parts to the
       // SWR cache. Backend persists the final row; refresh DB *first*, THEN
-      // dispose the overlay — this ordering removes the gap that
-      // `useV2RenderingPipeline` previously bridged with the `lastGood`
-      // retention heuristic. `.finally` ensures the overlay is always
-      // released even if the refresh rejects (otherwise it would linger).
+      // dispose the overlay so there is no gap between overlay and authoritative
+      // parts. `.finally` ensures the overlay is released even if the refresh
+      // rejects (otherwise it would linger).
       void refresh().finally(() => disposeOverlay(message.id))
     },
     [cache, disposeOverlay, refresh]

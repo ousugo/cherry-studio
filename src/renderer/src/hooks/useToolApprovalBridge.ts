@@ -14,12 +14,6 @@ const logger = loggerService.withContext('useToolApprovalBridge')
  * persists, then (Claude-Agent) resolves the live `canUseTool` or (MCP)
  * dispatches `continue-conversation` once every approval on the turn is
  * decided.
- *
- * The previous design had the renderer PATCH `applyApprovalDecisions(...)`
- * itself, sourcing `before` from a DB-projected list that did not contain the
- * overlay-only `approval-requested` part — so the PATCH was a no-op that also
- * overwrote the persisted row with empty parts and raced Main's re-read,
- * causing the approval card to reappear on every click. Removed.
  */
 export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
   return useCallback(
