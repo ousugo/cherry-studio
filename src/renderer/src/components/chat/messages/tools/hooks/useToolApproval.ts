@@ -103,7 +103,7 @@ export function useToolApproval(
   )
 
   const persistAutoApprove = useCallback(() => {
-    if (!mcpTool || mcpTool.serverId === 'hub') return
+    if (!mcpTool) return
     const server = mcpServers.find((s) => s.id === mcpTool.serverId)
     if (!server) return
     const current = server.disabledAutoApproveTools ?? []

@@ -1048,7 +1048,7 @@ const buildTopicStreamStatusSnapshot = (topicIds: readonly string[]): TopicStrea
 
   for (const topicId of topicIds) {
     const statusEntry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
-    const seen = cacheService.get(getTopicStreamSeenCacheKey(topicId)) ?? false
+    const seen = cacheService.getCasual<boolean>(getTopicStreamSeenCacheKey(topicId)) ?? false
     const status = statusEntry?.status
     const streamStatus = {
       isFulfilled: status === 'done' && !seen,

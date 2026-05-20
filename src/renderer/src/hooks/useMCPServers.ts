@@ -78,16 +78,11 @@ export const useMCPServer = (id: string) => {
  * Resolve auto-approval for a tool without plumbing the server prop through
  * every renderer. Reads the server list from the shared `/mcp-servers` SWR
  * query.
- *
- * The built-in `hub` meta-server isn't stored in DB, so its tools are gated
- * directly by name: `list`/`inspect` are read-only and auto-approved;
- * `invoke`/`exec` require explicit approval.
  */
 export const useIsToolAutoApproved = (tool: MCPTool, allowedTools?: string[]): boolean => {
   const { mcpServers } = useMCPServers()
   return useMemo(() => {
     if (allowedTools?.includes(tool.id)) return true
-    if (tool.serverId === 'hub') return tool.name === 'list' || tool.name === 'inspect'
     const server = mcpServers.find((s) => s.id === tool.serverId)
     return server ? !server.disabledAutoApproveTools?.includes(tool.name) : false
   }, [mcpServers, tool, allowedTools])

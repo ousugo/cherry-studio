@@ -3,12 +3,24 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { workspaceTable } from '@data/db/schemas/workspace'
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
+import { validate as isUuid } from 'uuid'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { transformAgentBlocksToParts } from '../AgentsMigrator'
+import { importLegacySessionMessages } from '../AgentsMigrator'
+import { createEmptyAgentsSchemaInfo } from '../mappings/AgentsDbMappings'
 
-describe('transformAgentBlocksToParts', () => {
+type LegacyMessageRow = {
+  id: number
+  sessionId: string
+  role: string
+  content: unknown
+  agentSessionId?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+describe('importLegacySessionMessages', () => {
   const dbh = setupTestDatabase()
   const insertedSessions: string[] = []
 
@@ -50,156 +62,134 @@ describe('transformAgentBlocksToParts', () => {
     insertedSessions.push(id)
   }
 
-  it('reshapes legacy blocks[] payloads into message.data.parts[]', async () => {
+  async function importLegacyRows(rows: LegacyMessageRow[]): Promise<number> {
+    await dbh.db.run(sql.raw("ATTACH DATABASE ':memory:' AS agents_legacy"))
+    try {
+      await dbh.db.run(
+        sql.raw(`CREATE TABLE agents_legacy.session_messages (
+          id INTEGER PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          agent_session_id TEXT,
+          created_at TEXT,
+          updated_at TEXT
+        )`)
+      )
+
+      for (const row of rows) {
+        await dbh.db.run(sql`
+          INSERT INTO agents_legacy.session_messages
+            (id, session_id, role, content, agent_session_id, created_at, updated_at)
+          VALUES
+            (
+              ${row.id},
+              ${row.sessionId},
+              ${row.role},
+              ${JSON.stringify(row.content)},
+              ${row.agentSessionId ?? null},
+              ${row.createdAt ?? '2026-01-01T00:00:00.000Z'},
+              ${row.updatedAt ?? '2026-01-01T00:00:01.000Z'}
+            )
+        `)
+      }
+
+      const schemaInfo = createEmptyAgentsSchemaInfo()
+      schemaInfo.session_messages = {
+        exists: true,
+        columns: new Set(['id', 'session_id', 'role', 'content', 'agent_session_id', 'created_at', 'updated_at'])
+      }
+
+      return await importLegacySessionMessages(dbh.db, schemaInfo)
+    } finally {
+      await dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+    }
+  }
+
+  it('imports legacy integer message ids as UUID rows with direct data.parts', async () => {
+    await seedSession('s-legacy')
+
+    const imported = await importLegacyRows([
+      {
+        id: 1,
+        sessionId: 's-legacy',
+        role: 'assistant',
+        agentSessionId: 'sdk-1',
+        content: {
+          message: {
+            id: '1',
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'hello' }] }
+          },
+          blocks: []
+        }
+      }
+    ])
+
+    expect(imported).toBe(1)
+    const [row] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, 's-legacy'))
+    expect(row.id).not.toBe('1')
+    expect(isUuid(row.id)).toBe(true)
+    expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hello' }] })
+    expect(JSON.stringify(row.data)).not.toContain('"message"')
+    expect(row.agentSessionId).toBe('sdk-1')
+  })
+
+  it('converts legacy block envelopes during import without a second pass', async () => {
     await seedSession('s-blocks')
 
-    const legacyPayload = {
-      message: {
-        id: 'msg-1',
+    await importLegacyRows([
+      {
+        id: 2,
+        sessionId: 's-blocks',
         role: 'assistant',
-        blocks: ['b1', 'b2']
-      },
-      blocks: [
-        { id: 'b1', type: 'main_text', content: 'hello ', createdAt: 0 },
-        { id: 'b2', type: 'main_text', content: 'world', createdAt: 0 }
-      ]
-    }
-
-    await dbh.db.insert(agentSessionMessageTable).values({
-      sessionId: 's-blocks',
-      role: 'assistant',
-      // Drizzle JSON column accepts both objects and strings; test the
-      // object path which matches what the Drizzle ORM writes locally.
-      content: legacyPayload as any
-    })
-
-    const result = await transformAgentBlocksToParts(dbh.db)
-    expect(result.totalMessages).toBe(1)
-    expect(result.messagesConverted).toBe(1)
-    expect(result.messagesSkipped).toBe(0)
-    expect(result.errors).toEqual([])
+        content: {
+          message: {
+            id: '2',
+            role: 'assistant',
+            status: 'pending',
+            blocks: ['b1']
+          },
+          blocks: [{ id: 'b1', type: 'main_text', content: 'hello world', createdAt: 0 }]
+        }
+      }
+    ])
 
     const [row] = await dbh.db
       .select()
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.sessionId, 's-blocks'))
-    const content = row.content
-    const parts = content.message.data?.parts
-    expect(content.blocks).toEqual([])
-    expect('blocks' in content.message).toBe(false)
-    expect(Array.isArray(parts)).toBe(true)
-    expect(parts?.length ?? 0).toBeGreaterThan(0)
+    expect(row.status).toBe('error')
+    expect(row.searchableText).toBe('hello world')
+    expect(row.data.parts?.[0]).toMatchObject({ type: 'text', text: 'hello world', state: 'done' })
+    expect(JSON.stringify(row.data)).not.toContain('"blocks"')
+    expect(JSON.stringify(row.data)).not.toContain('"message"')
   })
 
-  it('skips rows that have no legacy blocks (already reshaped or freshly written)', async () => {
+  it('keeps already-modern parts payloads during import', async () => {
     await seedSession('s-modern')
 
-    await dbh.db.insert(agentSessionMessageTable).values({
-      sessionId: 's-modern',
-      role: 'user',
-      content: {
-        message: {
-          id: 'msg-2',
-          role: 'user',
-          data: { parts: [{ type: 'text', text: 'hi' }] }
-        },
-        blocks: []
-      } as any
-    })
-
-    const result = await transformAgentBlocksToParts(dbh.db)
-    expect(result.messagesSkipped).toBe(1)
-    expect(result.messagesConverted).toBe(0)
-  })
-
-  it('is idempotent — a second pass does not reconvert', async () => {
-    await seedSession('s-idempotent')
-
-    await dbh.db.insert(agentSessionMessageTable).values({
-      sessionId: 's-idempotent',
-      role: 'assistant',
-      content: {
-        message: { id: 'm', role: 'assistant', blocks: ['b1'] },
-        blocks: [{ id: 'b1', type: 'main_text', content: 'x', createdAt: 0 }]
-      } as any
-    })
-
-    await transformAgentBlocksToParts(dbh.db)
-    const second = await transformAgentBlocksToParts(dbh.db)
-    expect(second.messagesConverted).toBe(0)
-    expect(second.messagesSkipped).toBe(1)
-  })
-
-  it('normalizes transient message.status to error when reshaping blocks', async () => {
-    // A mid-stream row persisted as status: 'pending' with blocks still present —
-    // blocks→parts conversion must collapse the transient status so the renderer
-    // doesn't keep treating it as streaming. ('processing' | 'sending' |
-    // 'searching' share the same fate; one representative case is enough since
-    // normalizeStatus is covered exhaustively in ChatMappings tests.)
-    await seedSession('s-pending')
-    await dbh.db.insert(agentSessionMessageTable).values({
-      sessionId: 's-pending',
-      role: 'assistant',
-      content: {
-        message: { id: 'm', role: 'assistant', status: 'pending', blocks: ['b1'] },
-        blocks: [{ id: 'b1', type: 'main_text', content: 'x', createdAt: 0 }]
-      } as any
-    })
-
-    const result = await transformAgentBlocksToParts(dbh.db)
-    expect(result.messagesConverted).toBe(1)
+    await importLegacyRows([
+      {
+        id: 3,
+        sessionId: 's-modern',
+        role: 'user',
+        content: {
+          parts: [{ type: 'text', text: 'hi' }]
+        }
+      }
+    ])
 
     const [row] = await dbh.db
       .select()
       .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, 's-pending'))
-    const content = row.content as { message: { status: string } }
-    expect(content.message.status).toBe('error')
-  })
-
-  it('preserves terminal message.status (success/paused) during reshape', async () => {
-    await seedSession('s-success')
-    await dbh.db.insert(agentSessionMessageTable).values({
-      sessionId: 's-success',
-      role: 'assistant',
-      content: {
-        message: { id: 'm', role: 'assistant', status: 'success', blocks: ['b1'] },
-        blocks: [{ id: 'b1', type: 'main_text', content: 'x', createdAt: 0 }]
-      } as any
-    })
-
-    await transformAgentBlocksToParts(dbh.db)
-
-    const [row] = await dbh.db
-      .select()
-      .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, 's-success'))
-    const content = row.content as { message: { status: string } }
-    expect(content.message.status).toBe('success')
-  })
-
-  it('tolerates malformed content without aborting the whole transform', async () => {
-    await seedSession('s-ok')
-    await seedSession('s-bad')
-
-    // Malformed row — content.message is missing; helper records an error
-    // row-by-row but must keep going so the valid row still converts.
-    await dbh.db.insert(agentSessionMessageTable).values({
-      sessionId: 's-bad',
-      role: 'assistant',
-      content: 'not-json-at-all' as any
-    })
-    await dbh.db.insert(agentSessionMessageTable).values({
-      sessionId: 's-ok',
-      role: 'assistant',
-      content: {
-        message: { id: 'm', role: 'assistant', blocks: ['b1'] },
-        blocks: [{ id: 'b1', type: 'main_text', content: 'x', createdAt: 0 }]
-      } as any
-    })
-
-    const result = await transformAgentBlocksToParts(dbh.db)
-    expect(result.messagesConverted).toBe(1)
-    expect(result.errors.length).toBe(1)
+      .where(eq(agentSessionMessageTable.sessionId, 's-modern'))
+    expect(row.role).toBe('user')
+    expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hi' }] })
+    expect(row.searchableText).toBe('hi')
   })
 })

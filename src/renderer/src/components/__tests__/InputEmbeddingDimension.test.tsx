@@ -6,9 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import InputEmbeddingDimension from '../InputEmbeddingDimension'
 
 const mocks = vi.hoisted(() => ({
-  aiCore: {
-    getEmbeddingDimensions: vi.fn()
-  },
+  embedMany: vi.fn(),
   i18n: {
     t: (k: string) => {
       const translations: Record<string, string> = {
@@ -128,11 +126,18 @@ vi.mock('@renderer/components/Icons', () => ({
   )
 }))
 
-// Mock window.toast
+// Mock window.toast and window.api.ai.embedMany
 Object.assign(window, {
   toast: {
     error: vi.fn(),
     success: vi.fn()
+  },
+  api: {
+    ...(window as any).api,
+    ai: {
+      ...((window as any).api?.ai ?? {}),
+      embedMany: mocks.embedMany
+    }
   }
 })
 
@@ -160,7 +165,7 @@ describe('InputEmbeddingDimension', () => {
       // Manually control the promise to ensure we can snapshot the loading state.
       // This promise is intentionally never resolved.
       const promise = new Promise(() => {})
-      mocks.aiCore.getEmbeddingDimensions.mockReturnValue(promise)
+      mocks.embedMany.mockReturnValue(promise)
 
       const { container } = render(<InputEmbeddingDimension model={mockModel} />)
 
@@ -193,7 +198,8 @@ describe('InputEmbeddingDimension', () => {
     })
 
     it('should fetch and set dimension on refresh click', async () => {
-      mocks.aiCore.getEmbeddingDimensions.mockResolvedValue(1536)
+      // 1536-length embedding vector matches the expected dimension.
+      mocks.embedMany.mockResolvedValue({ embeddings: [new Array(1536).fill(0)] })
 
       const handleChange = vi.fn()
       const user = userEvent.setup()
@@ -204,7 +210,10 @@ describe('InputEmbeddingDimension', () => {
       await user.click(refreshButton)
 
       await waitFor(() => {
-        expect(mocks.aiCore.getEmbeddingDimensions).toHaveBeenCalledWith(mockModel)
+        expect(mocks.embedMany).toHaveBeenCalledWith({
+          uniqueModelId: 'test-provider::test-model',
+          values: ['test']
+        })
         expect(handleChange).toHaveBeenCalledWith(1536)
       })
     })
@@ -229,7 +238,7 @@ describe('InputEmbeddingDimension', () => {
     })
 
     it('should show error when API call fails', async () => {
-      mocks.aiCore.getEmbeddingDimensions.mockRejectedValue(new Error('API Error'))
+      mocks.embedMany.mockRejectedValue(new Error('API Error'))
 
       const user = userEvent.setup()
       render(<InputEmbeddingDimension model={mockModel} />)

@@ -146,7 +146,7 @@ describe('AgentsMigrator', () => {
       'DELETE FROM session_workspace_map'
     ])
     const insertCalls = importCalls.filter((stmt) => stmt?.startsWith('INSERT INTO'))
-    expect(insertCalls).toHaveLength(AGENTS_TABLE_MIGRATION_SPECS.length)
+    expect(insertCalls).toHaveLength(AGENTS_TABLE_MIGRATION_SPECS.filter((spec) => !spec.manualImport).length)
     // No old-prefix IDs returned → no UPDATE calls
     expect(update).not.toHaveBeenCalled()
     const postCopy = outer.slice(commitIndex + 1, -2)

@@ -7,10 +7,6 @@ import type { UIMessageChunk } from 'ai'
 
 import type { PendingMessageQueue } from '../agent/loop/PendingMessageQueue'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
-// Note: `StreamTarget` was removed after AiStreamManager took over the
-// per-execution loop directly from AiService. Chunk forwarding is now
-// internal to the manager; external consumers subscribe via the
-// `StreamListener` interface.
 
 // ── Re-export shared types for consumers ────────────────────────────
 
@@ -29,92 +25,47 @@ export type {
 } from '@shared/ai/transport'
 export type { CherryUIMessageChunk } from '@shared/data/types/message'
 
-// ── Stream Terminal Results ────────────────────────────────────────
+// ── Timings ─────────────────────────────────────────────────────────
 //
-// All three terminal results share the same conceptual payload — an
-// optional accumulated `finalMessage` plus the status-specific extras.
-// Keeping the shape uniform means listeners (and persistence backends)
-// never need to distinguish "finalMessage for success/paused" from
-// "partialMessage for error": they are the same object, differing only
-// in whether the stream completed or was interrupted.
+// `TransportTimings` is owned by the manager's execution loop (loop
+// entry/exit). `SemanticTimings` is owned by the listener that cares
+// (today `PersistenceListener`) — keeps the manager chunk-shape-agnostic.
+// All fields are `performance.now()` values.
 
-/**
- * Monotonic timestamps captured by the execution loop for one execution.
- *
- * Split by ownership so `AiStreamManager` stays chunk-shape-agnostic:
- *  - `TransportTimings` — owned by the manager's execution loop. Only
- *    tracks loop-lifecycle events (loop entry, loop exit) that the
- *    transport layer can observe without inspecting chunk payloads.
- *  - `SemanticTimings` — owned by the consumer that cares (today
- *    `PersistenceListener`). Tracks AI-SDK-specific chunk transitions
- *    (first `text-delta`, reasoning boundaries). Lives on the listener
- *    side so the manager never hardcodes `chunk.type === 'text-delta'`.
- *
- * `statsFromTerminal` accepts the merged union — the listener combines
- * its own `SemanticTimings` with the `TransportTimings` it received via
- * `StreamDoneResult` / `StreamPausedResult` / `StreamErrorResult`.
- *
- * All fields are `performance.now()` values (milliseconds, fractional,
- * unaffected by wall-clock adjustments).
- */
 export interface TransportTimings {
-  /** Execution loop entry — set once before any chunk is read. */
   readonly startedAt: number
-  /** Execution loop exit — covers done / paused / error. */
   completedAt?: number
 }
 
 export interface SemanticTimings {
-  /** First `text-delta` chunk — TTFT measurement endpoint. */
   firstTextAt?: number
-  /** First `reasoning-*` chunk — thinking phase start. */
   reasoningStartedAt?: number
-  /**
-   * End of reasoning phase. Listener sets this on the first non-reasoning
-   * chunk after reasoning started; if the execution finishes while still
-   * in reasoning, `statsFromTerminal` falls back to `completedAt`.
-   */
+  /** End of reasoning; falls back to `completedAt` if the stream ends mid-reasoning. */
   reasoningEndedAt?: number
 }
 
-/** Terminal state passed to `onDone`. */
+// ── Stream terminal results ─────────────────────────────────────────
+
 export interface StreamDoneResult {
   finalMessage?: CherryUIMessage
-  /** 'success' = natural completion. */
   status: 'success'
-  /** Which model's execution finished. */
   modelId?: UniqueModelId
-  /** True when ALL executions in the topic are done. */
+  /** True when all executions in the topic are done. */
   isTopicDone?: boolean
-  /** Transport-side timings captured by the execution loop. Listeners merge their own `SemanticTimings`. */
   timings?: TransportTimings
 }
 
-/**
- * Terminal state for a paused execution.
- *
- * Distinct from onDone/onError so listeners can treat user/lifecycle aborts
- * as a separate semantic path from successful completion and hard failure.
- */
 export interface StreamPausedResult {
   finalMessage?: CherryUIMessage
   status: 'paused'
-  /** Which model's execution finished. */
   modelId?: UniqueModelId
-  /** True when ALL executions in the topic are done. */
   isTopicDone?: boolean
   timings?: TransportTimings
 }
 
-/**
- * Terminal state for an errored execution.
- *
- * `finalMessage` carries whatever accumulated before the error (same shape
- * and lifecycle as the success/paused case — what used to be called
- * "partialMessage" is just a `finalMessage` that happened to end early).
- */
 export interface StreamErrorResult {
   error: SerializedError
+  /** Whatever accumulated before the error — same shape as the success case. */
   finalMessage?: CherryUIMessage
   status: 'error'
   modelId?: UniqueModelId
@@ -124,178 +75,78 @@ export interface StreamErrorResult {
 
 // ── StreamListener ──────────────────────────────────────────────────
 
-/**
- * Consumer abstraction. AiStreamManager dispatches to listeners uniformly —
- * it never inspects a listener's concrete type. All three terminal
- * callbacks take a single result object of the matching shape.
- */
 export interface StreamListener {
-  /**
-   * Stable unique identifier used for:
-   *  - dedup within the listeners Map (same subscriber → upsert, not duplicate)
-   *  - detach by exact match
-   *  - logging / tracing
-   */
+  /** Stable id used for dedup, detach-by-match, and logging. */
   readonly id: string
 
-  /** Receives each chunk. sourceModelId identifies the producing model (set for multi-model). */
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void
-  /** Called when one execution completes successfully. */
   onDone(result: StreamDoneResult): void | Promise<void>
-  /** Called when one execution is paused/aborted with partial output preserved. */
   onPaused(result: StreamPausedResult): void | Promise<void>
-  /** Called when one execution errors. `result.finalMessage` holds whatever accumulated before the error. */
   onError(result: StreamErrorResult): void | Promise<void>
-  /**
-   * Liveness check. Returning `false` causes the listener to be immediately
-   * removed from the listeners Map.
-   */
+  /** Returning `false` removes the listener immediately. */
   isAlive(): boolean
 }
 
 // ── StreamExecution ─────────────────────────────────────────────────
 
 /**
- * One model's execution within an ActiveStream.
+ * One model's execution within an ActiveStream. Single-model topics have
+ * one entry; multi-model (`@gpt-4o @claude-sonnet`) have N entries
+ * running independently against the same listeners and siblingsGroupId.
  *
- * Single-model (common case): ActiveStream.executions has 1 entry.
- * Multi-model (@gpt-4o @claude-sonnet): N entries, each running independently
- * but sharing the same topic listeners and siblingsGroupId.
- *
- * Each execution owns its own `pendingMessages` queue. Follow-up user
- * messages injected via `AiStreamManager.injectMessage` are fanned out
- * to *every* execution's queue, so that e.g. a Claude Code session and
- * a normal agent loop listening to the same topic each see the message.
- * Per-execution queues avoid the race where a single shared queue hands
- * one message to whichever consumer calls `next()` first.
+ * Each execution owns its own `pendingMessages` queue. Injected follow-up
+ * messages fan out to every queue so heterogeneous consumers (agent
+ * loop, Claude Code session) each see the message.
  */
 export interface StreamExecution {
-  /** Model id for this execution (also the key in ActiveStream.executions). Format: "providerId::modelId". */
+  /** Format: "providerId::modelId". */
   modelId: UniqueModelId
-  /**
-   * The assistant message row this execution writes to — placeholder id for
-   * fresh/regenerate, anchor id for tool-approval continue. Undefined for
-   * temporary topics (no DB row pre-allocated).
-   */
+  /** Placeholder id for fresh/regenerate, anchor id for tool-approval continue. Undefined for temporary topics. */
   anchorMessageId?: string
-  /** Independent abort — aborting one model doesn't stop others in multi-model. */
+  /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
-  /** Per-execution queue for injected follow-up messages (populated by `injectMessage` fan-out). */
   pendingMessages: PendingMessageQueue
-  /**
-   * Per-execution chunk ring buffer for reconnect replay. Capped at
-   * `AiStreamManagerConfig.maxBufferChunks`; when full, the oldest entry
-   * is dropped and `droppedChunks` is incremented so late attach is aware
-   * there were gaps. Each execution keeps its own so a chatty model can
-   * never starve a slower one's replay (the old topic-level buffer did).
-   */
+  /** Per-execution chunk ring (cap = `maxBufferChunks`); overflow drops oldest and bumps `droppedChunks`. */
   buffer: StreamChunkPayload[]
-  /** Count of chunks dropped from this execution's ring buffer due to overflow. */
   droppedChunks: number
-  /**
-   * Latest accumulated `UIMessage` for this execution. Written live by
-   * the execution loop's `readUIMessageStream` accumulator on every
-   * snapshot yield — terminal handlers (`onExecutionDone` /
-   * `onExecutionPaused` / `onExecutionError`) read it as-is without
-   * awaiting any extra promise. Undefined until the first snapshot
-   * lands (e.g. the stream errored before producing any chunks).
-   */
+  /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
   finalMessage?: CherryUIMessage
-  /**
-   * Set the moment the stream emits a `tool-approval-request` chunk and
-   * cleared when that approval is responded/resolved — a first-class record
-   * of the approval lifecycle captured at the transition, NOT re-derived by
-   * scanning the terminal message. The terminal broadcast reads this so the
-   * `topic.stream.statuses` shared cache can carry `awaiting-approval`.
-   */
+  /** Set on `tool-approval-request`, cleared on response. Drives the `topic.stream.statuses` cache. */
   awaitingApproval?: boolean
   error?: SerializedError
-  /** Multi-model: shared group id so parallel responses appear as siblings in UI. */
   siblingsGroupId?: number
   /** Backend-specific resume token (ClaudeCodeService). */
   sourceSessionId?: string
-  /**
-   * Resolves when the execution loop for this execution has completed
-   * (success, error, or abort). Attached by
-   * `AiStreamManager.createAndLaunchExecution` and awaited by `onStop`
-   * so graceful shutdown can wait for the loop's terminal persistence
-   * path without re-broadcasting `onPaused` itself.
-   */
+  /** Resolves when the execution loop terminates. Awaited by `onStop` for graceful shutdown. */
   loopPromise: Promise<void>
-  /**
-   * Transport-side timings owned by the execution loop. Semantic
-   * timings (`firstTextAt` / `reasoning*`) live on the listener that
-   * cares — the manager never inspects chunk payloads.
-   */
   timings: TransportTimings
-  /**
-   * OTel root span wrapping this execution's lifetime. Created by the
-   * context provider so its traceId matches the persisted message row;
-   * stream-manager sets it as the active context around `runExecutionLoop`
-   * (AI SDK spans become children) and ends it on terminal status.
-   * Undefined for paths that don't track tracing (e.g. temporary topics).
-   */
+  /** OTel root span set as active context around `runExecutionLoop`. */
   rootSpan?: Span
 }
 
 // ── ActiveStream ────────────────────────────────────────────────────
 
 /**
- * Topic-level stream state, keyed by `topicId` in AiStreamManager.
+ * Topic-level stream state, keyed by `topicId` in AiStreamManager. A topic
+ * has at most one ActiveStream. Status transitions:
  *
- * One topic has at most one ActiveStream at any time. Streaming is just
- * one state of a topic — all subscribers subscribe to the topic.
- *
- * Contains one or more StreamExecutions — one per model:
- *  - Single-model: executions has 1 entry
- *  - Multi-model: executions has N entries (one per @mentioned model)
- *
- * Topic-level status is derived from executions, with an initial
- * `'pending'` phase that covers the window between stream creation and
- * the first chunk arriving:
- *  - Initial (just after `send()`) → 'pending'
- *  - First chunk from any execution → 'streaming'
- *  - All executions done → 'done'
- *  - Any execution errored (none streaming) → 'error'
- *  - All executions aborted → 'aborted'
+ *   `send()` → 'pending' → first chunk → 'streaming'
+ *   → all done → 'done' | any error (none streaming) → 'error' | all aborted → 'aborted'
  */
 export interface ActiveStream {
-  /** Primary key — the Cherry Studio conversation this stream belongs to. */
   topicId: string
-
-  /**
-   * Per-model executions. Key = UniqueModelId ("providerId::modelId").
-   * Single-model: 1 entry. Multi-model: N entries.
-   */
+  /** Key = `UniqueModelId`. */
   executions: Map<UniqueModelId, StreamExecution>
-
-  /** All consumers. Key = listener.id. Shared across all executions. */
+  /** Shared across all executions. Key = `listener.id`. */
   listeners: Map<string, StreamListener>
-
-  /**
-   * Topic-level lifecycle phase: there is no
-   * push notification when the ActiveStream is deleted from the manager;
-   * renderer cache mirrors retain the last terminal value until a local
-   * consumer evicts it.
-   */
   status: TopicStreamStatus
-
-  /**
-   * Set at creation. Currently only used by `PreparedDispatch` downstream
-   * (e.g., shaping `AiStreamOpenResponse.executionIds`). `onChunk` no
-   * longer consults it — chunks are always tagged with their `modelId`.
-   */
   isMultiModel: boolean
-
-  /**
-   * Strategy that owns every chat-vs-ad-hoc differential behaviour
-   */
   lifecycle: StreamLifecycle
 
-  /** Grace-period expiry timestamp (ms since epoch). Written by `lifecycle.cleanup` if it defers eviction. */
+  /** Grace-period expiry (ms epoch); written by `lifecycle.cleanup` if it defers eviction. */
   expiresAt?: number
-  /** Timer handle set by `lifecycle.cleanup` (chat) so `evictStream` can cancel it. */
+  /** Timer handle set by chat `lifecycle.cleanup` so `evictStream` can cancel. */
   cleanupTimer?: ReturnType<typeof setTimeout>
 }
 
@@ -306,6 +157,6 @@ export interface AiStreamManagerConfig {
   readonly gracePeriodMs: number
   /** What to do when all subscribers disconnect mid-stream. */
   readonly backgroundMode: 'continue' | 'abort'
-  /** Per-stream buffer cap; exceeding this stops buffering (not streaming). */
+  /** Per-execution buffer cap; exceeding stops buffering, not streaming. */
   readonly maxBufferChunks: number
 }

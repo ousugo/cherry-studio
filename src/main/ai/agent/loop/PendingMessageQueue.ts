@@ -1,13 +1,9 @@
 import type { Message } from '@shared/data/types/message'
 
 /**
- * Queue of follow-up messages injected mid-stream by
- * `AiStreamManager.injectMessage`.
- *
- * Supports three consumption modes:
- * - `drain()`: batch drain used by agentLoop between outer iterations
- * - AsyncIterable: streaming consumption for Claude Code's `query.streamInput()`
- * - list / remove / reorder: UI-driven queue management
+ * Mid-stream follow-up queue. Three consumption modes:
+ * `drain()` (agent loop), `AsyncIterable` (Claude Code
+ * `query.streamInput()`), `list`/`remove`/`reorder` (UI).
  */
 export class PendingMessageQueue {
   private messages: Message[] = []

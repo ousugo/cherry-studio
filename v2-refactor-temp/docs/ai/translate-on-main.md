@@ -2,204 +2,255 @@
 
 ## Why this is its own flow
 
-In v1 the renderer composed everything: it picked the translate model from Redux, built the prompt by interpolating `{{target_language}}` / `{{text}}` against a Preference-stored template, and dispatched it through the same `streamText` pipe used for chat. That worked because chat owned the assistant, and translate piggy-backed on the assistant shape.
+In v1 the renderer composed everything: it picked the translate model from
+Redux, built the prompt by interpolating `{{target_language}}` / `{{text}}`
+against a Preference-stored template, and dispatched it through the same
+`streamText` pipe used for chat. That worked because chat owned the
+assistant, and translate piggy-backed on the assistant shape.
 
 v2 broke that piggy-back deliberately:
 
-- **No assistant for translate.** Translate has no system prompt, no MCP tools, no message history, no hooks, no telemetry. Every chat-side `RequestFeature` is a no-op for translate, so threading translate through `AiService.streamText({ assistantId, prompt })` makes the pipeline lie about what's happening.
-- **Qwen-MT is structurally different.** Qwen-MT consumes raw text plus a `target_lang` provider option; there is no prompt to compose. The `if (isQwenMTModel) text else template(text, lang)` branch in `getDefaultTranslateAssistant` is a sign that "translate" is not one shape but two — and chat-side composition has no clean way to express that.
-- **Persistence target is `translate_history`, not `messages`.** v2 already has `packages/shared/data/types/translate.ts` (entities) and `packages/shared/data/api/schemas/translate.ts` (DTOs) for it. The DataApi for history CRUD is wired; what's missing is the **execution** path that produces a row.
+- **No assistant for translate.** Translate has no system prompt, no MCP
+  tools, no message history, no hooks, no telemetry. Every chat-side
+  `RequestFeature` is a no-op for translate, so threading translate
+  through `AiService.streamText({ assistantId, prompt })` makes the
+  pipeline lie about what's happening.
+- **Qwen-MT is structurally different.** Qwen-MT models accept raw text
+  with no system prompt to compose. The `if (isQwenMTModel) text else
+  template(text, lang)` branch is structural — translate isn't one
+  shape but two — and chat-side composition has no clean way to express
+  that.
+- **Persistence target is the per-message `data-translation` part, not
+  the chat `data.parts` content.** v2 surfaces translations as a sticky
+  part on the source message (the MessageMenubar "translate this reply"
+  flow); orphan callers (TranslatePage, ActionTranslate) get the
+  streamed chunks without any persistence.
 
-So translate-on-Main is its own request type with its own service, sharing nothing with chat beyond the underlying `AiService` provider adapters.
+So translate-on-Main is its own request type with its own service,
+sharing nothing with chat beyond the underlying `AiStreamManager`
+provider plumbing.
 
 ## Where it lives
 
 ```
 src/main/
 ├── ai/
-│   ├── AiService.ts                     ← lifecycle owner; registers translate IPC in onInit
-│   └── agent/params/buildAgentParams.ts ← unchanged
+│   ├── AiService.ts                                       ← lifecycle owner; registers Ai_Translate_Open in onInit
+│   └── stream-manager/
+│       ├── AiStreamManager.ts                             ← streamPrompt() entry consumed by translate
+│       ├── listeners/{WebContentsListener,PersistenceListener}.ts
+│       └── persistence/backends/TranslationBackend.ts     ← writes data-translation part on the source message
 └── services/
     └── translate/
-        ├── translateService.ts          ← named-export singleton (NOT lifecycle)
-        ├── prompts.ts                   ← template constants + interpolation
-        ├── qwenMtMapping.ts             ← mapLanguageToQwenMTModel + variant table
+        ├── translateService.ts                            ← named-export singleton (NOT lifecycle)
         └── __tests__/
 ```
 
-`translateService` is a **direct-import singleton**, not a `BaseService`. Per CLAUDE.md's lifecycle-decision guide, lifecycle is reserved for services that own long-lived resources or register persistent side effects. translate is stateless orchestration: each call resolves a model, builds a prompt, makes one LLM call, persists once, returns. No pool, no watcher, no on-disk handle.
+`translateService` is a **direct-import singleton**, not a `BaseService`.
+Per CLAUDE.md's lifecycle-decision guide, lifecycle is reserved for
+services that own long-lived resources or register persistent side
+effects. Translate is stateless orchestration: each call resolves a
+model, builds a prompt, hands the prompt to `AiStreamManager.streamPrompt`
+with the right listeners, and returns the synthetic streamId. No pool,
+no watcher, no on-disk handle.
 
-The one persistent side effect — the `Translate_Run` IPC handler — rides on `AiService.onInit` (already lifecycle, already the IPC owner for the AI domain). `AiService` calls into `translateService.translate(req)` from inside the handler. No new lifecycle entry, no new `serviceRegistry` line.
+The one persistent side effect — the `Ai_Translate_Open` IPC handler —
+rides on `AiService.onInit` (already lifecycle, already the IPC owner
+for the AI domain). `AiService` calls into `translateService.open(sender,
+req)` from inside the handler. No new lifecycle entry, no new
+`serviceRegistry` line.
 
 ## Request shape
 
 ```ts
-// packages/shared/data/api/schemas/translate.ts (extend)
-export const TranslateRequestSchema = z.object({
-  sourceText: z.string().min(1),
-  /** Auto-detect when omitted. */
-  sourceLang: LangCodeSchema.optional(),
-  targetLang: LangCodeSchema,
-  /** Override the configured translate model for this call. */
-  uniqueModelId: UniqueModelIdSchema.optional(),
-  /** Persist into translate_history. Default true. */
-  persist: z.boolean().default(true),
-  /** Reasoning effort for translate models that support it. */
-  reasoningEffort: ReasoningEffortSchema.optional()
-})
+// src/main/services/translate/translateService.ts
+export interface TranslateOpenRequest {
+  /** Renderer-generated, must be prefixed `translate:`. */
+  streamId: string
+  /** Source text. */
+  text: string
+  /** Target language code; resolved to a DTO via translateLanguageService. */
+  targetLangCode: TranslateLangCode
+  /**
+   * When present, attach a `PersistenceListener + TranslationBackend`
+   * so the final translation is written as a `data-translation` part on
+   * that message. Used by the MessageMenubar "translate this reply"
+   * flow; omit for orphans (ActionTranslate, TranslatePage).
+   */
+  messageId?: string
+  /**
+   * Optional pre-detected source language; recorded on the
+   * `data-translation` part when persistence runs. Main does not detect
+   * by itself.
+   */
+  sourceLangCode?: TranslateLangCode
+}
+
+export interface TranslateOpenResult {
+  streamId: string
+}
 ```
 
-Returns `{ targetText: string; sourceLang?: LangCode; historyId?: string }`.
+The renderer generates the `streamId` so it can subscribe to
+`Ai_StreamChunk` / `Ai_StreamDone` / `Ai_StreamError` **before** invoking
+`open` — Main starts the stream synchronously inside `open()`, so the
+first chunk can land between `open()`'s resolution and any post-await
+subscriber registration.
 
 ## Service
 
 ```ts
-// services/translate/translateService.ts
+// src/main/services/translate/translateService.ts
 class TranslateService {
-  async translate(req: TranslateRequest): Promise<TranslateResult> {
-    const model = await this.resolveModel(req)
-    const isQwenMt = isQwenMTModel(model)
+  async open(sender: Electron.WebContents, req: TranslateOpenRequest): Promise<TranslateOpenResult> {
+    // streamId prefix + target-lang validation (throws on misuse)
+    const targetLanguage = await translateLanguageService.getByLangCode(req.targetLangCode)
+    const { uniqueModelId, content } = await this.resolveTranslatePayload(req.text, targetLanguage)
 
-    const llmRequest = isQwenMt
-      ? buildQwenMtRequest(req, model)
-      : await buildPromptedRequest(req, model)
-
-    const { text } = await application.get('AiService').generateText(llmRequest)
-
-    if (req.persist) {
-      const historyId = await translateHistoryService.create({
-        sourceText: req.sourceText,
-        targetText: text,
-        sourceLanguage: req.sourceLang ?? null,
-        targetLanguage: req.targetLang
-      })
-      return { targetText: text, historyId }
+    const listeners: StreamListener[] = []
+    if (req.messageId) {
+      listeners.push(new PersistenceListener({
+        topicId: req.streamId,
+        backend: new TranslationBackend({
+          messageId: req.messageId,
+          targetLanguage: req.targetLangCode,
+          sourceLanguage: req.sourceLangCode
+        })
+      }))
     }
-    return { targetText: text }
-  }
+    listeners.push(new WebContentsListener(sender, req.streamId))
 
-  private async resolveModel(req: TranslateRequest): Promise<Model> {
-    /* read preference.feature.translate.model or req.uniqueModelId override */
+    application.get('AiStreamManager')
+      .streamPrompt({ streamId: req.streamId, uniqueModelId, prompt: content, listener: listeners })
+
+    return { streamId: req.streamId }
   }
 }
 
 export const translateService = new TranslateService()
 ```
 
-IPC registration sits inside `AiService.onInit` (the AI-domain lifecycle owner):
+IPC registration sits inside `AiService.onInit`:
 
 ```ts
-// ai/AiService.ts (additions)
-import { translateService } from '../services/translate/translateService'
+// ai/AiService.ts
+this.ipcHandle(IpcChannel.Ai_Translate_Open, async (event, req: TranslateOpenRequest) =>
+  translateService.open(event.sender, req)
+)
+```
 
-private registerIpcHandlers(): void {
-  // ...existing Ai_* handlers
-  this.ipcHandle(IpcChannel.Translate_Run, (_, req) => translateService.translate(req))
+`streamPrompt` runs the `promptStreamLifecycle` (no broadcast,
+single-execution, prompt-mode). The same provider adapters chat uses
+are reused; translate just doesn't supply an assistant scope.
+
+## Model + prompt resolution
+
+```ts
+async resolveTranslatePayload(text, targetLanguage) {
+  const modelIdRaw = preferenceService.get('feature.translate.model_id')
+  if (!modelIdRaw || !isUniqueModelId(modelIdRaw)) throw new Error('translate.error.not_configured')
+  const { providerId, modelId } = parseUniqueModelId(modelIdRaw)
+  const model = await modelService.getByKey(providerId, modelId)
+  if (!model) throw new Error('translate.error.not_configured')
+
+  const content = isQwenMTModel(model)
+    ? text
+    : preferenceService.get('feature.translate.model_prompt')
+        .replaceAll('{{target_language}}', targetLanguage.value)
+        .replaceAll('{{text}}', text)
+
+  return { uniqueModelId: createUniqueModelId(providerId, modelId), content }
 }
 ```
 
-Key calls out:
-
-- `translateService.translate(...)` is the public entry; renderer hits it through `window.api.translate.translate` → IPC → `AiService` handler → `translateService`.
-- `application.get('AiService').generateText(...)` is the SAME entry point used by chat — but the request carries no `assistantId`, so all chat features short-circuit (their `applies(scope)` returns false because `scope.assistant` is undefined).
-- `resolveModel` reads `preference.feature.translate.model` (or `req.uniqueModelId` override). Throws when unconfigured — renderer surfaces the error as today.
-
-## Qwen-MT branch
-
-Qwen-MT models accept raw text via `prompt` plus translation control through `providerOptions.dashscope.translation_options`. Use `extraFeatures` to inject the option at request time:
-
-```ts
-function buildQwenMtRequest(req: TranslateRequest, model: Model): GenerateTextArgs {
-  return {
-    request: {
-      uniqueModelId: createUniqueModelId(model.providerId, model.id),
-      prompt: req.sourceText
-    },
-    extraFeatures: [translateQwenMtFeature(req.targetLang, req.sourceLang)]
-  }
-}
-
-const translateQwenMtFeature = (targetLang: LangCode, sourceLang?: LangCode): RequestFeature => ({
-  name: 'translate-qwen-mt',
-  applies: () => true,
-  contributeModelAdapters: () => [
-    definePlugin({
-      name: 'qwen-mt-target-lang',
-      enforce: 'pre',
-      transformParams: async (params) => ({
-        ...params,
-        providerOptions: {
-          ...params.providerOptions,
-          dashscope: {
-            translation_options: {
-              target_lang: mapLanguageToQwenMTModel(targetLang),
-              ...(sourceLang ? { source_lang: mapLanguageToQwenMTModel(sourceLang) } : {})
-            }
-          }
-        }
-      })
-    })
-  ]
-})
-```
-
-`mapLanguageToQwenMTModel` lives at `src/main/services/translate/qwenMtMapping.ts` — port the table that previously lived in renderer's `config/translate.ts`. The earlier `src/main/ai/config/translate.ts` (deleted as dead code) was the half-port; it returns properly placed under translate, not ai.
-
-## Prompted (non-Qwen-MT) branch
-
-```ts
-async function buildPromptedRequest(req: TranslateRequest, model: Model): GenerateTextArgs {
-  const template = await preferenceService.get('feature.translate.model_prompt')
-  const targetLanguage = await translateLanguageService.getByCode(req.targetLang)
-  const prompt = template
-    .replaceAll('{{target_language}}', targetLanguage.value)
-    .replaceAll('{{text}}', req.sourceText)
-  return {
-    request: {
-      uniqueModelId: createUniqueModelId(model.providerId, model.id),
-      prompt
-    }
-  }
-}
-```
-
-No `assistantId` — `buildAgentParams` sees `assistant: undefined`, every chat feature is gated off. The request lands as a pure `provider + model + prompt` call. `temperature` / `maxOutputTokens` come from translate-specific Preferences if set, otherwise model defaults.
+- **Configured model**: `feature.translate.model_id` (a `UniqueModelId`
+  string `${providerId}::${modelId}`). Unset → throws
+  `translate.error.not_configured`, the renderer surfaces it as an i18n
+  toast.
+- **Prompted branch** (default chat-style models): interpolate
+  `feature.translate.model_prompt` with the target language label.
+- **Qwen-MT branch**: send raw text. The model handles language
+  routing internally — current code passes nothing in
+  `providerOptions.dashscope.translation_options`; see Open questions.
 
 ## Persistence
 
-`translateHistoryService` (existing DataApi) handles the row insert. `sourceLanguage: null` when source-lang is omitted — the schema is nullable and the renderer can backfill via subsequent edits if language detection runs later.
+When `req.messageId` is provided, a `PersistenceListener` carrying a
+`TranslationBackend` runs on stream success. The backend:
 
-## Streaming (later)
+1. Reads the target message.
+2. Strips any prior `data-translation` part (replace, not append).
+3. Appends a fresh `data-translation` part with `{ content,
+   targetLanguage, sourceLanguage? }`.
 
-The current renderer-side `translateText(_, _, onResponse)` accepts a streaming callback but the v2 IPC pipe is non-streaming. Two options when streaming is needed:
+Paused / errored terminals are no-ops — discard-on-cancel. The DB write
+completes before `Ai_StreamDone` because `dispatchToListeners` awaits
+serially, so renderer revalidation on `done` always sees the new part.
 
-1. **Reuse `AiStreamManager`** with a synthetic topicId (`translate:${historyId}`). Adds chat-style multicast and abort for free; downside is dragging in a topicId concept that doesn't really fit translate.
-2. **Dedicated translate stream IPC** via `MessageChannel` (similar to `generateImage`). Caller posts `'abort'`, Main posts incremental `'chunk'` then terminal `'done'`. AC scoped to handler; no service-side state.
+No `translate_history` table is written. That table type exists in
+`packages/shared/data/types/translate.ts` but is not currently
+populated by this flow — see Open questions.
 
-Option 2 is structurally cleaner. Defer until a UX request actually demands streaming — current v2 translate pages are post-hoc renders, not conversational.
+## Streaming
 
-## What ships in PR 1
+Option 1 from the original design (reuse `AiStreamManager` with a
+synthetic topicId, `translate:${uuid}`) shipped instead of the dedicated
+`MessageChannel` route. Rationale in practice:
 
-Minimum viable translate-on-Main:
+- The renderer already had `Ai_StreamChunk` / `Ai_StreamDone` /
+  `Ai_StreamError` subscriptions wired for chat; filtering by the
+  prefixed streamId reuses that surface with one extra string prefix
+  test.
+- Abort flows through `Ai_Stream_Abort({ topicId: streamId })` — same
+  channel as chat, no second AC plumbing.
+- The `translate:` prefix on the topicId is defensive: keeps `Ai_Stream_Abort`
+  from colliding with a real chat topic, and lets log filtering tell
+  the two apart.
 
-- `services/translate/translateService.ts` (named-export singleton, non-streaming, prompted + Qwen-MT branches)
-- `services/translate/qwenMtMapping.ts` (port the renderer table)
-- `services/translate/prompts.ts` (template fetch + interpolation)
-- `AiService.onInit` extended to register `IpcChannel.Translate_Run` → `translateService.translate`
-- Preload bridge `window.api.translate.translate(...)`
-- Renderer: `translateText` collapses to `await window.api.translate.translate({...})` — drops `getDefaultTranslateAssistant` entirely
-- `__tests__` covering both branches + persist toggle
+Concrete renderer surface (`src/renderer/src/services/TranslateService.ts`):
 
-Out of scope for PR 1: streaming, source-language auto-detect, batch translate, language-detection cache.
+```ts
+translateText(
+  text: string,
+  targetLanguage: TranslateLangCode | TranslateLanguage,
+  onResponse?: (accumulated: string, isComplete: boolean) => void,
+  signal?: AbortSignal
+): Promise<string>
+```
+
+`onResponse` paces UI updates (e.g. via `useSmoothStream`); `signal`
+maps to `Ai_Stream_Abort`.
 
 ## Why no `RequestFeature` for the prompted branch
 
-Tempting to make "translate" a `RequestFeature` so it composes with internal features. But translate doesn't share the chat scope (no assistant, no MCP tools, no messages) — letting INTERNAL_FEATURES run against it would either fire no-ops (cosmetic but wasteful) or accidentally trigger features we don't want (e.g. anthropicCache on a one-shot 100-token translate is pointless and miscaches the prefix).
+Tempting to make "translate" a `RequestFeature` so it composes with the
+internal feature stack. But translate doesn't share the chat scope (no
+assistant, no MCP tools, no messages) — letting `INTERNAL_FEATURES` run
+against it would either fire no-ops (cosmetic but wasteful) or
+accidentally trigger features we don't want (e.g. anthropicCache on a
+one-shot 100-token translate is pointless and miscaches the prefix).
 
-Keep translate's pipeline minimal and let the SHARED layer (`buildAgentParams` for sdkConfig + provider options + repair) be the only thing it borrows from chat. The Qwen-MT plugin is a one-feature `extraFeatures` injection — local to the translate call, doesn't leak back into chat scope.
+Keep translate's pipeline minimal and let the shared `streamPrompt`
+plumbing be the only thing it borrows from chat.
 
-## Open questions
+## Open questions / known gaps
 
-- **Source-lang auto-detect.** v1 had a renderer-side `detectLanguage` using a separate LLM call (rejecting Qwen-MT models). Move this to TranslateService too, or keep on renderer? If translate is fully Main-side, detection should live next to it. Filing as a follow-up.
-- **Per-call temperature override.** Translate quality is sensitive to temperature (low for literal, higher for fluent). Currently no UI surface. Either thread through `TranslateRequest` or pin to a Preference. Defer until product asks.
-- **`translate_history` for system-initiated translations** (e.g. ActionTranslate from selection). The history feature was opt-in renderer-side; preserve that in `persist: boolean` on the request.
+- **Qwen-MT `target_lang` parameter.** Current code sends raw text with
+  no `providerOptions.dashscope.translation_options.target_lang`. Either
+  Qwen-MT auto-routes (untested) or this is a regression vs. v1. If a
+  fix is needed, a one-off `extraFeatures` plugin on the translate call
+  is the right local injection point (it won't leak back into chat
+  scope).
+- **Source-lang auto-detect.** Renderer-side `useDetectLang` does the
+  detection (and rejects Qwen-MT for detection); detected language is
+  passed in as `sourceLangCode` on the request. Whether to move
+  detection to Main remains open.
+- **`translate_history` writes.** The renderer-side opt-in
+  `history-enabled` knob from v1 has no current Main-side equivalent.
+  When/if this lands, a `TranslateHistoryBackend` parallel to
+  `TranslationBackend` would be the place — both implement
+  `PersistenceBackend`, so a translate call could carry zero, one, or
+  both backends through the same listener.
+- **Per-call temperature override.** Translate quality is sensitive to
+  temperature (low for literal, higher for fluent). No UI surface today;
+  defer until product asks.

@@ -1,7 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { FileSearch } from 'lucide-react'
 import type { FC } from 'react'
@@ -24,7 +24,7 @@ const useKnowledgeBaseToolController = ({
   disabled
 }: Props) => {
   const { t } = useTranslation()
-  const { knowledgeBases } = useKnowledgeBases()
+  const { bases: knowledgeBases } = useKnowledgeBases()
 
   const configuredBases = useMemo(() => {
     const configuredIds = new Set(configuredKnowledgeBaseIds ?? [])

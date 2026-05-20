@@ -1,9 +1,5 @@
 /**
  * Agents domain API Schema definitions
- *
- * Covers agents, sessions, session messages, scheduled tasks, and skills.
- * Entity schemas live here (Rule C/D: entity role wins when a type is both
- * a response payload and an entity). DTOs are derived via .pick().
  */
 
 import { UniqueModelIdSchema } from '@shared/data/types/model'
@@ -25,6 +21,7 @@ export const SlashCommandSchema = z.strictObject({
   command: z.string(),
   description: z.string().optional()
 })
+
 export type SlashCommand = z.infer<typeof SlashCommandSchema>
 
 export const AgentToolSchema = z.strictObject({
@@ -101,10 +98,6 @@ export function sanitizeAgentConfiguration(raw: unknown): {
   }
 }
 
-// ============================================================================
-// Agent entity schemas (Rule C: entity schemas live in packages/shared/data/api/schemas/)
-// ============================================================================
-
 /** Core mutable fields on an agent (the cognitive blueprint). Workspace is
  *  intentionally NOT here — that's bound to a session at create time, see
  *  `AgentSessionEntitySchema.workspace`. */
@@ -153,18 +146,6 @@ export const AgentDetailSchema = AgentEntitySchema.extend({
 })
 export type AgentDetail = z.infer<typeof AgentDetailSchema>
 
-export const AgentSessionMessageEntitySchema = z.strictObject({
-  id: z.string(),
-  sessionId: z.string(),
-  role: z.enum(['user', 'assistant', 'tool', 'system']),
-  content: z.unknown(),
-  agentSessionId: z.string().nullable(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  createdAt: z.string(),
-  updatedAt: z.string()
-})
-export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntitySchema>
-
 export const ScheduledTaskEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string(),
@@ -181,6 +162,7 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   createdAt: z.string(),
   updatedAt: z.string()
 })
+
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 
 export const TaskRunLogEntitySchema = z.strictObject({
@@ -213,25 +195,16 @@ export const InstalledSkillSchema = z.strictObject({
 })
 export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 
-// ============================================================================
-// Agent DTOs (derived via .pick() from AgentEntitySchema — Rule C)
-// ============================================================================
-
 // `model` re-required because the picked entity field is optional (FK SET NULL).
 export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
   model: UniqueModelIdSchema
 })
+
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
 // Update picks directly from the entity (not from Create) to avoid .default([]) bleeding into partial updates.
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial()
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
-
-// Session DTOs / list query / route schemas live in `./sessions.ts`.
-
-// ============================================================================
-// Task DTOs
-// ============================================================================
 
 export const CreateTaskSchema = z.strictObject({
   name: z.string().min(1),

@@ -1,9 +1,9 @@
 /**
  * Agent domain entity types
  *
- * Types are derived from Zod entity schemas in `../api/schemas/agents`.
- * Import entity schemas from there; this file re-exports the inferred types for
- * backward-compatible consumption across main and renderer.
+ * Types are derived from Zod entity schemas in `../api/schemas/*`.
+ * This file re-exports inferred types for backward-compatible consumption
+ * across main and renderer.
  */
 
 export type {
@@ -11,13 +11,13 @@ export type {
   AgentConfiguration,
   AgentDetail,
   AgentEntity,
-  AgentSessionMessageEntity,
   AgentTool,
   InstalledSkill,
   ScheduledTaskEntity,
   SlashCommand,
   TaskRunLogEntity
 } from '../api/schemas/agents'
+export type { AgentSessionMessageEntity } from '../api/schemas/sessions'
 
 // ============================================================================
 // Core agent types (plain aliases for non-Zod consumers)
@@ -28,8 +28,6 @@ export type AgentType = 'claude-code'
 export type TaskScheduleType = 'cron' | 'interval' | 'once'
 
 export type TaskStatus = 'active' | 'paused' | 'completed'
-
-export type SessionMessageRole = 'user' | 'assistant' | 'tool' | 'system'
 
 // ============================================================================
 // Task DTOs (renderer hooks + main test seeding both consume these)

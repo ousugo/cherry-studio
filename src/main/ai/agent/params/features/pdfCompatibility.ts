@@ -1,9 +1,7 @@
 /**
- * PDF Compatibility Plugin
- *
- * Converts PDF FileParts to TextParts for providers that don't support native
- * PDF input. Uses `extractPdfText` (pdf-parse) to read directly from the
- * FilePart's base64 / Uint8Array payload on Main.
+ * Converts PDF FileParts → TextParts for providers without native PDF
+ * input. Runs before `anthropicCacheFeature` so cache estimation sees
+ * the extracted text.
  */
 
 import type { LanguageModelV3FilePart, LanguageModelV3Message } from '@ai-sdk/provider'
@@ -21,14 +19,7 @@ const logger = loggerService.withContext('pdfCompatibilityPlugin')
 
 type ContentPart = Exclude<LanguageModelV3Message['content'], string>[number]
 
-/**
- * AI SDK provider ids whose API natively supports PDF file input.
- *
- * Only first-party provider protocols (OpenAI Responses, Anthropic, Google)
- * plus cloud-hosted variants are included. Aggregators / generic
- * openai-compatible endpoints are excluded because they may route to
- * backends that reject the `file` part type.
- */
+/** First-party protocols only — aggregators / openai-compatible may route to backends that reject `file` parts. */
 const PDF_NATIVE_PROVIDER_IDS = new Set<AppProviderId>([
   'openai-responses',
   'anthropic',
@@ -40,11 +31,7 @@ const PDF_NATIVE_PROVIDER_IDS = new Set<AppProviderId>([
   'anthropic-vertex'
 ])
 
-/**
- * Provider ids that must always fall back to PDF text extraction even when
- * the model would otherwise qualify for native PDF (e.g. Qiniu GPT-5.4
- * regressed on native PDF parts — #15090).
- */
+/** Providers known to break on native PDF parts (e.g. Qiniu GPT-5.4 regression #15090). */
 const PDF_FORCE_TEXT_EXTRACTION_PROVIDER_IDS = new Set<string>(['qiniu'])
 
 function isPdfFilePart(part: ContentPart): part is LanguageModelV3FilePart & { mediaType: 'application/pdf' } {
@@ -99,8 +86,7 @@ function pdfCompatibilityMiddleware(
             logger.debug(`Converting PDF FilePart to TextPart for provider ${provider.id}`)
             newContent.push({ type: 'text', text: `${fileName}\n${textContent.trim()}` })
           } catch (error) {
-            // Best-effort: drop the PDF part on extraction failure — the model
-            // simply won't see it rather than the whole request failing.
+            // Drop the PDF on extraction failure so the request still goes through.
             logger.warn(
               `Failed to extract text from PDF ${fileName}`,
               error instanceof Error ? error : new Error(String(error))
@@ -127,11 +113,6 @@ const createPdfCompatibilityPlugin = (provider: Provider, model: Model, aiSdkPro
 
 import type { RequestFeature } from '../feature'
 
-/**
- * Convert PDF parts to extracted text for providers that can't natively
- * consume `file` content. Must run before Anthropic cache so cache token
- * estimation accounts for the extracted text.
- */
 export const pdfCompatibilityFeature: RequestFeature = {
   name: 'pdf-compatibility',
   contributeModelAdapters: (scope) => [createPdfCompatibilityPlugin(scope.provider, scope.model, scope.aiSdkProviderId)]

@@ -1,7 +1,7 @@
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
 import { defineTool, registerTool, TopicType } from '@renderer/components/chat/composer/tools/types'
 import { type QuickPanelInputAdapter, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
-import { getBuiltinSlashCommands } from '@shared/data/types/agentSlashCommands'
+import { getBuiltinSlashCommands } from '@shared/agents/agentSlashCommands'
 import { Terminal } from 'lucide-react'
 
 /**

@@ -74,6 +74,7 @@ export type AgentsTableMigrationSpec = {
    * `agents_legacy.*` tables so the filter is stable across remap.
    */
   validateWhereClause?: string
+  manualImport?: boolean
 }
 
 /**
@@ -338,26 +339,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'session_messages',
     targetTable: 'agent_session_message',
-    columns: [
-      // id is autoincrement in target, but copying source values is safe — SQLite
-      // resumes from max(rowid)+1 for new rows, so migrated IDs are preserved.
-      'id',
-      'session_id',
-      'role',
-      'content',
-      'agent_session_id',
-      'metadata',
-      {
-        name: 'created_at',
-        expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
-        sourceColumn: 'created_at'
-      },
-      {
-        name: 'updated_at',
-        expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000",
-        sourceColumn: 'updated_at'
-      }
-    ],
+    columns: [],
+    manualImport: true,
     // Only import messages whose session was successfully migrated; messages
     // referencing a filtered-out session would fail the FK check.
     whereClause: 'session_id IN (SELECT id FROM agent_session)',
@@ -429,6 +412,9 @@ export function buildAgentsImportStatements(dbPath: string, schemaInfo: AgentsSc
   for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
     const sourceSchema = schemaInfo[spec.sourceTable]
     if (!sourceSchema.exists) {
+      continue
+    }
+    if (spec.manualImport) {
       continue
     }
 

@@ -37,7 +37,6 @@ import { buildSearchSnippet, stripMarkdownFormatting } from '@shared/utils/messa
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
 import { topicService } from './TopicService'
-import { decodeCursor, encodeCursor } from './utils/cursor'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
@@ -85,6 +84,27 @@ const PREVIEW_LENGTH = 50
 const DEFAULT_LIMIT = 20
 const SEARCH_CHUNK_SIZE = 200
 const MIN_FTS_TERM_LENGTH = 3
+
+function decodeMessageSearchCursor(raw: string): { key: string; id: string } | null {
+  const sep = raw.indexOf(':')
+  if (sep < 0) {
+    logger.warn('search: cursor missing separator, falling back to first page', { cursor: raw })
+    return null
+  }
+
+  const key = raw.slice(0, sep)
+  const id = raw.slice(sep + 1)
+  if (!key || !id) {
+    logger.warn('search: cursor has empty key or id, falling back to first page', { cursor: raw })
+    return null
+  }
+
+  return { key, id }
+}
+
+function encodeMessageSearchCursor(key: string, id: string): string {
+  return `${key}:${id}`
+}
 
 /**
  * Convert database row to Message entity.
@@ -201,7 +221,7 @@ function canUseFts(terms: string[]): boolean {
 function decodeSearchCursor(raw: string | undefined): MessageSearchCursorRow | undefined {
   if (!raw) return undefined
 
-  const decoded = decodeCursor(raw)
+  const decoded = decodeMessageSearchCursor(raw)
   if (!decoded) return undefined
 
   const createdAt = Number(decoded.key)
@@ -749,7 +769,7 @@ export class MessageService {
     return {
       items: itemsWithCursor.map(({ cursorCreatedAt: _cursorCreatedAt, ...item }) => item),
       nextCursor: nextCursorBoundary
-        ? encodeCursor(String(nextCursorBoundary.cursorCreatedAt), nextCursorBoundary.messageId)
+        ? encodeMessageSearchCursor(String(nextCursorBoundary.cursorCreatedAt), nextCursorBoundary.messageId)
         : undefined
     }
   }

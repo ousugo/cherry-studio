@@ -1,13 +1,7 @@
 /**
- * AgentChatContextProvider — owns `agent-session:{id}` topics.
- *
- * Unlike the persistent provider, agent sessions:
- *  - read their state from the agents DB (via sessionService + agentService)
- *  - persist messages through agentSessionMessageService, not MessageService
- *  - resolve the model from the parent agent (session is a pure instance)
- *  - always submit a single model (no `@mention` fan-out) and pass a
- *    `userMessage` so `manager.send` injects it into any in-flight
- *    session on this topic.
+ * Owns `agent-session:{id}` topics. Reads state from sessions /
+ * agents, persists through `agentSessionMessageService`, single-model
+ * only (no @mention fan-out), passes `userMessage` for the inject path.
  */
 
 import { agentService } from '@data/services/AgentService'
@@ -16,7 +10,8 @@ import { sessionService } from '@data/services/SessionService'
 import { application } from '@main/core/application'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { trace } from '@opentelemetry/api'
-import type { CherryMessagePart, Message } from '@shared/data/types/message'
+import type { Message } from '@shared/data/types/message'
+import { v7 as uuidv7 } from 'uuid'
 
 import {
   extractAgentSessionId,
@@ -31,30 +26,6 @@ import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './C
 import type { MainDispatchRequest } from './dispatch'
 
 const rawTracer = trace.getTracer(TRACER_NAME)
-
-function getUserDisplayText(parts: readonly CherryMessagePart[] | undefined): string {
-  return (
-    parts
-      ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-      .map((part) => part.text)
-      .join('\n') || ''
-  )
-}
-
-function getFilePartPath(part: CherryMessagePart): string | undefined {
-  if (part.type !== 'file' || !('url' in part) || typeof part.url !== 'string') return undefined
-  return part.url.replace(/^file:\/\//, '')
-}
-
-function getAgentModelText(parts: readonly CherryMessagePart[] | undefined): string {
-  const displayText = getUserDisplayText(parts)
-  const filePaths = parts?.map(getFilePartPath).filter((path): path is string => !!path) ?? []
-
-  if (filePaths.length === 0) return displayText
-
-  const attachedFilesText = `Attached files:\n${filePaths.join('\n')}`
-  return displayText ? `${displayText}\n\n${attachedFilesText}` : attachedFilesText
-}
 
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
@@ -83,12 +54,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
     if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
 
-    // The request below sends ONLY the latest user turn — no prior messages.
-    // That works because Claude Code resumes context via its SDK session id
-    // (see `lastAgentSessionId` plumbing in provider/config.ts). Any future
-    // agent type that doesn't carry server-side conversation state would
-    // see only the latest turn here. Reject early until that path supplies
-    // a history loader.
+    // Below we ship ONLY the latest user turn — Claude Code resumes context via its
+    // SDK session id (see `lastAgentSessionId` in provider/config.ts). A non-CC
+    // agent without server-side state would lose history; reject until a loader exists.
     if (agent.type !== 'claude-code') {
       throw new Error(
         `AgentChatContextProvider only supports 'claude-code' agents (got '${agent.type}'); other types need a history loader before dispatch.`
@@ -97,11 +65,14 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const uniqueModelId = parseAgentSessionModel(agent.model)
 
-    const displayText = getUserDisplayText(req.userMessageParts)
-    const userText = getAgentModelText(req.userMessageParts)
+    const userText =
+      req.userMessageParts
+        ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+        .map((p) => p.text)
+        .join('\n') || ''
 
-    const userMessageId = crypto.randomUUID()
-    const userMessageParts = req.userMessageParts ?? [{ type: 'text', text: displayText }]
+    const userMessageId = uuidv7()
+    const userMessageParts = req.userMessageParts ?? [{ type: 'text', text: userText }]
     const createdAt = new Date().toISOString()
 
     const userMessage: Message = {
@@ -110,7 +81,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       parentId: null,
       role: 'user',
       data: { parts: userMessageParts },
-      searchableText: userText,
+      searchableText: '',
       status: 'success',
       siblingsGroupId: 0,
       createdAt,
@@ -118,27 +89,15 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     if (ctx.hasLiveStream) {
-      // Inject path: `manager.send` will push `userMessage` into the existing
-      // execution's pending queue and ignore `models`. The running execution
-      // already has its assistant placeholder + PersistenceListener from the
-      // start path — adding new ones here would (a) leave an orphan `pending`
-      // row that nothing writes to, and (b) collide on the listener id with
-      // the in-flight one (`Map.set` swaps the backend mid-stream). So:
-      // persist only the user row and skip the listener.
-      await agentSessionMessageService.persistUserMessage({
+      // Inject path — placeholder + listener already exist on the in-flight execution.
+      // Adding new ones would orphan a pending row and clobber the listener mid-stream.
+      await agentSessionMessageService.saveMessage({
         sessionId,
-        agentSessionId: null,
-        payload: {
-          message: {
-            id: userMessageId,
-            role: 'user',
-            assistantId: agentId,
-            topicId: req.topicId,
-            createdAt,
-            status: 'success',
-            data: { parts: userMessageParts }
-          },
-          blocks: []
+        message: {
+          id: userMessageId,
+          role: 'user',
+          status: 'success',
+          data: { parts: userMessageParts }
         }
       })
 
@@ -151,13 +110,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
     }
 
-    const assistantMessageId = crypto.randomUUID()
+    const assistantMessageId = uuidv7()
 
-    // OTel root span wraps this execution; child AI SDK spans inherit its
-    // traceId via stream-manager's `context.with` wrap. The traceId is
-    // recorded on the assistant message row for trace-viewer lookup. The
-    // `AdapterTracer` wrap ensures the root span itself is persisted to
-    // SpanCacheService (same pipe as the AI SDK children).
+    // Root span; AI SDK children inherit its traceId. `AdapterTracer` persists the root.
     const adapterTracer = new AdapterTracer(rawTracer, req.topicId, uniqueModelId)
     const rootSpan = adapterTracer.startSpan('chat.turn', {
       attributes: {
@@ -172,41 +127,24 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const traceId = rootSpan.spanContext().traceId
     application.get('SpanCacheService').setTopicId(traceId, req.topicId)
 
-    // Start path: persist user message + reserve the pending assistant
-    // placeholder atomically so the renderer's `useAgentSessionParts`
-    // refresh (triggered by the upcoming `pending` broadcast) observes
-    // both rows together.
-    await agentSessionMessageService.persistExchange({
+    // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
+    await agentSessionMessageService.saveMessages({
       sessionId,
-      agentSessionId: null,
-      user: {
-        payload: {
-          message: {
-            id: userMessageId,
-            role: 'user',
-            assistantId: agentId,
-            topicId: req.topicId,
-            createdAt,
-            status: 'success',
-            data: { parts: userMessageParts }
-          },
-          blocks: []
+      messages: [
+        {
+          id: userMessageId,
+          role: 'user',
+          status: 'success',
+          data: { parts: userMessageParts }
+        },
+        {
+          id: assistantMessageId,
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [] },
+          modelId: uniqueModelId
         }
-      },
-      assistant: {
-        payload: {
-          message: {
-            id: assistantMessageId,
-            role: 'assistant',
-            assistantId: agentId,
-            topicId: req.topicId,
-            createdAt: new Date().toISOString(),
-            status: 'pending',
-            data: { parts: [] }
-          },
-          blocks: []
-        }
-      }
+      ]
     })
 
     const agentPersistenceListener = new PersistenceListener({
@@ -215,6 +153,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       backend: new AgentMessageBackend({
         sessionId,
         agentId: agentId,
+        modelId: uniqueModelId,
         afterPersist: async (finalMessage) => {
           await topicNamingService.maybeRenameAgentSession(agentId, sessionId, userText, finalMessage)
         }

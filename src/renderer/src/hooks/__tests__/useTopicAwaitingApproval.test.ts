@@ -2,20 +2,15 @@ import type { TopicStreamStatus } from '@shared/ai/transport'
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { useTopicAwaitingApproval } from '../useTopicAwaitingApproval'
-
 const mockStatus = vi.fn<() => TopicStreamStatus | undefined>()
 
-vi.mock('../useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({
-    status: mockStatus(),
-    activeExecutions: [],
-    awaitingApprovalAnchors: [],
-    isPending: false,
-    isFulfilled: false,
-    markSeen: () => {}
-  })
+// Mock at the cache layer rather than at useTopicStreamStatus — intra-module
+// vi.mock can't intercept calls between functions in the same source file.
+vi.mock('@renderer/data/hooks/useCache', () => ({
+  useSharedCache: () => [{ status: mockStatus(), activeExecutions: [], awaitingApprovalAnchors: [] }]
 }))
+
+import { useTopicAwaitingApproval } from '../useTopicStreamStatus'
 
 describe('useTopicAwaitingApproval', () => {
   it('is true iff the cross-window shared-cache status is awaiting-approval', () => {

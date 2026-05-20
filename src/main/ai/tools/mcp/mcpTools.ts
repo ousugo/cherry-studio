@@ -46,11 +46,8 @@ function createMcpTool(mcpTool: MCPTool, disabledAutoApproveTools?: readonly str
         throw new Error(mcpResultToTextSummary(result) || 'MCP tool call failed')
       }
 
-      // Return the full MCPCallToolResponse so the renderer's ToolUIPart has
-      // access to the original content array (images, audio, resources). The
-      // model-facing string view is produced by `toModelOutput` below so
-      // multimodal parts collapse to placeholders instead of being silently
-      // dropped.
+      // Full MCPCallToolResponse for the renderer's ToolUIPart (multimodal
+      // parts intact); `toModelOutput` below produces the string view.
       return {
         ...result,
         metadata: {
@@ -78,12 +75,7 @@ function toEntry(mcpTool: MCPTool, server: MCPServer): ToolEntry {
   }
 }
 
-/**
- * Subset of active servers whose tool ids prefix-match any id in
- * `selectedToolIds`. Prefix derives from `buildFunctionCallToolName` —
- * `mcp__<camelCase(serverName)>__<rest>` — so the same camel-casing must
- * be applied here for the match to hold.
- */
+/** Prefix `mcp__<camelCase(serverName)>__<rest>` matches `buildFunctionCallToolName`. */
 function filterServersByToolIds(
   servers: readonly MCPServer[],
   selectedToolIds: ReadonlySet<string>
@@ -100,32 +92,18 @@ function filterServersByToolIds(
 
 export interface SyncMcpToolsToRegistryOptions {
   /**
-   * Restrict the expensive per-server `listTools` round-trip to servers
-   * whose tool ids appear in this set. Servers absent from the set keep
-   * their existing registry entries untouched — neither relisted nor
-   * evicted. Stale-server cleanup (dropping entries from servers that are
-   * no longer active at all) still runs globally.
-   *
-   * Omit to sync every active server — the legacy "full reconcile"
-   * behaviour. Suitable for one-shot bootstrap or admin actions where the
-   * caller has no selection context.
+   * Restrict the per-server `listTools` round-trip to servers owning a
+   * selected tool. Stale-server cleanup still runs globally. Omit for
+   * full reconcile (bootstrap / admin).
    */
   readonly selectedToolIds?: ReadonlySet<string>
 }
 
 /**
- * Reconcile the registry's MCP entries with the live server snapshot. Adds
- * entries for tools currently listable, replaces existing ones (so schema
- * changes take effect immediately), and drops entries whose tools are no
- * longer in the snapshot — covering both server uninstall and per-server
- * `tools/list_changed` notifications without an explicit event subscription.
- *
- * Per-request callers should pass `selectedToolIds` so we don't pay the
- * `listTools` round-trip on N-1 servers when only one server's tools were
- * actually selected. See {@link SyncMcpToolsToRegistryOptions}.
- *
- * Tests pass a fresh registry; production calls default to the module
- * singleton.
+ * Reconcile the registry against the live server snapshot. Adds new
+ * tools, replaces existing (so schema changes take effect), drops
+ * deactivated — covers server uninstall and `tools/list_changed`
+ * without subscribing to events.
  */
 export async function syncMcpToolsToRegistry(
   reg: ToolRegistry = registry,

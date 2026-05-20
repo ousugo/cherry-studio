@@ -161,7 +161,7 @@ describe('agentHandlers', () => {
       createAgentMock.mockResolvedValueOnce(mockAgent)
 
       const result = await agentHandlers['/agents'].POST({
-        body: { type: 'claude-code', name: 'Test', model: 'claude-3-5-sonnet' }
+        body: { type: 'claude-code', name: 'Test', model: 'anthropic::claude-3-5-sonnet' }
       } as never)
 
       expect(createAgentMock).toHaveBeenCalledOnce()

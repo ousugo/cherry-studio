@@ -4,6 +4,8 @@ import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AiService } from '@main/ai/AiService'
 import { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
+import { JobManager } from '@main/core/job/JobManager'
+import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { AgentBootstrapService } from '@main/services/AgentBootstrapService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
@@ -113,7 +115,9 @@ export const services = {
   KnowledgeRuntimeService,
   AgentBootstrapService,
   ApiServerService,
-  AppUpdaterService
+  AppUpdaterService,
+  SchedulerService,
+  JobManager
 } as const
 
 /** Auto-derived service name to instance type mapping */

@@ -1,21 +1,15 @@
 /**
  * Main-process file reader for AI message parts.
  *
- * Cherry's v2 messages store `FileUIPart.url` as `file://${absolutePath}`
- * (see renderer `MessageEditor` / `blocksToparts`). AI SDK's
- * `convertToModelMessages` won't fetch `file://` URLs — they'd reach the
- * provider as bogus links. This module rewrites them in-place to base64
- * `data:` URLs so the provider receives actual bytes.
+ * Cherry's v2 messages store `FileUIPart.url` as `file://${absolutePath}`.
+ * AI SDK's `convertToModelMessages` won't fetch `file://` URLs — they'd
+ * reach the provider as bogus links. This module rewrites them in-place
+ * to base64 `data:` URLs so the provider receives actual bytes.
  *
- * Ported (with Main-side file I/O) from renderer
- * `aiCore/prepareParams/fileProcessor.ts` (origin/main). Differences:
- *   - `window.api.file.read` → `fs.promises.readFile` (Main has direct disk access).
- *   - No `i18next` error toasts — callers decide how to surface failures.
- *   - `handleGeminiFileUpload` / `handleOpenAILargeFileUpload` (provider-side
- *     file APIs) are deferred. See `./largeFileUpload.ts` for the verbatim
- *     renderer source and a port TODO checklist. Until that lands, large
- *     PDFs / media fall back to inline base64 here — fine for small files,
- *     problematic for anything near provider payload limits.
+ * Large-file upload through provider File APIs (Gemini File / OpenAI
+ * Files) is not yet wired — see
+ * `v2-refactor-temp/docs/ai/large-file-upload-port.md`. Until that
+ * lands, large PDFs / media fall back to inline base64 here.
  */
 
 import fs from 'node:fs/promises'

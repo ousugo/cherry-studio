@@ -196,7 +196,6 @@ export interface ClaudeCodeSessionOptions {
 
 /**
  * Build session-level ClaudeCodeSettings from Cherry Studio's agent session.
- * Extracted from ClaudeCodeService.invoke() lines 106-545.
  */
 export async function buildClaudeCodeSessionSettings(
   session: AgentSessionEntity,

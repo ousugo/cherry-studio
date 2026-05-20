@@ -6,25 +6,8 @@ import type { ActiveStream } from '../types'
 import type { StreamLifecycle } from './StreamLifecycle'
 
 /**
- * Chat lifecycle — every behaviour the chat stream surface needs from the
- * manager beyond raw stream orchestration.
- *
- * Owned here (not in `AiStreamManager`) so prompt streams (and any future
- * stateless stream kind) don't need negative "don't broadcast" / "don't
- * grace-clean" flags. Removing the chat policies just means swapping the
- * strategy object.
- *
- * What this implements:
- *  - Cross-window status broadcast (`topic.stream.statuses.${topicId}`)
- *    on `pending → streaming → terminal`. Renderer observers
- *    (`useSharedCache('topic.stream.statuses.…')`) drive sidebar indicators,
- *    backup gates, etc., off of these writes.
- *  - `canAttach: true` — chat windows re-attach across mounts/refresh.
- *  - 30 s grace-period cleanup so a freshly-mounted renderer can still
- *    call `attach` and retrieve the final assistant message.
- *
- * `evictStream` (the manager's "drop without grace" primitive) is invoked
- * via the `evict` callback when the timer fires.
+ * Chat strategy: cross-window status broadcast (`topic.stream.statuses.<topicId>`),
+ * attach re-enabled, 30 s grace-period before eviction.
  */
 export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycle {
   const toPendingPayload = (message: Message): StreamPendingQueueItem['payload'] => {
@@ -48,11 +31,8 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
     for (const [modelId, exec] of stream.executions) {
       const entry: ActiveExecution = { executionId: modelId, anchorMessageId: exec.anchorMessageId }
       if (exec.status === 'streaming') activeExecutions.push(entry)
-      // Single Main-side authority for the approval anchor's identity. Any
-      // exec currently waiting (incl. after the exec itself has terminated —
-      // MCP `needsApproval` ends cleanly via `done` with the flag still set)
-      // is broadcast here so the renderer reads per-message identity directly
-      // instead of inferring from `message.parts` / SWR-lagged `message.status`.
+      // Main-side authoritative approval-anchor identity; renderer reads this
+      // instead of inferring from `parts` / SWR-lagged status.
       if (exec.awaitingApproval) awaitingApprovalAnchors.push(entry)
 
       for (const message of exec.pendingMessages.list()) {

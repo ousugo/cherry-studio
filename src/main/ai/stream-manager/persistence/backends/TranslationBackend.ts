@@ -1,22 +1,11 @@
 /**
- * Message-bound translation backend.
+ * On success, strip any prior `data-translation` part from the target
+ * message and append a fresh one with the accumulated text. Paused /
+ * errored terminals are no-ops (discard-on-cancel).
  *
- * Replaces the renderer's per-chunk `editMessage` → PATCH path with a single
- * write on stream success: strip any prior `data-translation` part from the
- * target message and append a fresh one carrying the accumulated translation
- * text. Paired with `PersistenceListener` and instantiated by
- * `TranslateService.open` only when the request carries a `messageId`.
- *
- * Ordering guarantee for the renderer: `TranslateService.open` registers this
- * backend's `PersistenceListener` BEFORE `WebContentsListener`, and
- * `AiStreamManager.dispatchToListeners` awaits each listener serially on
- * terminal events. The DB write therefore completes before `Ai_StreamDone`
- * fires, so the renderer can trust the standard done IPC as "safe to refresh"
- * without a dedicated persisted-event channel.
- *
- * Non-success terminals (paused/error) are intentionally a no-op — translation
- * is discard-on-cancel from the user's perspective, unlike chat which keeps
- * partial assistant replies on pause/error.
+ * `dispatchToListeners` awaits serially, so the DB write completes
+ * before `Ai_StreamDone` — the renderer can refresh on the standard
+ * done IPC.
  */
 
 import { messageService } from '@main/data/services/MessageService'

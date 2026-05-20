@@ -1,5 +1,6 @@
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { renderHook, waitFor } from '@testing-library/react'
+import { useEffect, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useChatWithHistory } from '../useChatWithHistory'
@@ -21,8 +22,23 @@ vi.mock('@ai-sdk/react', () => ({
 // stub it here so each `it()` can advance the per-topic view
 // synchronously by calling `setMockStatus`.
 const mockTopicStreamStatus = vi.fn()
+const LIVE_STATUSES = new Set(['streaming', 'pending'])
+const TERMINAL_STATUSES = new Set(['done', 'aborted', 'error'])
 vi.mock('../useTopicStreamStatus', () => ({
-  useTopicStreamStatus: (topicId: string) => mockTopicStreamStatus(topicId)
+  useTopicStreamStatus: (topicId: string) => mockTopicStreamStatus(topicId),
+  useTopicDbRefreshOnTerminal: (topicId: string, refresh: () => Promise<unknown>) => {
+    const status = mockTopicStreamStatus(topicId)?.status as string | undefined
+    const prevRef = useRef<string | undefined>(undefined)
+    const refreshRef = useRef(refresh)
+    refreshRef.current = refresh
+    useEffect(() => {
+      const prev = prevRef.current
+      prevRef.current = status
+      if (prev && LIVE_STATUSES.has(prev) && status && TERMINAL_STATUSES.has(status)) {
+        void refreshRef.current().catch(() => {})
+      }
+    }, [status])
+  }
 }))
 
 describe('useChatWithHistory', () => {

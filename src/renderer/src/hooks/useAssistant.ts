@@ -15,7 +15,7 @@
  *  - {@link import('./useTopic').useTopicsByAssistant} for topics
  *  - {@link import('./useModel').useModelById} for the model
  *  - {@link import('./useMCPServers').useMCPServer} for MCP servers
- *  - {@link import('./useKnowledgeBaseDataApi').useKnowledgeBaseById} for KBs
+ *  - {@link import('./useKnowledgeBase').useKnowledgeBases} for KBs
  */
 
 import { useMutation, useQuery } from '@data/hooks/useDataApi'

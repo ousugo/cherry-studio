@@ -830,8 +830,9 @@ describe('AiStreamManager', () => {
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
 
       // Grace-period cleanup does not write again — the `done` value
-      // lingers in SharedCache until each window flips its local
-      // `topic.stream.seen.*` flag.
+      // lingers in SharedCache so renderers can observe the terminal
+      // transition; per-window "already animated" lives off-schema in
+      // casual memory cache (`topic.stream.seen.*`).
       vi.advanceTimersByTime(31_000)
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
     })

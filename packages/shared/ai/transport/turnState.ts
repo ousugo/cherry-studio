@@ -31,8 +31,9 @@ export interface TurnStateFlags {
    */
   isTerminal: boolean
   /**
-   * `status === 'done'`. Consumers AND this with the window-local `seen`
-   * cache to decide whether to surface the fulfilled badge.
+   * `status === 'done'`. `useTopicStreamStatus` ANDs this with a
+   * window-local "already animated" flag (off-schema casual memory
+   * cache) before surfacing the fulfilled badge.
    */
   isFulfilledCandidate: boolean
 }

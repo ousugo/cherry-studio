@@ -56,7 +56,9 @@ describe('useIsActiveTurnTarget', () => {
 
   it('false for a user message even when the topic has awaiting anchors', () => {
     awaitingApprovalAnchorsMock.mockReturnValue([{ executionId: 'p::m', anchorMessageId: 'OTHER' }])
-    expect(renderHook(() => useIsActiveTurnTarget(msg({ role: 'user', status: 'success' }))).result.current).toBe(false)
+    expect(
+      renderHook(() => useIsActiveTurnTarget(msg({ role: 'user', status: 'success' as never }))).result.current
+    ).toBe(false)
   })
 
   it('false for an old completed assistant (no signal matches)', () => {

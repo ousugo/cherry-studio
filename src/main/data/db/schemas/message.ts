@@ -25,9 +25,9 @@ export const messageTable = sqliteTable(
       .references(() => topicTable.id, { onDelete: 'cascade' }),
     // Message role: user, assistant, system
     role: text().notNull(),
-    // Main content - contains blocks[] (inline JSON)
+    // Main content - contains AI SDK UIMessage.parts (inline JSON)
     data: text({ mode: 'json' }).$type<MessageData>().notNull(),
-    // Searchable text extracted from data.parts / legacy data.blocks (populated by trigger, used for FTS5)
+    // Searchable text extracted from data.parts (populated by trigger, used for FTS5)
     searchableText: text().notNull().default(''),
     // Final status: SUCCESS, ERROR, PAUSED
     status: text().notNull(),
@@ -112,13 +112,6 @@ const searchableTextExpression = (dataExpression: string) => `COALESCE((
       AND json_extract(value, '$.data.message') IS NOT NULL
       AND trim(json_extract(value, '$.data.message')) != ''
 
-    UNION ALL
-
-    SELECT json_extract(value, '$.content') AS text
-    FROM json_each(json_extract(${dataExpression}, '$.blocks'))
-    WHERE json_extract(value, '$.type') = 'main_text'
-      AND json_extract(value, '$.content') IS NOT NULL
-      AND trim(json_extract(value, '$.content')) != ''
   )
 ), '')`
 
@@ -138,8 +131,8 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
 
   // Trigger: populate searchable_text and sync FTS on INSERT.
   // COALESCE wraps group_concat because group_concat returns NULL when no text
-  // parts / main_text blocks match (e.g. tool-only or empty messages).
-  `CREATE TRIGGER message_ai AFTER INSERT ON message BEGIN
+  // parts match (e.g. tool-only or empty messages).
+  `CREATE TRIGGER IF NOT EXISTS message_ai AFTER INSERT ON message BEGIN
     UPDATE message SET searchable_text = ${searchableTextExpression('NEW.data')} WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
@@ -171,7 +164,7 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
 /** Examples */
 
 /**
- * SQL expression to extract searchable text from data.parts / legacy data.blocks.
+ * SQL expression to extract searchable text from data.parts.
  */
 // export const SEARCHABLE_TEXT_EXPRESSION = `
 //   ${searchableTextExpression('NEW.data')}

@@ -31,13 +31,12 @@ import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName, useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
-import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { AddNewTopicPayload } from '@renderer/pages/home/types'
 import type { FileMetadata, Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
@@ -426,7 +425,7 @@ const ChatComposerInner = ({
     setModel
   } = useAssistant(topic.assistantId)
   const { updateTopic } = useTopicMutations()
-  const { knowledgeBases: allKnowledgeBases } = useKnowledgeBases()
+  const { bases: allKnowledgeBases } = useKnowledgeBases()
   const { models: mentionableModels } = useModels()
   const { providers } = useProviders()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')

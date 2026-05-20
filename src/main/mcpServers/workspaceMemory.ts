@@ -158,10 +158,9 @@ class WorkspaceMemoryServer {
   private async getWorkspacePath(): Promise<string> {
     const agent = await agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
-    // Workspace now lives on the session (CMA Environment binding). This MCP
+    // Workspace lives on the session (CMA Environment binding); this MCP
     // server is keyed by agentId, so resolve via the agent's most recent
-    // session — if it gets wired into a per-session context later, swap to
-    // accepting sessionId directly.
+    // session.
     const sessions = await sessionService.listByCursor({ agentId: this.agentId, limit: 1 })
     const workspace = sessions.items[0]?.workspace?.path
     if (!workspace) throw new McpError(ErrorCode.InternalError, 'No session workspace available for this agent')

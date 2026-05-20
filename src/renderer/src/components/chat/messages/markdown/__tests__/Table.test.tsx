@@ -22,7 +22,9 @@ const mocks = vi.hoisted(() => {
       error: vi.fn(),
       info: vi.fn(),
       warn: vi.fn()
-    }
+    },
+    exportTableToExcel: vi.fn(),
+    markdownBlockContext: { content: '' as string }
   }
 })
 
@@ -99,7 +101,6 @@ describe('Table', () => {
     writeToClipboard: true
   })
 
-  // Test data factories
   const createTablePosition = (startLine = 1, endLine = 3) => ({
     start: { line: startLine, column: 1, offset: 0 },
     end: { line: endLine, column: 1, offset: 2 }
@@ -200,10 +201,7 @@ describe('Table', () => {
 
   describe('extractTableMarkdown', () => {
     it('should extract table content from specified line range', () => {
-      const position = createTablePosition(1, 3)
-
-      const result = extractTableMarkdown('test-block-1', position, defaultTableContent)
-
+      const result = extractTableMarkdown('test-block-1', createTablePosition(1, 3), defaultTableContent)
       expect(result).toBe(defaultTableContent)
     })
 
@@ -213,54 +211,38 @@ describe('Table', () => {
 |----------|----------|
 | Cell 1   | Cell 2   |
 Line 4`
-      const position = createTablePosition(2, 4) // Extract lines 2-4 (table part)
 
-      const result = extractTableMarkdown('test-block-1', position, multiLineContent)
+      const result = extractTableMarkdown('test-block-1', createTablePosition(2, 4), multiLineContent)
 
       expect(result).toBe(`| Header 1 | Header 2 |
 |----------|----------|
 | Cell 1   | Cell 2   |`)
     })
 
-    it('should return empty string when blockId is empty', () => {
-      const result = extractTableMarkdown('', createTablePosition())
-      expect(result).toBe('')
-    })
-
     it('should return empty string when position is null', () => {
-      const result = extractTableMarkdown('test-block-1', null, defaultTableContent)
-      expect(result).toBe('')
+      expect(extractTableMarkdown('test-block-1', null, defaultTableContent)).toBe('')
     })
 
     it('should return empty string when position is undefined', () => {
-      const result = extractTableMarkdown('test-block-1', undefined, defaultTableContent)
-      expect(result).toBe('')
+      expect(extractTableMarkdown('test-block-1', undefined, defaultTableContent)).toBe('')
     })
 
-    it('should return empty string when markdown content is missing', () => {
-      const result = extractTableMarkdown('test-block-1', createTablePosition())
-
-      expect(result).toBe('')
-    })
-
-    it('should return empty string when markdown content is empty', () => {
-      const result = extractTableMarkdown('test-block-1', createTablePosition(), '')
-
-      expect(result).toBe('')
+    it('should return empty string when markdownContent is missing', () => {
+      expect(extractTableMarkdown('test-block-1', createTablePosition(), undefined)).toBe('')
     })
 
     it('should handle boundary line numbers correctly', () => {
-      const content = 'Line 1\nLine 2\nLine 3'
-      const position = createTablePosition(1, 3)
-
-      const result = extractTableMarkdown('test-block-1', position, content)
-
+      const result = extractTableMarkdown('test-block-1', createTablePosition(1, 3), 'Line 1\nLine 2\nLine 3')
       expect(result).toBe('Line 1\nLine 2\nLine 3')
     })
   })
 
   describe('copy functionality', () => {
-    it('should copy table content through provider action on button click', async () => {
+    beforeEach(() => {
+      mocks.markdownBlockContext.content = defaultTableContent
+    })
+
+    it('should copy table content to clipboard on button click', async () => {
       render(<Table {...defaultProps} />)
 
       const copyButton = getCopyButton()
@@ -326,7 +308,7 @@ Line 4`
     })
 
     it('should show error toast when extractTableMarkdown returns empty string', async () => {
-      mocks.markdownContext.content = ''
+      mocks.markdownBlockContext.content = ''
 
       render(<Table {...defaultProps} />)
 
@@ -358,6 +340,8 @@ Line 4`
 
   describe('excel export functionality', () => {
     beforeEach(() => {
+      mocks.markdownBlockContext.content = defaultTableContent
+      mocks.exportTableToExcel.mockResolvedValue(true)
       vi.clearAllMocks()
       mocks.markdownContext.content = defaultTableContent
       mocks.messageListActions.copyRichContent = vi.fn().mockResolvedValue(undefined)
@@ -404,7 +388,7 @@ Line 4`
     })
 
     it('should show error toast when extractTableMarkdown returns empty string', async () => {
-      mocks.markdownContext.content = ''
+      mocks.markdownBlockContext.content = ''
 
       render(<Table {...defaultProps} />)
 

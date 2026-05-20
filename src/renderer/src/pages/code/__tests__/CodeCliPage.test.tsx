@@ -107,10 +107,6 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: testState.setTimeoutTimer })
 }))
 
-vi.mock('@renderer/services/AssistantService', () => ({
-  getAssistantSettings: () => ({})
-}))
-
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: {
     withContext: () => ({
@@ -119,19 +115,6 @@ vi.mock('@renderer/services/LoggerService', () => ({
       warn: vi.fn()
     })
   }
-}))
-
-vi.mock('@renderer/services/ModelService', () => ({
-  getModelUniqId: (model: { id: string }) => model.id
-}))
-
-vi.mock('@renderer/store', () => ({
-  useAppSelector: () => null
-}))
-
-vi.mock('@renderer/utils/naming', () => ({
-  getFancyProviderName: (provider: { name?: string; id?: string }) => provider.name ?? provider.id ?? '',
-  sanitizeProviderName: (name: string) => name
 }))
 
 vi.mock('@shared/config/providers', () => ({

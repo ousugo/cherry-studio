@@ -179,8 +179,15 @@
     {
       "idx": 25,
       "version": "6",
-      "when": 1779176271667,
-      "tag": "0025_broad_jackpot",
+      "when": 1779183817228,
+      "tag": "0025_left_black_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1779274725867,
+      "tag": "0026_powerful_bloodscream",
       "breakpoints": true
     }
   ],

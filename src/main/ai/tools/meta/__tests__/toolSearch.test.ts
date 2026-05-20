@@ -1,4 +1,4 @@
-import type { Tool } from 'ai'
+import { jsonSchema, type Tool } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { ToolRegistry } from '../../registry'
@@ -10,7 +10,7 @@ function makeEntry(overrides: Partial<ToolEntry> & Pick<ToolEntry, 'name'>): Too
     namespace: 'mcp:s1',
     description: `${overrides.name} description`,
     defer: 'auto',
-    tool: { description: 'inner', inputSchema: { type: 'object' } } as unknown as Tool,
+    tool: { description: 'inner', inputSchema: jsonSchema({ type: 'object' }) } as unknown as Tool,
     ...overrides
   }
 }

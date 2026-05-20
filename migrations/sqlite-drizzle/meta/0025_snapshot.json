@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "009711d2-99e8-43e9-81c0-09f2543505c7",
+  "id": "eda75c54-7724-4482-bfa5-d78033f6c964",
   "prevId": "95151cb9-d35d-4a62-b6fb-5d48d05eefdd",
   "tables": {
     "agent": {
@@ -36,6 +36,14 @@
           "autoincrement": false,
           "default": "''"
         },
+        "accessible_paths": {
+          "name": "accessible_paths",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
         "instructions": {
           "name": "instructions",
           "type": "text",
@@ -47,7 +55,7 @@
           "name": "model",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "plan_model": {
@@ -88,12 +96,13 @@
           "autoincrement": false,
           "default": "'{}'"
         },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -128,41 +137,13 @@
           "columns": ["type"],
           "isUnique": false
         },
-        "agent_order_key_idx": {
-          "name": "agent_order_key_idx",
-          "columns": ["order_key"],
+        "agent_sort_order_idx": {
+          "name": "agent_sort_order_idx",
+          "columns": ["sort_order"],
           "isUnique": false
         }
       },
-      "foreignKeys": {
-        "agent_model_user_model_id_fk": {
-          "name": "agent_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_plan_model_user_model_id_fk": {
-          "name": "agent_plan_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["plan_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_small_model_user_model_id_fk": {
-          "name": "agent_small_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["small_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -488,11 +469,18 @@
           "notNull": true,
           "autoincrement": false
         },
+        "agent_type": {
+          "name": "agent_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "agent_id": {
           "name": "agent_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "name": {
@@ -510,19 +498,81 @@
           "autoincrement": false,
           "default": "''"
         },
-        "workspace_id": {
-          "name": "workspace_id",
+        "accessible_paths": {
+          "name": "accessible_paths",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "instructions": {
+          "name": "instructions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "plan_model": {
+          "name": "plan_model",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "order_key": {
-          "name": "order_key",
+        "small_model": {
+          "name": "small_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "mcps": {
+          "name": "mcps",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "allowed_tools": {
+          "name": "allowed_tools",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "slash_commands": {
+          "name": "slash_commands",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "configuration": {
+          "name": "configuration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -540,9 +590,19 @@
         }
       },
       "indexes": {
-        "agent_session_order_key_idx": {
-          "name": "agent_session_order_key_idx",
-          "columns": ["order_key"],
+        "agent_session_agent_id_idx": {
+          "name": "agent_session_agent_id_idx",
+          "columns": ["agent_id"],
+          "isUnique": false
+        },
+        "agent_session_model_idx": {
+          "name": "agent_session_model_idx",
+          "columns": ["model"],
+          "isUnique": false
+        },
+        "agent_session_sort_order_idx": {
+          "name": "agent_session_sort_order_idx",
+          "columns": ["sort_order"],
           "isUnique": false
         }
       },
@@ -553,16 +613,7 @@
           "tableTo": "agent",
           "columnsFrom": ["agent_id"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_session_workspace_id_agent_workspace_id_fk": {
-          "name": "agent_session_workspace_id_agent_workspace_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "agent_workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -1070,14 +1121,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'a0'"
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1104,11 +1147,6 @@
         "assistant_created_at_idx": {
           "name": "assistant_created_at_idx",
           "columns": ["created_at"],
-          "isUnique": false
-        },
-        "assistant_order_key_idx": {
-          "name": "assistant_order_key_idx",
-          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -1504,6 +1542,332 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "job_schedule": {
+      "name": "job_schedule",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "trigger": {
+          "name": "trigger",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "job_input_template": {
+          "name": "job_input_template",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "next_run": {
+          "name": "next_run",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_run": {
+          "name": "last_run",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "catch_up_policy": {
+          "name": "catch_up_policy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "job_schedule_type_name_uq": {
+          "name": "job_schedule_type_name_uq",
+          "columns": ["type", "name"],
+          "isUnique": true
+        },
+        "job_schedule_enabled_next_run_idx": {
+          "name": "job_schedule_enabled_next_run_idx",
+          "columns": ["enabled", "next_run"],
+          "isUnique": false
+        },
+        "job_schedule_type_idx": {
+          "name": "job_schedule_type_idx",
+          "columns": ["type"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "job": {
+      "name": "job",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "priority": {
+          "name": "priority",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "queue": {
+          "name": "queue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "schedule_id": {
+          "name": "schedule_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "scheduled_at": {
+          "name": "scheduled_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "attempt": {
+          "name": "attempt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "max_attempts": {
+          "name": "max_attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 3
+        },
+        "input": {
+          "name": "input",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "output": {
+          "name": "output",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cancel_requested": {
+          "name": "cancel_requested",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "timeout_ms": {
+          "name": "timeout_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "job_queue_status_scheduled_at_idx": {
+          "name": "job_queue_status_scheduled_at_idx",
+          "columns": ["queue", "status", "scheduled_at"],
+          "isUnique": false
+        },
+        "job_status_idx": {
+          "name": "job_status_idx",
+          "columns": ["status"],
+          "isUnique": false
+        },
+        "job_schedule_id_finished_at_idx": {
+          "name": "job_schedule_id_finished_at_idx",
+          "columns": ["schedule_id", "finished_at"],
+          "isUnique": false
+        },
+        "job_parent_id_idx": {
+          "name": "job_parent_id_idx",
+          "columns": ["parent_id"],
+          "isUnique": false
+        },
+        "job_idempotency_key_partial_uq": {
+          "name": "job_idempotency_key_partial_uq",
+          "columns": ["idempotency_key"],
+          "isUnique": true,
+          "where": "\"job\".\"idempotency_key\" IS NOT NULL AND \"job\".\"status\" NOT IN ('completed','failed','cancelled')"
+        }
+      },
+      "foreignKeys": {
+        "job_schedule_id_job_schedule_id_fk": {
+          "name": "job_schedule_id_job_schedule_id_fk",
+          "tableFrom": "job",
+          "tableTo": "job_schedule",
+          "columnsFrom": ["schedule_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "job_parent_id_job_id_fk": {
+          "name": "job_parent_id_job_id_fk",
+          "tableFrom": "job",
+          "tableTo": "job",
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "job_status_check": {
+          "name": "job_status_check",
+          "value": "\"job\".\"status\" IN ('pending','delayed','running','completed','failed','cancelled')"
+        }
+      }
     },
     "knowledge_base": {
       "name": "knowledge_base",
@@ -3276,69 +3640,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
-    },
-    "agent_workspace": {
-      "name": "agent_workspace",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "path": {
-          "name": "path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agent_workspace_path_unique_idx": {
-          "name": "agent_workspace_path_unique_idx",
-          "columns": ["path"],
-          "isUnique": true
-        },
-        "agent_workspace_order_key_idx": {
-          "name": "agent_workspace_order_key_idx",
-          "columns": ["order_key"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
     }
   },
   "views": {},
@@ -3346,10 +3647,7 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {
-      "\"agent\".\"sort_order\"": "\"agent\".\"order_key\"",
-      "\"agent_session\".\"sort_order\"": "\"agent_session\".\"order_key\""
-    }
+    "columns": {}
   },
   "internal": {
     "indexes": {

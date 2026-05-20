@@ -1,19 +1,6 @@
 /**
- * Anthropic `anthropic-beta` header plugin.
- *
- * Sets `params.headers['anthropic-beta']` to the comma-joined list of beta
- * flag names returned by `addAnthropicHeaders`, for Anthropic-DIRECT requests
- * only (Bedrock handles beta flags via `providerOptions.bedrock.anthropicBeta`
- * — see `buildBedrockProviderOptions` in `utils/options.ts`; Vertex may or
- * may not apply here depending on the specific flag).
- *
- * Kept separate from `anthropicCachePlugin` because the two gate on
- * orthogonal conditions:
- *   - `anthropicCachePlugin` fires on `provider.settings.cacheControl.enabled`.
- *   - This plugin fires on model / tool-use / web-search capabilities.
- *   A user can opt into one without the other, so the plugins stay standalone.
- *
- * Enforce = 'pre' — headers are static once model / provider are resolved.
+ * Sets `anthropic-beta` for Anthropic-DIRECT requests (Bedrock handles
+ * beta flags via `providerOptions.bedrock.anthropicBeta`).
  */
 
 import { type AiPlugin, definePlugin, type StreamTextParams, type StreamTextResult } from '@cherrystudio/ai-core'

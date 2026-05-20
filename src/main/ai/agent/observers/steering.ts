@@ -1,17 +1,7 @@
 /**
- * Steering observer — drains `pendingMessages` mid-flight via AI SDK's
- * `prepareStep` hook so injected user messages fold into the current
- * assistant turn without restarting `agent.stream()`.
- *
- * Why prepareStep and not an outer loop: AI SDK's inner step loop already
- * iterates calls + tool execution; prepareStep fires between steps with
- * full access to the messages array. Mutating `messages` there is the
- * native primitive for "inject content into the next round of input".
- *
- * Claude Code carve-out: the Claude Code provider consumes `pendingMessages`
- * as `AsyncIterable` directly (see AiService:295–301 wiring
- * `injectedMessageSource`). If the steering observer also drained for that
- * provider, both consumers would race. The observer no-ops there.
+ * Drains `pendingMessages` between steps so injected messages fold into
+ * the current turn. No-op for Claude Code — that provider consumes the
+ * queue directly via `injectedMessageSource`.
  */
 
 import type { UIMessage } from 'ai'

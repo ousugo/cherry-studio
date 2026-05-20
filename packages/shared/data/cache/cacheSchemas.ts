@@ -1,3 +1,4 @@
+import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
 
 import type { ComposerQueueSnapshot, TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -177,15 +178,6 @@ export type UseCacheSchema = {
   'message.streaming.siblings_counter.${topicId}': number
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
   'message.ui.${messageId}': { foldSelected?: boolean; multiModelMessageStyle?: string; useful?: boolean }
-  /**
-   * Per-window "user has seen the terminal indicator" flag for a topic.
-   * Lives in the local cache because dismissal is per-window UX — one
-   * window seeing the fulfilled animation shouldn't hide it in another.
-   * Pairs with `topic.stream.status.*` in the shared cache: the shared
-   * entry is the authoritative status, this entry is each window's local
-   * "already animated" flag.
-   */
-  'topic.stream.seen.${topicId}': boolean
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -249,8 +241,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'message.streaming.block.${blockId}': null,
   'message.streaming.siblings_counter.${topicId}': 0,
   'message.streaming.chat_session.${topicId}': null,
-  'message.ui.${messageId}': {},
-  'topic.stream.seen.${topicId}': false
+  'message.ui.${messageId}': {}
 }
 
 /**
@@ -266,6 +257,13 @@ export type SharedCacheSchema = {
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
   'ocr.provider.last_used_key.${providerId}': string
+  // Job system: state snapshot + progress, broadcast main → all windows. TTL 60s
+  // (JobManager sets ttl when calling setShared, so cache miss after a job
+  // terminates is acceptable — useJob falls back to dataApi.get).
+  // Value is nullable: template default is `null`, replaced by JobSnapshot when
+  // a concrete job exists. Renderer treats null as cache miss.
+  'jobs.state.${jobId}': JobSnapshot | null
+  'jobs.progress.${jobId}': JobProgress
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -276,7 +274,11 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent_session.cache_version': 0,
   'feature.openclaw.gateway_status': 'stopped',
   'web_search.provider.last_used_key.${providerId}': '',
-  'ocr.provider.last_used_key.${providerId}': ''
+  'ocr.provider.last_used_key.${providerId}': '',
+  // Template defaults are placeholders never consumed at runtime — concrete
+  // keys are populated by JobManager when actual jobs exist.
+  'jobs.state.${jobId}': null,
+  'jobs.progress.${jobId}': { progress: 0 }
 }
 
 /**

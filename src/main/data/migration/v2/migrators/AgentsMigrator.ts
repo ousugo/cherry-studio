@@ -3,9 +3,10 @@ import type { DbType } from '@data/db/types'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { asc, eq, sql } from 'drizzle-orm'
+import type { MessageData, MessageRole, MessageStatus } from '@shared/data/types/message'
+import { sql } from 'drizzle-orm'
 import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
+import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
@@ -126,20 +127,20 @@ export class AgentsMigrator extends BaseMigrator {
         await ctx.db.run(sql.raw(statement))
       }
 
-      // Atomic post-INSERT shape reconciliation — runs INSIDE the BEGIN/COMMIT
+      // Atomic post-INSERT reconciliation — runs INSIDE the BEGIN/COMMIT
       // so a failure rolls everything back instead of leaving rows in an
-      // intermediate sentinel state (`order_key=''` or v1 `blocks: [...]`).
+      // intermediate sentinel state (`order_key=''`).
       //
       // Order:
       //   1. backfillAgentOrderKeys — joins `agents_legacy.agents`,
       //      so MUST run while ATTACH is live and BEFORE remap rewrites ids.
       //   2. backfillAgentSessionOrderKeys — joins `agents_legacy.sessions`,
       //      so MUST run while ATTACH is live and BEFORE remap rewrites ids.
-      //   3. transformAgentBlocksToParts — no ordering constraint with remap;
-      //      operates on `content` JSON, ids unchanged.
+      //   2. importLegacySessionMessages — generates UUID message ids instead
+      //      of preserving legacy integer row ids, and writes final `data.parts`.
       await backfillAgentOrderKeys(ctx.db)
       await backfillAgentSessionOrderKeys(ctx.db)
-      await transformAgentBlocksToParts(ctx.db)
+      await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo)
 
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true
@@ -425,6 +426,23 @@ type DerivedSessionWorkspaces = {
   mappings: DerivedSessionWorkspaceMap[]
 }
 
+type LegacySessionMessageRow = {
+  legacyId: string | number | null
+  sessionId: string
+  role: string | null
+  content: string | null
+  agentSessionId: string | null
+  createdAt: string | number | null
+  updatedAt: string | number | null
+}
+
+type NormalizedLegacySessionMessage = {
+  role: MessageRole
+  data: MessageData
+  status: MessageStatus
+  modelId: string | null
+}
+
 function selectLegacySessionColumn(
   schemaInfo: AgentsSchemaInfo,
   column: string,
@@ -514,7 +532,7 @@ function workspaceNameFromPath(workspacePath: string): string {
 
 function legacyTimestampToMs(value: string | number | null, fallback: number): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
+    return value > 0 && value < 10_000_000_000 ? value * 1000 : value
   }
   if (typeof value === 'string') {
     const parsed = Date.parse(value)
@@ -610,13 +628,137 @@ async function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsS
   return derived.workspaces.length
 }
 
-// ── Integrated post-copy shape transforms ────────────────────────────
-//
-// Exported as named helpers so they are unit-testable without constructing
-// a full migrator / MigrationContext. `execute()` calls them inside the
-// copy BEGIN/COMMIT block — failures roll back the entire import via
-// SQLite ROLLBACK rather than leaving rows in an intermediate sentinel
-// state. No silent post-hook semantics.
+function selectLegacyMessageColumn(
+  schemaInfo: AgentsSchemaInfo,
+  column: string,
+  alias: string,
+  fallbackExpr: string
+): string {
+  return schemaInfo.session_messages.columns.has(column) ? `${column} AS ${alias}` : `${fallbackExpr} AS ${alias}`
+}
+
+function normalizeLegacyRole(value: string | null): MessageRole {
+  return value === 'user' || value === 'assistant' || value === 'system' ? value : 'assistant'
+}
+
+function normalizeLegacySessionMessage(content: unknown, fallbackRole: string | null): NormalizedLegacySessionMessage {
+  const parsed = typeof content === 'string' ? JSON.parse(content) : content
+  const directParts = parsed && typeof parsed === 'object' && Array.isArray(parsed.parts) ? parsed.parts : null
+  if (directParts) {
+    return {
+      role: normalizeLegacyRole(fallbackRole),
+      data: { parts: directParts },
+      status: 'success',
+      modelId: null
+    }
+  }
+
+  const message = parsed && typeof parsed === 'object' ? parsed.message : null
+  const blocks = parsed && typeof parsed === 'object' && Array.isArray(parsed.blocks) ? parsed.blocks : []
+  if (!message) {
+    return {
+      role: normalizeLegacyRole(fallbackRole),
+      data: { parts: [] },
+      status: 'success',
+      modelId: null
+    }
+  }
+
+  const transformed = blocks.length > 0 ? transformBlocksToParts(blocks) : null
+  const parts = transformed?.parts ?? (Array.isArray(message.data?.parts) ? message.data.parts : [])
+  return {
+    role: normalizeLegacyRole(typeof message.role === 'string' ? message.role : fallbackRole),
+    data: { parts },
+    status: normalizeStatus(message.status),
+    modelId: typeof message.modelId === 'string' && message.modelId.length > 0 ? message.modelId : null
+  }
+}
+
+async function resolveUserModelId(
+  db: DbType,
+  cache: Map<string, string | null>,
+  rawModelId: string | null
+): Promise<string | null> {
+  if (!rawModelId) return null
+  if (cache.has(rawModelId)) return cache.get(rawModelId) ?? null
+
+  const rows = await db.all<{ id: string }>(
+    sql`SELECT id FROM user_model WHERE id = ${rawModelId} OR (provider_id || ':' || model_id) = ${rawModelId} LIMIT 1`
+  )
+  const resolved = rows[0]?.id ?? null
+  cache.set(rawModelId, resolved)
+  return resolved
+}
+
+export async function importLegacySessionMessages(db: DbType, schemaInfo: AgentsSchemaInfo): Promise<number> {
+  if (!schemaInfo.session_messages.exists) return 0
+
+  const selectColumns = [
+    selectLegacyMessageColumn(schemaInfo, 'id', 'legacyId', 'NULL'),
+    selectLegacyMessageColumn(schemaInfo, 'session_id', 'sessionId', 'NULL'),
+    selectLegacyMessageColumn(schemaInfo, 'role', 'role', "'assistant'"),
+    selectLegacyMessageColumn(schemaInfo, 'content', 'content', 'NULL'),
+    selectLegacyMessageColumn(schemaInfo, 'agent_session_id', 'agentSessionId', 'NULL'),
+    selectLegacyMessageColumn(schemaInfo, 'created_at', 'createdAt', 'NULL'),
+    selectLegacyMessageColumn(schemaInfo, 'updated_at', 'updatedAt', 'NULL')
+  ]
+  const orderBy = [
+    schemaInfo.session_messages.columns.has('created_at') ? 'created_at ASC' : null,
+    schemaInfo.session_messages.columns.has('id') ? 'id ASC' : null
+  ]
+    .filter(Boolean)
+    .join(', ')
+
+  const rows = await db.all<LegacySessionMessageRow>(
+    sql.raw(
+      `SELECT ${selectColumns.join(', ')}
+       FROM agents_legacy.session_messages
+       WHERE session_id IN (SELECT id FROM agent_session)
+       ${orderBy ? `ORDER BY ${orderBy}` : ''}`
+    )
+  )
+  const modelCache = new Map<string, string | null>()
+  let imported = 0
+
+  for (const row of rows) {
+    if (!row.sessionId) continue
+    let normalized: NormalizedLegacySessionMessage
+    try {
+      normalized = normalizeLegacySessionMessage(row.content, row.role)
+    } catch (error) {
+      normalized = {
+        role: normalizeLegacyRole(row.role),
+        data: { parts: [] },
+        status: 'error',
+        modelId: null
+      }
+      logger.warn('Failed to normalize legacy agent session message', {
+        legacyId: row.legacyId,
+        sessionId: row.sessionId,
+        error
+      })
+    }
+
+    const now = Date.now()
+    const createdAt = legacyTimestampToMs(row.createdAt, now)
+    const updatedAt = row.updatedAt == null ? createdAt : legacyTimestampToMs(row.updatedAt, createdAt)
+    await db.insert(agentSessionMessageTable).values({
+      id: uuidv7(),
+      sessionId: row.sessionId,
+      role: normalized.role,
+      data: normalized.data,
+      status: normalized.status,
+      modelId: await resolveUserModelId(db, modelCache, normalized.modelId),
+      agentSessionId: row.agentSessionId,
+      createdAt,
+      updatedAt
+    })
+    imported++
+  }
+
+  logger.info('Imported legacy agent session messages with UUID ids', { imported })
+  return imported
+}
 
 /**
  * Replace `''` placeholder agent orderKeys (set by INSERT...SELECT) with real
@@ -642,74 +784,6 @@ export async function backfillAgentOrderKeys(db: DbType): Promise<void> {
     await db.run(sql`UPDATE agent SET order_key = ${keys[i]} WHERE id = ${agents[i].id}`)
   }
   logger.info(`Backfilled ${agents.length} agent order keys`)
-}
-
-export interface BlocksToPartsTransformResult {
-  totalMessages: number
-  messagesConverted: number
-  messagesSkipped: number
-  errors: Array<{ rowId: string; error: string }>
-}
-
-/**
- * Convert `agent_session_message.content` from the legacy
- * `{ blocks: [...] }` shape into the current `{ data: { parts: [...] } }`
- * shape by reusing the same `transformBlocksToParts` converter regular
- * chat messages go through. Rows whose content has no legacy `blocks`
- * are skipped, so re-running is idempotent.
- */
-export async function transformAgentBlocksToParts(db: DbType): Promise<BlocksToPartsTransformResult> {
-  const result: BlocksToPartsTransformResult = {
-    totalMessages: 0,
-    messagesConverted: 0,
-    messagesSkipped: 0,
-    errors: []
-  }
-
-  const rows = await db.select().from(agentSessionMessageTable).orderBy(asc(agentSessionMessageTable.createdAt))
-  result.totalMessages = rows.length
-  logger.info(`Blocks→Parts: scanning ${rows.length} agent_session_message rows`)
-
-  for (const row of rows) {
-    if (!row?.content) {
-      result.messagesSkipped++
-      continue
-    }
-
-    try {
-      // Legacy rows copied via raw INSERT...SELECT arrive as strings even
-      // though Drizzle types the column as JSON — normalise both paths.
-      const parsed = typeof row.content === 'string' ? JSON.parse(row.content) : row.content
-      const blocks = parsed?.blocks ?? []
-      const message = parsed?.message
-
-      if (!message || blocks.length === 0) {
-        result.messagesSkipped++
-        continue
-      }
-
-      const { parts } = transformBlocksToParts(blocks)
-      message.data = { ...message.data, parts }
-      // Transient statuses (sending/pending/searching/processing) in persisted
-      // rows are interrupted streams — collapse them to 'error' so the renderer
-      // doesn't paint them as still-streaming. Parts are already in terminal
-      // states after transformBlocksToParts.
-      message.status = normalizeStatus(message.status)
-      delete message.blocks
-      parsed.blocks = []
-
-      await db.update(agentSessionMessageTable).set({ content: parsed }).where(eq(agentSessionMessageTable.id, row.id))
-      result.messagesConverted++
-    } catch (error) {
-      result.errors.push({ rowId: row.id, error: error instanceof Error ? error.message : String(error) })
-      logger.warn(`Failed to transform agent_session_message ${row.id}`, { error })
-    }
-  }
-
-  logger.info(
-    `Blocks→Parts complete: ${result.messagesConverted} converted, ${result.messagesSkipped} skipped, ${result.errors.length} errors`
-  )
-  return result
 }
 
 /**

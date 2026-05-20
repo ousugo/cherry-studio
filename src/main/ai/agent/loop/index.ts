@@ -18,72 +18,54 @@ import type { PendingMessageQueue } from './PendingMessageQueue'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
-// ── Hooks: lifecycle extension points ──
+// ── Hooks ───────────────────────────────────────────────────────────
 
 export interface ErrorContext {
   error: Error
 }
 
-// ── Tool execution events (ported from AI SDK v7 design) ──
-//
-// AI SDK v6's `ToolLoopAgentSettings` does NOT expose tool-level callbacks —
-// `onStepFinish` is the closest, but it fires per LLM step (post tool batch)
-// and lacks per-call `durationMs`. v7 introduces
-// `experimental_onToolExecutionStart/End` on the Agent layer; we mirror that
-// shape here and dispatch from a wrapper around each tool's `execute`. When
-// we eventually upgrade to v7, swap the wrapper for a direct forward to
-// `agentSettings.experimental_onToolExecution*` and the hook signatures stay
-// stable.
-
+/**
+ * Tool execution events — shaped to match AI SDK v7's
+ * `experimental_onToolExecutionStart/End` so the v6 wrapper can be
+ * swapped for a direct forward when we upgrade.
+ */
 export interface ToolExecutionStartEvent {
-  /** Same as `toolCallId`; named `callId` to match v7. */
+  /** Matches v7 naming. */
   callId: string
   toolName: string
-  /** Tool call arguments parsed from the model output. */
   input: unknown
-  /** Messages sent to the model that produced this tool call. */
   messages: ModelMessage[]
 }
 
 export type ToolExecutionEndEvent = ToolExecutionStartEvent & {
-  /** Wall-clock duration of the tool's `execute` function only. */
+  /** Wall-clock duration of the tool's `execute` only. */
   durationMs: number
   toolOutput: { type: 'tool-result'; output: unknown } | { type: 'tool-error'; error: unknown }
 }
 
 export interface AgentLoopHooks {
-  /** Before the run starts. Use for: otel root span, load memory */
   onStart?: () => Promise<void> | void
 
-  /** Forwarded to AI SDK prepareStep. Use for: tail pruning, conditional context.
-   *  Cherry's internal steering observer (drains `pendingMessages` mid-flight)
-   *  composes ahead of the caller's `prepareStep`. */
+  /** Forwarded to AI SDK `prepareStep`. Cherry's steering observer (drains `pendingMessages`) composes ahead. */
   prepareStep?: PrepareStepFunction
 
-  /** Forwarded to AI SDK onStepFinish. Use for: progress push, otel step span */
   onStepFinish?: (step: StepResult<ToolSet>) => Promise<void> | void
 
-  /** Fires before a tool's `execute` runs. Use for: progress push, otel tool span start. */
   onToolExecutionStart?: (event: ToolExecutionStartEvent) => Promise<void> | void
-
-  /** Fires after `execute` completes (success or error). `durationMs` excludes hook latency. */
+  /** `durationMs` excludes hook latency. */
   onToolExecutionEnd?: (event: ToolExecutionEndEvent) => Promise<void> | void
 
-  /** After the entire run completes. Use for: analytics, otel root span end.
-   *  Aggregating per-run state (token usage, step count, finish reason)
-   *  is the caller's responsibility — accumulate it in your own `onStepFinish`
-   *  hookPart and read the closure in `onFinish`. */
+  /** Aggregate per-run state in your own `onStepFinish`; read it here via closure. */
   onFinish?: () => Promise<void> | void
 
-  /** Error handler. Return 'retry' to retry the run, 'abort' to stop. Default: 'abort'.
-   *  Retry is not implemented yet — TODO follow-up. */
+  /** Return 'retry' to retry the run, 'abort' to stop. Default: 'abort'. Retry is not implemented yet. */
   onError?: (ctx: ErrorContext) => Promise<'retry' | 'abort'> | 'retry' | 'abort'
 }
 
-// ── Agent options: AI SDK settings forwarded to ToolLoopAgent ──
+// ── Agent options ───────────────────────────────────────────────────
 
 export interface AgentOptions {
-  // CallSettings (model parameters)
+  // CallSettings
   maxOutputTokens?: number
   temperature?: number
   topP?: number
@@ -97,59 +79,44 @@ export interface AgentOptions {
   headers?: Record<string, string | undefined>
 
   // Agent-specific
-  /** Tool selection strategy: 'auto' | 'required' | 'none' | { type: 'tool', toolName } */
   toolChoice?: ToolChoice<ToolSet>
-  /** Limit which tools are available without changing the type. Dynamic subset of tools. */
+  /** Dynamic subset of tools without changing the type. */
   activeTools?: string[]
-  /** Provider-specific options (reasoning effort, web search config, etc.) */
   providerOptions?: ProviderOptions
-  /** Custom context shared across steps, passed to tool execute functions */
+  /** Custom context passed to tool execute functions. */
   context?: unknown
-  /** Attempt to repair tool calls that fail to parse (wrong args, unknown tool name) */
+  /** Repair tool calls that fail to parse. */
   repairToolCall?: ToolCallRepairFunction<ToolSet>
-  /** Custom download function for URLs when model doesn't support the media type directly */
+  /** Download fallback when the model doesn't support a media type directly. */
   download?: DownloadFunction
 
   // Loop control
-  /** Inner loop stop condition. Default: AI SDK default (stepCountIs(20)) */
+  /** Default: AI SDK default (`stepCountIs(20)`). */
   stopWhen?: StopCondition<ToolSet> | Array<StopCondition<ToolSet>>
-  /** AI SDK telemetry — auto-generates otel spans for LLM calls */
   telemetry?: TelemetrySettings
 }
 
-// ── Params ──
+// ── Params ──────────────────────────────────────────────────────────
 
 export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   providerId: T
   providerSettings: AppProviderSettingsMap[T]
   modelId: string
-  /** Optional stable id for the first assistant UIMessage emitted by this execution. */
+  /** Stable id for the first assistant UIMessage emitted by this execution. */
   messageId?: string
   plugins?: AiPlugin[]
   tools?: ToolSet
   system?: string
-  /** AI SDK agent settings (model params, tool choice, provider options, etc.) */
   options?: AgentOptions
-  /**
-   * Hook contributors. Each entry is one independent source — features
-   * (`RequestFeature.contributeHooks`), the AiService analytics part, etc.
-   * Agent folds them with its internal observers via `composeHooks`.
-   */
+  /** Independent hook contributors folded by `composeHooks`. */
   hookParts?: ReadonlyArray<Partial<AgentLoopHooks>>
   /**
-   * Session-isolated queue of follow-up messages injected mid-stream
-   * (via `AiStreamManager.injectMessage`).
+   * Session-isolated queue of follow-up messages injected mid-stream.
+   * Drained twice per run: mid-flight via `attachSteeringObserver` on
+   * `prepareStep`, and tail-recheck after the stream settles.
    *
-   * Drained two ways:
-   *   1. Mid-flight via `attachSteeringObserver` (registers on `prepareStep`).
-   *   2. Tail recheck — after the AI SDK stream settles cleanly, the queue
-   *      is checked once more; non-empty triggers another `agent.stream()`
-   *      call with the drained messages appended. Catches the race where
-   *      the user injects after AI SDK's last `prepareStep` fires.
-   *
-   * Claude Code provider consumes the queue as `AsyncIterable` directly via
-   * `injectedMessageSource`; the steering observer is a no-op for that
-   * provider to avoid double-consumption.
+   * Claude Code provider consumes this as `AsyncIterable` directly via
+   * `injectedMessageSource`; steering observer is a no-op there.
    */
   pendingMessages?: PendingMessageQueue
 }

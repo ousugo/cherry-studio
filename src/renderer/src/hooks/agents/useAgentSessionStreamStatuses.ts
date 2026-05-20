@@ -46,7 +46,7 @@ const buildAgentSessionStreamStatusSnapshot = (sessionIds: readonly string[]): A
 
   for (const sessionId of sessionIds) {
     const statusEntry = cacheService.getShared(getAgentSessionStreamStatusCacheKey(sessionId))
-    const seen = cacheService.get(getAgentSessionStreamSeenCacheKey(sessionId)) ?? false
+    const seen = cacheService.getCasual<boolean>(getAgentSessionStreamSeenCacheKey(sessionId)) ?? false
     const status = statusEntry?.status
     const streamStatus = {
       status,

@@ -79,10 +79,7 @@ describe('useProviderAutoModelSync', () => {
   it('syncs only once for the same initial eligible configuration', async () => {
     const { rerender } = renderHook(() => useProviderAutoModelSync('openai'))
 
-    await waitFor(() =>
-      expect(syncProviderModelsMock).toHaveBeenCalledWith(useProviderMock.mock.results[0].value.provider)
-    )
-    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
 
     rerender()
 

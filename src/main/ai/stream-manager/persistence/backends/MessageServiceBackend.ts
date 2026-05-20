@@ -1,14 +1,4 @@
-/**
- * SQLite message-tree backend — finalizes a pre-created "pending" placeholder
- * assistant message via `messageService.update`.
- *
- * Created by the Persistent chat context provider, one per execution (so
- * multi-model turns produce N placeholders, N backends, N update calls).
- *
- * The listener is responsible for folding any error into
- * `finalMessage.parts` before calling us, so we only need a single
- * storage path shared by success / paused / error.
- */
+/** Finalizes a pending assistant placeholder via `messageService.update`. */
 
 import { messageService } from '@main/data/services/MessageService'
 import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
@@ -16,18 +6,12 @@ import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } 
 import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../PersistenceBackend'
 
 export interface MessageServiceBackendOptions {
-  /** Placeholder assistant message id created before the stream started. */
   assistantMessageId: string
-  /**
-   * Explicit stats override. If present it wins over `input.stats` — used
-   * by callers that already computed stats elsewhere (e.g. replaying a
-   * persisted partial). Normally undefined; listener-composed stats flows
-   * through `input.stats`.
-   */
+  /** Wins over `input.stats` — only set by callers replaying pre-computed stats. */
   stats?: MessageStats
-  /** Kept for parity with the listener signature; unused by the storage write. */
+  /** Parity with the listener signature; unused by the write. */
   modelSnapshot?: ModelSnapshot
-  /** Post-success hook — typically topic auto-rename / usage reporting. */
+  /** Post-success hook (topic auto-rename, usage reporting, …). */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
 

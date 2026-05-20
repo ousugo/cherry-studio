@@ -16,7 +16,6 @@ import { and, asc, desc, eq, gt, isNull, lt, notInArray, or, sql } from 'drizzle
 
 import { pinService } from './PinService'
 import { tagService } from './TagService'
-import { encodeCursor, splitCursor } from './utils/cursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
 
@@ -53,26 +52,27 @@ const FIRST_PAGE_CURSOR: Cursor = { section: 'pin', orderKey: '' }
 
 // Stale/legacy cursors fall back to first page (warn) instead of throwing —
 // cursors are opaque server-issued tokens, a 422 here would lock out renderers.
-// Uses `splitCursor` (permissive) so the `topic:` sentinel — a legitimate
-// "pin exhausted" marker with empty second segment — is not flagged as malformed.
 function decodeCursor(raw: string): Cursor {
-  const outer = splitCursor(raw)
-  if (!outer) return warnAndFallback(raw, 'no section separator')
+  const firstColon = raw.indexOf(':')
+  if (firstColon < 0) return warnAndFallback(raw, 'no section separator')
+  const section = raw.slice(0, firstColon)
+  const rest = raw.slice(firstColon + 1)
 
-  if (outer.key === 'pin') {
-    return { section: 'pin', orderKey: outer.id }
+  if (section === 'pin') {
+    return { section: 'pin', orderKey: rest }
   }
-  if (outer.key === 'topic') {
-    if (outer.id === '') return { section: 'topic', updatedAt: null, id: null }
-    const inner = splitCursor(outer.id)
-    if (!inner || !inner.id) return warnAndFallback(raw, 'malformed topic cursor (missing id separator)')
-    const updatedAt = Number(inner.key)
-    if (!Number.isFinite(updatedAt)) {
-      return warnAndFallback(raw, 'malformed topic cursor (bad updatedAt)')
+  if (section === 'topic') {
+    if (rest === '') return { section: 'topic', updatedAt: null, id: null }
+    const sep = rest.indexOf(':')
+    if (sep < 0) return warnAndFallback(raw, 'malformed topic cursor (missing id separator)')
+    const updatedAt = Number(rest.slice(0, sep))
+    const id = rest.slice(sep + 1)
+    if (!Number.isFinite(updatedAt) || !id) {
+      return warnAndFallback(raw, 'malformed topic cursor (bad updatedAt or empty id)')
     }
-    return { section: 'topic', updatedAt, id: inner.id }
+    return { section: 'topic', updatedAt, id }
   }
-  return warnAndFallback(raw, `unknown cursor section "${outer.key}"`)
+  return warnAndFallback(raw, `unknown cursor section "${section}"`)
 }
 
 function warnAndFallback(raw: string, reason: string): Cursor {
@@ -81,11 +81,11 @@ function warnAndFallback(raw: string, reason: string): Cursor {
 }
 
 function encodePinCursor(orderKey: string): string {
-  return encodeCursor('pin', orderKey)
+  return `pin:${orderKey}`
 }
 
 function encodeTopicCursor(updatedAt: number, id: string): string {
-  return `topic:${encodeCursor(String(updatedAt), id)}`
+  return `topic:${updatedAt}:${id}`
 }
 
 function encodeTopicSectionStart(): string {

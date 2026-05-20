@@ -1,20 +1,8 @@
-/**
- * MCP tool-result formatters — shared between Main tool wrappers and any
- * future renderer code that inspects MCP results in-process.
- *
- * Ported from renderer `aiCore/utils/mcp.ts` (origin/main). The v1 renderer
- * also shipped `setupToolsConfig` / `convertMcpToolsToAiSdkTools` here;
- * those have been replaced by `tools/ToolRegistry` + `tools/mcpTools.ts` in
- * Main, so only the result-formatting helpers are carried across.
- */
+/** MCP tool-result formatters. */
 
 import type { MCPCallToolResponse } from '@types'
 
-/**
- * Whether an MCP call produced any non-text content parts (image / audio /
- * binary resource). Used by tool wrappers to decide whether the model
- * output needs a placeholder rather than raw JSON.
- */
+/** True if the call produced any image / audio / binary resource. */
 export function hasMultimodalContent(result: MCPCallToolResponse): boolean {
   return (
     Array.isArray(result?.content) &&
@@ -25,16 +13,8 @@ export function hasMultimodalContent(result: MCPCallToolResponse): boolean {
 }
 
 /**
- * Flatten an MCP tool result into plain text for the model's view.
- *
- * - Text parts pass through verbatim.
- * - Image / audio / blob-resource parts collapse to a placeholder
- *   (`[Image: image/png, delivered to user]`) so the model knows
- *   *something* was shown to the user even though it can't consume
- *   the binary itself.
- * - Text-backed resource parts use the resource's `text` field.
- * - Unknown shapes fall back to `JSON.stringify` so the model still sees
- *   *something* instead of silently dropping content.
+ * Flatten for the model's view: text verbatim; image/audio/blob →
+ * placeholder; text-backed resource → its `text`; unknown → JSON.
  */
 export function mcpResultToTextSummary(result: MCPCallToolResponse): string {
   if (!result || !result.content || !Array.isArray(result.content)) {

@@ -399,9 +399,9 @@ export const MessageSchema = z.strictObject({
   parentId: z.string().nullable(),
   /** Message role */
   role: MessageRoleSchema,
-  /** Message content (blocks with inline references) */
+  /** Message content stored as AI SDK UIMessage.parts */
   data: MessageDataSchema,
-  /** Searchable text extracted from data.blocks (DB DEFAULT ''; trigger fills on insert/update) */
+  /** Searchable text extracted from data.parts (DB DEFAULT ''; trigger fills on insert/update) */
   searchableText: z.string(),
   /** Message status */
   status: MessageStatusSchema,

@@ -1,15 +1,6 @@
 /**
- * Resolve the MCP tool IDs available to an assistant, entirely in Main.
- *
- * Flow (mirrors the former renderer-side `fetchMcpTools`):
- *   1. Load the assistant from SQLite via AssistantService
- *   2. Derive the effective MCP mode (auto / manual / disabled)
- *   3. Pick servers accordingly (hub server for auto, assistant-linked for manual)
- *   4. Ask MCPService to list tools per server, filter out disabled ones
- *   5. Return the flattened list of tool IDs
- *
- * Called by `AiService` when a request does not carry explicit
- * `mcpToolIds` — renderers no longer need to resolve tools themselves.
+ * Resolve MCP tool IDs an assistant can use. Called when a request
+ * doesn't carry explicit `mcpToolIds`.
  */
 
 import { assistantDataService } from '@data/services/AssistantService'
@@ -21,11 +12,7 @@ import type { MCPServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('resolveAssistantMcpTools')
 
-/**
- * Resolve the effective MCP mode for an assistant:
- *   - If `settings.mcpMode` is set, use it verbatim.
- *   - Otherwise, 'manual' when the assistant has any linked servers, else 'disabled'.
- */
+/** `settings.mcpMode` if set; else 'manual' when any linked servers, else 'disabled'. */
 export function getEffectiveMcpMode(assistant: Assistant): McpMode {
   const mode = assistant.settings?.mcpMode
   if (mode) return mode
@@ -39,11 +26,7 @@ async function resolveServersForAssistant(assistant: Assistant, mode: McpMode): 
   return activeServers.filter((server) => linkedIds.has(server.id))
 }
 
-/**
- * Resolve the MCP tool IDs ("serverName__toolName") for the given assistant.
- * Returns an empty list when the assistant is missing, MCP is disabled, or no
- * active servers are linked.
- */
+/** Returns `[]` when the assistant is missing, MCP disabled, or no servers linked. */
 export async function resolveAssistantMcpToolIds(assistantId: string): Promise<string[]> {
   const assistant = await assistantDataService.getById(assistantId).catch(() => null)
   if (!assistant) {

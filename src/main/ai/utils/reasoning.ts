@@ -11,7 +11,7 @@ import {
   FALLBACK_TOKEN_LIMIT,
   getThinkingBudget as sharedGetThinkingBudget
 } from '@shared/ai/reasoningBudget'
-import { DEFAULT_MAX_TOKENS } from '@shared/config/constants'
+import { DEFAULT_MAX_TOKENS } from '@shared/config/constant'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -607,9 +607,7 @@ export function getReasoningEffort(
 }
 
 /**
- * Get OpenAI reasoning parameters
- * Extracted from OpenAIResponseAPIClient and OpenAIAPIClient logic
- * For official OpenAI provider only
+ * Get OpenAI reasoning parameters. For official OpenAI provider only.
  */
 export function getOpenAIReasoningParams(
   assistant: Assistant,
@@ -684,7 +682,6 @@ function getFallbackBudgetTokens(reasoningEffort: string | undefined): number {
 
 /**
  * Get Anthropic reasoning parameters.
- * Extracted from AnthropicAPIClient logic.
  *
  * Returns different parameter shapes depending on the model:
  * - **Claude 4.6**: `{ thinking: { type: 'adaptive' }, effort: 'low' | 'medium' | 'high' | 'max' }`
@@ -1051,9 +1048,8 @@ export function getCustomParameters(assistant: Assistant): Record<string, any> {
         return acc
       }
       // Parse JSON type parameters
-      // Related: src/renderer/src/pages/settings/AssistantSettings/AssistantModelSettings.tsx:133-148
-      // The UI stores JSON type params as strings (e.g., '{"key":"value"}')
-      // This function parses them into objects before sending to the API
+      // The UI stores JSON type params as strings (e.g., '{"key":"value"}'),
+      // so parse them into objects before sending to the API.
       if (param.type === 'json') {
         const value = param.value as string
         if (value === 'undefined') {

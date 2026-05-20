@@ -1,18 +1,10 @@
-/**
- * Shared helpers for resolving models and siblings groups, reused by any
- * `ChatContextProvider` that needs multi-model / regenerate semantics.
- */
-
 import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-// Monotonic counter so two regenerate clicks within the same millisecond
-// don't collide on `Date.now()` and get treated as one sibling group. The
-// counter resets per process — that's fine because the value only needs to
-// be unique within an open chat session.
+// Sub-ms tiebreaker for back-to-back regenerate clicks. Resets per process; only needs to be session-unique.
 let siblingsGroupCounter = 0
 function nextSiblingsGroupId(): number {
   siblingsGroupCounter = (siblingsGroupCounter + 1) % 1000
@@ -38,10 +30,9 @@ export async function resolveModels(
 }
 
 /**
- * Resolve the model to use for this turn. When `assistantId` is provided, the
- * model comes from that assistant. Otherwise — for topics with no associated
- * assistant — the model falls back to the `chat.default_model_id` preference,
- * and the returned `assistantId` is `undefined` (not a sentinel).
+ * Assistant model when `assistantId` is given, otherwise the
+ * `chat.default_model_id` preference. Returned `assistantId` is
+ * `undefined` (not a sentinel) for assistant-less topics.
  */
 export async function resolveAssistantModelId(
   assistantId: string | null | undefined
@@ -58,15 +49,10 @@ export async function resolveAssistantModelId(
 }
 
 /**
- * Compute the siblingsGroupId for this turn. Pure read — no writes.
- *
- * - Multi-model: always a fresh group id so parallel responses are rendered as siblings.
- * - Regenerate: inherit existing sibling group if present, otherwise allocate a new one.
- *   The actual backfill of existing children with `siblingsGroupId = 0` is handled
- *   atomically inside `messageService.createUserMessageWithPlaceholders`.
- * - Single-model fresh turn: undefined (no sibling grouping needed).
- *
- * Persistent-topic only helper; temporary topics have no branching / siblings concept.
+ * Pure read. Multi-model → fresh group; regenerate → inherit or
+ * allocate; single-model fresh → undefined. Backfill of existing
+ * children happens atomically in
+ * `messageService.createUserMessageWithPlaceholders`.
  */
 export async function resolvePersistentSiblingsGroupId(
   models: Model[],

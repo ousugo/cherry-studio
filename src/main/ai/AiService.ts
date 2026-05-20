@@ -41,32 +41,13 @@ const logger = loggerService.withContext('AiService')
 
 // ── Request types ──────────────────────────────────────────────────
 
-/**
- * In-process per-request transport config. Extends `AiTransportOptions`
- * with an `AbortSignal` — non-IPC-serialisable, injected by the in-process
- * caller (typically `AiStreamManager` or `AiService.checkModel`), never
- * by renderer payloads.
- *
- * `AiService.*` method signatures expect this full type; IPC entry points
- * narrow to `AiTransportOptions` at the handler boundary.
- */
+/** In-process variant of `AiTransportOptions` — adds `signal`, which is not IPC-serialisable. */
 export interface AiRequestOptions extends AiTransportOptions {
-  /**
-   * AbortSignal for the whole request (streaming or non-streaming).
-   * **Not IPC-serialisable.** Set it only on in-process callers (e.g.
-   * `AiStreamManager.runExecutionLoop`). Renderer payloads MUST use
-   * `AiTransportOptions` (which omits this field) so Electron's
-   * structured-clone doesn't throw when the payload crosses IPC.
-   */
+  /** In-process only. Renderer payloads use `AiTransportOptions` (no signal). */
   signal?: AbortSignal
 }
 
-/**
- * Widen a request type so its `requestOptions` field accepts the full
- * in-process shape (`AiRequestOptions`, which adds `signal`). Use this on
- * `AiService.*` method signatures so in-process callers can attach a
- * `signal` without forcing a structural mismatch.
- */
+/** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
 export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
 }
@@ -130,35 +111,14 @@ export interface AiEmbedResult {
 // ── Service ────────────────────────────────────────────────────────
 
 /**
- * Lifecycle-managed AI service.
+ * Lifecycle AI service. See `docs/references/ai/core-architecture.md`.
  *
- * Two categories of work, sharing provider/model resolution + tool registry:
- *
- * - **Streaming**: `streamText(request)` — returns a raw
- *   `UIMessageChunk` stream that `AiStreamManager` drives through its
- *   execution loop (multicast, finalMessage accumulation, abort/pause
- *   semantics all live there).
- * - **Non-streaming** (IPC-facing): `generateText`, `generateImage`,
- *   `embedMany`, `listModels`, `checkModel`. Registered as IPC handlers
- *   directly; renderers call them via the `window.api.ai.*` bridge.
- *
- * This file consolidates what used to be `AiService` (IPC gateway) and
- * `AiCompletionService` (business logic). After the stream-manager refactor
- * the two classes were forwarding-only wrappers around each other, so they
- * are now a single service — business logic, IPC handlers, and request
- * tracking all live here.
+ * DO NOT mirror `@DependsOn(['AiService'])` on AiStreamManager —
+ * `runExecutionLoop` looks AiService up at runtime, and every `send()`
+ * caller routes through AiService first.
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)
-// AiStreamManager has no upstream service deps and initializes first.
-// AiService looks it up at IPC-handler runtime (Ai_Stream_Open,
-// Ai_ToolApproval_Respond) — declaring the dep makes the init order
-// explicit. The reverse lookup (AiStreamManager → AiService inside
-// runExecutionLoop) stays lazy: every `send()` caller routes through
-// AiService, so by that point AiService is already initialized. This
-// runtime back-edge is intentional; do NOT mirror this @DependsOn on
-// AiStreamManager — that would close the cycle into a real init-time
-// circular dependency the container cannot resolve.
 @DependsOn(['McpService', 'AiStreamManager'])
 export class AiService extends BaseService {
   protected async onInit(): Promise<void> {
@@ -168,9 +128,7 @@ export class AiService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    // Drain any tool-approval entries the renderer never decided so the
-    // `canUseTool` promises don't hang their resolve callbacks across a
-    // service restart.
+    // Reject any pending `canUseTool` promises so they don't hang.
     toolApprovalRegistry.clear('ai-service-stop')
   }
 
@@ -187,13 +145,9 @@ export class AiService extends BaseService {
       return this.embedMany(request)
     })
 
-    // Image generation uses MessagePort instead of `ipcHandle` so the
-    // renderer can drive abort without a main-side request registry. The
-    // renderer-side helper (`preload/invokeWithAbort.ts`) creates a
-    // MessageChannel per call and transfers `port2` here; we receive it as
-    // `event.ports[0]`. Caller posts `'abort'`, we post one terminal
-    // `result` / `error` and close. AC lifetime = handler invocation; no
-    // shared state on the service.
+    // MessagePort instead of `ipcHandle` so abort goes through the port
+    // (`{ type: 'abort' }`) — no main-side request registry. See
+    // `preload/invokeWithAbort.ts`. AC scoped to the handler invocation.
     this.ipcOn(IpcChannel.Ai_GenerateImage, (event, payload: AiImageRequest) => {
       const port = event.ports[0]
       if (!port) {
@@ -218,8 +172,7 @@ export class AiService extends BaseService {
         } catch (err) {
           port.postMessage({ type: 'error', error: serializeError(err) })
         } finally {
-          // Drop the listener explicitly so it doesn't keep the closure (and
-          // the AbortController) reachable until the port itself is GC'd.
+          // Drop the listener so the closure (and AbortController) GCs before the port does.
           port.off('message', onAbortMessage)
           port.close()
         }
@@ -247,8 +200,7 @@ export class AiService extends BaseService {
           anchorId?: string
         }
       ): Promise<{ ok: boolean }> => {
-        // 1. Claude-Agent path — registry still has the pending approval,
-        // dispatching unblocks `canUseTool` so the in-flight stream resumes.
+        // Claude-Agent fast-path: live registry entry unblocks `canUseTool`.
         const dispatched = toolApprovalRegistry.dispatch(payload.approvalId, {
           approved: payload.approved,
           reason: payload.reason,
@@ -256,10 +208,7 @@ export class AiService extends BaseService {
         })
         if (dispatched) return { ok: true }
 
-        // 2. MCP path — renderer has already PATCHed the anchor's parts via
-        // DataApi (see useToolApprovalBridge). We just re-read from DB and,
-        // if no `approval-requested` remains, dispatch the
-        // continue-conversation stream.
+        // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
         if (!payload.topicId || !payload.anchorId) {
           logger.warn('Tool-approval response had no live registry entry and no anchor context', {
             approvalId: payload.approvalId
@@ -288,14 +237,12 @@ export class AiService extends BaseService {
             (p as { approval?: { id?: string } }).approval?.id === decision.approvalId
         )
         const afterParts = applyApprovalDecisions(beforeParts, [decision])
-        // NON-DESTRUCTIVE: only write parts when this approval actually
-        // existed on the DB row and was flipped. `applyApprovalDecisions`
-        // always returns a fresh array, so writing unconditionally would
-        // overwrite real (or not-yet-persisted) parts with an empty/unchanged
-        // set — exactly the destructive pattern removed from the renderer.
-        // When the part isn't on the DB row (overlay-only / persist not landed
-        // yet), the continue dispatch below carries the real decision and the
-        // continue provider applies it authoritatively where it reads parts.
+        // Only write parts when this approval is present on the DB row.
+        // `applyApprovalDecisions` always returns a fresh array, so writing
+        // unconditionally would overwrite real (or not-yet-persisted) parts
+        // with an unchanged set. When the part is overlay-only (persist not
+        // landed yet), the continue dispatch below carries the decision and
+        // the continue provider applies it authoritatively where it reads parts.
         if (targetPresent) {
           await messageService.update(payload.anchorId, { data: { parts: afterParts } })
         }
@@ -314,10 +261,7 @@ export class AiService extends BaseService {
           trigger: 'continue-conversation',
           topicId: payload.topicId,
           parentAnchorId: payload.anchorId,
-          // Carry the real decision so the continue provider applies it
-          // authoritatively against the parts it reads — idempotent if Main
-          // already flipped it above, and the safety net when the part wasn't
-          // on the DB row Main re-read.
+          // Idempotent against the conditional write above; safety net when the part wasn't on the row.
           approvalDecisions: [decision]
         })
         return { ok: true }
@@ -328,16 +272,10 @@ export class AiService extends BaseService {
   // ── Streaming chat (agent.stream) ──
 
   /**
-   * Start a streaming chat request and return the raw AI SDK UIMessageChunk
-   * stream directly from `Agent.stream`. The caller (AiStreamManager) owns
-   * the read loop, multicast, final-message accumulation, and terminal
-   * dispatching.
-   *
-   * Errors split cleanly by phase:
-   *  - pre-stream (resolving the assistant, building agent params) → the
-   *    returned Promise rejects before any stream exists;
-   *  - mid-stream (provider failure, tool error, abort) → the stream
-   *    itself errors and the caller's reader.read() rejects.
+   * Raw `UIMessageChunk` stream from `Agent.stream`. Caller (usually
+   * `AiStreamManager`) owns read/multicast/accumulation/terminal dispatch.
+   * Pre-stream errors reject the Promise; mid-stream errors come through
+   * the stream itself.
    */
   async streamText(
     request: AsInProcess<AiStreamRequest>,
@@ -355,7 +293,7 @@ export class AiService extends BaseService {
       extraFeatures
     )
 
-    // Wire injectedMessageSource for Claude Code: PendingMessageQueue implements AsyncIterable<Message>
+    // Claude Code consumes the queue directly via AsyncIterable.
     if (request.pendingMessages && sdkConfig.providerId === 'claude-code') {
       const ccSettings = sdkConfig.providerSettings as ClaudeCodeProviderSettings
       ccSettings.defaultSettings = {
@@ -364,9 +302,6 @@ export class AiService extends BaseService {
       }
     }
 
-    // Inline any `file://` URLs in the UIMessages' file parts as base64
-    // data URLs. AI SDK's `convertToModelMessages` doesn't fetch
-    // `file://`, so the provider would otherwise see bogus links.
     const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
 
     const agent = new Agent({
@@ -534,22 +469,13 @@ export class AiService extends BaseService {
 
   // ── API validation ──
 
-  /**
-   * Validate that a provider/model pair is working by sending a minimal probe.
-   *
-   * Automatically dispatches to `embedMany` for embedding models and
-   * `generateText` otherwise — renderers do not need to know anything about
-   * model types to run a health check.
-   */
+  /** Dispatches to `embedMany` for embedding models, `generateText` otherwise. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
     const { model } = await this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
 
-    // Wire an AbortController through the probe so that when the timeout wins
-    // the race, we also cancel the underlying HTTP work (otherwise tokens keep
-    // burning server-side). Always clear the timer on both success and failure
-    // paths so it cannot keep the event loop alive.
+    // AbortController on timeout so the HTTP work cancels too (otherwise tokens keep burning).
     const controller = new AbortController()
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -608,17 +534,13 @@ export class AiService extends BaseService {
     }
   }
 
-  /**
-   * Get provider + model for this request.
-   * All from v2 DataApi (SQLite). Priority: explicit uniqueModelId > assistant.modelId
-   */
+  /** Priority: explicit `uniqueModelId` > `assistant.modelId`. */
   private async getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
     let assistant: Assistant | undefined
     if (request.assistantId) {
       assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
     }
 
-    // Parse UniqueModelId or fall back to assistant.modelId
     let providerId: string | undefined
     let modelId: string | undefined
     if (request.uniqueModelId) {

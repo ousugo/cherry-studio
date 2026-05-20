@@ -79,9 +79,8 @@ export function resolveCapabilities(
       isOpenRouterBuiltInWebSearchModel(model) ||
       model.id.includes('sonar'))
 
-  // V1 renderer had top-level `assistant.enableUrlContext` / `enableGenerateImage`
-  // toggles. The V2 shared `Assistant` schema has not migrated these yet, so the
-  // remote-only checks stay guarded and the toggles default to `false`.
+  // `assistant.enableUrlContext` / `enableGenerateImage` are not yet on the
+  // shared `Assistant` schema, so the toggles stay guarded and default to false.
   const urlContextSupported =
     isSupportUrlContextProvider(provider) &&
     !isPureGenerateImageModel(model) &&

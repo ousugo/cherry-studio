@@ -1,24 +1,3 @@
-/**
- * Topic-level stream subscription with per-execution demux + ref-counted
- * attach/detach.
- *
- * Why this exists: Main's stream listener is keyed `(window, topicId)` and
- * `AiStreamManager.detach` removes the whole topic listener — there is no
- * per-execution detach. If every execution managed its own
- * `streamAttach`/`streamDetach`, one execution ending would tear down the
- * shared listener (and, when `backgroundMode === 'abort'` and it was the
- * last listener, abort the still-running generation). So attach/detach must
- * be ref-counted at the topic level, with a single chunk listener demuxing
- * by `executionId` into per-execution branch streams.
- *
- * Cancellation layering (do not conflate): this owns only the renderer-local
- * subscription lifecycle — attach/detach + closing branch streams. That is
- * equivalent to today's `streamDetach` (renderer stops listening; Main keeps
- * generating; other windows keep observing). Generation abort (stopping the
- * LLM) is always Main's job, triggered by the user via
- * `useChatWithHistory.stop` → trigger Chat → `streamAbort`. This layer never
- * aborts generation.
- */
 import { loggerService } from '@logger'
 import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -26,7 +5,6 @@ import type { UIMessageChunk } from 'ai'
 
 const logger = loggerService.withContext('TopicStreamSubscription')
 
-/** Per-execution terminal classification, for `onFinish` in the reader layer. */
 export interface ExecutionTerminal {
   isAbort: boolean
   isError: boolean
@@ -66,44 +44,34 @@ export class TopicStreamSubscription {
     this.#topicId = topicId
   }
 
-  /**
-   * Get (creating if needed) the branch `ReadableStream` for an execution.
-   * Chunks that arrived before this call are already queued in the stream's
-   * internal buffer (the controller is created synchronously), so a late
-   * reader never loses replayed/early chunks. Also ensures the topic is
-   * attached.
-   */
   register(executionId: UniqueModelId): ReadableStream<UIMessageChunk> {
+    // The branch controller is created synchronously inside `createBranch`,
+    // so chunks arriving before this call are already queued — late readers
+    // never lose replay/early chunks.
     const branch = this.#getOrCreateBranch(executionId)
     void this.#ensureAttached()
     return branch.stream
   }
 
-  /**
-   * The reader for this execution is gone. Closes only this branch — never
-   * detaches the topic. When the last branch unregisters, the topic detaches
-   * (deferred a tick so a transient `activeExecutions` flicker doesn't
-   * detach→reattach and momentarily drop Main's last listener).
-   */
   unregister(executionId: UniqueModelId): void {
     const branch = this.#branches.get(executionId)
     if (!branch) return
     this.#closeBranch(branch)
     this.#branches.delete(executionId)
     if (this.#branches.size === 0 && this.#attached && !this.#disposed) {
+      // Defer one tick: a transient `activeExecutions` flicker would otherwise
+      // detach→reattach and momentarily drop Main's last listener.
       queueMicrotask(() => {
         if (this.#branches.size === 0 && this.#attached && !this.#disposed) this.#detach()
       })
     }
   }
 
-  /** Subscribe to per-execution terminal events. Returns an unsubscribe fn. */
   onExecutionTerminal(listener: TerminalListener): () => void {
     this.#terminalListeners.add(listener)
     return () => this.#terminalListeners.delete(listener)
   }
 
-  /** Tear down everything: detach the topic, drop IPC listeners, close all branches. */
   dispose(): void {
     if (this.#disposed) return
     this.#disposed = true
@@ -142,9 +110,8 @@ export class TopicStreamSubscription {
     if (payload.topicId !== this.#topicId) return
     const executionId = payload.executionId
     if (!executionId) {
-      // Every chat chunk is tagged with executionId(=modelId) by Main. A
-      // missing one is unexpected; if there is exactly one branch, route to
-      // it (defensive), else drop with a warning.
+      // Defensive: chat chunks are always tagged by Main. If a single branch
+      // is open, route to it; otherwise drop.
       if (this.#branches.size === 1) {
         const only = this.#branches.values().next().value as Branch
         if (!only.closed) only.controller?.enqueue(payload.chunk)
@@ -194,8 +161,8 @@ export class TopicStreamSubscription {
 
   async #ensureAttached(): Promise<void> {
     if (this.#attached || this.#attachInFlight || this.#disposed) return this.#attachInFlight ?? undefined
-    // Register IPC listeners BEFORE attaching so live chunks Main emits right
-    // after registering its listener are not missed.
+    // Register IPC listeners BEFORE attaching so live chunks Main emits the
+    // instant its listener registers are not missed.
     this.#setupIpcListeners()
     this.#attachInFlight = (async () => {
       try {
@@ -207,9 +174,6 @@ export class TopicStreamSubscription {
             for (const payload of res.bufferedChunks) this.#routeChunk(payload)
             break
           case 'not-found':
-            // No live stream — close branches so readers end immediately.
-            this.#terminateAll({ isAbort: false, isError: false })
-            break
           case 'done':
             this.#terminateAll({ isAbort: false, isError: false })
             break

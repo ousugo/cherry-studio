@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto'
-
 import { application } from '@application'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
 import {
@@ -9,44 +7,41 @@ import {
 } from '@data/db/schemas/agentSessionMessage'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import { decodeCursor, encodeCursor } from '@data/services/utils/cursor'
-import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
+import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agents'
-import { SESSION_MESSAGES_DEFAULT_LIMIT, SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/sessions'
 import type {
-  AgentMessageExchangeInput,
-  AgentMessageExchangeOutput,
-  AgentMessagePersistInput,
-  AgentPersistedMessage
-} from '@shared/data/types/agentMessage'
-import type { CherryMessagePart } from '@shared/data/types/message'
-import { and, desc, eq, isNotNull, lt, or, sql } from 'drizzle-orm'
+  AgentSessionMessageEntity,
+  CreateAgentSessionMessageDto,
+  CreateAgentSessionMessagesDto
+} from '@shared/data/api/schemas/sessions'
+import { SESSION_MESSAGES_DEFAULT_LIMIT, SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/sessions'
+import { and, desc, eq, isNotNull, lt, or } from 'drizzle-orm'
+import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 const logger = loggerService.withContext('SessionMessageService')
 
+// Cursor wire format: `<createdAt-ms>:<id>`. Stale/legacy cursors fall back
+// to first page (warn) instead of throwing — opaque server-issued tokens.
 function decodeMessageCursor(raw: string): { createdAt: number; id: string } | null {
-  const decoded = decodeCursor(raw)
-  if (!decoded) return null
-  const createdAt = Number(decoded.key)
+  const sep = raw.indexOf(':')
+  if (sep < 0) {
+    logger.warn('decodeMessageCursor: missing separator, falling back to first page', { cursor: raw })
+    return null
+  }
+  const key = raw.slice(0, sep)
+  const id = raw.slice(sep + 1)
+  if (!key || !id) {
+    logger.warn('decodeMessageCursor: empty key or id, falling back to first page', { cursor: raw })
+    return null
+  }
+  const createdAt = Number(key)
   if (!Number.isFinite(createdAt)) return null
-  return { createdAt, id: decoded.id }
+  return { createdAt, id }
 }
 
 export class AgentSessionMessageService {
-  async sessionMessageExists(id: string): Promise<boolean> {
-    const database = application.get('DbService').getDb()
-    const result = await database
-      .select({ id: sessionMessagesTable.id })
-      .from(sessionMessagesTable)
-      .where(eq(sessionMessagesTable.id, id))
-      .limit(1)
-
-    return result.length > 0
-  }
-
   /**
    * Cursor-paginated message read. Walks newest-first; an absent cursor
    * returns the most recent page, each `nextCursor` walks one page older.
@@ -91,7 +86,7 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const items = pageRows.map((row) => this.rowToEntity(row))
     const tail = pageRows[pageRows.length - 1]
-    const nextCursor = hasNext && tail ? encodeCursor(String(tail.createdAt), tail.id) : undefined
+    const nextCursor = hasNext && tail ? `${tail.createdAt}:${tail.id}` : undefined
 
     return { items, nextCursor }
   }
@@ -113,15 +108,7 @@ export class AgentSessionMessageService {
       () =>
         database
           .delete(sessionMessagesTable)
-          .where(
-            and(
-              eq(sessionMessagesTable.sessionId, sessionId),
-              or(
-                eq(sessionMessagesTable.id, messageId),
-                sql`json_extract(${sessionMessagesTable.content}, '$.message.id') = ${messageId}`
-              )
-            )
-          ),
+          .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId))),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {
@@ -130,11 +117,17 @@ export class AgentSessionMessageService {
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
-    const clean = nullsToUndefined(row)
     return {
-      ...clean,
+      id: row.id,
+      sessionId: row.sessionId,
       role: row.role as AgentSessionMessageEntity['role'],
-      // NULL = "no upstream session yet" — preserve, do not coerce to ''.
+      data: row.data,
+      searchableText: row.searchableText,
+      status: row.status as AgentSessionMessageEntity['status'],
+      modelId: row.modelId ?? null,
+      modelSnapshot: row.modelSnapshot ?? null,
+      traceId: row.traceId ?? null,
+      stats: row.stats ?? null,
       agentSessionId: row.agentSessionId,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
@@ -167,19 +160,12 @@ export class AgentSessionMessageService {
   private async findExistingMessageRow(
     db: DbOrTx,
     sessionId: string,
-    role: string,
     messageId: string
   ): Promise<SessionMessageRow | null> {
     const rows = await db
       .select()
       .from(sessionMessagesTable)
-      .where(
-        and(
-          eq(sessionMessagesTable.sessionId, sessionId),
-          eq(sessionMessagesTable.role, role),
-          sql`json_extract(${sessionMessagesTable.content}, '$.message.id') = ${messageId}`
-        )
-      )
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
       .limit(1)
 
     return rows[0] ?? null
@@ -187,35 +173,43 @@ export class AgentSessionMessageService {
 
   private async upsertMessage(
     db: DbOrTx,
-    params:
-      | (AgentMessagePersistInput & { sessionId: string; agentSessionId?: string | null })
-      | (AgentMessagePersistInput & { sessionId: string; agentSessionId: string | null })
+    params: { sessionId: string; agentSessionId?: string; message: CreateAgentSessionMessageDto },
+    timestampMs = Date.now()
   ): Promise<AgentSessionMessageEntity> {
-    const { sessionId, agentSessionId = null, payload, metadata } = params
+    const { sessionId, agentSessionId = null, message } = params
+    const messageId = message.id ?? uuidv7()
+    const status = message.status ?? 'success'
 
-    if (!payload?.message?.role) {
+    if (!message.role) {
       throw DataApiErrorFactory.validation({ role: ['is required'] }, 'Message payload missing role')
     }
 
-    if (!payload.message.id) {
-      throw DataApiErrorFactory.validation({ id: ['is required'] }, 'Message payload missing id')
+    if (!isUuid(messageId)) {
+      throw DataApiErrorFactory.validation({ id: ['must be a UUID'] }, 'Agent session message id must be a UUID')
     }
 
-    const existingRow = await this.findExistingMessageRow(db, sessionId, payload.message.role, payload.message.id)
+    const existingRow = await this.findExistingMessageRow(db, sessionId, messageId)
 
     if (existingRow) {
-      // undefined → keep existing; null → clear; object → replace.
-      const metadataToPersist = metadata === undefined ? existingRow.metadata : metadata
       const agentSessionToPersist = agentSessionId ?? existingRow.agentSessionId ?? null
-      const updatedAtMs = Date.now()
+      const updatedAtMs = timestampMs
+      const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
+      const modelSnapshot = message.modelSnapshot === undefined ? existingRow.modelSnapshot : message.modelSnapshot
+      const traceId = message.traceId === undefined ? existingRow.traceId : message.traceId
+      const stats = message.stats === undefined ? existingRow.stats : message.stats
 
       await withSqliteErrors(
         () =>
           db
             .update(sessionMessagesTable)
             .set({
-              content: payload,
-              metadata: metadataToPersist,
+              role: message.role,
+              status,
+              data: message.data,
+              modelId,
+              modelSnapshot,
+              traceId,
+              stats,
               agentSessionId: agentSessionToPersist,
               updatedAt: updatedAtMs
             })
@@ -225,137 +219,57 @@ export class AgentSessionMessageService {
 
       return this.rowToEntity({
         ...existingRow,
-        content: payload,
-        metadata: metadataToPersist,
+        role: message.role,
+        status,
+        data: message.data,
+        searchableText: existingRow.searchableText,
+        modelId,
+        modelSnapshot,
+        traceId,
+        stats,
         agentSessionId: agentSessionToPersist,
         updatedAt: updatedAtMs
       })
     }
 
     const insertData: InsertSessionMessageRow = {
+      id: messageId,
       sessionId,
-      role: payload.message.role,
-      content: payload,
+      role: message.role,
+      status,
+      data: message.data,
+      modelId: message.modelId,
+      modelSnapshot: message.modelSnapshot,
+      traceId: message.traceId,
+      stats: message.stats,
       agentSessionId,
-      metadata
+      createdAt: timestampMs,
+      updatedAt: timestampMs
     }
 
     const [saved] = await db.insert(sessionMessagesTable).values(insertData).returning()
     return this.rowToEntity(saved)
   }
 
-  async persistUserMessage(
-    params: AgentMessagePersistInput & { sessionId: string; agentSessionId?: string | null },
-    db?: DbOrTx
-  ): Promise<AgentSessionMessageEntity> {
-    const database = db ?? application.get('DbService').getDb()
-    return this.upsertMessage(database, { ...params, agentSessionId: params.agentSessionId ?? null })
-  }
-
-  async persistAssistantMessage(
-    params: AgentMessagePersistInput & { sessionId: string; agentSessionId: string | null },
+  async saveMessage(
+    params: { sessionId: string; agentSessionId?: string; message: CreateAgentSessionMessageDto },
     db?: DbOrTx
   ): Promise<AgentSessionMessageEntity> {
     const database = db ?? application.get('DbService').getDb()
     return this.upsertMessage(database, params)
   }
 
-  async persistExchange(params: AgentMessageExchangeInput): Promise<AgentMessageExchangeOutput> {
-    const { sessionId, agentSessionId, user, assistant } = params
+  async saveMessages(params: CreateAgentSessionMessagesDto): Promise<AgentSessionMessageEntity[]> {
+    const { sessionId, agentSessionId, messages } = params
     const database = application.get('DbService').getDb()
 
     return database.transaction(async (tx) => {
-      const exchangeResult: AgentMessageExchangeOutput = {}
-
-      if (user?.payload) {
-        exchangeResult.userMessage = await this.persistUserMessage(
-          {
-            sessionId,
-            agentSessionId,
-            payload: user.payload,
-            metadata: user.metadata,
-            createdAt: user.createdAt
-          },
-          tx
-        )
+      const timestampMs = Date.now()
+      const saved: AgentSessionMessageEntity[] = []
+      for (const message of messages) {
+        saved.push(await this.upsertMessage(tx, { sessionId, agentSessionId, message }, timestampMs))
       }
-
-      if (assistant?.payload) {
-        exchangeResult.assistantMessage = await this.persistAssistantMessage(
-          {
-            sessionId,
-            agentSessionId,
-            payload: assistant.payload,
-            metadata: assistant.metadata,
-            createdAt: assistant.createdAt
-          },
-          tx
-        )
-      }
-
-      return exchangeResult
-    })
-  }
-
-  /** Persist a complete user+assistant exchange for headless callers (channels, scheduler). */
-  async persistHeadlessExchange(
-    sessionId: string,
-    agentId: string,
-    modelId: string | undefined,
-    agentSessionId: string | null,
-    userContent: string,
-    assistantContent: string,
-    images?: Array<{ data: string; media_type: string }>
-  ): Promise<{ userMessage?: AgentSessionMessageEntity; assistantMessage?: AgentSessionMessageEntity }> {
-    const now = new Date().toISOString()
-    const userMsgId = randomUUID()
-    const assistantMsgId = randomUUID()
-    const topicId = `agent-session:${sessionId}`
-
-    // v2 envelope: parts under `data.parts`, `blocks` empty.
-    const userParts: CherryMessagePart[] = [{ type: 'text', text: userContent, state: 'done' }]
-    if (images && images.length > 0) {
-      for (const img of images) {
-        userParts.push({
-          type: 'file',
-          mediaType: img.media_type,
-          url: `data:${img.media_type};base64,${img.data}`
-        })
-      }
-    }
-
-    const userPayload: AgentPersistedMessage = {
-      message: {
-        id: userMsgId,
-        role: 'user',
-        assistantId: agentId,
-        topicId,
-        createdAt: now,
-        status: 'success',
-        data: { parts: userParts }
-      },
-      blocks: []
-    }
-
-    const assistantPayload: AgentPersistedMessage = {
-      message: {
-        id: assistantMsgId,
-        role: 'assistant',
-        assistantId: agentId,
-        topicId,
-        createdAt: now,
-        status: 'success',
-        modelId,
-        data: { parts: [{ type: 'text', text: assistantContent, state: 'done' }] }
-      },
-      blocks: []
-    }
-
-    return this.persistExchange({
-      sessionId,
-      agentSessionId,
-      user: { payload: userPayload, createdAt: now },
-      assistant: { payload: assistantPayload, createdAt: now }
+      return saved
     })
   }
 }
