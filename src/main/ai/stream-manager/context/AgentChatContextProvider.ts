@@ -10,9 +10,12 @@ import { sessionService } from '@data/services/SessionService'
 import { application } from '@main/core/application'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { trace } from '@opentelemetry/api'
+import { AGENT_SESSION_WORKSPACE_ERROR_PREFIX } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
+import { v7 as uuidv7 } from 'uuid'
 
 import {
+  assertClaudeCodeWorkspaceDirectory,
   extractAgentSessionId,
   isAgentSessionTopic,
   parseAgentSessionModel
@@ -61,6 +64,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
         `AgentChatContextProvider only supports 'claude-code' agents (got '${agent.type}'); other types need a history loader before dispatch.`
       )
     }
+    const workspacePath = session.workspace?.path
+    if (!workspacePath) {
+      throw new Error(`${AGENT_SESSION_WORKSPACE_ERROR_PREFIX} Agent session ${sessionId} has no workspace configured`)
+    }
+    assertClaudeCodeWorkspaceDirectory(sessionId, workspacePath)
 
     const uniqueModelId = parseAgentSessionModel(agent.model)
 
@@ -70,7 +78,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         .map((p) => p.text)
         .join('\n') || ''
 
-    const userMessageId = crypto.randomUUID()
+    const userMessageId = uuidv7()
     const userMessageParts = req.userMessageParts ?? [{ type: 'text', text: userText }]
     const createdAt = new Date().toISOString()
 
@@ -80,7 +88,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       parentId: null,
       role: 'user',
       data: { parts: userMessageParts },
-      searchableText: userText,
+      searchableText: '',
       status: 'success',
       siblingsGroupId: 0,
       createdAt,
@@ -90,20 +98,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (ctx.hasLiveStream) {
       // Inject path — placeholder + listener already exist on the in-flight execution.
       // Adding new ones would orphan a pending row and clobber the listener mid-stream.
-      await agentSessionMessageService.persistUserMessage({
+      await agentSessionMessageService.saveMessage({
         sessionId,
-        agentSessionId: null,
-        payload: {
-          message: {
-            id: userMessageId,
-            role: 'user',
-            assistantId: agentId,
-            topicId: req.topicId,
-            createdAt,
-            status: 'success',
-            data: { parts: userMessageParts }
-          },
-          blocks: []
+        message: {
+          id: userMessageId,
+          role: 'user',
+          status: 'success',
+          data: { parts: userMessageParts }
         }
       })
 
@@ -116,7 +117,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
     }
 
-    const assistantMessageId = crypto.randomUUID()
+    const assistantMessageId = uuidv7()
 
     // Root span; AI SDK children inherit its traceId. `AdapterTracer` persists the root.
     const adapterTracer = new AdapterTracer(rawTracer, req.topicId, uniqueModelId)
@@ -134,45 +135,42 @@ export class AgentChatContextProvider implements ChatContextProvider {
     application.get('SpanCacheService').setTopicId(traceId, req.topicId)
 
     // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
-    await agentSessionMessageService.persistExchange({
+    await agentSessionMessageService.saveMessages({
       sessionId,
-      agentSessionId: null,
-      user: {
-        payload: {
-          message: {
-            id: userMessageId,
-            role: 'user',
-            assistantId: agentId,
-            topicId: req.topicId,
-            createdAt,
-            status: 'success',
-            data: { parts: userMessageParts }
-          },
-          blocks: []
+      messages: [
+        {
+          id: userMessageId,
+          role: 'user',
+          status: 'success',
+          data: { parts: userMessageParts }
+        },
+        {
+          id: assistantMessageId,
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [] },
+          modelId: uniqueModelId
         }
-      },
-      assistant: {
-        payload: {
-          message: {
-            id: assistantMessageId,
-            role: 'assistant',
-            assistantId: agentId,
-            topicId: req.topicId,
-            createdAt: new Date().toISOString(),
-            status: 'pending',
-            data: { parts: [] }
-          },
-          blocks: []
-        }
-      }
+      ]
     })
 
+    const runtimeService = application.get('AgentSessionRuntimeService')
+    const runtime = runtimeService.beginTurn({
+      sessionId,
+      topicId: req.topicId,
+      agentId,
+      modelId: uniqueModelId,
+      assistantMessageId,
+      userMessage
+    })
     const agentPersistenceListener = new PersistenceListener({
       topicId: req.topicId,
       modelId: uniqueModelId,
       backend: new AgentMessageBackend({
         sessionId,
         agentId: agentId,
+        modelId: uniqueModelId,
+        agentSessionId: () => runtimeService.inspect(sessionId)?.sdkSessionId,
         afterPersist: async (finalMessage) => {
           await topicNamingService.maybeRenameAgentSession(agentId, sessionId, userText, finalMessage)
         }
@@ -190,13 +188,15 @@ export class AgentChatContextProvider implements ChatContextProvider {
             assistantId: agentId,
             uniqueModelId,
             messages: [{ id: userMessageId, role: 'user', parts: [{ type: 'text', text: userText }] }],
-            messageId: assistantMessageId
+            messageId: assistantMessageId,
+            runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId },
+            pendingMessages: runtime.pendingMessages
           },
           rootSpan
         }
       ],
       userMessage,
-      listeners: [subscriber, agentPersistenceListener],
+      listeners: [subscriber, agentPersistenceListener, runtime.listener],
       isMultiModel: false
     }
   }

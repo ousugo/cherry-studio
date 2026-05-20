@@ -1,21 +1,18 @@
 /**
  * Session domain API Schema definitions.
- *
- * A `Session` is one execution of an `Agent` optionally bound to a normalized
- * workspace row. All cognitive config
- * (model, instructions, mcps, allowedTools, configuration, ...) lives on the
- * parent agent and is fetched separately via `useAgent(session.agentId)`
- * (renderer) or `agentService.getAgent(...)` (main); workspace lives on the
- * session itself and is **insert-only** — `UpdateSessionDto` deliberately does
- * not include it, so a running session can't be re-pointed at a new directory.
- * Legacy schema migrations may leave it null; newly created sessions bind one.
  */
 
+import {
+  MessageDataSchema,
+  MessageRoleSchema,
+  MessageStatsSchema,
+  MessageStatusSchema,
+  ModelSnapshotSchema
+} from '@shared/data/types/message'
 import * as z from 'zod'
 
 import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
-import type { AgentSessionMessageEntitySchema } from './agents'
 import { AgentNameAtomSchema } from './agents'
 import { WorkspaceEntitySchema } from './workspaces'
 
@@ -36,6 +33,50 @@ export type SessionMessagesListQuery = z.infer<typeof SessionMessagesListQuerySc
 // ============================================================================
 // Entity & DTOs (Rule C: derive DTOs via .pick())
 // ============================================================================
+
+const AgentSessionMessageBaseSchema = z.strictObject({
+  role: MessageRoleSchema,
+  data: MessageDataSchema,
+  status: MessageStatusSchema,
+  modelId: z.string().nullable(),
+  modelSnapshot: ModelSnapshotSchema.nullable(),
+  traceId: z.string().nullable(),
+  stats: MessageStatsSchema.nullable()
+})
+
+export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.extend({
+  /** Message ID (UUIDv7) */
+  id: z.string(),
+  /** Session ID this message belongs to */
+  sessionId: z.string(),
+  searchableText: z.string(),
+  agentSessionId: z.string().nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
+})
+export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntitySchema>
+
+export const CreateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pick({
+  modelId: true,
+  modelSnapshot: true,
+  traceId: true,
+  stats: true
+})
+  .partial()
+  .extend({
+    id: z.string().optional(),
+    role: MessageRoleSchema,
+    data: MessageDataSchema,
+    status: MessageStatusSchema.optional()
+  })
+export type CreateAgentSessionMessageDto = z.infer<typeof CreateAgentSessionMessageSchema>
+
+export const CreateAgentSessionMessagesSchema = z.strictObject({
+  sessionId: z.string(),
+  agentSessionId: z.string().optional(),
+  messages: z.array(CreateAgentSessionMessageSchema)
+})
+export type CreateAgentSessionMessagesDto = z.infer<typeof CreateAgentSessionMessagesSchema>
 
 export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),

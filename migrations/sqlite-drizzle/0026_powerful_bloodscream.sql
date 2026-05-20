@@ -56,4 +56,64 @@ CREATE INDEX `agent_name_idx` ON `agent` (`name`);--> statement-breakpoint
 CREATE INDEX `agent_type_idx` ON `agent` (`type`);--> statement-breakpoint
 CREATE INDEX `agent_order_key_idx` ON `agent` (`order_key`);--> statement-breakpoint
 ALTER TABLE `assistant` ADD `order_key` text DEFAULT 'a0' NOT NULL;--> statement-breakpoint
-CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);
+CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);--> statement-breakpoint
+PRAGMA foreign_keys=OFF;--> statement-breakpoint
+CREATE TABLE `__new_agent_session_message` (
+	`id` text PRIMARY KEY NOT NULL,
+	`session_id` text NOT NULL,
+	`role` text NOT NULL,
+	`data` text NOT NULL,
+	`searchable_text` text DEFAULT '' NOT NULL,
+	`status` text DEFAULT 'success' NOT NULL,
+	`model_id` text,
+	`model_snapshot` text,
+	`trace_id` text,
+	`stats` text,
+	`agent_session_id` text,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	FOREIGN KEY (`session_id`) REFERENCES `agent_session`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`model_id`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null,
+	CONSTRAINT "agent_session_message_role_check" CHECK("__new_agent_session_message"."role" IN ('user', 'assistant', 'system')),
+	CONSTRAINT "agent_session_message_status_check" CHECK("__new_agent_session_message"."status" IN ('pending', 'success', 'error', 'paused'))
+);
+--> statement-breakpoint
+INSERT INTO `__new_agent_session_message`("id", "session_id", "role", "data", "searchable_text", "status", "model_id", "model_snapshot", "trace_id", "stats", "agent_session_id", "created_at", "updated_at")
+SELECT
+	CASE
+		WHEN "id" LIKE '________-____-____-____-____________' THEN "id"
+		ELSE lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-' || substr('89ab', abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6)))
+	END,
+	"session_id",
+	CASE WHEN "role" IN ('user', 'assistant', 'system') THEN "role" ELSE 'assistant' END,
+	CASE
+		WHEN json_valid("content") THEN
+			CASE
+				WHEN json_type("content", '$.parts') = 'array' THEN "content"
+				WHEN json_type("content", '$.message.data.parts') = 'array' THEN json_object('parts', json_extract("content", '$.message.data.parts'))
+				ELSE json_object('parts', json_array())
+			END
+		ELSE json_object('parts', json_array())
+	END,
+	'',
+	CASE
+		WHEN json_valid("content") THEN
+			CASE
+				WHEN json_extract("content", '$.message.status') IN ('success', 'error', 'paused') THEN json_extract("content", '$.message.status')
+				WHEN json_extract("content", '$.message.status') IN ('sending', 'pending', 'searching', 'processing') THEN 'error'
+				ELSE 'success'
+			END
+		ELSE 'success'
+	END,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	"agent_session_id",
+	"created_at",
+	"updated_at"
+FROM `agent_session_message`;--> statement-breakpoint
+DROP TABLE `agent_session_message`;--> statement-breakpoint
+ALTER TABLE `__new_agent_session_message` RENAME TO `agent_session_message`;--> statement-breakpoint
+PRAGMA foreign_keys=ON;--> statement-breakpoint
+CREATE INDEX `agent_session_message_session_created_id_idx` ON `agent_session_message` (`session_id`, `created_at`, `id`);
