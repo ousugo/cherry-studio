@@ -10,12 +10,10 @@ import { sessionService } from '@data/services/SessionService'
 import { application } from '@main/core/application'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { trace } from '@opentelemetry/api'
-import { AGENT_SESSION_WORKSPACE_ERROR_PREFIX } from '@shared/ai/transport'
 import type { Message } from '@shared/data/types/message'
 import { v7 as uuidv7 } from 'uuid'
 
 import {
-  assertClaudeCodeWorkspaceDirectory,
   extractAgentSessionId,
   isAgentSessionTopic,
   parseAgentSessionModel
@@ -64,11 +62,6 @@ export class AgentChatContextProvider implements ChatContextProvider {
         `AgentChatContextProvider only supports 'claude-code' agents (got '${agent.type}'); other types need a history loader before dispatch.`
       )
     }
-    const workspacePath = session.workspace?.path
-    if (!workspacePath) {
-      throw new Error(`${AGENT_SESSION_WORKSPACE_ERROR_PREFIX} Agent session ${sessionId} has no workspace configured`)
-    }
-    assertClaudeCodeWorkspaceDirectory(sessionId, workspacePath)
 
     const uniqueModelId = parseAgentSessionModel(agent.model)
 
@@ -154,15 +147,6 @@ export class AgentChatContextProvider implements ChatContextProvider {
       ]
     })
 
-    const runtimeService = application.get('AgentSessionRuntimeService')
-    const runtime = runtimeService.beginTurn({
-      sessionId,
-      topicId: req.topicId,
-      agentId,
-      modelId: uniqueModelId,
-      assistantMessageId,
-      userMessage
-    })
     const agentPersistenceListener = new PersistenceListener({
       topicId: req.topicId,
       modelId: uniqueModelId,
@@ -170,7 +154,6 @@ export class AgentChatContextProvider implements ChatContextProvider {
         sessionId,
         agentId: agentId,
         modelId: uniqueModelId,
-        agentSessionId: () => runtimeService.inspect(sessionId)?.sdkSessionId,
         afterPersist: async (finalMessage) => {
           await topicNamingService.maybeRenameAgentSession(agentId, sessionId, userText, finalMessage)
         }
@@ -188,15 +171,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
             assistantId: agentId,
             uniqueModelId,
             messages: [{ id: userMessageId, role: 'user', parts: [{ type: 'text', text: userText }] }],
-            messageId: assistantMessageId,
-            runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId },
-            pendingMessages: runtime.pendingMessages
+            messageId: assistantMessageId
           },
           rootSpan
         }
       ],
       userMessage,
-      listeners: [subscriber, agentPersistenceListener, runtime.listener],
+      listeners: [subscriber, agentPersistenceListener],
       isMultiModel: false
     }
   }
