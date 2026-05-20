@@ -717,6 +717,48 @@ describe('ResourceList', () => {
     expect(screen.getByTestId('session-icon')).toHaveAttribute('data-collapsed', 'true')
   })
 
+  it('renders caller-provided leading group header actions separately from collapse controls', () => {
+    const onSelectGroup = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderLeadingAction={(group) => (
+          <button
+            type="button"
+            aria-label={`Select ${group.label}`}
+            onClick={(event) => {
+              event.stopPropagation()
+              onSelectGroup(group.id)
+            }}
+          />
+        )}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const sessionCollapseButton = screen.getByRole('button', { name: 'session' })
+    expect(sessionCollapseButton).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select session' }))
+
+    expect(onSelectGroup).toHaveBeenCalledWith('session')
+    expect(sessionCollapseButton).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(sessionCollapseButton)
+    expect(sessionCollapseButton).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('auto-hides the shared list viewport scrollbar after scrolling stops', () => {
     vi.useFakeTimers()
     const Provider = ResourceList.Provider<TestItem>

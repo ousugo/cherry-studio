@@ -117,6 +117,7 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getItemId?: (item: T) => string
   getItemLabel?: (item: T) => string
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
+  getGroupHeaderLeadingAction?: ResourceListMeta<T>['getGroupHeaderLeadingAction']
   getGroupHeaderIcon?: ResourceListMeta<T>['getGroupHeaderIcon']
   collapsedGroupIds?: readonly string[]
   revealRequest?: ResourceListRevealRequest
@@ -275,6 +276,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   getItemId = getDefaultItemId as (item: T) => string,
   getItemLabel = getDefaultItemLabel as (item: T) => string,
   getGroupHeaderAction,
+  getGroupHeaderLeadingAction,
   getGroupHeaderIcon,
   collapsedGroupIds,
   revealRequest,
@@ -552,6 +554,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         getItemLabel,
         groups: viewGroups.map((group) => group.group),
         getGroupHeaderAction,
+        getGroupHeaderLeadingAction,
         getGroupHeaderIcon,
         sortOptions,
         filterOptions,
@@ -590,6 +593,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       getItemId,
       getItemLabel,
       getGroupHeaderAction,
+      getGroupHeaderLeadingAction,
       getGroupHeaderIcon,
       canDragGroup,
       canDragItem,
@@ -843,8 +847,10 @@ function GroupHeader({ group, className, ref, style, ...props }: GroupHeaderProp
   const { actions, meta, view } = useResourceList()
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
   const collapsed = viewGroup?.collapsed ?? false
+  const groupHeaderContext = { collapsed }
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
-  const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, { collapsed })
+  const groupHeaderLeadingAction = meta.getGroupHeaderLeadingAction?.(group, groupHeaderContext)
+  const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
   const groupHeaderIcon =
     customGroupHeaderIcon === undefined ? (
       <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
@@ -863,6 +869,9 @@ function GroupHeader({ group, className, ref, style, ...props }: GroupHeaderProp
         className
       )}
       {...props}>
+      {groupHeaderLeadingAction && (
+        <div className="flex size-4.5 shrink-0 items-center justify-center">{groupHeaderLeadingAction}</div>
+      )}
       <button
         type="button"
         aria-expanded={!collapsed}

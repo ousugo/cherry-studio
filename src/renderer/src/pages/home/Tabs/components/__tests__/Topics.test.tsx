@@ -229,6 +229,8 @@ vi.mock('react-i18next', () => ({
       if (key === 'common.name') return 'Name'
       if (key === 'common.required_field') return 'Required field'
       if (key === 'common.save') return 'Save'
+      if (key === 'common.select_all') return 'Select All'
+      if (key === 'chat.topics.manage.deselect_all') return 'Deselect All'
       if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Topics'
       if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} topic(s)?`
       if (key === 'chat.add.topic.title') return 'New Topic'
@@ -1433,6 +1435,35 @@ describe('Topics', () => {
 
     expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
     expect(patchSpy).not.toHaveBeenCalled()
+  })
+
+  it('selects all selectable topics in an assistant group from the manage-mode group checkbox', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList()
+
+    fireEvent.click(screen.getByLabelText('Manage topics'))
+
+    const betaHeader = screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')
+    expect(betaHeader).toBeInTheDocument()
+
+    fireEvent.click(within(betaHeader as HTMLElement).getByRole('button', { name: 'Select All Beta Assistant' }))
+
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
+    expect(getTopicRow('Gamma topic')).toHaveClass('bg-accent')
+    expect(getTopicRow('Epsilon yesterday')).toHaveClass('bg-accent')
+    expect(getTopicRow('Delta archive')).toHaveClass('bg-accent')
+    expect(getTopicRow('Alpha topic')).not.toHaveClass('bg-accent')
+    expect(screen.getByText('3')).toBeInTheDocument()
+
+    fireEvent.click(within(betaHeader as HTMLElement).getByRole('button', { name: 'Deselect All Beta Assistant' }))
+
+    expect(getTopicRow('Gamma topic')).not.toHaveClass('bg-accent')
+    expect(getTopicRow('Epsilon yesterday')).not.toHaveClass('bg-accent')
+    expect(getTopicRow('Delta archive')).not.toHaveClass('bg-accent')
+
+    const pinnedHeader = screen.getByRole('button', { name: 'Pinned' }).closest('div')
+    expect(within(pinnedHeader as HTMLElement).getByRole('button', { name: 'Select All Pinned' })).toBeDisabled()
   })
 
   it('moves only the active topic in the optimistic display overlay without rewriting order keys', () => {
