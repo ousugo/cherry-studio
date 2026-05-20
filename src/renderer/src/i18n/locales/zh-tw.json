@@ -398,6 +398,11 @@
         "error": {
           "failed": "無法更新工作階段"
         }
+      },
+      "workspace_status": {
+        "inaccessible": "工作區路徑無法存取：{{path}}",
+        "missing": "工作區路徑不存在：{{path}}",
+        "not_directory": "工作區路徑不是目錄：{{path}}"
       }
     },
     "settings": {

@@ -398,6 +398,11 @@
         "error": {
           "failed": "Failed to update the session"
         }
+      },
+      "workspace_status": {
+        "inaccessible": "Workspace path is not accessible: {{path}}",
+        "missing": "Workspace path does not exist: {{path}}",
+        "not_directory": "Workspace path is not a directory: {{path}}"
       }
     },
     "settings": {
