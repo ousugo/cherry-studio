@@ -5,6 +5,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
+import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useMessage } from '@renderer/hooks/useMessage'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -13,7 +14,6 @@ import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames, cn } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
-import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -127,20 +127,13 @@ const MessageItem: FC<Props> = ({
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
 
-  const { status: topicStreamStatus, activeExecutions } = useTopicStreamStatus(topic.id)
-  const turnFlags = classifyTurn(topicStreamStatus)
-  const isProcessing = turnFlags.isTurnActive
-  const isStreamTarget = activeExecutions.some((e) => e.anchorMessageId === message.id)
-  // The active assistant turn is always the last assistant message (the
-  // pending placeholder, the streaming reply, or the approval anchor). Hide
-  // its menubar off the single cross-window classifier (busy or awaiting)
-  // plus the message's own synchronous optimistic DB status — never from a
-  // message-parts scan (the retired `isMessageAwaitingApproval` path).
-  // Kills post-send flash (bug 1), keeps it hidden through approval waits
-  // (bug 2), and is consistent cross-window via the shared cache (bug 3).
-  const isActiveAssistantTurn =
-    isAssistantMessage && isLastMessage && (isProcessing || isMessageProcessing(message))
-  const showMenubar = !hideMenuBar && !isEditing && !isStreamTarget && !isActiveAssistantTurn
+  const { status: topicStreamStatus } = useTopicStreamStatus(topic.id)
+  const isProcessing = classifyTurn(topicStreamStatus).isTurnActive
+  // Per-message active-target identity, single source via `useIsActiveTurnTarget`
+  // (the 3-way OR — DB status + activeExecutions anchor + paused-and-awaiting
+  // — lives once there so no consumer can over-scope a topic signal again).
+  const isActiveTurnTarget = useIsActiveTurnTarget(message)
+  const showMenubar = !hideMenuBar && !isEditing && !isActiveTurnTarget
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {

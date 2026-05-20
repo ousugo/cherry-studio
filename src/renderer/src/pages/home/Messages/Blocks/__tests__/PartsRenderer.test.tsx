@@ -17,6 +17,9 @@ vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false,
 vi.mock('@renderer/utils/messageUtils/is', () => ({
   isMessageProcessing: () => false
 }))
+vi.mock('@renderer/hooks/useIsActiveTurnTarget', () => ({
+  useIsActiveTurnTarget: () => false
+}))
 vi.mock('@renderer/types/file', () => ({
   FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
 }))
