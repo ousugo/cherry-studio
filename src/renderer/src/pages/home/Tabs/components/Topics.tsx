@@ -187,11 +187,8 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
   useEffect(() => {
     // Mark the fulfilled badge as consumed when the user opens the
     // topic. The shared stream status stays `done` globally; each
-    // window tracks its own "already seen" flag in the local cache.
-    const key = `topic.stream.seen.${activeTopic.id}` as const
-    if (cacheService.get(key) !== true) {
-      cacheService.set(key, true)
-    }
+    // window tracks its own "already seen" flag in casual memory cache.
+    cacheService.setCasual(`topic.stream.seen.${activeTopic.id}`, true)
   }, [activeTopic.id])
 
   const isRenaming = useCallback(

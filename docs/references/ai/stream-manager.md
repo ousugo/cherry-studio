@@ -160,9 +160,12 @@ Choose by **consumer / producer fanout**:
   itself — initial pull and `Cache_Sync` delta share the Main-side
   source of truth; late arrivals overwrite stale state.
 - **Grace-period cleanup does NOT clear the SharedCache entry.** Terminal
-  values (`done` / `aborted` / `error`) stay so each window can
-  independently mark "I've consumed this fulfilled animation" via its
-  per-window `topic.stream.seen.${topicId}` flag.
+  values (`done` / `aborted` / `error`) stay so renderer-side consumers
+  (`useTopicDbRefreshOnTerminal`, `useChatWithHistory`, awaiting-approval
+  indicators, sidebar badges) can observe them. Each window's "I've
+  already animated the fulfilled badge" bit lives in a casual memory-cache
+  key (`topic.stream.seen.${topicId}`) — off-schema, per-window, reset on
+  reload.
 - **`PersistenceListener` placement.** Terminal-only consumer — doesn't
   need chunk bandwidth → not added via `attach`; the provider includes
   it in the `listeners` array passed to `send()`.
@@ -804,9 +807,11 @@ built-in `Cache_Sync` broadcast). The entry shape is
 
 `pending` doubles as the "new stream just created" signal — the old
 `Ai_StreamStarted` IPC is gone. Grace-period cleanup does NOT clear the
-entry — terminal values (`done` / `aborted` / `error`) stay so each
-window can independently track "I've consumed the fulfilled animation"
-via a per-window `topic.stream.seen.${topicId}` flag.
+entry — terminal values (`done` / `aborted` / `error`) stay so renderer
+consumers (DB-refresh trigger, awaiting-approval indicators, sidebar
+badges) can observe them. Per-window "already animated the fulfilled
+badge" is a casual memory-cache flag (`topic.stream.seen.${topicId}`),
+deliberately kept off the schema.
 
 **All traffic is keyed by topicId**; multi-model uses `executionId` to
 demux chunks per model.

@@ -178,15 +178,6 @@ export type UseCacheSchema = {
   'message.streaming.siblings_counter.${topicId}': number
   'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
   'message.ui.${messageId}': { foldSelected?: boolean; multiModelMessageStyle?: string; useful?: boolean }
-  /**
-   * Per-window "user has seen the terminal indicator" flag for a topic.
-   * Lives in the local cache because dismissal is per-window UX — one
-   * window seeing the fulfilled animation shouldn't hide it in another.
-   * Pairs with `topic.stream.status.*` in the shared cache: the shared
-   * entry is the authoritative status, this entry is each window's local
-   * "already animated" flag.
-   */
-  'topic.stream.seen.${topicId}': boolean
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -250,8 +241,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'message.streaming.block.${blockId}': null,
   'message.streaming.siblings_counter.${topicId}': 0,
   'message.streaming.chat_session.${topicId}': null,
-  'message.ui.${messageId}': {},
-  'topic.stream.seen.${topicId}': false
+  'message.ui.${messageId}': {}
 }
 
 /**

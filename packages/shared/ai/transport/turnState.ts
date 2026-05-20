@@ -31,8 +31,9 @@ export interface TurnStateFlags {
    */
   isTerminal: boolean
   /**
-   * `status === 'done'`. Consumers AND this with the window-local `seen`
-   * cache to decide whether to surface the fulfilled badge.
+   * `status === 'done'`. `useTopicStreamStatus` ANDs this with a
+   * window-local "already animated" flag (off-schema casual memory
+   * cache) before surfacing the fulfilled badge.
    */
   isFulfilledCandidate: boolean
 }
@@ -47,11 +48,41 @@ const NO_STREAM: TurnStateFlags = {
 
 /** Declarative status → flags table. Exhaustive over `TopicStreamStatus`. */
 export const TURN_STATE: Record<TopicStreamStatus, TurnStateFlags> = {
-  pending: { isStreamLive: true, isTurnActive: true, isAwaitingApproval: false, isTerminal: false, isFulfilledCandidate: false },
-  streaming: { isStreamLive: true, isTurnActive: true, isAwaitingApproval: false, isTerminal: false, isFulfilledCandidate: false },
-  done: { isStreamLive: false, isTurnActive: false, isAwaitingApproval: false, isTerminal: true, isFulfilledCandidate: true },
-  aborted: { isStreamLive: false, isTurnActive: false, isAwaitingApproval: false, isTerminal: true, isFulfilledCandidate: false },
-  error: { isStreamLive: false, isTurnActive: false, isAwaitingApproval: false, isTerminal: true, isFulfilledCandidate: false },
+  pending: {
+    isStreamLive: true,
+    isTurnActive: true,
+    isAwaitingApproval: false,
+    isTerminal: false,
+    isFulfilledCandidate: false
+  },
+  streaming: {
+    isStreamLive: true,
+    isTurnActive: true,
+    isAwaitingApproval: false,
+    isTerminal: false,
+    isFulfilledCandidate: false
+  },
+  done: {
+    isStreamLive: false,
+    isTurnActive: false,
+    isAwaitingApproval: false,
+    isTerminal: true,
+    isFulfilledCandidate: true
+  },
+  aborted: {
+    isStreamLive: false,
+    isTurnActive: false,
+    isAwaitingApproval: false,
+    isTerminal: true,
+    isFulfilledCandidate: false
+  },
+  error: {
+    isStreamLive: false,
+    isTurnActive: false,
+    isAwaitingApproval: false,
+    isTerminal: true,
+    isFulfilledCandidate: false
+  },
   'awaiting-approval': {
     isStreamLive: false,
     isTurnActive: true,

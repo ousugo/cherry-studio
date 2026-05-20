@@ -4,16 +4,19 @@
  * (`AiStreamManager.broadcastTopicStatus` → `cacheService.setShared`),
  * each renderer reads only the topic it cares about.
  *
- * Terminal states linger in the Main-side entry until each window flips
- * its local `topic.stream.seen.${topicId}` flag, at which point the
- * fulfilled indicator stops surfacing in that window specifically. The
- * "seen" state is window-local so one window dismissing the badge
- * doesn't hide it in another.
+ * Terminal states linger in the Main-side shared entry (other consumers
+ * — `useTopicDbRefreshOnTerminal`, `useChatWithHistory`, awaiting-approval
+ * indicators — depend on this). The "user has already acknowledged the
+ * fulfilled animation" bit is per-window UI state, kept off the schema
+ * and stored as a casual memory-cache key keyed by topic. Cache pub/sub
+ * is reused via `cacheService.subscribe`; the hook is just a thin
+ * `useSyncExternalStore` wrapper.
  */
 
-import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
+import { cacheService } from '@data/CacheService'
+import { useSharedCache } from '@renderer/data/hooks/useCache'
 import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
 
 interface TopicStreamStatusView {
   status: TopicStreamStatus | undefined
@@ -36,9 +39,20 @@ interface TopicStreamStatusView {
   markSeen: () => void
 }
 
+const seenKey = (topicId: string) => `topic.stream.seen.${topicId}`
+
+function useTopicSeen(topicId: string): readonly [boolean, () => void] {
+  const key = seenKey(topicId)
+  const subscribe = useCallback((cb: () => void) => cacheService.subscribe(key, cb), [key])
+  const getSnapshot = useCallback(() => cacheService.getCasual<boolean>(key) ?? false, [key])
+  const seen = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  const mark = useCallback(() => cacheService.setCasual(key, true), [key])
+  return [seen, mark] as const
+}
+
 export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
-  const [seen, setSeen] = useCache(`topic.stream.seen.${topicId}` as const)
+  const [seen, markSeen] = useTopicSeen(topicId)
 
   const status = entry?.status
   const activeExecutions = useMemo(() => entry?.activeExecutions ?? [], [entry])
@@ -47,10 +61,6 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   const flags = classifyTurn(status)
   const isPending = flags.isStreamLive
   const isFulfilled = flags.isFulfilledCandidate && !seen
-
-  const markSeen = useCallback(() => {
-    if (!seen) setSeen(true)
-  }, [seen, setSeen])
 
   return { status, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen }
 }
