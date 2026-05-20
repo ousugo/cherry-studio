@@ -13,15 +13,18 @@ export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse
   return toolResponse.status !== 'done' ? (
     <Spinner
       text={
-        <span className="flex items-center gap-1 pl-0 text-sm">
+        <span className="flex min-w-0 items-center gap-1 py-0.5 text-[13px] leading-5">
           {i18n.t('message.searching')}
-          <span>{query}</span>
+          <span className="min-w-0 truncate">{query}</span>
         </span>
       }
     />
   ) : (
-    <span className="flex items-center gap-1 text-foreground-secondary">
-      <FileSearch size={16} style={{ color: 'unset' }} />
+    <span className="flex items-center gap-1.5 py-0.5 text-[13px] text-foreground-secondary leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
+      <FileSearch
+        size={14}
+        className="shrink-0 text-foreground-muted transition-colors duration-150 group-hover/tool:text-foreground-secondary"
+      />
       {i18n.t('message.websearch.fetch_complete', { count: resultCount })}
     </span>
   )

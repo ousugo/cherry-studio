@@ -18,12 +18,14 @@ vi.mock('lucide-react', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
-    Search: () => <span data-testid="search-icon" />
+    Search: ({ className, size }: { className?: string; size?: number | string }) => (
+      <span data-testid="search-icon" data-size={size} className={className} />
+    )
   }
 })
 
 describe('MessageWebSearchToolTitle', () => {
-  it('uses a natural empty-result label without horizontal padding', () => {
+  it('uses the compact tool-row style for an empty-result label', () => {
     render(
       <MessageWebSearchToolTitle
         toolResponse={
@@ -40,9 +42,33 @@ describe('MessageWebSearchToolTitle', () => {
     )
 
     const title = screen.getByText('No search results found').closest('span')
-    expect(title).toHaveClass('flex items-center gap-1 py-1.25 text-foreground-secondary')
+    expect(title).toHaveClass('flex items-center gap-1.5 py-0.5 text-[13px] leading-5 text-foreground-secondary')
     expect(title).not.toHaveClass('p-1.25')
-    expect(screen.getByTestId('search-icon')).toBeInTheDocument()
+    expect(title).not.toHaveClass('py-1.25 text-sm')
+    expect(screen.getByTestId('search-icon')).toHaveAttribute('data-size', '14')
+    expect(screen.getByTestId('search-icon')).toHaveClass('shrink-0 text-foreground-muted')
+  })
+
+  it('uses the compact tool-row text while searching', () => {
+    render(
+      <MessageWebSearchToolTitle
+        toolResponse={
+          {
+            id: 'tool-call-1',
+            toolCallId: 'tool-call-1',
+            tool: { id: 'web-search', name: 'web__search', type: 'builtin' },
+            status: 'invoking',
+            arguments: { query: 'Cherry Studio' },
+            response: []
+          } as NormalToolResponse
+        }
+      />
+    )
+
+    const searchingText = screen.getByText('message.searching').closest('span')
+    expect(searchingText).toHaveClass('py-0.5 text-[13px] leading-5')
+    expect(searchingText).not.toHaveClass('py-1.25 text-sm')
+    expect(screen.getByText('Cherry Studio')).toHaveClass('truncate')
   })
 
   it('keeps the result count label when results are present', () => {

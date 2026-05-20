@@ -18,15 +18,18 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
   return toolResponse.status !== 'done' ? (
     <Spinner
       text={
-        <span className="flex items-center gap-1 py-1.25 pr-1.25 pl-0 text-sm">
+        <span className="flex min-w-0 items-center gap-1 py-0.5 text-[13px] leading-5">
           {t('message.searching')}
-          <span>{query}</span>
+          <span className="min-w-0 truncate">{query}</span>
         </span>
       }
     />
   ) : (
-    <span className="flex items-center gap-1 py-1.25 text-foreground-secondary">
-      <Search size={16} style={{ color: 'unset' }} />
+    <span className="flex items-center gap-1.5 py-0.5 text-[13px] text-foreground-secondary leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
+      <Search
+        size={14}
+        className="shrink-0 text-foreground-muted transition-colors duration-150 group-hover/tool:text-foreground-secondary"
+      />
       {resultText}
     </span>
   )
