@@ -36,6 +36,12 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: mocks.EventEmitter
 }))
 
+vi.mock('@renderer/config/constant', () => ({
+  get isWin() {
+    return mocks.isWin
+  }
+}))
+
 vi.mock('@renderer/utils/markdown', () => ({
   getCodeBlockId: mocks.getCodeBlockId,
   isOpenFenceBlock: mocks.isOpenFenceBlock

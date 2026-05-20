@@ -41,19 +41,19 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     assistant: {
       id: 'assistant-1',
       name: 'Assistant',
-      model: {
-        id: 'claude-3-5-sonnet',
-        provider: 'anthropic',
-        name: 'Claude 3.5 Sonnet',
-        group: 'anthropic',
-        capabilities: []
-      },
       settings: {
         toolUseMode: 'function'
       },
       enableWebSearch: false,
       mcpMode: 'disabled',
       mcpServers: []
+    },
+    model: {
+      id: 'claude-3-5-sonnet',
+      provider: 'anthropic',
+      name: 'Claude 3.5 Sonnet',
+      group: 'anthropic',
+      capabilities: []
     },
     updateAssistant: updateAssistantMock
   })

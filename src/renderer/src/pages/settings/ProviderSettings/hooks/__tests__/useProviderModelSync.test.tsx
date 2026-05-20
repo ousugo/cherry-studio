@@ -94,7 +94,7 @@ describe('useProviderModelSync', () => {
     expect(dataApiGetMock).toHaveBeenCalledWith('/models', {
       query: { providerId: 'openai' }
     })
-    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai', { id: 'openai' })
+    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
     expect(createModelsMock).toHaveBeenCalledTimes(1)
   })
 })

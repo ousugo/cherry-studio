@@ -24,7 +24,8 @@ const mocks = vi.hoisted(() => {
       info: vi.fn(),
       warn: vi.fn()
     },
-    exportTableToExcel: vi.fn()
+    exportTableToExcel: vi.fn(),
+    markdownBlockContext: { content: '' as string }
   }
 })
 
@@ -74,6 +75,12 @@ vi.mock('@renderer/pages/home/Messages/Blocks', () => ({
   useResolveBlock: vi.fn(() => null)
 }))
 
+// Mock the Markdown module to avoid pulling its heavy transitive import graph
+// (ImageViewer → editorUtils → SVGIcon → createLucideIcon) during Table tests.
+vi.mock('../Markdown', () => ({
+  useMarkdownBlockContext: () => mocks.markdownBlockContext
+}))
+
 Object.assign(window, {
   message: mocks.windowMessage,
   toast: mocks.windowToast
@@ -105,12 +112,6 @@ describe('Table', () => {
   const user = userEvent.setup({
     advanceTimers: vi.advanceTimersByTime.bind(vi),
     writeToClipboard: true
-  })
-
-  // Test data factories
-  const createMockBlock = (content: string = defaultTableContent) => ({
-    id: 'test-block-1',
-    content
   })
 
   const createTablePosition = (startLine = 1, endLine = 3) => ({
@@ -182,19 +183,9 @@ describe('Table', () => {
   })
 
   describe('extractTableMarkdown', () => {
-    beforeEach(() => {
-      mocks.store.getState.mockReturnValue({})
-    })
-
     it('should extract table content from specified line range', () => {
-      const block = createMockBlock()
-      const position = createTablePosition(1, 3)
-      mocks.messageBlocksSelectors.selectById.mockReturnValue(block)
-
-      const result = extractTableMarkdown('test-block-1', position)
-
+      const result = extractTableMarkdown('test-block-1', createTablePosition(1, 3), defaultTableContent)
       expect(result).toBe(defaultTableContent)
-      expect(mocks.messageBlocksSelectors.selectById).toHaveBeenCalledWith({}, 'test-block-1')
     })
 
     it('should handle line range extraction correctly', () => {
@@ -203,75 +194,35 @@ describe('Table', () => {
 |----------|----------|
 | Cell 1   | Cell 2   |
 Line 4`
-      const block = createMockBlock(multiLineContent)
-      const position = createTablePosition(2, 4) // Extract lines 2-4 (table part)
-      mocks.messageBlocksSelectors.selectById.mockReturnValue(block)
 
-      const result = extractTableMarkdown('test-block-1', position)
+      const result = extractTableMarkdown('test-block-1', createTablePosition(2, 4), multiLineContent)
 
       expect(result).toBe(`| Header 1 | Header 2 |
 |----------|----------|
 | Cell 1   | Cell 2   |`)
     })
 
-    it('should return empty string when blockId is empty', () => {
-      const result = extractTableMarkdown('', createTablePosition())
-      expect(result).toBe('')
-      expect(mocks.messageBlocksSelectors.selectById).not.toHaveBeenCalled()
-    })
-
     it('should return empty string when position is null', () => {
-      const result = extractTableMarkdown('test-block-1', null)
-      expect(result).toBe('')
-      expect(mocks.messageBlocksSelectors.selectById).not.toHaveBeenCalled()
+      expect(extractTableMarkdown('test-block-1', null, defaultTableContent)).toBe('')
     })
 
     it('should return empty string when position is undefined', () => {
-      const result = extractTableMarkdown('test-block-1', undefined)
-      expect(result).toBe('')
-      expect(mocks.messageBlocksSelectors.selectById).not.toHaveBeenCalled()
+      expect(extractTableMarkdown('test-block-1', undefined, defaultTableContent)).toBe('')
     })
 
-    it('should return empty string when block does not exist', () => {
-      mocks.messageBlocksSelectors.selectById.mockReturnValue(null)
-
-      const result = extractTableMarkdown('non-existent-block', createTablePosition())
-
-      expect(result).toBe('')
-    })
-
-    it('should return empty string when block has no content property', () => {
-      const blockWithoutContent = { id: 'test-block-1' }
-      mocks.messageBlocksSelectors.selectById.mockReturnValue(blockWithoutContent)
-
-      const result = extractTableMarkdown('test-block-1', createTablePosition())
-
-      expect(result).toBe('')
-    })
-
-    it('should return empty string when block content is not a string', () => {
-      const blockWithInvalidContent = { id: 'test-block-1', content: 123 }
-      mocks.messageBlocksSelectors.selectById.mockReturnValue(blockWithInvalidContent)
-
-      const result = extractTableMarkdown('test-block-1', createTablePosition())
-
-      expect(result).toBe('')
+    it('should return empty string when markdownContent is missing', () => {
+      expect(extractTableMarkdown('test-block-1', createTablePosition(), undefined)).toBe('')
     })
 
     it('should handle boundary line numbers correctly', () => {
-      const block = createMockBlock('Line 1\nLine 2\nLine 3')
-      const position = createTablePosition(1, 3)
-      mocks.messageBlocksSelectors.selectById.mockReturnValue(block)
-
-      const result = extractTableMarkdown('test-block-1', position)
-
+      const result = extractTableMarkdown('test-block-1', createTablePosition(1, 3), 'Line 1\nLine 2\nLine 3')
       expect(result).toBe('Line 1\nLine 2\nLine 3')
     })
   })
 
   describe('copy functionality', () => {
     beforeEach(() => {
-      mocks.messageBlocksSelectors.selectById.mockReturnValue(createMockBlock())
+      mocks.markdownBlockContext.content = defaultTableContent
     })
 
     it('should copy table content to clipboard on button click', async () => {
@@ -333,7 +284,7 @@ Line 4`
     })
 
     it('should show error toast when extractTableMarkdown returns empty string', async () => {
-      mocks.messageBlocksSelectors.selectById.mockReturnValue(null)
+      mocks.markdownBlockContext.content = ''
 
       render(<Table {...defaultProps} />)
 
@@ -350,7 +301,7 @@ Line 4`
 
   describe('excel export functionality', () => {
     beforeEach(() => {
-      mocks.messageBlocksSelectors.selectById.mockReturnValue(createMockBlock())
+      mocks.markdownBlockContext.content = defaultTableContent
       mocks.exportTableToExcel.mockResolvedValue(true)
       vi.clearAllMocks()
     })
@@ -393,7 +344,7 @@ Line 4`
     })
 
     it('should show error toast when extractTableMarkdown returns empty string', async () => {
-      mocks.messageBlocksSelectors.selectById.mockReturnValue(null)
+      mocks.markdownBlockContext.content = ''
 
       render(<Table {...defaultProps} />)
 

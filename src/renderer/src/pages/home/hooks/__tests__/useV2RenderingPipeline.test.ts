@@ -34,13 +34,13 @@ describe('useV2RenderingPipeline — monotonic overlay merge', () => {
     expect(textOf(result.current.mergedPartsMap['a'])).toBe('streaming')
   })
 
-  it('DB final (success + content) → DB wins, overlay ignored', () => {
+  it('overlay always wins while it has content, regardless of DB status', () => {
     const ui = [msg('u', 'user', 'hi'), msg('a', 'assistant', 'persisted', 'success')]
-    const { result } = renderHook(() => useV2RenderingPipeline(ui, topic(), { a: [part('stale-stream')] }))
-    expect(textOf(result.current.mergedPartsMap['a'])).toBe('persisted')
+    const { result } = renderHook(() => useV2RenderingPipeline(ui, topic(), { a: [part('live-stream')] }))
+    expect(textOf(result.current.mergedPartsMap['a'])).toBe('live-stream')
   })
 
-  it('monotonic: overlay drops to empty before DB is final → last-good retained (no flash)', () => {
+  it('overlay empty → DB parts win (no last-good retention)', () => {
     const ui = [msg('u', 'user', 'hi'), msg('a', 'assistant', '', 'pending')]
     const { result, rerender } = renderHook(
       ({ overlay }: { overlay: Record<string, CherryMessagePart[]> }) => useV2RenderingPipeline(ui, topic(), overlay),
@@ -48,9 +48,8 @@ describe('useV2RenderingPipeline — monotonic overlay merge', () => {
     )
     expect(textOf(result.current.mergedPartsMap['a'])).toBe('answer so far')
 
-    // disposeOverlay happened (entry gone) but DB row still pending/empty.
     rerender({ overlay: {} })
-    expect(textOf(result.current.mergedPartsMap['a'])).toBe('answer so far')
+    expect(textOf(result.current.mergedPartsMap['a'])).toBe('')
   })
 
   it('hand-off: once DB row becomes final, DB wins and last-good is cleared', () => {

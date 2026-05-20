@@ -10,12 +10,8 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { truncateAll } from '../internal/truncate'
 import { setupTestDatabase } from '../testDatabase'
 
-// The message FTS trigger still extracts searchable text from
-// json_extract(data,'$.blocks'). Until that trigger is rewritten to read
-// $.parts (flagged follow-up), these trigger tests must feed legacy
-// block-shaped JSON, cast past the parts-only MessageData type.
 function mainText(content: string): MessageData {
-  return { blocks: [{ type: 'main_text', content, createdAt: 0 }] } as unknown as MessageData
+  return { parts: [{ type: 'text', text: content }] }
 }
 
 describe('setupTestDatabase — basic lifecycle and schema', () => {

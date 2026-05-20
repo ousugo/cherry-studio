@@ -416,7 +416,7 @@ describe('TopicService', () => {
   describe('create', () => {
     it('without sourceNodeId: inserts topic with activeNodeId=null and a fresh orderKey', async () => {
       const result = await topicService.create({ name: 'fresh' })
-      expect(result.activeNodeId).toBeNull()
+      expect(result.activeNodeId).toBeUndefined()
       expect(result.name).toBe('fresh')
       const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
       expect(row?.orderKey).toBeDefined()

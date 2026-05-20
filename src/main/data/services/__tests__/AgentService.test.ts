@@ -6,6 +6,7 @@ import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/apiServer/services/mcp', () => ({
@@ -86,21 +87,27 @@ describe('AgentService', () => {
   }
 
   async function seedModelRefs() {
-    await dbh.db.insert(userProviderTable).values({
-      providerId: 'anthropic',
-      name: 'Anthropic',
-      orderKey: generateOrderKeyBetween(null, null)
-    })
-    await dbh.db.insert(userModelTable).values({
-      id: createUniqueModelId('anthropic', 'claude-sonnet-4-5'),
-      providerId: 'anthropic',
-      modelId: 'claude-sonnet-4-5',
-      presetModelId: 'claude-sonnet-4-5',
-      name: 'Claude Sonnet 4.5',
-      isEnabled: true,
-      isHidden: false,
-      orderKey: generateOrderKeyBetween(null, null)
-    })
+    await dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'anthropic',
+        name: 'Anthropic',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+      .onConflictDoNothing()
+    await dbh.db
+      .insert(userModelTable)
+      .values({
+        id: createUniqueModelId('anthropic', 'claude-sonnet-4-5'),
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet-4-5',
+        presetModelId: 'claude-sonnet-4-5',
+        name: 'Claude Sonnet 4.5',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+      .onConflictDoNothing()
   }
 
   describe('createAgent', () => {
@@ -198,6 +205,15 @@ describe('AgentService', () => {
 
     it('embeds modelName resolved from user_model', async () => {
       await seedModelRefs()
+      const deletedModelId = createUniqueModelId('anthropic', 'deleted-model')
+      await dbh.db.insert(userModelTable).values({
+        id: deletedModelId,
+        providerId: 'anthropic',
+        modelId: 'deleted-model',
+        name: 'Deleted Model',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
       const bound = await insertAgent({
         id: 'agent_model_test_1',
         name: 'bound',
@@ -206,8 +222,11 @@ describe('AgentService', () => {
       const missing = await insertAgent({
         id: 'agent_model_test_2',
         name: 'missing',
-        model: 'anthropic::deleted-model'
+        model: deletedModelId
       })
+
+      // Drop the row; FK is `ON DELETE set null`, so agent.model becomes NULL.
+      await dbh.db.delete(userModelTable).where(eq(userModelTable.id, deletedModelId))
 
       const { agents } = await agentService.listAgents()
       const byId = new Map(agents.map((agent) => [agent.id, agent]))

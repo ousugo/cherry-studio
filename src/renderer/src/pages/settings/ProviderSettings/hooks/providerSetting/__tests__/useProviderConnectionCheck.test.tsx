@@ -132,13 +132,8 @@ describe('useProviderConnectionCheck', () => {
     })
 
     expect(checkApiMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        apiKey: 'sk-b',
-        apiHost: 'https://anthropic.cherryin.cc'
-      }),
-      result.current.checkableModels[0],
-      undefined,
-      expect.any(AbortSignal)
+      result.current.checkableModels[0].id,
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
     expect(result.current.connectionCheckOpen).toBe(false)
     expect(setTimeoutTimer).toHaveBeenCalled()
