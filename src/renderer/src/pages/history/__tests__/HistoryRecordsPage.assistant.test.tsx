@@ -27,7 +27,7 @@ const hookMocks = vi.hoisted(() => ({
   togglePin: vi.fn(),
   updateTopic: vi.fn(),
   useAgents: vi.fn(),
-  useAllTopics: vi.fn(),
+  useTopics: vi.fn(),
   useAssistants: vi.fn(),
   useCache: vi.fn(),
   useMultiplePreferences: vi.fn(),
@@ -165,7 +165,7 @@ vi.mock('@renderer/hooks/useTopic', () => ({
     pinned: false,
     isNameManuallyEdited: topic.isNameManuallyEdited
   }),
-  useAllTopics: hookMocks.useAllTopics,
+  useTopics: hookMocks.useTopics,
   useTopicMutations: () => ({
     deleteTopic: hookMocks.deleteTopic,
     updateTopic: hookMocks.updateTopic
@@ -337,7 +337,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       }
     })
     hookMocks.useAgents.mockReset()
-    hookMocks.useAllTopics.mockReset()
+    hookMocks.useTopics.mockReset()
     hookMocks.useAssistants.mockReset()
     hookMocks.useCache.mockReset()
     hookMocks.useCache.mockReturnValue([[], vi.fn()])
@@ -376,7 +376,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('selects the clicked topic and closes history', () => {
-    hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-alpha'], togglePin: hookMocks.togglePin })
 
@@ -414,7 +414,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('renders the overlay shell without transition animation', () => {
-    hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
     render(
@@ -433,7 +433,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('matches external assistant ResourceList source and selected-source order', () => {
-    hookMocks.useAllTopics.mockReturnValue({
+    hookMocks.useTopics.mockReturnValue({
       topics: [
         createTopic({ id: 'topic-beta', assistantId: 'assistant-beta', name: 'Beta topic', orderKey: 'a' }),
         createTopic({ id: 'topic-alpha-b', name: 'Alpha B', orderKey: 'b' }),
@@ -460,7 +460,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('groups empty and missing assistant topics under one unlinked source', () => {
-    hookMocks.useAllTopics.mockReturnValue({
+    hookMocks.useTopics.mockReturnValue({
       topics: [
         createTopic({ id: 'topic-alpha', name: 'Alpha topic', orderKey: 'a' }),
         createTopic({ id: 'topic-unlinked', assistantId: undefined, name: 'Local orphan topic', orderKey: 'b' }),
@@ -489,7 +489,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('unmounts the overlay immediately when closed', () => {
-    hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
     const props = {
@@ -507,7 +507,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('renders the external topic context menu for history rows', () => {
-    hookMocks.useAllTopics.mockReturnValue({
+    hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
       isLoading: false
@@ -538,7 +538,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('pins a topic from the history row context menu without selecting the row', () => {
-    hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
@@ -555,7 +555,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('renames a topic from the history row context menu dialog without selecting the row', async () => {
-    hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
@@ -587,7 +587,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('does not persist empty or unchanged topic names from history rename dialog', () => {
-    hookMocks.useAllTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
     const { unmount } = render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
@@ -618,7 +618,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('confirms topic deletion from the history row context menu', async () => {
-    hookMocks.useAllTopics.mockReturnValue({
+    hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
       isLoading: false
@@ -644,7 +644,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('switches to the adjacent topic after deleting the active topic from the history row context menu', async () => {
-    hookMocks.useAllTopics.mockReturnValue({
+    hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
       isLoading: false
@@ -675,7 +675,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('does not switch topics after deleting a non-active history row', async () => {
-    hookMocks.useAllTopics.mockReturnValue({
+    hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
       isLoading: false
@@ -706,7 +706,7 @@ describe('HistoryRecordsPage assistant mode', () => {
   })
 
   it('keeps the active topic unchanged when history deletion fails', async () => {
-    hookMocks.useAllTopics.mockReturnValue({
+    hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
       isLoading: false

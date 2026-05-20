@@ -14,7 +14,7 @@ import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
-import { mapApiTopicToRendererTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopic'
+import { mapApiTopicToRendererTopic, useTopicMutations, useTopics } from '@renderer/hooks/useTopic'
 import type { SessionActionContext } from '@renderer/pages/agents/components/sessionItemActions'
 import {
   createSessionWorkdirDisplayMaps,
@@ -174,7 +174,7 @@ const AssistantHistoryRecordsContent = ({
   const [searchText, setSearchText] = useState('')
   const [groupNow] = useState(() => new Date())
 
-  const { topics: rawTopics, isLoading: isTopicsLoading } = useAllTopics({ loadAll: true })
+  const { topics: rawTopics, isLoading: isTopicsLoading } = useTopics({ loadAll: true })
   const { assistants } = useAssistants()
   const [renamingTopics] = useCache('topic.renaming')
   const { notesPath } = useNotesSettings()

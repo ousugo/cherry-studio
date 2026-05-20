@@ -15,7 +15,7 @@ const hookMocks = vi.hoisted(() => ({
   togglePin: vi.fn(),
   updateSession: vi.fn(),
   useAgents: vi.fn(),
-  useAllTopics: vi.fn(),
+  useTopics: vi.fn(),
   useAssistants: vi.fn(),
   useDataApiQuery: vi.fn(),
   useMultiplePreferences: vi.fn(),
@@ -144,7 +144,7 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   finishTopicRenaming: vi.fn(),
   getTopicMessages: vi.fn().mockResolvedValue([]),
   mapApiTopicToRendererTopic: (topic: { id: string }) => topic,
-  useAllTopics: hookMocks.useAllTopics,
+  useTopics: hookMocks.useTopics,
   useTopicMutations: () => ({
     deleteTopic: vi.fn(),
     updateTopic: vi.fn()
@@ -389,7 +389,7 @@ describe('HistoryRecordsPage agent mode', () => {
     hookMocks.updateSession.mockReset()
     hookMocks.updateSession.mockResolvedValue(createSession({ name: 'Renamed session' }))
     hookMocks.useAgents.mockReset()
-    hookMocks.useAllTopics.mockReset()
+    hookMocks.useTopics.mockReset()
     hookMocks.useAssistants.mockReset()
     hookMocks.useDataApiQuery.mockReset()
     hookMocks.useDataApiQuery.mockReturnValue({ data: [], error: undefined, isLoading: false })
@@ -422,7 +422,7 @@ describe('HistoryRecordsPage agent mode', () => {
     })
 
     expect(hookMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 50 })
-    expect(hookMocks.useAllTopics).not.toHaveBeenCalled()
+    expect(hookMocks.useTopics).not.toHaveBeenCalled()
     expect(hookMocks.useAssistants).not.toHaveBeenCalled()
     expect(screen.getByText('History')).toBeInTheDocument()
     expect(screen.getByText('2 sessions')).toBeInTheDocument()

@@ -586,6 +586,26 @@ describe('Topics', () => {
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
   })
 
+  it('requests and auto-paginates full topic pages with the ResourceList bulk page size', async () => {
+    const loadNext = vi.fn()
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [] }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: true,
+      loadNext,
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', expect.objectContaining({ limit: 200 }))
+    await vi.waitFor(() => expect(loadNext).toHaveBeenCalledTimes(1))
+  })
+
   it('pins from the leading row button without selecting the topic', async () => {
     const { getByText, setActiveTopic } = renderTopicList()
 
@@ -831,6 +851,54 @@ describe('Topics', () => {
 
     expect(screen.getByText('Topic 5')).toBeInTheDocument()
     expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
+  })
+
+  it('subscribes topic stream status only for rows visible in the ResourceList view', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+    mockUseQuery.mockImplementation((path) => {
+      if (path === '/pins') {
+        return {
+          data: [],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return {
+        data: undefined,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: createTopicPageItems(6) }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+    const subscribeSpy = vi.spyOn(cacheService, 'subscribe')
+
+    try {
+      renderTopicList()
+
+      const subscribedKeys = subscribeSpy.mock.calls.map(([key]) => key)
+      expect(subscribedKeys).toContain(topicStreamStatusCacheKey('topic-5'))
+      expect(subscribedKeys).toContain(topicStreamSeenCacheKey('topic-5'))
+      expect(subscribedKeys).not.toContain(topicStreamStatusCacheKey('topic-6'))
+      expect(subscribedKeys).not.toContain(topicStreamSeenCacheKey('topic-6'))
+    } finally {
+      subscribeSpy.mockRestore()
+    }
   })
 
   it('keeps the pinned group first and lets each group collapse independently', () => {

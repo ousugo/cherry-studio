@@ -544,7 +544,7 @@ describe('Sessions', () => {
   it('loads all sessions and renders workspace groups with drag by default', () => {
     render(<Sessions />)
 
-    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 50 })
+    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 200 })
     expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toBeInTheDocument()

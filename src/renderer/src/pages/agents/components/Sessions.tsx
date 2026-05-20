@@ -244,7 +244,7 @@ const Sessions = ({
     reload,
     reorderSession,
     togglePin
-  } = useSessions(undefined, { loadAll: true, pageSize: 50 })
+  } = useSessions(undefined, { loadAll: true, pageSize: 200 })
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
   const { agents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)

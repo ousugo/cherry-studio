@@ -25,8 +25,8 @@ import {
   getTopicMessages,
   mapApiTopicToRendererTopic,
   startTopicRenaming,
-  useAllTopics,
-  useTopicMutations
+  useTopicMutations,
+  useTopics
 } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
@@ -277,7 +277,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   } = usePins('assistant', { enabled: isAssistantDisplayMode })
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
-  const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = useAllTopics({ loadAll: true })
+  const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = useTopics({ loadAll: true })
   const {
     assistants,
     isLoading: isAssistantsLoading,
@@ -1139,7 +1139,7 @@ function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
   const context = useResourceList<Topic>()
   const { listRef, rowLayout, variant, ...rowProps } = props
-  const visibleItems = context.view.items
+  const visibleItems = context.view.visibleItems
   const visibleTopicIds = useMemo(() => visibleItems.map((topic) => topic.id), [visibleItems])
   const streamStatusByTopicId = useTopicListStreamStatuses(visibleTopicIds)
 

@@ -4,7 +4,7 @@
  *  1. Pure / non-React helpers — `mapApiTopicToRendererTopic`,
  *     `getTopicById`, `getTopicMessages`, topic-rename cache helpers.
  *  2. DataApi tier — raw SQLite-backed queries/mutations
- *     (`useAllTopics` / `useTopicById` / `useTopicMutations` / `useTopicSync`).
+ *     (`useTopics` / `useTopicById` / `useTopicMutations` / `useTopicSync`).
  *  3. Composed hook — `useActiveTopic`.
  *
  * Returns the canonical {@link Topic} entity straight from SQLite. The
@@ -38,6 +38,8 @@ const logger = loggerService.withContext('useTopic')
 // ─── Tier 1: pure / non-React helpers ─────────────────────────────────────
 
 const EMPTY_TOPICS: readonly Topic[] = Object.freeze([])
+const DEFAULT_TOPIC_PAGE_SIZE = 50
+const LOAD_ALL_TOPIC_PAGE_SIZE = 200
 
 /**
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
@@ -214,14 +216,15 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  *
  * `q` triggers server-side LIKE search on `topic.name`.
  */
-export function useAllTopics(opts?: { q?: string; loadAll?: boolean }) {
+export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: number }) {
   const query = opts?.q?.trim() ? { q: opts.q.trim() } : undefined
+  const loadAll = opts?.loadAll === true
+  const pageSize = opts?.pageSize ?? (loadAll ? LOAD_ALL_TOPIC_PAGE_SIZE : DEFAULT_TOPIC_PAGE_SIZE)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
-    limit: 50
+    limit: pageSize
   })
   const topics = useInfiniteFlatItems(pages)
-  const loadAll = opts?.loadAll === true
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
   const isLoadingAll = isLoading || (loadAll && hasNext)
 
@@ -352,7 +355,7 @@ export function useTopicSync() {
 
 export function useActiveTopic(topic?: RendererTopic, options: { autoPickFirst?: boolean } = {}) {
   const { autoPickFirst = true } = options
-  const { topics: apiTopics, isLoading } = useAllTopics({ loadAll: true })
+  const { topics: apiTopics, isLoading } = useTopics({ loadAll: true })
   const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
   const [activeTopicId, setActiveTopicId] = useState<string | undefined>(
     () => topic?.id ?? cacheService.get('topic.active')?.id
