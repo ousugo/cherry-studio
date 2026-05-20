@@ -52,10 +52,8 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const [progress, setProgress] = useState<number>(0)
   const { setTimeoutTimer } = useTimer()
 
-  // Use the unified approval hook
-  const approval = useToolApproval(toolResponse)
-
   const { id, tool, status, response, partialArguments } = toolResponse
+  const approval = useToolApproval(toolResponse, tool)
   const autoApproved = useIsToolAutoApproved(tool)
   const isPending = status === 'pending'
   const isDone = status === 'done'
