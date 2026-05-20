@@ -1,17 +1,3 @@
-/**
- * Owns the `streamOpen` dispatch and surfaces its ack, decoupled from the
- * AI SDK `Chat`/transport.
- *
- * `IpcChatTransport.sendMessages` used to fire `streamOpen` and discard the
- * resolved `AiStreamOpenResponse` (`.catch()` only). That response carries
- * the authoritative DB ids (`userMessageId` / `placeholderIds`) the renderer
- * needs to reconcile optimistic bubbles. Routing the *single* existing
- * dispatch through this coordinator makes the ack observable without a
- * second dispatch and without coupling it to `Chat` state.
- *
- * Phase 1.5 ships the coordinator only; the pending-UI consumer arrives in
- * Phase 4 via `subscribe`.
- */
 import { loggerService } from '@logger'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 
@@ -40,11 +26,6 @@ function notify(result: StreamDispatchResult): void {
 }
 
 export const streamDispatchCoordinator = {
-  /**
-   * Trigger the (single) `streamOpen` dispatch for a topic and route its
-   * resolution/rejection to subscribers. Fire-and-forget for the caller —
-   * the chunk listener stream is built independently by the transport.
-   */
   dispatch(topicId: string, request: AiStreamOpenRequest): void {
     window.api.ai
       .streamOpen(request)
@@ -56,7 +37,6 @@ export const streamDispatchCoordinator = {
       })
   },
 
-  /** Subscribe to dispatch results for a topic. Returns an unsubscribe fn. */
   subscribe(topicId: string, listener: Listener): () => void {
     let subs = listeners.get(topicId)
     if (!subs) {
@@ -70,7 +50,7 @@ export const streamDispatchCoordinator = {
     }
   },
 
-  /** Most recent dispatch result for a topic, if any (late-subscriber catch-up). */
+  /** Most recent dispatch result for late subscribers. */
   peek(topicId: string): StreamDispatchResult | undefined {
     return lastAckByTopic.get(topicId)
   }
