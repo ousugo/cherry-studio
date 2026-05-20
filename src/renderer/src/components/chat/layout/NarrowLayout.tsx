@@ -13,7 +13,7 @@ const NarrowLayout: FC<Props> = ({ children, className, narrowMode = false, with
       className={cn(
         'narrow-mode relative mx-auto w-full transition-[max-width] duration-300 ease-in-out',
         narrowMode ? 'active' : 'max-w-full',
-        narrowMode && (withSidePadding ? 'max-w-[calc(900px+3rem)]' : 'max-w-[900px]'),
+        narrowMode && (withSidePadding ? 'max-w-[calc(800px+3rem)]' : 'max-w-[800px]'),
         withSidePadding && 'box-border px-6',
         className
       )}
