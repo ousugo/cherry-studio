@@ -32,7 +32,7 @@ import { type ReactNode, type Ref } from 'react'
 import { type MessageVirtualListHandle, useMessageVirtualListRuntime } from './useMessageVirtualListRuntime'
 
 const DEFAULT_TOP_PADDING_PX = 6
-const DEFAULT_BOTTOM_PADDING_PX = 12
+export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
 
 export type { MessageVirtualListHandle }
 
@@ -84,7 +84,7 @@ export function MessageVirtualList<T>({
   className,
   style,
   topPadding = DEFAULT_TOP_PADDING_PX,
-  bottomPadding = DEFAULT_BOTTOM_PADDING_PX,
+  bottomPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
   forceScrollToBottomKey
 }: MessageVirtualListProps<T>): React.ReactElement {
   const { measureItem, scrollerRef, scrollHeight, virtualItems } = useMessageVirtualListRuntime({

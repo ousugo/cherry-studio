@@ -3,6 +3,7 @@ import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import AnimatedRevealText from '@renderer/components/AnimatedRevealText'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import ComposerMessageQueuePanel from '@renderer/components/chat/composer/ComposerMessageQueuePanel'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
   ComposerActiveToolControls,
@@ -42,18 +43,22 @@ import type { FileMetadata, Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import type { ComposerQueuedMessagePayload, ComposerQueueItem, StreamPendingQueueItem } from '@shared/ai/transport'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel, isWebSearchModel } from '@shared/utils/model'
+import type { Editor } from '@tiptap/core'
 import { ChevronDown } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { createComposerUserMessageParts, serializeComposerDocument } from '../composerDraft'
 import type { ComposerSuggestionSource } from '../ComposerSuggestion'
+import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
+import { useComposerMessageQueue } from '../useComposerMessageQueue'
 import {
   chatComposerTokenId,
   fileToComposerToken,
@@ -81,6 +86,22 @@ const getValidatedCachedModels = (assistantId: string | undefined): Model[] => {
   if (!Array.isArray(cached)) return []
   const cachedModels = cached.filter((model) => model?.id && model?.name)
   return cachedModels.length > 1 ? cachedModels : []
+}
+
+const deleteComposerTokenById = (editor: Editor, tokenId: string) => {
+  let tokenRange: { from: number; to: number } | undefined
+
+  editor.state.doc.descendants((node, pos) => {
+    if (node.type.name !== COMPOSER_TOKEN_NODE_NAME || node.attrs.id !== tokenId) return true
+
+    tokenRange = { from: pos, to: pos + node.nodeSize }
+    return false
+  })
+
+  if (!tokenRange) return false
+
+  editor.chain().focus().deleteRange(tokenRange).run()
+  return true
 }
 
 interface ChatComposerProps {
@@ -418,6 +439,8 @@ const ChatComposerInner = ({
   const { t } = useTranslation()
   const chatWrite = useChatWrite()
   const { isPending } = useTopicStreamStatus(topic.id)
+  const messageQueue = useComposerMessageQueue(topic.id)
+  const autoDispatchingQueueRef = useRef(false)
   const [isSending, setIsSending] = useState(false)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '')
   const selectAssistantMessage = t('button.select_assistant')
@@ -595,12 +618,17 @@ const ChatComposerInner = ({
     () => ({
       pluginKey: 'chat-model-mention-suggestion',
       char: '@',
+      allowSpaces: true,
       allowedPrefixes: [' ', '\n'],
+      multiple: true,
+      pageSize: 7,
+      keepOpenOnSelect: true,
       items: ({ query }) => {
         const { mentionableModels, providers, mentionedModels, couldMentionNotVisionModel, setMentionedModels } =
           mentionSuggestionStateRef.current
         const providerById = new Map(providers.map((provider) => [provider.id, provider]))
         const normalizedQuery = query.trim().toLowerCase()
+        const queryTerms = normalizedQuery.split(/\s+/).filter(Boolean)
 
         return mentionableModels
           .filter((currentModel) => !isEmbeddingModel(currentModel) && !isRerankModel(currentModel))
@@ -614,22 +642,34 @@ const ChatComposerInner = ({
               label: `${providerName} | ${currentModel.name}`,
               icon: <ModelAvatar model={currentModel} size={18} />,
               filterText,
-              disabled: mentionedModels.some((model) => model.id === currentModel.id),
+              selected: mentionedModels.some((model) => model.id === currentModel.id),
               command: ({ editor }) => {
                 const token = modelToComposerToken(currentModel)
                 const exists = serializeComposerDocument(editor).tokens.some(
                   (currentToken) => currentToken.id === token.id
                 )
-                if (!exists) {
-                  editor.chain().focus().insertComposerToken(token).insertContent(' ').run()
+
+                if (exists) {
+                  deleteComposerTokenById(editor, token.id)
+                  setMentionedModels((prev) => prev.filter((model) => model.id !== currentModel.id))
+                  return
                 }
+
+                editor.chain().focus().insertComposerToken(token).insertContent(' ').run()
                 setMentionedModels((prev) =>
                   prev.some((model) => model.id === currentModel.id) ? prev : [...prev, currentModel]
                 )
               }
             }
           })
-          .filter((item) => !normalizedQuery || item.filterText.includes(normalizedQuery))
+          .filter(
+            (item) =>
+              !normalizedQuery ||
+              queryTerms.every((term) => {
+                const compactFilterText = item.filterText.replace(/\s+/g, '')
+                return item.filterText.includes(term) || compactFilterText.includes(term)
+              })
+          )
       }
     }),
     []
@@ -676,20 +716,10 @@ const ChatComposerInner = ({
     setSelectedKnowledgeBases(allKnowledgeBases.filter((kb): kb is KnowledgeBase => ids.includes(kb.id)))
   }, [assistant?.id, assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases])
 
-  const handleSendDraft = useCallback(
-    async (draft: ComposerSerializedDraft) => {
-      if (!assistant) {
-        window.toast?.error(selectAssistantMessage)
-        return
-      }
-
-      if (!runtimeModel) {
-        window.toast?.error(t('code.model_required'))
-        return
-      }
-
+  const buildQueuedPayload = useCallback(
+    (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
       const nextText = draft.text.trim()
-      if (!nextText) return
+      if (!nextText) return null
       const tokenIds = getComposerTokenIds(draft.tokens)
       const payloadFiles = files.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
       const payloadModels = mentionedModels.filter((currentModel) =>
@@ -702,36 +732,215 @@ const ChatComposerInner = ({
 
       const knowledgeBaseIds = payloadKnowledgeBases.map((base) => base.id)
 
+      return {
+        text: nextText,
+        files: payloadFiles.length ? (payloadFiles as unknown as Array<Record<string, unknown>>) : undefined,
+        mentionedModels: payloadModels.length ? payloadModels.map((currentModel) => currentModel.id) : undefined,
+        knowledgeBaseIds: knowledgeBaseIds?.length ? knowledgeBaseIds : undefined,
+        userMessageParts
+      }
+    },
+    [files, mentionedModels, selectedKnowledgeBases]
+  )
+
+  const sendQueuedPayload = useCallback(
+    async (payload: ComposerQueuedMessagePayload) => {
       setIsSending(true)
-      setText('')
-      setFiles([])
 
       try {
-        await onSend(nextText, {
-          files: payloadFiles.length ? payloadFiles : undefined,
-          mentionedModels: payloadModels.length ? payloadModels.map((currentModel) => currentModel.id) : undefined,
-          knowledgeBaseIds: knowledgeBaseIds?.length ? knowledgeBaseIds : undefined,
-          userMessageParts
+        await onSend(payload.text, {
+          files: payload.files as FileMetadata[] | undefined,
+          mentionedModels: payload.mentionedModels,
+          knowledgeBaseIds: payload.knowledgeBaseIds,
+          userMessageParts: payload.userMessageParts
         })
+        return true
       } catch (error) {
         logger.warn('send failed', { error })
+        return false
       } finally {
         setIsSending(false)
       }
     },
+    [onSend]
+  )
+
+  const clearCurrentDraft = useCallback(() => {
+    setText('')
+    setFiles([])
+  }, [setFiles, setText])
+
+  const handleSendDraft = useCallback(
+    async (draft: ComposerSerializedDraft) => {
+      if (!assistant) {
+        window.toast?.error(selectAssistantMessage)
+        return
+      }
+
+      if (!runtimeModel) {
+        window.toast?.error(t('code.model_required'))
+        return
+      }
+
+      if (sendDisabled) return
+
+      const payload = buildQueuedPayload(draft)
+      if (!payload) return
+
+      if (loading || messageQueue.hasDraftItems) {
+        await messageQueue.enqueueDraft(payload)
+        clearCurrentDraft()
+        return
+      }
+
+      clearCurrentDraft()
+      await sendQueuedPayload(payload)
+    },
     [
       assistant,
-      files,
-      mentionedModels,
-      onSend,
+      buildQueuedPayload,
+      clearCurrentDraft,
+      loading,
+      messageQueue,
       runtimeModel,
-      selectedKnowledgeBases,
       selectAssistantMessage,
-      setFiles,
-      setText,
+      sendQueuedPayload,
       t
     ]
   )
+
+  const restoreQueuedPayload = useCallback(
+    (payload: ComposerQueuedMessagePayload) => {
+      setText(payload.text)
+      setFiles((payload.files ?? []) as unknown as FileMetadata[])
+      setMentionedModels(mentionableModels.filter((currentModel) => payload.mentionedModels?.includes(currentModel.id)))
+      setSelectedKnowledgeBases(
+        allKnowledgeBases.filter((base): base is KnowledgeBase => payload.knowledgeBaseIds?.includes(base.id) ?? false)
+      )
+    },
+    [allKnowledgeBases, mentionableModels, setFiles, setMentionedModels, setSelectedKnowledgeBases, setText]
+  )
+
+  const handleEditDraftQueueItem = useCallback(
+    async (item: ComposerQueueItem) => {
+      await messageQueue.removeDraft(item.id)
+      restoreQueuedPayload(item.payload)
+    },
+    [messageQueue, restoreQueuedPayload]
+  )
+
+  const handleSteerDraftQueueItem = useCallback(
+    async (item: ComposerQueueItem) => {
+      if (!messageQueue.canSteerDraft) {
+        window.toast?.error(
+          t('chat.input.queue.steer_unavailable', { defaultValue: 'No active response to insert into' })
+        )
+        return
+      }
+
+      const sent = await sendQueuedPayload(item.payload)
+      if (sent) {
+        await messageQueue.completeDraft(item.id)
+      } else {
+        await messageQueue.failDraft(item.id)
+      }
+    },
+    [messageQueue, sendQueuedPayload, t]
+  )
+
+  const handleEditPendingQueueItem = useCallback(
+    async (item: StreamPendingQueueItem) => {
+      const removed = await messageQueue.removePending(item.id)
+      if (!removed) {
+        window.toast?.error(
+          t('chat.input.queue.cancel_unavailable', { defaultValue: 'This item is already being used' })
+        )
+        return
+      }
+      restoreQueuedPayload(item.payload)
+    },
+    [messageQueue, restoreQueuedPayload, t]
+  )
+
+  const handleRemoveDraftQueueItem = useCallback(
+    async (item: ComposerQueueItem) => {
+      await messageQueue.removeDraft(item.id)
+    },
+    [messageQueue]
+  )
+
+  const handleRemovePendingQueueItem = useCallback(
+    async (item: StreamPendingQueueItem) => {
+      const removed = await messageQueue.removePending(item.id)
+      if (!removed) {
+        window.toast?.error(
+          t('chat.input.queue.cancel_unavailable', { defaultValue: 'This item is already being used' })
+        )
+      }
+    },
+    [messageQueue, t]
+  )
+
+  const handleReorderDraftQueueItems = useCallback(
+    async (itemIds: string[]) => {
+      await messageQueue.reorderDraft(itemIds)
+    },
+    [messageQueue]
+  )
+
+  const handleReorderPendingQueueItems = useCallback(
+    async (messageIds: string[]) => {
+      await messageQueue.reorderPending(messageIds)
+    },
+    [messageQueue]
+  )
+
+  useEffect(() => {
+    if (
+      loading ||
+      sendDisabled ||
+      searching ||
+      runtimeModelPending ||
+      !!missingAssistantMessage ||
+      !!missingModelMessage ||
+      !assistant ||
+      !runtimeModel
+    ) {
+      return
+    }
+
+    if (autoDispatchingQueueRef.current) return
+    if (!messageQueue.draftItems.some((item) => item.status !== 'failed')) return
+
+    autoDispatchingQueueRef.current = true
+    void (async () => {
+      try {
+        const item = await messageQueue.claimNextDraft()
+        if (!item) return
+
+        const sent = await sendQueuedPayload(item.payload)
+
+        if (sent) {
+          await messageQueue.completeDraft(item.id)
+        } else {
+          await messageQueue.failDraft(item.id)
+        }
+      } finally {
+        autoDispatchingQueueRef.current = false
+      }
+    })()
+  }, [
+    assistant,
+    loading,
+    messageQueue,
+    missingAssistantMessage,
+    missingModelMessage,
+    runtimeModel,
+    runtimeModelPending,
+    searching,
+    sendDisabled,
+    sendQueuedPayload
+  ])
 
   if (isMultiSelectMode) return null
 
@@ -765,7 +974,6 @@ const ChatComposerInner = ({
         sendDisabled={
           text.trim().length === 0 ||
           sendDisabled ||
-          loading ||
           searching ||
           runtimeModelPending ||
           !!missingAssistantMessage ||
@@ -792,6 +1000,20 @@ const ChatComposerInner = ({
         getToolLaunchers={() => getLaunchers('root-panel')}
         suggestionSources={suggestionSources}
         topContent={topContent}
+        queueContent={
+          <ComposerMessageQueuePanel
+            draftItems={messageQueue.draftItems}
+            pendingItems={messageQueue.pendingItems}
+            canSteerDraft={messageQueue.canSteerDraft}
+            onSteerDraft={handleSteerDraftQueueItem}
+            onEditDraft={handleEditDraftQueueItem}
+            onEditPending={handleEditPendingQueueItem}
+            onRemoveDraft={handleRemoveDraftQueueItem}
+            onRemovePending={handleRemovePendingQueueItem}
+            onReorderDraft={handleReorderDraftQueueItems}
+            onReorderPending={handleReorderPendingQueueItems}
+          />
+        }
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}
       />

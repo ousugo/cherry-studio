@@ -14,6 +14,8 @@ export class PendingMessageQueue {
   private waitResolve?: (message: Message) => void
   private closed = false
 
+  constructor(private readonly onChange?: () => void) {}
+
   // ── Push ──
 
   push(message: Message): void {
@@ -24,6 +26,7 @@ export class PendingMessageQueue {
       this.waitResolve = undefined
     } else {
       this.messages.push(message)
+      this.emitChange()
     }
   }
 
@@ -31,7 +34,9 @@ export class PendingMessageQueue {
 
   drain(): Message[] {
     const drained = this.messages
+    if (drained.length === 0) return drained
     this.messages = []
+    this.emitChange()
     return drained
   }
 
@@ -51,6 +56,16 @@ export class PendingMessageQueue {
     const idx = this.messages.findIndex((m) => m.id === messageId)
     if (idx === -1) return false
     this.messages.splice(idx, 1)
+    this.emitChange()
+    return true
+  }
+
+  /** Replace a pending message before it is consumed. Returns true if updated. */
+  update(messageId: string, message: Message): boolean {
+    const idx = this.messages.findIndex((m) => m.id === messageId)
+    if (idx === -1) return false
+    this.messages[idx] = message
+    this.emitChange()
     return true
   }
 
@@ -70,6 +85,7 @@ export class PendingMessageQueue {
       reordered.push(msg)
     }
     this.messages = reordered
+    if (this.messages.length > 0) this.emitChange()
   }
 
   // ── AsyncIterable (for Claude Code's injectedMessageSource → query.streamInput) ──
@@ -77,11 +93,14 @@ export class PendingMessageQueue {
   /** Stop the async iterator. No more messages will be yielded. */
   close(): void {
     this.closed = true
+    const hadMessages = this.messages.length > 0
+    this.messages = []
     if (this.waitResolve) {
       // Unblock any waiting next() — will see closed flag
       this.waitResolve(null as unknown as Message)
       this.waitResolve = undefined
     }
+    if (hadMessages) this.emitChange()
   }
 
   [Symbol.asyncIterator](): AsyncIterator<Message> {
@@ -89,7 +108,9 @@ export class PendingMessageQueue {
       next: () => {
         // If there are buffered messages, yield immediately
         if (this.messages.length > 0) {
-          return Promise.resolve({ value: this.messages.shift()!, done: false })
+          const message = this.messages.shift()!
+          this.emitChange()
+          return Promise.resolve({ value: message, done: false })
         }
         // If closed, signal completion
         if (this.closed) {
@@ -107,5 +128,9 @@ export class PendingMessageQueue {
         })
       }
     }
+  }
+
+  private emitChange(): void {
+    this.onChange?.()
   }
 }

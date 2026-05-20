@@ -12,7 +12,12 @@
  */
 
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
-import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
+import {
+  type ActiveExecution,
+  classifyTurn,
+  type StreamPendingQueueItem,
+  type TopicStreamStatus
+} from '@shared/ai/transport'
 import { useCallback, useMemo } from 'react'
 
 interface TopicStreamStatusView {
@@ -28,6 +33,7 @@ interface TopicStreamStatusView {
    * read directly by `useIsActiveTurnTarget`, no message-parts scan.
    */
   awaitingApprovalAnchors: ActiveExecution[]
+  pendingQueue: StreamPendingQueueItem[]
   /** `pending` (request sent, provider hasn't streamed yet) or `streaming` (chunks flowing) — both render as "busy". */
   isPending: boolean
   /** `done` AND this window hasn't marked it seen yet. */
@@ -43,6 +49,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   const status = entry?.status
   const activeExecutions = useMemo(() => entry?.activeExecutions ?? [], [entry])
   const awaitingApprovalAnchors = useMemo(() => entry?.awaitingApprovalAnchors ?? [], [entry])
+  const pendingQueue = useMemo(() => entry?.pendingQueue ?? [], [entry])
 
   const flags = classifyTurn(status)
   const isPending = flags.isStreamLive
@@ -52,5 +59,5 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
     if (!seen) setSeen(true)
   }, [seen, setSeen])
 
-  return { status, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen }
+  return { status, activeExecutions, awaitingApprovalAnchors, pendingQueue, isPending, isFulfilled, markSeen }
 }

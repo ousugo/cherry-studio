@@ -67,6 +67,7 @@ export interface ComposerSurfaceProps {
   getToolLaunchers?: () => ComposerToolLauncher[]
   suggestionSources?: readonly ComposerSuggestionSource[]
   topContent?: React.ReactNode
+  queueContent?: React.ReactNode
   onToolLauncherSelect?: (
     launcher: ComposerToolLauncher,
     options: {
@@ -219,11 +220,16 @@ function filterSuggestionItems(items: readonly ComposerSuggestionItem[], query: 
   const normalizedQuery = query.trim().toLowerCase()
   if (!normalizedQuery) return [...items]
 
-  return items.filter((item) =>
-    [item.label, item.description, item.filterText]
+  const queryTerms = normalizedQuery.split(/\s+/).filter(Boolean)
+
+  return items.filter((item) => {
+    const searchableText = [item.label, item.description, item.filterText]
       .map((value) => (typeof value === 'string' ? value.toLowerCase() : ''))
-      .some((value) => value.includes(normalizedQuery))
-  )
+      .join(' ')
+    const compactSearchableText = searchableText.replace(/\s+/g, '')
+
+    return queryTerms.every((term) => searchableText.includes(term) || compactSearchableText.includes(term))
+  })
 }
 
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
@@ -270,6 +276,7 @@ export default function ComposerSurface({
   getToolLaunchers,
   suggestionSources = [],
   topContent,
+  queueContent,
   onToolLauncherSelect,
   renderLeftControls,
   renderBelowControls
@@ -551,12 +558,14 @@ export default function ComposerSurface({
   const quickPanelElement = quickPanelEnabled ? (
     <QuickPanelView setInputText={setText} inputAdapter={inputAdapter} />
   ) : null
+  const showPauseButton = isLoading && sendDisabled
   const belowControls = renderBelowControls?.(inputAdapter)
   const inputbarElement = (
     <div
       id="inputbar"
+      data-composer-inputbar=""
       className={cn(
-        'inputbar-container relative rounded-[17px] border-(--color-border) border-[0.5px] bg-muted/50 pt-2 transition-all duration-200 ease-in-out',
+        'inputbar-container relative rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background) pt-2 transition-all duration-200 ease-in-out',
         belowControls
           ? 'mb-0.5 shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:shadow-[0_10px_24px_rgba(0,0,0,0.22)]'
           : 'mb-3',
@@ -579,7 +588,7 @@ export default function ComposerSurface({
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">{renderLeftControls?.(inputAdapter)}</div>
         <div className="flex flex-row items-center gap-1.5">
           <TranslateButton text={text} disabled={sendDisabled} onTranslated={onTranslated} />
-          {isLoading ? (
+          {showPauseButton ? (
             <Tooltip content={t('chat.input.pause')} placement="top">
               <button
                 type="button"
@@ -600,9 +609,15 @@ export default function ComposerSurface({
       </div>
     </div>
   )
+  const inputbarStack = (
+    <div className="relative">
+      {quickPanelElement}
+      {inputbarElement}
+    </div>
+  )
 
   return (
-    <NarrowLayout narrowMode={narrowMode && !forceWideLayout} style={{ width: '100%' }}>
+    <NarrowLayout narrowMode={narrowMode && !forceWideLayout} withSidePadding style={{ width: '100%' }}>
       <div className="w-full">
         {topContent ? <div className="mb-6 flex justify-center">{topContent}</div> : null}
         <div
@@ -611,14 +626,17 @@ export default function ComposerSurface({
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}>
-          {quickPanelElement}
           {belowControls ? (
             <div className="mb-6 rounded-[20px] bg-muted/25 pb-1.5 shadow-[0_14px_36px_rgba(15,23,42,0.07)] dark:bg-muted/15 dark:shadow-[0_14px_36px_rgba(0,0,0,0.24)]">
-              {inputbarElement}
+              {queueContent}
+              {inputbarStack}
               <div className="px-2">{belowControls}</div>
             </div>
           ) : (
-            inputbarElement
+            <>
+              {queueContent}
+              {inputbarStack}
+            </>
           )}
         </div>
       </div>

@@ -457,22 +457,24 @@ const AgentChatSessionContent = ({
   ])
 
   const main = (
-    <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-      <AgentSessionMessages
-        agentId={agentId}
-        sessionId={sessionId}
-        messages={uiMessages}
-        activeAgent={activeAgent}
-        partsByMessageId={partsByMessageId}
-        modelFallback={fallbackSnapshot}
-        isLoading={isLoading}
-        hasOlder={hasOlder}
-        loadOlder={loadOlder}
-        onOpenCitationsPanel={onOpenCitationsPanel}
-        deleteMessage={agentId ? deleteMessage : undefined}
-        respondToolApproval={agentId ? handleToolApprovalRespond : undefined}
-      />
-      <div className="mt-auto px-4.5 pb-2">
+    <div className="translate-z-0 relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1">
+        <AgentSessionMessages
+          agentId={agentId}
+          sessionId={sessionId}
+          messages={uiMessages}
+          activeAgent={activeAgent}
+          partsByMessageId={partsByMessageId}
+          modelFallback={fallbackSnapshot}
+          isLoading={isLoading}
+          hasOlder={hasOlder}
+          loadOlder={loadOlder}
+          onOpenCitationsPanel={onOpenCitationsPanel}
+          deleteMessage={agentId ? deleteMessage : undefined}
+          respondToolApproval={agentId ? handleToolApprovalRespond : undefined}
+        />
+      </div>
+      <div className="shrink-0 px-4.5 pb-2">
         <NarrowLayout narrowMode={narrowMode}>
           <PinnedTodoPanel messages={uiMessages} partsByMessageId={partsByMessageId} />
         </NarrowLayout>

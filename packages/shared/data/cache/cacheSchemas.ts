@@ -1,6 +1,6 @@
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
 
-import type { TopicStatusSnapshotEntry } from '../../ai/transport'
+import type { ComposerQueueSnapshot, TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -259,6 +259,7 @@ export const DefaultUseCache: UseCacheSchema = {
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
+  'composer.queue.drafts.${scopeId}': ComposerQueueSnapshot | null
   'topic.cache_version': number
   'agent_session.cache_version': number
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -270,6 +271,7 @@ export type SharedCacheSchema = {
 export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
   'topic.stream.statuses.${topicId}': null,
+  'composer.queue.drafts.${scopeId}': null,
   'topic.cache_version': 0,
   'agent_session.cache_version': 0,
   'feature.openclaw.gateway_status': 'stopped',

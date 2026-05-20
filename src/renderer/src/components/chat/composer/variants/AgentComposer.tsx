@@ -3,6 +3,7 @@ import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import AnimatedRevealText from '@renderer/components/AnimatedRevealText'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import ComposerMessageQueuePanel from '@renderer/components/chat/composer/ComposerMessageQueuePanel'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
   ComposerActiveToolControls,
@@ -32,6 +33,7 @@ import { type Assistant, FILE_TYPE, type FileMetadata, type ThinkingOption } fro
 import { TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import type { ComposerQueuedMessagePayload, ComposerQueueItem, StreamPendingQueueItem } from '@shared/ai/transport'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -45,6 +47,7 @@ import { useTranslation } from 'react-i18next'
 import { createComposerUserMessageParts, serializeComposerDocument } from '../composerDraft'
 import type { ComposerSuggestionSource } from '../ComposerSuggestion'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
+import { useComposerMessageQueue } from '../useComposerMessageQueue'
 import { agentComposerTokenId, agentFileToComposerToken, getAgentComposerTokenIds } from './agentComposerTokens'
 
 const logger = loggerService.withContext('AgentComposer')
@@ -476,6 +479,8 @@ const AgentComposerInner = ({
   const draftCacheKey = getAgentDraftCacheKey(agentId)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(draftCacheKey) ?? '')
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
+  const messageQueue = useComposerMessageQueue(sessionTopicId)
+  const autoDispatchingQueueRef = useRef(false)
   const accessiblePaths = sessionData?.accessiblePaths ?? []
   const enableMentionModelTrigger = accessiblePaths.length > 0
 
@@ -584,28 +589,173 @@ const AgentComposerInner = ({
     })
   }, [agentBase?.configuration, sendMessageShortcut, t])
 
-  const handleSendDraft = useCallback(
-    (draft: ComposerSerializedDraft) => {
-      if (sendDisabled) return
-      if (text.trim().length === 0 && files.length === 0) return
-
+  const buildQueuedPayload = useCallback(
+    (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
+      if (draft.text.trim().length === 0 && files.length === 0) return null
       const fileTokenIds = getAgentComposerTokenIds(draft.tokens, 'file')
       const attachedFiles = files.filter((file) => fileTokenIds.has(agentComposerTokenId.file(file)))
       const userMessageParts = createComposerUserMessageParts(draft, { files: attachedFiles })
 
-      void chatSendMessage({ text: draft.text }, { body: { agentId, sessionId, userMessageParts } }).catch(
-        (error: unknown) => {
-          logger.warn('Failed to send message:', error as Error)
-        }
-      )
-      void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
-
-      setText('')
-      setFiles([])
-      setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
+      return {
+        text: draft.text.trim(),
+        files: attachedFiles.length ? (attachedFiles as unknown as Array<Record<string, unknown>>) : undefined,
+        userMessageParts
+      }
     },
-    [agentId, chatSendMessage, files, sendDisabled, sessionId, sessionTopicId, setFiles, setText, setTimeoutTimer, text]
+    [files]
   )
+
+  const sendQueuedPayload = useCallback(
+    async (payload: ComposerQueuedMessagePayload) => {
+      try {
+        await chatSendMessage(
+          { text: payload.text },
+          { body: { agentId, sessionId, userMessageParts: payload.userMessageParts } }
+        )
+        void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
+        return true
+      } catch (error: unknown) {
+        logger.warn('Failed to send message:', error as Error)
+        return false
+      }
+    },
+    [agentId, chatSendMessage, sessionId, sessionTopicId]
+  )
+
+  const clearCurrentDraft = useCallback(() => {
+    setText('')
+    setFiles([])
+    setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
+  }, [setFiles, setText, setTimeoutTimer])
+
+  const handleSendDraft = useCallback(
+    (draft: ComposerSerializedDraft) => {
+      if (sendDisabled) return
+      const payload = buildQueuedPayload(draft)
+      if (!payload) return
+
+      if (isStreaming || messageQueue.hasDraftItems) {
+        void messageQueue
+          .enqueueDraft(payload)
+          .then(clearCurrentDraft)
+          .catch((error: unknown) => {
+            logger.warn('Failed to enqueue message:', error as Error)
+          })
+        return
+      }
+
+      clearCurrentDraft()
+      void sendQueuedPayload(payload).catch((error: unknown) => {
+        logger.warn('Failed to send message:', error as Error)
+      })
+    },
+    [buildQueuedPayload, clearCurrentDraft, isStreaming, messageQueue, sendDisabled, sendQueuedPayload]
+  )
+
+  const restoreQueuedPayload = useCallback(
+    (payload: ComposerQueuedMessagePayload) => {
+      setText(payload.text)
+      setFiles((payload.files ?? []) as unknown as FileMetadata[])
+    },
+    [setFiles, setText]
+  )
+
+  const handleEditDraftQueueItem = useCallback(
+    async (item: ComposerQueueItem) => {
+      await messageQueue.removeDraft(item.id)
+      restoreQueuedPayload(item.payload)
+    },
+    [messageQueue, restoreQueuedPayload]
+  )
+
+  const handleSteerDraftQueueItem = useCallback(
+    async (item: ComposerQueueItem) => {
+      if (!messageQueue.canSteerDraft) {
+        window.toast?.error(
+          t('chat.input.queue.steer_unavailable', { defaultValue: 'No active response to insert into' })
+        )
+        return
+      }
+
+      const sent = await sendQueuedPayload(item.payload)
+      if (sent) {
+        await messageQueue.completeDraft(item.id)
+      } else {
+        await messageQueue.failDraft(item.id)
+      }
+    },
+    [messageQueue, sendQueuedPayload, t]
+  )
+
+  const handleEditPendingQueueItem = useCallback(
+    async (item: StreamPendingQueueItem) => {
+      const removed = await messageQueue.removePending(item.id)
+      if (!removed) {
+        window.toast?.error(
+          t('chat.input.queue.cancel_unavailable', { defaultValue: 'This item is already being used' })
+        )
+        return
+      }
+      restoreQueuedPayload(item.payload)
+    },
+    [messageQueue, restoreQueuedPayload, t]
+  )
+
+  const handleRemoveDraftQueueItem = useCallback(
+    async (item: ComposerQueueItem) => {
+      await messageQueue.removeDraft(item.id)
+    },
+    [messageQueue]
+  )
+
+  const handleRemovePendingQueueItem = useCallback(
+    async (item: StreamPendingQueueItem) => {
+      const removed = await messageQueue.removePending(item.id)
+      if (!removed) {
+        window.toast?.error(
+          t('chat.input.queue.cancel_unavailable', { defaultValue: 'This item is already being used' })
+        )
+      }
+    },
+    [messageQueue, t]
+  )
+
+  const handleReorderDraftQueueItems = useCallback(
+    async (itemIds: string[]) => {
+      await messageQueue.reorderDraft(itemIds)
+    },
+    [messageQueue]
+  )
+
+  const handleReorderPendingQueueItems = useCallback(
+    async (messageIds: string[]) => {
+      await messageQueue.reorderPending(messageIds)
+    },
+    [messageQueue]
+  )
+
+  useEffect(() => {
+    if (sendDisabled || isStreaming || autoDispatchingQueueRef.current) return
+    if (!messageQueue.draftItems.some((item) => item.status !== 'failed')) return
+
+    autoDispatchingQueueRef.current = true
+    void (async () => {
+      try {
+        const item = await messageQueue.claimNextDraft()
+        if (!item) return
+
+        const sent = await sendQueuedPayload(item.payload)
+
+        if (sent) {
+          await messageQueue.completeDraft(item.id)
+        } else {
+          await messageQueue.failDraft(item.id)
+        }
+      } finally {
+        autoDispatchingQueueRef.current = false
+      }
+    })()
+  }, [isStreaming, messageQueue, sendDisabled, sendQueuedPayload])
 
   const resourceSuggestionStateRef = useRef({ accessiblePaths, files, setFiles, t })
   resourceSuggestionStateRef.current = { accessiblePaths, files, setFiles, t }
@@ -729,7 +879,7 @@ const AgentComposerInner = ({
         managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
         placeholder={placeholderText}
-        sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0) || isStreaming}
+        sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0)}
         sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
         isLoading={isStreaming}
         onSendDraft={handleSendDraft}
@@ -749,6 +899,20 @@ const AgentComposerInner = ({
         getToolLaunchers={() => getLaunchers('root-panel')}
         suggestionSources={suggestionSources}
         topContent={topContent}
+        queueContent={
+          <ComposerMessageQueuePanel
+            draftItems={messageQueue.draftItems}
+            pendingItems={messageQueue.pendingItems}
+            canSteerDraft={messageQueue.canSteerDraft}
+            onSteerDraft={handleSteerDraftQueueItem}
+            onEditDraft={handleEditDraftQueueItem}
+            onEditPending={handleEditPendingQueueItem}
+            onRemoveDraft={handleRemoveDraftQueueItem}
+            onRemovePending={handleRemovePendingQueueItem}
+            onReorderDraft={handleReorderDraftQueueItems}
+            onReorderPending={handleReorderPendingQueueItems}
+          />
+        }
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}
       />

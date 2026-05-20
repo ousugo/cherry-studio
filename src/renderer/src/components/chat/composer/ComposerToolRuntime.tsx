@@ -1,6 +1,6 @@
 import '@renderer/components/chat/composer/tools'
 
-import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import {
   ComposerToolProvider,
   useComposerToolProviderDispatch,
@@ -20,12 +20,12 @@ import type {
 } from '@renderer/components/chat/composer/tools/types'
 import { getToolsForScope } from '@renderer/components/chat/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
-import { QuickPanelReservedSymbol as ReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
+import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Assistant, FileMetadata } from '@renderer/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
-import { MoreHorizontal, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -234,6 +234,27 @@ const getSortedLaunchers = (
   ].sort((left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER))
 }
 
+type ComposerToolMenuEntry = {
+  launcher: ComposerToolLauncher
+  source: ComposerToolLauncherActionOptions['source']
+}
+
+const getToolMenuEntries = (triggers: ReturnType<typeof useComposerToolProviderLaunchers>) => {
+  const popoverLaunchers = getSortedLaunchers(triggers, 'popover')
+  const popoverIds = new Set(popoverLaunchers.map((launcher) => launcher.id))
+  const rootOnlyLaunchers = getSortedLaunchers(triggers, 'root-panel').filter(
+    (launcher) => !popoverIds.has(launcher.id)
+  )
+
+  return [
+    ...popoverLaunchers.map((launcher): ComposerToolMenuEntry => ({ launcher, source: 'popover' })),
+    ...rootOnlyLaunchers.map((launcher): ComposerToolMenuEntry => ({ launcher, source: 'root-panel' }))
+  ].sort(
+    (left, right) =>
+      (left.launcher.order ?? Number.MAX_SAFE_INTEGER) - (right.launcher.order ?? Number.MAX_SAFE_INTEGER)
+  )
+}
+
 export function useComposerToolLauncherController() {
   const triggers = useComposerToolProviderLaunchers()
   const quickPanel = useQuickPanel()
@@ -314,13 +335,14 @@ export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuPro
 export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
-  const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
+  const { dispatchLauncher } = useComposerToolLauncherController()
+  const { triggers } = useComposerToolProviderDispatch()
   const [open, setOpen] = useState(false)
-  const [launchers, setLaunchers] = useState(() => getLaunchers('popover'))
+  const [entries, setEntries] = useState(() => getToolMenuEntries(triggers))
 
   const refreshLaunchers = useCallback(() => {
-    setLaunchers(getLaunchers('popover'))
-  }, [getLaunchers])
+    setEntries(getToolMenuEntries(triggers))
+  }, [triggers])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -330,7 +352,7 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
     [refreshLaunchers]
   )
 
-  const visibleLaunchers = useMemo(() => launchers.filter((launcher) => !launcher.hidden), [launchers])
+  const visibleEntries = useMemo(() => entries.filter(({ launcher }) => !launcher.hidden), [entries])
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -344,7 +366,7 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
       </PopoverTrigger>
       <PopoverContent align="start" side="top" sideOffset={10} className="w-64 rounded-[20px] p-2 shadow-xl">
         <MenuList className="gap-1">
-          {visibleLaunchers.map((launcher) => (
+          {visibleEntries.map(({ launcher, source }) => (
             <MenuItem
               key={launcher.id}
               icon={<span className="text-foreground-muted [&_svg]:size-5">{launcher.icon}</span>}
@@ -358,52 +380,11 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
               }
               active={launcher.active}
               onClick={() => {
-                dispatchLauncher(launcher, { source: 'popover', inputAdapter })
+                dispatchLauncher(launcher, { source, inputAdapter, quickPanel })
                 setOpen(false)
               }}
             />
           ))}
-
-          {visibleLaunchers.length > 0 && <MenuDivider />}
-
-          <MenuItem
-            icon={<MoreHorizontal size={20} />}
-            label={t('common.more')}
-            onClick={() => {
-              const rootLaunchers = getLaunchers('root-panel')
-              if (rootLaunchers.length === 0) return
-
-              quickPanel.open({
-                title: t('settings.quickPanel.title'),
-                list: rootLaunchers.map((launcher) => ({
-                  label: launcher.label,
-                  description: launcher.description,
-                  icon: launcher.icon,
-                  suffix:
-                    launcher.suffix ??
-                    (launcher.kind === 'panel' || launcher.kind === 'group' ? (
-                      <span className="text-foreground-muted">›</span>
-                    ) : undefined),
-                  disabled: launcher.disabled,
-                  hidden: launcher.hidden,
-                  isSelected: launcher.active,
-                  isMenu: launcher.kind === 'panel' || launcher.kind === 'group',
-                  action: ({ context, searchText, inputAdapter: quickPanelInputAdapter }) => {
-                    dispatchLauncher(launcher, {
-                      quickPanel: context,
-                      source: 'root-panel',
-                      inputAdapter: quickPanelInputAdapter,
-                      triggerInfo: context.triggerInfo,
-                      searchText
-                    })
-                  }
-                })),
-                symbol: ReservedSymbol.Root,
-                triggerInfo: { type: 'button' }
-              })
-              setOpen(false)
-            }}
-          />
         </MenuList>
       </PopoverContent>
     </Popover>

@@ -1,6 +1,7 @@
+import type { ComposerQueueItem } from '@shared/ai/transport'
 import type { Model } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { isValidElement, type ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -25,6 +26,12 @@ const mocks = vi.hoisted(() => ({
   assistantLoading: false,
   modelPending: false,
   modelMissing: undefined as boolean | undefined,
+  topicPending: false,
+  draftItems: [] as ComposerQueueItem[],
+  canSteerDraft: false,
+  enqueueDraft: vi.fn(),
+  completeDraft: vi.fn(),
+  failDraft: vi.fn(),
   surfaceProps: undefined as ComposerSurfaceProps | undefined
 }))
 
@@ -267,7 +274,24 @@ vi.mock('@renderer/hooks/useTopicAwaitingApproval', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false })
+  useTopicStreamStatus: () => ({ isPending: mocks.topicPending })
+}))
+
+vi.mock('@renderer/components/chat/composer/useComposerMessageQueue', () => ({
+  useComposerMessageQueue: () => ({
+    draftItems: mocks.draftItems,
+    pendingItems: [],
+    hasDraftItems: mocks.draftItems.length > 0,
+    canSteerDraft: mocks.canSteerDraft,
+    enqueueDraft: mocks.enqueueDraft,
+    removeDraft: vi.fn(),
+    reorderDraft: vi.fn(),
+    claimNextDraft: vi.fn(),
+    completeDraft: mocks.completeDraft,
+    failDraft: mocks.failDraft,
+    removePending: vi.fn(),
+    reorderPending: vi.fn()
+  })
 }))
 
 vi.mock('@shared/utils/model', () => ({
@@ -334,6 +358,15 @@ describe('ChatComposer', () => {
     mocks.assistantLoading = false
     mocks.modelPending = false
     mocks.modelMissing = undefined
+    mocks.topicPending = false
+    mocks.draftItems = []
+    mocks.canSteerDraft = false
+    mocks.enqueueDraft.mockReset()
+    mocks.enqueueDraft.mockResolvedValue(undefined)
+    mocks.completeDraft.mockReset()
+    mocks.completeDraft.mockResolvedValue(undefined)
+    mocks.failDraft.mockReset()
+    mocks.failDraft.mockResolvedValue(undefined)
     mocks.surfaceProps = undefined
     Object.defineProperty(window, 'toast', {
       configurable: true,
@@ -440,6 +473,51 @@ describe('ChatComposer', () => {
 
     expect(onSend).not.toHaveBeenCalled()
     expect(mocks.toastError).toHaveBeenCalledWith('code.model_required')
+  })
+
+  it('queues send drafts while the topic is streaming', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn()
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(onSend).not.toHaveBeenCalled()
+    expect(mocks.enqueueDraft).toHaveBeenCalledWith(expect.objectContaining({ text: 'hello' }))
+  })
+
+  it('steers a queued draft into the active response from the queue panel', async () => {
+    const draftItem: ComposerQueueItem = {
+      id: 'draft-steer',
+      scopeId: 'topic-1',
+      status: 'queued',
+      payload: {
+        text: 'queued steering',
+        userMessageParts: [{ type: 'text', text: 'queued steering' }]
+      },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }
+    mocks.draftItems = [draftItem]
+    mocks.canSteerDraft = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    const queueContent = mocks.surfaceProps?.queueContent
+    if (!isValidElement<{ onSteerDraft: (item: ComposerQueueItem) => Promise<void> }>(queueContent)) {
+      throw new Error('queueContent was not rendered')
+    }
+
+    await queueContent.props.onSteerDraft(draftItem)
+
+    expect(onSend).toHaveBeenCalledWith(
+      'queued steering',
+      expect.objectContaining({ userMessageParts: draftItem.payload.userMessageParts })
+    )
+    expect(mocks.completeDraft).toHaveBeenCalledWith('draft-steer')
+    expect(mocks.failDraft).not.toHaveBeenCalled()
   })
 
   it('routes new topic shortcuts through the explicit parent action', () => {
