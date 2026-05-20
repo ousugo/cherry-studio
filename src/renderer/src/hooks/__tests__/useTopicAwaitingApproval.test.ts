@@ -1,5 +1,5 @@
-import { renderHook } from '@testing-library/react'
 import type { TopicStreamStatus } from '@shared/ai/transport'
+import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { useTopicAwaitingApproval } from '../useTopicAwaitingApproval'
@@ -10,6 +10,7 @@ vi.mock('../useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({
     status: mockStatus(),
     activeExecutions: [],
+    awaitingApprovalAnchors: [],
     isPending: false,
     isFulfilled: false,
     markSeen: () => {}
