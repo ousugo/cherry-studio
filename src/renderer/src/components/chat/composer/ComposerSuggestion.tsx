@@ -1,14 +1,20 @@
-import { MenuItem, MenuList } from '@cherrystudio/ui'
 import { autoUpdate, computePosition, flip, offset, shift, size } from '@floating-ui/dom'
 import { loggerService } from '@logger'
+import {
+  firstQuickPanelSelectableIndex,
+  moveQuickPanelSelectableIndex,
+  QuickPanelFrame,
+  QuickPanelList,
+  toggleQuickPanelSelectedId
+} from '@renderer/components/QuickPanel/list'
 import type { Editor, Range } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
 import { PluginKey } from '@tiptap/pm/state'
-import { posToDOMRect, ReactRenderer } from '@tiptap/react'
+import { ReactRenderer } from '@tiptap/react'
 import { Suggestion, type SuggestionKeyDownProps, type SuggestionProps } from '@tiptap/suggestion'
 import { t } from 'i18next'
 import type { ReactNode } from 'react'
-import React, { useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('ComposerSuggestion')
 
@@ -18,6 +24,7 @@ export interface ComposerSuggestionItem {
   description?: ReactNode | string
   icon?: ReactNode | string
   filterText?: string
+  selected?: boolean
   disabled?: boolean
   isMenu?: boolean
   query?: string
@@ -30,49 +37,86 @@ export interface ComposerSuggestionSource {
   allowSpaces?: boolean
   allowedPrefixes?: string[] | null
   startOfLine?: boolean
+  multiple?: boolean
+  pageSize?: number
+  keepOpenOnSelect?: boolean
   items: (options: { query: string; editor: Editor }) => ComposerSuggestionItem[] | Promise<ComposerSuggestionItem[]>
 }
 
 interface ComposerSuggestionListProps extends SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem> {
   ref?: React.RefObject<ComposerSuggestionListRef | null>
+  multiple?: boolean
+  pageSize?: number
+  keepOpenOnSelect?: boolean
+  onStickyOpenChange?: (open: boolean) => void
+  onRequestClose?: () => void
 }
 
 interface ComposerSuggestionListRef {
   onKeyDown: (event: KeyboardEvent) => boolean
 }
 
-function firstSelectableIndex(items: readonly ComposerSuggestionItem[]) {
-  return items.findIndex((item) => !item.disabled)
-}
-
-function clampSelectableIndex(items: readonly ComposerSuggestionItem[], index: number, direction: 1 | -1) {
-  if (items.length === 0) return -1
-
-  let nextIndex = index
-  for (let attempt = 0; attempt < items.length; attempt++) {
-    nextIndex = (nextIndex + direction + items.length) % items.length
-    if (!items[nextIndex]?.disabled) return nextIndex
-  }
-
-  return -1
-}
-
 const ComposerSuggestionList = ({ ref, ...props }: ComposerSuggestionListProps) => {
-  const { command, items } = props
-  const [selectedIndex, setSelectedIndex] = useState(() => firstSelectableIndex(items))
+  const {
+    command: runSuggestionCommand,
+    editor,
+    items,
+    keepOpenOnSelect,
+    multiple,
+    onRequestClose,
+    onStickyOpenChange,
+    pageSize = 7,
+    query,
+    range
+  } = props
+  const rootRef = useRef<HTMLDivElement>(null)
+  const triggerClearedRef = useRef(false)
+  const [isStickyOpen, setIsStickyOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
+    () => new Set(items.filter((item) => item.selected).map((item) => item.id))
+  )
+  const itemsWithSelection = useMemo(
+    () => items.map((item) => ({ ...item, selected: selectedIds.has(item.id) })),
+    [items, selectedIds]
+  )
+  const [selectedIndex, setSelectedIndex] = useState(() => firstQuickPanelSelectableIndex(itemsWithSelection))
 
   useEffect(() => {
-    setSelectedIndex(firstSelectableIndex(items))
+    setSelectedIds(new Set(items.filter((item) => item.selected).map((item) => item.id)))
+    setSelectedIndex(firstQuickPanelSelectableIndex(items))
   }, [items])
+
+  const closeStickyPanel = useCallback(() => {
+    setIsStickyOpen(false)
+    onStickyOpenChange?.(false)
+    onRequestClose?.()
+  }, [onRequestClose, onStickyOpenChange])
 
   const selectItem = useCallback(
     (index: number) => {
-      const item = items[index]
+      const item = itemsWithSelection[index]
       if (!item || item.disabled) return false
-      command(item)
+
+      if (multiple && keepOpenOnSelect) {
+        setIsStickyOpen(true)
+        onStickyOpenChange?.(true)
+        setSelectedIds((currentIds) => toggleQuickPanelSelectedId(currentIds, item.id))
+
+        if (!triggerClearedRef.current) {
+          editor.chain().focus().deleteRange(range).run()
+          triggerClearedRef.current = true
+        } else {
+          editor.commands.focus()
+        }
+
+        item.command({ editor, range, item, query: query ?? '' })
+        return true
+      }
+
+      runSuggestionCommand(item)
       return true
     },
-    [command, items]
+    [editor, itemsWithSelection, keepOpenOnSelect, multiple, onStickyOpenChange, query, range, runSuggestionCommand]
   )
 
   const handleKeyDown = useCallback(
@@ -82,92 +126,131 @@ const ComposerSuggestionList = ({ ref, ...props }: ComposerSuggestionListProps) 
       switch (event.key) {
         case 'ArrowUp':
           event.preventDefault()
-          setSelectedIndex((current) => clampSelectableIndex(items, current === -1 ? 0 : current, -1))
+          setSelectedIndex((current) => moveQuickPanelSelectableIndex(itemsWithSelection, current, -1, { wrap: true }))
           return true
         case 'ArrowDown':
           event.preventDefault()
-          setSelectedIndex((current) => clampSelectableIndex(items, current, 1))
+          setSelectedIndex((current) => moveQuickPanelSelectableIndex(itemsWithSelection, current, 1, { wrap: true }))
           return true
         case 'PageUp':
           event.preventDefault()
-          setSelectedIndex(firstSelectableIndex(items))
+          setSelectedIndex((current) =>
+            moveQuickPanelSelectableIndex(itemsWithSelection, current, -pageSize, { wrap: false })
+          )
           return true
         case 'PageDown':
           event.preventDefault()
-          setSelectedIndex(() => {
-            for (let index = items.length - 1; index >= 0; index--) {
-              if (!items[index]?.disabled) return index
-            }
-            return -1
-          })
+          setSelectedIndex((current) =>
+            moveQuickPanelSelectableIndex(itemsWithSelection, current, pageSize, { wrap: false })
+          )
           return true
         case 'Tab':
         case 'Enter':
           if (event.key === 'Enter' && event.shiftKey) return false
           event.preventDefault()
-          return selectItem(selectedIndex)
+          event.stopPropagation()
+          selectItem(selectedIndex)
+          return true
         case 'Escape':
           event.preventDefault()
+          if (isStickyOpen) {
+            event.stopPropagation()
+            closeStickyPanel()
+          }
           return true
         default:
           return false
       }
     },
-    [items, selectItem, selectedIndex]
+    [closeStickyPanel, isStickyOpen, itemsWithSelection, pageSize, selectItem, selectedIndex]
   )
 
   useImperativeHandle(ref, () => ({ onKeyDown: handleKeyDown }), [handleKeyDown])
 
-  const visibleItems = useMemo(() => items.filter((item) => !item.disabled || item.description), [items])
+  useEffect(() => {
+    if (!isStickyOpen) return
+
+    const handleDocumentKeyDown = (event: KeyboardEvent) => {
+      const handled = handleKeyDown(event)
+      if (handled) {
+        event.stopPropagation()
+        return
+      }
+
+      if (!event.metaKey && !event.ctrlKey && !event.altKey && (event.key.length === 1 || event.key === 'Backspace')) {
+        closeStickyPanel()
+      }
+    }
+
+    const handleDocumentPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (rootRef.current?.contains(target)) return
+      closeStickyPanel()
+    }
+
+    document.addEventListener('keydown', handleDocumentKeyDown, true)
+    document.addEventListener('pointerdown', handleDocumentPointerDown, true)
+
+    return () => {
+      document.removeEventListener('keydown', handleDocumentKeyDown, true)
+      document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
+    }
+  }, [closeStickyPanel, handleKeyDown, isStickyOpen])
+
+  const visibleItems = useMemo(
+    () =>
+      itemsWithSelection.flatMap((item, sourceIndex) =>
+        !item.disabled || item.description ? [{ ...item, sourceIndex }] : []
+      ),
+    [itemsWithSelection]
+  )
+  const visibleSelectedIndex = visibleItems.findIndex((item) => item.sourceIndex === selectedIndex)
 
   return (
-    <div className="w-72 overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl">
-      <MenuList className="max-h-72 gap-1 overflow-y-auto">
-        {visibleItems.length > 0 ? (
-          visibleItems.map((item) => {
-            const itemIndex = items.indexOf(item)
-            return (
-              <MenuItem
-                key={item.id}
-                icon={item.icon ? <span className="text-foreground-muted [&_svg]:size-4">{item.icon}</span> : undefined}
-                label={String(item.label)}
-                description={item.description ? String(item.description) : undefined}
-                disabled={item.disabled}
-                active={itemIndex === selectedIndex}
-                suffix={item.isMenu ? <span className="text-foreground-muted">›</span> : undefined}
-                onClick={() => selectItem(itemIndex)}
-              />
-            )
-          })
-        ) : (
-          <MenuItem label={t('settings.quickPanel.noResult', 'No results')} disabled icon={undefined} />
-        )}
-      </MenuList>
+    <div ref={rootRef}>
+      <QuickPanelFrame className="w-full rounded-t-lg border-border/60 bg-popover/80 shadow-lg backdrop-blur-[35px] backdrop-saturate-150">
+        <QuickPanelList
+          activeIndex={visibleSelectedIndex}
+          emptyLabel={t('settings.quickPanel.noResult', 'No results')}
+          items={visibleItems}
+          onSelect={(item) => {
+            selectItem(item.sourceIndex)
+          }}
+        />
+      </QuickPanelFrame>
     </div>
   )
+}
+
+function getComposerSuggestionAnchor(editor: Editor) {
+  return editor.view.dom.closest('.inputbar') ?? editor.view.dom.closest('#inputbar')
+}
+
+function getSuggestionReference(props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>) {
+  const composerAnchor = getComposerSuggestionAnchor(props.editor)
+  if (composerAnchor) return composerAnchor
+
+  return {
+    getBoundingClientRect: () => props.clientRect?.() ?? new DOMRect()
+  }
 }
 
 function updateSuggestionPosition(
   props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>,
   element: HTMLElement
 ) {
-  const getReferenceRect = props.clientRect
-    ? props.clientRect
-    : () => posToDOMRect(props.editor.view, props.range.from, props.range.to)
-
-  const virtualElement = {
-    getBoundingClientRect: () => getReferenceRect() ?? new DOMRect()
-  }
-
-  return computePosition(virtualElement, element, {
+  return computePosition(getSuggestionReference(props), element, {
     placement: 'top-start',
+    strategy: 'fixed',
     middleware: [
-      offset(8),
+      offset(0),
       flip({ padding: 8 }),
       shift({ padding: 8 }),
       size({
         padding: 8,
-        apply({ availableHeight, elements }) {
+        apply({ availableHeight, elements, rects }) {
+          elements.floating.style.width = `${rects.reference.width}px`
           elements.floating.style.maxHeight = `${Math.min(360, Math.max(160, availableHeight))}px`
         }
       })
@@ -175,35 +258,55 @@ function updateSuggestionPosition(
   }).then(({ x, y }) => {
     Object.assign(element.style, {
       left: `${x}px`,
-      top: `${y}px`
+      top: `${y}px`,
+      position: 'fixed'
     })
   })
 }
 
-function createSuggestionRender() {
+function createSuggestionRender(source: ComposerSuggestionSource) {
   let component: ReactRenderer<ComposerSuggestionListRef, ComposerSuggestionListProps> | undefined
   let cleanup: (() => void) | undefined
+  let stickyOpen = false
+
+  const listProps = (
+    props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>
+  ): ComposerSuggestionListProps => ({
+    ...props,
+    keepOpenOnSelect: source.keepOpenOnSelect,
+    multiple: source.multiple,
+    pageSize: source.pageSize,
+    onStickyOpenChange: (open) => {
+      stickyOpen = open
+      if (open && cleanup) {
+        cleanup()
+        cleanup = undefined
+      }
+    },
+    onRequestClose: () => {
+      stickyOpen = false
+      cleanup?.()
+      const element = component?.element as HTMLElement | undefined
+      element?.remove()
+      component?.destroy()
+      component = undefined
+      cleanup = undefined
+    }
+  })
 
   return {
     onStart: (props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>) => {
       component = new ReactRenderer(ComposerSuggestionList, {
-        props,
+        props: listProps(props),
         editor: props.editor
       })
 
       const element = component.element as HTMLElement
-      element.style.position = 'absolute'
+      element.style.position = 'fixed'
       element.style.zIndex = '1001'
       document.body.appendChild(element)
 
-      const getReferenceRect = props.clientRect
-        ? props.clientRect
-        : () => posToDOMRect(props.editor.view, props.range.from, props.range.to)
-      const virtualElement = {
-        getBoundingClientRect: () => getReferenceRect() ?? new DOMRect()
-      }
-
-      cleanup = autoUpdate(virtualElement, element, () => {
+      cleanup = autoUpdate(getSuggestionReference(props), element, () => {
         void updateSuggestionPosition(props, element)
       })
 
@@ -211,7 +314,7 @@ function createSuggestionRender() {
     },
 
     onUpdate: (props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>) => {
-      component?.updateProps(props)
+      component?.updateProps(listProps(props))
       const element = component?.element as HTMLElement | undefined
       if (element) {
         void updateSuggestionPosition(props, element)
@@ -232,6 +335,12 @@ function createSuggestionRender() {
     },
 
     onExit: () => {
+      if (stickyOpen) {
+        cleanup?.()
+        cleanup = undefined
+        return
+      }
+
       cleanup?.()
       const element = component?.element as HTMLElement | undefined
       element?.remove()
@@ -284,7 +393,7 @@ export function createComposerSuggestionExtension(sources: readonly ComposerSugg
             editor.chain().focus().deleteRange(range).run()
             props.command({ editor, range, item: props, query: props.query ?? '' })
           },
-          render: createSuggestionRender
+          render: () => createSuggestionRender(source)
         })
       })
     }

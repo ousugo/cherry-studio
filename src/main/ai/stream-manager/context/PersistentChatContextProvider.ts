@@ -26,7 +26,7 @@ import type { AiStreamRequest } from '../../types/requests'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
-import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
+import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainContinueConversationRequest, MainDispatchRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
@@ -73,7 +73,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     return true
   }
 
-  async prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch> {
+  async prepareDispatch(
+    subscriber: StreamListener,
+    req: MainDispatchRequest,
+    ctx: DispatchContext
+  ): Promise<PreparedDispatch> {
     // 1. Resolve context
     const topic = await topicService.getById(req.topicId)
     const { assistantId, defaultModelId } = await resolveAssistantModelId(topic?.assistantId)
@@ -84,6 +88,29 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     //    belongs to one specific assistant turn).
     if (req.trigger === 'continue-conversation') {
       return this.prepareContinueDispatch(subscriber, req, assistantId, defaultModelId)
+    }
+
+    if (ctx.hasLiveStream && req.trigger === 'submit-message') {
+      const userMessage = await messageService.create(req.topicId, {
+        role: 'user',
+        parentId: req.parentAnchorId,
+        data: { parts: req.userMessageParts },
+        status: 'success',
+        modelId: defaultModelId,
+        modelSnapshot: (() => {
+          const { providerId, modelId: rawModelId } = parseUniqueModelId(defaultModelId)
+          return { id: rawModelId, name: rawModelId, provider: providerId }
+        })()
+      })
+
+      return {
+        topicId: req.topicId,
+        models: [],
+        listeners: [subscriber],
+        userMessage,
+        userMessageId: userMessage.id,
+        isMultiModel: false
+      }
     }
 
     // 3. Models (single or multi)

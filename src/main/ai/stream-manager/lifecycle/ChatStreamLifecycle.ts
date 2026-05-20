@@ -1,5 +1,6 @@
 import { application } from '@main/core/application'
-import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
+import type { ActiveExecution, StreamPendingQueueItem, TopicStreamStatus } from '@shared/ai/transport'
+import type { Message } from '@shared/data/types/message'
 
 import type { ActiveStream } from '../types'
 import type { StreamLifecycle } from './StreamLifecycle'
@@ -26,9 +27,24 @@ import type { StreamLifecycle } from './StreamLifecycle'
  * via the `evict` callback when the timer fires.
  */
 export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycle {
+  const toPendingPayload = (message: Message): StreamPendingQueueItem['payload'] => {
+    const parts = message.data.parts ?? []
+    const text = parts
+      .map((part) => (part.type === 'text' && 'text' in part ? part.text : ''))
+      .filter(Boolean)
+      .join('\n')
+
+    return {
+      text,
+      userMessageParts: parts
+    }
+  }
+
   const broadcast = (stream: ActiveStream, status: TopicStreamStatus) => {
     const activeExecutions: ActiveExecution[] = []
     const awaitingApprovalAnchors: ActiveExecution[] = []
+    const pendingById = new Map<string, StreamPendingQueueItem>()
+
     for (const [modelId, exec] of stream.executions) {
       const entry: ActiveExecution = { executionId: modelId, anchorMessageId: exec.anchorMessageId }
       if (exec.status === 'streaming') activeExecutions.push(entry)
@@ -38,12 +54,28 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       // is broadcast here so the renderer reads per-message identity directly
       // instead of inferring from `message.parts` / SWR-lagged `message.status`.
       if (exec.awaitingApproval) awaitingApprovalAnchors.push(entry)
+
+      for (const message of exec.pendingMessages.list()) {
+        const existing = pendingById.get(message.id)
+        if (existing) {
+          existing.executionIds.push(modelId)
+          continue
+        }
+        pendingById.set(message.id, {
+          id: message.id,
+          payload: toPendingPayload(message),
+          executionIds: [modelId],
+          createdAt: message.createdAt
+        })
+      }
     }
+
     const cacheService = application.get('CacheService')
     cacheService.setShared(`topic.stream.statuses.${stream.topicId}` as const, {
       status,
       activeExecutions,
-      awaitingApprovalAnchors
+      awaitingApprovalAnchors,
+      pendingQueue: [...pendingById.values()]
     })
   }
 
@@ -54,6 +86,9 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
     },
     onPromotedToStreaming(stream) {
       broadcast(stream, 'streaming')
+    },
+    onQueueChanged(stream) {
+      broadcast(stream, stream.status)
     },
     onTerminal(stream) {
       broadcast(stream, stream.status)

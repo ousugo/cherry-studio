@@ -8,7 +8,10 @@ import type {
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
-  AiStreamOpenRequest
+  AiStreamOpenRequest,
+  AiStreamQueueRemoveRequest,
+  AiStreamQueueReorderRequest,
+  AiStreamQueueUpdateRequest
 } from '@shared/ai/transport'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { Message } from '@shared/data/types/message'
@@ -226,6 +229,18 @@ export class AiStreamManager extends BaseService {
       this.abort(req.topicId, 'user-requested')
     })
 
+    this.ipcHandle(IpcChannel.Ai_Stream_Queue_Remove, (_, req: AiStreamQueueRemoveRequest) => {
+      return this.removePendingMessage(req.topicId, req.messageId)
+    })
+
+    this.ipcHandle(IpcChannel.Ai_Stream_Queue_Reorder, (_, req: AiStreamQueueReorderRequest) => {
+      return this.reorderPendingMessages(req.topicId, req.messageIds)
+    })
+
+    this.ipcHandle(IpcChannel.Ai_Stream_Queue_Update, (_, req: AiStreamQueueUpdateRequest) => {
+      return this.updatePendingMessage(req.topicId, req.messageId, req.payload.userMessageParts)
+    })
+
     logger.info('AiStreamManager initialized')
   }
 
@@ -398,6 +413,43 @@ export class AiStreamManager extends BaseService {
     return true
   }
 
+  removePendingMessage(topicId: string, messageId: string): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || !isLiveStatus(stream.status)) return false
+
+    let removed = false
+    for (const exec of stream.executions.values()) {
+      removed = exec.pendingMessages.remove(messageId) || removed
+    }
+    return removed
+  }
+
+  reorderPendingMessages(topicId: string, messageIds: string[]): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || !isLiveStatus(stream.status)) return false
+
+    for (const exec of stream.executions.values()) exec.pendingMessages.reorder(messageIds)
+    return true
+  }
+
+  updatePendingMessage(topicId: string, messageId: string, parts: Message['data']['parts']): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || !isLiveStatus(stream.status)) return false
+
+    let updated = false
+    for (const exec of stream.executions.values()) {
+      const message = exec.pendingMessages.list().find((current) => current.id === messageId)
+      if (!message) continue
+      updated =
+        exec.pendingMessages.update(messageId, {
+          ...message,
+          data: { ...message.data, parts },
+          updatedAt: new Date().toISOString()
+        }) || updated
+    }
+    return updated
+  }
+
   /**
    * True iff this topic has a stream that `send()` would treat as the inject
    * path (live: pending or streaming). Providers query this in
@@ -407,6 +459,12 @@ export class AiStreamManager extends BaseService {
   hasLiveStream(topicId: string): boolean {
     const stream = this.activeStreams.get(topicId)
     return Boolean(stream && isLiveStatus(stream.status))
+  }
+
+  private notifyPendingQueueChanged(topicId: string): void {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || !isLiveStatus(stream.status)) return
+    stream.lifecycle.onQueueChanged?.(stream)
   }
 
   // ── Public: listener management ───────────────────────────────────
@@ -744,7 +802,7 @@ export class AiStreamManager extends BaseService {
     // Each execution gets its own pending queue and replay ring buffer;
     // message-injection fan-out happens at the manager level (see
     // `send` / `injectMessage`).
-    const pendingMessages = new PendingMessageQueue()
+    const pendingMessages = new PendingMessageQueue(() => this.notifyPendingQueueChanged(topicId))
     // `loopPromise` is overwritten right after launch — we need a stable
     // object reference to hang the promise on inside the arrow function
     // below, so initialise to a resolved sentinel.

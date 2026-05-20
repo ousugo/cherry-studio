@@ -25,10 +25,17 @@ export type {
   AiStreamDetachRequest,
   AiStreamOpenRequest,
   AiStreamOpenResponse,
+  AiStreamQueueRemoveRequest,
+  AiStreamQueueReorderRequest,
+  AiStreamQueueUpdateRequest,
   ApprovalDecision,
+  ComposerQueuedMessagePayload,
+  ComposerQueueItem,
+  ComposerQueueSnapshot,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,
+  StreamPendingQueueItem,
   TopicStatusSnapshotEntry,
   TopicStreamStatus
 } from './stream'

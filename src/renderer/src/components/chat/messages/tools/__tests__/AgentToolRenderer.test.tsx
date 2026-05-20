@@ -4,6 +4,7 @@ import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
+import MessageTool from '../MessageTool'
 
 vi.mock('@renderer/services/AssistantService', () => ({
   getDefaultAssistant: vi.fn(() => ({
@@ -350,6 +351,45 @@ describe('AgentToolRenderer', () => {
         path: '/settings/provider',
         query: { id: 'openai' }
       })
+    })
+  })
+
+  describe('meta tool rendering', () => {
+    it('renders tool_search with the light tool-row styling', () => {
+      const toolResponse = createToolResponse({
+        id: 'meta-tool-search',
+        tool: {
+          id: 'tool_search',
+          name: 'tool_search',
+          description: 'Search deferred tools',
+          type: 'provider'
+        },
+        status: 'done',
+        arguments: { namespace: 'mcp:tavily' },
+        response: {
+          matchedNamespaces: [
+            {
+              namespace: 'mcp:tavily',
+              tools: [{ name: 'tavily_search' }]
+            }
+          ]
+        }
+      })
+
+      const { container } = render(<MessageTool toolResponse={toolResponse} />)
+
+      const disclosure = container.querySelector('.message-tools-container')
+      expect(disclosure).toHaveClass('border-none')
+      expect(disclosure).toHaveClass('bg-transparent')
+      expect(disclosure).not.toHaveClass('rounded-[7px]')
+      expect(screen.getByTestId('wrench-icon')).toBeInTheDocument()
+
+      const title = screen.getByText('tool_search · ns=mcp:tavily')
+      expect(title).toHaveClass('font-normal')
+      expect(title).toHaveClass('text-foreground-secondary')
+
+      fireEvent.click(screen.getByRole('button'))
+      expect(screen.getByText('tavily_search')).toBeInTheDocument()
     })
   })
 

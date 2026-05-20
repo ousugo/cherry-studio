@@ -12,6 +12,7 @@ import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CherryINOAuthService } from '@main/services/CherryINOAuthService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { ComposerQueueService } from '@main/services/ComposerQueueService'
 import { FileManager } from '@main/services/file/FileManager'
 import {
   FileProcessingOrchestrationService,
@@ -80,6 +81,7 @@ export const services = {
   AnalyticsService,
   AppMenuService,
   CodeCliService,
+  ComposerQueueService,
   LanTransferService,
   FileManager,
   FileProcessingOrchestrationService,

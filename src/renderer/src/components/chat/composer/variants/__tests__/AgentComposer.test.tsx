@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
+  enqueueDraft: vi.fn(),
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   runtimeHostProps: undefined as { assistant?: { modelId?: string | null }; model?: Model } | undefined
 }))
@@ -232,6 +233,22 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   })
 }))
 
+vi.mock('@renderer/components/chat/composer/useComposerMessageQueue', () => ({
+  useComposerMessageQueue: () => ({
+    draftItems: [],
+    pendingItems: [],
+    hasDraftItems: false,
+    enqueueDraft: mocks.enqueueDraft,
+    removeDraft: vi.fn(),
+    reorderDraft: vi.fn(),
+    claimNextDraft: vi.fn(),
+    completeDraft: vi.fn(),
+    failDraft: vi.fn(),
+    removePending: vi.fn(),
+    reorderPending: vi.fn()
+  })
+}))
+
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18nextModule>()
   return {
@@ -254,6 +271,8 @@ describe('AgentComposer', () => {
     mocks.updateModel.mockReset()
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
+    mocks.enqueueDraft.mockReset()
+    mocks.enqueueDraft.mockResolvedValue(undefined)
     mocks.surfaceProps = undefined
     mocks.runtimeHostProps = undefined
   })
@@ -355,6 +374,23 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('pause'))
 
     expect(mocks.stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('queues send drafts while the agent session is streaming', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.enqueueDraft).toHaveBeenCalledWith(expect.objectContaining({ text: 'hello' }))
   })
 
   it('updates the active session agent from the composer toolbar', () => {

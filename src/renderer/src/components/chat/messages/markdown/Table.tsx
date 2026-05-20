@@ -72,14 +72,18 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
   }, [actions, blockId, node?.position, t, mdCtx?.content])
 
   return (
-    <div className="table-wrapper relative hover:[&_.table-toolbar]:opacity-100">
-      <table>{children}</table>
+    <div className="table-wrapper relative my-2 max-w-full overflow-x-auto hover:[&_.table-toolbar]:opacity-100">
+      <table
+        className="[&&]:my-0 [&&]:w-full [&&]:min-w-max [&&]:border-separate [&&]:overflow-visible [&&]:rounded-none [&&]:border-0 [&&]:bg-transparent [&&]:text-[var(--font-size-body-md)] [&&]:text-foreground [&&]:leading-[var(--line-height-body-md)] [&&_tbody>tr]:border-0 [&&_tbody]:bg-transparent [&&_td]:border-0 [&&_td]:bg-muted [&&_td]:px-3 [&&_td]:py-2 [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th]:border-0 [&&_th]:bg-muted [&&_th]:px-3 [&&_th]:py-2 [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead>tr]:border-0 [&&_thead]:bg-transparent [&&_tr:hover]:bg-transparent [&&_tr:hover_td]:bg-accent [&&_tr:hover_th]:bg-accent [&&_tr]:bg-transparent [&_td]:rounded-md [&_th]:rounded-md"
+        style={{ border: 0, borderRadius: 0, borderSpacing: 'var(--cs-size-5xs)', margin: 0, overflow: 'visible' }}>
+        {children}
+      </table>
       {(canCopyTable || canExportExcel) && (
-        <div className="table-toolbar transform-[translateZ(0)] absolute top-2 right-2 z-10 flex gap-1 rounded opacity-0 transition-opacity duration-200 ease-in-out will-change-[opacity]">
+        <div className="table-toolbar transform-[translateZ(0)] absolute top-2 right-2 z-10 flex gap-1 rounded-lg border border-border-subtle bg-popover p-1 opacity-0 shadow-md transition-opacity duration-200 ease-in-out will-change-[opacity]">
           {canCopyTable && (
             <Tooltip content={t('common.copy')} delay={800}>
               <div
-                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-accent text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-muted"
+                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-ghost-hover hover:text-foreground hover:shadow-xs"
                 role="button"
                 aria-label={t('common.copy')}
                 onClick={handleCopyTable}>
@@ -90,7 +94,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
           {canExportExcel && (
             <Tooltip content={t('common.export.excel')} delay={800}>
               <div
-                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded bg-accent text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-muted"
+                className="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-ghost-hover hover:text-foreground hover:shadow-xs"
                 role="button"
                 aria-label={t('common.export.excel')}
                 onClick={handleExportExcel}>

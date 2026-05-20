@@ -1,4 +1,5 @@
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { LoadingIcon } from '@renderer/components/Icons'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
@@ -18,7 +19,11 @@ import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
 import MessageGroup from './list/MessageGroup'
 import MessageNavigation from './list/MessageNavigation'
-import { MessageVirtualList, type MessageVirtualListHandle } from './list/MessageVirtualList'
+import {
+  MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
+  MessageVirtualList,
+  type MessageVirtualListHandle
+} from './list/MessageVirtualList'
 import SelectionBox from './list/SelectionBox'
 import {
   useMessageListActions,
@@ -58,6 +63,7 @@ const MessageList = () => {
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const selectedMessageIds = selection?.selectedMessageIds ?? []
   const [activeOutline, setActiveOutline] = useState<ActiveMessageOutline | null>(null)
+  const bottomOverlayInsets = useChatBottomOverlayInset()
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -237,6 +243,14 @@ const MessageList = () => {
     : undefined
   const latestUserMessage = messages.findLast((message) => message.role === 'user' && message.type !== 'clear')
   const forceScrollToBottomKey = latestUserMessage?.id
+  const defaultBottomPadding = isMultiSelectMode
+    ? MULTI_SELECT_BOTTOM_PADDING_PX
+    : MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX
+  const bottomPadding =
+    bottomOverlayInsets == null
+      ? defaultBottomPadding
+      : Math.max(bottomOverlayInsets.contentBottomPadding, isMultiSelectMode ? defaultBottomPadding : 0)
+  const scrollerBottomMargin = bottomOverlayInsets?.scrollerBottomMargin ?? 0
 
   return (
     <MessagesContainer id="messages" className="messages-container" key={data.listKey}>
@@ -253,7 +267,7 @@ const MessageList = () => {
             getItemKey={([key]) => key}
             estimateSize={data.estimateSize}
             overscan={data.overscan}
-            bottomPadding={isMultiSelectMode ? MULTI_SELECT_BOTTOM_PADDING_PX : undefined}
+            bottomPadding={bottomPadding}
             forceScrollToBottomKey={forceScrollToBottomKey}
             hasMoreTop={hasOlder}
             onReachTop={loadMoreMessages}
@@ -275,7 +289,7 @@ const MessageList = () => {
                 </NarrowLayout>
               )
             }}
-            style={{ flex: 1, minHeight: 0 }}
+            style={{ flex: 1, minHeight: 0, marginBottom: scrollerBottomMargin }}
           />
           {isLoadingMore && (
             <div

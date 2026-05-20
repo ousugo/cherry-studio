@@ -22,6 +22,9 @@ export interface StreamLifecycle {
   /** Called from `onChunk` the first time the stream transitions `pending → streaming`. */
   onPromotedToStreaming(stream: ActiveStream): void
 
+  /** Called when an execution's pending user-message queue changes. */
+  onQueueChanged?(stream: ActiveStream): void
+
   /**
    * Called from each `onExecution{Done,Paused,Error}` handler once
    * `isTopicDone` flips. Implementations read `stream.status` to react to

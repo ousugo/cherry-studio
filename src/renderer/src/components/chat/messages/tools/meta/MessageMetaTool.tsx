@@ -2,7 +2,7 @@ import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types'
-import { Check, CornerDownRight } from 'lucide-react'
+import { Check, CornerDownRight, Wrench } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -69,21 +69,30 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
       <CollapseShell
         activeKey={activeKeys}
         onActiveKeyChange={setActiveKeys}
+        className="message-tools-container"
         items={[
           {
             key: id,
             label: (
-              <TitleRow>
-                <TitleText>{titleLabel}</TitleText>
-                <Trailing>
+              <MessageTitleLabel>
+                <StatusIconColumn>
+                  <Wrench size={15} />
+                </StatusIconColumn>
+                <TitleContent>
+                  <ToolName>{titleLabel}</ToolName>
+                </TitleContent>
+                <TitleActions>
                   <ToolStatusIndicator status={getEffectiveStatus(status, false)} hasError={hasError} />
                   {(isDone || isError) && copyText && (
-                    <CopyButton onClick={handleCopy} aria-label={t('common.copy')}>
+                    <CopyButton
+                      className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
+                      onClick={handleCopy}
+                      aria-label={t('common.copy')}>
                       {copied ? <Check size={14} color="var(--status-color-success)" /> : <CopyIcon size={14} />}
                     </CopyButton>
                   )}
-                </Trailing>
-              </TitleRow>
+                </TitleActions>
+              </MessageTitleLabel>
             ),
             children: <Body toolResponse={toolResponse} toolName={tool.name as MetaToolName} />
           }
@@ -345,29 +354,14 @@ function stringifyResponse(value: unknown): string {
 }
 
 const Container = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['my-1', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['group/tool my-px first:mt-0 first:pt-0', className].filter(Boolean).join(' ')} {...props} />
 )
 
 const CollapseShell = ({ className, ...props }: ComponentPropsWithoutRef<typeof ToolDisclosure>) => (
   <ToolDisclosure
-    className={['overflow-hidden rounded-[7px] border border-border bg-background', className]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
-)
-
-const TitleRow = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={['flex w-full items-center justify-between gap-2.5', className].filter(Boolean).join(' ')}
-    {...props}
-  />
-)
-
-const TitleText = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
-  <span
+    variant="light"
     className={[
-      'overflow-hidden text-ellipsis whitespace-nowrap font-[var(--font-family-mono,monospace)] font-medium text-[13px] text-foreground',
+      'border-none [--status-color-error:var(--color-foreground-secondary)] [--status-color-invoking:var(--color-primary)] [--status-color-success:var(--color-primary,green)] [--status-color-warning:var(--color-warning,#faad14)]',
       className
     ]
       .filter(Boolean)
@@ -376,15 +370,53 @@ const TitleText = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) =>
   />
 )
 
-const Trailing = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['ml-auto flex items-center gap-1.5', className].filter(Boolean).join(' ')} {...props} />
+const MessageTitleLabel = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['flex w-full flex-row items-center justify-between gap-2 p-0', className].filter(Boolean).join(' ')}
+    {...props}
+  />
+)
+
+const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={['flex min-w-0 flex-1 flex-row items-center gap-1.5 leading-5', className].filter(Boolean).join(' ')}
+    {...props}
+  />
+)
+
+const StatusIconColumn = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={[
+      'flex h-5 w-4 shrink-0 items-center justify-start text-foreground-muted transition-colors duration-150 group-hover/tool:text-foreground-secondary',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
+
+const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
+  <span
+    className={[
+      'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-[13px] text-foreground-secondary transition-colors duration-150 group-hover/tool:text-foreground',
+      className
+    ]
+      .filter(Boolean)
+      .join(' ')}
+    {...props}
+  />
+)
+
+const TitleActions = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={['flex shrink-0 items-center gap-1.5', className].filter(Boolean).join(' ')} {...props} />
 )
 
 const CopyButton = ({ className, ...props }: ComponentPropsWithoutRef<'button'>) => (
   <button
     type="button"
     className={[
-      'flex cursor-pointer items-center rounded border-none bg-transparent p-1 text-foreground-secondary opacity-70 hover:bg-(--color-accent) hover:opacity-100',
+      'flex size-5 cursor-pointer items-center justify-center gap-1 rounded border-none bg-transparent p-0 text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-(--color-accent) hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2 [&_.iconfont]:text-[13px]',
       className
     ]
       .filter(Boolean)
