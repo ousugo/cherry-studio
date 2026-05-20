@@ -9,7 +9,6 @@ import {
 } from '@data/db/schemas/agentSessionMessage'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import { decodeCursor, encodeCursor } from '@data/services/utils/cursor'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -27,12 +26,23 @@ import { and, desc, eq, isNotNull, lt, or, sql } from 'drizzle-orm'
 
 const logger = loggerService.withContext('SessionMessageService')
 
+// Cursor wire format: `<createdAt-ms>:<id>`. Stale/legacy cursors fall back
+// to first page (warn) instead of throwing — opaque server-issued tokens.
 function decodeMessageCursor(raw: string): { createdAt: number; id: string } | null {
-  const decoded = decodeCursor(raw)
-  if (!decoded) return null
-  const createdAt = Number(decoded.key)
+  const sep = raw.indexOf(':')
+  if (sep < 0) {
+    logger.warn('decodeMessageCursor: missing separator, falling back to first page', { cursor: raw })
+    return null
+  }
+  const key = raw.slice(0, sep)
+  const id = raw.slice(sep + 1)
+  if (!key || !id) {
+    logger.warn('decodeMessageCursor: empty key or id, falling back to first page', { cursor: raw })
+    return null
+  }
+  const createdAt = Number(key)
   if (!Number.isFinite(createdAt)) return null
-  return { createdAt, id: decoded.id }
+  return { createdAt, id }
 }
 
 export class AgentSessionMessageService {
@@ -91,7 +101,7 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const items = pageRows.map((row) => this.rowToEntity(row))
     const tail = pageRows[pageRows.length - 1]
-    const nextCursor = hasNext && tail ? encodeCursor(String(tail.createdAt), tail.id) : undefined
+    const nextCursor = hasNext && tail ? `${tail.createdAt}:${tail.id}` : undefined
 
     return { items, nextCursor }
   }

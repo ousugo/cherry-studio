@@ -6,6 +6,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { pinService } from '@data/services/PinService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { rowToWorkspace, workspaceService } from '@data/services/WorkspaceService'
+import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -18,11 +19,29 @@ import type {
 import { and, asc, desc, eq, gt, or, type SQL } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
-import { decodeCursor, encodeCursor } from './utils/cursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
+
+const logger = loggerService.withContext('SessionService')
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
+
+// Cursor wire format: `<orderKey>:<id>`. Stale/legacy cursors fall back
+// to first page (warn) instead of throwing — opaque server-issued tokens.
+function decodeSessionCursor(raw: string): { key: string; id: string } | null {
+  const sep = raw.indexOf(':')
+  if (sep < 0) {
+    logger.warn('decodeSessionCursor: missing separator, falling back to first page', { cursor: raw })
+    return null
+  }
+  const key = raw.slice(0, sep)
+  const id = raw.slice(sep + 1)
+  if (!key || !id) {
+    logger.warn('decodeSessionCursor: empty key or id, falling back to first page', { cursor: raw })
+    return null
+  }
+  return { key, id }
+}
 
 type JoinedSessionRow = {
   session: SessionRow
@@ -108,7 +127,7 @@ export class SessionService {
   async listByCursor(query: ListSessionsQuery = {}): Promise<CursorPaginationResponse<AgentSessionEntity>> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
-    const cursor = query.cursor ? decodeCursor(query.cursor) : null
+    const cursor = query.cursor ? decodeSessionCursor(query.cursor) : null
 
     const filters: SQL[] = []
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
@@ -133,7 +152,7 @@ export class SessionService {
     const hasNext = rows.length > limit
     const items = (hasNext ? rows.slice(0, limit) : rows).map(rowToSession)
     const last = items[items.length - 1]
-    const nextCursor = hasNext && last ? encodeCursor(last.orderKey, last.id) : undefined
+    const nextCursor = hasNext && last ? `${last.orderKey}:${last.id}` : undefined
 
     return { items, nextCursor }
   }
