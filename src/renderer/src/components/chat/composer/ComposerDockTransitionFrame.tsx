@@ -7,6 +7,7 @@ const COMPOSER_DOCK_TRANSITION = {
   duration: 0.28,
   ease: 'easeInOut'
 } as const
+const DOCKED_COMPOSER_BOTTOM_OFFSET = 8
 
 export type ComposerDockPlacement = 'home' | 'docked'
 
@@ -51,14 +52,14 @@ export default function ComposerDockTransitionFrame({
           animate={{ opacity: mainVisible ? 1 : 0 }}
           initial={false}
           transition={COMPOSER_DOCK_TRANSITION}
-          style={{ paddingBottom: isDocked && composer ? composerHeight : 0 }}>
+          style={{ paddingBottom: isDocked && composer ? composerHeight + DOCKED_COMPOSER_BOTTOM_OFFSET : 0 }}>
           {main}
         </motion.div>
 
         <div
           className={cn(
             'absolute inset-x-0 z-10 w-full px-4',
-            isDocked ? 'bottom-0' : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh]'
+            isDocked ? 'bottom-2' : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh]'
           )}>
           <motion.div
             layout="position"

@@ -554,7 +554,7 @@ export default function ComposerSurface({
     <div
       id="inputbar"
       className={cn(
-        'inputbar-container relative rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) pt-2 transition-all duration-200 ease-in-out',
+        'inputbar-container relative rounded-[17px] border-(--color-border) border-[0.5px] bg-muted/50 pt-2 transition-all duration-200 ease-in-out',
         belowControls
           ? 'mb-0.5 shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:shadow-[0_10px_24px_rgba(0,0,0,0.22)]'
           : 'mb-3',

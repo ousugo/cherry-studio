@@ -249,6 +249,7 @@ describe('AgentChat artifact pane', () => {
   it('opens and closes the artifact pane without replacing the existing chat shell pane', () => {
     render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
 
+    expect(screen.getByTestId('chat-app-shell').parentElement).toHaveClass('h-[calc(100vh-var(--navbar-height)-6px)]')
     expect(screen.getByTestId('chat-app-shell')).toHaveAttribute('data-pane-open', 'true')
     expect(screen.getByTestId('chat-app-shell')).toHaveAttribute('data-pane-position', 'left')
     expect(screen.getByTestId('session-pane')).toBeInTheDocument()
