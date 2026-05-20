@@ -14,7 +14,7 @@ const thinkingTool = defineTool({
       <ThinkingToolRuntime
         launcher={launcher}
         model={model}
-        assistantId={assistant.id}
+        assistantId={assistant?.id}
         reasoningEffort={session?.reasoningEffort}
         onReasoningEffortChange={session?.onReasoningEffortChange}
       />

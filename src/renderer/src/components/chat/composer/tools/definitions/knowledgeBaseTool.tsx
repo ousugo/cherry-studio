@@ -33,7 +33,7 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
   return (
     <KnowledgeBaseToolRuntime
       launcher={launcher}
-      configuredKnowledgeBaseIds={context.assistant.knowledgeBaseIds ?? []}
+      configuredKnowledgeBaseIds={context.assistant?.knowledgeBaseIds ?? []}
       selectedBases={state.selectedKnowledgeBases}
       onSelect={handleSelect}
       disabled={Array.isArray(state.files) && state.files.length > 0}
@@ -51,7 +51,8 @@ const knowledgeBaseTool = defineTool({
   key: 'knowledge_base',
   label: (t) => t('chat.input.knowledge_base'),
   visibleInScopes: [TopicType.Chat],
-  condition: ({ assistant, model }) => isSupportedToolUse(assistant, model) || isPromptToolUse(assistant),
+  condition: ({ assistant, model }) =>
+    !!assistant && (isSupportedToolUse(assistant, model) || isPromptToolUse(assistant)),
 
   dependencies: {
     state: ['selectedKnowledgeBases', 'files'] as const,

@@ -58,7 +58,8 @@ export interface ToolDependencies {
 
 export interface ToolContext {
   scope: ComposerToolScope
-  assistant: Assistant
+  /** Absent in Agent Session scope — Sessions have an `agentId` (see `session`), not an assistant row. */
+  assistant?: Assistant
   model: Model
   // Resolved v2 provider for `model.providerId`. Injected by the React
   // dispatch site (ComposerToolRuntimeHost) so sync `condition()` predicates can run

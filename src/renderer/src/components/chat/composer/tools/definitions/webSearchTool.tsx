@@ -17,7 +17,7 @@ const webSearchTool = defineTool({
   visibleInScopes: [TopicType.Chat],
 
   composer: {
-    runtime: ({ context }) => <WebSearchToolRuntime assistantId={context.assistant.id} launcher={context.launcher} />
+    runtime: ({ context }) => <WebSearchToolRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
   }
 })
 

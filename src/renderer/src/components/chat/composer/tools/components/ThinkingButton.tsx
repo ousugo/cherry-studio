@@ -30,8 +30,7 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   launcher: ToolLauncherApi
   model: Model
-  assistantId: string
-  // Controlled mode: external state management (for agent sessions)
+  assistantId?: string
   reasoningEffort?: ThinkingOption
   onReasoningEffortChange?: (option: ThinkingOption) => void
 }

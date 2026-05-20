@@ -29,7 +29,7 @@ import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { AgentLabel, isSoulModeEnabled } from '@renderer/pages/agents/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { type Assistant, FILE_TYPE, type FileMetadata, type ThinkingOption } from '@renderer/types'
+import { FILE_TYPE, type FileMetadata, type ThinkingOption } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -37,7 +37,6 @@ import type { ComposerQueuedMessagePayload, ComposerQueueItem, StreamPendingQueu
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { getFileTypeByExt } from '@shared/file/types'
 import { ChevronDown, Folder } from 'lucide-react'
@@ -151,33 +150,11 @@ const AgentComposerRoot = ({
   topContent,
   renderControls
 }: AgentComposerRootProps) => {
-  const { t } = useTranslation()
   const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
   const session = sessionOverride ?? loadedSession
   const { agent } = useAgent(agentId)
   const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-
-  const assistantStub = useMemo<Assistant | null>(() => {
-    if (!session || !agent) return null
-    const now = new Date().toISOString()
-    return {
-      id: session.agentId ?? agentId,
-      name: session.name ?? t('common.unnamed'),
-      prompt: agent.instructions ?? '',
-      emoji: '',
-      description: '',
-      settings: DEFAULT_ASSISTANT_SETTINGS,
-      modelId: sessionModel ? sessionModel.id : null,
-      modelName: sessionModel?.name ?? null,
-      orderKey: '',
-      mcpServerIds: [],
-      knowledgeBaseIds: [],
-      tags: [],
-      createdAt: now,
-      updatedAt: now
-    } satisfies Assistant
-  }, [session, agent, agentId, sessionModel, t])
 
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
@@ -201,7 +178,7 @@ const AgentComposerRoot = ({
     []
   )
 
-  if (!assistantStub) return null
+  if (!session || !agent) return null
 
   return (
     <ComposerToolRuntimeProvider
@@ -215,7 +192,6 @@ const AgentComposerRoot = ({
         toggleExpanded: (next) => actionsRef.current.toggleExpanded(next)
       }}>
       <AgentComposerInner
-        assistant={assistantStub}
         model={sessionModel}
         agentId={agentId}
         sessionId={sessionId}
@@ -240,7 +216,6 @@ const AgentComposerRoot = ({
 }
 
 interface InnerProps {
-  assistant: Assistant
   model?: Model
   agentId: string
   sessionId: string
@@ -437,7 +412,6 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => ({
 })
 
 const AgentComposerInner = ({
-  assistant,
   model,
   agentId,
   sessionId,
@@ -871,7 +845,7 @@ const AgentComposerInner = ({
 
   return (
     <>
-      {model && <ComposerToolRuntimeHost scope={scope} assistant={assistant} model={model} session={toolsSession} />}
+      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
       <ComposerSurface
         text={text}
         onTextChange={setText}
