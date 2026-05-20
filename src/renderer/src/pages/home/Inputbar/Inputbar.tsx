@@ -10,8 +10,7 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
-import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import {
   InputbarToolsProvider,

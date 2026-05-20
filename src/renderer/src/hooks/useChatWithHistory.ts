@@ -6,7 +6,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { useTopicDbRefreshOnTerminal } from './useTopicDbRefreshOnTerminal'
+import { useTopicDbRefreshOnTerminal } from './useTopicStreamStatus'
 import { useTopicStreamStatus } from './useTopicStreamStatus'
 
 const logger = loggerService.withContext('useChatWithHistory')
