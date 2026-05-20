@@ -1,9 +1,6 @@
 /**
- * Provider configuration builder — v2 DataApi types.
- *
- * Converts v2 Provider + Model into ProviderConfig for @cherrystudio/ai-core.
- * API key resolved via providerService.getRotatedApiKey() (async).
- * Auth config via providerService.getAuthConfig() for IAM providers.
+ * `Provider + Model` → `ProviderConfig` for `@cherrystudio/ai-core`.
+ * Always async because `providerService.getRotatedApiKey` is async.
  */
 
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
@@ -48,11 +45,7 @@ interface BuilderContext {
   agentSessionId?: string
 }
 
-/**
- * Format a raw base URL for API calls.
- * Applies provider-specific formatting (API version, Ollama/Gemini paths, etc.)
- * align ai sdk
- */
+/** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
 function formatBaseURL(baseURL: string, provider: Provider, endpointType?: EndpointType): string {
   if (!baseURL) return ''
 
@@ -86,13 +79,7 @@ type ConfigBuilderEntry = {
   build: (ctx: BuilderContext) => ProviderConfig | Promise<ProviderConfig>
 }
 
-/**
- * Build AI SDK provider config from v2 Provider + Model.
- * Always async (getRotatedApiKey is async).
- *
- * Endpoint routing: model.endpointTypes[0] > provider.defaultChatEndpoint > fallback.
- * Provider variant selected by resolveProviderVariant based on endpoint type.
- */
+/** Endpoint priority: `model.endpointTypes[0]` > `provider.defaultChatEndpoint` > fallback. */
 export async function providerToAiSdkConfig(
   provider: Provider,
   model: Model,
@@ -214,11 +201,8 @@ async function buildBedrockConfig(ctx: BuilderContext): Promise<ProviderConfig<'
   const authConfig = await providerService.getAuthConfig(ctx.actualProvider.id)
   const base = { providerId: 'bedrock' as const, endpoint: ctx.endpoint }
 
-  // Prevent empty string slipping through to `@ai-sdk/amazon-bedrock`:
-  //   the SDK uses `options.baseURL != null ? options.baseURL : derivedFromRegion`
-  //   so `""` is treated as a *valid* base URL and every request hits `""/model/...`.
-  //   Same guard for region — empty → malformed `https://bedrock-runtime..amazonaws.com`.
-  //   (Upstream #14425 — hotfix for the renderer-side equivalent.)
+  // SDK treats `""` as a valid baseURL → every request hits `""/model/...`. Guard region too.
+  // (Mirrors renderer-side fix for upstream #14425.)
   const baseURL = ctx.baseConfig.baseURL || undefined
 
   if (authConfig?.type === 'iam-aws') {
@@ -235,9 +219,7 @@ async function buildBedrockConfig(ctx: BuilderContext): Promise<ProviderConfig<'
     }
   }
 
-  // Fallback: API key auth. Region left undefined so SDK falls back to
-  // `us-east-1` on its own — we don't hardcode it, so users aren't silently
-  // forced into the wrong region.
+  // API-key fallback. Region undefined so the SDK picks its own default, not a hardcode.
   return { ...base, providerSettings: { ...ctx.baseConfig, baseURL } }
 }
 
@@ -307,7 +289,6 @@ async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig>
   const cherryinEndpointType = mapCherryinEndpointType(endpointType)
 
   return {
-    // Variant already resolved by resolveProviderVariant in providerToAiSdkConfig
     providerId: ctx.aiSdkProviderId,
     endpoint: ctx.endpoint,
     providerSettings: {
@@ -358,7 +339,6 @@ function buildAzureConfig(
 
   if (apiVersion) {
     providerSettings.apiVersion = apiVersion
-    // Variant (azure vs azure-responses) already resolved by resolveProviderVariant
     if (!isResponsesVariant) {
       providerSettings.useDeploymentBasedUrls = true
     }
@@ -410,29 +390,18 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
   }
 }
 
-/**
- * Claude Code provider — wraps Claude Agent SDK as a standard AI SDK provider.
- *
- * Without agentSession: provider-level defaults (exe path, spawn, env vars).
- * With agentSession: full session settings (cwd, MCP, tools, prompts) via
- * buildClaudeCodeSessionSettings — replaces provider-level defaults entirely.
- */
+/** Without `agentSessionId`: provider-level defaults only. With one: full per-session settings. */
 async function buildClaudeCodeConfig(ctx: BuilderContext): Promise<ProviderConfig<'claude-code'>> {
-  // Claude Code SDK uses Anthropic Messages API internally (via @anthropic-ai SDK).
-  // The SDK manages API versioning — ANTHROPIC_BASE_URL should NOT include /v1.
-  // Prefer the provider's anthropic-messages endpoint if configured.
+  // Claude SDK manages API versioning itself — `ANTHROPIC_BASE_URL` must NOT include `/v1`.
   const anthropicEndpointUrl = ctx.actualProvider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
   const rawBaseUrl = anthropicEndpointUrl || ctx.baseConfig.baseURL
   const anthropicBaseUrl = rawBaseUrl ? formatApiHost(rawBaseUrl, false) : undefined
 
-  // Agent session: full session settings from DB
   if (ctx.agentSessionId) {
     const session = await sessionService.getById(ctx.agentSessionId)
     if (!session) throw new Error(`Agent session not found: ${ctx.agentSessionId}`)
 
-    // Look up last SDK session ID for resume (survives app restart). The
-    // service returns `string | null` (no upstream session); the builder
-    // expects optional string, so coerce null → undefined here.
+    // Resume token for surviving app restart; service returns `string | null`.
     const lastAgentSessionId = (await agentSessionMessageService.getLastAgentSessionId(ctx.agentSessionId)) ?? undefined
     const sessionSettings = await buildClaudeCodeSessionSettings(session, ctx.actualProvider, { lastAgentSessionId })
 
@@ -446,7 +415,6 @@ async function buildClaudeCodeConfig(ctx: BuilderContext): Promise<ProviderConfi
     }
   }
 
-  // No session: provider-level defaults only
   return {
     providerId: 'claude-code',
     providerSettings: {
@@ -460,13 +428,7 @@ async function buildClaudeCodeConfig(ctx: BuilderContext): Promise<ProviderConfi
   }
 }
 
-/**
- * NewAPI baseURL varies by endpoint protocol because the proxy forwards
- * requests to different upstream SDKs:
- *   - Gemini  → needs `/v1beta` suffix (matches Google GenAI SDK expectation)
- *   - Anthropic → no `/v1` suffix (the Anthropic SDK adds it internally)
- *   - OpenAI and friends → `/v1`
- */
+/** NewAPI forwards to different upstream SDKs; per-endpoint suffix rules. */
 function formatNewApiBaseURL(baseURL: string, endpointType: EndpointType | undefined): string {
   switch (endpointType) {
     case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:

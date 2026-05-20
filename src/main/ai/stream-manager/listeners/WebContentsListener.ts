@@ -28,16 +28,7 @@ type CoalescableChunk =
   | { type: 'reasoning-delta'; id: string; delta: string; providerMetadata?: undefined }
   | { type: 'tool-input-delta'; toolCallId: string; inputTextDelta: string }
 
-/**
- * Pushes stream events to an Electron WebContents (= one Renderer window).
- *
- * Routing is done upstream by AiStreamManager (isMultiModel → sourceModelId
- * tag) and downstream by the frontend transport (matchesStream). One
- * instance per topic per window.
- *
- * ID: `wc:${wc.id}:${topicId}` — stable across re-attach so `addListener`
- * upserts rather than registering a duplicate.
- */
+/** One instance per (topic, window). Id `wc:${wc.id}:${topicId}` is stable across re-attach. */
 export class WebContentsListener implements StreamListener {
   readonly id: string
 
@@ -50,11 +41,8 @@ export class WebContentsListener implements StreamListener {
     private readonly topicId: string
   ) {
     this.id = `wc:${wc.id}:${topicId}`
-    // If the window dies mid-stream we don't want a queued 16ms flush
-    // timer keeping a closed reference alive. `discardPending` is also
-    // called by `isAlive()` and `onChunk` when they detect destruction,
-    // but those only fire on the next event — without this hook a stream
-    // that ends quietly never clears the timer.
+    // Clear the coalesce timer if the window dies between chunks — without
+    // this hook a quiet stream end leaks the timer.
     this.wc.once('destroyed', () => this.discardPending())
   }
 
@@ -127,9 +115,7 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
-    // We don't forward `result.finalMessage` here yet — the renderer keeps
-    // its own accumulated state from the chunk stream. Plumbing partial
-    // content through the IPC payload is a future optimisation.
+    // `result.finalMessage` is not forwarded — the renderer keeps its own accumulated state.
     this.wc.send(IpcChannel.Ai_StreamError, {
       topicId: this.topicId,
       executionId: result.modelId,

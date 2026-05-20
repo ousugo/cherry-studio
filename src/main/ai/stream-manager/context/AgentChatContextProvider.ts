@@ -1,13 +1,7 @@
 /**
- * AgentChatContextProvider — owns `agent-session:{id}` topics.
- *
- * Unlike the persistent provider, agent sessions:
- *  - read their state from the agents DB (via sessionService + agentService)
- *  - persist messages through agentSessionMessageService, not MessageService
- *  - resolve the model from the parent agent (session is a pure instance)
- *  - always submit a single model (no `@mention` fan-out) and pass a
- *    `userMessage` so `manager.send` injects it into any in-flight
- *    session on this topic.
+ * Owns `agent-session:{id}` topics. Reads state from sessions /
+ * agents, persists through `agentSessionMessageService`, single-model
+ * only (no @mention fan-out), passes `userMessage` for the inject path.
  */
 
 import { agentService } from '@data/services/AgentService'
@@ -59,12 +53,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
     if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
 
-    // The request below sends ONLY the latest user turn — no prior messages.
-    // That works because Claude Code resumes context via its SDK session id
-    // (see `lastAgentSessionId` plumbing in provider/config.ts). Any future
-    // agent type that doesn't carry server-side conversation state would
-    // see only the latest turn here. Reject early until that path supplies
-    // a history loader.
+    // Below we ship ONLY the latest user turn — Claude Code resumes context via its
+    // SDK session id (see `lastAgentSessionId` in provider/config.ts). A non-CC
+    // agent without server-side state would lose history; reject until a loader exists.
     if (agent.type !== 'claude-code') {
       throw new Error(
         `AgentChatContextProvider only supports 'claude-code' agents (got '${agent.type}'); other types need a history loader before dispatch.`
@@ -97,13 +88,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     if (ctx.hasLiveStream) {
-      // Inject path: `manager.send` will push `userMessage` into the existing
-      // execution's pending queue and ignore `models`. The running execution
-      // already has its assistant placeholder + PersistenceListener from the
-      // start path — adding new ones here would (a) leave an orphan `pending`
-      // row that nothing writes to, and (b) collide on the listener id with
-      // the in-flight one (`Map.set` swaps the backend mid-stream). So:
-      // persist only the user row and skip the listener.
+      // Inject path — placeholder + listener already exist on the in-flight execution.
+      // Adding new ones would orphan a pending row and clobber the listener mid-stream.
       await agentSessionMessageService.persistUserMessage({
         sessionId,
         agentSessionId: null,
@@ -132,11 +118,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const assistantMessageId = crypto.randomUUID()
 
-    // OTel root span wraps this execution; child AI SDK spans inherit its
-    // traceId via stream-manager's `context.with` wrap. The traceId is
-    // recorded on the assistant message row for trace-viewer lookup. The
-    // `AdapterTracer` wrap ensures the root span itself is persisted to
-    // SpanCacheService (same pipe as the AI SDK children).
+    // Root span; AI SDK children inherit its traceId. `AdapterTracer` persists the root.
     const adapterTracer = new AdapterTracer(rawTracer, req.topicId, uniqueModelId)
     const rootSpan = adapterTracer.startSpan('chat.turn', {
       attributes: {
@@ -151,10 +133,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const traceId = rootSpan.spanContext().traceId
     application.get('SpanCacheService').setTopicId(traceId, req.topicId)
 
-    // Start path: persist user message + reserve the pending assistant
-    // placeholder atomically so the renderer's `useAgentSessionParts`
-    // refresh (triggered by the upcoming `pending` broadcast) observes
-    // both rows together.
+    // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
     await agentSessionMessageService.persistExchange({
       sessionId,
       agentSessionId: null,

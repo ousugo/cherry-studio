@@ -7,11 +7,7 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 
 const logger = loggerService.withContext('ChannelAdapterListener')
 
-/**
- * Sends stream results to an IM channel (Discord / Slack / Feishu / Telegram / etc).
- *
- * Listener id is `channel:${channelId}:${platformChatId}`.
- */
+/** IM-channel sink (Discord / Slack / Feishu / Telegram / etc). */
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
   private accumulatedText = ''
@@ -25,12 +21,9 @@ export class ChannelAdapterListener implements StreamListener {
 
   // oxlint-disable-next-line no-unused-vars
   onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId): void {
-    // Accumulate text for adapters that don't support streaming updates.
-    // Adapters with streaming support (e.g. Feishu card editing) get updates
-    // via onTextUpdate — called here on every text-delta.
     if (chunk.type === 'text-delta' && chunk.delta) {
       this.accumulatedText += chunk.delta
-      // Best-effort streaming update — adapter decides whether to throttle/flush
+      // Best-effort streaming update; adapter chooses to throttle.
       void this.adapter.onTextUpdate(this.platformChatId, this.accumulatedText).catch(() => {})
     }
   }
@@ -47,7 +40,7 @@ export class ChannelAdapterListener implements StreamListener {
     }
 
     try {
-      // Let adapter finalize its streaming UI first (e.g. close Feishu card)
+      // Adapter finalizes its streaming UI first (e.g. close Feishu card).
       const handled = await this.adapter.onStreamComplete(this.platformChatId, text)
       if (!handled) {
         await this.adapter.sendMessage(this.platformChatId, text)

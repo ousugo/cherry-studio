@@ -41,32 +41,13 @@ const logger = loggerService.withContext('AiService')
 
 // ── Request types ──────────────────────────────────────────────────
 
-/**
- * In-process per-request transport config. Extends `AiTransportOptions`
- * with an `AbortSignal` — non-IPC-serialisable, injected by the in-process
- * caller (typically `AiStreamManager` or `AiService.checkModel`), never
- * by renderer payloads.
- *
- * `AiService.*` method signatures expect this full type; IPC entry points
- * narrow to `AiTransportOptions` at the handler boundary.
- */
+/** In-process variant of `AiTransportOptions` — adds `signal`, which is not IPC-serialisable. */
 export interface AiRequestOptions extends AiTransportOptions {
-  /**
-   * AbortSignal for the whole request (streaming or non-streaming).
-   * **Not IPC-serialisable.** Set it only on in-process callers (e.g.
-   * `AiStreamManager.runExecutionLoop`). Renderer payloads MUST use
-   * `AiTransportOptions` (which omits this field) so Electron's
-   * structured-clone doesn't throw when the payload crosses IPC.
-   */
+  /** In-process only. Renderer payloads use `AiTransportOptions` (no signal). */
   signal?: AbortSignal
 }
 
-/**
- * Widen a request type so its `requestOptions` field accepts the full
- * in-process shape (`AiRequestOptions`, which adds `signal`). Use this on
- * `AiService.*` method signatures so in-process callers can attach a
- * `signal` without forcing a structural mismatch.
- */
+/** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
 export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
 }
@@ -130,10 +111,7 @@ export interface AiEmbedResult {
 // ── Service ────────────────────────────────────────────────────────
 
 /**
- * Lifecycle AI service. `streamText` produces a raw `UIMessageChunk`
- * stream that `AiStreamManager` drives. Non-streaming work
- * (`generateText`, `generateImage`, `embedMany`, `listModels`,
- * `checkModel`) is exposed via IPC handlers registered in `onInit`.
+ * Lifecycle AI service. See `docs/references/ai/core-architecture.md`.
  *
  * DO NOT mirror `@DependsOn(['AiService'])` on AiStreamManager —
  * `runExecutionLoop` looks AiService up at runtime, and every `send()`
@@ -491,22 +469,13 @@ export class AiService extends BaseService {
 
   // ── API validation ──
 
-  /**
-   * Validate that a provider/model pair is working by sending a minimal probe.
-   *
-   * Automatically dispatches to `embedMany` for embedding models and
-   * `generateText` otherwise — renderers do not need to know anything about
-   * model types to run a health check.
-   */
+  /** Dispatches to `embedMany` for embedding models, `generateText` otherwise. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
     const { model } = await this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
 
-    // Wire an AbortController through the probe so that when the timeout wins
-    // the race, we also cancel the underlying HTTP work (otherwise tokens keep
-    // burning server-side). Always clear the timer on both success and failure
-    // paths so it cannot keep the event loop alive.
+    // AbortController on timeout so the HTTP work cancels too (otherwise tokens keep burning).
     const controller = new AbortController()
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -565,17 +534,13 @@ export class AiService extends BaseService {
     }
   }
 
-  /**
-   * Get provider + model for this request.
-   * All from v2 DataApi (SQLite). Priority: explicit uniqueModelId > assistant.modelId
-   */
+  /** Priority: explicit `uniqueModelId` > `assistant.modelId`. */
   private async getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
     let assistant: Assistant | undefined
     if (request.assistantId) {
       assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
     }
 
-    // Parse UniqueModelId or fall back to assistant.modelId
     let providerId: string | undefined
     let modelId: string | undefined
     if (request.uniqueModelId) {
