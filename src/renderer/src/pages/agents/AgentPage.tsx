@@ -121,10 +121,6 @@ const AgentPage = () => {
         window.toast.error(t('agent.session.create.error.failed'))
         return
       }
-      if (!agent.model) {
-        window.toast.error(t('error.model.not_exists'))
-        return
-      }
 
       setReplacingTemporaryAgent(true)
       try {

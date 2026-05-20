@@ -451,11 +451,6 @@ const Sessions = ({
       const agent = agentById.get(agentId)
       if (!agent) return null
 
-      if (!agent.model) {
-        window.toast.error(t('error.model.not_exists'))
-        return null
-      }
-
       setCreatingSession(true)
       try {
         const workspaceId = workspace?.workspaceId
