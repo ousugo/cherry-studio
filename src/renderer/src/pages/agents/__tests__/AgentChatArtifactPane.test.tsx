@@ -94,10 +94,6 @@ vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => 
   )
 }))
 
-vi.mock('@renderer/components/chat/messages/stream/useMessagePartsById', () => ({
-  useMessagePartsById: () => ({})
-}))
-
 vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
@@ -164,15 +160,12 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useExecutionChats', () => ({
-  useExecutionChats: () => new Map()
-}))
-
-vi.mock('@renderer/hooks/useExecutionMessages', () => ({
-  useExecutionMessages: () => ({
-    executionMessagesById: {},
-    handleExecutionMessagesChange: vi.fn(),
-    handleExecutionDispose: vi.fn()
+vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
+  useExecutionOverlay: () => ({
+    overlay: {},
+    liveAssistants: [],
+    disposeOverlay: vi.fn(),
+    reset: vi.fn()
   })
 }))
 

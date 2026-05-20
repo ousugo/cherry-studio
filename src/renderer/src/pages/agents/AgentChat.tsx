@@ -8,8 +8,6 @@ import { useToolApprovalComposerOverrides } from '@renderer/components/chat/comp
 import AgentComposer, { AgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
-import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
-import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import ArtifactPane, { ARTIFACT_PANE_WIDTH } from '@renderer/components/chat/panes/ArtifactPane'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
@@ -20,8 +18,7 @@ import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useSession'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
-import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
-import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
+import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { TemporaryConversation, TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -373,8 +370,24 @@ const AgentChatSessionContent = ({
     return { id: modelId, name: activeAgent?.modelName ?? modelId, provider: providerId }
   }, [activeAgent?.model, activeAgent?.modelName])
 
-  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
-  const partsByMessageId = useMessagePartsById(uiMessages, executionMessagesById)
+  const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const next: Record<string, CherryMessagePart[]> = {}
+    for (const message of uiMessages) {
+      next[message.id] = (message.parts ?? []) as CherryMessagePart[]
+    }
+    return next
+  }, [uiMessages])
+
+  const { overlay } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages)
+
+  const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const next = { ...basePartsMap }
+    for (const [messageId, parts] of Object.entries(overlay)) {
+      if (parts.length) next[messageId] = parts
+    }
+    return next
+  }, [basePartsMap, overlay])
+
   const handleToolApprovalRespond = useCallback(
     async ({ match, approved, reason, updatedInput }: MessageToolApprovalInput) => {
       const approvalId = match.approvalId
@@ -395,9 +408,6 @@ const AgentChatSessionContent = ({
     partsByMessageId,
     onRespond: handleToolApprovalRespond
   })
-
-  const executionChats = useExecutionChats(sessionTopicId, chat.activeExecutions)
-
   const { isPending } = useTopicStreamStatus(sessionTopicId)
 
   const composerContext = useMemo(
@@ -439,20 +449,6 @@ const AgentChatSessionContent = ({
 
   const main = (
     <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-      {chat.activeExecutions.map(({ executionId }) => {
-        const execChat = executionChats.get(executionId)
-        if (!execChat) return null
-        return (
-          <ExecutionStreamCollector
-            key={executionId}
-            executionId={executionId}
-            chat={execChat}
-            onMessagesChange={handleExecutionMessagesChange}
-            onDispose={handleExecutionDispose}
-          />
-        )
-      })}
-
       <AgentSessionMessages
         agentId={agentId}
         sessionId={sessionId}

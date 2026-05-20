@@ -14,6 +14,10 @@ import { PartsProvider } from '../MessagePartsContext'
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
+vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false, vi.fn()]) }))
+vi.mock('@renderer/hooks/useIsActiveTurnTarget', () => ({
+  useIsActiveTurnTarget: () => false
+}))
 vi.mock('@renderer/types/file', () => ({
   FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
 }))
@@ -79,10 +83,10 @@ vi.mock('../../tools/MessageTools', () => ({
 }))
 
 vi.mock('../../tools/toolResponse', () => ({
-  buildToolResponseFromPart: (part: any) => {
+  buildToolResponseFromPart: (part: any, fallbackId?: string) => {
     const t = part.type as string
     if (!t.startsWith('tool-') && t !== 'dynamic-tool') return null
-    const id = part.toolCallId
+    const id = part.toolCallId ?? fallbackId
     if (!id) return null
     const name = part.toolName || t.replace(/^tool-/, '') || 'unknown'
     const out = part.output
@@ -362,18 +366,6 @@ describe('MessagePartsRenderer', () => {
     const wrappers = thinkingBlocks.map((block) => block.closest('.block-wrapper'))
     expect(wrappers[0]).toHaveClass('message-thought-wrapper')
     expect(wrappers[1]).toHaveClass('message-thought-wrapper')
-  })
-
-  it('does not render an empty wrapper for unrenderable tool parts', () => {
-    const { container } = renderParts([
-      { type: 'reasoning', text: 'first thought', state: 'done' },
-      { type: 'dynamic-tool', toolName: 'missing-call-id', state: 'output-available', output: {} },
-      { type: 'reasoning', text: 'second thought', state: 'done' }
-    ] as unknown as CherryMessagePart[])
-
-    expect(screen.getAllByTestId('mock-thinking-block')).toHaveLength(2)
-    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
-    expect(container.querySelectorAll('.block-wrapper')).toHaveLength(2)
   })
 
   it('does not render an empty wrapper for tool responses hidden by the tool renderer', () => {

@@ -28,13 +28,23 @@ import type { StreamLifecycle } from './StreamLifecycle'
 export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycle {
   const broadcast = (stream: ActiveStream, status: TopicStreamStatus) => {
     const activeExecutions: ActiveExecution[] = []
+    const awaitingApprovalAnchors: ActiveExecution[] = []
     for (const [modelId, exec] of stream.executions) {
-      if (exec.status === 'streaming') {
-        activeExecutions.push({ executionId: modelId, anchorMessageId: exec.anchorMessageId })
-      }
+      const entry: ActiveExecution = { executionId: modelId, anchorMessageId: exec.anchorMessageId }
+      if (exec.status === 'streaming') activeExecutions.push(entry)
+      // Single Main-side authority for the approval anchor's identity. Any
+      // exec currently waiting (incl. after the exec itself has terminated —
+      // MCP `needsApproval` ends cleanly via `done` with the flag still set)
+      // is broadcast here so the renderer reads per-message identity directly
+      // instead of inferring from `message.parts` / SWR-lagged `message.status`.
+      if (exec.awaitingApproval) awaitingApprovalAnchors.push(entry)
     }
     const cacheService = application.get('CacheService')
-    cacheService.setShared(`topic.stream.statuses.${stream.topicId}` as const, { status, activeExecutions })
+    cacheService.setShared(`topic.stream.statuses.${stream.topicId}` as const, {
+      status,
+      activeExecutions,
+      awaitingApprovalAnchors
+    })
   }
 
   return {

@@ -93,7 +93,7 @@ export function getMessageListItemModelName(message: MessageListItem): string {
   return model?.name || model?.id || message.modelId || ''
 }
 
-export function isMessageListItemProcessing(message: MessageListItem): boolean {
+export function isMessageListItemProcessing(message: Pick<MessageListItem, 'status'>): boolean {
   return message.status === 'pending'
 }
 

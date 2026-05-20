@@ -4,28 +4,31 @@ import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
 import ComposerDockTransitionFrame from '@renderer/components/chat/composer/ComposerDockTransitionFrame'
 import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import ChatComposer, { ChatHomeComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
-import { RefreshProvider } from '@renderer/components/chat/messages/blocks'
+import {
+  RefreshProvider,
+  type TranslationOverlayEntry,
+  TranslationOverlayProvider,
+  type TranslationOverlaySetter,
+  TranslationOverlaySetterProvider
+} from '@renderer/components/chat/messages/blocks'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
-import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { ChatWriteProvider } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
-import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionChats'
-import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
-import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
+import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import type { FileMetadata, Topic } from '@renderer/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
+import { usePendingMessages } from './hooks/usePendingMessages'
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import { useHomeMessageListProviderValue } from './messages/homeMessageListAdapter'
 import type { AddNewTopicPayload } from './types'
@@ -62,7 +65,7 @@ interface Props {
  * component (useChat seeds `initialMessages` once, at mount).
  *
  * Inner component composes three purpose-built hooks:
- *   - `useMessagePartsById` — overlays per-execution streaming parts
+ *   - `useExecutionOverlay` — overlays per-execution streaming parts
  *     onto the DB-backed `uiMessages` parts map.
  *   - `useTopicMessagesCache` — optimistic SWR writes + DataApi mutation
  *     triggers for send / delete / edit / fork / setActiveNode.
@@ -71,8 +74,8 @@ interface Props {
  *
  * `useChatWithHistory` stays trigger-only: `sendMessage` / `regenerate`
  * / `stop` / `setMessages` / `activeExecutions`. Its
- * `state.messages` is not rendered; chunks land in per-execution
- * `ExecutionStreamCollector`s and are overlaid into `partsByMessageId`.
+ * `state.messages` is not rendered; chunks land in the per-execution overlay
+ * and are merged into `partsByMessageId`.
  */
 const ChatContent: FC<Props> = ({
   topic,
@@ -180,15 +183,72 @@ const ChatContentInner: FC<InnerProps> = ({
     refresh
   )
 
+  const { pendingMessages, addPending } = usePendingMessages(topic.id, uiMessages)
+  const messages = useMemo(
+    () => (pendingMessages.length > 0 ? [...uiMessages, ...pendingMessages] : uiMessages),
+    [pendingMessages, uiMessages]
+  )
+
   useEffect(() => {
     if (status === 'streaming' || status === 'submitted') return
-    const canonical = uiMessages.filter((m) => !m.id.startsWith('optimistic-'))
-    setMessages(canonical)
+    setMessages(uiMessages)
   }, [uiMessages, status, setMessages])
 
-  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
-  const partsByMessageId = useMessagePartsById(uiMessages, executionMessagesById)
-  const respondToolApproval = useToolApprovalBridge(topic.id, partsByMessageId)
+  const [translationOverlay, setTranslationOverlayMap] = useState<Record<string, TranslationOverlayEntry>>({})
+  const setTranslationOverlay = useCallback<TranslationOverlaySetter>((messageId, entry) => {
+    setTranslationOverlayMap((prev) => {
+      if (entry == null) {
+        if (!(messageId in prev)) return prev
+        const next = { ...prev }
+        delete next[messageId]
+        return next
+      }
+      const existing = prev[messageId]
+      if (
+        existing &&
+        existing.content === entry.content &&
+        existing.targetLanguage === entry.targetLanguage &&
+        existing.sourceLanguage === entry.sourceLanguage
+      ) {
+        return prev
+      }
+      return { ...prev, [messageId]: entry }
+    })
+  }, [])
+
+  const finishRef = useRef<(executionId: string, event: ExecutionFinishEvent) => void>(undefined)
+  const { overlay, disposeOverlay } = useExecutionOverlay(topic.id, activeExecutions, messages, {
+    onFinish: (executionId, event) => finishRef.current?.(executionId, event)
+  })
+
+  const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const next: Record<string, CherryMessagePart[]> = {}
+    for (const message of messages) {
+      next[message.id] = (message.parts ?? []) as CherryMessagePart[]
+    }
+    for (const [messageId, parts] of Object.entries(overlay)) {
+      if (messageId in next && parts.length) next[messageId] = parts
+    }
+    for (const [messageId, entry] of Object.entries(translationOverlay)) {
+      const existing = next[messageId]
+      if (!existing) continue
+      const baseParts = existing.filter((part) => part.type !== 'data-translation')
+      next[messageId] = [
+        ...baseParts,
+        {
+          type: 'data-translation',
+          data: {
+            content: entry.content,
+            targetLanguage: entry.targetLanguage,
+            ...(entry.sourceLanguage && { sourceLanguage: entry.sourceLanguage })
+          }
+        } as CherryMessagePart
+      ]
+    }
+    return next
+  }, [messages, overlay, translationOverlay])
+
+  const respondToolApproval = useToolApprovalBridge(topic.id)
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
     onRespond: respondToolApproval
@@ -203,26 +263,16 @@ const ChatContentInner: FC<InnerProps> = ({
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
 
   const handleExecutionFinish = useCallback(
-    (executionId: string, { message, isAbort, isError }: ExecutionFinishEvent) => {
+    (_executionId: string, { message, isError }: ExecutionFinishEvent) => {
       if (isError || !message.parts?.length) {
-        void cache.rollbackBranch().then(() => handleExecutionDispose(executionId))
+        void cache.rollbackBranch().then(() => disposeOverlay(message.id))
         return
       }
-      void cache
-        .patchMessageInBranch(message.id, {
-          status: isAbort ? 'paused' : 'success',
-          data: { parts: message.parts as never },
-          updatedAt: new Date().toISOString()
-        })
-        .then(() => handleExecutionDispose(executionId))
+      void refresh().finally(() => disposeOverlay(message.id))
     },
-    [cache, handleExecutionDispose]
+    [cache, disposeOverlay, refresh]
   )
-
-  const executionChats = useExecutionChats(topic.id, activeExecutions, {
-    initialMessages: uiMessages,
-    onFinish: handleExecutionFinish
-  })
+  finishRef.current = handleExecutionFinish
   const shouldRenderHomeComposer = isFreshTemporaryTopic && uiMessages.length === 0 && activeExecutions.length === 0
 
   // Chat write-side handlers (delete / edit / regenerate / resend / fork /
@@ -230,7 +280,7 @@ const ChatContentInner: FC<InnerProps> = ({
   // path below mirrors the same shape.
   const { actions: chatWriteActions, capabilityBody } = useChatWriteActions({
     topic,
-    uiMessages,
+    uiMessages: messages,
     regenerate,
     setMessages,
     stop,
@@ -248,12 +298,6 @@ const ChatContentInner: FC<InnerProps> = ({
         userMessageParts?: CherryMessagePart[]
       }
     ) => {
-      const optimisticUserId = await cache.seedOptimisticUser({
-        text,
-        parentId: activeNodeId ?? null,
-        files: options?.files,
-        parts: options?.userMessageParts
-      })
       if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
         try {
           // Seed the new topic with the user's first message as a placeholder
@@ -266,9 +310,13 @@ const ChatContentInner: FC<InnerProps> = ({
           throw err
         }
       }
-      if (optimisticUserId && !options?.mentionedModels?.length) {
-        await cache.seedOptimisticAssistant({ parentId: optimisticUserId })
-      }
+      addPending({
+        text,
+        parentId: activeNodeId ?? null,
+        files: options?.files,
+        parts: options?.userMessageParts,
+        withAssistantPlaceholder: !options?.mentionedModels?.length
+      })
       try {
         await sendMessage(
           { text },
@@ -297,7 +345,8 @@ const ChatContentInner: FC<InnerProps> = ({
       activeNodeId,
       sendMessage,
       capabilityBody,
-      cache
+      cache,
+      addPending
     ]
   )
 
@@ -307,105 +356,66 @@ const ChatContentInner: FC<InnerProps> = ({
     <ChatWriteProvider value={chatWriteActions}>
       <SiblingsProvider value={siblingsContextValue}>
         <RefreshProvider value={refresh}>
-          {(() => {
-            const main = (
-              <>
-                {/*
-                 * Two coupled guards on the per-execution chunk collector:
-                 *
-                 * 1. Mount only after SWR's `uiMessages` ends with an
-                 *    in-flight assistant. Collector's `useChat` seeds AI
-                 *    SDK's `createStreamingUIMessageState` from
-                 *    `initialMessages.at(-1)`; AI SDK reuses that object as
-                 *    the streaming `state.message` and a `start` chunk only
-                 *    overwrites its `id`, leaving the original `parts`
-                 *    array in place. If we mount while last is still the
-                 *    OLD assistant being replaced, new chunks append onto
-                 *    that array — the bubble renders "old content + new
-                 *    stream" once SWR finally flips active to the new
-                 *    placeholder.
-                 *
-                 * 2. Re-key on the in-flight assistant id so subsequent
-                 *    regenerates for the same model REMOUNT the collector.
-                 *    Without this, React reuses the existing `useChat`
-                 *    instance whose `state.messages` already carries the
-                 *    previous turn's assistant; the next regenerate seeds
-                 *    from THAT, accumulating pollution turn over turn.
-                 *
-                 * The collector cannot self-correct: it sees `resume: true`
-                 * only, never the `regenerate` trigger driving the turn.
-                 */}
-                {(() => {
-                  const last = uiMessages.at(-1)
-                  if (last?.role !== 'assistant') return null
-                  return activeExecutions.map(({ executionId }) => {
-                    const chat = executionChats.get(executionId)
-                    if (!chat) return null
-                    return (
-                      <ExecutionStreamCollector
-                        key={`${executionId}:${last.id}`}
-                        executionId={executionId}
-                        chat={chat}
-                        onMessagesChange={handleExecutionMessagesChange}
-                        onDispose={handleExecutionDispose}
-                      />
-                    )
-                  })
-                })()}
+          <TranslationOverlaySetterProvider value={setTranslationOverlay}>
+            <TranslationOverlayProvider value={translationOverlay}>
+              {(() => {
+                const main = (
+                  <>
+                    <HomeMessageList
+                      key={topic.id}
+                      topic={topic}
+                      messages={messages}
+                      partsByMessageId={partsByMessageId}
+                      loadOlder={loadOlder}
+                      hasOlder={hasOlder}
+                      openCitationsPanel={onOpenCitationsPanel}
+                      respondToolApproval={respondToolApproval}
+                    />
+                  </>
+                )
+                const composer = (
+                  <ComposerContextProvider value={composerContext}>
+                    <ComposerCore
+                      fallback={
+                        shouldRenderHomeComposer ? (
+                          <ChatHomeComposer
+                            topic={topic}
+                            onSend={handleSend}
+                            onTemporaryAssistantChange={onTemporaryAssistantChange}
+                            onNewTopic={onNewTopic}
+                          />
+                        ) : (
+                          <ChatComposer topic={topic} onSend={handleSend} onNewTopic={onNewTopic} />
+                        )
+                      }
+                    />
+                  </ComposerContextProvider>
+                )
+                const dockedFrame = (
+                  <ComposerDockTransitionFrame
+                    placement={shouldRenderHomeComposer ? 'home' : 'docked'}
+                    main={main}
+                    composer={composer}
+                    mainVisible={!shouldRenderHomeComposer}
+                  />
+                )
 
-                <HomeMessageList
-                  key={topic.id}
-                  topic={topic}
-                  messages={uiMessages}
-                  partsByMessageId={partsByMessageId}
-                  loadOlder={loadOlder}
-                  hasOlder={hasOlder}
-                  openCitationsPanel={onOpenCitationsPanel}
-                  respondToolApproval={respondToolApproval}
-                />
-              </>
-            )
-            const composer = (
-              <ComposerContextProvider value={composerContext}>
-                <ComposerCore
-                  fallback={
-                    shouldRenderHomeComposer ? (
-                      <ChatHomeComposer
-                        topic={topic}
-                        onSend={handleSend}
-                        onTemporaryAssistantChange={onTemporaryAssistantChange}
-                        onNewTopic={onNewTopic}
-                      />
-                    ) : (
-                      <ChatComposer topic={topic} onSend={handleSend} onNewTopic={onNewTopic} />
-                    )
-                  }
-                />
-              </ComposerContextProvider>
-            )
-            const dockedFrame = (
-              <ComposerDockTransitionFrame
-                placement={shouldRenderHomeComposer ? 'home' : 'docked'}
-                main={main}
-                composer={composer}
-                mainVisible={!shouldRenderHomeComposer}
-              />
-            )
+                if (renderFrame) {
+                  return renderFrame({ main: dockedFrame })
+                }
 
-            if (renderFrame) {
-              return renderFrame({ main: dockedFrame })
-            }
-
-            return (
-              <>
-                <div
-                  className="flex flex-1 flex-col justify-between"
-                  style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                  {dockedFrame}
-                </div>
-              </>
-            )
-          })()}
+                return (
+                  <>
+                    <div
+                      className="flex flex-1 flex-col justify-between"
+                      style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+                      {dockedFrame}
+                    </div>
+                  </>
+                )
+              })()}
+            </TranslationOverlayProvider>
+          </TranslationOverlaySetterProvider>
         </RefreshProvider>
       </SiblingsProvider>
     </ChatWriteProvider>
@@ -417,7 +427,7 @@ export default ChatContent
 const HomeMessageList: FC<{
   topic: Topic
   messages: CherryUIMessage[]
-  partsByMessageId: ReturnType<typeof useMessagePartsById>
+  partsByMessageId: Record<string, CherryMessagePart[]>
   loadOlder: () => void
   hasOlder: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']

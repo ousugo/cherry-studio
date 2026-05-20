@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import type * as ReactModule from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderApiOptionsDrawer from '../ProviderApiOptionsDrawer'
@@ -43,7 +44,7 @@ vi.mock('@shared/utils/provider', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
-  const React = await vi.importActual<typeof import('react')>('react')
+  const React = await vi.importActual<typeof ReactModule>('react')
   const SelectContext = React.createContext<((value: string) => void) | undefined>(undefined)
 
   return {

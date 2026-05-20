@@ -1,14 +1,11 @@
 import { useChat } from '@ai-sdk/react'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
-import { useMessagePartsById } from '@renderer/components/chat/messages/stream/useMessagePartsById'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
-import { collectLiveAssistants, useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
+import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -35,6 +32,9 @@ import Footer from './components/Footer'
 import InputBar from './components/InputBar'
 
 const logger = loggerService.withContext('HomeWindow')
+
+// Stable empty array — quick-assistant temp topic has no DB-backed messages.
+const EMPTY_UI_MESSAGES: CherryUIMessage[] = []
 
 type MiniRoute = 'home' | 'chat' | 'translate' | 'summary' | 'explanation'
 
@@ -116,9 +116,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   // streams in `completedAssistants` so the multi-turn conversation
   // renders properly. Cleared on `clear()` together with `setMessages([])`.
   const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose, resetExecutionMessages } =
-    useExecutionMessages()
-  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutions)
+  const { liveAssistants, reset: resetExecutionMessages } = useExecutionOverlay(
+    temporaryTopicId ?? 'pending-temp',
+    activeExecutions,
+    EMPTY_UI_MESSAGES
+  )
   const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
 
   const prevActiveCountRef = useRef(activeExecutions.length)
@@ -126,26 +128,31 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     const wasActive = prevActiveCountRef.current > 0
     prevActiveCountRef.current = activeExecutions.length
     if (activeExecutions.length === 0 && wasActive) {
-      const finalized = collectLiveAssistants(executionMessagesById)
-      if (finalized.length) {
-        setCompletedAssistants((done) => [...done, ...finalized])
+      // Snapshots are retained after a reader tears down, so the final
+      // frames are still in `liveAssistants` at this →0 transition.
+      if (liveAssistants.length) {
+        setCompletedAssistants((done) => [...done, ...liveAssistants])
         resetExecutionMessages()
       }
     }
-  }, [activeExecutions, executionMessagesById, resetExecutionMessages])
+  }, [activeExecutions, liveAssistants, resetExecutionMessages])
 
   useEffect(() => {
     if (isPending) setIsPreparing(false)
   }, [isPending])
-
-  const liveAssistants = useMemo(() => collectLiveAssistants(executionMessagesById), [executionMessagesById])
 
   const allAssistants = useMemo<CherryUIMessage[]>(
     () => [...completedAssistants, ...liveAssistants],
     [completedAssistants, liveAssistants]
   )
 
-  const partsByMessageId = useMessagePartsById([...chatMessages, ...allAssistants], executionMessagesById)
+  const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const next: Record<string, CherryMessagePart[]> = {}
+    for (const message of [...chatMessages, ...allAssistants]) {
+      next[message.id] = (message.parts ?? []) as CherryMessagePart[]
+    }
+    return next
+  }, [allAssistants, chatMessages])
 
   // Interleave user messages (from state.messages) with assistant turns
   // (accumulated completed + live). The assumption: users and assistants
@@ -434,20 +441,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
             </div>
           )}
-          {temporaryTopicId &&
-            activeExecutions.map(({ executionId }) => {
-              const execChat = executionChats.get(executionId)
-              if (!execChat) return null
-              return (
-                <ExecutionStreamCollector
-                  key={executionId}
-                  executionId={executionId}
-                  chat={execChat}
-                  onMessagesChange={handleExecutionMessagesChange}
-                  onDispose={handleExecutionDispose}
-                />
-              )
-            })}
           <ChatWindow
             route={route}
             assistant={currentAssistant ?? null}

@@ -6,16 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToolApprovalBridge } from '../useToolApprovalBridge'
 
 const mocks = vi.hoisted(() => ({
-  patchMessage: vi.fn(),
   respondToolApproval: vi.fn()
-}))
-
-vi.mock('@data/hooks/useDataApi', () => ({
-  useMutation: () => ({
-    trigger: mocks.patchMessage,
-    isLoading: false,
-    error: undefined
-  })
 }))
 
 function makeApprovalPart(overrides: Partial<Record<string, unknown>> = {}): CherryMessagePart {
@@ -30,10 +21,20 @@ function makeApprovalPart(overrides: Partial<Record<string, unknown>> = {}): Che
   } as unknown as CherryMessagePart
 }
 
+function makeApprovalMatch(): MessageToolApprovalMatch {
+  const approvalPart = makeApprovalPart()
+  return {
+    part: approvalPart,
+    state: 'approval-requested',
+    toolCallId: 'call-1',
+    messageId: 'assistant-1',
+    approvalId: 'approval-1',
+    input: { command: 'pnpm test' }
+  }
+}
+
 describe('useToolApprovalBridge', () => {
   beforeEach(() => {
-    mocks.patchMessage.mockReset()
-    mocks.patchMessage.mockResolvedValue({ ok: true })
     mocks.respondToolApproval.mockReset()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
 
@@ -49,41 +50,15 @@ describe('useToolApprovalBridge', () => {
     })
   })
 
-  it('patches approval decisions onto the latest message parts snapshot', async () => {
-    const approvalPart = makeApprovalPart()
-    const match: MessageToolApprovalMatch = {
-      part: approvalPart,
-      state: 'approval-requested',
-      toolCallId: 'call-1',
-      messageId: 'assistant-1',
-      approvalId: 'approval-1',
-      input: { command: 'pnpm test' }
-    }
+  it('delivers approval decisions to main with anchor context', async () => {
+    const match = makeApprovalMatch()
 
-    const { result } = renderHook(() =>
-      useToolApprovalBridge('topic-1', {
-        'assistant-1': [approvalPart]
-      })
-    )
+    const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
 
     await act(async () => {
       await result.current({ match, approved: true })
     })
 
-    expect(mocks.patchMessage).toHaveBeenCalledWith({
-      params: { id: 'assistant-1' },
-      body: {
-        data: {
-          parts: [
-            expect.objectContaining({
-              state: 'approval-responded',
-              approval: { id: 'approval-1', approved: true }
-            })
-          ]
-        },
-        status: 'pending'
-      }
-    })
     expect(mocks.respondToolApproval).toHaveBeenCalledWith({
       approvalId: 'approval-1',
       approved: true,
@@ -92,5 +67,21 @@ describe('useToolApprovalBridge', () => {
       topicId: 'topic-1',
       anchorId: 'assistant-1'
     })
+  })
+
+  it('throws when main does not accept the approval response', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false })
+    const match = makeApprovalMatch()
+    const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
+
+    await expect(result.current({ match, approved: true })).rejects.toThrow('Tool approval response was not accepted')
+  })
+
+  it('throws when delivery to main fails', async () => {
+    mocks.respondToolApproval.mockRejectedValueOnce(new Error('ipc boom'))
+    const match = makeApprovalMatch()
+    const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
+
+    await expect(result.current({ match, approved: true })).rejects.toThrow('ipc boom')
   })
 })

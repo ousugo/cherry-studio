@@ -6,6 +6,7 @@ import { isToolUIPart } from 'ai'
 /** AI-SDK-v6 ToolUIPart approval-state string literals. */
 export const APPROVAL_REQUESTED = 'approval-requested'
 export const APPROVAL_RESPONDED = 'approval-responded'
+export const CLAUDE_AGENT_TRANSPORT = 'claude-agent'
 
 type ToolType = 'mcp' | 'builtin' | 'provider'
 
@@ -23,6 +24,7 @@ type ToolPart = {
   input?: unknown
   output?: unknown
   errorText?: string
+  providerMetadata?: Record<string, unknown>
   callProviderMetadata?: Record<string, unknown>
 }
 
@@ -91,11 +93,26 @@ function hasProviderMetadata(part: ToolPart, provider: string): boolean {
   return isRecord(part.callProviderMetadata) && provider in part.callProviderMetadata
 }
 
+function extractCherryToolMetadata(part: ToolPart): ToolMetadata | undefined {
+  if (!isRecord(part.providerMetadata)) return undefined
+  const cherry = isRecord(part.providerMetadata.cherry) ? part.providerMetadata.cherry : undefined
+  const tool = cherry && isRecord(cherry.tool) ? cherry.tool : undefined
+  if (!tool) return undefined
+  return {
+    serverId: typeof tool.serverId === 'string' ? tool.serverId : undefined,
+    serverName: typeof tool.serverName === 'string' ? tool.serverName : undefined,
+    type: isToolType(tool.type) ? tool.type : undefined
+  }
+}
+
 function resolveToolType(part: ToolPart, toolName: string, metadata?: ToolMetadata): ToolType {
   if (metadata?.type) return metadata.type
-  if (toolName.startsWith('builtin_')) return 'builtin'
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'
-  if (part.type === 'dynamic-tool') return 'provider'
+  if ((part.providerMetadata?.cherry as { transport?: unknown } | undefined)?.transport === CLAUDE_AGENT_TRANSPORT) {
+    return 'provider'
+  }
+  if (part.type === 'dynamic-tool') return 'mcp'
+  if (toolName.startsWith('builtin_')) return 'builtin'
   return 'builtin'
 }
 
@@ -129,18 +146,19 @@ function normalizeErrorOutput(part: ToolPart): unknown {
   }
 }
 
-export function buildToolResponseFromPart(part: CherryMessagePart): ToolResponseLike | null {
+export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: string): ToolResponseLike | null {
   const partType = part.type as string
   if (!partType.startsWith('tool-') && partType !== 'dynamic-tool') return null
 
   const toolPart = part as unknown as ToolPart
-  const toolCallId = toolPart.toolCallId
+  const toolCallId = toolPart.toolCallId || fallbackId
   if (!toolCallId) return null
   const toolName = normalizeToolName(toolPart)
   const status = mapPartStateToStatus(toolPart.state)
 
   const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart)
-  const metadata = outputMetadata
+  const cherryMetadata = extractCherryToolMetadata(toolPart)
+  const metadata = outputMetadata ?? cherryMetadata
   const toolType = resolveToolType(toolPart, toolName, metadata)
   const response = status === 'error' ? normalizeErrorOutput(toolPart) : rawResponse
 
@@ -175,7 +193,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart): ToolResponse
 }
 
 export function buildToolRenderItemFromPart(part: CherryMessagePart, id: string): ToolRenderItem | null {
-  const toolResponse = buildToolResponseFromPart(part)
+  const toolResponse = buildToolResponseFromPart(part, id)
   if (!toolResponse) return null
   return { id, toolResponse }
 }

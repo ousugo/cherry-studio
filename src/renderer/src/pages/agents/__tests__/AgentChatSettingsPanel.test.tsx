@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentChat from '../AgentChat'
 
 const partsByMessageIdMock = vi.hoisted(() => ({
-  value: {}
+  value: {} as Record<string, unknown[]>
 }))
 
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
@@ -41,10 +41,6 @@ vi.mock('@renderer/components/chat', () => ({
       {open ? children : null}
     </div>
   )
-}))
-
-vi.mock('@renderer/components/chat/messages/stream/useMessagePartsById', () => ({
-  useMessagePartsById: () => partsByMessageIdMock.value
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
@@ -103,7 +99,12 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: () => ({
-    messages: [],
+    messages: Object.entries(partsByMessageIdMock.value).map(([id, parts]) => ({
+      id,
+      role: 'assistant',
+      parts,
+      metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'pending' }
+    })),
     isLoading: false,
     hasOlder: false,
     loadOlder: vi.fn(),
@@ -119,15 +120,12 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useExecutionChats', () => ({
-  useExecutionChats: () => new Map()
-}))
-
-vi.mock('@renderer/hooks/useExecutionMessages', () => ({
-  useExecutionMessages: () => ({
-    executionMessagesById: {},
-    handleExecutionMessagesChange: vi.fn(),
-    handleExecutionDispose: vi.fn()
+vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
+  useExecutionOverlay: () => ({
+    overlay: {},
+    liveAssistants: [],
+    disposeOverlay: vi.fn(),
+    reset: vi.fn()
   })
 }))
 

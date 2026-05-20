@@ -461,6 +461,20 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec) return
 
+    // First-class capture of the tool-approval lifecycle, recorded as
+    // authoritative execution state at the exact transition the stream
+    // signals it — not re-derived later by scanning the terminal message.
+    // The terminal broadcast (`resolveTerminalStatus`) reads this flag.
+    if (chunk.type === 'tool-approval-request') {
+      exec.awaitingApproval = true
+    } else if (
+      chunk.type === 'tool-output-available' ||
+      chunk.type === 'tool-output-error' ||
+      chunk.type === 'tool-output-denied'
+    ) {
+      exec.awaitingApproval = false
+    }
+
     // First chunk from any execution promotes the topic out of `pending`
     // and into `streaming`. Observers (sidebar indicators, etc) can now
     // distinguish "waiting for the provider" from "content is flowing".
@@ -529,7 +543,7 @@ export class AiStreamManager extends BaseService {
     endRootSpan(exec, 'ok')
 
     // Compute topic status first so listeners get isTopicDone
-    stream.status = this.computeTopicStatus(stream)
+    stream.status = this.resolveTerminalStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
 
     await this.broadcastExecutionDone(stream, exec, isTopicDone)
@@ -545,7 +559,7 @@ export class AiStreamManager extends BaseService {
     if (!exec || exec.status !== 'aborted') return
 
     endRootSpan(exec, 'aborted')
-    stream.status = this.computeTopicStatus(stream)
+    stream.status = this.resolveTerminalStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
 
     await this.broadcastExecutionPaused(stream, exec, isTopicDone)
@@ -927,6 +941,31 @@ export class AiStreamManager extends BaseService {
    * silently advance the topic past its pre-first-chunk state without
    * ever broadcasting the `streaming` transition.
    */
+  /**
+   * Terminal topic status, with the tool-approval surface applied.
+   *
+   * An execution that emitted a `tool-approval-request` (recorded
+   * first-class on `exec.awaitingApproval` by `onChunk` at the moment it
+   * streamed — not re-derived from the terminal message) ends *cleanly*
+   * via `onExecutionDone` (the AI SDK agent loop stops with no further
+   * steps), or via `onExecutionPaused` if also aborted. Either way, if a
+   * terminal topic has an execution still awaiting approval, surface it as
+   * the cross-window `awaiting-approval` status so every window (via the
+   * existing `topic.stream.statuses` shared cache) shows the wait without a
+   * per-window SWR refetch; the continue stream's `onCreated`→`pending`
+   * broadcast clears it cross-window. Guarded to terminal statuses so a
+   * multi-model topic still streaming on another model is never mis-flagged.
+   */
+  private resolveTerminalStatus(stream: ActiveStream): ActiveStream['status'] {
+    const status = this.computeTopicStatus(stream)
+    if (status === 'done' || status === 'aborted') {
+      for (const exec of stream.executions.values()) {
+        if (exec.awaitingApproval) return 'awaiting-approval'
+      }
+    }
+    return status
+  }
+
   private computeTopicStatus(stream: ActiveStream): ActiveStream['status'] {
     let hasStreaming = false
     let hasError = false

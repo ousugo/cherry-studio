@@ -28,6 +28,7 @@ export type TopicStreamStatus =
   | 'streaming' // at least one chunk has arrived; content is flowing
   | 'done' // all executions completed successfully
   | 'aborted' // user stopped; partial content may exist
+  | 'awaiting-approval' // paused waiting for the user to approve/deny a tool call (cross-window via shared cache)
   | 'error' // at least one execution errored with isTopicDone
 
 /**
@@ -48,10 +49,19 @@ export interface ActiveExecution {
  * `activeExecutions` names every execution still in its non-terminal phase
  * (`exec.status === 'streaming'` — set at launch, cleared only by `done` /
  * `error` / `aborted`). Empty when every execution has hit a terminal state.
+ *
+ * `awaitingApprovalAnchors` names every execution currently paused on a
+ * `tool-approval-request` (`exec.awaitingApproval === true`), even after
+ * the execution itself has terminated (MCP `needsApproval` ends the stream
+ * cleanly via `done`). The renderer's per-message "is this the active turn
+ * target?" predicate reads this — Main is the single authority for the
+ * approval anchor's identity; no message-parts scanning, no SWR-lagged DB
+ * status proxy.
  */
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
   activeExecutions: ActiveExecution[]
+  awaitingApprovalAnchors: ActiveExecution[]
 }
 
 /** Stream ended. */
@@ -161,4 +171,18 @@ export interface AiStreamOpenResponse {
   mode: 'started' | 'injected'
   /** Multi-model: execution IDs for frontend to create per-model streams. */
   executionIds?: UniqueModelId[]
+  /**
+   * Authoritative DB id of the user message created for this turn, when the
+   * dispatch created one (submit on a persisted topic; agent session).
+   * Absent for regenerate / continue / temporary topics. The renderer joins
+   * its optimistic user bubble against this.
+   */
+  userMessageId?: string
+  /**
+   * Authoritative DB ids of the assistant placeholder row(s) reserved for
+   * this turn, one per execution (model order matches `executionIds`).
+   * Created atomically with the user message, so the presence of any of
+   * these in `uiMessages` also implies the user row landed.
+   */
+  placeholderIds?: string[]
 }

@@ -4,12 +4,10 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { MessageContentProvider } from '@renderer/components/chat/messages'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
-import ExecutionStreamCollector from '@renderer/components/chat/messages/stream/ExecutionStreamCollector'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import { useExecutionChats } from '@renderer/hooks/useExecutionChats'
-import { useExecutionMessages } from '@renderer/hooks/useExecutionMessages'
+import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
@@ -28,6 +26,9 @@ import styled from 'styled-components'
 import WindowFooter from './WindowFooter'
 
 const logger = loggerService.withContext('ActionGeneral')
+
+// Stable empty array — temp-topic has no DB-backed uiMessages to seed from.
+const EMPTY_UI_MESSAGES: CherryUIMessage[] = []
 interface Props {
   action: SelectionActionItem
   scrollToBottom?: () => void
@@ -92,11 +93,14 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     }
   })
 
-  // Per-execution collector pattern (see ActionTranslate for the why).
+  // Temp-topic: no pre-allocated DB row, so the reader keys overlay by the
+  // start-chunk id; `liveAssistants` is the streamed snapshot list.
   const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const { executionMessagesById, handleExecutionMessagesChange, handleExecutionDispose } = useExecutionMessages()
-
-  const executionChats = useExecutionChats(temporaryTopicId ?? 'pending-temp', activeExecutions)
+  const { liveAssistants } = useExecutionOverlay(
+    temporaryTopicId ?? 'pending-temp',
+    activeExecutions,
+    EMPTY_UI_MESSAGES
+  )
 
   useEffect(() => {
     if (isPending) {
@@ -105,14 +109,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     }
   }, [isPending, scrollToBottom])
 
-  const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => {
-    for (const execMessages of Object.values(executionMessagesById)) {
-      for (let i = execMessages.length - 1; i >= 0; i--) {
-        if (execMessages[i].role === 'assistant') return execMessages[i]
-      }
-    }
-    return undefined
-  }, [executionMessagesById])
+  const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => liveAssistants.at(-1), [liveAssistants])
 
   const partsMap = useMemo<Record<string, CherryMessagePart[]>>(
     () =>
@@ -189,20 +186,6 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           </OriginalContent>
         )}
         <Result>
-          {temporaryTopicId &&
-            activeExecutions.map(({ executionId }) => {
-              const execChat = executionChats.get(executionId)
-              if (!execChat) return null
-              return (
-                <ExecutionStreamCollector
-                  key={executionId}
-                  executionId={executionId}
-                  chat={execChat}
-                  onMessagesChange={handleExecutionMessagesChange}
-                  onDispose={handleExecutionDispose}
-                />
-              )
-            })}
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
           {!isPreparing && latestAssistantMessage && (
             <MessageContentProvider

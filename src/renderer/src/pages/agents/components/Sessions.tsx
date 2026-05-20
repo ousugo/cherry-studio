@@ -585,7 +585,7 @@ const Sessions = ({
   )
 
   const getGroupHeaderAction = useCallback(
-    (group: { id: string }) => {
+    (group: ResourceListGroup) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return null
 
       let payload: { agentId: string | null | undefined; workspaceId?: string; workspacePath?: string } | null = null
@@ -605,25 +605,25 @@ const Sessions = ({
       }
 
       const workspaceId = displayMode === 'workdir' ? workdirDisplay.workspaceIdByGroupId.get(group.id) : undefined
-      const canCreateSession = !!payload.agentId
+      const createSessionAgentId = payload.agentId ?? null
 
-      if (!canCreateSession && !workspaceId) return null
+      if (!createSessionAgentId && !workspaceId) return null
 
       return (
         <>
-          {canCreateSession && (
+          {createSessionAgentId && (
             <Tooltip title={t('agent.session.add.title')} delay={500}>
               <ResourceList.HeaderActionButton
                 type="button"
                 aria-label={t('agent.session.add.title')}
-                disabled={creatingSession || !agentById.has(payload.agentId)}
+                disabled={creatingSession || !agentById.has(createSessionAgentId)}
                 onClick={() => {
                   const workspace = payload.workspaceId
                     ? { workspaceId: payload.workspaceId }
                     : payload.workspacePath
                       ? { workspacePath: payload.workspacePath }
                       : undefined
-                  void createSessionForGroup(payload.agentId, workspace)
+                  void createSessionForGroup(createSessionAgentId, workspace)
                 }}>
                 <Plus className="block" />
               </ResourceList.HeaderActionButton>

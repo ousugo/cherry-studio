@@ -3,6 +3,7 @@ import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isFunctionCallingModel } from '@shared/utils/model'
 import { stepCountIs, type ToolSet } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../../provider/claudeCodeSettingsBuilder'
@@ -58,7 +59,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
   const sdkConfig = await resolveSdkConfig(provider, model, request.chatId)
-  const { tools, deferredEntries, mcpToolIds } = await resolveTools(request, assistant, model)
+  const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model, assistant)
+    ? await resolveTools(request, assistant, model)
+    : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
@@ -112,6 +115,25 @@ async function resolveSdkConfig(provider: Provider, model: Model, chatId: string
 }
 
 /**
+ * Skip the entire tool-resolution path (registry sync, defer exposition,
+ * meta-tool injection) when the model can't consume tools at all. Without
+ * this gate, a non-function-calling model gets the meta-tools + system-
+ * prompt section pushed at it for nothing — pure token waste with no way
+ * for the model to act on it.
+ *
+ * Two consumption modes count as "can consume":
+ *   - native function calling (provider's tool API)
+ *   - prompt-mode tool use (XML-injected via `promptToolUseFeature`)
+ *
+ * When `assistant` is absent (embed / translate / etc.) we fall back to
+ * the model's native capability — there's no `toolUseMode` to read.
+ */
+function canModelConsumeTools(model: Model, assistant: Assistant | undefined): boolean {
+  if (isFunctionCallingModel(model)) return true
+  return assistant?.settings?.toolUseMode === 'prompt'
+}
+
+/**
  * Tool selection: pick MCP ids (caller wins, else derived from assistant),
  * sync the MCP entries into the registry, then materialise the active
  * `ToolSet` via `applies` predicates and defer exposition.
@@ -129,10 +151,13 @@ async function resolveTools(
   if (!mcpIdList && request.assistantId) {
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
   }
-  if (mcpIdList?.length) {
-    await syncMcpToolsToRegistry()
-  }
   const mcpToolIds = new Set(mcpIdList ?? [])
+  if (mcpToolIds.size) {
+    // Scope the registry sync to servers that actually own a selected tool —
+    // avoids paying the per-server `listTools` round-trip for every active
+    // server when only one was picked for this request.
+    await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
+  }
 
   const activeEntries = registry.selectActive({ assistant, mcpToolIds })
   let tools: ToolSet | undefined

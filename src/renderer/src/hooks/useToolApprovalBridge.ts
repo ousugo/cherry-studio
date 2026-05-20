@@ -1,59 +1,33 @@
-import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import { applyApprovalDecisions } from '@shared/ai/transport'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { useCallback } from 'react'
 
 const logger = loggerService.withContext('useToolApprovalBridge')
 
 type ToolApprovalRespondFn = (args: MessageToolApprovalInput) => Promise<void> | void
-type PartsByMessageId = Record<string, CherryMessagePart[]>
 
 /**
- * Tool-approval flow:
+ * Tool-approval flow.
  *
- *  1. PATCH /messages/:id with `applyApprovalDecisions(beforeParts, [decision])`
- *     — DataApi `useMutation`'s `refresh` invalidates the topic's messages
- *     query so SWR refetches and `uiMessages` flips to `approval-responded`
- *     immediately, before the dispatched stream produces any chunk.
- *
- *  2. IPC `Ai_ToolApproval_Respond` only resumes the pending registry entry
- *     or dispatches the continue-conversation stream once every approval is
- *     decided. Main no longer writes parts —
- *     renderer is the canonical writer for this user-driven mutation.
+ * The renderer is NOT a writer of approval state. It only delivers the
+ * user's decision to Main via `Ai_ToolApproval_Respond`. Main is the single
+ * authority: it applies the decision to the DB-authoritative anchor parts and
+ * persists, then (Claude-Agent) resolves the live `canUseTool` or (MCP)
+ * dispatches `continue-conversation` once every approval on the turn is
+ * decided.
+ * The previous design had the renderer PATCH `applyApprovalDecisions(...)`
+ * itself, sourcing `before` from a DB-projected list that did not contain the
+ * overlay-only `approval-requested` part — so the PATCH was a no-op that also
+ * overwrote the persisted row with empty parts and raced Main's re-read,
+ * causing the approval card to reappear on every click. Removed.
  */
-export function useToolApprovalBridge(topicId: string, partsByMessageId: PartsByMessageId): ToolApprovalRespondFn {
-  const { trigger: patchMessage } = useMutation('PATCH', '/messages/:id', {
-    // SWR cache keys for `/topics/:topicId/messages` use the **resolved** path
-    // (e.g. `/topics/abc/messages`), not the template — `createMultiKeyMatcher`
-    // does exact-string match. Resolve `:topicId` ourselves before handing the
-    // pattern to `refresh`, otherwise no key matches and SWR never refetches.
-    refresh: () => [`/topics/${topicId}/messages`]
-  })
-
+export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
   return useCallback(
     async ({ match, approved, reason, updatedInput }) => {
       const approvalId = match.approvalId
 
-      const before = partsByMessageId[match.messageId]
-      const after = applyApprovalDecisions(before, [{ approvalId, approved, ...(reason !== undefined && { reason }) }])
-
       try {
-        await patchMessage({
-          params: { id: match.messageId },
-          body: { data: { parts: after }, status: 'pending' }
-        })
-      } catch (err) {
-        logger.error('Failed to PATCH approval state into DB', {
-          approvalId,
-          err: err instanceof Error ? err.message : String(err)
-        })
-        return
-      }
-
-      try {
-        await window.api.ai.toolApproval.respond({
+        const result = await window.api.ai.toolApproval.respond({
           approvalId,
           approved,
           reason,
@@ -61,14 +35,16 @@ export function useToolApprovalBridge(topicId: string, partsByMessageId: PartsBy
           topicId,
           anchorId: match.messageId
         })
+        if (!result.ok) throw new Error('Tool approval response was not accepted')
       } catch (error) {
         logger.error('Failed to deliver tool-approval decision to main', {
           approvalId,
           approved,
           error: error instanceof Error ? error.message : String(error)
         })
+        throw error
       }
     },
-    [topicId, partsByMessageId, patchMessage]
+    [topicId]
   )
 }

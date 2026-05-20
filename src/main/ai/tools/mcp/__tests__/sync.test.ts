@@ -152,4 +152,90 @@ describe('syncMcpToolsToRegistry', () => {
     expect(searchEntry.applies!({ mcpToolIds: new Set(['mcp__gh__fork']) })).toBe(false)
     expect(searchEntry.applies!({ mcpToolIds: new Set() })).toBe(false)
   })
+
+  describe('with selectedToolIds filter', () => {
+    it('only calls listTools on servers whose tool ids appear in the selection', async () => {
+      const reg = new ToolRegistry()
+      list.mockResolvedValue({ items: [activeServer('gh'), activeServer('jira'), activeServer('slack')] })
+      listTools.mockImplementation(async (server: { id: string }) => [mcpTool(server.id, 't')])
+
+      await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__t']) })
+
+      const calledIds = listTools.mock.calls.map((args) => (args[0] as { id: string }).id)
+      expect(calledIds).toEqual(['gh'])
+    })
+
+    it('keeps entries from active-but-unselected servers untouched (no eviction within other namespaces)', async () => {
+      const reg = new ToolRegistry()
+      // Pre-existing entry from an earlier broad sync of 'jira'.
+      reg.register({
+        name: 'mcp__jira__legacy',
+        namespace: 'mcp:jira',
+        description: 'pre-existing jira tool',
+        defer: 'auto',
+        tool: { description: '' } as unknown as Tool
+      } satisfies ToolEntry)
+
+      list.mockResolvedValue({ items: [activeServer('gh'), activeServer('jira')] })
+      listTools.mockImplementation(async (server: { id: string }) => [mcpTool(server.id, 'fresh')])
+
+      await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__fresh']) })
+
+      // gh's tools refreshed
+      expect(reg.getByName('mcp__gh__fresh')).toBeDefined()
+      // jira's pre-existing entry NOT evicted just because we didn't sync jira this call
+      expect(reg.getByName('mcp__jira__legacy')).toBeDefined()
+    })
+
+    it('still evicts entries from servers that are no longer active (stale-server cleanup runs globally)', async () => {
+      const reg = new ToolRegistry()
+      reg.register({
+        name: 'mcp__gone__x',
+        namespace: 'mcp:gone',
+        description: 'stale',
+        defer: 'auto',
+        tool: { description: '' } as unknown as Tool
+      } satisfies ToolEntry)
+
+      list.mockResolvedValue({ items: [activeServer('gh')] })
+      listTools.mockResolvedValue([mcpTool('gh', 't')])
+
+      await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__t']) })
+
+      expect(reg.getByName('mcp__gone__x')).toBeUndefined()
+    })
+
+    it('empty selection → no servers synced, no listTools call', async () => {
+      const reg = new ToolRegistry()
+      list.mockResolvedValue({ items: [activeServer('gh')] })
+      listTools.mockResolvedValue([mcpTool('gh', 't')])
+
+      await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set() })
+
+      expect(listTools).not.toHaveBeenCalled()
+    })
+
+    it('matches server name with camelCase normalisation (mirrors buildFunctionCallToolName)', async () => {
+      const reg = new ToolRegistry()
+      // Server name with separators — `mcp__myServer__t` is the id format.
+      list.mockResolvedValue({
+        items: [{ id: 'srv', name: 'my-server', isActive: true, disabledAutoApproveTools: [] }]
+      })
+      listTools.mockResolvedValue([
+        {
+          id: 'mcp__myServer__t',
+          serverId: 'srv',
+          serverName: 'my-server',
+          name: 't',
+          description: '',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      ])
+
+      await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__myServer__t']) })
+
+      expect(listTools).toHaveBeenCalledTimes(1)
+      expect(reg.getByName('mcp__myServer__t')).toBeDefined()
+    })
+  })
 })

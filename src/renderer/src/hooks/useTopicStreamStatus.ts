@@ -12,13 +12,22 @@
  */
 
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
-import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
+import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
 import { useCallback, useMemo } from 'react'
 
 interface TopicStreamStatusView {
   status: TopicStreamStatus | undefined
   /** Live executions, paired with their anchor message id. Empty when no stream is active. */
   activeExecutions: ActiveExecution[]
+  /**
+   * Executions currently paused on a `tool-approval-request`, paired with
+   * their anchor message id. Populated by Main when `exec.awaitingApproval`
+   * is set; survives the exec's own terminal status (the MCP `needsApproval`
+   * flow ends the stream cleanly via `done` while still awaiting). Single
+   * cross-window authority for "which message is the approval anchor" —
+   * read directly by `useIsActiveTurnTarget`, no message-parts scan.
+   */
+  awaitingApprovalAnchors: ActiveExecution[]
   /** `pending` (request sent, provider hasn't streamed yet) or `streaming` (chunks flowing) — both render as "busy". */
   isPending: boolean
   /** `done` AND this window hasn't marked it seen yet. */
@@ -33,13 +42,15 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
 
   const status = entry?.status
   const activeExecutions = useMemo(() => entry?.activeExecutions ?? [], [entry])
+  const awaitingApprovalAnchors = useMemo(() => entry?.awaitingApprovalAnchors ?? [], [entry])
 
-  const isPending = status === 'pending' || status === 'streaming'
-  const isFulfilled = status === 'done' && !seen
+  const flags = classifyTurn(status)
+  const isPending = flags.isStreamLive
+  const isFulfilled = flags.isFulfilledCandidate && !seen
 
   const markSeen = useCallback(() => {
     if (!seen) setSeen(true)
   }, [seen, setSeen])
 
-  return { status, activeExecutions, isPending, isFulfilled, markSeen }
+  return { status, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen }
 }

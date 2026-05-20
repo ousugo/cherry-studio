@@ -185,15 +185,7 @@ describe('messageMenuBarActions', () => {
       })
     )
 
-    expect(toolbarActions.map((action) => action.id)).toEqual([
-      'copy',
-      'assistant-regenerate',
-      'assistant-mention-model',
-      'translate',
-      'notes',
-      'delete',
-      'more-menu'
-    ])
+    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'notes', 'delete', 'more-menu'])
   })
 
   it('keeps menu actions capability-driven instead of filtering by session roots', () => {

@@ -1,35 +1,27 @@
 import type { MessageActivityState, MessageListItem } from '@renderer/components/chat/messages/types'
-import { isMessageListItemAwaitingApproval } from '@renderer/components/chat/messages/utils/messageListItem'
+import { isMessageListItemProcessing } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { isToolUIPart } from 'ai'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 
 export function useMessageActivityState(
   topicId: string,
-  partsMap?: Record<string, CherryMessagePart[]> | null
+  _partsMap?: Record<string, CherryMessagePart[]> | null
 ): (message: MessageListItem) => MessageActivityState {
-  const { status: topicStreamStatus, activeExecutions } = useTopicStreamStatus(topicId)
-  const isTopicStreaming = topicStreamStatus === 'pending' || topicStreamStatus === 'streaming'
-
-  const isAwaitingApproval = useMemo(() => {
-    if (isTopicStreaming || !partsMap) return false
-
-    for (const parts of Object.values(partsMap)) {
-      for (const part of parts) {
-        if (isToolUIPart(part) && part.state === 'approval-requested') return true
-      }
-    }
-
-    return false
-  }, [isTopicStreaming, partsMap])
+  const { activeExecutions, awaitingApprovalAnchors } = useTopicStreamStatus(topicId)
 
   return useCallback(
-    (message: MessageListItem) => ({
-      isProcessing: isTopicStreaming || isAwaitingApproval,
-      isStreamTarget: activeExecutions.some((execution) => execution.anchorMessageId === message.id),
-      isApprovalAnchor: isMessageListItemAwaitingApproval(message, partsMap?.[message.id] ?? [])
-    }),
-    [activeExecutions, isAwaitingApproval, isTopicStreaming, partsMap]
+    (message: MessageListItem) => {
+      const isActiveExecutionTarget = activeExecutions.some((execution) => execution.anchorMessageId === message.id)
+      const isApprovalAnchor = awaitingApprovalAnchors.some((execution) => execution.anchorMessageId === message.id)
+      const isProcessing = isMessageListItemProcessing(message) || isActiveExecutionTarget || isApprovalAnchor
+
+      return {
+        isProcessing,
+        isStreamTarget: isProcessing,
+        isApprovalAnchor
+      }
+    },
+    [activeExecutions, awaitingApprovalAnchors]
   )
 }

@@ -52,9 +52,8 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const { isToolAutoApproved } = useOptionalMessageListUi() ?? {}
 
   // Use the unified approval hook
-  const approval = useToolApproval(toolResponse)
-
   const { id, tool, status, response, partialArguments } = toolResponse
+  const approval = useToolApproval(toolResponse, tool)
   const autoApproved = isToolAutoApproved?.(tool) ?? false
   const isPending = status === 'pending'
   const isDone = status === 'done'

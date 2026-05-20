@@ -55,18 +55,33 @@ describe('applyDeferExposition', () => {
     expect(deferredEntries.map((e) => e.name)).toEqual(['experimental'])
   })
 
-  it('strips overflowing auto entries when their pool exceeds threshold', () => {
-    // single fat entry → busts 10% of 32k threshold
-    const huge = makeEntry('mcp__big__t', 'auto', 50_000)
+  it('strips overflowing auto entries when the pool meets both size and net-savings gates', () => {
+    // 5 fat auto entries — pool count >= MIN_AUTO_DEFER_COUNT, total cost
+    // overflows 10% of 32k, and savings exceed META_TOOLS_OVERHEAD_TOKENS.
+    const heavyAuto = Array.from({ length: 5 }, (_, i) => makeEntry(`mcp__big${i}__t`, 'auto', 8_000))
     const small = makeEntry('web__search', 'never')
-    const { registry, tools } = buildRegistryWith([huge, small])
+    const { registry, tools } = buildRegistryWith([...heavyAuto, small])
     const { tools: result, deferredEntries } = applyDeferExposition(tools, registry, 32_000)
-    expect(result!['mcp__big__t']).toBeUndefined()
+    for (const e of heavyAuto) {
+      expect(result![e.name]).toBeUndefined()
+    }
     expect(result!['web__search']).toBeDefined()
     expect(result![TOOL_SEARCH_TOOL_NAME]).toBeDefined()
     expect(result![TOOL_INSPECT_TOOL_NAME]).toBeDefined()
     expect(result![TOOL_INVOKE_TOOL_NAME]).toBeDefined()
-    expect(deferredEntries.map((e) => e.name)).toEqual(['mcp__big__t'])
+    expect(deferredEntries.map((e) => e.name).sort()).toEqual(heavyAuto.map((e) => e.name).sort())
+  })
+
+  it('keeps a single fat auto entry inline (below minimum-count gate, no meta-tools injected)', () => {
+    // One huge entry blows the cost threshold but the pool is too small for
+    // search-then-invoke to be a net win — must stay inline.
+    const huge = makeEntry('mcp__big__t', 'auto', 50_000)
+    const small = makeEntry('web__search', 'never')
+    const { registry, tools } = buildRegistryWith([huge, small])
+    const { tools: result, deferredEntries } = applyDeferExposition(tools, registry, 32_000)
+    expect(result).toBe(tools)
+    expect(result![TOOL_SEARCH_TOOL_NAME]).toBeUndefined()
+    expect(deferredEntries).toEqual([])
   })
 
   it('skips entries that have a tool but no registry entry', () => {

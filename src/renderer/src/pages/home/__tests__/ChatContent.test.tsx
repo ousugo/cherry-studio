@@ -1,6 +1,6 @@
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { act, type ReactNode, useEffect } from 'react'
+import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatContent from '../ChatContent'
@@ -27,6 +27,15 @@ vi.mock('@renderer/hooks/useTopicMessages', () => ({
 
 vi.mock('@renderer/hooks/useToolApprovalBridge', () => ({
   useToolApprovalBridge: () => mockRespondToolApproval
+}))
+
+vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
+  useExecutionOverlay: () => ({
+    overlay: {},
+    liveAssistants: [],
+    disposeOverlay: vi.fn(),
+    reset: vi.fn()
+  })
 }))
 
 vi.mock('@renderer/services/ApiService', () => ({
@@ -97,7 +106,9 @@ vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => 
 
 vi.mock('@renderer/components/chat/messages/blocks', () => ({
   PartsProvider: ({ children }: { children: ReactNode }) => children,
-  RefreshProvider: ({ children }: { children: ReactNode }) => children
+  RefreshProvider: ({ children }: { children: ReactNode }) => children,
+  TranslationOverlayProvider: ({ children }: { children: ReactNode }) => children,
+  TranslationOverlaySetterProvider: ({ children }: { children: ReactNode }) => children
 }))
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
@@ -124,29 +135,6 @@ vi.mock('@renderer/components/chat/messages/MessageList', () => ({
       {mockMessageListValue.current?.state.messages.map((message: CherryUIMessage) => message.id).join(',')}
     </div>
   )
-}))
-
-vi.mock('@renderer/components/chat/messages/stream/ExecutionStreamCollector', () => ({
-  default: function ExecutionStreamCollectorMock({
-    executionId,
-    onMessagesChange
-  }: {
-    executionId: string
-    onMessagesChange: (executionId: string, messages: CherryUIMessage[]) => void
-  }) {
-    useEffect(() => {
-      onMessagesChange(executionId, [
-        {
-          id: executionId,
-          role: 'assistant',
-          parts: [{ type: 'text', text: `reply-${executionId}` }],
-          metadata: { createdAt: '2026-01-02T00:00:00.000Z' }
-        }
-      ])
-    }, [executionId, onMessagesChange])
-
-    return null
-  }
 }))
 
 function createUiMessage(id: string, role: CherryUIMessage['role']): CherryUIMessage {
@@ -297,7 +285,7 @@ describe('ChatContent', () => {
   it('renders only uiMessages in the list (execution overlay affects parts, not the list itself)', async () => {
     // Core architectural contract post-refactor: the rendered list is a
     // projection of `uiMessages` (DB truth). Overlay from an active
-    // ExecutionStreamCollector updates `partsByMessageId` but never adds entries
+    // Execution overlay updates `partsByMessageId` but never adds entries
     // to the message list — any streaming bubble must already exist in
     // uiMessages as a pending placeholder (Main reserves before streaming).
     mockUseTopicMessages.mockReturnValue({

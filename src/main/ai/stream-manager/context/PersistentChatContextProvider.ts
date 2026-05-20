@@ -203,6 +203,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       topicId: req.topicId,
       models: models_,
       listeners,
+      userMessageId: userMessage.id,
       siblingsGroupId,
       isMultiModel
     }

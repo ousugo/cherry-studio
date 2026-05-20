@@ -12,6 +12,8 @@
 
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
@@ -23,17 +25,15 @@ import { useTranslation } from 'react-i18next'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
-import { useMessageListUi } from '../MessageListProvider'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { buildToolResponseFromPart, type ToolRenderItem } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
-import { isMessageListItemAwaitingApproval, isMessageListItemProcessing } from '../utils/messageListItem'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
 import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock from './MainTextBlock'
-import { useMessageParts } from './MessagePartsContext'
+import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
 import PlaceholderBlock from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
 import ToolBlockGroup from './ToolBlockGroup'
@@ -262,7 +262,8 @@ function renderPart(
   part: CherryMessagePart,
   partId: string,
   message: MessageListItem,
-  isStreaming: boolean
+  isStreaming: boolean,
+  isTranslationOverlayActive: boolean
 ): React.ReactNode {
   const partType = part.type as string
 
@@ -302,7 +303,14 @@ function renderPart(
 
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data
-      return <TranslationBlock key={partId} id={partId} content={translationData.content} isStreaming={isStreaming} />
+      return (
+        <TranslationBlock
+          key={partId}
+          id={partId}
+          content={translationData.content}
+          isStreaming={isStreaming || isTranslationOverlayActive}
+        />
+      )
     }
 
     case 'text': {
@@ -397,14 +405,14 @@ function renderPart(
   }
 }
 
-const ToolPartView = React.memo(function ToolPartView({ part }: { part: CherryMessagePart }) {
-  const toolResponse = useMemo(() => buildToolResponseFromPart(part), [part])
+const ToolPartView = React.memo(function ToolPartView({ part, partId }: { part: CherryMessagePart; partId: string }) {
+  const toolResponse = useMemo(() => buildToolResponseFromPart(part, partId), [part, partId])
   if (!toolResponse) return null
   return <MessageTools toolResponse={toolResponse} />
 })
 
 function renderToolPart(part: CherryMessagePart, partId: string): React.ReactNode {
-  return <ToolPartView key={partId} part={part} />
+  return <ToolPartView key={partId} part={part} partId={partId} />
 }
 
 interface ToolGroupEntryShape {
@@ -415,7 +423,7 @@ const ToolGroupView = React.memo(
   function ToolGroupView({ entries, messageId }: { entries: readonly ToolGroupEntryShape[]; messageId: string }) {
     const toolItems = entries.flatMap((e): ToolRenderItem[] => {
       const id = `${messageId}-part-${e.index}`
-      const toolResponse = buildToolResponseFromPart(e.part)
+      const toolResponse = buildToolResponseFromPart(e.part, id)
       return toolResponse && canRenderMessageTool(toolResponse) ? [{ id, toolResponse }] : []
     })
     if (toolItems.length === 0) return null
@@ -474,7 +482,7 @@ const CompletedToolHistoryGroup = React.memo(function CompletedToolHistoryGroup(
         <div
           id={contentId}
           className="mt-1.5 flex w-full flex-col gap-2 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
-          {groupedEntries.map((entry) => renderGroupedEntry(entry, message, false))}
+          {groupedEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
         </div>
       )}
     </div>
@@ -519,7 +527,12 @@ function getCompletedToolHistory(
   }
 }
 
-function renderGroupedEntry(entry: GroupedEntry, message: MessageListItem, isStreaming: boolean): React.ReactNode {
+function renderGroupedEntry(
+  entry: GroupedEntry,
+  message: MessageListItem,
+  isStreaming: boolean,
+  isTranslationOverlayActive: boolean
+): React.ReactNode {
   if (Array.isArray(entry)) {
     const groupKey = entry.map((e) => `${message.id}-part-${e.index}`).join('-')
     const firstPart = entry[0].part
@@ -568,7 +581,7 @@ function renderGroupedEntry(entry: GroupedEntry, message: MessageListItem, isStr
       const partId = `${message.id}-part-${firstEntry.index}`
       return (
         <AnimatedBlockWrapper key={groupKey} enableAnimation={isStreaming}>
-          {renderPart(firstEntry.part, partId, message, isStreaming)}
+          {renderPart(firstEntry.part, partId, message, isStreaming, isTranslationOverlayActive)}
         </AnimatedBlockWrapper>
       )
     }
@@ -577,7 +590,7 @@ function renderGroupedEntry(entry: GroupedEntry, message: MessageListItem, isStr
   }
 
   const partId = `${message.id}-part-${entry.index}`
-  const rendered = renderPart(entry.part, partId, message, isStreaming)
+  const rendered = renderPart(entry.part, partId, message, isStreaming, isTranslationOverlayActive)
   if (!rendered) return null
 
   return (
@@ -596,17 +609,14 @@ function renderGroupedEntry(entry: GroupedEntry, message: MessageListItem, isStr
 
 const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const messageParts = useMessageParts(message.id)
-  const { getMessageActivityState } = useMessageListUi()
+  const { isPending: isTopicStreaming } = useTopicStreamStatus(message.topicId)
+  const isStreaming = isTopicStreaming && message.status === 'pending'
+  const isTranslationOverlayActive = useTranslationOverlayEntry(message.id) !== undefined
 
-  const activityState = getMessageActivityState?.(message)
-  const isStreaming = !!activityState?.isProcessing && message.status === 'pending'
-
-  // Beat loader visible while the assistant turn is still active —
-  // either streaming (status pending/processing/searching) or paused
-  // on a tool-approval-request waiting for the user. The latter is
-  // semantically "expecting input", which the loader's pulse conveys
-  // better than "frozen with no UI cue".
-  const isProcessing = isMessageListItemProcessing(message) || isMessageListItemAwaitingApproval(message, messageParts)
+  // Beat loader visible only when THIS specific message is the active turn
+  // target. The identity predicate lives in `useIsActiveTurnTarget` so
+  // consumers do not over-scope topic-level stream status to user messages.
+  const isProcessing = useIsActiveTurnTarget(message)
 
   const partEntries = useMemo(() => messageParts.map((part, index) => ({ part, index })), [messageParts])
   const completedToolHistory = useMemo(
@@ -648,7 +658,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
         </AnimatedBlockWrapper>
       )}
       {grouped.map((entry) => {
-        return renderGroupedEntry(entry, message, isStreaming)
+        return renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive)
       })}
       {isProcessing && (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>

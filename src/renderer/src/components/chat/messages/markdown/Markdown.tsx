@@ -7,12 +7,12 @@ import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
-import { processLatexBrackets } from '@renderer/utils/markdown'
+import { processLatexBrackets, splitMarkdownBlocks } from '@renderer/utils/markdown'
 import type { MessageStatus } from '@shared/data/types/message'
 import { isEmpty } from 'lodash'
 import { createContext, type FC, memo, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown'
+import { type Components, defaultUrlTransform } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 // @ts-ignore rehype-mathjax is not typed
 import rehypeMathjax from 'rehype-mathjax'
@@ -21,13 +21,13 @@ import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import remarkAlert from 'remark-github-blockquote-alert'
 import remarkMath from 'remark-math'
-import type { Pluggable } from 'unified'
+import type { Pluggable, PluggableList } from 'unified'
 
 import { useMessageRenderConfig } from '../MessageListProvider'
 import CodeBlock from './CodeBlock'
 import Link from './Link'
+import MarkdownBlock from './MarkdownBlock'
 import MarkdownSvgRenderer from './MarkdownSvgRenderer'
-import rehypeHeadingIds from './plugins/rehypeHeadingIds'
 import rehypeScalableSvg from './plugins/rehypeScalableSvg'
 import remarkDisableConstructs from './plugins/remarkDisableConstructs'
 import Table from './Table'
@@ -135,22 +135,34 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     return removeSvgEmptyLines(processLatexBrackets(displayedContent))
   }, [block.status, block.content, displayedContent, t])
 
-  const rehypePlugins = useMemo(() => {
+  // Booleans, not `messageContent`, gate the plugin/component memos: their
+  // values flip at most once per message (raw HTML / <style> appears once and
+  // stays), so the rehype array and components map keep a STABLE identity
+  // across streaming chunks. That stability is what lets the per-block
+  // `React.memo` actually skip completed blocks — depending on `messageContent`
+  // (which changes every chunk) would mint fresh arrays each frame and defeat
+  // the whole optimization.
+  const hasRawHtml = useMemo(() => ALLOWED_ELEMENTS.test(messageContent), [messageContent])
+  const hasStyleTag = useMemo(() => /<style\b[^>]*>/i.test(messageContent), [messageContent])
+
+  // Base rehype chain WITHOUT heading-ids — MarkdownBlock appends a
+  // per-block-prefixed `rehypeHeadingIds` so anchor ids stay unique and
+  // deterministic per block position.
+  const rehypeBasePlugins = useMemo<PluggableList>(() => {
     const plugins: Pluggable[] = []
-    if (ALLOWED_ELEMENTS.test(messageContent)) {
+    if (hasRawHtml) {
       plugins.push(rehypeRaw, rehypeScalableSvg)
     }
-    plugins.push([rehypeHeadingIds, { prefix: `heading-${block.id}` }])
     if (mathEngine === 'KaTeX') {
       plugins.push(rehypeKatex)
     } else if (mathEngine === 'MathJax') {
       plugins.push(rehypeMathjax)
     }
     return plugins
-  }, [mathEngine, messageContent, block.id])
+  }, [mathEngine, hasRawHtml])
 
   const components = useMemo(() => {
-    return {
+    const map = {
       a: (props: any) => <Link {...props} />,
       code: (props: any) => <CodeBlock {...props} blockId={block.id} />,
       table: (props: any) => <Table {...props} blockId={block.id} />,
@@ -163,38 +175,105 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
       },
       svg: MarkdownSvgRenderer
     } as Partial<Components>
-  }, [block.id])
-
-  if (/<style\b[^>]*>/i.test(messageContent)) {
-    components.style = MarkdownShadowDOMRenderer as any
-  }
+    if (hasStyleTag) {
+      map.style = MarkdownShadowDOMRenderer as any
+    }
+    return map
+  }, [block.id, hasStyleTag])
 
   const urlTransform = useCallback((value: string) => {
     if (value.startsWith('data:image/png') || value.startsWith('data:image/jpeg')) return value
     return defaultUrlTransform(value)
   }, [])
 
+  // Key on the RESOLVED string, not `t`. react-i18next's `t` identity is not
+  // stable across renders; depending on it minted a fresh `remarkRehypeOptions`
+  // every frame, which broke `React.memo(MarkdownBlock)` for EVERY block (the
+  // sealed ones too) → all blocks re-ran ReactMarkdown each commit. The string
+  // only changes on language switch, so memo now actually skips sealed blocks.
+  const footnoteLabel = t('common.footnotes')
+  const remarkRehypeOptions = useMemo(
+    () => ({
+      footnoteLabel,
+      footnoteLabelTagName: 'h4',
+      footnoteBackContent: ' '
+    }),
+    [footnoteLabel]
+  )
+
   const markdownCtx = useMemo<MarkdownBlockContextValue>(
     () => ({ content: block.content, isStreaming: block.status === 'streaming' }),
     [block.content, block.status]
   )
 
+  // Incremental, append-only split. Streaming is append-only, so every
+  // top-level block except the last is permanently sealed. Re-parsing the
+  // WHOLE document every frame just to re-find boundaries is O(n) with n
+  // growing → residual O(n²) (the cost that froze long answers). Instead we
+  // cache the sealed prefix and only re-split the unsealed TAIL — cost is
+  // O(last block), independent of total length. Sealed blocks keep identical
+  // strings so their memoized `MarkdownBlock` is still skipped. When not
+  // streaming, render the whole content as one block: one-time O(n), output
+  // byte-identical to the pre-refactor single `<ReactMarkdown>`.
+  const splitCacheRef = useRef<{ blockId: string; content: string; sealed: string[]; sealedLen: number }>({
+    blockId: '',
+    content: '',
+    sealed: [],
+    sealedLen: 0
+  })
+
+  let blocks: string[]
+  if (!isStreaming) {
+    splitCacheRef.current = { blockId: block.id, content: '', sealed: [], sealedLen: 0 }
+    blocks = [messageContent]
+  } else {
+    const cache = splitCacheRef.current
+    const appendOnly = cache.blockId === block.id && messageContent.startsWith(cache.content)
+    const sealed = appendOnly ? cache.sealed : []
+    const sealedLen = appendOnly ? cache.sealedLen : 0
+    const tail = messageContent.slice(sealedLen)
+
+    // `tail` starts exactly at a previously-confirmed top-level boundary, so
+    // parsing it standalone yields the same boundaries as in-context (the
+    // documented cross-block ref/footnote caveat already applies mid-stream).
+    const tailBlocks = splitMarkdownBlocks(tail, remarkPlugins)
+
+    // Every tail block but the last is now terminated → seal it. The last is
+    // still potentially growing and stays live.
+    const newlySealed = tailBlocks.slice(0, -1)
+    const live = tailBlocks.length > 0 ? tailBlocks[tailBlocks.length - 1] : ''
+    const nextSealed = newlySealed.length > 0 ? [...sealed, ...newlySealed] : sealed
+    const nextSealedLen = sealedLen + newlySealed.reduce((s, b) => s + b.length, 0)
+
+    splitCacheRef.current = {
+      blockId: block.id,
+      content: messageContent,
+      sealed: nextSealed,
+      sealedLen: nextSealedLen
+    }
+    blocks = live === '' && nextSealed.length > 0 ? nextSealed : [...nextSealed, live]
+  }
+
   return (
     <MarkdownBlockContext value={markdownCtx}>
       <div className="markdown">
-        <ReactMarkdown
-          rehypePlugins={rehypePlugins}
-          remarkPlugins={remarkPlugins}
-          components={components}
-          disallowedElements={DISALLOWED_ELEMENTS}
-          urlTransform={urlTransform}
-          remarkRehypeOptions={{
-            footnoteLabel: t('common.footnotes'),
-            footnoteLabelTagName: 'h4',
-            footnoteBackContent: ' '
-          }}>
-          {messageContent}
-        </ReactMarkdown>
+        {blocks.map((text, i) => (
+          <MarkdownBlock
+            // Index key: streaming is append-only, so a completed block keeps
+            // its index/identity across chunks → memo hit. Only the last
+            // (growing) block's `text` changes.
+            key={i}
+            index={i}
+            text={text}
+            blockId={block.id}
+            remarkPlugins={remarkPlugins}
+            rehypeBasePlugins={rehypeBasePlugins}
+            components={components}
+            urlTransform={urlTransform}
+            remarkRehypeOptions={remarkRehypeOptions}
+            disallowedElements={DISALLOWED_ELEMENTS}
+          />
+        ))}
       </div>
     </MarkdownBlockContext>
   )

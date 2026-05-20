@@ -6,6 +6,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useTopicDbRefreshOnTerminal } from './useTopicDbRefreshOnTerminal'
 import { useTopicStreamStatus } from './useTopicStreamStatus'
 
 const logger = loggerService.withContext('useChatWithHistory')
@@ -91,6 +92,16 @@ export function useChatWithHistory(
     resumeActiveStream('mount')
   }, [resumeActiveStream])
 
+  // Single invalidation signal — extracted into a dedicated hook so the
+  // "DB re-read on any terminal transition" architecture is visible at the
+  // import. Classifier-driven, so `awaiting-approval` participates without
+  // an explicit `=== 'awaiting-approval'` gate here (or anywhere else).
+  useTopicDbRefreshOnTerminal(topicId, refresh)
+
+  // Resume-on-pending — distinct purpose from the invalidation signal: it
+  // re-attaches a stream that started while this window was unmounted /
+  // reloading. Stays here (it's tightly coupled to `resumeActiveStream` and
+  // chat-specific) rather than mingling with the generic invalidation gate.
   const prevTopicStatusRef = useRef<typeof topicStreamStatus>(undefined)
   useEffect(() => {
     const prev = prevTopicStatusRef.current
