@@ -8,7 +8,8 @@
 | `src/main/data/services/` | `SessionService.ts` + `WorkspaceService.ts` new; `AgentService.ts`, `AgentSessionMessageService.ts`, `MessageService.ts` heavy rewrites |
 | `src/main/data/api/handlers/` | `sessions.ts` + `workspaces.ts` new; `agents.ts` slimmed (~100 LOC); `messages.ts` extended; `assistants.ts` + `topics.ts` extended |
 | `src/main/data/migration/v2/migrators/` | `AgentsMigrator.ts` + `AgentsDbMappings.ts` rewrites; `ChatMigrator.ts` parts conversion; `ProviderModelMigrator.ts` `adapterFamily` backfill |
-| `packages/shared/data/types/` | `agentMessage.ts` + `agentSlashCommands.ts` + `uiParts.ts` new; `agent.ts` slimmed via Zod inference; `message.ts` heavy rewrite (parts model) |
+| `packages/shared/data/types/` | `agentMessage.ts` + `uiParts.ts` new; `agent.ts` slimmed via Zod inference; `message.ts` heavy rewrite (parts model) |
+| `packages/shared/agents/` | `agentSlashCommands.ts` new (builtin SDK command list, off the data layer) |
 | `packages/shared/data/api/schemas/` | `sessions.ts` + `workspaces.ts` new; `agents.ts` slimmed by 126 LOC; `messages.ts` + `assistants.ts` + `providers.ts` extended |
 
 Total surface: ~94 files modified across `src/main/data/` and

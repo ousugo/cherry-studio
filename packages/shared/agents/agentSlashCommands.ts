@@ -3,9 +3,8 @@
  * configuration, not persisted on session row.
  */
 
-import { type SlashCommand } from '../api/schemas/agents'
-
-export type AgentType = 'claude-code'
+import { type SlashCommand } from '../data/api/schemas/agents'
+import { type AgentType } from '../data/types/agent'
 
 const CLAUDE_CODE_BUILTIN_COMMANDS: SlashCommand[] = [
   { command: '/clear', description: 'Clear conversation history' },
