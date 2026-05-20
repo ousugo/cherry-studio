@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import { DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE, isMac } from '@renderer/config/constant'
+import { isMac } from '@renderer/config/constant'
 import type {
   ApiServerConfig,
   CodeStyleVarious,
@@ -25,7 +25,7 @@ import type {
   PaintingProvider,
   S3Config
 } from '@renderer/types'
-import { API_SERVER_DEFAULTS } from '@shared/config/constant'
+import { API_SERVER_DEFAULTS, DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {

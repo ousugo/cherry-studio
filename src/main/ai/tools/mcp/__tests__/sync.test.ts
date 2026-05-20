@@ -218,7 +218,9 @@ describe('syncMcpToolsToRegistry', () => {
     it('matches server name with camelCase normalisation (mirrors buildFunctionCallToolName)', async () => {
       const reg = new ToolRegistry()
       // Server name with separators — `mcp__myServer__t` is the id format.
-      list.mockResolvedValue({ items: [{ id: 'srv', name: 'my-server', isActive: true, disabledAutoApproveTools: [] }] })
+      list.mockResolvedValue({
+        items: [{ id: 'srv', name: 'my-server', isActive: true, disabledAutoApproveTools: [] }]
+      })
       listTools.mockResolvedValue([
         {
           id: 'mcp__myServer__t',

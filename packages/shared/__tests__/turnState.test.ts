@@ -27,14 +27,65 @@ describe('classifyTurn / TURN_STATE', () => {
   })
 
   it.each<[TopicStreamStatus, TurnStateFlags]>([
-    ['pending', { isStreamLive: true, isTurnActive: true, isAwaitingApproval: false, isTerminal: false, isFulfilledCandidate: false }],
-    ['streaming', { isStreamLive: true, isTurnActive: true, isAwaitingApproval: false, isTerminal: false, isFulfilledCandidate: false }],
-    ['done', { isStreamLive: false, isTurnActive: false, isAwaitingApproval: false, isTerminal: true, isFulfilledCandidate: true }],
-    ['aborted', { isStreamLive: false, isTurnActive: false, isAwaitingApproval: false, isTerminal: true, isFulfilledCandidate: false }],
-    ['error', { isStreamLive: false, isTurnActive: false, isAwaitingApproval: false, isTerminal: true, isFulfilledCandidate: false }],
+    [
+      'pending',
+      {
+        isStreamLive: true,
+        isTurnActive: true,
+        isAwaitingApproval: false,
+        isTerminal: false,
+        isFulfilledCandidate: false
+      }
+    ],
+    [
+      'streaming',
+      {
+        isStreamLive: true,
+        isTurnActive: true,
+        isAwaitingApproval: false,
+        isTerminal: false,
+        isFulfilledCandidate: false
+      }
+    ],
+    [
+      'done',
+      {
+        isStreamLive: false,
+        isTurnActive: false,
+        isAwaitingApproval: false,
+        isTerminal: true,
+        isFulfilledCandidate: true
+      }
+    ],
+    [
+      'aborted',
+      {
+        isStreamLive: false,
+        isTurnActive: false,
+        isAwaitingApproval: false,
+        isTerminal: true,
+        isFulfilledCandidate: false
+      }
+    ],
+    [
+      'error',
+      {
+        isStreamLive: false,
+        isTurnActive: false,
+        isAwaitingApproval: false,
+        isTerminal: true,
+        isFulfilledCandidate: false
+      }
+    ],
     [
       'awaiting-approval',
-      { isStreamLive: false, isTurnActive: true, isAwaitingApproval: true, isTerminal: true, isFulfilledCandidate: false }
+      {
+        isStreamLive: false,
+        isTurnActive: true,
+        isAwaitingApproval: true,
+        isTerminal: true,
+        isFulfilledCandidate: false
+      }
     ]
   ])('%s → expected flags', (status, expected) => {
     expect(classifyTurn(status)).toEqual(expected)

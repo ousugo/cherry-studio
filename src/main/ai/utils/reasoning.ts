@@ -11,7 +11,7 @@ import {
   FALLBACK_TOKEN_LIMIT,
   getThinkingBudget as sharedGetThinkingBudget
 } from '@shared/ai/reasoningBudget'
-import { DEFAULT_MAX_TOKENS } from '@shared/config/constants'
+import { DEFAULT_MAX_TOKENS } from '@shared/config/constant'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'

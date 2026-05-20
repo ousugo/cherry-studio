@@ -168,4 +168,3 @@ export function isMessageProcessing(message: Message): boolean {
     message.status === AssistantMessageStatus.SEARCHING
   )
 }
-

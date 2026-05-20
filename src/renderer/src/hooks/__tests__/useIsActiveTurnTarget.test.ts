@@ -57,12 +57,16 @@ describe('useIsActiveTurnTarget', () => {
     // (`status === 'paused' && isAwaitingApproval`) failed exactly this case
     // and let the menubar leak through. The Main-broadcast anchor id makes
     // it work by construction.
-    expect(renderHook(() => useIsActiveTurnTarget(msg({ id: 'm1', status: 'success' as never }))).result.current).toBe(true)
+    expect(renderHook(() => useIsActiveTurnTarget(msg({ id: 'm1', status: 'success' as never }))).result.current).toBe(
+      true
+    )
   })
 
   it('false for a user message even when the topic has awaiting anchors', () => {
     awaitingApprovalAnchorsMock.mockReturnValue([{ executionId: 'p::m', anchorMessageId: 'OTHER' }])
-    expect(renderHook(() => useIsActiveTurnTarget(msg({ role: 'user', status: 'success' as never }))).result.current).toBe(false)
+    expect(
+      renderHook(() => useIsActiveTurnTarget(msg({ role: 'user', status: 'success' as never }))).result.current
+    ).toBe(false)
   })
 
   it('false for an old completed assistant (no signal matches)', () => {
