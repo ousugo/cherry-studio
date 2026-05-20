@@ -1,6 +1,5 @@
 import 'katex/dist/katex.min.css'
 
-import type * as MarkdownUtils from '@renderer/utils/markdown'
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,14 +8,20 @@ import Markdown from '../Markdown'
 
 // Mock dependencies
 const mockMathSettings = vi.hoisted(() => ({
-  current: { mathEngine: 'KaTeX', mathEnableSingleDollar: true }
+  current: { mathEnableSingleDollar: true }
+}))
+const mockStreamdown = vi.hoisted(() => ({
+  defaultRemarkPlugins: {
+    gfm: [vi.fn(), {}],
+    codeMeta: vi.fn()
+  },
+  props: vi.fn()
 }))
 const mockUseTranslation = vi.fn()
 
 // Mock hooks
 vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => ({
-    mathEngine: mockMathSettings.current.mathEngine,
     mathEnableSingleDollar: mockMathSettings.current.mathEnableSingleDollar
   })
 }))
@@ -55,13 +60,10 @@ vi.mock('@renderer/utils/formats', () => ({
   removeSvgEmptyLines: vi.fn((str) => str)
 }))
 
-vi.mock('@renderer/utils/markdown', async (importOriginal) => ({
+vi.mock('@renderer/utils/markdown', () => ({
   findCitationInChildren: vi.fn(() => '{"id": 1, "url": "https://example.com"}'),
   getCodeBlockId: vi.fn(() => 'code-block-1'),
-  processLatexBrackets: vi.fn((str) => str),
-  // Real splitter — its boundary correctness is unit-tested separately;
-  // here the integration test needs the genuine split-while-streaming wiring.
-  splitMarkdownBlocks: (await importOriginal<typeof MarkdownUtils>()).splitMarkdownBlocks
+  processLatexBrackets: vi.fn((str) => str)
 }))
 
 // Mock components with more realistic behavior
@@ -92,7 +94,13 @@ vi.mock('../Table', () => ({
   __esModule: true,
   default: ({ children, blockId }: any) => (
     <div data-testid="table-component" data-block-id={blockId}>
-      <table>{children}</table>
+      <table>
+        <tbody>
+          <tr>
+            <td>{children}</td>
+          </tr>
+        </tbody>
+      </table>
       <button type="button" data-testid="copy-table-button">
         Copy Table
       </button>
@@ -111,19 +119,11 @@ vi.mock('@renderer/components/MarkdownShadowDOMRenderer', () => ({
 }))
 
 // Mock plugins
-vi.mock('remark-alert', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('remark-gfm', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('remark-cjk-friendly', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('remark-math', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('rehype-katex', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('rehype-mathjax', () => ({ __esModule: true, default: vi.fn() }))
-vi.mock('rehype-raw', () => ({ __esModule: true, default: vi.fn() }))
-
-// Mock custom plugins
-vi.mock('../plugins/remarkDisableConstructs', () => ({
-  __esModule: true,
-  default: vi.fn()
-}))
+vi.mock('remark-github-blockquote-alert', () => ({ __esModule: true, default: vi.fn() }))
+vi.mock('@streamdown/code', () => ({ code: vi.fn() }))
+vi.mock('@streamdown/cjk', () => ({ cjk: vi.fn() }))
+vi.mock('@streamdown/math', () => ({ createMathPlugin: vi.fn(() => vi.fn()), math: vi.fn() }))
+vi.mock('@streamdown/mermaid', () => ({ mermaid: vi.fn() }))
 
 vi.mock('../plugins/rehypeHeadingIds', () => ({
   __esModule: true,
@@ -135,28 +135,39 @@ vi.mock('../plugins/rehypeScalableSvg', () => ({
   default: vi.fn()
 }))
 
-// Mock ReactMarkdown with realistic rendering
-vi.mock('react-markdown', () => ({
-  __esModule: true,
-  default: ({ children, components, className }: any) => (
-    <div data-testid="markdown-content" className={className}>
-      {children}
-      {/* Simulate component rendering */}
-      {components?.a && <span data-testid="has-link-component">link</span>}
-      {components?.code && (
-        <div data-testid="has-code-component">
-          {components.code({ children: 'test code', node: { position: { start: { line: 1 } } } })}
-        </div>
-      )}
-      {components?.table && (
-        <div data-testid="has-table-component">
-          {components.table({ children: 'test table', node: { position: { start: { line: 1 } } } })}
-        </div>
-      )}
-      {components?.img && <span data-testid="has-img-component">img</span>}
-      {components?.style && <span data-testid="has-style-component">style</span>}
-    </div>
-  )
+// Mock Streamdown with realistic rendering
+vi.mock('streamdown', () => ({
+  Streamdown: (props: any) => {
+    const { children, components, className } = props
+    mockStreamdown.props(props)
+    return (
+      <div data-testid="markdown-content" className={className}>
+        {children}
+        {/* Simulate component rendering */}
+        {components?.a && <span data-testid="has-link-component">link</span>}
+        {components?.code && (
+          <div data-testid="has-code-component">
+            {components.code({ children: 'test code', node: { position: { start: { line: 1 } } } })}
+          </div>
+        )}
+        {components?.table && (
+          <div data-testid="has-table-component">
+            {components.table({ children: 'test table', node: { position: { start: { line: 1 } } } })}
+          </div>
+        )}
+        {components?.img && <span data-testid="has-img-component">img</span>}
+        {components?.style && <span data-testid="has-style-component">style</span>}
+      </div>
+    )
+  },
+  defaultRehypePlugins: {
+    raw: vi.fn(),
+    sanitize: [vi.fn(), { tagNames: [], attributes: {}, protocols: {} }],
+    harden: vi.fn()
+  },
+  defaultRemarkPlugins: mockStreamdown.defaultRemarkPlugins,
+  defaultUrlTransform: vi.fn((url: string) => url),
+  useIsCodeFenceIncomplete: vi.fn(() => false)
 }))
 
 describe('Markdown', () => {
@@ -164,7 +175,7 @@ describe('Markdown', () => {
     vi.clearAllMocks()
 
     // Default settings
-    mockMathSettings.current = { mathEngine: 'KaTeX', mathEnableSingleDollar: true }
+    mockMathSettings.current = { mathEnableSingleDollar: true }
     mockUseTranslation.mockReturnValue({
       t: (key: string) => (key === 'message.chat.completion.paused' ? 'Paused' : key)
     })
@@ -233,6 +244,19 @@ describe('Markdown', () => {
       const { container } = render(<Markdown block={createMarkdownSource()} />)
       expect(container.firstChild).toMatchSnapshot()
     })
+
+    it('should keep Streamdown default remark plugins for GFM tables', () => {
+      render(
+        <Markdown
+          block={createMarkdownSource({
+            content: '| A | B |\n|---|---|\n| 1 | 2 |'
+          })}
+        />
+      )
+
+      const props = mockStreamdown.props.mock.calls[0][0]
+      expect(props.remarkPlugins).toEqual(expect.arrayContaining(Object.values(mockStreamdown.defaultRemarkPlugins)))
+    })
   })
 
   describe('block type support', () => {
@@ -271,31 +295,13 @@ describe('Markdown', () => {
     })
   })
 
-  describe('math engine configuration', () => {
-    it('should configure KaTeX when mathEngine is KaTeX', () => {
-      mockMathSettings.current = { mathEngine: 'KaTeX', mathEnableSingleDollar: true }
+  describe('math plugin configuration', () => {
+    it('should configure KaTeX math rendering', () => {
+      mockMathSettings.current = { mathEnableSingleDollar: true }
 
       render(<Markdown block={createMarkdownSource()} />)
 
-      // Component should render successfully with KaTeX configuration
-      expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
-    })
-
-    it('should configure MathJax when mathEngine is MathJax', () => {
-      mockMathSettings.current = { mathEngine: 'MathJax', mathEnableSingleDollar: true }
-
-      render(<Markdown block={createMarkdownSource()} />)
-
-      // Component should render successfully with MathJax configuration
-      expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
-    })
-
-    it('should not load math plugins when mathEngine is none', () => {
-      mockMathSettings.current = { mathEngine: 'none', mathEnableSingleDollar: true }
-
-      render(<Markdown block={createMarkdownSource()} />)
-
-      // Component should render successfully without math plugins
+      // Component should render successfully with KaTeX configuration.
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
     })
   })
@@ -374,55 +380,16 @@ describe('Markdown', () => {
       expect(screen.getByTestId('markdown-content')).toHaveTextContent('Updated')
     })
 
-    it('should re-render when math engine changes', () => {
-      mockMathSettings.current = { mathEngine: 'KaTeX', mathEnableSingleDollar: true }
+    it('should re-render when math single-dollar setting changes', () => {
+      mockMathSettings.current = { mathEnableSingleDollar: true }
       const { rerender } = render(<Markdown block={createMarkdownSource()} />)
 
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
 
-      mockMathSettings.current = { mathEngine: 'MathJax', mathEnableSingleDollar: true }
+      mockMathSettings.current = { mathEnableSingleDollar: false }
       rerender(<Markdown block={createMarkdownSource()} />)
 
-      // Should still render correctly with new math engine
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
-    })
-  })
-
-  // The streaming O(n²) regression guard. The mocked react-markdown renders
-  // one `markdown-content` node per `<ReactMarkdown>` instance, i.e. one per
-  // `MarkdownBlock`. So the testid count == number of memoized blocks.
-  //
-  // Correctness of the block boundaries themselves (tables / $$ math / fenced
-  // code never split) is covered exhaustively by the `splitMarkdownBlocks`
-  // unit tests in utils/markdown.test.ts. Here we only assert the wiring:
-  // split into many blocks while streaming, collapse to one when done — and
-  // that the rendered text still reconstructs the original (no loss).
-  describe('block-level streaming split', () => {
-    it('renders the whole message as ONE block when not streaming', () => {
-      const block = createMarkdownSource({
-        content: '# Title\n\nFirst paragraph.\n\nSecond paragraph.',
-        status: 'success'
-      })
-      render(<Markdown block={block} />)
-
-      // Single instance ⇒ output path byte-identical to the pre-refactor
-      // single <ReactMarkdown>; existing getByTestId-singular tests rely on it.
-      expect(screen.getAllByTestId('markdown-content')).toHaveLength(1)
-    })
-
-    it('splits into multiple memoized blocks while streaming', () => {
-      const content = '# Title\n\nFirst paragraph.\n\nSecond paragraph.'
-      const block = createMarkdownSource({ content, status: 'streaming' })
-      render(<Markdown block={block} />)
-
-      const blocks = screen.getAllByTestId('markdown-content')
-      expect(blocks.length).toBeGreaterThan(1)
-      // Every segment still rendered (nothing dropped by the split); exact
-      // join-invariant is asserted in the splitter unit tests.
-      const allText = blocks.map((b) => b.textContent).join('')
-      expect(allText).toContain('# Title')
-      expect(allText).toContain('First paragraph.')
-      expect(allText).toContain('Second paragraph.')
     })
   })
 })

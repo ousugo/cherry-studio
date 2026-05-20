@@ -1,13 +1,13 @@
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/agent/ClickableFilePath'
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
 import { isWin } from '@renderer/config/constant'
-import { getCodeBlockId, isOpenFenceBlock } from '@renderer/utils/markdown'
+import { getCodeBlockId } from '@renderer/utils/markdown'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
+import { useIsCodeFenceIncomplete } from 'streamdown'
 
 import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
 import { isInlineAbsoluteFilePath } from '../utils/filePath'
-import { useMarkdownBlockContext } from './Markdown'
 
 interface Props {
   children: string
@@ -35,12 +35,11 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
         : detectedLanguage
   }, [children, detectedLanguage])
   const { codeFancyBlock } = useMessageRenderConfig()
+  const isIncomplete = useIsCodeFenceIncomplete()
 
   // 代码块 id
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
 
-  const mdCtx = useMarkdownBlockContext()
-  const isStreaming = mdCtx?.isStreaming ?? false
   const actions = useOptionalMessageListActions()
 
   const handleSave = useCallback(
@@ -60,8 +59,7 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
     // Fancy code block
     if (codeFancyBlock) {
       if (language === 'html') {
-        const isOpenFence = isOpenFenceBlock(children?.length, languageMatch?.[1]?.length, node?.position)
-        return <HtmlArtifactsCard html={children} onSave={handleSave} isStreaming={isStreaming && isOpenFence} />
+        return <HtmlArtifactsCard html={children} onSave={handleSave} isStreaming={isIncomplete} />
       }
     }
 
