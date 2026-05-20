@@ -4,9 +4,9 @@
 
 | Subpath | What changed |
 |---|---|
-| `src/main/data/db/schemas/` | Agent / session / workspace / agent-message tables restructured; `job.ts` deleted |
-| `src/main/data/services/` | `SessionService.ts` + `WorkspaceService.ts` new; `AgentService.ts`, `AgentSessionMessageService.ts`, `MessageService.ts` heavy rewrites; `JobService.ts` + `JobScheduleService.ts` removed |
-| `src/main/data/api/handlers/` | `sessions.ts` + `workspaces.ts` new; `jobs.ts` removed; `agents.ts` slimmed (~100 LOC); `messages.ts` extended; `assistants.ts` + `topics.ts` extended |
+| `src/main/data/db/schemas/` | Agent / session / workspace / agent-message tables restructured |
+| `src/main/data/services/` | `SessionService.ts` + `WorkspaceService.ts` new; `AgentService.ts`, `AgentSessionMessageService.ts`, `MessageService.ts` heavy rewrites |
+| `src/main/data/api/handlers/` | `sessions.ts` + `workspaces.ts` new; `agents.ts` slimmed (~100 LOC); `messages.ts` extended; `assistants.ts` + `topics.ts` extended |
 | `src/main/data/migration/v2/migrators/` | `AgentsMigrator.ts` + `AgentsDbMappings.ts` rewrites; `ChatMigrator.ts` parts conversion; `ProviderModelMigrator.ts` `adapterFamily` backfill |
 | `packages/shared/data/types/` | `agentMessage.ts` + `agentSlashCommands.ts` + `uiParts.ts` new; `agent.ts` slimmed via Zod inference; `message.ts` heavy rewrite (parts model) |
 | `packages/shared/data/api/schemas/` | `sessions.ts` + `workspaces.ts` new; `agents.ts` slimmed by 126 LOC; `messages.ts` + `assistants.ts` + `providers.ts` extended |
@@ -155,18 +155,25 @@ join table to scheduled `agent_task` rows.
 
 ### `agent_task`, `agent_task_run_log`, `agent_global_skill`, `agent_skill`
 
-Scheduled-task infrastructure that replaces v1's `job` table. Each
-`agent_task` carries cron / interval / one-time scheduling plus a
-prompt; `agent_task_run_log` stores per-run outputs. `agent_global_skill`
-+ `agent_skill` model the (currently flat) "skill" catalog.
+Agent-domain scheduled-task storage. Each `agent_task` carries cron /
+interval / one-time scheduling plus a prompt; `agent_task_run_log`
+stores per-run outputs. `agent_global_skill` + `agent_skill` model the
+(currently flat) "skill" catalog.
 
-### `job` table — REMOVED
+### Relationship to the generic `job` / `job_schedule` stack
 
-The v1 `job` / `job_schedule` tables and the entire
-`JobService` / `JobScheduleService` / `jobs.ts` handler stack are gone.
-Cherry's only consumer of jobs was the agent scheduler; agents now own
-their schedule via `agent_task`. No DataApi `/jobs` endpoint exists in
-v2.
+`job` and `job_schedule` are the **generic** scheduling backbone owned
+by `JobManager` + `SchedulerService` + `JobService` /
+`JobScheduleService`. They are not removed — they were added on
+`origin/v2` in parallel with this branch's agent work and arrived here
+via the v2 merge. See
+[`docs/references/job-and-scheduler/`](../../../docs/references/job-and-scheduler/)
+for the design.
+
+The `agent_task` tables are layered ABOVE the job stack — the agent
+scheduler will register typed handlers against `JobManager` and store
+its own task metadata in `agent_task`. Reviewing changes here should
+treat the two as complementary, not as a replacement.
 
 ## Service-layer changes
 
@@ -196,11 +203,6 @@ v2.
   reads, sibling groups, branch active-path tracking. Drops every
   `blocks` reference.
 
-### `JobService` / `JobScheduleService` deleted
-
-Both services + their tests removed. References across the repo are now
-gone.
-
 ## DataApi handlers
 
 | Endpoint | Status | Notes |
@@ -209,9 +211,9 @@ gone.
 | `GET /sessions/:id/messages` | new | cursor-paginated |
 | `GET/POST /workspaces`, `/workspaces/:id`, `PATCH/DELETE` | new | workspace CRUD + reorder |
 | `/agents/*` | slimmed | ~100 LOC removed; legacy order endpoints gone |
-| `/jobs/*` | REMOVED | scheduler now lives under agent tasks |
 | `/messages/*` | extended | parts read/write, tree path, sibling helpers |
 | `/topics/*` | extended | branch-aware active-node tracking |
+| `/jobs/*`, `/job_schedules/*` | added on `origin/v2` (out of scope here) | see `docs/references/job-and-scheduler/` |
 
 ## Migration (v1 → v2)
 
@@ -332,8 +334,9 @@ Three places where the data model now distinguishes models:
    run.** Persistence writes it; reads must accept null.
 6. **Tool IDs are `${serverName}__${toolName}`** (double underscore) in
    the `allowedTools` JSON arrays. `mcps` is `string[]` of server ids.
-7. **`/jobs/*` API endpoint is gone.** Anything that tries to read
-   schedules from there is dead — go through `/agents/:id/tasks`.
+7. **`agent_task` is not the generic `job` stack.** Review of agent
+   tasks here should not touch `JobManager` / `SchedulerService` /
+   `job_schedule` — those land via `origin/v2` independently.
 
 ## Validation
 
@@ -362,3 +365,8 @@ Three places where the data model now distinguishes models:
   re-shape both.
 - `MessageService.ts` is at 1163 LOC — splitting into tree / sibling /
   branch helpers is queued for a follow-up.
+- Wiring `agent_task` execution onto the generic `JobManager` (instead
+  of an agent-local scheduler) — depends on the
+  [`job-and-scheduler`](../../../docs/references/job-and-scheduler/)
+  stack landing on this branch via merge and is not reviewed in this
+  cluster.
