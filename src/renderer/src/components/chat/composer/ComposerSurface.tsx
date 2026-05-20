@@ -1,5 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type {
   QuickPanelContextType,
@@ -278,6 +279,7 @@ export default function ComposerSurface({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
+  const { forceWideLayout } = useChatLayoutMode()
   const { setTimeoutTimer } = useTimer()
   const [customHeight, setCustomHeight] = useState<number | undefined>()
   const editorMinHeight = getComposerEditorMinHeight(fontSize)
@@ -600,7 +602,7 @@ export default function ComposerSurface({
   )
 
   return (
-    <NarrowLayout narrowMode={narrowMode} style={{ width: '100%' }}>
+    <NarrowLayout narrowMode={narrowMode && !forceWideLayout} style={{ width: '100%' }}>
       <div className="w-full">
         {topContent ? <div className="mb-6 flex justify-center">{topContent}</div> : null}
         <div

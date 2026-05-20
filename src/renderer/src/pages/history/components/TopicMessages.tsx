@@ -4,7 +4,10 @@ import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import MessageGroup from '@renderer/components/chat/messages/list/MessageGroup'
-import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import {
+  getLatestAssistantGroupKey,
+  groupMessageListItems
+} from '@renderer/components/chat/messages/utils/messageGroupKey'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
@@ -52,19 +55,6 @@ async function loadHistoryTopicMessages(topicId: string): Promise<CherryUIMessag
   return branchMessagesToFullUIMessages(pages.reverse().flat())
 }
 
-function groupMessageListItems(messages: MessageListItem[]): Record<string, MessageListItem[]> {
-  const grouped: Record<string, MessageListItem[]> = {}
-
-  for (const message of messages) {
-    const key =
-      message.role === 'assistant' && message.parentId ? `assistant${message.parentId}` : message.role + message.id
-    grouped[key] ??= []
-    grouped[key].push(message)
-  }
-
-  return grouped
-}
-
 const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   const navigate = useNavigate()
 
@@ -105,6 +95,7 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
     return uiMessages.map((message) => toMessageListItem(message, { topicId, assistantId: topic.assistantId }))
   }, [topic, topicId, uiMessages])
   const groupedMessages = useMemo(() => Object.entries(groupMessageListItems(messageItems)), [messageItems])
+  const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messageItems), [messageItems])
   const partsMap = useMemo(() => uiMessagesToPartsMap(uiMessages), [uiMessages])
   const hasMessages = messageItems.length > 0
   const isEmpty = !isLoadingMessages && !hasMessages
@@ -136,7 +127,11 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
 
               return (
                 <MessageWrapper key={key} className={classNames([messageStyle, wrapperRole])}>
-                  <MessageGroup messages={groupMessages} topic={topic} />
+                  <MessageGroup
+                    isLatestAssistantGroup={key === latestAssistantGroupKey}
+                    messages={groupMessages}
+                    topic={topic}
+                  />
                   {locateMessage && (
                     <Button
                       variant="ghost"

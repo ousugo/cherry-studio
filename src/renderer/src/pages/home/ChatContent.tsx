@@ -4,6 +4,7 @@ import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
 import ComposerDockTransitionFrame from '@renderer/components/chat/composer/ComposerDockTransitionFrame'
 import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import ChatComposer, { ChatHomeComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
+import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   RefreshProvider,
   type TranslationOverlayEntry,
@@ -348,68 +349,70 @@ const ChatContentInner: FC<InnerProps> = ({
         <RefreshProvider value={refresh}>
           <TranslationOverlaySetterProvider value={setTranslationOverlay}>
             <TranslationOverlayProvider value={translationOverlay}>
-              {(() => {
-                const main = (
-                  <>
-                    <HomeMessageList
-                      key={topic.id}
-                      topic={topic}
-                      messages={messages}
-                      partsByMessageId={partsByMessageId}
-                      isInitialLoading={isHistoryLoading}
-                      loadOlder={loadOlder}
-                      hasOlder={hasOlder}
-                      openCitationsPanel={onOpenCitationsPanel}
-                      respondToolApproval={respondToolApproval}
+              <ChatLayoutModeProvider>
+                {(() => {
+                  const main = (
+                    <>
+                      <HomeMessageList
+                        key={topic.id}
+                        topic={topic}
+                        messages={messages}
+                        partsByMessageId={partsByMessageId}
+                        isInitialLoading={isHistoryLoading}
+                        loadOlder={loadOlder}
+                        hasOlder={hasOlder}
+                        openCitationsPanel={onOpenCitationsPanel}
+                        respondToolApproval={respondToolApproval}
+                      />
+                    </>
+                  )
+                  const composer = (
+                    <ComposerContextProvider value={composerContext}>
+                      <ComposerCore
+                        fallback={
+                          shouldRenderHomeComposer ? (
+                            <ChatHomeComposer
+                              topic={topic}
+                              onSend={handleSend}
+                              onTemporaryAssistantChange={onTemporaryAssistantChange}
+                              onNewTopic={onNewTopic}
+                            />
+                          ) : (
+                            <ChatComposer
+                              topic={topic}
+                              onSend={handleSend}
+                              onNewTopic={onNewTopic}
+                              sendDisabled={isHistoryLoading}
+                            />
+                          )
+                        }
+                      />
+                    </ComposerContextProvider>
+                  )
+                  const dockedFrame = (
+                    <ComposerDockTransitionFrame
+                      placement={shouldRenderHomeComposer ? 'home' : 'docked'}
+                      main={main}
+                      composer={composer}
+                      mainVisible={!shouldRenderHomeComposer}
                     />
-                  </>
-                )
-                const composer = (
-                  <ComposerContextProvider value={composerContext}>
-                    <ComposerCore
-                      fallback={
-                        shouldRenderHomeComposer ? (
-                          <ChatHomeComposer
-                            topic={topic}
-                            onSend={handleSend}
-                            onTemporaryAssistantChange={onTemporaryAssistantChange}
-                            onNewTopic={onNewTopic}
-                          />
-                        ) : (
-                          <ChatComposer
-                            topic={topic}
-                            onSend={handleSend}
-                            onNewTopic={onNewTopic}
-                            sendDisabled={isHistoryLoading}
-                          />
-                        )
-                      }
-                    />
-                  </ComposerContextProvider>
-                )
-                const dockedFrame = (
-                  <ComposerDockTransitionFrame
-                    placement={shouldRenderHomeComposer ? 'home' : 'docked'}
-                    main={main}
-                    composer={composer}
-                    mainVisible={!shouldRenderHomeComposer}
-                  />
-                )
+                  )
 
-                if (renderFrame) {
-                  return renderFrame({ main: dockedFrame })
-                }
+                  if (renderFrame) {
+                    return renderFrame({ main: dockedFrame })
+                  }
 
-                return (
-                  <>
-                    <div
-                      className="flex flex-1 flex-col justify-between"
-                      style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-                      {dockedFrame}
-                    </div>
-                  </>
-                )
-              })()}
+                  return (
+                    <>
+                      <div
+                        className="flex flex-1 flex-col justify-between"
+                        style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+                        {dockedFrame}
+                      </div>
+                    </>
+                  )
+                })()}
+              </ChatLayoutModeProvider>
             </TranslationOverlayProvider>
           </TranslationOverlaySetterProvider>
         </RefreshProvider>

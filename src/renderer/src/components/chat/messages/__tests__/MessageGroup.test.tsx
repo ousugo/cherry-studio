@@ -1,6 +1,6 @@
 import type { Topic } from '@renderer/types'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
-import { createEvent, fireEvent, render, waitFor } from '@testing-library/react'
+import { act, createEvent, fireEvent, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -32,12 +32,19 @@ const mocks = vi.hoisted(() => ({
     startEditing: vi.fn(),
     stopEditing: vi.fn()
   }),
-  MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
+  MessageGroupMenuBar: vi.fn((_props: unknown) => <div className="group-menu-bar">menu</div>),
   HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
   MessageContent: vi.fn(() => <div style={{ minHeight: 600 }}>Long message content</div>),
   MessageEditor: vi.fn(() => <div>editor</div>),
   MessageErrorBoundary: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
-  MessageHeader: vi.fn(() => <div className="message-header">header</div>),
+  MessageHeader: vi.fn(({ contentSlot, footerSlot }: { contentSlot?: ReactNode; footerSlot?: ReactNode }) => (
+    <div className="message-header">
+      <div className="message-body-column">
+        {contentSlot && <div className="message-body-content">{contentSlot}</div>}
+        {footerSlot}
+      </div>
+    </div>
+  )),
   MessageMenuBar: vi.fn(() => <div className="message-menubar">menubar</div>),
   MessageOutline: vi.fn(() => null),
   messageListActions: vi.fn()
@@ -89,7 +96,8 @@ vi.mock('@renderer/utils', () => {
 
   return {
     classNames: (value: unknown) => flattenClassNames(value).join(' '),
-    cn: (...values: unknown[]) => flattenClassNames(values).join(' ')
+    cn: (...values: unknown[]) => flattenClassNames(values).join(' '),
+    isEmoji: () => false
   }
 })
 
@@ -184,6 +192,9 @@ vi.mock('../MessageListProvider', () => ({
     }
   },
   useMessageListSelection: () => undefined,
+  useMessageListMeta: () => ({
+    userProfile: { avatar: '' }
+  }),
   useMessageListUi: () => ({})
 }))
 
@@ -235,6 +246,15 @@ const setElementSize = (
 describe('MessageGroup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'horizontal',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
     mocks.messageListActions.mockReturnValue({
       setActiveBranch: vi.fn(),
       deleteMessageGroup: vi.fn(),
@@ -247,10 +267,82 @@ describe('MessageGroup', () => {
     const messages = [createMessage('msg-1', 0, 'vertical')]
     const topic = { id: 'topic-1' } as Topic
 
-    const { container } = render(<MessageGroup messages={messages} topic={topic} />)
+    const { container } = render(<MessageGroup isLatestAssistantGroup messages={messages} topic={topic} />)
     const messageElement = container.querySelector('#message-msg-1 .message')
 
     expect(messageElement).not.toHaveClass('px-4')
+  })
+
+  it('adds padding to grouped grid message cards', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'grid',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const messages = [createMessage('msg-1', 0, 'grid'), createMessage('msg-2', 1, 'grid')]
+    const topic = { id: 'topic-1' } as Topic
+
+    render(<MessageGroup messages={messages} topic={topic} />)
+
+    const gridCard = document.getElementById('message-msg-1')
+
+    expect(gridCard).toHaveClass('grid', 'p-2.5', '[&.grid_.message]:pt-0')
+  })
+
+  it('renders assistant content inside the message body column', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup messages={messages} topic={topic} />)
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const bodyColumn = container.querySelector('#message-msg-1 .message-body-column')
+
+    expect(contentContainer.closest('.message-body-column')).toBe(bodyColumn)
+    expect(contentContainer.style.marginLeft).toBe('')
+    expect(contentContainer.style.width).toBe('')
+  })
+
+  it('renders assistant footer actions in the same message body column as content', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup messages={messages} topic={topic} />)
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    const footer = container.querySelector('#message-msg-1 .MessageFooter') as HTMLElement
+
+    expect(footer.closest('.message-body-column')).toBe(contentContainer.closest('.message-body-column'))
+    expect(footer.style.marginLeft).toBe('')
+    expect(footer.style.width).toBe('')
+  })
+
+  it('keeps the latest assistant footer visible', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup isLatestAssistantGroup messages={messages} topic={topic} />)
+
+    const footer = container.querySelector('#message-msg-1 .MessageFooter')
+
+    expect(footer).toHaveClass('opacity-100')
+    expect(footer).not.toHaveClass('opacity-0')
+  })
+
+  it('hides non-latest assistant footers until hover or focus', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup isLatestAssistantGroup={false} messages={messages} topic={topic} />)
+
+    const footer = container.querySelector('#message-msg-1 .MessageFooter')
+
+    expect(footer).toHaveClass('opacity-0', 'group-hover/message:opacity-100', 'focus-within:opacity-100')
+    expect(footer).not.toHaveClass('opacity-100')
   })
 
   it('keeps vertical scrolling inside the message content area for horizontal layout', () => {
@@ -262,6 +354,8 @@ describe('MessageGroup', () => {
     const outerWrapper = document.getElementById('message-msg-1')
     expect(outerWrapper).not.toBeNull()
     expect(getComputedStyle(outerWrapper!).overflowY).toBe('visible')
+
+    expect(outerWrapper).toHaveClass('[&.horizontal_.message]:p-2.5')
 
     const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
     expect(contentContainer).not.toBeNull()
@@ -368,10 +462,41 @@ describe('MessageGroup', () => {
     const footer = container.querySelector('#message-user-1 .MessageFooter')
     const actions = footer?.querySelector('.message-menubar')?.parentElement
 
-    expect(footer).toHaveClass('w-full')
+    expect(footer?.closest('.message-body-column')).not.toBeNull()
+    expect((footer as HTMLElement).style.marginLeft).toBe('')
+    expect((footer as HTMLElement).style.width).toBe('')
     expect(footer).not.toHaveClass('opacity-0')
     expect(footer?.querySelector('[aria-hidden="true"]')).toBeNull()
     expect(actions).toHaveClass('opacity-0', 'group-hover/message:opacity-100')
+  })
+
+  it('keeps user bubble content and footer out of the assistant title-column offset', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+
+    const message = {
+      ...createMessage('user-bubble-1', 0, 'vertical'),
+      role: 'user'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup messages={[message]} topic={topic} />)
+
+    const contentContainer = container.querySelector('#message-user-bubble-1 .message-content-container') as HTMLElement
+    const footer = container.querySelector('#message-user-bubble-1 .MessageFooter') as HTMLElement
+
+    expect(container.querySelector('#message-user-bubble-1 .message-body-column')).toBeNull()
+    expect(contentContainer.style.marginLeft).toBe('')
+    expect(contentContainer.style.width).toBe('')
+    expect(footer.style.marginLeft).toBe('')
+    expect(footer).toHaveClass('w-[calc(100%-30px)]')
   })
 
   it('shows multi-model group controls even when the provider has no write actions', () => {
@@ -394,6 +519,40 @@ describe('MessageGroup', () => {
     render(<MessageGroup messages={messages} topic={topic} />)
 
     expect(mocks.MessageGroupMenuBar).toHaveBeenCalled()
+  })
+
+  it('notifies parent layout when multi-model group style changes', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const onMultiModelMessageStyleChange = vi.fn()
+    const updateMessageUiState = vi.fn()
+    mocks.messageListActions.mockReturnValue({
+      updateMessageUiState
+    })
+    const messages = [createMessage('msg-1', 0, 'fold'), createMessage('msg-2', 1, 'fold')]
+    const topic = { id: 'topic-1' } as Topic
+
+    render(
+      <MessageGroup messages={messages} topic={topic} onMultiModelMessageStyleChange={onMultiModelMessageStyleChange} />
+    )
+
+    const menuProps = mocks.MessageGroupMenuBar.mock.calls.at(-1)?.[0] as {
+      setMultiModelMessageStyle: (style: MultiModelMessageStyle) => void
+    }
+    act(() => {
+      menuProps.setMultiModelMessageStyle('horizontal')
+    })
+
+    expect(onMultiModelMessageStyleChange).toHaveBeenCalledWith('horizontal')
+    expect(updateMessageUiState).toHaveBeenCalledWith('msg-1', { multiModelMessageStyle: 'horizontal' })
+    expect(updateMessageUiState).toHaveBeenCalledWith('msg-2', { multiModelMessageStyle: 'horizontal' })
   })
 
   it('selects a newly added assistant sibling in fold layout', async () => {

@@ -44,6 +44,7 @@ interface Props {
   onUpdateUseful?: (msgId: string) => void
   isGroupContextMessage?: boolean
   isHorizontalMultiModelLayout?: boolean
+  isLatestAssistantMessage?: boolean
 }
 
 const WrapperContainer = ({
@@ -65,7 +66,8 @@ const MessageItem: FC<Props> = ({
   isGrouped,
   onUpdateUseful,
   isGroupContextMessage,
-  isHorizontalMultiModelLayout = false
+  isHorizontalMultiModelLayout = false,
+  isLatestAssistantMessage = false
 }) => {
   const { t } = useTranslation()
   const actions = useMessageListActions()
@@ -138,6 +140,9 @@ const MessageItem: FC<Props> = ({
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
+  const assistantFooterVisibilityClass = isLatestAssistantMessage
+    ? 'opacity-100'
+    : 'opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/message:opacity-100'
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -193,6 +198,72 @@ const MessageItem: FC<Props> = ({
     )
   }
 
+  const messageEditor = (
+    <MessageEditor message={message} onSave={handleEditSave} onResend={handleEditResend} onCancel={handleEditCancel} />
+  )
+
+  const plainMessageContent = isEditing ? (
+    messageEditor
+  ) : (
+    <Scrollbar
+      className="message-content-container mt-0 max-w-full overflow-y-auto pl-0"
+      style={{
+        fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+        fontSize,
+        overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
+      }}>
+      <MessageErrorBoundary>
+        <MessageContent message={message} />
+      </MessageErrorBoundary>
+    </Scrollbar>
+  )
+
+  const userFooter = showUserFooterActions ? (
+    <div className="MessageFooter relative mt-1 flex min-h-6.5 max-w-full items-center text-foreground-muted text-xs leading-none">
+      <div className={USER_MESSAGE_FOOTER_ACTIONS_CLASS}>
+        <MessageMenuBar
+          message={message}
+          topic={topic}
+          isLastMessage={isLastMessage}
+          isAssistantMessage={false}
+          isGrouped={isGrouped}
+          isProcessing={isProcessing}
+          messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+          onStartEditing={handleStartEditing}
+          onUpdateUseful={onUpdateUseful}
+          variant="header"
+        />
+        <SiblingNavigator messageId={message.id} />
+      </div>
+    </div>
+  ) : undefined
+
+  const assistantFooter = showAssistantFooterActions ? (
+    <div
+      className={cn(
+        'MessageFooter mt-1 flex min-h-6.5 items-center justify-between gap-1.5 text-xs leading-none',
+        assistantFooterVisibilityClass
+      )}>
+      <HorizontalScrollContainer
+        classNames={{
+          content: cn('flex-1 flex-row items-center justify-between')
+        }}>
+        <MessageMenuBar
+          message={message}
+          topic={topic}
+          isLastMessage={isLatestAssistantMessage}
+          isAssistantMessage={isAssistantMessage}
+          isGrouped={isGrouped}
+          isProcessing={isProcessing}
+          messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+          onStartEditing={handleStartEditing}
+          onUpdateUseful={onUpdateUseful}
+        />
+      </HorizontalScrollContainer>
+      <SiblingNavigator messageId={message.id} />
+    </div>
+  ) : undefined
+
   return (
     <WrapperContainer isMultiSelectMode={isMultiSelectMode}>
       <div
@@ -203,94 +274,32 @@ const MessageItem: FC<Props> = ({
           'message-user': !isAssistantMessage
         })}
         ref={messageContainerRef}>
-        {!isUserBubbleMessage && (
+        {isUserBubbleMessage ? (
+          isEditing ? (
+            messageEditor
+          ) : (
+            <UserBubbleMessage
+              message={message}
+              topic={topic}
+              isLastMessage={isLastMessage}
+              isGrouped={isGrouped}
+              isProcessing={isProcessing}
+              messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+              onStartEditing={handleStartEditing}
+              onUpdateUseful={onUpdateUseful}
+              messageFont={messageFont}
+              fontSize={fontSize}
+            />
+          )
+        ) : (
           <MessageHeader
             message={message}
             model={model}
             key={model ? createUniqueModelId(model.provider, model.id) : ''}
             isGroupContextMessage={isGroupContextMessage}
+            contentSlot={plainMessageContent}
+            footerSlot={userFooter ?? assistantFooter}
           />
-        )}
-        {isEditing && (
-          <MessageEditor
-            message={message}
-            onSave={handleEditSave}
-            onResend={handleEditResend}
-            onCancel={handleEditCancel}
-          />
-        )}
-        {!isEditing && (
-          <>
-            {isUserBubbleMessage ? (
-              <UserBubbleMessage
-                message={message}
-                topic={topic}
-                isLastMessage={isLastMessage}
-                isGrouped={isGrouped}
-                isProcessing={isProcessing}
-                messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                onStartEditing={handleStartEditing}
-                onUpdateUseful={onUpdateUseful}
-                messageFont={messageFont}
-                fontSize={fontSize}
-              />
-            ) : (
-              <Scrollbar
-                className="message-content-container mt-0 max-w-full overflow-y-auto pl-0"
-                style={{
-                  fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-                  fontSize,
-                  overflowY: isHorizontalMultiModelLayout ? 'auto' : 'visible'
-                }}>
-                <MessageErrorBoundary>
-                  <MessageContent message={message} />
-                </MessageErrorBoundary>
-              </Scrollbar>
-            )}
-            {showUserFooterActions && (
-              <div className="MessageFooter relative mt-1 ml-0 flex min-h-6.5 w-full max-w-full items-center text-foreground-muted text-xs leading-none">
-                <div className={USER_MESSAGE_FOOTER_ACTIONS_CLASS}>
-                  <MessageMenuBar
-                    message={message}
-                    topic={topic}
-                    isLastMessage={isLastMessage}
-                    isAssistantMessage={false}
-                    isGrouped={isGrouped}
-                    isProcessing={isProcessing}
-                    messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                    onStartEditing={handleStartEditing}
-                    onUpdateUseful={onUpdateUseful}
-                    variant="header"
-                  />
-                  <SiblingNavigator messageId={message.id} />
-                </div>
-              </div>
-            )}
-            {showAssistantFooterActions && (
-              <div
-                className={cn(
-                  'MessageFooter mt-1 ml-0 flex min-h-6.5 items-center justify-between gap-1.5 text-xs leading-none'
-                )}>
-                <HorizontalScrollContainer
-                  classNames={{
-                    content: cn('flex-1 flex-row items-center justify-between')
-                  }}>
-                  <MessageMenuBar
-                    message={message}
-                    topic={topic}
-                    isLastMessage={isLastMessage}
-                    isAssistantMessage={isAssistantMessage}
-                    isGrouped={isGrouped}
-                    isProcessing={isProcessing}
-                    messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                    onStartEditing={handleStartEditing}
-                    onUpdateUseful={onUpdateUseful}
-                  />
-                </HorizontalScrollContainer>
-                <SiblingNavigator messageId={message.id} />
-              </div>
-            )}
-          </>
         )}
       </div>
     </WrapperContainer>

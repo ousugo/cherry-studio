@@ -1,3 +1,4 @@
+import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { LoadingIcon } from '@renderer/components/Icons'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
@@ -24,9 +25,12 @@ import {
   useMessageListData,
   useMessageListMeta,
   useMessageListSelection,
+  useMessageListUi,
   useMessageRenderConfig
 } from './MessageListProvider'
-import { defaultMessageRenderConfig, type MessageListItem } from './types'
+import { defaultMessageRenderConfig } from './types'
+import { getLatestAssistantGroupKey, groupMessageListItems } from './utils/messageGroupKey'
+import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
@@ -34,19 +38,6 @@ const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertic
 interface ActiveMessageOutline {
   messageId: string
   multiModelMessageStyle: MultiModelMessageStyle
-}
-
-function groupMessageListItems(messages: MessageListItem[]): Record<string, MessageListItem[]> {
-  const grouped: Record<string, MessageListItem[]> = {}
-
-  for (const message of messages) {
-    const key =
-      message.role === 'assistant' && message.parentId ? `assistant${message.parentId}` : message.role + message.id
-    grouped[key] ??= []
-    grouped[key].push(message)
-  }
-
-  return grouped
 }
 
 function getMessageElementLayout(element: HTMLElement): MultiModelMessageStyle {
@@ -59,6 +50,8 @@ const MessageList = () => {
   const meta = useMessageListMeta()
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const selection = useMessageListSelection()
+  const messageUi = useMessageListUi()
+  const { setForceWideLayout } = useChatLayoutMode()
   const { topic, messages, beforeList, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
@@ -69,9 +62,39 @@ const MessageList = () => {
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
+  const [groupLayoutOverrides, setGroupLayoutOverrides] = useState<Record<string, MultiModelMessageStyle>>({})
 
   const groupedMessages = useMemo(() => Object.entries(groupMessageListItems(messages)), [messages])
+  const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messages), [messages])
   const { bindRuntime, copyImage, saveImage } = actions
+  const getMessageUiState = useCallback(
+    (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
+    [messageUi.getMessageUiState]
+  )
+  const useWideMessageLayout = useMemo(
+    () =>
+      groupedMessages.some(([key, groupMessages]) =>
+        shouldUseWideLayoutForMessageGroup(
+          groupMessages,
+          (messageId) => {
+            const uiState = getMessageUiState(messageId)
+            return {
+              ...uiState,
+              multiModelMessageStyle: groupLayoutOverrides[key] ?? uiState.multiModelMessageStyle
+            }
+          },
+          renderConfig.multiModelMessageStyle,
+          isMultiSelectMode
+        )
+      ),
+    [getMessageUiState, groupLayoutOverrides, groupedMessages, isMultiSelectMode, renderConfig.multiModelMessageStyle]
+  )
+  const messageListNarrowMode = renderConfig.narrowMode && !useWideMessageLayout
+
+  useEffect(() => {
+    setForceWideLayout(useWideMessageLayout)
+    return () => setForceWideLayout(false)
+  }, [setForceWideLayout, useWideMessageLayout])
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
@@ -216,7 +239,7 @@ const MessageList = () => {
   return (
     <MessagesContainer id="messages" className="messages-container" key={data.listKey}>
       {beforeList && (
-        <NarrowLayout narrowMode={renderConfig.narrowMode} withSidePadding className="shrink-0">
+        <NarrowLayout narrowMode={messageListNarrowMode} withSidePadding className="shrink-0">
           {beforeList}
         </NarrowLayout>
       )}
@@ -231,16 +254,24 @@ const MessageList = () => {
             bottomPadding={isMultiSelectMode ? MULTI_SELECT_BOTTOM_PADDING_PX : undefined}
             hasMoreTop={hasOlder}
             onReachTop={loadMoreMessages}
-            renderItem={([key, groupMessages]) => (
-              <NarrowLayout narrowMode={renderConfig.narrowMode} withSidePadding>
-                <MessageGroup
-                  key={key}
-                  messages={groupMessages}
-                  topic={topic}
-                  registerMessageElement={registerMessageElement}
-                />
-              </NarrowLayout>
-            )}
+            renderItem={([key, groupMessages]) => {
+              return (
+                <NarrowLayout narrowMode={messageListNarrowMode} withSidePadding>
+                  <MessageGroup
+                    key={key}
+                    isLatestAssistantGroup={key === latestAssistantGroupKey}
+                    messages={groupMessages}
+                    topic={topic}
+                    registerMessageElement={registerMessageElement}
+                    onMultiModelMessageStyleChange={(style) => {
+                      setGroupLayoutOverrides((current) =>
+                        current[key] === style ? current : { ...current, [key]: style }
+                      )
+                    }}
+                  />
+                </NarrowLayout>
+              )
+            }}
             style={{ flex: 1, minHeight: 0 }}
           />
           {isLoadingMore && (
