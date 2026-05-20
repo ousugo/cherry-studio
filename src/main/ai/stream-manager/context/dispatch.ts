@@ -1,23 +1,7 @@
 /**
- * Dispatch a stream request:
- *
- *   1. pick the first `ChatContextProvider` whose `canHandle(topicId)` matches
- *   2. let it `prepareDispatch` (resolve context, persist user input, build
- *      listeners / per-model requests)
- *   3. call `manager.send(...)` exactly once with the prepared bundle
- *   4. shape the `AiStreamOpenResponse`
- *
- * Two callers feed this with two slightly different shapes:
- *  - `Ai_Stream_Open` IPC handler (renderer-driven submit / regenerate),
- *    which forwards the renderer's `AiStreamOpenRequest` directly;
- *  - `Ai_ToolApproval_Respond` IPC handler (after the registry fast-path
- *    misses), which synthesises a Main-internal `continue-conversation`
- *    request — the renderer never sends that variant.
- *
- * Both shapes meet here as `MainDispatchRequest`. Keeping the `manager.send`
- * call on this single code path means providers never see the manager, the
- * inject / start / multi-model fan-out contract is enforced here, and adding
- * a new topic namespace only requires adding a provider.
+ * Single dispatch path for stream requests: pick provider, prepare,
+ * `manager.send`, shape the response. See
+ * `docs/references/ai/stream-manager.md`.
  */
 
 import { loggerService } from '@logger'
@@ -31,38 +15,25 @@ import { persistentChatContextProvider } from './PersistentChatContextProvider'
 import { temporaryChatContextProvider } from './TemporaryChatContextProvider'
 
 /**
- * Main-internal "resume an assistant turn paused on a tool-approval-request"
- * request. Synthesised inside the `Ai_ToolApproval_Respond` IPC handler
- * after `ToolApprovalRegistry` reports no live entry for `approvalId`. Not
- * exposed on the renderer↔main IPC contract — the renderer never sends
- * this directly.
+ * Resume an assistant turn paused on a tool-approval-request. Synthesised
+ * inside `Ai_ToolApproval_Respond` after `ToolApprovalRegistry` reports
+ * no live entry for `approvalId`. Not on the renderer↔main IPC contract.
  */
 export interface MainContinueConversationRequest {
   trigger: 'continue-conversation'
   topicId: string
-  /** Id of the existing assistant msg we're resuming. */
   parentAnchorId: string
-  /** User's resolution(s) for outstanding approval requests on the anchor. */
   approvalDecisions: ApprovalDecision[]
 }
 
-/**
- * Union accepted by `dispatchStreamRequest`. Provider implementations
- * (`prepareDispatch`) destructure on `req.trigger` to branch.
- */
 export type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest
 
 const logger = loggerService.withContext('chatContextDispatch')
 
 /**
- * Provider order: more-specific first. The persistent provider is a
- * catch-all and must stay last.
- *
- * `canHandle` is required to be mutually exclusive across providers — the
- * dispatcher takes the first match without sanity-checking the rest.
- * `agentChatContextProvider` matches the `agent-session:` prefix; the
- * temporary provider explicitly excludes that prefix even when its in-memory
- * map happens to carry one (defensive — see TemporaryChatContextProvider).
+ * More-specific providers first. `canHandle` MUST be mutually exclusive —
+ * the dispatcher takes the first match without checking the rest.
+ * `persistentChatContextProvider` is the catch-all and stays last.
  */
 const providers: readonly ChatContextProvider[] = [
   agentChatContextProvider,
@@ -93,9 +64,7 @@ export async function dispatchStreamRequest(
     lifecycle: prepared.lifecycle
   })
 
-  // Surface the authoritative ids the renderer needs to join its optimistic
-  // bubbles. `request.messageId` is the assistant placeholder row id (one per
-  // execution); the user row id comes from the provider when it created one.
+  // Ids the renderer needs to join its optimistic bubbles.
   const placeholderIds = prepared.models
     .map((m) => m.request.messageId)
     .filter((id): id is string => typeof id === 'string' && id.length > 0)

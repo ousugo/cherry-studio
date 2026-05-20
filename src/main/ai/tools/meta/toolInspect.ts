@@ -3,9 +3,6 @@
  * tool, useful when the brief description from `tool_search` isn't enough
  * to call it confidently. The model can copy the stub straight into a
  * `tool_exec` body or read it as documentation before `tool_invoke`.
- *
- * Lifted from the legacy hub server (`mcpServers/hub/format.ts`); now
- * operates over the unified registry instead of MCP-only.
  */
 
 import { asSchema, type Tool, tool } from 'ai'

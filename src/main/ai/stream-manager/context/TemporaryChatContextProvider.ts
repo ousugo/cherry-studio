@@ -1,15 +1,7 @@
 /**
- * TemporaryChatContextProvider — owns in-memory temporary chat topics.
- *
- * Contract:
- *  - Topic state lives in TemporaryChatService (Main-process Map, never touches SQLite).
- *  - Messages append sequentially and are immutable once written (no tree, no siblings,
- *    no placeholder/update workflow).
- *  - On stream start: append the user message.
- *  - On stream terminate: TemporaryPersistenceListener appends the assistant message.
- *
- * Routing is state-based (`hasTopic`) — after `persist()`, the topic moves out of
- * the in-memory map and ownership flips to the persistent provider under the same id.
+ * In-memory temporary topics — append-only, no tree, no siblings.
+ * Routing is state-based (`hasTopic`): after `persist()`, the topic
+ * moves out of the in-memory map and the persistent provider takes over.
  */
 
 import { loggerService } from '@logger'
@@ -31,21 +23,12 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
   readonly name = 'temporary'
 
   canHandle(topicId: string): boolean {
-    // Defensive: a topic id that matches the agent-session prefix is never
-    // a temporary topic, regardless of what `hasTopic` says. Provider order
-    // in `dispatch.ts` already places `agentChatContextProvider` first so
-    // this branch is normally unreachable, but excluding the prefix here
-    // protects against future re-orderings or stray rows in the temporary
-    // store with that prefix.
+    // Defensive — agent-session prefix is never temporary regardless of `hasTopic`.
     if (isAgentSessionTopic(topicId)) return false
     return temporaryChatService.hasTopic(topicId)
   }
 
   async prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch> {
-    // Temporary topics are immutable append-only; the start/inject distinction
-    // doesn't apply (every send launches a new turn). DispatchContext is
-    // accepted on the interface but not consumed here — the third arg is
-    // intentionally omitted from this signature.
     if (req.trigger === 'regenerate-message') {
       throw new Error('regenerate-message is not supported for temporary chats (immutable append-only)')
     }
@@ -77,9 +60,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       provider: providerId
     }
 
-    // 1. Append the user message first so `history` (= listMessages) includes it.
-    //    The service generates the id internally — temporary topics are window-local,
-    //    so no cross-process id alignment is required (see TemporaryPersistenceListener docstring).
+    // Append user first so `history` (listMessages) includes it. Service generates the id.
     await temporaryChatService.appendMessage(req.topicId, {
       role: 'user',
       data: { parts: req.userMessageParts },
@@ -88,7 +69,6 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       modelSnapshot
     })
 
-    // 2. Read the full linear history.
     const prior = await temporaryChatService.listMessages(req.topicId)
     const history: CherryUIMessage[] = prior.map((m) => ({
       id: m.id,
@@ -96,8 +76,6 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       parts: m.data.parts ?? []
     }))
 
-    // 3. Build listeners: subscriber (WebContents) + PersistenceListener wrapping
-    //    the in-memory temporary-chat backend.
     const listeners: StreamListener[] = [
       subscriber,
       new PersistenceListener({
@@ -107,9 +85,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       })
     ]
 
-    // 4. Hand off to the dispatcher. No pre-allocated `messageId`: AI SDK
-    //    generates one for the Renderer-visible streaming UIMessage; the
-    //    service-side message id is independent and generated on append.
+    // No pre-allocated `messageId`: AI SDK generates one for the UI; the service generates its own on append.
     const streamRequest: AiStreamRequest = {
       chatId: req.topicId,
       trigger: 'submit-message',

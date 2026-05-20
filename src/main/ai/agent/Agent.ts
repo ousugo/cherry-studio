@@ -1,24 +1,5 @@
 /**
- * Agent — class wrapping the streaming agent loop.
- *
- * The flow:
- *   1. `onStart` hook fires once.
- *   2. Build the AI SDK agent ONCE — config doesn't change between calls.
- *   3. Loop: call `agent.stream(messages)`. The steering observer drains
- *      `pendingMessages` mid-flight via `prepareStep`. After the stream
- *      settles, tail recheck — if the user injected a message after AI SDK's
- *      last `prepareStep` fired, drain it and call `agent.stream` again
- *      with the appended messages.
- *   4. `onFinish` hook fires once.
- *
- * Hooks come from N independent contributors (`AgentLoopParams.hookParts`):
- * features' `RequestFeature.contributeHooks`, the AiService analytics part,
- * etc. Internal observers (`Agent.on(key, fn)`) — usage, steering — fold
- * into the same `composeHooks` pass, observers running ahead of caller
- * hookParts. Symmetric across every hook key.
- *
- * Future: `runToCompletion()` / `toTool()` for subagent and agent-as-tool
- * composition (gated on a real consumer landing).
+ * Streaming agent loop. See `docs/references/ai/agent-loop.md`.
  */
 
 import { createAgent } from '@cherrystudio/ai-core'
@@ -50,11 +31,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     }
   }
 
-  /**
-   * Register an internal observer for a hook. Composes with caller
-   * hookParts via `composeHooks` — observers run first, caller parts after,
-   * errors are isolated per chain link.
-   */
+  /** Internal observer — composes ahead of caller hookParts via `composeHooks`. */
   on<K extends keyof AgentLoopHooks>(key: K, fn: NonNullable<AgentLoopHooks[K]>): () => void {
     const list = (this.observers[key] ??= []) as Array<NonNullable<AgentLoopHooks[K]>>
     list.push(fn)
@@ -64,22 +41,13 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     }
   }
 
-  /**
-   * Emit a chunk on the active stream's writer. No-op when no `stream()` is
-   * in flight. Used by `attachUsageObserver` to inject `message-metadata`.
-   */
+  /** No-op when no `stream()` is in flight. Used by `attachUsageObserver`. */
   write(chunk: UIMessageChunk): void {
     void this.currentWriter?.write(chunk).catch(() => {
       // Writer may already be closing from a peer cancel — swallow.
     })
   }
 
-  /**
-   * Fold all internal observers + caller hookParts into a single
-   * `AgentLoopHooks`. Each observer is a singleton `Partial<AgentLoopHooks>`;
-   * `composeHooks` already encodes the per-hook composition semantics
-   * (void-fan-out / chained prepareStep / etc.).
-   */
   private composedHooks(): AgentLoopHooks {
     const parts: Array<Partial<AgentLoopHooks>> = []
     for (const key of Object.keys(this.observers) as Array<keyof AgentLoopHooks>) {
@@ -93,11 +61,6 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     return composeHooks(parts)
   }
 
-  /**
-   * Build the AI SDK agent. Shared by `stream()` and `generate()` —
-   * config is identical, only the underlying call (`agent.stream` vs
-   * `agent.generate`) differs.
-   */
   private async buildAiSdkAgent(hooks: AgentLoopHooks) {
     const params = this.params
     const opts = params.options ?? {}
@@ -211,22 +174,19 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     }
 
     ;(async () => {
-      // ★ onStart — usage observer resets `cumulativeUsage` here.
       await safeCall('onStart', hooks.onStart)
 
-      // ◆ AI SDK: build ONCE — config doesn't change across tail-recheck
-      // rounds. Steering folds into prepareStep, which sees the live messages
-      // array on every step.
+      // Build once — config doesn't change across tail-recheck rounds.
       const aiAgent = await this.buildAiSdkAgent(hooks)
 
       let messages = initialMessages
       let modelMessages = await convertToModelMessages(initialMessages)
       let hasUsedProvidedMessageId = false
 
-      // Tail recheck loop. Most runs exit after one iteration. A second
-      // round only happens if the user injected a follow-up after AI SDK's
-      // last `prepareStep` fired — the steering observer can't catch that
-      // race, but a post-stream drain does.
+      // Most runs exit after one iteration. A second round only happens
+      // when the user injected a follow-up after AI SDK's last `prepareStep`
+      // fired — the steering observer can't catch that race; the post-stream
+      // drain below does.
       while (!signal.aborted) {
         const result = await aiAgent.stream({
           messages: modelMessages,
@@ -260,9 +220,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
 
         const response = await result.response
 
-        // Tail recheck: did anyone inject after the steering observer's
-        // last drain? If yes, append and re-stream with assistant turn
-        // included as context.
+        // Tail recheck: anything injected after the steering observer's last drain?
         const tail = params.pendingMessages?.drain() ?? []
         if (tail.length === 0) break
 
@@ -281,9 +239,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         modelMessages = [...modelMessages, ...(response.messages as ModelMessage[]), ...tailModel]
       }
 
-      // ★ onFinish (analytics, otel root span). Cleanup is centralised in
-      // `settleWriter` below — don't close `pendingMessages` here, the `.then`
-      // handler will do it exactly once.
+      // Cleanup is centralised in `settleWriter`; don't close `pendingMessages` here.
       await safeCall('onFinish', hooks.onFinish)
     })()
       .then(() => settleWriter())

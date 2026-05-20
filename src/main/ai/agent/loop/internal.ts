@@ -5,15 +5,7 @@ import type { AgentLoopHooks, ToolExecutionStartEvent } from './index'
 
 export const logger = loggerService.withContext('agentLoop')
 
-/**
- * Invoke a possibly-undefined callback once, swallowing any throw and logging
- * a warning. Returns the callback's resolved value, or `undefined` if the
- * callback was missing or threw.
- *
- * Single helper covers both the "fire-and-forget side effect" and "compute a
- * value" call patterns. Names align with AI SDK v7's `notify`/`callHook`
- * idiom but unified.
- */
+/** Swallows throws with a warn log. Returns `undefined` if missing or threw. */
 export async function safeCall<F extends (...args: never[]) => unknown>(
   name: string,
   cb: F | undefined,
@@ -28,12 +20,7 @@ export async function safeCall<F extends (...args: never[]) => unknown>(
   }
 }
 
-/**
- * Wrap a user-supplied hook so it stays isolated when forwarded to a
- * third party (e.g. AI SDK calls `prepareStep` / `onStepFinish` from
- * inside its execution loop). Returns `undefined` if the source hook is
- * absent so we don't pay for an empty wrapper.
- */
+/** Isolates a hook forwarded to AI SDK. `undefined` if no source hook. */
 export function wrapForwardedHook<F extends (...args: never[]) => unknown>(
   name: string,
   fn: F | undefined
@@ -43,12 +30,9 @@ export function wrapForwardedHook<F extends (...args: never[]) => unknown>(
 }
 
 /**
- * Wrap each tool's `execute` so `onToolExecutionStart` / `onToolExecutionEnd`
- * fire around the call. The wrapper measures `durationMs` from immediately
- * after the start hook resolves to immediately before the end hook is
- * dispatched, matching AI SDK v7's `executeToolCall` (excludes hook latency
- * from the tool's measured duration). Errors propagate after the end hook
- * runs so the SDK still treats tool failures normally.
+ * Brackets each tool's `execute` with start/end hooks. `durationMs`
+ * excludes hook latency, matching v7's `executeToolCall`. Errors
+ * propagate after the end hook runs.
  */
 export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: AgentLoopHooks): ToolSet | undefined {
   if (!tools) return tools
@@ -74,12 +58,8 @@ export function wrapToolsWithExecutionHooks(tools: ToolSet | undefined, hooks: A
 
         const startTime = performance.now()
         try {
-          // NOTE: AI SDK v6 allows `execute` to return AsyncIterable for
-          // preliminary streaming results. None of this codebase's tools
-          // use that today; if one ever does, the iterable would be
-          // returned untouched but the end hook would fire prematurely.
-          // Update the wrapper at that point — see v7's `for await` loop
-          // in `execute-tool-call.ts` for the reference implementation.
+          // NB: AI SDK v6 allows `execute` to return AsyncIterable for preliminary results.
+          // No current tool uses that; the end hook would fire prematurely if one did.
           const output = await originalExecute(input, options)
           const durationMs = performance.now() - startTime
           await safeCall('onToolExecutionEnd', hooks.onToolExecutionEnd, {

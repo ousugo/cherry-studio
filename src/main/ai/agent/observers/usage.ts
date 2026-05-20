@@ -1,25 +1,13 @@
 /**
- * Usage observer — accumulates per-step token usage and emits a
- * `message-metadata` chunk so consumers of `readUIMessageStream`
- * (Cherry's `PersistenceBackend`, the chat UI's stats panel) see the
- * running totals.
+ * Per-step token accumulator → `message-metadata` chunk. Reading
+ * `result.totalUsage` is unreliable because some providers skip the
+ * top-level `finish` part; per-step `usage` chunks survive, modulo the
+ * Vercel gateway shape bug handled by `gatewayUsageNormalizeFeature`.
  *
- * Why an internal observer and not just `result.totalUsage`: AI SDK's
- * top-level `finish` part is the only path that fills `totalUsage`, and
- * some providers skip it entirely. The per-step `usage` chunks are reliable
- * AS LONG AS the upstream V3 chunk follows the spec — see
- * `gatewayUsageNormalizeFeature` for the Vercel gateway's flat-vs-nested
- * shape bug we work around.
- *
- * The chunk projects AI SDK's `LanguageModelUsage` onto Cherry's legacy
- * `MessageStats`:
+ * Projection (AI SDK `LanguageModelUsage` → Cherry `MessageStats`):
  *   inputTokens                         → promptTokens
  *   outputTokens                        → completionTokens
- *   totalTokens                         → totalTokens
  *   outputTokenDetails.reasoningTokens  → thoughtsTokens
- *
- * Each `onStepFinish` writes a fresh metadata chunk; `readUIMessageStream`
- * merges by key, so the final values reflect the last step's running total.
  */
 
 import type { LanguageModelUsage } from 'ai'

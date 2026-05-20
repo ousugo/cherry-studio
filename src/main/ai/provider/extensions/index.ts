@@ -1,7 +1,4 @@
-/**
- * Cherry Studio 项目特定的 Provider Extensions
- * 用于支持运行时动态导入的 AI Providers
- */
+/** App-specific Provider Extensions registered alongside `coreExtensions`. */
 
 import { type AmazonBedrockProviderSettings, createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
@@ -29,9 +26,6 @@ import { createClaudeCode } from '../claude-code'
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
 
-/**
- * Google Vertex AI Extension
- */
 export const GoogleVertexExtension = ProviderExtension.create({
   name: 'google-vertex',
   aliases: ['vertexai'] as const,
@@ -51,9 +45,6 @@ export const GoogleVertexExtension = ProviderExtension.create({
   }
 } as const satisfies ProviderExtensionConfig<GoogleVertexProviderSettings, GoogleVertexProvider, 'google-vertex'>)
 
-/**
- * Google Vertex AI Anthropic Extension
- */
 export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   name: 'google-vertex-anthropic',
   aliases: ['vertexai-anthropic'] as const,
@@ -72,15 +63,12 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   'google-vertex-anthropic'
 >)
 
-/**
- * GitHub Copilot Extension
- */
 export const GitHubCopilotExtension = ProviderExtension.create({
   name: 'github-copilot-openai-compatible',
   aliases: ['copilot', 'github-copilot'] as const,
   supportsImageGeneration: false,
+  // Cast because the upstream package doesn't fully implement `ProviderV3`.
   create: (options?: GitHubCopilotProviderSettings) =>
-    // GitHubCopilot并没有完整的实现ProviderV3
     createGitHubCopilotOpenAICompatible(options) as unknown as ProviderV3
 } as const satisfies ProviderExtensionConfig<
   GitHubCopilotProviderSettings,
@@ -88,9 +76,6 @@ export const GitHubCopilotExtension = ProviderExtension.create({
   'github-copilot-openai-compatible'
 >)
 
-/**
- * Amazon Bedrock Extension
- */
 export const BedrockExtension = ProviderExtension.create({
   name: 'bedrock',
   aliases: ['aws-bedrock'] as const,
@@ -98,27 +83,18 @@ export const BedrockExtension = ProviderExtension.create({
   create: createAmazonBedrock
 } as const satisfies ProviderExtensionConfig<AmazonBedrockProviderSettings, ProviderV3, 'bedrock'>)
 
-/**
- * Perplexity Extension
- */
 export const PerplexityExtension = ProviderExtension.create({
   name: 'perplexity',
   supportsImageGeneration: false,
   create: createPerplexity
 } as const satisfies ProviderExtensionConfig<PerplexityProviderSettings, ProviderV3, 'perplexity'>)
 
-/**
- * Mistral Extension
- */
 export const MistralExtension = ProviderExtension.create({
   name: 'mistral',
   supportsImageGeneration: false,
   create: createMistral
 } as const satisfies ProviderExtensionConfig<MistralProviderSettings, ProviderV3, 'mistral'>)
 
-/**
- * HuggingFace Extension
- */
 export const HuggingFaceExtension = ProviderExtension.create({
   name: 'huggingface',
   aliases: ['hf', 'hugging-face'] as const,
@@ -126,9 +102,6 @@ export const HuggingFaceExtension = ProviderExtension.create({
   create: createHuggingFace
 } as const satisfies ProviderExtensionConfig<HuggingFaceProviderSettings, ProviderV3, 'huggingface'>)
 
-/**
- * Vercel AI Gateway Extension
- */
 export const GatewayExtension = ProviderExtension.create({
   name: 'gateway',
   aliases: ['ai-gateway'] as const,
@@ -136,45 +109,32 @@ export const GatewayExtension = ProviderExtension.create({
   create: createGateway
 } as const satisfies ProviderExtensionConfig<GatewayProviderSettings, ProviderV3, 'gateway'>)
 
-/**
- * Cerebras Extension
- */
 export const CerebrasExtension = ProviderExtension.create({
   name: 'cerebras',
   supportsImageGeneration: false,
   create: createCerebras
 } as const satisfies ProviderExtensionConfig<CerebrasProviderSettings, ProviderV3, 'cerebras'>)
 
-/**
- * Groq Extension
- */
 export const GroqExtension = ProviderExtension.create({
   name: 'groq',
   supportsImageGeneration: false,
   create: createGroq
 } as const satisfies ProviderExtensionConfig<GroqProviderSettings, ProviderV3, 'groq'>)
 
-/**
- * Ollama Extension
- */
 export const OllamaExtension = ProviderExtension.create({
   name: 'ollama',
   supportsImageGeneration: false,
   create: (options?: OllamaProviderSettings) => createOllama(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
 
-/**
- * AiHubMix Extension - multi-backend gateway (claude->anthropic, gemini->google, gpt->openai-responses)
- */
+/** AiHubMix — multi-backend gateway (claude→anthropic, gemini→google, gpt→openai-responses). */
 export const AiHubMixExtension = ProviderExtension.create({
   name: 'aihubmix',
   supportsImageGeneration: true,
   create: createAihubmix
 } as const satisfies ProviderExtensionConfig<AihubmixProviderSettings, ProviderV3, 'aihubmix'>)
 
-/**
- * NewAPI Extension - multi-backend gateway routed by endpoint_type
- */
+/** NewAPI — multi-backend gateway routed by endpoint_type. */
 export const NewApiExtension = ProviderExtension.create({
   name: 'newapi',
   aliases: ['new-api'] as const,
@@ -182,9 +142,6 @@ export const NewApiExtension = ProviderExtension.create({
   create: createNewApi
 } as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ProviderV3, 'newapi'>)
 
-/**
- * Together AI Extension - chat and image generation
- */
 export const TogetherAIExtension = ProviderExtension.create({
   name: 'togetherai',
   aliases: [SystemProviderIds.together] as const,
@@ -192,9 +149,7 @@ export const TogetherAIExtension = ProviderExtension.create({
   create: createTogetherAI
 } as const satisfies ProviderExtensionConfig<TogetherAIProviderSettings, ProviderV3, 'togetherai'>)
 
-/**
- * Voyage AI Extension - embeddings and reranking
- */
+/** Voyage — embeddings and reranking. */
 export const VoyageExtension = ProviderExtension.create({
   name: 'voyage',
   aliases: [SystemProviderIds.voyageai] as const,
@@ -202,20 +157,13 @@ export const VoyageExtension = ProviderExtension.create({
   create: createVoyage
 } as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV3, 'voyage'>)
 
-/**
- * Claude Code Extension — wraps Claude Agent SDK as a standard AI SDK provider.
- * Agent sessions go through the same agentLoop/streamText path as any other provider,
- * producing UIMessageChunk natively via toUIMessageStream().
- */
+/** Claude Agent SDK adapted to the AI SDK `Provider` shape; produces UIMessageChunks natively. */
 export const ClaudeCodeExtension = ProviderExtension.create({
   name: 'claude-code',
   supportsImageGeneration: false,
   create: (options?: ClaudeCodeProviderSettings) => createClaudeCode(options)
 } as const satisfies ProviderExtensionConfig<ClaudeCodeProviderSettings, ProviderV3, 'claude-code'>)
 
-/**
- * 所有项目特定的 Extensions
- */
 export const extensions = [
   GoogleVertexExtension,
   GoogleVertexAnthropicExtension,

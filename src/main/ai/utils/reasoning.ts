@@ -607,9 +607,7 @@ export function getReasoningEffort(
 }
 
 /**
- * Get OpenAI reasoning parameters
- * Extracted from OpenAIResponseAPIClient and OpenAIAPIClient logic
- * For official OpenAI provider only
+ * Get OpenAI reasoning parameters. For official OpenAI provider only.
  */
 export function getOpenAIReasoningParams(
   assistant: Assistant,
@@ -684,7 +682,6 @@ function getFallbackBudgetTokens(reasoningEffort: string | undefined): number {
 
 /**
  * Get Anthropic reasoning parameters.
- * Extracted from AnthropicAPIClient logic.
  *
  * Returns different parameter shapes depending on the model:
  * - **Claude 4.6**: `{ thinking: { type: 'adaptive' }, effort: 'low' | 'medium' | 'high' | 'max' }`

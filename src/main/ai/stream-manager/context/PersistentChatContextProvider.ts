@@ -1,15 +1,8 @@
 /**
- * PersistentChatContextProvider — the default provider for regular (SQLite-backed) topics.
- *
- * Responsibilities for a single `Ai_Stream_Open` request:
- *  - read the topic + assistant + model from SQLite
- *  - persist the user message (or resolve it when regenerating)
- *  - create one `pending` assistant placeholder per execution
- *  - build the conversation history from the tree path
- *  - assemble per-execution PersistenceListeners
- *
- * This provider intentionally handles "any topicId that isn't claimed by another provider".
- * Keep it last in the dispatcher providers array (see `./dispatch.ts`).
+ * Default provider for SQLite-backed topics. Catch-all in the dispatcher
+ * array — keep it last. Reads topic/assistant/model, persists user msg
+ * + placeholders, builds history from the tree path, assembles
+ * per-execution `PersistenceListener`s.
  */
 
 import { topicService } from '@data/services/TopicService'
@@ -33,14 +26,9 @@ import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupI
 const rawTracer = trace.getTracer(TRACER_NAME)
 
 /**
- * Create one OTel root span per execution. The span's `traceId` is the
- * source of truth for `Message.traceId` written below; the span is then
- * threaded through `PreparedDispatch.models[i].rootSpan` and stream-manager
- * sets it as active context around `runExecutionLoop` so AI SDK spans
- * become children sharing the traceId.
- *
- * Each root span is also registered in `SpanCacheService.topicMap` so
- * `getSpans(topicId, traceId)` can shard correctly when the viewer queries.
+ * One OTel root span per execution. Its `traceId` is the source of truth
+ * for `Message.traceId`; stream-manager sets the span active around
+ * `runExecutionLoop` so AI SDK spans become children.
  */
 function startTurnRootSpans(
   topicId: string,
@@ -78,10 +66,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const topic = await topicService.getById(req.topicId)
     const { assistantId, defaultModelId } = await resolveAssistantModelId(topic?.assistantId)
 
-    // 2. continue-conversation takes a separate code path:
-    //    no new placeholder is created — the existing assistant anchor is
-    //    reused. Multi-model isn't meaningful here either (the approval
-    //    belongs to one specific assistant turn).
+    // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
       return this.prepareContinueDispatch(subscriber, req, assistantId, defaultModelId)
     }
@@ -95,17 +80,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error(`'regenerate-message' requires parentAnchorId`)
     }
 
-    // 4. Siblings group (pure compute — backfill happens inside the reservation tx).
-    //    For non-regenerate this reads no children (resolver short-circuits on
-    //    models.length > 1 or single-model fresh turn), so passing parentAnchorId
-    //    even when undefined is harmless.
+    // Pure compute; backfill happens inside the reservation tx. Resolver short-circuits
+    // for non-regenerate, so passing undefined parentAnchorId is harmless.
     const siblingsGroupId = await resolvePersistentSiblingsGroupId(models, isRegenerate, req.parentAnchorId ?? '')
 
-    // 5. Atomically reserve user message + N placeholders in one transaction.
-    //    On any failure SQLite rolls back everything — no compensation logic
-    //    needed. Main owns all message ids; the renderer reconciles by
-    //    replacing `useChat.state.messages` with the DB snapshot on
-    //    stream-done (see `useChatWithHistory.refreshAndReplace`).
+    // User message + N placeholders in one tx — SQLite rolls back on any failure.
     const userMessageInput =
       req.trigger === 'submit-message'
         ? ({
@@ -124,8 +103,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           } as const)
         : ({ mode: 'existing' as const, id: req.parentAnchorId } as const)
 
-    // Each execution gets its own OTel root span; the span's traceId is the
-    // canonical identifier the trace viewer keys on (Message.traceId === span.traceId).
+    // Span traceId == Message.traceId — the viewer keys on this.
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models)
 
     const { userMessage, placeholders } = await messageService.createUserMessageWithPlaceholders({
@@ -157,10 +135,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       rootSpan: span
     }))
 
-    // 6. Build listeners: 1 subscriber + N persistence listeners (one per model).
-    //    Each listener wraps a MessageServiceBackend that finalizes a single
-    //    placeholder. Auto-rename (the only afterPersist hook today) is attached
-    //    to *one* backend so it fires exactly once even in multi-model turns.
+    // 1 subscriber + N per-model persistence listeners. Auto-rename attaches
+    // to the first backend only so it fires once for multi-model turns.
     const listeners: StreamListener[] = [subscriber]
     for (let i = 0; i < assistantPlaceholders.length; i++) {
       const { model, placeholder } = assistantPlaceholders[i]
@@ -210,20 +186,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   }
 
   /**
-   * `continue-conversation` path: resume an assistant turn that paused on
-   * a tool-approval-request. We reuse the existing assistant row — no new
-   * placeholder, no sibling group, no user message.
-   *
-   * Renderer sends only the user's *decisions* (which approvalIds were
-   * approved/cancelled, with optional reason). Main reads its own DB
-   * snapshot of the anchor, applies those decisions itself, and writes the
-   * result back — preserving the invariant that Main is the single writer
-   * of message rows. (Cherry's DB is source of truth, unlike AI SDK's
-   * default client-owned-history model.)
-   *
-   * Persistence reuses the same `MessageServiceBackend` that finalized
-   * the original placeholder — `assistantMessageId === anchor.id` makes
-   * the next stream's terminal write an update, not an insert.
+   * Resume an assistant turn paused on tool-approval. Reuses the existing
+   * row (no new placeholder, no sibling group). Renderer sends decisions
+   * only; Main applies them to DB-authoritative parts. Backend's
+   * `assistantMessageId === anchor.id` makes the terminal write an update.
    */
   private async prepareContinueDispatch(
     subscriber: StreamListener,
@@ -239,9 +205,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error(`'continue-conversation' anchor does not belong to topic ${req.topicId}`)
     }
 
-    // Apply renderer-supplied decisions to the DB-authoritative parts and
-    // flip the row back to `pending`. Subsequent reads (including buildHistory
-    // below) now see the approved state.
+    // Apply decisions to DB parts and flip status to `pending` so buildHistory sees the approved state.
     const beforeParts = anchor.data.parts ?? []
     const updatedParts = applyApprovalDecisions(beforeParts, req.approvalDecisions)
     await messageService.update(req.parentAnchorId, {
@@ -249,9 +213,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       status: 'pending'
     })
 
-    // Single execution: continue uses the model the original assistant was
-    // generated with. `mentionedModelIds` is intentionally ignored — switching
-    // models mid-approval would invalidate the approval semantics.
+    // Continue uses the original assistant's model — switching mid-approval invalidates approval semantics.
     const continueModelId = (anchor.modelId as UniqueModelId | undefined) ?? defaultModelId
     const [model] = await resolveModels([continueModelId], defaultModelId)
 
@@ -290,12 +252,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   }
 
   /**
-   * Read conversation history along the active path from root → anchor.
-   * Anchor is whatever message the resumed/new turn hangs off of:
-   *  - user msg for submit/regenerate
-   *  - assistant msg for continue-conversation (history then includes
-   *    that assistant's parts so the model sees approval-responded state)
-   * Pulled out of AiStreamManager so the registry stays free of data-layer dependencies.
+   * Path from root → anchor. Anchor: user msg for submit/regenerate, or
+   * assistant msg for continue-conversation (so the model sees the
+   * approval-responded state).
    */
   private async buildHistory(anchorMessageId: string): Promise<CherryUIMessage[]> {
     const messagePath = await messageService.getPathToNode(anchorMessageId)

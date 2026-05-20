@@ -1,28 +1,8 @@
 /**
- * Writes an assistant turn to its store when a stream ends.
- *
- * This class is storage-agnostic: it runs the observer-side protocol
- * (filtering by `modelId` so multi-model topics persist per execution,
- * attaching an error part onto the accumulated message, logging) and
- * delegates the actual write to a `PersistenceBackend` strategy.
- *
- * All three terminal callbacks (`onDone` / `onPaused` / `onError`) hand
- * the same `{ finalMessage, status }` shape to the backend — the listener
- * handles the only status-specific detail, which is folding the error
- * into `finalMessage.parts` so backends never see raw `SerializedError`.
- *
- * Semantic timings (first `text-delta`, reasoning boundaries) are also
- * tracked here rather than in `AiStreamManager`. The manager is
- * chunk-shape-agnostic by design; any time metric that requires peeking
- * at `chunk.type` belongs to the listener that cares about it. The
- * manager-side `TransportTimings` (`startedAt` / `completedAt`) arrives
- * on the terminal `result.timings` and gets merged with the listener's
- * `SemanticTimings` before calling `statsFromTerminal`.
- *
- * Three built-in backends:
- *  - `MessageServiceBackend`  — persistent (SQLite) chats
- *  - `TemporaryChatBackend`   — temporary (in-memory) chats
- *  - `AgentMessageBackend`    — agent sessions (agents DB)
+ * Storage-agnostic terminal-event listener: filters by `modelId`, folds
+ * errors into `finalMessage.parts`, tracks semantic timings (chunk-shape
+ * knowledge stays out of the manager), composes `MessageStats`, delegates
+ * the write to a `PersistenceBackend`.
  */
 
 import { loggerService } from '@logger'
@@ -46,11 +26,7 @@ const logger = loggerService.withContext('PersistenceListener')
 export interface PersistenceListenerOptions {
   /** Listener id namespace — typically the topic id. */
   topicId: string
-  /**
-   * Model this listener owns. Multi-model topics have one listener per
-   * execution; events that don't match this modelId are filtered out.
-   * Undefined means "any" — used for single-model contexts.
-   */
+  /** Multi-model: one listener per execution, filter by modelId. Undefined = single-model "any". */
   modelId?: UniqueModelId
   backend: PersistenceBackend
 }
@@ -58,15 +34,6 @@ export interface PersistenceListenerOptions {
 export class PersistenceListener implements StreamListener {
   readonly id: string
 
-  /**
-   * AI-SDK-specific chunk-transition timings owned by this listener. The
-   * manager deliberately does not track these — keeping chunk-shape
-   * knowledge out of the transport layer makes the manager robust to
-   * SDK payload changes. One object per listener instance is enough:
-   *  - single-model topics have one listener that sees every chunk;
-   *  - multi-model topics have one listener per execution (each with a
-   *    fixed `opts.modelId`), so each instance only ever sees its own.
-   */
   private semanticTimings: SemanticTimings = {}
 
   constructor(private readonly opts: PersistenceListenerOptions) {
@@ -78,18 +45,7 @@ export class PersistenceListener implements StreamListener {
     return this.opts.backend.kind
   }
 
-  /**
-   * Observe chunk types to maintain semantic timings. Must stay in sync
-   * with the ownership model above — we early-return when a chunk
-   * belongs to a different execution than this listener tracks.
-   *
-   * All three boundaries use set-once semantics:
-   *  - `firstTextAt` — first `text-delta` ever seen; doubles as the
-   *    end-of-reasoning marker when reasoning was in progress.
-   *  - `reasoningStartedAt` — first `reasoning-*` ever seen.
-   *  - `reasoningEndedAt` — `firstTextAt` if reasoning preceded text;
-   *    otherwise left undefined and `statsFromTerminal` ignores it.
-   */
+  /** Set-once timings. `reasoningEndedAt` = `firstTextAt` when reasoning preceded text; else undefined. */
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void {
     if (!this.owns(sourceModelId)) return
 
@@ -120,9 +76,7 @@ export class PersistenceListener implements StreamListener {
 
   async onError(result: StreamErrorResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    // Fold the error into the accumulated message once, here, so every
-    // backend's `persistAssistant` sees a uniform UIMessage shape and
-    // never has to synthesise one from raw `SerializedError`.
+    // Folded once here so backends see a uniform UIMessage shape, not `SerializedError`.
     const withErrorPart = mergeErrorIntoMessage(result.finalMessage, result.error)
     await this.persistAssistant(withErrorPart, 'error', result.timings)
   }
@@ -149,9 +103,6 @@ export class PersistenceListener implements StreamListener {
       return
     }
 
-    // Compose stats once (tokens from metadata + transport/semantic
-    // timings merged) so every backend writes the same canonical
-    // `MessageStats` shape.
     const stats = statsFromTerminal(
       finalMessage,
       transportTimings ? { ...transportTimings, ...this.semanticTimings } : undefined
@@ -191,11 +142,7 @@ export class PersistenceListener implements StreamListener {
   }
 }
 
-/**
- * Fold a `SerializedError` into the accumulated `finalMessage` as a
- * trailing `data-error` part. Returns a synthetic message when the
- * stream errored before producing any chunks.
- */
+/** Returns a synthetic message when the stream errored before producing chunks. */
 function mergeErrorIntoMessage(base: CherryUIMessage | undefined, error: SerializedError): CherryUIMessage {
   const baseParts = (base?.parts ?? []) as CherryMessagePart[]
   const errorPart: CherryMessagePart = { type: 'data-error', data: { ...error } }
