@@ -161,7 +161,7 @@ export function useExecutionOverlay(
             const message = last ?? seed
             if (message || t.isError) {
               onFinishRef.current?.(executionId, {
-                message: (message ?? { id: '', role: 'assistant', parts: [] }) as CherryUIMessage,
+                message: message ?? { id: '', role: 'assistant', parts: [] },
                 isAbort: t.isAbort,
                 isError: t.isError
               })
