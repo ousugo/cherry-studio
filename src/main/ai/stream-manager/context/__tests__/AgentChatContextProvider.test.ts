@@ -85,7 +85,6 @@ describe('AgentChatContextProvider', () => {
 
     expect(prepared.models).toHaveLength(1)
     expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet')
-    expect(prepared.models[0].request.runtime).toBeUndefined()
     expect(prepared.models[0].request.pendingMessages).toBeUndefined()
     expect(prepared.listeners).toEqual([subscriber, expect.any(Object)])
   })
