@@ -151,10 +151,13 @@ async function resolveTools(
   if (!mcpIdList && request.assistantId) {
     mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
   }
-  if (mcpIdList?.length) {
-    await syncMcpToolsToRegistry()
-  }
   const mcpToolIds = new Set(mcpIdList ?? [])
+  if (mcpToolIds.size) {
+    // Scope the registry sync to servers that actually own a selected tool —
+    // avoids paying the per-server `listTools` round-trip for every active
+    // server when only one was picked for this request.
+    await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
+  }
 
   const activeEntries = registry.selectActive({ assistant, mcpToolIds })
   let tools: ToolSet | undefined
