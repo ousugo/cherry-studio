@@ -211,9 +211,6 @@ importers:
       '@ai-sdk/cohere':
         specifier: ^3.0.30
         version: 3.0.30(zod@4.3.4)
-      '@ai-sdk/devtools':
-        specifier: ^0.0.17
-        version: 0.0.17
       '@ai-sdk/gateway':
         specifier: ^3.0.104
         version: 3.0.104(zod@4.3.4)
@@ -247,9 +244,6 @@ importers:
       '@ai-sdk/provider-utils':
         specifier: 4.0.23
         version: 4.0.23(zod@4.3.4)
-      '@ai-sdk/react':
-        specifier: ^3.0.147
-        version: 3.0.186(react@19.2.3)(zod@4.3.4)
       '@ai-sdk/test-server':
         specifier: ^1.0.3
         version: 1.0.3(@types/node@24.10.4)(typescript@5.8.3)
@@ -269,8 +263,8 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3(antd@5.27.0(patch_hash=cdc383bd0d9b9fe0df2ce7b1f1d4ead200012b7f9517d9257b4ea0a5b324e243)(date-fns@4.1.0)(luxon@3.7.2)(moment@2.30.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@anthropic-ai/sdk':
-        specifier: ^0.81.0
-        version: 0.81.0(zod@4.3.4)
+        specifier: ^0.41.0
+        version: 0.41.0(encoding@0.1.13)
       '@aws-sdk/client-s3':
         specifier: ^3.998.0
         version: 3.998.0
@@ -497,8 +491,8 @@ importers:
         specifier: ^1.139.3
         version: 1.168.10(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@tanstack/react-virtual':
-        specifier: ^3.13.24
-        version: 3.13.24(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: ^3.13.12
+        version: 3.13.14(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@tanstack/router-plugin':
         specifier: ^1.139.3
         version: 1.167.12(@tanstack/react-router@1.168.10(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(rolldown-vite@7.3.0(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2))
@@ -787,6 +781,9 @@ importers:
       country-flag-emoji-polyfill:
         specifier: 0.1.8
         version: 0.1.8
+      croner:
+        specifier: ^10.0.1
+        version: 10.0.1
       dayjs:
         specifier: ^1.11.11
         version: 1.11.19
@@ -1054,6 +1051,9 @@ importers:
       react-i18next:
         specifier: ^14.1.2
         version: 14.1.3(i18next@23.16.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react-infinite-scroll-component:
+        specifier: ^6.1.0
+        version: 6.1.1(react@19.2.3)
       react-json-view:
         specifier: ^1.21.3
         version: 1.21.3(@types/react@19.2.7)(encoding@0.1.13)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1764,19 +1764,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/devtools@0.0.17':
-    resolution: {integrity: sha512-CJgo+3DMHOJbxxq1qTgnW4vpFXgBW1pHePMimBW4Go5FPU7iLqppoGX/UC798IXqlD3hncQRPfyBLZjbsJC91w==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   '@ai-sdk/gateway@3.0.104':
     resolution: {integrity: sha512-ZKX5n74io8VIRlhIMSLWVlvT3sXC8Z7cZ9GHuWBWZDVi96+62AIsWuLGvMfcBA1STYuSoDrp6rIziZmvrTq0TA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/gateway@3.0.115':
-    resolution: {integrity: sha512-xonmGfN9pt54WdKqMzWe68BRYS3rsYvraBzioyA0gfNcecHs8Ir5qk/X8grJSyZ95hghjWiOphrK6bAc11E6SA==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -1847,10 +1836,6 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/provider@3.0.10':
-    resolution: {integrity: sha512-Q3BZ27qfpYqnCYGvE3vt+Qi6LGOF9R5Nmzn+9JoM1lCRsD9mYaIhfJLkSunN48nfGXJ6n+XNV0J/XVpqGQl7Dw==}
-    engines: {node: '>=18'}
-
   '@ai-sdk/provider@3.0.8':
     resolution: {integrity: sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==}
     engines: {node: '>=18'}
@@ -1858,12 +1843,6 @@ packages:
   '@ai-sdk/provider@3.0.9':
     resolution: {integrity: sha512-/ngMKqKdL9dSlY/eQ3NFDzzFyw0Hix+cbFFlyuKEKcOgpHdBt/spKUvX/i0wGrDLFPYJeVvv3N0j92LxWRL7yQ==}
     engines: {node: '>=18'}
-
-  '@ai-sdk/react@3.0.186':
-    resolution: {integrity: sha512-fy8wuy8pBghYD1ECw/M5vAsGsZp2D3y/oSTp1iOlAnJqRXzvz4rWLBz1n+rjL+aHZNgJK3kR3NHlnifoKYERfA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      react: ^18 || ~19.0.1 || ~19.1.2 || ^19.2.1
 
   '@ai-sdk/test-server@1.0.3':
     resolution: {integrity: sha512-Qw/phEW2IBKzfHIVdySuYijoqAvVJKuwupCrDbl1ofPJ4jsaH/+f+6EysRwui8LNlo/tbFgH0P39gvRFLKHleQ==}
@@ -1938,6 +1917,9 @@ packages:
 
   '@anthropic-ai/sdk@0.27.3':
     resolution: {integrity: sha512-IjLt0gd3L4jlOfilxVXTifn42FnVffMgDC04RJK1KDZpmkBWLv0XC92MVVmkxrFZNS/7l3xWgP/I3nqtX1sQHw==}
+
+  '@anthropic-ai/sdk@0.41.0':
+    resolution: {integrity: sha512-A4sfU0ss3BhhfMrm1RNl4YRt8B9CMIkheCRfow0vV3h0rYI9GBT/9lVsQPKGMwStnJSdowqUnVdSxLLrnutcHg==}
 
   '@anthropic-ai/sdk@0.81.0':
     resolution: {integrity: sha512-D4K5PvEV6wPiRtVlVsJHIUhHAmOZ6IT/I9rKlTf84gR7GyyAurPJK7z9BOf/AZqC5d1DhYQGJNKRmV+q8dGhgw==}
@@ -6638,8 +6620,8 @@ packages:
       react: '>=16.8'
       react-dom: '>=16.8'
 
-  '@tanstack/react-virtual@3.13.24':
-    resolution: {integrity: sha512-aIJvz5OSkhNIhZIpYivrxrPTKYsjW9Uzy+sP/mx0S3sev2HyvPb7xmjbYvokzEpfgYHy/HjzJ2zFAETuUfgCpg==}
+  '@tanstack/react-virtual@3.13.14':
+    resolution: {integrity: sha512-WG0d7mBD54eA7dgA3+sO5csS0B49QKqM6Gy5Rf31+Oq/LTKROQSao9m2N/vz1IqVragOKU5t5k1LAcqh/DfTxw==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -6686,8 +6668,8 @@ packages:
     resolution: {integrity: sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==}
     engines: {node: '>=12'}
 
-  '@tanstack/virtual-core@3.14.0':
-    resolution: {integrity: sha512-JLANqGy/D6k4Ujmh8Tr25lGimuOXNiaVyXaCAZS0W+1390sADdGnyUdSWNIfd49gebtIxGMij4IktRVzrdr12Q==}
+  '@tanstack/virtual-core@3.13.14':
+    resolution: {integrity: sha512-b5Uvd8J2dc7ICeX9SRb/wkCxWk7pUwN214eEPAQsqrsktSKTCmyLxOQWSMgogBByXclZeAdgZ3k4o0fIYUIBqQ==}
 
   '@tanstack/virtual-file-routes@1.161.7':
     resolution: {integrity: sha512-olW33+Cn+bsCsZKPwEGhlkqS6w3M2slFv11JIobdnCFKMLG97oAI2kWKdx5/zsywTL8flpnoIgaZZPlQTFYhdQ==}
@@ -7802,12 +7784,6 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  ai@6.0.184:
-    resolution: {integrity: sha512-j//zHkKvj5ra27l8izHco8cj1g1Pr7vx1ZK+hrzrkHvndgIRmdfZKOb6+RAPpvbk42qGIsuYvlYbGlVAu3erNQ==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
   ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
     peerDependencies:
@@ -8693,6 +8669,10 @@ packages:
   cron-parser@5.5.0:
     resolution: {integrity: sha512-oML4lKUXxizYswqmxuOCpgFS8BNUJpIu6k/2HVHyaL8Ynnf3wdf9tkns0yRdJLSIjkJ+b0DXHMZEHGpMwjnPww==}
     engines: {node: '>=18'}
+
+  croner@10.0.1:
+    resolution: {integrity: sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g==}
+    engines: {node: '>=18.0'}
 
   cross-dirname@0.1.0:
     resolution: {integrity: sha512-+R08/oI0nl3vfPcqftZRpytksBXDzOUveBq/NBVx0sUp1axwzPQrKinNx5yd5sxPu8j1wIy8AfnVQ+5eFdha6Q==}
@@ -11965,6 +11945,11 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
+  nanoid@3.3.12:
+    resolution: {integrity: sha512-ZB9RH/39qpq5Vu6Y+NmUaFhQR6pp+M2Xt76XBnEwDaGcVAqhlvxrl3B2bKS5D3NH3QR76v3aSrKaF/Kiy7lEtQ==}
+    engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
+    hasBin: true
+
   nanoid@5.1.6:
     resolution: {integrity: sha512-c7+7RQ+dMB5dPwwCp4ee1/iV/q2P6aK1mTZcfr1BTuVlyW9hJYiMPybJCcnBlQtuSmTIWNeazm/zqNoZSSElBg==}
     engines: {node: ^18 || >=20}
@@ -12551,8 +12536,8 @@ packages:
     resolution: {integrity: sha512-OCVPnIObs4N29kxTjzLfUryOkvZEq+pf8jTF0lg8E7uETuWHA+v7j3c/xJmiqpX450191LlmZfUKkXxkTry7nA==}
     engines: {node: ^10 || ^12 || >=14}
 
-  postcss@8.5.14:
-    resolution: {integrity: sha512-SoSL4+OSEtR99LHFZQiJLkT59C5B1amGO1NzTwj7TT1qCUgUO6hxOvzkOYxD+vMrXBM3XJIKzokoERdqQq/Zmg==}
+  postcss@8.5.15:
+    resolution: {integrity: sha512-FfR8sjd4em2T6fb3I2MwAJU7HWVMr9zba+enmQeeWFfCbm+UOC/0X4DS8XtpUTMwWMGbjKYP7xjfNekzyGmB3A==}
     engines: {node: ^10 || ^12 || >=14}
 
   postcss@8.5.6:
@@ -13088,6 +13073,11 @@ packages:
         optional: true
       react-native:
         optional: true
+
+  react-infinite-scroll-component@6.1.1:
+    resolution: {integrity: sha512-R8YoOyiNDynSWmfVme5LHslsKrP+/xcRUWR2ies8UgUab9dtyw5ECnMCVPPmnmjjF4MWQmfVdRwRWcWaDgeyMA==}
+    peerDependencies:
+      react: '>=16.0.0'
 
   react-is@16.13.1:
     resolution: {integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==}
@@ -14189,13 +14179,13 @@ packages:
   thenify@3.3.1:
     resolution: {integrity: sha512-RVZSIV5IG10Hk3enotrhvz0T9em6cyHBLkH/YAZuKqd8hRkKhSfCGIcP2KUY0EPxndzANBmNllzWPwak+bheSw==}
 
+  throttle-debounce@2.3.0:
+    resolution: {integrity: sha512-H7oLPV0P7+jgvrk+6mwwwBDmxTaxnu9HMXmloNLXwnNO0ZxZ31Orah2n8lU1eMPvsaowP2CX+USCgyovXfdOFQ==}
+    engines: {node: '>=8'}
+
   throttle-debounce@5.0.2:
     resolution: {integrity: sha512-B71/4oyj61iNH0KeCamLuE2rmKuTO5byTOSVwECM5FA7TiAiAW+UqTKZ9ERueC4qvgSttUhdmq1mXC3kJqGX7A==}
     engines: {node: '>=12.22'}
-
-  throttleit@2.1.0:
-    resolution: {integrity: sha512-nt6AMGKW1p/70DF/hGBdJB57B8Tspmbp5gfJ8ilhLnt7kkr2ye7hzD6NVG8GGErk2HWF34igrL2CXmNIkzKqKw==}
-    engines: {node: '>=18'}
 
   through2@4.0.2:
     resolution: {integrity: sha512-iOqSav00cVxEEICeD7TjLB1sueEL+81Wpzp2bY17uZjZN0pWZPuo4suZ/61VujxmqSGFfgOcNuTZ85QJwNZQpw==}
@@ -15430,22 +15420,9 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.23(zod@4.3.4)
       zod: 4.3.4
 
-  '@ai-sdk/devtools@0.0.17':
-    dependencies:
-      '@ai-sdk/provider': 3.0.10
-      '@hono/node-server': 1.19.9(hono@4.12.2)
-      hono: 4.12.2
-
   '@ai-sdk/gateway@3.0.104(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.4)
-      '@vercel/oidc': 3.2.0
-      zod: 4.3.4
-
-  '@ai-sdk/gateway@3.0.115(zod@4.3.4)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.10
       '@ai-sdk/provider-utils': 4.0.23(zod@4.3.4)
       '@vercel/oidc': 3.2.0
       zod: 4.3.4
@@ -15550,10 +15527,6 @@ snapshots:
       eventsource-parser: 3.0.8
       zod: 4.3.6
 
-  '@ai-sdk/provider@3.0.10':
-    dependencies:
-      json-schema: 0.4.0
-
   '@ai-sdk/provider@3.0.8':
     dependencies:
       json-schema: 0.4.0
@@ -15561,16 +15534,6 @@ snapshots:
   '@ai-sdk/provider@3.0.9':
     dependencies:
       json-schema: 0.4.0
-
-  '@ai-sdk/react@3.0.186(react@19.2.3)(zod@4.3.4)':
-    dependencies:
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.4)
-      ai: 6.0.184(zod@4.3.4)
-      react: 19.2.3
-      swr: 2.3.8(react@19.2.3)
-      throttleit: 2.1.0
-    transitivePeerDependencies:
-      - zod
 
   '@ai-sdk/test-server@1.0.3(@types/node@24.10.4)(typescript@5.8.3)':
     dependencies:
@@ -15678,6 +15641,18 @@ snapshots:
       - supports-color
 
   '@anthropic-ai/sdk@0.27.3(encoding@0.1.13)':
+    dependencies:
+      '@types/node': 18.19.130
+      '@types/node-fetch': 2.6.13
+      abort-controller: 3.0.0
+      agentkeepalive: 4.6.0
+      form-data-encoder: 1.7.2
+      formdata-node: 4.4.1
+      node-fetch: 2.7.0(encoding@0.1.13)
+    transitivePeerDependencies:
+      - encoding
+
+  '@anthropic-ai/sdk@0.41.0(encoding@0.1.13)':
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
@@ -20821,9 +20796,9 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  '@tanstack/react-virtual@3.13.24(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@tanstack/react-virtual@3.13.14(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
-      '@tanstack/virtual-core': 3.14.0
+      '@tanstack/virtual-core': 3.13.14
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
@@ -20886,7 +20861,7 @@ snapshots:
 
   '@tanstack/table-core@8.21.3': {}
 
-  '@tanstack/virtual-core@3.14.0': {}
+  '@tanstack/virtual-core@3.13.14': {}
 
   '@tanstack/virtual-file-routes@1.161.7': {}
 
@@ -22527,14 +22502,6 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       zod: 4.3.4
 
-  ai@6.0.184(zod@4.3.4):
-    dependencies:
-      '@ai-sdk/gateway': 3.0.115(zod@4.3.4)
-      '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.4)
-      '@opentelemetry/api': 1.9.0
-      zod: 4.3.4
-
   ajv-formats@2.1.1(ajv@8.17.1):
     optionalDependencies:
       ajv: 8.17.1
@@ -23618,6 +23585,8 @@ snapshots:
   cron-parser@5.5.0:
     dependencies:
       luxon: 3.7.2
+
+  croner@10.0.1: {}
 
   cross-dirname@0.1.0:
     optional: true
@@ -27547,6 +27516,8 @@ snapshots:
 
   nanoid@3.3.11: {}
 
+  nanoid@3.3.12: {}
+
   nanoid@5.1.6: {}
 
   napi-build-utils@1.0.2: {}
@@ -28124,9 +28095,9 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  postcss@8.5.14:
+  postcss@8.5.15:
     dependencies:
-      nanoid: 3.3.11
+      nanoid: 3.3.12
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
@@ -28896,6 +28867,11 @@ snapshots:
       react: 19.2.3
     optionalDependencies:
       react-dom: 19.2.3(react@19.2.3)
+
+  react-infinite-scroll-component@6.1.1(react@19.2.3):
+    dependencies:
+      react: 19.2.3
+      throttle-debounce: 2.3.0
 
   react-is@16.13.1: {}
 
@@ -30338,9 +30314,9 @@ snapshots:
     dependencies:
       any-promise: 1.3.0
 
-  throttle-debounce@5.0.2: {}
+  throttle-debounce@2.3.0: {}
 
-  throttleit@2.1.0: {}
+  throttle-debounce@5.0.2: {}
 
   through2@4.0.2:
     dependencies:
@@ -31029,7 +31005,7 @@ snapshots:
     dependencies:
       lightningcss: 1.32.0
       picomatch: 4.0.4
-      postcss: 8.5.14
+      postcss: 8.5.15
       rolldown: 1.0.1
       tinyglobby: 0.2.16
     optionalDependencies:
