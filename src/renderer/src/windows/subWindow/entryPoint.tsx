@@ -45,7 +45,7 @@ function SubWindowApp(): React.ReactElement {
               <NotificationProvider>
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
-                    <TabsProvider>
+                    <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
                       <TopViewContainer>
                         <SubWindowAppShell />
                       </TopViewContainer>

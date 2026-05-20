@@ -262,15 +262,22 @@ const TabRightClickMenu = ({
   onMoveToFirst,
   onPin,
   onClose,
+  enabled = true,
   children
 }: {
   isPinned: boolean
   onMoveToFirst: () => void
   onPin: () => void
   onClose: () => void
+  enabled?: boolean
   children: React.ReactNode
 }) => {
   const { t } = useTranslation()
+
+  if (!enabled) {
+    return <>{children}</>
+  }
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
@@ -341,6 +348,7 @@ export const AppShellTabBar = ({
     }
     return { defaultTab: defaultRouteTab, pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
+  const hasUnpinnedTabs = !!defaultTab || normalTabs.length > 0
 
   // ─── Context menu actions ───────────────────────────────────────────────────
 
@@ -400,31 +408,6 @@ export const AppShellTabBar = ({
         )}>
         {/* Tabs scrollable area — empty space stays draggable; only interactive elements override */}
         <div className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
-          {defaultTab && (
-            <NormalTabButton
-              tab={defaultTab}
-              isActive={defaultTab.id === activeTabId}
-              onSelect={() => setActiveTab(defaultTab.id)}
-              onClose={() => undefined}
-              showClose={!isDetached}
-              tone={tabTone}
-              drag={{
-                isDragging: false,
-                isGhost: false,
-                noTransition,
-                translateX: 0,
-                onPointerDown: () => undefined
-              }}
-              tabRef={(el) => {
-                if (el) {
-                  tabRefs.current.set(defaultTab.id, el)
-                } else {
-                  tabRefs.current.delete(defaultTab.id)
-                }
-              }}
-            />
-          )}
-
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">
@@ -434,7 +417,8 @@ export const AppShellTabBar = ({
                   isPinned={!!tab.isPinned}
                   onMoveToFirst={() => handleMoveToFirst(tab.id)}
                   onPin={() => handlePinToggle(tab.id)}
-                  onClose={() => closeTab(tab.id)}>
+                  onClose={() => closeTab(tab.id)}
+                  enabled={!isDetached}>
                   <PinnedTabButton
                     tab={tab}
                     isActive={tab.id === activeTabId}
@@ -460,8 +444,32 @@ export const AppShellTabBar = ({
             </div>
           )}
 
-          {/* Separator before normal tabs */}
-          {!isDetached && pinnedTabs.length > 0 && normalTabs.length > 0 && <Separator />}
+          {!isDetached && pinnedTabs.length > 0 && hasUnpinnedTabs && <Separator />}
+
+          {defaultTab && (
+            <NormalTabButton
+              tab={defaultTab}
+              isActive={defaultTab.id === activeTabId}
+              onSelect={() => setActiveTab(defaultTab.id)}
+              onClose={() => undefined}
+              showClose={!isDetached}
+              tone={tabTone}
+              drag={{
+                isDragging: false,
+                isGhost: false,
+                noTransition,
+                translateX: 0,
+                onPointerDown: () => undefined
+              }}
+              tabRef={(el) => {
+                if (el) {
+                  tabRefs.current.set(defaultTab.id, el)
+                } else {
+                  tabRefs.current.delete(defaultTab.id)
+                }
+              }}
+            />
+          )}
 
           {/* Normal tabs */}
           {normalTabs.map((tab) => (
@@ -470,7 +478,8 @@ export const AppShellTabBar = ({
               isPinned={!!tab.isPinned}
               onMoveToFirst={() => handleMoveToFirst(tab.id)}
               onPin={() => handlePinToggle(tab.id)}
-              onClose={() => closeTab(tab.id)}>
+              onClose={() => closeTab(tab.id)}
+              enabled={!isDetached}>
               <NormalTabButton
                 tab={tab}
                 isActive={tab.id === activeTabId}

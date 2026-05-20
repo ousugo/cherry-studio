@@ -33,18 +33,13 @@ export const SubWindowAppShell = () => {
     if (!init || initialized.current) return
     initialized.current = true
 
-    if (init.isPinned) {
-      // Pinned Tab is already loaded via usePersistCache across windows; just activate.
-      setActiveTab(init.tabId)
-    } else {
-      openTab(init.url, {
-        id: init.tabId,
-        title: init.title,
-        type: init.type || 'route',
-        forceNew: true
-      })
-    }
-  }, [init, openTab, setActiveTab])
+    openTab(init.url, {
+      id: init.tabId,
+      title: init.title,
+      type: init.type || 'route',
+      forceNew: true
+    })
+  }, [init, openTab])
 
   // Close tab in sub window. closeTab handles both pinned and normal tabs correctly.
   // Do NOT call unpinTab before closeTab — unpinTab moves the tab to normalTabs,
@@ -53,9 +48,8 @@ export const SubWindowAppShell = () => {
     closeTab(id)
 
     // tabs is the pre-update snapshot (React state updates are async).
-    // Compute remaining count excluding both the closed tab and the always-present home tab.
-    const remainingUserTabs = tabs.filter((t) => t.id !== id && t.id !== 'home')
-    if (remainingUserTabs.length === 0) {
+    const remainingTabs = tabs.filter((t) => t.id !== id)
+    if (remainingTabs.length === 0) {
       window.close()
     }
   }

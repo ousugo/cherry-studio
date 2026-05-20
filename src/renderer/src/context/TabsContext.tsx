@@ -83,7 +83,17 @@ export interface TabsContextValue {
 
 const TabsContext = createContext<TabsContextValue | null>(null)
 
-export function TabsProvider({ children }: { children: ReactNode }) {
+type TabsProviderProps = {
+  children: ReactNode
+  initialDefaultTab?: Tab | null
+  includePinnedTabs?: boolean
+}
+
+export function TabsProvider({
+  children,
+  initialDefaultTab = DEFAULT_TAB,
+  includePinnedTabs = true
+}: TabsProviderProps) {
   // Pinned tabs - persistent storage
   const [pinnedTabs, setPinnedTabsRaw] = usePersistCache('ui.tab.pinned_tabs')
 
@@ -104,11 +114,11 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     [setPinnedTabsRaw]
   )
 
-  // Normal tabs - in-memory storage (cleared on restart), includes the non-closeable default tab
-  const [normalTabs, setNormalTabs] = useState<Tab[]>(() => [DEFAULT_TAB])
+  // Normal tabs - in-memory storage (cleared on restart)
+  const [normalTabs, setNormalTabs] = useState<Tab[]>(() => (initialDefaultTab ? [initialDefaultTab] : []))
 
   // Active tab ID - in-memory storage
-  const [activeTabId, setActiveTabIdState] = useState<string>(DEFAULT_TAB.id)
+  const [activeTabId, setActiveTabIdState] = useState<string>(() => initialDefaultTab?.id ?? '')
 
   // LRU manager (singleton)
   const lruManagerRef = useRef<TabLRUManager | null>(null)
@@ -135,8 +145,9 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
   // Merge tabs: pinned + normal (route titles follow current i18n language)
   const tabs = useMemo(() => {
-    return [...(pinnedTabs || []).map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
-  }, [pinnedTabs, normalTabs])
+    const currentPinnedTabs = includePinnedTabs ? pinnedTabs || [] : []
+    return [...currentPinnedTabs.map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
+  }, [includePinnedTabs, pinnedTabs, normalTabs])
 
   /**
    * Hibernate tab (manual)
