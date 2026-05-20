@@ -605,6 +605,10 @@ const AgentComposerInner = ({
   const handleSendDraft = useCallback(
     (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
+      if (!model) {
+        window.toast?.error(t('code.model_required'))
+        return
+      }
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
@@ -623,7 +627,7 @@ const AgentComposerInner = ({
         logger.warn('Failed to send message:', error as Error)
       })
     },
-    [buildQueuedPayload, clearCurrentDraft, isStreaming, messageQueue, sendDisabled, sendQueuedPayload]
+    [buildQueuedPayload, clearCurrentDraft, isStreaming, messageQueue, model, sendDisabled, sendQueuedPayload, t]
   )
 
   const restoreQueuedPayload = useCallback(
