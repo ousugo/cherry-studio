@@ -10,7 +10,7 @@ export const MESSAGE_AVATAR_CONTAINER_CLASS =
 export const MESSAGE_AVATAR_INNER_CLASS = 'size-full rounded-full p-0'
 export const MESSAGE_AVATAR_IMAGE_CLASS = 'size-full object-cover p-0'
 export const MESSAGE_AVATAR_FALLBACK_CLASS = 'size-full rounded-full p-0'
-export const MESSAGE_MODEL_AVATAR_ICON_CLASS = 'block size-full'
+export const MESSAGE_MODEL_AVATAR_ICON_CLASS = 'size-full'
 
 export const MessageAvatarFrame = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div className={cn(MESSAGE_AVATAR_CONTAINER_CLASS, className)} {...props} />
