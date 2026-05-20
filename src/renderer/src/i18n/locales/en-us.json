@@ -469,6 +469,11 @@
         "placeholder": "Select workspace",
         "search_placeholder": "Search projects",
         "select_failed": "Failed to select folder."
+      },
+      "workspace_status": {
+        "inaccessible": "Workspace path is not accessible: {{path}}",
+        "missing": "Workspace path does not exist: {{path}}",
+        "not_directory": "Workspace path is not a directory: {{path}}"
       }
     },
     "settings": {

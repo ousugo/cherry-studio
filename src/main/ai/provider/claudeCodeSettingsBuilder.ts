@@ -42,6 +42,7 @@ import { isProvisioned, provisionBuiltinAgent } from '@main/services/agents/serv
 import { PromptBuilder } from '@main/services/agents/services/cherryclaw/prompt'
 import { createSdkMcpServerInstance } from '@main/services/agents/services/claudecode/createSdkMcpServerInstance'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
+import { checkWorkspacePathStatus, formatWorkspacePathStatus } from '@main/services/agents/workspacePathStatus'
 import { getNodeProxyConfigFromEnvironment, getProxyEnvironment } from '@main/services/proxy/nodeProxy'
 import { shouldAutoApprove } from '@main/services/toolApproval/autoApprovePolicy'
 import { toAsarUnpackedPath } from '@main/utils'
@@ -216,8 +217,9 @@ export async function buildClaudeCodeSessionSettings(
   // 1. Working directory (session-bound)
   const cwd = session.workspace?.path
   if (!cwd) {
-    throw new Error(`No workspace defined for session ${session.id}`)
+    throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
   }
+  assertClaudeCodeWorkspaceDirectory(session.id, cwd)
 
   // 2. Environment variables
   const env = await buildEnvironment(provider, agent)
@@ -282,6 +284,21 @@ export async function buildClaudeCodeSessionSettings(
 
 export function resolveClaudeExecutablePath(): string {
   return toAsarUnpackedPath(path.join(path.dirname(require_.resolve('@anthropic-ai/claude-agent-sdk')), 'cli.js'))
+}
+
+export class AgentSessionWorkspaceError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AgentSessionWorkspaceError'
+  }
+}
+
+export function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): void {
+  const status = checkWorkspacePathStatus(cwd)
+  if (status.ok) return
+  throw new AgentSessionWorkspaceError(
+    `Workspace path for session ${sessionId}: ${formatWorkspacePathStatus(cwd, status)}`
+  )
 }
 
 async function buildEnvironment(

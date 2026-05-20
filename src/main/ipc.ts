@@ -24,6 +24,7 @@ import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences,
 import fontList from 'font-list'
 
 import { skillService } from './services/agents/skills/SkillService'
+import { checkWorkspacePathStatus } from './services/agents/workspacePathStatus'
 import { appService } from './services/AppService'
 import BackupManager from './services/BackupManager'
 import { ConfigKeys, configManager } from './services/ConfigManager'
@@ -423,6 +424,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_CheckWorkspacePath, (_, filePath: string) => checkWorkspacePathStatus(filePath))
   ipcMain.handle(IpcChannel.File_ListDirectory, fileManager.listDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_GetDirectoryStructure, fileManager.getDirectoryStructure.bind(fileManager))
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))

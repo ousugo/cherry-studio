@@ -14,6 +14,7 @@ import type { Message } from '@shared/data/types/message'
 import { v7 as uuidv7 } from 'uuid'
 
 import {
+  assertClaudeCodeWorkspaceDirectory,
   extractAgentSessionId,
   isAgentSessionTopic,
   parseAgentSessionModel
@@ -49,6 +50,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!session.agentId) {
       throw new Error(`Cannot dispatch on orphan session ${sessionId} — its agent was deleted`)
     }
+    const workspacePath = session.workspace?.path
+    if (!workspacePath) {
+      throw new Error(`Agent session ${sessionId} has no workspace configured`)
+    }
+    assertClaudeCodeWorkspaceDirectory(sessionId, workspacePath)
+
     const agentId = session.agentId
     const agent = await agentService.getAgent(agentId)
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)

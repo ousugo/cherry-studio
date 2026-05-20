@@ -469,6 +469,11 @@
         "placeholder": "[to be translated]:Select workspace",
         "search_placeholder": "[to be translated]:Search projects",
         "select_failed": "[to be translated]:Failed to select folder."
+      },
+      "workspace_status": {
+        "inaccessible": "工作區路徑無法存取：{{path}}",
+        "missing": "工作區路徑不存在：{{path}}",
+        "not_directory": "工作區路徑不是目錄：{{path}}"
       }
     },
     "settings": {

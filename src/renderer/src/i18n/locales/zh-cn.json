@@ -469,6 +469,11 @@
         "placeholder": "选择工作目录",
         "search_placeholder": "搜索项目",
         "select_failed": "选择文件夹失败。"
+      },
+      "workspace_status": {
+        "inaccessible": "工作区路径不可访问：{{path}}",
+        "missing": "工作区路径不存在：{{path}}",
+        "not_directory": "工作区路径不是目录：{{path}}"
       }
     },
     "settings": {
