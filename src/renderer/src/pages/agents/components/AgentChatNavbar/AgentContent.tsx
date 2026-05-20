@@ -22,8 +22,8 @@ import { useTranslation } from 'react-i18next'
 
 import AgentSidePanelDrawer from '../AgentSidePanelDrawer'
 import OpenExternalAppButton from './OpenExternalAppButton'
-import SessionWorkspaceMeta from './SessionWorkspaceMeta'
 import Tools from './Tools'
+import WorkspaceSelector from './WorkspaceSelector'
 
 type AgentContentProps = {
   activeAgent: AgentEntity
@@ -123,7 +123,7 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
                   }
                 />
 
-                <SessionWorkspaceMeta session={activeSession} />
+                <WorkspaceSelector session={activeSession} />
               </>
             )}
           </div>

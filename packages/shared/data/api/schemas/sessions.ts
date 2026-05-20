@@ -83,8 +83,6 @@ export const AgentSessionEntitySchema = z.strictObject({
   agentId: z.string().nullable(),
   name: AgentNameAtomSchema,
   description: z.string().optional(),
-  // Workspace bound at session create time. Read-only post-creation —
-  // `UpdateSessionSchema` (below) intentionally doesn't pick this.
   workspaceId: z.string().nullable(),
   workspace: WorkspaceEntitySchema.nullable(),
   orderKey: z.string(),
@@ -107,7 +105,8 @@ export type CreateSessionDto = z.infer<typeof CreateSessionSchema>
 export const UpdateSessionSchema = z.strictObject({
   name: AgentNameAtomSchema.optional(),
   description: z.string().optional(),
-  agentId: z.string().min(1).optional()
+  agentId: z.string().min(1).optional(),
+  workspaceId: z.string().min(1).optional()
 })
 
 export type UpdateSessionDto = z.infer<typeof UpdateSessionSchema>
