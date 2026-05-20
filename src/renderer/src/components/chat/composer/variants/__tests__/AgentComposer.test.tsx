@@ -321,6 +321,26 @@ describe('AgentComposer', () => {
     expect(mocks.setFiles).toHaveBeenLastCalledWith([])
   })
 
+  it('blocks sends while the parent session is switching', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        sendDisabled
+      />
+    )
+
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('common.loading')
+
+    fireEvent.click(screen.getByText('send'))
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+  })
+
   it('calls the active stream stop handler when paused', () => {
     render(
       <AgentComposer

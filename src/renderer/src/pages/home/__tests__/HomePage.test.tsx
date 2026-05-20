@@ -29,6 +29,8 @@ const homeMocks = vi.hoisted(() => ({
   cacheGet: vi.fn(),
   cacheSet: vi.fn(),
   discardTemporaryConversation: vi.fn(),
+  activeTopicLoading: false,
+  forceActiveTopicUndefined: false,
   historyTopic: undefined as Topic | undefined,
   locationState: undefined as { topic: Topic } | undefined,
   persistTemporaryConversation: vi.fn(),
@@ -91,7 +93,11 @@ vi.mock('@renderer/hooks/useTopic', async () => {
     }),
     useActiveTopic: (topic?: Topic) => {
       const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(topic)
-      return { activeTopic, setActiveTopic }
+      return {
+        activeTopic: homeMocks.forceActiveTopicUndefined ? undefined : activeTopic,
+        setActiveTopic,
+        isLoading: homeMocks.activeTopicLoading
+      }
     }
   }
 })
@@ -210,6 +216,8 @@ describe('HomePage', () => {
       type: 'assistant'
     })
     homeMocks.temporaryConversation = null
+    homeMocks.activeTopicLoading = false
+    homeMocks.forceActiveTopicUndefined = false
     homeMocks.preferenceValues.clear()
     homeMocks.preferenceValues.set('topic.tab.show', false)
 
@@ -244,6 +252,18 @@ describe('HomePage', () => {
       itemId: 'topic-history',
       requestId: 1
     })
+  })
+
+  it('keeps the current topic visible while the active topic is reloading', async () => {
+    const { rerender } = render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial'))
+
+    homeMocks.activeTopicLoading = true
+    homeMocks.forceActiveTopicUndefined = true
+    rerender(<HomePage />)
+
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
   })
 
   it('starts generic temporary topics with the active topic assistant', async () => {

@@ -29,7 +29,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { PropsWithChildren, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
@@ -72,11 +72,16 @@ const AgentChat = ({
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [temporaryComposerDocked, setTemporaryComposerDocked] = useState(false)
 
-  const { session: activeSession, isLoading: isSessionLoading } = useActiveSession()
+  const { session: activeSession, activeSessionId, isLoading: isSessionLoading } = useActiveSession()
+  const lastActiveSessionRef = useRef<NonNullable<typeof activeSession> | null>(null)
+  const visibleSession =
+    activeSession ?? (isSessionLoading && activeSessionId ? lastActiveSessionRef.current : undefined)
+  const isShowingPreviousSession =
+    isSessionLoading && Boolean(activeSessionId && visibleSession && visibleSession.id !== activeSessionId)
   const temporaryAgentConversation = temporaryConversation?.type === 'agent' ? temporaryConversation : null
   const invalidateCache = useInvalidateCache()
   const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(
-    activeSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
+    visibleSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
   )
 
   useEffect(() => {
@@ -171,13 +176,12 @@ const AgentChat = ({
     setCitationPanelCitations(citations)
   }, [])
 
+  useEffect(() => {
+    if (activeSession) lastActiveSessionRef.current = activeSession
+  }, [activeSession])
+
   const isInitializing =
-    isSessionLoading ||
-    Boolean(
-      (activeSession || temporaryAgentConversation) &&
-        (activeSession?.agentId || temporaryAgentConversation?.agentId) &&
-        isAgentLoading
-    )
+    !visibleSession && (isSessionLoading || Boolean(temporaryAgentConversation?.agentId && isAgentLoading))
   const citationsPanelOpen = citationPanelCitations !== null
 
   if (isInitializing) {
@@ -197,7 +201,7 @@ const AgentChat = ({
     )
   }
 
-  if (!activeSession) {
+  if (!visibleSession) {
     if (!temporaryAgentConversation) {
       return (
         <AgentChatFrame
@@ -272,7 +276,7 @@ const AgentChat = ({
     )
   }
 
-  const sendableAgentId = activeAgent ? (activeSession.agentId ?? undefined) : undefined
+  const sendableAgentId = activeAgent ? (visibleSession.agentId ?? undefined) : undefined
 
   return (
     <AgentChatFrame
@@ -281,7 +285,7 @@ const AgentChat = ({
       paneOpen={paneOpen}
       panePosition={panePosition}
       artifactPaneOpen={artifactPaneOpen}
-      artifactPaneWorkspacePath={activeSession.workspace?.path}
+      artifactPaneWorkspacePath={visibleSession.workspace?.path}
       onCloseArtifactPane={closeArtifactPane}
       topBar={
         <div className="flex h-fit w-full min-w-0">
@@ -295,18 +299,19 @@ const AgentChat = ({
       }
       centerContent={
         <AgentChatSessionContent
-          key={activeSession.id}
+          key={visibleSession.id}
           agentId={sendableAgentId}
-          sessionId={activeSession.id}
+          sessionId={visibleSession.id}
           activeAgent={activeAgent}
           isMultiSelectMode={isMultiSelectMode}
+          sendDisabled={isShowingPreviousSession}
           onOpenCitationsPanel={handleOpenCitationsPanel}
           onNewSessionDraft={
             sendableAgentId
               ? () =>
                   onStartTemporarySession?.({
                     agentId: sendableAgentId,
-                    workspaceId: activeSession.workspaceId ?? undefined,
+                    workspaceId: visibleSession.workspaceId ?? undefined,
                     name: t('common.unnamed')
                   })
               : undefined
@@ -331,6 +336,7 @@ interface InnerProps {
   sessionId: string
   activeAgent: GetAgentResponse | undefined
   isMultiSelectMode: boolean
+  sendDisabled?: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onNewSessionDraft?: () => void | Promise<void>
 }
@@ -340,6 +346,7 @@ const AgentChatSessionContent = ({
   sessionId,
   activeAgent,
   isMultiSelectMode,
+  sendDisabled = false,
   onOpenCitationsPanel,
   onNewSessionDraft
 }: InnerProps) => {
@@ -430,6 +437,7 @@ const AgentChatSessionContent = ({
               sendMessage={chat.sendMessage}
               stop={chat.stop}
               isStreaming={isPending}
+              sendDisabled={sendDisabled}
               onNewSessionDraft={onNewSessionDraft}
             />
           }
@@ -444,6 +452,7 @@ const AgentChatSessionContent = ({
     isMultiSelectMode,
     isPending,
     onNewSessionDraft,
+    sendDisabled,
     sessionId
   ])
 

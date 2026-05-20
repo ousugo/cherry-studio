@@ -111,6 +111,7 @@ type Props = {
   showWorkspaceSelector?: boolean
   workspaceChanging?: boolean
   isStreaming: boolean
+  sendDisabled?: boolean
 }
 
 type AgentComposerRootProps = Props & {
@@ -143,6 +144,7 @@ const AgentComposerRoot = ({
   showWorkspaceSelector,
   workspaceChanging,
   isStreaming,
+  sendDisabled = false,
   topContent,
   renderControls
 }: AgentComposerRootProps) => {
@@ -226,6 +228,7 @@ const AgentComposerRoot = ({
         showWorkspaceSelector={showWorkspaceSelector}
         workspaceChanging={workspaceChanging}
         isStreaming={isStreaming}
+        sendDisabled={sendDisabled}
         topContent={topContent}
         renderControls={renderControls}
       />
@@ -250,6 +253,7 @@ interface InnerProps {
   showWorkspaceSelector?: boolean
   workspaceChanging?: boolean
   isStreaming: boolean
+  sendDisabled: boolean
   topContent?: React.ReactNode
   renderControls: AgentComposerControlsRenderer
 }
@@ -446,6 +450,7 @@ const AgentComposerInner = ({
   showWorkspaceSelector,
   workspaceChanging,
   isStreaming,
+  sendDisabled,
   topContent,
   renderControls
 }: InnerProps) => {
@@ -581,6 +586,7 @@ const AgentComposerInner = ({
 
   const handleSendDraft = useCallback(
     (draft: ComposerSerializedDraft) => {
+      if (sendDisabled) return
       if (text.trim().length === 0 && files.length === 0) return
 
       const fileTokenIds = getAgentComposerTokenIds(draft.tokens, 'file')
@@ -598,7 +604,7 @@ const AgentComposerInner = ({
       setFiles([])
       setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
     },
-    [agentId, chatSendMessage, files, sessionId, sessionTopicId, setFiles, setText, setTimeoutTimer, text]
+    [agentId, chatSendMessage, files, sendDisabled, sessionId, sessionTopicId, setFiles, setText, setTimeoutTimer, text]
   )
 
   const resourceSuggestionStateRef = useRef({ accessiblePaths, files, setFiles, t })
@@ -723,7 +729,8 @@ const AgentComposerInner = ({
         managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
         placeholder={placeholderText}
-        sendDisabled={(text.trim().length === 0 && files.length === 0) || isStreaming}
+        sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0) || isStreaming}
+        sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
         isLoading={isStreaming}
         onSendDraft={handleSendDraft}
         onPause={abortAgentSession}

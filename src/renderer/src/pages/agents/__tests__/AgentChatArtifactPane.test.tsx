@@ -122,10 +122,12 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
 
 const activeSessionMocks = vi.hoisted(() => ({
   result: {
+    activeSessionId: 'session-1',
     session: { id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
     isLoading: false,
     setActiveSessionId: vi.fn()
   } as {
+    activeSessionId: string | null
     session: { id: string; agentId: string | null; workspace: { path: string } | null } | undefined
     isLoading: boolean
     setActiveSessionId: ReturnType<typeof vi.fn>
@@ -206,7 +208,9 @@ vi.mock('../components/AgentChatNavbar', () => ({
 }))
 
 vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
-  default: () => <div data-testid="agent-composer" />,
+  default: ({ sendDisabled }: { sendDisabled?: boolean }) => (
+    <div data-testid="agent-composer" data-send-disabled={String(Boolean(sendDisabled))} />
+  ),
   AgentHomeComposer: () => <div data-testid="agent-home-composer" />
 }))
 
@@ -225,6 +229,7 @@ vi.mock('../../home/Inputbar/components/PinnedTodoPanel', () => ({
 describe('AgentChat artifact pane', () => {
   beforeEach(() => {
     activeSessionMocks.result = {
+      activeSessionId: 'session-1',
       session: { id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
       isLoading: false,
       setActiveSessionId: vi.fn()
@@ -268,6 +273,7 @@ describe('AgentChat artifact pane', () => {
 
   it('renders the temporary session composer in home placement', () => {
     activeSessionMocks.result = {
+      activeSessionId: null,
       session: undefined,
       isLoading: false,
       setActiveSessionId: vi.fn()
@@ -295,7 +301,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('agent-home-composer')).toBeInTheDocument()
   })
 
-  it('keeps the session pane mounted while a selected session reloads', () => {
+  it('keeps the session pane and content mounted while a selected session reloads', () => {
     const paneMounts: string[] = []
 
     function SessionPane() {
@@ -318,6 +324,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByRole('button', { name: 'pane count 1' })).toBeInTheDocument()
 
     activeSessionMocks.result = {
+      activeSessionId: 'session-2',
       session: undefined,
       isLoading: true,
       setActiveSessionId: vi.fn()
@@ -325,11 +332,14 @@ describe('AgentChat artifact pane', () => {
     rerender(<AgentChat pane={<SessionPane />} paneOpen={true} panePosition="left" />)
 
     expect(screen.getByRole('button', { name: 'pane count 1' })).toBeInTheDocument()
+    expect(screen.getByTestId('agent-messages')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-send-disabled', 'true')
     expect(paneMounts).toEqual(['mounted'])
   })
 
   it('shows history without composer for an unlinked session', () => {
     activeSessionMocks.result = {
+      activeSessionId: 'session-unlinked',
       session: { id: 'session-unlinked', agentId: null, workspace: { path: '/tmp/workspace' } },
       isLoading: false,
       setActiveSessionId: vi.fn()

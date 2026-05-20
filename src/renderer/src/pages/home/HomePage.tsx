@@ -93,18 +93,28 @@ const HomePage: FC = () => {
     return undefined
   }, [state?.topic, temporaryTopicConversation])
 
-  const { activeTopic, setActiveTopic } = useActiveTopic(initialTopic, {
+  const {
+    activeTopic,
+    setActiveTopic,
+    isLoading: isActiveTopicLoading
+  } = useActiveTopic(initialTopic, {
     // While we're waiting for the temporary topic to lease, suppress the
     // auto-pick-first-topic effect so the UI doesn't flash a stale topic
     // before our blank one shows up.
     autoPickFirst: !shouldUseTemporary
   })
+  const lastVisibleTopicRef = useRef<Topic | null>(null)
+  const visibleTopic = activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined)
 
   useEffect(() => {
     const assistantId = getTopicAssistantId(activeTopic)
     if (assistantId) {
       lastUsedAssistantIdRef.current = assistantId
     }
+  }, [activeTopic])
+
+  useEffect(() => {
+    if (activeTopic) lastVisibleTopicRef.current = activeTopic
   }, [activeTopic])
 
   const persistTemporaryTopicAndRefresh = useCallback(
@@ -271,7 +281,7 @@ const HomePage: FC = () => {
     <HistoryRecordsPage
       mode="assistant"
       open={historyOpen}
-      activeRecordId={activeTopic?.id}
+      activeRecordId={visibleTopic?.id}
       origin={historyOrigin}
       onClose={closeHistory}
       onRecordSelect={handleHistoryTopicSelect}
@@ -279,32 +289,32 @@ const HomePage: FC = () => {
   )
 
   const openSidePanelDrawer = useCallback(() => {
-    if (!activeTopic) return
+    if (!visibleTopic) return
 
     void HomeSidePanelDrawer.show({
-      activeTopic,
+      activeTopic: visibleTopic,
       setActiveTopic: setActiveTopicAndDiscardTemporary,
       onOpenHistory: openHistory,
       onNewTopic: startTemporaryTopic
     })
-  }, [activeTopic, openHistory, setActiveTopicAndDiscardTemporary, startTemporaryTopic])
+  }, [openHistory, setActiveTopicAndDiscardTemporary, startTemporaryTopic, visibleTopic])
 
-  if (!activeTopic) {
+  if (!visibleTopic) {
     return <Container id="home-page">{historyOverlay}</Container>
   }
 
   const panePosition = 'left'
   const isTemporaryTopicActive =
-    temporaryTopicConversation?.type === 'assistant' && activeTopic.id === temporaryTopicConversation.topicId
+    temporaryTopicConversation?.type === 'assistant' && visibleTopic.id === temporaryTopicConversation.topicId
 
   return (
     <Container id="home-page">
       <ContentContainer>
         <Chat
-          activeTopic={activeTopic}
+          activeTopic={visibleTopic}
           pane={
             <HomeTabs
-              activeTopic={activeTopic}
+              activeTopic={visibleTopic}
               setActiveTopic={setActiveTopicAndDiscardTemporary}
               onOpenHistory={openHistory}
               onNewTopic={startTemporaryTopic}

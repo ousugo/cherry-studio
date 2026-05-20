@@ -94,6 +94,7 @@ interface ChatComposerProps {
       userMessageParts?: CherryMessagePart[]
     }
   ) => void | Promise<void>
+  sendDisabled?: boolean
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
 }
@@ -325,6 +326,7 @@ type ChatComposerRootProps = ChatComposerProps & {
 const ChatComposerRoot = ({
   topic,
   onSend,
+  sendDisabled,
   onTemporaryAssistantChange,
   onNewTopic,
   topContent,
@@ -360,6 +362,7 @@ const ChatComposerRoot = ({
         topic={topic}
         actionsRef={actionsRef}
         onSend={onSend}
+        sendDisabled={sendDisabled}
         onTemporaryAssistantChange={onTemporaryAssistantChange}
         onNewTopic={onNewTopic}
         topContent={topContent}
@@ -379,6 +382,7 @@ const ChatComposerInner = ({
   topic,
   actionsRef,
   onSend,
+  sendDisabled = false,
   onTemporaryAssistantChange,
   onNewTopic,
   topContent,
@@ -760,13 +764,14 @@ const ChatComposerInner = ({
         placeholder={searching ? t('chat.input.translating') : placeholderText}
         sendDisabled={
           text.trim().length === 0 ||
+          sendDisabled ||
           loading ||
           searching ||
           runtimeModelPending ||
           !!missingAssistantMessage ||
           !!missingModelMessage
         }
-        sendBlockedReason={missingAssistantMessage ?? missingModelMessage}
+        sendBlockedReason={sendDisabled ? t('common.loading') : (missingAssistantMessage ?? missingModelMessage)}
         isLoading={loading}
         onSendDraft={handleSendDraft}
         onPause={onPause}

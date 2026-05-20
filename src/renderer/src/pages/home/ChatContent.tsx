@@ -11,7 +11,6 @@ import {
   type TranslationOverlaySetter,
   TranslationOverlaySetterProvider
 } from '@renderer/components/chat/messages/blocks'
-import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
@@ -61,8 +60,8 @@ interface Props {
 /**
  * Home chat content.
  *
- * Outer shell — waits on history to be loaded before mounting the inner
- * component (useChat seeds `initialMessages` once, at mount).
+ * Outer shell — mounts the frame immediately; the shared message list owns the
+ * initial-loading view so the composer doesn't disappear during topic switches.
  *
  * Inner component composes three purpose-built hooks:
  *   - `useExecutionOverlay` — overlays per-execution streaming parts
@@ -100,22 +99,6 @@ const ChatContent: FC<Props> = ({
     mutate: messagesCacheMutate
   } = useTopicMessages(topic.id, { fetchOnMount: !isFreshTemporaryTopic })
 
-  if (isHistoryLoading) {
-    const main = <MessageListInitialLoading />
-
-    if (renderFrame) {
-      return renderFrame({ main })
-    }
-
-    return (
-      <div
-        className="flex flex-1 flex-col items-center justify-center"
-        style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
-        {main}
-      </div>
-    )
-  }
-
   return (
     <ChatContentInner
       topic={topic}
@@ -125,6 +108,7 @@ const ChatContent: FC<Props> = ({
       onTemporaryAssistantChange={onTemporaryAssistantChange}
       onNewTopic={onNewTopic}
       onPersistTemporaryTopic={onPersistTemporaryTopic}
+      isHistoryLoading={isHistoryLoading}
       isFreshTemporaryTopic={isFreshTemporaryTopic}
       onTemporaryTopicPersisted={() => setHasPersistedTemporaryTopic(true)}
       initialMessages={uiMessages}
@@ -140,10 +124,11 @@ const ChatContent: FC<Props> = ({
 }
 
 // ============================================================================
-// Inner — only mounted after history is ready
+// Inner — keeps composer mounted while history loads
 // ============================================================================
 
 interface InnerProps extends Props {
+  isHistoryLoading: boolean
   isFreshTemporaryTopic: boolean
   onTemporaryTopicPersisted: () => void
   /** One-time seed for `useChat(messages:)` — consumed on mount only. */
@@ -166,6 +151,7 @@ const ChatContentInner: FC<InnerProps> = ({
   onTemporaryAssistantChange,
   onNewTopic,
   onPersistTemporaryTopic,
+  isHistoryLoading,
   isFreshTemporaryTopic,
   onTemporaryTopicPersisted,
   initialMessages,
@@ -273,7 +259,8 @@ const ChatContentInner: FC<InnerProps> = ({
     [cache, disposeOverlay, refresh]
   )
   finishRef.current = handleExecutionFinish
-  const shouldRenderHomeComposer = isFreshTemporaryTopic && uiMessages.length === 0 && activeExecutions.length === 0
+  const shouldRenderHomeComposer =
+    !isHistoryLoading && isFreshTemporaryTopic && uiMessages.length === 0 && activeExecutions.length === 0
 
   // Chat write-side handlers (delete / edit / regenerate / resend / fork /
   // setActiveNode / clearTopic). Also exposes `capabilityBody` so the send
@@ -298,6 +285,8 @@ const ChatContentInner: FC<InnerProps> = ({
         userMessageParts?: CherryMessagePart[]
       }
     ) => {
+      if (isHistoryLoading) return
+
       if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
         try {
           // Seed the new topic with the user's first message as a placeholder
@@ -340,6 +329,7 @@ const ChatContentInner: FC<InnerProps> = ({
     },
     [
       isFreshTemporaryTopic,
+      isHistoryLoading,
       onPersistTemporaryTopic,
       onTemporaryTopicPersisted,
       activeNodeId,
@@ -366,6 +356,7 @@ const ChatContentInner: FC<InnerProps> = ({
                       topic={topic}
                       messages={messages}
                       partsByMessageId={partsByMessageId}
+                      isInitialLoading={isHistoryLoading}
                       loadOlder={loadOlder}
                       hasOlder={hasOlder}
                       openCitationsPanel={onOpenCitationsPanel}
@@ -385,7 +376,12 @@ const ChatContentInner: FC<InnerProps> = ({
                             onNewTopic={onNewTopic}
                           />
                         ) : (
-                          <ChatComposer topic={topic} onSend={handleSend} onNewTopic={onNewTopic} />
+                          <ChatComposer
+                            topic={topic}
+                            onSend={handleSend}
+                            onNewTopic={onNewTopic}
+                            sendDisabled={isHistoryLoading}
+                          />
                         )
                       }
                     />
@@ -428,15 +424,26 @@ const HomeMessageList: FC<{
   topic: Topic
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  isInitialLoading?: boolean
   loadOlder: () => void
   hasOlder: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   respondToolApproval: NonNullable<MessageListActions['respondToolApproval']>
-}> = ({ topic, messages, partsByMessageId, loadOlder, hasOlder, openCitationsPanel, respondToolApproval }) => {
+}> = ({
+  topic,
+  messages,
+  partsByMessageId,
+  isInitialLoading,
+  loadOlder,
+  hasOlder,
+  openCitationsPanel,
+  respondToolApproval
+}) => {
   const value = useHomeMessageListProviderValue({
     topic,
     messages,
     partsByMessageId,
+    isInitialLoading,
     loadOlder,
     hasOlder,
     openCitationsPanel,

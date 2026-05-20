@@ -61,14 +61,17 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 
 vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
   default: ({
-    onSend
+    onSend,
+    sendDisabled
   }: {
     onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
+    sendDisabled?: boolean
   }) => (
     (capturedOnSend = onSend),
     (
       <button
         type="button"
+        disabled={sendDisabled}
         onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })}>
         send
       </button>
@@ -122,19 +125,27 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
   useHomeMessageListProviderValue: (params: {
     messages: CherryUIMessage[]
     partsByMessageId: Record<string, CherryMessagePart[]>
+    isInitialLoading?: boolean
   }) => ({
-    state: { messages: params.messages, partsByMessageId: params.partsByMessageId },
+    state: {
+      messages: params.messages,
+      partsByMessageId: params.partsByMessageId,
+      isInitialLoading: params.isInitialLoading
+    },
     actions: {},
     meta: {}
   })
 }))
 
 vi.mock('@renderer/components/chat/messages/MessageList', () => ({
-  default: () => (
-    <div data-testid="messages">
-      {mockMessageListValue.current?.state.messages.map((message: CherryUIMessage) => message.id).join(',')}
-    </div>
-  )
+  default: () =>
+    mockMessageListValue.current?.state.isInitialLoading ? (
+      <div data-testid="message-list-loading" />
+    ) : (
+      <div data-testid="messages">
+        {mockMessageListValue.current?.state.messages.map((message: CherryUIMessage) => message.id).join(',')}
+      </div>
+    )
 }))
 
 function createUiMessage(id: string, role: CherryUIMessage['role']): CherryUIMessage {
@@ -233,6 +244,26 @@ describe('ChatContent', () => {
     render(<ChatContent topic={topic} mainHeight="100px" onPersistTemporaryTopic={vi.fn()} />)
 
     expect(mockUseTopicMessages).toHaveBeenCalledWith('topic-1', { fetchOnMount: false })
+  })
+
+  it('keeps the composer visible while topic history is loading', () => {
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [createUiMessage('stale-user', 'user'), createUiMessage('stale-assistant', 'assistant')],
+      siblingsMap: {},
+      isLoading: true,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: null,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+
+    render(<ChatContent topic={topic} mainHeight="100px" />)
+
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
+    expect(screen.getByTestId('message-list-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('messages')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'send' })).toBeDisabled()
   })
 
   it('centers the home composer for a fresh empty temporary topic and routes assistant changes', () => {

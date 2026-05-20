@@ -68,6 +68,7 @@ interface HomeMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  isInitialLoading?: boolean
   loadOlder?: () => void
   hasOlder?: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
@@ -80,6 +81,7 @@ export function useHomeMessageListProviderValue({
   topic,
   messages,
   partsByMessageId,
+  isInitialLoading = false,
   loadOlder,
   hasOlder = false,
   openCitationsPanel,
@@ -593,6 +595,7 @@ export function useHomeMessageListProviderValue({
       topic,
       messages: messageItems,
       partsByMessageId,
+      isInitialLoading,
       hasOlder,
       messageNavigation,
       estimateSize: 600,
@@ -623,6 +626,7 @@ export function useHomeMessageListProviderValue({
       getMessageSiblings,
       getTranslationLanguageLabel,
       hasOlder,
+      isInitialLoading,
       leafCapabilities,
       menuConfig,
       messageUiStateCache.getMessageUiState,
