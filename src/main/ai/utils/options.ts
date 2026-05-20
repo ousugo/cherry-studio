@@ -50,7 +50,6 @@ import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
 
-// Local type aliases for v2 Provider compatibility (replacing v1 GroqSystemProvider/NotGroqProvider)
 type GroqProvider = Provider & { id: 'groq' }
 type NonGroqProvider = Provider & { id: Exclude<string, 'groq'> }
 
@@ -90,7 +89,6 @@ function getServiceTier<T extends Provider>(model: Model, provider: T): OpenAISe
   if (isGroqProvider(provider)) {
     return toGroqServiceTier(model, serviceTierSetting)
   }
-  // Non-Groq OpenAI-family providers — assume same service tier semantics as OpenAI.
   return toOpenAIServiceTier(model, serviceTierSetting)
 }
 
@@ -108,13 +106,6 @@ function getVerbosity(model: Model, provider: Provider): OpenAIVerbosity {
   return undefined
 }
 
-/**
- * Split a flat custom-parameters map into:
- *   - `standardParams`: the AI SDK "standard" request fields (temperature,
- *     topK, frequencyPenalty, etc.) that live on `params` root.
- *   - `providerParams`: everything else, destined for
- *     `params.providerOptions[providerId]`.
- */
 export function extractAiSdkStandardParams(customParams: Record<string, any>): {
   standardParams: Partial<Record<AiSdkParam, any>>
   providerParams: Record<string, any>
@@ -132,14 +123,6 @@ export function extractAiSdkStandardParams(customParams: Record<string, any>): {
   return { standardParams, providerParams }
 }
 
-/**
- * Capability-driven provider options — per-provider dispatch producing the
- * `{ providerId: providerOptions }` blob for the AI SDK request.
- *
- * Does NOT read `assistant.settings.customParameters`. Customer parameters
- * are layered separately by `mergeCustomProviderParameters` so plugins can
- * keep the two concerns isolated.
- */
 export function buildCapabilityProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -230,20 +213,9 @@ export function buildCapabilityProviderOptions(
 }
 
 /**
- * Layer user-supplied `providerParams` onto an existing provider-options map.
- *
- * Key routing (matches renderer origin/main semantics):
- *   1. Key ∈ actualAiSdkProviderIds → merge directly (user knows the actual
- *      AI SDK provider ID).
- *   2. Key == rawProviderId, not in actualAiSdkProviderIds:
- *      - gateway / ollama → preserve (routing / serving config).
- *      - Otherwise → map onto primary AI SDK provider (proxy case — cherryin).
- *   3. Otherwise → merge to primary provider as a regular parameter.
- *
- * For `openai-compatible` providers, the `reasoning_effort` (snake_case) key
- * is auto-renamed to `reasoningEffort` (camelCase) — the AI SDK's
- * openai-compatible provider silently drops the snake_case form. See
- * https://github.com/CherryHQ/cherry-studio/issues/11987.
+ * For `openai-compatible`, rename `reasoning_effort` → `reasoningEffort` —
+ * AI SDK silently drops the snake_case form.
+ * See https://github.com/CherryHQ/cherry-studio/issues/11987.
  */
 export function mergeCustomProviderParameters(
   providerOptions: Record<string, Record<string, JSONValue>>,
@@ -253,7 +225,6 @@ export function mergeCustomProviderParameters(
   const actualAiSdkProviderIds = Object.keys(providerOptions)
   const primaryAiSdkProviderId = actualAiSdkProviderIds[0]
 
-  // Key rename patch for openai-compatible.
   if (primaryAiSdkProviderId === 'openai-compatible' && 'reasoning_effort' in providerParams) {
     if (!('reasoningEffort' in providerParams)) {
       providerParams.reasoningEffort = providerParams.reasoning_effort
@@ -264,7 +235,6 @@ export function mergeCustomProviderParameters(
   let result = providerOptions
   for (const key of Object.keys(providerParams)) {
     if (actualAiSdkProviderIds.includes(key)) {
-      // Case 1: Key is an actual AI SDK provider ID.
       result = {
         ...result,
         [key]: {
@@ -273,7 +243,6 @@ export function mergeCustomProviderParameters(
         }
       }
     } else if (key === rawProviderId && !actualAiSdkProviderIds.includes(rawProviderId)) {
-      // Case 2: proxy / special provider.
       if (key === SystemProviderIds.gateway) {
         result = {
           ...result,
@@ -292,7 +261,6 @@ export function mergeCustomProviderParameters(
         }
       }
     } else {
-      // Case 3: regular parameter.
       result = {
         ...result,
         [primaryAiSdkProviderId]: {
@@ -305,7 +273,6 @@ export function mergeCustomProviderParameters(
   return result
 }
 
-/** OpenAI-family (openai / azure / huggingface / openai-chat) options. */
 function buildOpenAIProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -324,9 +291,6 @@ function buildOpenAIProviderOptions(
       ...providerOptions,
       ...reasoningParams,
       // TODO: Remove after migrating to @ai-sdk/open-responses (#13462).
-      // Bypass @ai-sdk/openai's model-ID allowlist for reasoning detection.
-      // Third-party providers often use non-canonical model IDs (e.g. "openai/gpt-5.2")
-      // that fail the SDK's startsWith() checks, silently dropping reasoning params.
       ...(isReasoningModel(model) && { forceReasoning: true })
     }
   }
@@ -345,7 +309,6 @@ function buildOpenAIProviderOptions(
     }
   }
 
-  // TODO: support configurable server-side persistence.
   providerOptions = {
     ...providerOptions,
     serviceTier,
@@ -355,7 +318,6 @@ function buildOpenAIProviderOptions(
   return { openai: providerOptions }
 }
 
-/** Anthropic-family options (direct + Azure-Anthropic + Vertex-Anthropic). */
 function buildAnthropicProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -370,7 +332,6 @@ function buildAnthropicProviderOptions(
   return { anthropic: { ...providerOptions } }
 }
 
-/** Gemini / Vertex-Gemini options. */
 function buildGeminiProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -388,7 +349,6 @@ function buildGeminiProviderOptions(
   return { google: { ...providerOptions } }
 }
 
-/** XAI Grok options. */
 function buildXAIProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -402,7 +362,6 @@ function buildXAIProviderOptions(
   return { xai: { ...providerOptions } }
 }
 
-/** AWS Bedrock options — reasoning via Anthropic shape + beta headers. */
 function buildBedrockProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -420,7 +379,6 @@ function buildBedrockProviderOptions(
   return { bedrock: providerOptions }
 }
 
-/** Ollama options. */
 function buildOllamaProviderOptions(
   assistant: Assistant,
   model: Model,
@@ -434,7 +392,6 @@ function buildOllamaProviderOptions(
   return { ollama: options }
 }
 
-/** Generic fallback — covers deepseek / openrouter / openai-compatible / etc. */
 function buildGenericProviderOptions(
   providerId: string,
   assistant: Assistant,
@@ -455,27 +412,6 @@ function buildGenericProviderOptions(
   return { [providerId]: providerOptions }
 }
 
-/**
- * AI Gateway — covers CherryIN, NewAPI, AiHubMix, Vercel Gateway.
- *
- * Proxy providers annotate `model.endpointTypes[0]` to force a specific
- * protocol; the returned `providerOptions` key must align with the
- * language-model class each SDK layer builds, or AI SDK silently drops the
- * custom options. See:
- *   - packages/ai-sdk-provider/src/cherryin-provider.ts (createChatModel)
- *   - src/renderer/src/aiCore/provider/custom/newapi-provider.ts (createChatModel)
- *
- *   endpointTypes[0]            | SDK language-model class           | providerOptions key
- *   ----------------------------+------------------------------------+----------------------
- *   'anthropic-messages'        | AnthropicMessagesLanguageModel     | anthropic
- *   'google-generate-content'   | GoogleGenerativeAILanguageModel    | google
- *   'openai-responses'          | OpenAIResponsesLanguageModel       | openai
- *   'openai-chat-completions'   | OpenAICompatibleChatLanguageModel  | openai-compatible
- *   'openai-image-generation'   | OpenAICompatibleChatLanguageModel  | openai-compatible
- *
- * Fallback (for untagged models / Vercel Gateway / AiHubMix) dispatches on
- * model-name heuristics.
- */
 function buildAIGatewayOptions(
   assistant: Assistant,
   model: Model,
@@ -502,7 +438,6 @@ function buildAIGatewayOptions(
       return buildGenericProviderOptions('openai-compatible', assistant, model, capabilities, provider)
   }
 
-  // Fallback: model-name heuristic (covers Vercel Gateway, AiHubMix, and untagged models)
   if (isAnthropicModel(model)) return buildAnthropicProviderOptions(assistant, model, capabilities)
   if (isOpenAIModel(model))
     return buildOpenAIProviderOptions(assistant, model, capabilities, provider, serviceTier, textVerbosity)
