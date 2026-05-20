@@ -24,7 +24,7 @@ import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/util
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { Check, Clock3, FolderOpen, ListFilter, MoreHorizontal, Plus, SquarePen, Trash2 } from 'lucide-react'
+import { Check, Clock3, FolderOpen, ListFilter, MoreHorizontal, SquarePen, Trash2 } from 'lucide-react'
 import { memo, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -775,10 +775,10 @@ const Sessions = ({
             </Tooltip>
           )}
           {canCreateSession && (
-            <Tooltip title={t('agent.session.add.title')} delay={500}>
+            <Tooltip title={t('chat.conversation.new')} delay={500}>
               <ResourceList.HeaderActionButton
                 type="button"
-                aria-label={t('agent.session.add.title')}
+                aria-label={t('chat.conversation.new')}
                 disabled={creatingSession || !agentById.has(createSessionAgentId)}
                 onClick={() => {
                   const workspace = payload.workspaceId
@@ -788,7 +788,7 @@ const Sessions = ({
                       : undefined
                   void createSessionForGroup(createSessionAgentId, workspace)
                 }}>
-                <Plus className="block" />
+                <SquarePen className="block" />
               </ResourceList.HeaderActionButton>
             </Tooltip>
           )}

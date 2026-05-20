@@ -1101,7 +1101,12 @@ describe('ResourceList', () => {
     expect(screen.getByText('Resources')).toBeInTheDocument()
     expect(screen.getByText(String(ITEMS.length))).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search resources')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Filter' })).toHaveClass(
+      '!text-foreground/70',
+      'hover:!text-foreground',
+      'data-[state=open]:!text-foreground',
+      '[&_.lucide:not(.lucide-custom)]:!text-current'
+    )
     expect(screen.getByRole('listbox')).toHaveClass('px-1')
     expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass('gap-1', 'px-1')
     expect(screen.getByTestId('alpha-icon')).toHaveClass('size-4.5')

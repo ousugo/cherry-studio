@@ -688,7 +688,7 @@ describe('Sessions', () => {
 
     render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.conversation.new' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'chat.conversation.new' })[0])
 
     expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
     expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-a', name: 'Untitled', workspaceId: 'ws-a' })
@@ -700,8 +700,9 @@ describe('Sessions', () => {
     const onStartTemporarySession = vi.fn()
     render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 
-    const addButtons = screen.getAllByLabelText('Add session')
-    fireEvent.click(addButtons[0])
+    const todayGroup = screen.getByRole('button', { name: 'Today' }).closest('div')
+    expect(todayGroup).not.toBeNull()
+    fireEvent.click(within(todayGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
 
     await vi.waitFor(() =>
       expect(onStartTemporarySession).toHaveBeenCalledWith({
@@ -1082,7 +1083,7 @@ describe('Sessions', () => {
 
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
-    fireEvent.click(workdirGroup!.querySelector('[aria-label="Add session"]')!)
+    fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
 
     await vi.waitFor(() =>
       expect(onStartTemporarySession).toHaveBeenCalledWith({

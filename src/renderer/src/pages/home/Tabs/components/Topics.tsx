@@ -47,7 +47,6 @@ import {
   MoreHorizontal,
   PinIcon,
   PinOffIcon,
-  Plus,
   Square,
   SquareMinus,
   SquarePen,
@@ -664,12 +663,12 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
               />
             </Tooltip>
           )}
-          <Tooltip title={t('chat.add.topic.title')} delay={500}>
+          <Tooltip title={t('chat.conversation.new')} delay={500}>
             <ResourceList.HeaderActionButton
               type="button"
-              aria-label={t('chat.add.topic.title')}
+              aria-label={t('chat.conversation.new')}
               onClick={() => void onNewTopic?.(payload)}>
-              <Plus className="block" />
+              <SquarePen className="block" />
             </ResourceList.HeaderActionButton>
           </Tooltip>
         </>
@@ -960,7 +959,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
                     type="button"
                     aria-label={t('chat.topics.manage.title')}
                     aria-pressed={isManageMode}
-                    className={cn(isManageMode && 'text-foreground')}
+                    className={cn(isManageMode && '!text-foreground')}
                     onClick={isManageMode ? exitManageMode : enterManageMode}>
                     <ListChecks className="block" />
                   </ResourceList.HeaderActionButton>

@@ -1020,10 +1020,14 @@ describe('Topics', () => {
   it('adds a new topic from the header create action', () => {
     const { onNewTopic } = renderTopicList()
 
-    const createButton = screen.getAllByRole('button', { name: 'New Topic' })[0]
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    expect(assistantHeader).toBeInTheDocument()
+
+    const createButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })
     expect(createButton).toBeInTheDocument()
     expect(createButton).toHaveClass('h-[30px]', 'min-w-[30px]', 'rounded-[8px]')
     expect(createButton).not.toHaveClass('border')
+    expect(createButton.querySelector('.lucide-square-pen')).toBeInTheDocument()
     expect(screen.getByRole('listbox')).toHaveClass('pt-0')
 
     fireEvent.click(createButton)
@@ -1038,7 +1042,9 @@ describe('Topics', () => {
     const todayHeader = screen.getByRole('button', { name: 'Today' }).closest('div')
     expect(todayHeader).toBeInTheDocument()
 
-    const todayCreateButton = within(todayHeader as HTMLElement).getByRole('button', { name: 'New Topic' })
+    const todayCreateButton = within(todayHeader as HTMLElement).getByRole('button', {
+      name: 'chat.conversation.new'
+    })
     const todayCreateActionWrapper = Array.from((todayHeader as HTMLElement).querySelectorAll('div')).find((element) =>
       element.className.includes('group-hover/resource-list-group:opacity-100')
     )
@@ -1055,7 +1061,9 @@ describe('Topics', () => {
     for (const groupName of otherGroups) {
       const header = screen.getByRole('button', { name: groupName }).closest('div')
       expect(header).toBeInTheDocument()
-      expect(within(header as HTMLElement).queryByRole('button', { name: 'New Topic' })).not.toBeInTheDocument()
+      expect(
+        within(header as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
+      ).not.toBeInTheDocument()
     }
 
     expect(onNewTopic).toHaveBeenCalledTimes(1)
@@ -1221,13 +1229,15 @@ describe('Topics', () => {
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     expect(assistantHeader).toBeInTheDocument()
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'New Topic' }))
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
 
     for (const groupName of ['Pinned', 'Unlinked Assistant'] as const) {
       const header = screen.getByRole('button', { name: groupName }).closest('div')
       expect(header).toBeInTheDocument()
-      expect(within(header as HTMLElement).queryByRole('button', { name: 'New Topic' })).not.toBeInTheDocument()
+      expect(
+        within(header as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
+      ).not.toBeInTheDocument()
     }
   })
 
@@ -1297,7 +1307,7 @@ describe('Topics', () => {
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
     expect(onNewTopic).not.toHaveBeenCalled()
 
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'New Topic' }))
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
   })
 
