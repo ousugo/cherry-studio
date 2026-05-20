@@ -235,6 +235,8 @@ const MessageList = () => {
   const activeOutlineMessage = activeOutline
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
+  const latestUserMessage = messages.findLast((message) => message.role === 'user' && message.type !== 'clear')
+  const forceScrollToBottomKey = latestUserMessage?.id
 
   return (
     <MessagesContainer id="messages" className="messages-container" key={data.listKey}>
@@ -252,6 +254,7 @@ const MessageList = () => {
             estimateSize={data.estimateSize}
             overscan={data.overscan}
             bottomPadding={isMultiSelectMode ? MULTI_SELECT_BOTTOM_PADDING_PX : undefined}
+            forceScrollToBottomKey={forceScrollToBottomKey}
             hasMoreTop={hasOlder}
             onReachTop={loadMoreMessages}
             renderItem={([key, groupMessages]) => {

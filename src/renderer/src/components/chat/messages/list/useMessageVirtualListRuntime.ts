@@ -24,6 +24,7 @@ interface UseMessageVirtualListRuntimeOptions<T> {
   handleRef?: Ref<MessageVirtualListHandle>
   topPadding: number
   bottomPadding: number
+  forceScrollToBottomKey?: string
 }
 
 export function useMessageVirtualListRuntime<T>({
@@ -35,7 +36,8 @@ export function useMessageVirtualListRuntime<T>({
   hasMoreTop,
   handleRef,
   topPadding,
-  bottomPadding
+  bottomPadding,
+  forceScrollToBottomKey
 }: UseMessageVirtualListRuntimeOptions<T>) {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
 
@@ -54,6 +56,8 @@ export function useMessageVirtualListRuntime<T>({
   const totalSize = virtualizer.getTotalSize()
   const scrollHeight = topPadding + totalSize + bottomPadding
   const prevBottomPaddingRef = useRef(bottomPadding)
+  const prevForceScrollToBottomKeyRef = useRef(forceScrollToBottomKey)
+  const didTrackForceScrollToBottomKeyRef = useRef(false)
   const wasAtBottomRef = useRef(true)
 
   const computeIsAtBottom = useCallback((): boolean => {
@@ -149,6 +153,29 @@ export function useMessageVirtualListRuntime<T>({
       wasAtBottomRef.current = true
     })
   }, [bottomPadding])
+
+  useLayoutEffect(() => {
+    const previousKey = prevForceScrollToBottomKeyRef.current
+    prevForceScrollToBottomKeyRef.current = forceScrollToBottomKey
+
+    if (!didTrackForceScrollToBottomKeyRef.current) {
+      didTrackForceScrollToBottomKeyRef.current = true
+      return
+    }
+
+    if (!forceScrollToBottomKey || previousKey === forceScrollToBottomKey) return
+
+    const scrollToBottom = () => {
+      const node = scrollerRef.current
+      if (!node) return
+      node.scrollTop = node.scrollHeight
+      wasAtBottomRef.current = true
+    }
+
+    requestAnimationFrame(scrollToBottom)
+    const settleTimer = setTimeout(scrollToBottom, 120)
+    return () => clearTimeout(settleTimer)
+  }, [forceScrollToBottomKey])
 
   const stickyObserverRef = useRef<ResizeObserver | null>(null)
   const observedItemsRef = useRef<Set<HTMLElement>>(new Set())

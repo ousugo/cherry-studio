@@ -68,6 +68,8 @@ export interface MessageVirtualListProps<T> {
   topPadding?: number
   /** Extra empty space after the newest message. */
   bottomPadding?: number
+  /** Changes when the caller needs to force the viewport to the newest item after render. */
+  forceScrollToBottomKey?: string
 }
 
 export function MessageVirtualList<T>({
@@ -82,7 +84,8 @@ export function MessageVirtualList<T>({
   className,
   style,
   topPadding = DEFAULT_TOP_PADDING_PX,
-  bottomPadding = DEFAULT_BOTTOM_PADDING_PX
+  bottomPadding = DEFAULT_BOTTOM_PADDING_PX,
+  forceScrollToBottomKey
 }: MessageVirtualListProps<T>): React.ReactElement {
   const { measureItem, scrollerRef, scrollHeight, virtualItems } = useMessageVirtualListRuntime({
     items,
@@ -93,7 +96,8 @@ export function MessageVirtualList<T>({
     hasMoreTop,
     handleRef,
     topPadding,
-    bottomPadding
+    bottomPadding,
+    forceScrollToBottomKey
   })
 
   return (
