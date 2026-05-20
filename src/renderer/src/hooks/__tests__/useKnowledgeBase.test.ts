@@ -10,7 +10,7 @@ import {
   useKnowledgeBases,
   useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
-} from '../useKnowledgeBases'
+} from '../useKnowledgeBase'
 
 type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'> & {
   emoji: string

@@ -5,7 +5,7 @@ import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionMod
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -141,7 +141,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
 
   const { assistant, model, updateAssistant } = useAssistant(topic.assistantId)
   const { createTopic } = useTopicMutations()
-  const { knowledgeBases: allKnowledgeBases } = useKnowledgeBases()
+  const { bases: allKnowledgeBases } = useKnowledgeBases()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
 
