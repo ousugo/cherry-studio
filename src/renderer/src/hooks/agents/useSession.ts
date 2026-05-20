@@ -87,9 +87,9 @@ export const useSessions = (
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/sessions')
 
-  // Server returns pinned-first via the two-section cursor in SessionService —
-  // see `listByCursor` (`pin:` / `session:` / `session:` sentinel). The `/pins`
-  // map is kept only for the per-row pinned indicator and the toggle handler.
+  // SessionService returns the persisted session order (`orderKey`, `id`).
+  // The `/pins` map is composed in the renderer for row indicators, toggle
+  // handling, and display grouping/sorting that promotes pinned sessions.
   const sessions = useInfiniteFlatItems(pages)
   const { data: pinList, isLoading: isPinsLoading } = useQuery('/pins', { query: { entityType: 'session' } })
   const pinIdBySessionId = useMemo(
