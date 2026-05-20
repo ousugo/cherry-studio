@@ -3,9 +3,9 @@ import '@renderer/components/chat/composer/tools'
 import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import {
   ComposerToolProvider,
-  useComposerToolProvider,
   useComposerToolProviderDispatch,
   useComposerToolProviderInternalDispatch,
+  useComposerToolProviderLaunchers,
   useComposerToolProviderState
 } from '@renderer/components/chat/composer/tools/ComposerToolProvider'
 import type {
@@ -77,10 +77,44 @@ const ComposerToolRuntimeSlot = ({ tool, context }: { tool: AnyToolDefinition; c
 
 export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
-  const toolsContext = useComposerToolProvider()
+  const toolState = useComposerToolProviderState()
+  const {
+    addNewTopic,
+    onTextChange,
+    resizeTextArea,
+    setFiles,
+    setIsExpanded,
+    setMentionedModels,
+    setSelectedKnowledgeBases,
+    toggleExpanded,
+    toolsRegistry
+  } = useComposerToolProviderDispatch()
   const quickPanelContext = useQuickPanel()
   const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
   const { provider } = useProvider(model.providerId)
+
+  const toolActions = useMemo<ToolActionMap>(
+    () => ({
+      addNewTopic,
+      onTextChange,
+      resizeTextArea,
+      setFiles,
+      setIsExpanded,
+      setMentionedModels,
+      setSelectedKnowledgeBases,
+      toggleExpanded
+    }),
+    [
+      addNewTopic,
+      onTextChange,
+      resizeTextArea,
+      setFiles,
+      setIsExpanded,
+      setMentionedModels,
+      setSelectedKnowledgeBases,
+      toggleExpanded
+    ]
+  )
 
   const availableTools = useMemo(() => {
     return getToolsForScope(scope, { assistant, model, session, provider })
@@ -92,13 +126,13 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
 
       if (!cache.has(toolKey)) {
         cache.set(toolKey, {
-          registerLaunchers: (entries) => toolsContext.toolsRegistry.registerLaunchers(toolKey, entries)
+          registerLaunchers: (entries) => toolsRegistry.registerLaunchers(toolKey, entries)
         })
       }
 
       return cache.get(toolKey)!
     },
-    [toolsContext.toolsRegistry]
+    [toolsRegistry]
   )
 
   const buildRenderContext = useCallback(
@@ -109,7 +143,7 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
 
       const state = (deps?.state || ([] as unknown as S)).reduce(
         (acc, key) => {
-          acc[key] = toolsContext[key]
+          acc[key] = toolState[key]
           return acc
         },
         {} as Pick<ToolStateMap, S[number]>
@@ -117,7 +151,7 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
 
       const runtimeActions = (deps?.actions || ([] as unknown as A)).reduce(
         (acc, key) => {
-          const actionValue = toolsContext[key]
+          const actionValue = toolActions[key]
           if (actionValue) {
             acc[key] = actionValue
           }
@@ -138,18 +172,25 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
         t
       } as ToolRenderContext<S, A>
     },
-    [assistant, getLauncherApiForTool, model, quickPanelContext, scope, session, t, toolsContext]
+    [assistant, getLauncherApiForTool, model, quickPanelContext, scope, session, t, toolActions, toolState]
+  )
+
+  const toolRuntimeEntries = useMemo(
+    () =>
+      availableTools.map((tool) => ({
+        tool,
+        context: buildRenderContext(tool)
+      })),
+    [availableTools, buildRenderContext]
   )
 
   useEffect(() => {
     const disposeCallbacks: Array<() => void> = []
 
-    for (const tool of availableTools) {
-      const context = buildRenderContext(tool)
-
+    for (const { tool, context } of toolRuntimeEntries) {
       if (tool.composer?.menuItems) {
         const launchers = tool.composer.menuItems.createItems(context)
-        const dispose = toolsContext.toolsRegistry.registerLaunchers(tool.key, launchers)
+        const dispose = toolsRegistry.registerLaunchers(tool.key, launchers)
         disposeCallbacks.push(dispose)
       }
     }
@@ -157,19 +198,13 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
     return () => {
       disposeCallbacks.forEach((dispose) => dispose())
     }
-  }, [availableTools, buildRenderContext, toolsContext.toolsRegistry])
+  }, [toolRuntimeEntries, toolsRegistry])
 
   return (
     <>
-      {availableTools.map((tool) => {
+      {toolRuntimeEntries.map(({ tool, context }) => {
         if (!tool.composer?.runtime) return null
-        return (
-          <ComposerToolRuntimeSlot
-            key={`${tool.key}-composer-runtime`}
-            tool={tool}
-            context={buildRenderContext(tool)}
-          />
-        )
+        return <ComposerToolRuntimeSlot key={`${tool.key}-composer-runtime`} tool={tool} context={context} />
       })}
     </>
   )
@@ -187,19 +222,24 @@ export const useComposerToolInternalDispatch = (): ComposerToolInternalDispatch 
   return useComposerToolProviderInternalDispatch()
 }
 
+const getSortedLaunchers = (
+  triggers: ReturnType<typeof useComposerToolProviderLaunchers>,
+  source?: ComposerToolLauncherActionOptions['source']
+) => {
+  return [
+    ...triggers
+      .getLaunchers()
+      .filter((launcher) => !launcher.hidden)
+      .filter((launcher) => !source || !launcher.sources || launcher.sources.includes(source))
+  ].sort((left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER))
+}
+
 export function useComposerToolLauncherController() {
-  const { triggers } = useComposerToolDispatch()
+  const triggers = useComposerToolProviderLaunchers()
   const quickPanel = useQuickPanel()
 
   const getLaunchers = useCallback(
-    (source?: ComposerToolLauncherActionOptions['source']) => {
-      return [
-        ...triggers
-          .getLaunchers()
-          .filter((launcher) => !launcher.hidden)
-          .filter((launcher) => !source || !launcher.sources || launcher.sources.includes(source))
-      ].sort((left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER))
-    },
+    (source?: ComposerToolLauncherActionOptions['source']) => getSortedLaunchers(triggers, source),
     [triggers]
   )
 
@@ -220,6 +260,21 @@ export function useComposerToolLauncherController() {
     },
     [quickPanel]
   )
+
+  return { getLaunchers, dispatchLauncher }
+}
+
+export function useComposerToolLauncherActions() {
+  const { triggers } = useComposerToolProviderDispatch()
+
+  const getLaunchers = useCallback(
+    (source?: ComposerToolLauncherActionOptions['source']) => getSortedLaunchers(triggers, source),
+    [triggers]
+  )
+
+  const dispatchLauncher = useCallback((launcher: ComposerToolLauncher, options: ComposerToolLauncherActionOptions) => {
+    launcher.action?.(options)
+  }, [])
 
   return { getLaunchers, dispatchLauncher }
 }

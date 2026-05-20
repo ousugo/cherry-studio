@@ -11,7 +11,7 @@ import {
   ComposerToolRuntimeProvider,
   useComposerToolDispatch,
   useComposerToolInternalDispatch,
-  useComposerToolLauncherController,
+  useComposerToolLauncherActions,
   useComposerToolState
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
 import { getComposerToolConfig } from '@renderer/components/chat/composer/tools/registry'
@@ -457,7 +457,7 @@ const AgentComposerInner = ({
   const { files, isExpanded } = useComposerToolState()
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { setCouldAddImageFile, setExtensions } = useComposerToolInternalDispatch()
-  const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
+  const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')

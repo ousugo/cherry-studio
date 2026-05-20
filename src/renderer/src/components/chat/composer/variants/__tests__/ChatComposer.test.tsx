@@ -121,6 +121,10 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherController: () => ({
     getLaunchers: vi.fn(() => []),
     dispatchLauncher: vi.fn()
+  }),
+  useComposerToolLauncherActions: () => ({
+    getLaunchers: vi.fn(() => []),
+    dispatchLauncher: vi.fn()
   })
 }))
 

@@ -11,7 +11,7 @@ import {
   ComposerToolRuntimeProvider,
   useComposerToolDispatch,
   useComposerToolInternalDispatch,
-  useComposerToolLauncherController,
+  useComposerToolLauncherActions,
   useComposerToolState
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
 import { getComposerToolConfig } from '@renderer/components/chat/composer/tools/registry'
@@ -391,7 +391,7 @@ const ChatComposerInner = ({
     useComposerToolState()
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
   const { setCouldAddImageFile, setExtensions } = useComposerToolInternalDispatch()
-  const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
+  const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const {
     assistant,
     isLoading: isAssistantLoading,

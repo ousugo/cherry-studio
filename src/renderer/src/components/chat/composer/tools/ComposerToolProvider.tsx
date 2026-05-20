@@ -71,6 +71,7 @@ export interface ComposerToolDispatch {
 
 const ComposerToolStateContext = createContext<ComposerToolState | undefined>(undefined)
 const ComposerToolDispatchContext = createContext<ComposerToolDispatch | undefined>(undefined)
+const ComposerToolLaunchersContext = createContext<ComposerToolLaunchersAPI | undefined>(undefined)
 
 /**
  * Get Composer tool state (read-only).
@@ -92,6 +93,14 @@ export const useComposerToolProviderDispatch = (): ComposerToolDispatch => {
   const context = use(ComposerToolDispatchContext)
   if (!context) {
     throw new Error('useComposerToolProviderDispatch must be used within ComposerToolProvider')
+  }
+  return context
+}
+
+export const useComposerToolProviderLaunchers = (): ComposerToolLaunchersAPI => {
+  const context = use(ComposerToolLaunchersContext)
+  if (!context) {
+    throw new Error('useComposerToolProviderLaunchers must be used within ComposerToolProvider')
   }
   return context
 }
@@ -148,6 +157,8 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
   // Composer launcher registry (stored in refs to avoid re-renders)
   const launcherRegistryRef = useRef(new Map<string, ComposerToolLauncher[]>())
   const [launcherVersion, setLauncherVersion] = useState(0)
+  const launcherVersionRef = useRef(launcherVersion)
+  launcherVersionRef.current = launcherVersion
 
   const getComposerToolLaunchers = useCallback(() => {
     const allEntries: ComposerToolLauncher[] = []
@@ -221,6 +232,16 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
     [getComposerToolLaunchers, launcherVersion]
   )
 
+  const stableTriggersAPI = useMemo<ComposerToolLaunchersAPI>(
+    () => ({
+      getLaunchers: getComposerToolLaunchers,
+      get version() {
+        return launcherVersionRef.current
+      }
+    }),
+    [getComposerToolLaunchers]
+  )
+
   // Dispatch Context Value (stable references)
   const dispatchValue = useMemo<ComposerToolDispatch>(
     () => ({
@@ -235,9 +256,9 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
 
       // API objects
       toolsRegistry: toolsRegistryAPI,
-      triggers: triggersAPI
+      triggers: stableTriggersAPI
     }),
-    [stableActions, toolsRegistryAPI, triggersAPI]
+    [stableActions, toolsRegistryAPI, stableTriggersAPI]
   )
 
   // Internal Dispatch (contains setCouldAddImageFile and setExtensions)
@@ -254,9 +275,11 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
   return (
     <ComposerToolStateContext value={stateValue}>
       <ComposerToolDispatchContext value={dispatchValue}>
-        <ComposerToolInternalDispatchContext value={internalDispatchValue}>
-          {children}
-        </ComposerToolInternalDispatchContext>
+        <ComposerToolLaunchersContext value={triggersAPI}>
+          <ComposerToolInternalDispatchContext value={internalDispatchValue}>
+            {children}
+          </ComposerToolInternalDispatchContext>
+        </ComposerToolLaunchersContext>
       </ComposerToolDispatchContext>
     </ComposerToolStateContext>
   )

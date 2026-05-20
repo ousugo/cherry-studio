@@ -120,7 +120,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
 
   const ProviderIcon = enableWebSearch ? providerLogo : undefined
-  const icon = ProviderIcon ? <ProviderIcon width={18} height={18} /> : <Globe />
+  const icon = useMemo(() => (ProviderIcon ? <ProviderIcon width={18} height={18} /> : <Globe />), [ProviderIcon])
 
   useEffect(() => {
     return launcher.registerLaunchers([
