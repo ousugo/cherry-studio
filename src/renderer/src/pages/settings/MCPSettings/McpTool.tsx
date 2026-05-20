@@ -9,9 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 import { McpDetailItem, McpDetailList, RequiredMark } from './McpDetailList'
 
-/** Auto-approved when: on the server's allow-list / a hub read-only meta-tool. */
 function isToolAutoApproved(tool: MCPTool, server: MCPServer): boolean {
-  if (server.id === 'hub') return tool.name === 'list' || tool.name === 'inspect'
   return !server.disabledAutoApproveTools?.includes(tool.name)
 }
 
