@@ -3,6 +3,7 @@ import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { type WorkspaceRow, workspaceTable } from '@data/db/schemas/workspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { rowToWorkspace, workspaceService } from '@data/services/WorkspaceService'
@@ -28,6 +29,7 @@ type JoinedSessionRow = {
   session: SessionRow
   workspace: WorkspaceRow | null
 }
+type SessionDeleteTx = Pick<DbType, 'delete'>
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   if (row.session.workspaceId && !row.workspace) {
@@ -151,11 +153,23 @@ export class SessionService {
 
   async delete(id: string): Promise<void> {
     const db = application.get('DbService').getDb()
-    await db.transaction(async (tx) => {
-      const [row] = await tx.delete(sessionsTable).where(eq(sessionsTable.id, id)).returning({ id: sessionsTable.id })
-      if (!row) throw DataApiErrorFactory.notFound('Session', id)
-      await pinService.purgeForEntityTx(tx, 'session', id)
-    })
+    await db.transaction((tx) => this.deleteByIdTx(tx, id))
+  }
+
+  async deleteByIdTx(tx: SessionDeleteTx, id: string): Promise<void> {
+    const [row] = await tx.delete(sessionsTable).where(eq(sessionsTable.id, id)).returning({ id: sessionsTable.id })
+    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    await pinService.purgeForEntityTx(tx, 'session', id)
+  }
+
+  async deleteByWorkspaceTx(tx: SessionDeleteTx, workspaceId: string): Promise<string[]> {
+    const deletedSessions = await tx
+      .delete(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, workspaceId))
+      .returning({ id: sessionsTable.id })
+    const sessionIds = deletedSessions.map((session) => session.id)
+    await pinService.purgeForEntitiesTx(tx, 'session', sessionIds)
+    return sessionIds
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {

@@ -445,6 +445,16 @@
           "failed": "Failed to update the session"
         }
       },
+      "workdir": {
+        "delete": {
+          "content": "Deleting this workspace will also delete all sessions under it. Only database records are removed; the actual folder on disk will not be deleted.",
+          "error": {
+            "failed": "Failed to delete the workspace"
+          },
+          "title": "Delete workspace",
+          "trigger": "Delete workspace"
+        }
+      },
       "workspace_selector": {
         "create_failed": "Failed to add project.",
         "create_new": "Add new project",

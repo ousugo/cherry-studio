@@ -171,12 +171,14 @@ const cacheMocks = vi.hoisted(() => ({
 }))
 
 const dataApiMocks = vi.hoisted(() => ({
+  deleteWorkspace: vi.fn().mockResolvedValue(undefined),
   findOrCreateWorkspace: vi.fn(async ({ body }: { body: { path: string } }) => {
     const workspace = dataApiMocks.workspaces.find((candidate) => candidate.path === body.path)
     return workspace ?? { id: 'ws-test', name: 'Test Workspace', path: body.path }
   }),
   refetchWorkspaces: vi.fn().mockResolvedValue(undefined),
   reorderWorkspace: vi.fn().mockResolvedValue(undefined),
+  mutationOptions: new Map<string, { refresh?: string[] }>(),
   workspaces: [] as Array<{
     id: string
     name: string
@@ -287,14 +289,19 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
       mutate: vi.fn()
     }
   }),
-  useMutation: vi.fn((method: string, path: string) => ({
-    trigger:
-      method === 'PATCH' && path === '/workspaces/:id/order'
-        ? dataApiMocks.reorderWorkspace
-        : dataApiMocks.findOrCreateWorkspace,
-    isLoading: false,
-    error: undefined
-  }))
+  useMutation: vi.fn((method: string, path: string, options?: { refresh?: string[] }) => {
+    dataApiMocks.mutationOptions.set(`${method} ${path}`, options ?? {})
+    return {
+      trigger:
+        method === 'PATCH' && path === '/workspaces/:id/order'
+          ? dataApiMocks.reorderWorkspace
+          : method === 'DELETE' && path === '/workspaces/:workspaceId'
+            ? dataApiMocks.deleteWorkspace
+            : dataApiMocks.findOrCreateWorkspace,
+      isLoading: false,
+      error: undefined
+    }
+  })
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({
@@ -331,10 +338,17 @@ vi.mock('react-i18next', () => ({
         'agent.session.reorder.error.failed': 'Failed to reorder sessions',
         'agent.session.search.placeholder': 'Search sessions',
         'agent.session.update.error.failed': 'Failed to update session',
+        'agent.session.workdir.delete.content':
+          'Deleting this workspace also deletes sessions under it. The actual folder is not deleted.',
+        'agent.session.workdir.delete.error.failed': 'Failed to delete workspace',
+        'agent.session.workdir.delete.title': 'Delete workspace',
+        'agent.session.workdir.delete.trigger': 'Delete workspace',
         'chat.topics.delete.shortcut': 'Hold Ctrl to delete directly',
         'chat.topics.pin': 'Pin',
         'chat.topics.unpin': 'Unpin',
+        'common.cancel': 'Cancel',
         'common.delete': 'Delete',
+        'common.delete_success': 'Deleted successfully',
         'common.error': 'Error',
         'common.loading': 'Loading...',
         'common.name': 'Name',
@@ -471,6 +485,18 @@ describe('Sessions', () => {
     dataApiMocks.workspacesError = undefined
     dataApiMocks.workspacesLoading = false
     dataApiMocks.workspacesRefreshing = false
+    dataApiMocks.deleteWorkspace.mockResolvedValue(undefined)
+    dataApiMocks.mutationOptions.clear()
+    sessionDataMocks.deleteSession.mockResolvedValue(true)
+    Object.assign(window, {
+      modal: {
+        confirm: vi.fn().mockResolvedValue(true)
+      },
+      toast: {
+        error: vi.fn(),
+        success: vi.fn()
+      }
+    })
     cacheMocks.state.activeSessionId = 'session-a'
     setupSessions()
     pinMocks.usePins.mockReturnValue({
@@ -912,6 +938,75 @@ describe('Sessions', () => {
       })
     )
     expect(dataApiMocks.refetchWorkspaces).toHaveBeenCalled()
+  })
+
+  it('deletes a workspace group through the workspace delete endpoint', async () => {
+    const callOrder: string[] = []
+    dataApiMocks.deleteWorkspace.mockImplementationOnce(async () => {
+      callOrder.push('workspace')
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({
+          agentId: null,
+          id: 'session-a',
+          name: 'Alpha session',
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
+          orderKey: 'a'
+        }),
+        createSession({
+          agentId: null,
+          id: 'session-pinned',
+          name: 'Pinned Alpha session',
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
+          orderKey: 'b'
+        }),
+        createSession({
+          agentId: null,
+          id: 'session-b',
+          name: 'Beta session',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' }),
+          orderKey: 'c'
+        })
+      ],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<Sessions />)
+
+    const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
+    expect(workdirGroup).not.toBeNull()
+    fireEvent.click(within(workdirGroup as HTMLElement).getByLabelText('Delete workspace'))
+
+    await vi.waitFor(() =>
+      expect(dataApiMocks.deleteWorkspace).toHaveBeenCalledWith({
+        params: { workspaceId: 'ws-a' }
+      })
+    )
+    expect(window.modal.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Deleting this workspace also deletes sessions under it. The actual folder is not deleted.'
+      })
+    )
+    expect(dataApiMocks.mutationOptions.get('DELETE /workspaces/:workspaceId')?.refresh).toEqual([
+      '/sessions',
+      '/workspaces',
+      '/pins',
+      '/channels'
+    ])
+    expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
+    expect(callOrder).toEqual(['workspace'])
+    expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith('session-b')
+    expect(dataApiMocks.refetchWorkspaces).toHaveBeenCalled()
+    expect(sessionDataMocks.reload).toHaveBeenCalled()
   })
 
   it('creates sessions from workspace group actions', async () => {

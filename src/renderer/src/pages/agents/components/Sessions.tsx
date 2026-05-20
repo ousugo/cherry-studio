@@ -21,7 +21,7 @@ import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/util
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { Check, Clock3, ListFilter, Plus, SquarePen } from 'lucide-react'
+import { Check, Clock3, ListFilter, Plus, SquarePen, Trash2 } from 'lucide-react'
 import { memo, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -164,6 +164,7 @@ const Sessions = ({
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
   const [optimisticWorkspaceOrderIds, setOptimisticWorkspaceOrderIds] = useState<string[] | null>(null)
   const [creatingSession, setCreatingSession] = useState(false)
+  const [deletingWorkspaceGroupId, setDeletingWorkspaceGroupId] = useState<string | null>(null)
 
   const { data: channels } = useQuery('/channels')
   const channelTypeMap = useMemo(() => {
@@ -340,6 +341,9 @@ const Sessions = ({
   )
 
   const { trigger: findOrCreateWorkspace } = useMutation('POST', '/workspaces', { refresh: ['/workspaces'] })
+  const { trigger: deleteWorkspace } = useMutation('DELETE', '/workspaces/:workspaceId', {
+    refresh: ['/sessions', '/workspaces', '/pins', '/channels']
+  })
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/workspaces/:id/order')
 
   const createSessionForGroup = useCallback(
@@ -400,6 +404,62 @@ const Sessions = ({
       await refetchWorkspaces()
     }
   }, [displayMode, refetchWorkspaces, reload])
+
+  const handleDeleteWorkdirGroup = useCallback(
+    async (group: ResourceListGroup) => {
+      const workspaceId = workdirDisplay.workspaceIdByGroupId.get(group.id)
+      if (!workspaceId || deletingWorkspaceGroupId) return
+
+      const sessionIds = sessionItems
+        .filter((session) => session.workspaceId === workspaceId)
+        .map((session) => session.id)
+      if (sessionIds.length === 0) return
+
+      const confirmed = await window.modal.confirm({
+        title: t('agent.session.workdir.delete.title'),
+        content: t('agent.session.workdir.delete.content'),
+        okText: t('common.delete'),
+        cancelText: t('common.cancel'),
+        centered: true,
+        okButtonProps: {
+          danger: true
+        }
+      })
+      if (!confirmed) return
+
+      setDeletingWorkspaceGroupId(group.id)
+      const affectedSessionIds = new Set(sessionIds)
+
+      try {
+        await deleteWorkspace({ params: { workspaceId } })
+
+        if (activeSessionId && affectedSessionIds.has(activeSessionId)) {
+          const remaining = sessionItems.find((session) => !affectedSessionIds.has(session.id))
+          setActiveSessionId(remaining?.id ?? null)
+        }
+
+        await reload()
+        await refetchWorkspaces()
+        window.toast.success(t('common.delete_success'))
+      } catch (err) {
+        logger.error('Failed to delete workspace group', { err, sessionIds, workspaceId })
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.delete.error.failed')))
+      } finally {
+        setDeletingWorkspaceGroupId(null)
+      }
+    },
+    [
+      activeSessionId,
+      deleteWorkspace,
+      deletingWorkspaceGroupId,
+      refetchWorkspaces,
+      reload,
+      sessionItems,
+      setActiveSessionId,
+      t,
+      workdirDisplay
+    ]
+  )
 
   const openAgentEditor = useCallback(
     (agentId: string) => {
@@ -544,30 +604,59 @@ const Sessions = ({
         }
       }
 
-      if (!payload.agentId) return null
+      const workspaceId = displayMode === 'workdir' ? workdirDisplay.workspaceIdByGroupId.get(group.id) : undefined
+      const canCreateSession = !!payload.agentId
+
+      if (!canCreateSession && !workspaceId) return null
 
       return (
         <>
-          <Tooltip title={t('agent.session.add.title')} delay={500}>
-            <ResourceList.HeaderActionButton
-              type="button"
-              aria-label={t('agent.session.add.title')}
-              disabled={creatingSession || !agentById.has(payload.agentId)}
-              onClick={() => {
-                const workspace = payload.workspaceId
-                  ? { workspaceId: payload.workspaceId }
-                  : payload.workspacePath
-                    ? { workspacePath: payload.workspacePath }
-                    : undefined
-                void createSessionForGroup(payload.agentId, workspace)
-              }}>
-              <Plus className="block" />
-            </ResourceList.HeaderActionButton>
-          </Tooltip>
+          {canCreateSession && (
+            <Tooltip title={t('agent.session.add.title')} delay={500}>
+              <ResourceList.HeaderActionButton
+                type="button"
+                aria-label={t('agent.session.add.title')}
+                disabled={creatingSession || !agentById.has(payload.agentId)}
+                onClick={() => {
+                  const workspace = payload.workspaceId
+                    ? { workspaceId: payload.workspaceId }
+                    : payload.workspacePath
+                      ? { workspacePath: payload.workspacePath }
+                      : undefined
+                  void createSessionForGroup(payload.agentId, workspace)
+                }}>
+                <Plus className="block" />
+              </ResourceList.HeaderActionButton>
+            </Tooltip>
+          )}
+          {workspaceId && (
+            <Tooltip title={t('agent.session.workdir.delete.trigger')} delay={500}>
+              <ResourceList.HeaderActionButton
+                type="button"
+                aria-label={t('agent.session.workdir.delete.trigger')}
+                disabled={!!deletingWorkspaceGroupId}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void handleDeleteWorkdirGroup(group)
+                }}>
+                <Trash2 className="block" />
+              </ResourceList.HeaderActionButton>
+            </Tooltip>
+          )}
         </>
       )
     },
-    [agentById, createSessionForGroup, creatingSession, displayMode, fallbackAgentId, t, workdirDisplay]
+    [
+      agentById,
+      createSessionForGroup,
+      creatingSession,
+      deletingWorkspaceGroupId,
+      displayMode,
+      fallbackAgentId,
+      handleDeleteWorkdirGroup,
+      t,
+      workdirDisplay
+    ]
   )
 
   const listError = error ?? (displayMode === 'workdir' ? workspacesError : undefined)

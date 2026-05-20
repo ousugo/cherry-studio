@@ -445,6 +445,16 @@
           "failed": "更新会话失败"
         }
       },
+      "workdir": {
+        "delete": {
+          "content": "删除该工作目录会同时删除该工作目录下的所有会话；只会删除数据库记录，不会删除磁盘上的真实目录。",
+          "error": {
+            "failed": "删除工作目录失败"
+          },
+          "title": "删除工作目录",
+          "trigger": "删除工作目录"
+        }
+      },
       "workspace_selector": {
         "create_failed": "添加项目失败。",
         "create_new": "添加新项目",

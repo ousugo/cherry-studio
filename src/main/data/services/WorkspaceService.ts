@@ -16,6 +16,7 @@ import { v4 as uuidv4 } from 'uuid'
 const logger = loggerService.withContext('WorkspaceService')
 
 type WorkspaceTx = Pick<DbType, 'select' | 'insert'>
+type WorkspaceDeleteTx = Pick<DbType, 'delete'>
 
 export function rowToWorkspace(row: WorkspaceRow): WorkspaceEntity {
   return {
@@ -87,9 +88,8 @@ export class WorkspaceService {
     return row
   }
 
-  async delete(id: string): Promise<void> {
-    const db = application.get('DbService').getDb()
-    const [row] = await db.delete(workspaceTable).where(eq(workspaceTable.id, id)).returning({ id: workspaceTable.id })
+  async deleteByIdTx(tx: WorkspaceDeleteTx, id: string): Promise<void> {
+    const [row] = await tx.delete(workspaceTable).where(eq(workspaceTable.id, id)).returning({ id: workspaceTable.id })
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
   }
 

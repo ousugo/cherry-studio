@@ -445,6 +445,16 @@
           "failed": "無法更新工作階段"
         }
       },
+      "workdir": {
+        "delete": {
+          "content": "刪除此工作目錄也會刪除此工作目錄下的所有工作階段；只會刪除資料庫記錄，不會刪除磁碟上的實際目錄。",
+          "error": {
+            "failed": "無法刪除工作目錄"
+          },
+          "title": "刪除工作目錄",
+          "trigger": "刪除工作目錄"
+        }
+      },
       "workspace_selector": {
         "create_failed": "[to be translated]:Failed to add project.",
         "create_new": "[to be translated]:Add new project",

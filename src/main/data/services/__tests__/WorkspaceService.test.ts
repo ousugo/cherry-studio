@@ -1,8 +1,10 @@
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { workspaceTable } from '@data/db/schemas/workspace'
+import { pinService } from '@data/services/PinService'
 import { sessionService } from '@data/services/SessionService'
 import { WorkspaceService, workspaceService } from '@data/services/WorkspaceService'
+import { workspaceWorkflowService } from '@data/services/WorkspaceWorkflowService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -64,10 +66,11 @@ describe('WorkspaceService', () => {
     })
   })
 
-  it('deletes only the workspace row and clears session workspace bindings', async () => {
+  it('deletes the workspace row and associated sessions without removing the directory', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
     const workspacePath = path.join(root, 'db-only-delete')
     const workspace = await workspaceService.findOrCreateByPath(workspacePath)
+    const otherWorkspace = await workspaceService.findOrCreateByPath(path.join(root, 'kept-workspace'))
     await dbh.db.insert(agentTable).values({
       id: 'agent-with-deleted-workspace',
       type: 'claude-code',
@@ -81,23 +84,33 @@ describe('WorkspaceService', () => {
       name: 'Workspace binding clears',
       workspaceId: workspace.id
     })
+    const otherSession = await sessionService.createSession({
+      agentId: 'agent-with-deleted-workspace',
+      name: 'Other workspace session remains',
+      workspaceId: otherWorkspace.id
+    })
+    await pinService.pin({ entityType: 'session', entityId: session.id })
+    await pinService.pin({ entityType: 'session', entityId: otherSession.id })
 
-    await workspaceService.delete(workspace.id)
+    await workspaceWorkflowService.deleteWorkspace(workspace.id)
 
     await expect(workspaceService.getById(workspace.id)).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
     const stats = await stat(workspacePath)
     expect(stats.isDirectory()).toBe(true)
-    await expect(sessionService.getById(session.id)).resolves.toMatchObject({
-      id: session.id,
-      workspaceId: null,
-      workspace: null
+    await expect(sessionService.getById(session.id)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
     })
+    await expect(sessionService.getById(otherSession.id)).resolves.toMatchObject({
+      id: otherSession.id,
+      workspaceId: otherWorkspace.id
+    })
+    expect((await pinService.listByEntityType('session')).map((pin) => pin.entityId)).toEqual([otherSession.id])
   })
 
   it('throws not found when deleting a missing workspace', async () => {
-    await expect(workspaceService.delete('missing-workspace')).rejects.toMatchObject({
+    await expect(workspaceWorkflowService.deleteWorkspace('missing-workspace')).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
   })
