@@ -47,6 +47,7 @@ import {
   PinIcon,
   Plus,
   Square,
+  SquareMinus,
   SquarePen,
   Trash2,
   XIcon
@@ -256,7 +257,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   )
 
   const manageState = useTopicManageMode()
-  const { isManageMode, selectedIds, searchText, enterManageMode, exitManageMode, toggleSelectTopic } = manageState
+  const { isManageMode, selectedIds, searchText, enterManageMode, exitManageMode, setSelectedIds, toggleSelectTopic } =
+    manageState
   const handledRevealModeExitRef = useRef<string | null>(null)
   const deferredSearchText = useDeferredValue(searchText)
   const { isFulfilled: isActiveTopicStreamFulfilled, markSeen: markActiveTopicStreamSeen } = useTopicStreamStatus(
@@ -505,6 +507,69 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     [assistantById, displayMode, onNewTopic, openAssistantEditor, t]
   )
 
+  const getSelectableTopicIdsInGroup = useCallback(
+    (groupId: string) =>
+      filteredTopics
+        .filter((topic) => !topic.pinned && (topicGroupBy(topic) ?? { id: 'ungrouped', label: '' }).id === groupId)
+        .map((topic) => topic.id),
+    [filteredTopics, topicGroupBy]
+  )
+
+  const toggleSelectTopicGroup = useCallback(
+    (groupId: string) => {
+      const topicIds = getSelectableTopicIdsInGroup(groupId)
+      if (topicIds.length === 0) return
+
+      setSelectedIds((previous) => {
+        const allSelected = topicIds.every((topicId) => previous.has(topicId))
+        const next = new Set(previous)
+
+        for (const topicId of topicIds) {
+          if (allSelected) {
+            next.delete(topicId)
+          } else {
+            next.add(topicId)
+          }
+        }
+
+        return next
+      })
+    },
+    [getSelectableTopicIdsInGroup, setSelectedIds]
+  )
+
+  const getGroupHeaderLeadingAction = useCallback(
+    (group: { id: string; label: string }) => {
+      if (!isManageMode) return null
+
+      const topicIds = getSelectableTopicIdsInGroup(group.id)
+      const selectedCount = topicIds.filter((topicId) => selectedIds.has(topicId)).length
+      const allSelected = topicIds.length > 0 && selectedCount === topicIds.length
+      const partiallySelected = selectedCount > 0 && !allSelected
+      const labelPrefix = allSelected ? t('chat.topics.manage.deselect_all') : t('common.select_all')
+
+      return (
+        <button
+          type="button"
+          aria-label={`${labelPrefix} ${group.label}`}
+          aria-pressed={allSelected}
+          disabled={topicIds.length === 0}
+          className={cn(
+            'flex size-4.5 shrink-0 items-center justify-center rounded-lg text-foreground/70 outline-none transition-colors [&_svg]:size-3.5 [&_svg]:shrink-0',
+            'hover:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:cursor-not-allowed disabled:opacity-50',
+            (allSelected || partiallySelected) && 'text-(--color-primary)'
+          )}
+          onClick={(event) => {
+            event.stopPropagation()
+            toggleSelectTopicGroup(group.id)
+          }}>
+          {allSelected ? <CheckSquare /> : partiallySelected ? <SquareMinus /> : <Square />}
+        </button>
+      )
+    },
+    [getSelectableTopicIdsInGroup, isManageMode, selectedIds, t, toggleSelectTopicGroup]
+  )
+
   const handleCollapsedTopicGroupIdsChange = useCallback(
     (nextGroupIds: string[]) => void setCollapsedTopicGroupIds(nextGroupIds),
     [setCollapsedTopicGroupIds]
@@ -683,6 +748,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
         getGroupHeaderAction={getGroupHeaderAction}
+        getGroupHeaderLeadingAction={getGroupHeaderLeadingAction}
         dragCapabilities={{
           groups: isAssistantDisplayMode && !isManageMode,
           items: isAssistantDisplayMode && !isManageMode,

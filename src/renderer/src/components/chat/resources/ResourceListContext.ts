@@ -108,6 +108,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getItemLabel: (item: T) => string
   groups: ResourceListGroup[]
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
+  getGroupHeaderLeadingAction?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   getGroupHeaderIcon?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]

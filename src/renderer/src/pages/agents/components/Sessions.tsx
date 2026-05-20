@@ -605,13 +605,15 @@ const Sessions = ({
       }
 
       const workspaceId = displayMode === 'workdir' ? workdirDisplay.workspaceIdByGroupId.get(group.id) : undefined
-      const createSessionAgentId = payload.agentId ?? null
+      const createSessionAgentId =
+        typeof payload.agentId === 'string' && payload.agentId.length > 0 ? payload.agentId : null
+      const canCreateSession = createSessionAgentId !== null
 
-      if (!createSessionAgentId && !workspaceId) return null
+      if (!canCreateSession && !workspaceId) return null
 
       return (
         <>
-          {createSessionAgentId && (
+          {canCreateSession && (
             <Tooltip title={t('agent.session.add.title')} delay={500}>
               <ResourceList.HeaderActionButton
                 type="button"
