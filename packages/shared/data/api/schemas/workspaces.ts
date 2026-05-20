@@ -19,6 +19,9 @@ export type WorkspaceEntity = z.infer<typeof WorkspaceEntitySchema>
 export const CreateWorkspaceSchema = WorkspaceEntitySchema.pick({ path: true, name: true }).partial({ name: true })
 export type CreateWorkspaceDto = z.infer<typeof CreateWorkspaceSchema>
 
+export const UpdateWorkspaceSchema = WorkspaceEntitySchema.pick({ name: true })
+export type UpdateWorkspaceDto = z.infer<typeof UpdateWorkspaceSchema>
+
 export type WorkspaceSchemas = {
   '/workspaces': {
     GET: {
@@ -34,6 +37,11 @@ export type WorkspaceSchemas = {
   '/workspaces/:workspaceId': {
     GET: {
       params: { workspaceId: string }
+      response: WorkspaceEntity
+    }
+    PATCH: {
+      params: { workspaceId: string }
+      body: UpdateWorkspaceDto
       response: WorkspaceEntity
     }
     DELETE: {

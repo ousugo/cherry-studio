@@ -150,6 +150,21 @@ describe('WorkspaceService', () => {
     })
   })
 
+  it('renames a workspace without changing its directory path', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
+    const workspacePath = path.join(root, 'project')
+    const workspace = await workspaceService.findOrCreateByPath(workspacePath)
+
+    const updated = await workspaceService.update(workspace.id, { name: ' Renamed Project ' })
+
+    expect(updated).toMatchObject({
+      id: workspace.id,
+      name: 'Renamed Project',
+      path: workspacePath
+    })
+    await expect(stat(workspacePath)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
+  })
+
   it('surfaces directory creation failures', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
     const filePath = path.join(root, 'not-a-directory')

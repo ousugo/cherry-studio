@@ -91,6 +91,16 @@ const notesSettingsMocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/hooks/useNotesSettings', () => notesSettingsMocks)
 
+const tabsContextMocks = vi.hoisted(() => ({
+  openTab: vi.fn()
+}))
+
+vi.mock('@renderer/context/TabsContext', () => ({
+  useOptionalTabsContext: () => ({
+    openTab: tabsContextMocks.openTab
+  })
+}))
+
 const topicDataMocks = vi.hoisted(() => ({
   deleteTopic: vi.fn().mockResolvedValue(undefined),
   refreshTopics: vi.fn().mockResolvedValue(undefined),
@@ -206,6 +216,11 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.auto_rename') return 'Generate topic name'
       if (key === 'chat.topics.edit.title') return 'Edit topic name'
       if (key === 'assistants.edit.title') return 'Edit Assistant'
+      if (key === 'assistants.pin.title') return 'Pin Assistant'
+      if (key === 'assistants.unpin.title') return 'Unpin Assistant'
+      if (key === 'assistants.clear.menu_title') return 'Delete all assistant chats'
+      if (key === 'assistants.clear.title') return 'Clear topics'
+      if (key === 'assistants.clear.content') return 'Delete all assistant chats?'
       if (key === 'chat.topics.clear.title') return 'Clear messages'
       if (key === 'notes.save') return 'Save to notes'
       if (key === 'chat.save.topic.knowledge.menu_title') return 'Save to knowledge base'
@@ -225,6 +240,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.export.joplin') return 'Export to Joplin'
       if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
       if (key === 'common.delete') return 'Delete'
+      if (key === 'common.more') return 'More'
       if (key === 'common.cancel') return 'Cancel'
       if (key === 'common.name') return 'Name'
       if (key === 'common.required_field') return 'Required field'
@@ -233,6 +249,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.manage.deselect_all') return 'Deselect All'
       if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Topics'
       if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} topic(s)?`
+      if (key === 'chat.topics.manage.error.at_least_one') return 'At least one topic must be kept'
       if (key === 'chat.add.topic.title') return 'New Topic'
       if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
@@ -394,6 +411,9 @@ describe('Topics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     Object.assign(window, {
+      modal: {
+        confirm: vi.fn().mockResolvedValue(true)
+      },
       toast: {
         error: vi.fn(),
         success: vi.fn(),
@@ -422,6 +442,7 @@ describe('Topics', () => {
     })
     pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
     pinMutationMocks.deletePin.mockResolvedValue(undefined)
+    tabsContextMocks.openTab.mockClear()
     mockUseMutation.mockImplementation((method, path) => {
       if (method === 'POST' && path === '/pins') {
         return { trigger: pinMutationMocks.createPin, isLoading: false, error: undefined }
@@ -434,8 +455,14 @@ describe('Topics', () => {
     mockUseQuery.mockImplementation((path, options) => {
       if (path === '/pins') {
         const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
+        const enabled = (options as { enabled?: boolean } | undefined)?.enabled
         return {
-          data: entityType === 'assistant' ? [] : [{ id: 'pin-topic-b', entityId: 'topic-b', entityType: 'topic' }],
+          data:
+            enabled === false
+              ? undefined
+              : entityType === 'assistant'
+                ? []
+                : [{ id: 'pin-topic-b', entityId: 'topic-b', entityType: 'topic' }],
           isLoading: false,
           isRefreshing: false,
           error: undefined,
@@ -869,7 +896,10 @@ describe('Topics', () => {
 
     fireEvent.click(screen.getByLabelText('Display mode'))
 
-    expect(screen.getByTestId('popover-content')).toHaveClass('w-28', 'p-1')
+    const displayModeContent = screen
+      .getAllByTestId('popover-content')
+      .find((element) => element.className.includes('w-28'))
+    expect(displayModeContent).toHaveClass('w-28', 'p-1')
     expect(screen.getByText('Display mode')).toHaveClass('text-[10px]')
     expect(screen.getByRole('button', { name: 'Time' })).toHaveClass('h-6', 'text-[11px]', 'font-normal')
     expect(screen.getByRole('button', { name: 'Time' })).toBeInTheDocument()
@@ -1199,6 +1229,133 @@ describe('Topics', () => {
       expect(header).toBeInTheDocument()
       expect(within(header as HTMLElement).queryByRole('button', { name: 'New Topic' })).not.toBeInTheDocument()
     }
+  })
+
+  it('moves assistant group actions into the more menu', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    const { onNewTopic, setActiveTopic } = renderTopicList()
+
+    const assistantGroupButton = screen.getByRole('button', { name: 'Alpha Assistant' })
+    const assistantHeader = assistantGroupButton.closest('div')
+    expect(assistantHeader).toBeInTheDocument()
+    expect((assistantHeader as HTMLElement).querySelector('[aria-label="Edit Assistant"]')).not.toBeInTheDocument()
+
+    const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
+    fireEvent.click(moreButton)
+    expect(assistantGroupButton).toHaveAttribute('aria-expanded', 'true')
+
+    const animationFrameCallbacks: FrameRequestCallback[] = []
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrameCallbacks.push(callback)
+      return animationFrameCallbacks.length
+    })
+
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Edit Assistant' }))
+    expect(tabsContextMocks.openTab).not.toHaveBeenCalled()
+
+    await vi.waitFor(() => expect(animationFrameCallbacks).toHaveLength(1))
+    act(() => {
+      for (const callback of animationFrameCallbacks.splice(0)) {
+        callback(0)
+      }
+    })
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith(
+      '/app/library?resourceType=assistant&action=edit&id=assistant-1',
+      { forceNew: true }
+    )
+    requestAnimationFrameSpy.mockRestore()
+
+    fireEvent.click(moreButton)
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Pin Assistant' }))
+    await vi.waitFor(() =>
+      expect(pinMutationMocks.createPin).toHaveBeenCalledWith({
+        body: { entityType: 'assistant', entityId: 'assistant-1' }
+      })
+    )
+
+    fireEvent.click(moreButton)
+    const deleteAssistantChatsButton = within(assistantHeader as HTMLElement).getByRole('button', {
+      name: 'Delete all assistant chats'
+    })
+    expect(deleteAssistantChatsButton.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
+    fireEvent.click(deleteAssistantChatsButton)
+
+    await vi.waitFor(() =>
+      expect(window.modal.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'Delete all assistant chats?',
+          title: 'Clear topics'
+        })
+      )
+    )
+    await vi.waitFor(() => {
+      expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a')
+      expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-b')
+    })
+    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalledWith('topic-c')
+    await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
+    expect(onNewTopic).not.toHaveBeenCalled()
+
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'New Topic' }))
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+  })
+
+  it('keeps at least one topic when clearing an assistant group would delete all topics', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-a',
+              name: 'Alpha topic',
+              assistantId: 'assistant-1',
+              orderKey: 'a'
+            }),
+            createApiTopic({
+              id: 'topic-b',
+              name: 'Beta pinned',
+              assistantId: 'assistant-1',
+              orderKey: 'b'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    expect(assistantHeader).toBeInTheDocument()
+
+    const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
+    fireEvent.click(moreButton)
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant chats' }))
+
+    expect(window.toast.error).toHaveBeenCalledWith('At least one topic must be kept')
+    expect(window.modal.confirm).not.toHaveBeenCalled()
+    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
+    expect(topicDataMocks.refreshTopics).not.toHaveBeenCalled()
+  })
+
+  it('keeps assistant pin reads disabled outside assistant display mode', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+
+    renderTopicList()
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/pins', {
+      enabled: false,
+      query: { entityType: 'assistant' }
+    })
   })
 
   it('persists assistant group collapse state without affecting time groups', () => {

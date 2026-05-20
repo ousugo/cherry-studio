@@ -44,7 +44,9 @@ import {
   Edit3,
   ListChecks,
   ListFilter,
+  MoreHorizontal,
   PinIcon,
+  PinOffIcon,
   Plus,
   Square,
   SquareMinus,
@@ -141,6 +143,92 @@ function TopicDisplayModeMenu({
   )
 }
 
+function AssistantGroupMoreMenu({
+  assistantId,
+  disabled,
+  pinned,
+  onDeleteAllTopics,
+  onEdit,
+  onTogglePin
+}: {
+  assistantId: string
+  disabled?: boolean
+  pinned: boolean
+  onDeleteAllTopics: (assistantId: string) => void | Promise<void>
+  onEdit: (assistantId: string) => void
+  onTogglePin: (assistantId: string) => void | Promise<void>
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [popoverKey, setPopoverKey] = useState(0)
+  const pendingCloseActionRef = useRef<(() => void) | null>(null)
+
+  const runPendingCloseAction = useCallback(() => {
+    const action = pendingCloseActionRef.current
+    if (!action) return
+
+    pendingCloseActionRef.current = null
+    action()
+  }, [])
+
+  const closeBeforeAction = useCallback(
+    (action: () => void) => {
+      pendingCloseActionRef.current = action
+      setPopoverKey((key) => key + 1)
+      setOpen(false)
+      window.requestAnimationFrame(runPendingCloseAction)
+    },
+    [runPendingCloseAction]
+  )
+
+  return (
+    <Popover key={popoverKey} open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <ResourceList.HeaderActionButton
+          type="button"
+          aria-label={t('common.more')}
+          onClick={(event) => event.stopPropagation()}>
+          <MoreHorizontal className="block" />
+        </ResourceList.HeaderActionButton>
+      </PopoverTrigger>
+      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 rounded-lg border-border p-1 shadow-lg">
+        <MenuList className="gap-0.5">
+          <MenuItem
+            label={t('assistants.edit.title')}
+            icon={<Edit3 size={14} />}
+            className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
+            onClick={(event) => {
+              event.stopPropagation()
+              closeBeforeAction(() => onEdit(assistantId))
+            }}
+          />
+          <MenuItem
+            label={pinned ? t('assistants.unpin.title') : t('assistants.pin.title')}
+            icon={pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />}
+            disabled={disabled}
+            className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
+            onClick={(event) => {
+              event.stopPropagation()
+              setOpen(false)
+              void onTogglePin(assistantId)
+            }}
+          />
+          <MenuItem
+            label={t('assistants.clear.menu_title')}
+            icon={<Trash2 size={14} className="lucide-custom text-destructive" />}
+            className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px] text-destructive hover:text-destructive"
+            onClick={(event) => {
+              event.stopPropagation()
+              setOpen(false)
+              void onDeleteAllTopics(assistantId)
+            }}
+          />
+        </MenuList>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, setActiveTopic }: Props) {
   const { t } = useTranslation()
   const tabs = useOptionalTabsContext()
@@ -165,6 +253,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     siyuan: 'data.export.menus.siyuan',
     yuque: 'data.export.menus.yuque'
   })
+  const displayMode = topicDisplayMode ?? 'time'
+  const isAssistantDisplayMode = displayMode === 'assistant'
 
   const {
     isLoading: isTopicPinsLoading,
@@ -179,9 +269,16 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     onTogglePin: toggleTopicPin
   })
   const { isPinned: isTopicPinned, togglePinned: toggleTopicPinned } = topicPinState
+  const {
+    isLoading: isAssistantPinsLoading,
+    isMutating: isAssistantPinsMutating,
+    isRefreshing: isAssistantPinsRefreshing,
+    pinnedIds: assistantPinnedIds,
+    togglePin: toggleAssistantPin
+  } = usePins('assistant', { enabled: isAssistantDisplayMode })
+  const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
+  const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = useAllTopics({ loadAll: true })
-  const displayMode = topicDisplayMode ?? 'time'
-  const isAssistantDisplayMode = displayMode === 'assistant'
   const {
     assistants,
     isLoading: isAssistantsLoading,
@@ -456,7 +553,10 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
 
   const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)
   const listLoading =
-    isLoadingAll || !isFullyLoaded || isTopicPinsLoading || (isAssistantDisplayMode && isAssistantsLoading)
+    isLoadingAll ||
+    !isFullyLoaded ||
+    isTopicPinsLoading ||
+    (isAssistantDisplayMode && (isAssistantsLoading || isAssistantPinsLoading))
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const openAssistantEditor = useCallback(
@@ -466,10 +566,79 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     [tabs]
   )
 
+  const handleToggleAssistantPin = useCallback(
+    async (assistantId: string) => {
+      if (isAssistantPinActionDisabled) return
+
+      try {
+        await toggleAssistantPin(assistantId)
+        await refreshAssistants()
+      } catch (err) {
+        logger.error('Failed to toggle assistant pin from topic group', { assistantId, err })
+        window.toast.error(t('common.error'))
+      }
+    },
+    [isAssistantPinActionDisabled, refreshAssistants, t, toggleAssistantPin]
+  )
+
+  const handleDeleteAssistantTopics = useCallback(
+    async (assistantId: string) => {
+      const targetTopics = topics.filter((topic) => topic.assistantId === assistantId)
+      if (targetTopics.length === 0) return
+
+      const targetTopicIds = new Set(targetTopics.map((topic) => topic.id))
+      const remainingTopics = topics.filter((topic) => !targetTopicIds.has(topic.id))
+      if (remainingTopics.length === 0) {
+        window.toast.error(t('chat.topics.manage.error.at_least_one'))
+        return
+      }
+
+      const confirmed = await window.modal.confirm({
+        title: t('assistants.clear.title'),
+        content: t('assistants.clear.content'),
+        okText: t('common.delete'),
+        cancelText: t('common.cancel'),
+        centered: true,
+        okButtonProps: {
+          danger: true
+        }
+      })
+      if (!confirmed) return
+
+      const results = await Promise.allSettled(targetTopics.map((topic) => removeTopic(topic).then(() => topic.id)))
+      const successfulIds = new Set(
+        results
+          .filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled')
+          .map((result) => result.value)
+      )
+
+      const actualRemainingTopics = topics.filter((topic) => !successfulIds.has(topic.id))
+      if (successfulIds.has(activeTopic.id) && actualRemainingTopics.length > 0) {
+        setActiveTopic(actualRemainingTopics[0])
+      }
+
+      if (successfulIds.size === targetTopics.length) {
+        window.toast.success(t('chat.topics.manage.delete.success', { count: successfulIds.size }))
+      } else if (successfulIds.size > 0) {
+        window.toast.warning(
+          t('chat.topics.manage.delete.partial_success', {
+            failedCount: targetTopics.length - successfulIds.size,
+            successCount: successfulIds.size
+          })
+        )
+      } else {
+        window.toast.error(t('chat.topics.manage.delete.error'))
+      }
+
+      await refreshTopics()
+    },
+    [activeTopic.id, refreshTopics, removeTopic, setActiveTopic, t, topics]
+  )
+
   const getGroupHeaderAction = useCallback(
     (group: { id: string }) => {
       let payload: { assistantId: string | null } | undefined
-      let editableAssistantId: string | undefined
+      let assistantGroupId: string | undefined
 
       if (displayMode === 'time') {
         if (group.id !== TOPIC_TODAY_GROUP_ID) return null
@@ -478,19 +647,21 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         if (!assistantId || !assistantById.has(assistantId)) return null
 
         payload = { assistantId }
-        editableAssistantId = assistantId
+        assistantGroupId = assistantId
       }
 
       return (
         <>
-          {editableAssistantId && (
-            <Tooltip title={t('assistants.edit.title')} delay={500}>
-              <ResourceList.HeaderActionButton
-                type="button"
-                aria-label={t('assistants.edit.title')}
-                onClick={() => openAssistantEditor(editableAssistantId)}>
-                <Edit3 className="block" />
-              </ResourceList.HeaderActionButton>
+          {assistantGroupId && (
+            <Tooltip title={t('common.more')} delay={500}>
+              <AssistantGroupMoreMenu
+                assistantId={assistantGroupId}
+                disabled={isAssistantPinActionDisabled}
+                pinned={assistantPinnedIdSet.has(assistantGroupId)}
+                onDeleteAllTopics={handleDeleteAssistantTopics}
+                onEdit={openAssistantEditor}
+                onTogglePin={handleToggleAssistantPin}
+              />
             </Tooltip>
           )}
           <Tooltip title={t('chat.add.topic.title')} delay={500}>
@@ -504,7 +675,17 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         </>
       )
     },
-    [assistantById, displayMode, onNewTopic, openAssistantEditor, t]
+    [
+      assistantById,
+      assistantPinnedIdSet,
+      displayMode,
+      handleDeleteAssistantTopics,
+      handleToggleAssistantPin,
+      isAssistantPinActionDisabled,
+      onNewTopic,
+      openAssistantEditor,
+      t
+    ]
   )
 
   const getSelectableTopicIdsInGroup = useCallback(

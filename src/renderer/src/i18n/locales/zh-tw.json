@@ -453,6 +453,13 @@
           },
           "title": "刪除工作目錄",
           "trigger": "刪除工作目錄"
+        },
+        "rename": {
+          "error": {
+            "failed": "無法重新命名工作目錄"
+          },
+          "title": "重新命名工作目錄",
+          "trigger": "重新命名工作目錄"
         }
       },
       "workspace_selector": {
@@ -941,6 +948,7 @@
     "abbr": "助手",
     "clear": {
       "content": "清空話題會刪除助手下所有主題和檔案，確定要繼續嗎？",
+      "menu_title": "刪除助手下所有聊天",
       "title": "清空話題"
     },
     "copy": {
@@ -962,6 +970,9 @@
     "list": {
       "showByList": "列表顯示",
       "showByTags": "標籤顯示"
+    },
+    "pin": {
+      "title": "置頂助手"
     },
     "presets": {
       "add": {
@@ -1155,7 +1166,10 @@
       },
       "untagged": "未分組"
     },
-    "title": "助手"
+    "title": "助手",
+    "unpin": {
+      "title": "取消置頂助手"
+    }
   },
   "auth": {
     "error": "自動取得金鑰失敗，請手動取得",

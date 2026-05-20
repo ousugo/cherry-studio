@@ -9,6 +9,9 @@ import {
   SessionResourceList,
   useResourceList
 } from '@renderer/components/chat/resources'
+import EditNameDialog from '@renderer/components/EditNameDialog'
+import { FinderIcon } from '@renderer/components/Icons/SVGIcon'
+import { isMac, isWin } from '@renderer/config/constant'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
@@ -21,7 +24,7 @@ import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/util
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { Check, Clock3, ListFilter, Plus, SquarePen, Trash2 } from 'lucide-react'
+import { Check, Clock3, FolderOpen, ListFilter, MoreHorizontal, Plus, SquarePen, Trash2 } from 'lucide-react'
 import { memo, type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -105,6 +108,90 @@ function SessionDisplayModeMenu({
   )
 }
 
+function WorkdirGroupMoreMenu({
+  canDelete,
+  canRename,
+  deleteDisabled,
+  group,
+  onDelete,
+  onOpen,
+  onRename,
+  renameDisabled,
+  workdirPath
+}: {
+  canDelete: boolean
+  canRename: boolean
+  deleteDisabled?: boolean
+  group: ResourceListGroup
+  onDelete: (group: ResourceListGroup) => void | Promise<void>
+  onOpen: (workdirPath: string) => void | Promise<void>
+  onRename: (group: ResourceListGroup) => void | Promise<void>
+  renameDisabled?: boolean
+  workdirPath: string
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const fileManagerName = useMemo(() => {
+    if (isMac) return t('agent.session.file_manager.finder')
+    if (isWin) return t('agent.session.file_manager.file_explorer')
+    return t('agent.session.file_manager.files')
+  }, [t])
+  const openLabel = t('common.open_in', { name: fileManagerName })
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <ResourceList.HeaderActionButton
+          type="button"
+          aria-label={t('common.more')}
+          onClick={(event) => event.stopPropagation()}>
+          <MoreHorizontal className="block" />
+        </ResourceList.HeaderActionButton>
+      </PopoverTrigger>
+      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 rounded-lg border-border p-1 shadow-lg">
+        <MenuList className="gap-0.5">
+          <MenuItem
+            label={openLabel}
+            icon={isMac ? <FinderIcon className="size-3.5" /> : <FolderOpen size={14} />}
+            className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
+            onClick={(event) => {
+              event.stopPropagation()
+              setOpen(false)
+              void onOpen(workdirPath)
+            }}
+          />
+          {canRename && (
+            <MenuItem
+              label={t('agent.session.workdir.rename.trigger')}
+              icon={<SquarePen size={14} />}
+              disabled={renameDisabled}
+              className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
+              onClick={(event) => {
+                event.stopPropagation()
+                setOpen(false)
+                void onRename(group)
+              }}
+            />
+          )}
+          {canDelete && (
+            <MenuItem
+              label={t('agent.session.workdir.delete.trigger')}
+              icon={<Trash2 size={14} className="lucide-custom text-destructive" />}
+              disabled={deleteDisabled}
+              className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px] text-destructive hover:text-destructive"
+              onClick={(event) => {
+                event.stopPropagation()
+                setOpen(false)
+                void onDelete(group)
+              }}
+            />
+          )}
+        </MenuList>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export function resolveCreateSessionAgentId(
   sessions: AgentSessionEntity[],
   activeSessionId: string | null,
@@ -165,6 +252,10 @@ const Sessions = ({
   const [optimisticWorkspaceOrderIds, setOptimisticWorkspaceOrderIds] = useState<string[] | null>(null)
   const [creatingSession, setCreatingSession] = useState(false)
   const [deletingWorkspaceGroupId, setDeletingWorkspaceGroupId] = useState<string | null>(null)
+  const [renamingWorkspaceGroup, setRenamingWorkspaceGroup] = useState<{
+    name: string
+    workspaceId: string
+  } | null>(null)
 
   const { data: channels } = useQuery('/channels')
   const channelTypeMap = useMemo(() => {
@@ -341,6 +432,13 @@ const Sessions = ({
   )
 
   const { trigger: findOrCreateWorkspace } = useMutation('POST', '/workspaces', { refresh: ['/workspaces'] })
+  const { trigger: updateWorkspace, isLoading: isUpdatingWorkspace } = useMutation(
+    'PATCH',
+    '/workspaces/:workspaceId',
+    {
+      refresh: ['/workspaces', '/sessions']
+    }
+  )
   const { trigger: deleteWorkspace } = useMutation('DELETE', '/workspaces/:workspaceId', {
     refresh: ['/sessions', '/workspaces', '/pins', '/channels']
   })
@@ -459,6 +557,50 @@ const Sessions = ({
       t,
       workdirDisplay
     ]
+  )
+
+  const handleStartRenameWorkdirGroup = useCallback(
+    (group: ResourceListGroup) => {
+      const workspaceId = workdirDisplay.workspaceIdByGroupId.get(group.id)
+      if (!workspaceId) return
+
+      setRenamingWorkspaceGroup({
+        name: group.label,
+        workspaceId
+      })
+    },
+    [workdirDisplay]
+  )
+
+  const handleRenameWorkdirGroup = useCallback(
+    async (name: string) => {
+      const target = renamingWorkspaceGroup
+      const trimmedName = name.trim()
+      if (!target || !trimmedName || trimmedName === target.name.trim()) return
+
+      try {
+        await updateWorkspace({
+          body: { name: trimmedName },
+          params: { workspaceId: target.workspaceId }
+        })
+        window.toast.success(t('common.saved'))
+      } catch (err) {
+        logger.error('Failed to rename workspace group', { err, workspaceId: target.workspaceId })
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.rename.error.failed')))
+      }
+    },
+    [renamingWorkspaceGroup, t, updateWorkspace]
+  )
+
+  const handleOpenWorkdirGroup = useCallback(
+    async (workdirPath: string) => {
+      try {
+        await window.api.file.openPath(workdirPath)
+      } catch (err) {
+        window.toast.error(formatErrorMessageWithPrefix(err, t('files.error.open_path', { path: workdirPath })))
+      }
+    },
+    [t]
   )
 
   const openAgentEditor = useCallback(
@@ -605,14 +747,33 @@ const Sessions = ({
       }
 
       const workspaceId = displayMode === 'workdir' ? workdirDisplay.workspaceIdByGroupId.get(group.id) : undefined
+      const workdirPath =
+        displayMode === 'workdir'
+          ? (workdirDisplay.pathByGroupId.get(group.id) ?? getWorkdirPathFromSessionGroupId(group.id))
+          : undefined
       const createSessionAgentId =
         typeof payload.agentId === 'string' && payload.agentId.length > 0 ? payload.agentId : null
       const canCreateSession = createSessionAgentId !== null
 
-      if (!canCreateSession && !workspaceId) return null
+      if (!canCreateSession && !workdirPath) return null
 
       return (
         <>
+          {workdirPath && (
+            <Tooltip title={t('common.more')} delay={500}>
+              <WorkdirGroupMoreMenu
+                canDelete={!!workspaceId}
+                canRename={!!workspaceId}
+                deleteDisabled={!!deletingWorkspaceGroupId}
+                group={group}
+                renameDisabled={isUpdatingWorkspace}
+                workdirPath={workdirPath}
+                onDelete={handleDeleteWorkdirGroup}
+                onOpen={handleOpenWorkdirGroup}
+                onRename={handleStartRenameWorkdirGroup}
+              />
+            </Tooltip>
+          )}
           {canCreateSession && (
             <Tooltip title={t('agent.session.add.title')} delay={500}>
               <ResourceList.HeaderActionButton
@@ -631,20 +792,6 @@ const Sessions = ({
               </ResourceList.HeaderActionButton>
             </Tooltip>
           )}
-          {workspaceId && (
-            <Tooltip title={t('agent.session.workdir.delete.trigger')} delay={500}>
-              <ResourceList.HeaderActionButton
-                type="button"
-                aria-label={t('agent.session.workdir.delete.trigger')}
-                disabled={!!deletingWorkspaceGroupId}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  void handleDeleteWorkdirGroup(group)
-                }}>
-                <Trash2 className="block" />
-              </ResourceList.HeaderActionButton>
-            </Tooltip>
-          )}
         </>
       )
     },
@@ -656,6 +803,9 @@ const Sessions = ({
       displayMode,
       fallbackAgentId,
       handleDeleteWorkdirGroup,
+      handleOpenWorkdirGroup,
+      handleStartRenameWorkdirGroup,
+      isUpdatingWorkspace,
       t,
       workdirDisplay
     ]
@@ -730,6 +880,15 @@ const Sessions = ({
       {!listLoading && (isLoadingMore || hasMore) && (
         <div className="shrink-0 px-3 py-2 text-center text-[11px] text-muted-foreground/55">{t('common.loading')}</div>
       )}
+      <EditNameDialog
+        open={!!renamingWorkspaceGroup}
+        title={t('agent.session.workdir.rename.title')}
+        initialName={renamingWorkspaceGroup?.name ?? ''}
+        onSubmit={handleRenameWorkdirGroup}
+        onOpenChange={(open) => {
+          if (!open) setRenamingWorkspaceGroup(null)
+        }}
+      />
     </SessionResourceList>
   )
 }

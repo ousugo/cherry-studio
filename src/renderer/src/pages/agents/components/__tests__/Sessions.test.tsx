@@ -178,6 +178,7 @@ const dataApiMocks = vi.hoisted(() => ({
   }),
   refetchWorkspaces: vi.fn().mockResolvedValue(undefined),
   reorderWorkspace: vi.fn().mockResolvedValue(undefined),
+  updateWorkspace: vi.fn().mockResolvedValue(undefined),
   mutationOptions: new Map<string, { refresh?: string[] }>(),
   workspaces: [] as Array<{
     id: string
@@ -295,9 +296,11 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
       trigger:
         method === 'PATCH' && path === '/workspaces/:id/order'
           ? dataApiMocks.reorderWorkspace
-          : method === 'DELETE' && path === '/workspaces/:workspaceId'
-            ? dataApiMocks.deleteWorkspace
-            : dataApiMocks.findOrCreateWorkspace,
+          : method === 'PATCH' && path === '/workspaces/:workspaceId'
+            ? dataApiMocks.updateWorkspace
+            : method === 'DELETE' && path === '/workspaces/:workspaceId'
+              ? dataApiMocks.deleteWorkspace
+              : dataApiMocks.findOrCreateWorkspace,
       isLoading: false,
       error: undefined
     }
@@ -319,13 +322,16 @@ vi.mock('react-i18next', () => ({
     type: '3rdParty'
   },
   useTranslation: () => ({
-    t: (key: string) => {
+    t: (key: string, options?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
         'agent.session.add.title': 'Add session',
         'agent.session.display.time': 'Time',
         'agent.session.display.title': 'Display mode',
         'agent.session.display.workdir': 'Workspace',
         'agent.session.edit.title': 'Edit session',
+        'agent.session.file_manager.file_explorer': 'File Explorer',
+        'agent.session.file_manager.files': 'Files',
+        'agent.session.file_manager.finder': 'Finder',
         'agent.session.get.error.failed': 'Failed to get sessions',
         'agent.session.group.collapse': 'Collapse display',
         'agent.session.group.earlier': 'Earlier',
@@ -343,6 +349,9 @@ vi.mock('react-i18next', () => ({
         'agent.session.workdir.delete.error.failed': 'Failed to delete workspace',
         'agent.session.workdir.delete.title': 'Delete workspace',
         'agent.session.workdir.delete.trigger': 'Delete workspace',
+        'agent.session.workdir.rename.error.failed': 'Failed to rename workspace',
+        'agent.session.workdir.rename.title': 'Rename workspace',
+        'agent.session.workdir.rename.trigger': 'Rename workspace',
         'chat.topics.delete.shortcut': 'Hold Ctrl to delete directly',
         'chat.topics.pin': 'Pin',
         'chat.topics.unpin': 'Unpin',
@@ -351,7 +360,9 @@ vi.mock('react-i18next', () => ({
         'common.delete_success': 'Deleted successfully',
         'common.error': 'Error',
         'common.loading': 'Loading...',
+        'common.more': 'More',
         'common.name': 'Name',
+        'common.open_in': `Open in ${options?.name ?? ''}`,
         'common.rename': 'Rename',
         'common.required_field': 'Required field',
         'common.retry': 'Retry',
@@ -486,9 +497,15 @@ describe('Sessions', () => {
     dataApiMocks.workspacesLoading = false
     dataApiMocks.workspacesRefreshing = false
     dataApiMocks.deleteWorkspace.mockResolvedValue(undefined)
+    dataApiMocks.updateWorkspace.mockResolvedValue(undefined)
     dataApiMocks.mutationOptions.clear()
     sessionDataMocks.deleteSession.mockResolvedValue(true)
     Object.assign(window, {
+      api: {
+        file: {
+          openPath: vi.fn().mockResolvedValue(undefined)
+        }
+      },
       modal: {
         confirm: vi.fn().mockResolvedValue(true)
       },
@@ -940,6 +957,52 @@ describe('Sessions', () => {
     expect(dataApiMocks.refetchWorkspaces).toHaveBeenCalled()
   })
 
+  it('opens a workspace group from the more menu without collapsing the group', async () => {
+    render(<Sessions />)
+
+    const workdirGroupButton = screen.getByRole('button', { name: 'Project A Workspace' })
+    const workdirGroup = workdirGroupButton.closest('div')
+    expect(workdirGroup).not.toBeNull()
+    expect(
+      within(workdirGroup as HTMLElement).queryByRole('button', { name: 'Delete workspace' })
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    expect(workdirGroupButton).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(screen.getByRole('button', { name: /Open in/ }))
+
+    await vi.waitFor(() => expect(window.api.file.openPath).toHaveBeenCalledWith('/Users/jd/project-a'))
+  })
+
+  it('renames a workspace group through the workspace update endpoint', async () => {
+    render(<Sessions />)
+
+    const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
+    expect(workdirGroup).not.toBeNull()
+    fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Rename workspace' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('Rename workspace')
+    const input = within(dialog).getByLabelText('Name')
+    expect(input).toHaveValue('Project A Workspace')
+
+    fireEvent.change(input, { target: { value: 'Renamed Workspace' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await vi.waitFor(() =>
+      expect(dataApiMocks.updateWorkspace).toHaveBeenCalledWith({
+        body: { name: 'Renamed Workspace' },
+        params: { workspaceId: 'ws-a' }
+      })
+    )
+    expect(dataApiMocks.mutationOptions.get('PATCH /workspaces/:workspaceId')?.refresh).toEqual([
+      '/workspaces',
+      '/sessions'
+    ])
+    expect(window.toast.success).toHaveBeenCalledWith('Saved')
+  })
+
   it('deletes a workspace group through the workspace delete endpoint', async () => {
     const callOrder: string[] = []
     dataApiMocks.deleteWorkspace.mockImplementationOnce(async () => {
@@ -984,7 +1047,10 @@ describe('Sessions', () => {
 
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
-    fireEvent.click(within(workdirGroup as HTMLElement).getByLabelText('Delete workspace'))
+    fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    const deleteWorkspaceButton = screen.getByRole('button', { name: 'Delete workspace' })
+    expect(deleteWorkspaceButton.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
+    fireEvent.click(deleteWorkspaceButton)
 
     await vi.waitFor(() =>
       expect(dataApiMocks.deleteWorkspace).toHaveBeenCalledWith({

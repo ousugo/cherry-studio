@@ -453,6 +453,13 @@
           },
           "title": "Delete workspace",
           "trigger": "Delete workspace"
+        },
+        "rename": {
+          "error": {
+            "failed": "Failed to rename the workspace"
+          },
+          "title": "Rename workspace",
+          "trigger": "Rename workspace"
         }
       },
       "workspace_selector": {
@@ -941,6 +948,7 @@
     "abbr": "Assistants",
     "clear": {
       "content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
+      "menu_title": "Delete all assistant chats",
       "title": "Clear topics"
     },
     "copy": {
@@ -962,6 +970,9 @@
     "list": {
       "showByList": "List View",
       "showByTags": "Tag View"
+    },
+    "pin": {
+      "title": "Pin Assistant"
     },
     "presets": {
       "add": {
@@ -1155,7 +1166,10 @@
       },
       "untagged": "Untagged"
     },
-    "title": "Assistants"
+    "title": "Assistants",
+    "unpin": {
+      "title": "Unpin Assistant"
+    }
   },
   "auth": {
     "error": "API key automatically obtained failed, please get it manually",

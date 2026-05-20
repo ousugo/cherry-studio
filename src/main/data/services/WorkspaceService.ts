@@ -7,7 +7,7 @@ import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
+import type { UpdateWorkspaceDto, WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import { asc, eq } from 'drizzle-orm'
 import fs from 'fs'
 import path from 'path'
@@ -42,6 +42,14 @@ function normalizeWorkspacePath(rawPath: string): string {
 
 function defaultWorkspaceName(workspacePath: string): string {
   return path.basename(workspacePath) || workspacePath
+}
+
+function normalizeWorkspaceName(rawName: string): string {
+  const trimmed = rawName.trim()
+  if (!trimmed) {
+    throw DataApiErrorFactory.validation({ name: ['Workspace name is required'] })
+  }
+  return trimmed
 }
 
 function ensureWorkspaceDirectory(workspacePath: string): void {
@@ -131,6 +139,21 @@ export class WorkspaceService {
   async createDefaultWorkspaceTx(tx: WorkspaceTx): Promise<WorkspaceEntity> {
     const workspacePath = path.join(application.getPath('feature.agents.workspaces'), uuidv4())
     return await this.findOrCreateByPathTx(tx, workspacePath)
+  }
+
+  async update(id: string, dto: UpdateWorkspaceDto): Promise<WorkspaceEntity> {
+    const db = application.get('DbService').getDb()
+    const [row] = await withSqliteErrors(
+      () =>
+        db
+          .update(workspaceTable)
+          .set({ name: normalizeWorkspaceName(dto.name) })
+          .where(eq(workspaceTable.id, id))
+          .returning(),
+      defaultHandlersFor('Workspace', id)
+    )
+    if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
+    return rowToWorkspace(row)
   }
 
   private async findOrCreateRowByNormalizedPathTx(

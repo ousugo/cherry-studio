@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { AgentSessionEntitySchema, CreateSessionSchema, UpdateSessionSchema } from '../sessions'
-import { WorkspaceEntitySchema } from '../workspaces'
+import { UpdateWorkspaceSchema, WorkspaceEntitySchema } from '../workspaces'
 
 describe('WorkspaceEntitySchema', () => {
   const workspace = {
@@ -15,6 +15,11 @@ describe('WorkspaceEntitySchema', () => {
 
   it('describes normalized workspace rows', () => {
     expect(WorkspaceEntitySchema.parse(workspace)).toEqual(workspace)
+  })
+
+  it('accepts workspace display-name updates only', () => {
+    expect(UpdateWorkspaceSchema.parse({ name: 'Renamed workspace' })).toEqual({ name: 'Renamed workspace' })
+    expect(UpdateWorkspaceSchema.safeParse({ path: '/tmp/renamed' }).success).toBe(false)
   })
 
   it('exposes workspace on sessions instead of accessiblePaths', () => {
