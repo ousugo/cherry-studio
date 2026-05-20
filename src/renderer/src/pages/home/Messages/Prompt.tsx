@@ -1,9 +1,10 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
+import { buildLibraryEditSearch, LIBRARY_ROUTE } from '@renderer/pages/library/routeSearch'
 import type { Topic } from '@renderer/types'
 import { containsSupportedVariables } from '@renderer/utils/prompt'
+import { useNavigate } from '@tanstack/react-router'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +18,7 @@ const Prompt: FC<Props> = ({ topic }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { assistant, model } = useAssistant(topic.assistantId)
+  const navigate = useNavigate()
 
   const prompt = assistant?.prompt || t('chat.default.description')
   const topicPrompt = topic.prompt || ''
@@ -66,7 +68,10 @@ const Prompt: FC<Props> = ({ topic }) => {
   return (
     <Container
       className="system-prompt"
-      onClick={() => assistant && AssistantSettingsPopup.show({ assistant, tab: 'prompt' })}
+      onClick={() => {
+        if (!assistant) return
+        void navigate({ to: LIBRARY_ROUTE, search: buildLibraryEditSearch('assistant', assistant.id) })
+      }}
       $isDark={isDark}>
       <Text $isVisible={isVisible}>{displayText}</Text>
     </Container>
