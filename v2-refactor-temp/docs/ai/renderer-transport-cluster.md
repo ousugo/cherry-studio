@@ -54,16 +54,58 @@ bubble to the persisted row.
 
 Commit `a73e580f5 refactor(stream-ack): surface streamOpen ack via a dispatch coordinator`.
 
-### `TopicStreamSubscription`
+### `TopicStreamSubscription` — ref-counted attach + per-execution demux
 
-Subscribes to `Ai_StreamChunk` / `Ai_StreamDone` / `Ai_StreamError`,
-filtered by `topicId`. Routes per-execution chunks to a per-execution
-`ReadableStreamDefaultController`, so multi-model parallel responses
-render as separate AI SDK messages on the same topic. The
-`isPerExecutionOnly` helper flags chunks that only matter for one
-execution (so topic-level consumers can skip them).
+`src/renderer/src/transport/TopicStreamSubscription.ts`. Owns one
+`Ai_Stream_Attach` per topic, ref-counted across executions. Each
+`register(executionId)` returns a `ReadableStream<UIMessageChunk>`
+carrying only the chunks Main tagged with that execution; the last
+`unregister` triggers `streamDetach` (deferred a tick so a transient
+`activeExecutions` flicker doesn't detach-then-reattach). Terminal
+events (`Ai_StreamDone` / `Ai_StreamError`) close the matching branch
+and fan out an `ExecutionTerminal = { isAbort, isError }`.
+
+**Cancellation layering** is the invariant reviewers should check:
+this class only manages the renderer-local subscription
+(`streamAttach` / `streamDetach`). It NEVER calls `Ai_Stream_Abort` —
+generation abort is `useChatWithHistory.stop`'s job. Closing branches
+== "renderer stops listening; Main keeps generating".
 
 Commit `c6eb28e44 feat(topic-stream-sub): add topic-level subscription with per-execution demux`.
+
+### `useExecutionOverlay` — same merge function as Main
+
+`src/renderer/src/hooks/useExecutionOverlay.ts`. The renderer's
+counterpart to Main's `pipeStreamLoop` — both sides run
+`readUIMessageStream` against the **same** `UIMessageChunk` stream, so
+the overlay the user sees streaming and the message Main persists are
+structurally identical. There is no parallel chunk-assembly code on
+the renderer that could drift from AI SDK upstream.
+
+Three structural points reviewers should check:
+
+- **One reader per turn**, not a reused AI SDK `Chat`. A `Chat` carries
+  `state.messages` across turns; reusing it produced "previous answer +
+  new stream" pollution in early v2 builds.
+- **Seed rule.** Each reader is seeded with the message whose id is
+  the execution's `anchorMessageId`, read from the current DB
+  (`uiMessages`) at reader-start time, never carried across turns. For
+  a fresh placeholder the row is empty; for tool-approval / continue
+  the row carries the prior assistant parts so a streamed `tool-output`
+  chunk merges onto its matching `tool-input` by `toolCallId`.
+- **Overlay teardown is monotonic.** `disposeOverlay(messageId)` runs
+  in the `.finally` of the DB refresh in `V2ChatContent`, NOT on
+  terminal — that ordering kills the flash between streaming parts
+  and persisted parts.
+
+Snapshots are retained after the reader closes (for the brief window
+between stream-end and DB-refresh-complete) and dropped on
+`disposeOverlay`, `reset`, restart, or topic switch.
+
+See [`docs/references/ai/execution-overlay.md`](../../../docs/references/ai/execution-overlay.md)
+for the full design.
+
+Commit `ab9b39fb7 refactor(execution-overlay): replace per-execution Chat with readUIMessageStream readers`.
 
 ### `useTopicStreamStatus(topicId)`
 
@@ -88,17 +130,6 @@ Crucially **does not** PATCH `applyApprovalDecisions` itself — Main is
 the single writer. See
 [`docs/references/ai/tool-approval.md`](../../../docs/references/ai/tool-approval.md).
 
-### `useExecutionOverlay`
-
-Maintains an in-memory overlay (`Record<executionId, CherryUIMessage>`)
-fed by `readUIMessageStream` so the UI can render streaming parts
-without writing to SWR. On terminal, `useTopicDbRefreshOnTerminal`
-revalidates the DB query *first*, *then* the overlay is disposed —
-this ordering eliminates the flash between streaming parts and
-persisted parts.
-
-Commit `ab9b39fb7 refactor(execution-overlay): replace per-execution Chat with readUIMessageStream readers`.
-
 ## Invariants
 
 - `useChat({ id: topicId, transport: IpcChatTransport })` is the only
@@ -111,16 +142,26 @@ Commit `ab9b39fb7 refactor(execution-overlay): replace per-execution Chat with r
   posts IPC.
 - Overlay teardown is monotonic: it's released only after the DB refresh
   resolves (success or failure — see the `.finally` in `V2ChatContent`).
+- `TopicStreamSubscription` never calls `Ai_Stream_Abort` — only
+  `streamDetach`. Anything in this layer that touches abort is in the
+  wrong place.
+- Renderer chunk assembly goes through `readUIMessageStream`. Any
+  hand-rolled `UIMessageChunk` → message accumulator is wrong; it will
+  drift from Main's accumulator on the next AI SDK chunk-type change.
+- The execution-overlay seed is read from `uiMessagesRef.current` at
+  reader-start time, never carried across turns.
 
 ## Validation
 
 - `transport/__tests__/IpcChatTransport.test.ts`
 - `transport/__tests__/streamDispatchCoordinator.test.ts`
-- `transport/__tests__/TopicStreamSubscription.test.ts`
-- `hooks/__tests__/useTopicStreamStatus.test.ts` (if present)
-- See also commits `ed905ca45 refactor(v2-chat): broadcast awaiting-approval anchor ids`
+- `transport/__tests__/TopicStreamSubscription.test.ts` — ref-counted
+  attach, per-execution branch demux, terminal fan-out
+- `hooks/__tests__/useExecutionOverlay.test.ts` (if present) — seed
+  rule, snapshot retention, terminal handoff
+- Commits `ed905ca45 refactor(v2-chat): broadcast awaiting-approval anchor ids`
   and `3b2fb0752 refactor(v2-chat): consolidate turn-state behind single table-driven classifier`
-  for the recent classifier consolidation.
+  for the classifier consolidation.
 
 ## Follow-ups (out of scope)
 

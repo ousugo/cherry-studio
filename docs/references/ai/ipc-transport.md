@@ -47,15 +47,18 @@ sits between the transport and the IPC call so:
 ## Per-execution demux
 
 The chunk stream from Main is keyed by `(topicId, executionId)`.
-`buildListenerStream` (called from `sendMessages` and `reconnect`)
-maintains a per-execution `ReadableStreamDefaultController` so multi-
-model parallel responses render as separate AI SDK messages on the same
-topic.
+`TopicStreamSubscription`
+(`src/renderer/src/transport/TopicStreamSubscription.ts`) owns the
+topic-level `streamAttach` / `streamDetach` with ref-counted lifecycle
+and demuxes chunks into per-execution branch `ReadableStream`s, so
+multi-model parallel responses render as separate AI SDK messages on
+the same topic. `useExecutionOverlay` consumes each branch through
+`readUIMessageStream` — the same accumulator Main runs in
+`pipeStreamLoop`, so the renderer overlay and the persisted message
+are structurally identical.
 
-`isPerExecutionOnly(data)` flags chunks that only matter for one
-execution (e.g. a model finished while siblings are still streaming).
-Consumers that watch topic-level completion (DB refresh, overlay teardown)
-ignore those.
+See [Execution Overlay](./execution-overlay.md) for the merge-function
+symmetry, seed rule, cancellation layering, and lifecycle.
 
 ## Topic-level subscription
 
@@ -73,5 +76,6 @@ consumes (`isStreaming`, `isAwaitingApproval`, `isTerminal`, …).
 
 - Code: `src/renderer/src/transport/`
 - Hook glue: `src/renderer/src/hooks/useChatWithHistory.ts`
+- Per-execution overlay (renderer assembler): [Execution Overlay](./execution-overlay.md)
 - Approval bridge: [Tool Approval](./tool-approval.md)
 - Main side: [Stream Manager](./stream-manager.md)
