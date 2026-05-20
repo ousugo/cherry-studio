@@ -24,6 +24,7 @@ export interface SidebarProps {
   dockedTabs?: SidebarTab[]
   user?: SidebarUser
   isFloating?: boolean
+  isFloatingClosing?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: React.ReactNode
@@ -48,6 +49,7 @@ export function Sidebar({
   dockedTabs = [],
   user,
   isFloating = false,
+  isFloatingClosing = false,
   searchLabel = '',
   extensionsLabel = '',
   actions,
@@ -88,6 +90,22 @@ export function Sidebar({
     onDismiss?.()
   }, [onDismiss])
 
+  const handleFloatingItemClick = useCallback(
+    (id: string) => {
+      onItemClick(id)
+      handleDismiss()
+    },
+    [handleDismiss, onItemClick]
+  )
+
+  const handleFloatingMiniAppTabClick = useCallback(
+    (tabId: string) => {
+      onMiniAppTabClick?.(tabId)
+      handleDismiss()
+    },
+    [handleDismiss, onMiniAppTabClick]
+  )
+
   const menuProps = { items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }
   const dockedProps = { dockedTabs, activeTabId, onMiniAppTabClick, onStartSidebarDrag, onCloseDockedTab }
   const footerProps = { user, actions, extensionsLabel, onExtensionsClick }
@@ -98,7 +116,8 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar/70 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
+            'fixed top-0 bottom-0 left-0 flex w-43.5 select-none flex-col rounded-r-sm rounded-br-2xl bg-card shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
+            isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in',
             isMac && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
@@ -129,8 +148,13 @@ export function Sidebar({
           )}
 
           <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
-            <SidebarMenu layout="full" {...menuProps} />
-            <SidebarDocked layout="full" {...dockedProps} />
+            <SidebarMenu
+              layout="full"
+              {...menuProps}
+              onItemClick={handleFloatingItemClick}
+              onMiniAppTabClick={handleFloatingMiniAppTabClick}
+            />
+            <SidebarDocked layout="full" {...dockedProps} onMiniAppTabClick={handleFloatingMiniAppTabClick} />
           </div>
 
           {showFooter && (

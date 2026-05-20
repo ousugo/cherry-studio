@@ -19,7 +19,7 @@ import {
   Sparkle
 } from 'lucide-react'
 import type { Ref } from 'react'
-import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTabs } from '../../hooks/useTabs'
@@ -31,6 +31,8 @@ import type { SidebarMenuItem, SidebarUser } from '../Sidebar/types'
 
 const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
 const noop = () => {}
+const FLOATING_SIDEBAR_EXIT_MS = 200
+type FloatingSidebarState = 'closed' | 'open' | 'closing'
 
 const routePrefixMap: Record<SidebarIconType, string> = {
   assistants: '/app/chat',
@@ -105,8 +107,38 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   )
 
   // Floating sidebar (hover reveal when hidden)
-  const [hoverVisible, setHoverVisible] = useState(false)
+  const [floatingSidebarState, setFloatingSidebarState] = useState<FloatingSidebarState>('closed')
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const layout = getSidebarLayout(sidebarWidth)
+  const hoverVisible = floatingSidebarState !== 'closed'
+  const hoverClosing = floatingSidebarState === 'closing'
+
+  const clearHoverCloseTimer = useCallback(() => {
+    if (!hoverCloseTimerRef.current) return
+    clearTimeout(hoverCloseTimerRef.current)
+    hoverCloseTimerRef.current = null
+  }, [])
+
+  const setFloatingSidebarVisible = useCallback(
+    (visible: boolean) => {
+      if (visible) {
+        clearHoverCloseTimer()
+        setFloatingSidebarState('open')
+        return
+      }
+
+      if (floatingSidebarState !== 'open') return
+
+      setFloatingSidebarState('closing')
+      hoverCloseTimerRef.current = setTimeout(() => {
+        setFloatingSidebarState('closed')
+        hoverCloseTimerRef.current = null
+      }, FLOATING_SIDEBAR_EXIT_MS)
+    },
+    [clearHoverCloseTimer, floatingSidebarState]
+  )
+
+  useEffect(() => clearHoverCloseTimer, [clearHoverCloseTimer])
 
   // Menu items
   const pathname = activeTab?.url || '/'
@@ -171,13 +203,19 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   return (
     <div ref={ref} id="app-sidebar" className="relative h-full [-webkit-app-region:no-drag]">
-      <UISidebar width={sidebarWidth} setWidth={setSidebarWidth} onHoverChange={setHoverVisible} {...sidebarProps} />
+      <UISidebar
+        width={sidebarWidth}
+        setWidth={setSidebarWidth}
+        onHoverChange={setFloatingSidebarVisible}
+        {...sidebarProps}
+      />
       {hoverVisible && layout === 'hidden' && (
         <UISidebar
           width={sidebarWidth}
           setWidth={setSidebarWidth}
           isFloating
-          onDismiss={() => setHoverVisible(false)}
+          isFloatingClosing={hoverClosing}
+          onDismiss={() => setFloatingSidebarVisible(false)}
           {...sidebarProps}
         />
       )}
