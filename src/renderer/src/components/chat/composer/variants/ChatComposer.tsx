@@ -5,6 +5,7 @@ import AnimatedRevealText from '@renderer/components/AnimatedRevealText'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
+  ComposerActiveToolControls,
   ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -13,21 +14,29 @@ import {
   useComposerToolLauncherController,
   useComposerToolState
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
+import { getComposerToolConfig } from '@renderer/components/chat/composer/tools/registry'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { AssistantSelector, ModelSelector } from '@renderer/components/Selector'
-import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/config/models'
+import {
+  isEmbeddingModel,
+  isGenerateImageModel,
+  isGenerateImageModels,
+  isRerankModel,
+  isVisionModel,
+  isVisionModels
+} from '@renderer/config/models'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBaseDataApi'
-import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { useModels } from '@renderer/hooks/useModel'
+import { getProviderDisplayName, useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval } from '@renderer/hooks/useTopicAwaitingApproval'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
 import type { AddNewTopicPayload } from '@renderer/pages/home/types'
 import type { FileMetadata, Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
@@ -42,7 +51,8 @@ import { ChevronDown } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { createComposerUserMessageParts } from '../composerDraft'
+import { createComposerUserMessageParts, serializeComposerDocument } from '../composerDraft'
+import type { ComposerSuggestionSource } from '../ComposerSuggestion'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import {
   chatComposerTokenId,
@@ -263,7 +273,12 @@ interface ChatComposerToolbarControlsProps extends Omit<ChatComposerContextContr
 }
 
 const ChatComposerToolMenuControls = ({ inputAdapter }: { inputAdapter?: QuickPanelInputAdapter }) => {
-  return <ComposerToolMenu inputAdapter={inputAdapter} />
+  return (
+    <>
+      <ComposerToolMenu inputAdapter={inputAdapter} />
+      <ComposerActiveToolControls inputAdapter={inputAdapter} />
+    </>
+  )
 }
 
 const ChatComposerToolbarControls = ({ inputAdapter, ...contextProps }: ChatComposerToolbarControlsProps) => {
@@ -371,9 +386,10 @@ const ChatComposerInner = ({
 }: ChatComposerInnerProps) => {
   const awaitingApproval = useTopicAwaitingApproval(topic.id)
   const scope = topic.type ?? TopicType.Chat
-  const config = getInputbarConfig(scope)
-  const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, triggers, setIsExpanded } = useComposerToolDispatch()
+  const config = getComposerToolConfig(scope)
+  const { files, mentionedModels, selectedKnowledgeBases, isExpanded, couldMentionNotVisionModel } =
+    useComposerToolState()
+  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
   const { setCouldAddImageFile, setExtensions } = useComposerToolInternalDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const {
@@ -382,11 +398,12 @@ const ChatComposerInner = ({
     model,
     isModelPending,
     isModelMissing,
-    setModel,
-    updateAssistant
+    setModel
   } = useAssistant(topic.assistantId)
   const { updateTopic } = useTopicMutations()
   const { knowledgeBases: allKnowledgeBases } = useKnowledgeBases()
+  const { models: mentionableModels } = useModels()
+  const { providers } = useProviders()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
@@ -494,20 +511,9 @@ const ChatComposerInner = ({
       const nextSelectedKnowledgeBases = selectedKnowledgeBases.filter((base) =>
         tokenIds.has(chatComposerTokenId.knowledge(base))
       )
-      if (nextSelectedKnowledgeBases.length !== selectedKnowledgeBases.length) {
-        const nextIds = (assistant?.knowledgeBaseIds ?? []).filter((id) => tokenIds.has(`knowledge:${id}`))
-        void updateAssistant({ knowledgeBaseIds: nextIds })
-      }
       setSelectedKnowledgeBases(nextSelectedKnowledgeBases)
     },
-    [
-      assistant?.knowledgeBaseIds,
-      selectedKnowledgeBases,
-      setFiles,
-      setMentionedModels,
-      setSelectedKnowledgeBases,
-      updateAssistant
-    ]
+    [selectedKnowledgeBases, setFiles, setMentionedModels, setSelectedKnowledgeBases]
   )
 
   useEffect(() => {
@@ -564,6 +570,70 @@ const ChatComposerInner = ({
       setMentionedModels(nextModels)
     },
     [setMentionedModels]
+  )
+
+  const mentionSuggestionStateRef = useRef({
+    mentionableModels,
+    providers,
+    mentionedModels,
+    couldMentionNotVisionModel,
+    setMentionedModels
+  })
+  mentionSuggestionStateRef.current = {
+    mentionableModels,
+    providers,
+    mentionedModels,
+    couldMentionNotVisionModel,
+    setMentionedModels
+  }
+
+  const mentionModelSuggestionSource = useMemo<ComposerSuggestionSource>(
+    () => ({
+      pluginKey: 'chat-model-mention-suggestion',
+      char: '@',
+      allowedPrefixes: [' ', '\n'],
+      items: ({ query }) => {
+        const { mentionableModels, providers, mentionedModels, couldMentionNotVisionModel, setMentionedModels } =
+          mentionSuggestionStateRef.current
+        const providerById = new Map(providers.map((provider) => [provider.id, provider]))
+        const normalizedQuery = query.trim().toLowerCase()
+
+        return mentionableModels
+          .filter((currentModel) => !isEmbeddingModel(currentModel) && !isRerankModel(currentModel))
+          .filter((currentModel) => couldMentionNotVisionModel || isVisionModel(currentModel))
+          .map((currentModel) => {
+            const provider = providerById.get(currentModel.providerId)
+            const providerName = provider ? getProviderDisplayName(provider) : currentModel.providerId
+            const filterText = `${providerName} ${currentModel.name} ${currentModel.group ?? ''}`.toLowerCase()
+            return {
+              id: chatComposerTokenId.model(currentModel),
+              label: `${providerName} | ${currentModel.name}`,
+              icon: <ModelAvatar model={currentModel} size={18} />,
+              filterText,
+              disabled: mentionedModels.some((model) => model.id === currentModel.id),
+              command: ({ editor }) => {
+                const token = modelToComposerToken(currentModel)
+                const exists = serializeComposerDocument(editor).tokens.some(
+                  (currentToken) => currentToken.id === token.id
+                )
+                if (!exists) {
+                  editor.chain().focus().insertComposerToken(token).insertContent(' ').run()
+                }
+                setMentionedModels((prev) =>
+                  prev.some((model) => model.id === currentModel.id) ? prev : [...prev, currentModel]
+                )
+              }
+            }
+          })
+          .filter((item) => !normalizedQuery || item.filterText.includes(normalizedQuery))
+      }
+    }),
+    []
+  )
+
+  const suggestionSources = useMemo(
+    () => (enableQuickPanelTriggers ? [mentionModelSuggestionSource] : []),
+    [enableQuickPanelTriggers, mentionModelSuggestionSource]
   )
 
   const addNewTopic = useCallback(
@@ -707,7 +777,6 @@ const ChatComposerInner = ({
         onExpandedChange={setIsExpanded}
         quickPanelEnabled={config.enableQuickPanel ?? true}
         enableQuickPanelTriggers={enableQuickPanelTriggers}
-        enableMentionModelTrigger
         enableDragDrop={config.enableDragDrop ?? true}
         enableSpellCheck={enableSpellCheck}
         editable={!searching}
@@ -716,7 +785,7 @@ const ChatComposerInner = ({
         onFocus={() => setSearching(false)}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers('root-panel')}
-        emitToolTrigger={triggers.emit}
+        suggestionSources={suggestionSources}
         topContent={topContent}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}

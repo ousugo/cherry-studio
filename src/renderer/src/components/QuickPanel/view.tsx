@@ -1,10 +1,8 @@
-import { Flex } from '@cherrystudio/ui'
+import { Flex, Input } from '@cherrystudio/ui'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/config/constant'
-import { useTimer } from '@renderer/hooks/useTimer'
 import { classNames } from '@renderer/utils'
 import { t } from 'i18next'
-import { debounce } from 'lodash'
 import { Check, ChevronRight } from 'lucide-react'
 import React, { use, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -30,11 +28,11 @@ interface Props {
  * @description 快捷面板内容视图;
  * 请不要往这里添加入参，避免耦合;
  * 这里只读取来自上下文QuickPanelContext的数据
- *
- * 无奈之举，为了清除输入框搜索文本，所以传了个setInputText进来
  */
 export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) => {
   const ctx = use(QuickPanelContext)
+  void setInputText
+  void inputAdapter
 
   if (!ctx) {
     throw new Error('QuickPanel must be used within a QuickPanelProvider')
@@ -52,14 +50,12 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
   const [historyPanel, setHistoryPanel] = useState<QuickPanelOpenOptions[]>([])
 
   const bodyRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<DynamicVirtualListRef>(null)
   const footerRef = useRef<HTMLDivElement>(null)
 
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
-  const setSearchTextDebounced = useMemo(() => debounce((val: string) => setSearchText(val), 50), [])
-
-  const searchTextRef = useRef('')
 
   // 缓存：按 item 缓存拼音文本，避免重复转换
   const pinyinCacheRef = useRef<WeakMap<QuickPanelListItem, string>>(new WeakMap())
@@ -67,7 +63,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
   // 跟踪上一次的搜索文本和符号，用于判断是否需要重置index
   const prevSearchTextRef = useRef('')
   const prevSymbolRef = useRef('')
-  const { setTimeoutTimer } = useTimer()
 
   // Use injected filter and sort functions, or fall back to defaults
   const filterFn = ctx.filterFn || defaultFilterFn
@@ -163,145 +158,14 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
     return list.some((item) => item.isMenu) || historyPanel.length > 0
   }, [list, historyPanel])
 
-  const clearSearchText = useCallback(
-    (includeSymbol = false) => {
-      const textArea = inputAdapter ? null : document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
-      if (!inputAdapter && !textArea) return
-
-      const currentInputText = inputAdapter?.getText() ?? textArea?.value ?? ''
-      const cursorPosition = inputAdapter?.getCursorOffset?.() ?? textArea?.selectionStart ?? currentInputText.length
-      const textBeforeCursor = currentInputText.slice(0, cursorPosition)
-
-      // 查找末尾最近的触发符号（@ 或 /），允许位于文本起始或空格后
-      const match = textBeforeCursor.match(/(^| )([@/][^\s]*)$/)
-      if (!match) return
-
-      const matchIndex = match.index ?? -1
-      if (matchIndex === -1) return
-
-      const boundarySegment = match[1] ?? ''
-      const symbolSegment = match[2] ?? ''
-      if (!symbolSegment) return
-
-      const boundaryStart = matchIndex
-      const symbolStart = boundaryStart + boundarySegment.length
-
-      // 根据 includeSymbol 决定是否删除符号
-      const deleteStart = includeSymbol ? boundaryStart : symbolStart + 1
-      const deleteEnd = cursorPosition
-
-      if (deleteStart >= deleteEnd) return
-
-      const activeSearchText = searchTextRef.current ?? ''
-
-      const deleteSearchText = (currentText: string) => {
-        const safeText = currentText ?? ''
-        const expectedSegment = includeSymbol ? symbolSegment : symbolSegment.slice(1)
-        const typedSearch = activeSearchText
-        const normalizedTyped = includeSymbol
-          ? typedSearch
-          : typedSearch.startsWith(symbolSegment[0] ?? '')
-            ? typedSearch.slice(1)
-            : typedSearch
-
-        if (normalizedTyped && expectedSegment !== normalizedTyped) {
-          return
-        }
-
-        const segmentStart = includeSymbol ? symbolStart : symbolStart + 1
-        const segmentEnd = segmentStart + expectedSegment.length
-
-        if (segmentStart < 0 || segmentStart > safeText.length) {
-          return
-        }
-
-        if (segmentEnd > safeText.length) {
-          return
-        }
-
-        const actualSegment = safeText.slice(segmentStart, segmentEnd)
-        if (actualSegment !== expectedSegment) {
-          return
-        }
-
-        const clampedDeleteStart = Math.max(0, Math.min(deleteStart, safeText.length))
-        const clampedDeleteEnd = Math.max(clampedDeleteStart, Math.min(deleteEnd, safeText.length))
-
-        if (clampedDeleteStart >= clampedDeleteEnd) {
-          return
-        }
-
-        const updatedText = safeText.slice(0, clampedDeleteStart) + safeText.slice(clampedDeleteEnd)
-
-        if (updatedText === safeText) {
-          return
-        }
-
-        setTimeoutTimer(
-          'quickpanel_focus',
-          () => {
-            if (inputAdapter) {
-              inputAdapter.focus()
-              return
-            }
-            const textareaEl = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
-            if (textareaEl) {
-              textareaEl.focus()
-              textareaEl.setSelectionRange(clampedDeleteStart, clampedDeleteStart)
-            }
-          },
-          0
-        )
-
-        if (inputAdapter) {
-          inputAdapter.deleteTriggerRange({ from: clampedDeleteStart, to: clampedDeleteEnd })
-          return
-        }
-
-        return updatedText
-      }
-
-      if (inputAdapter) {
-        deleteSearchText(currentInputText)
-      } else {
-        setInputText((currentText) => deleteSearchText(currentText) ?? currentText)
-      }
-
-      setSearchText('')
-    },
-    [inputAdapter, setInputText, setTimeoutTimer]
-  )
-
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
-      // 传递 searchText 给 close 函数，去掉第一个字符（@ 或 /）
-      const cleanSearchText = searchText.length > 1 ? searchText.slice(1) : ''
+      const cleanSearchText = searchText.trim()
       ctx.close(action, cleanSearchText)
       setHistoryPanel([])
       scrollTriggerRef.current = 'initial'
-
-      if (action === 'delete-symbol') {
-        const textArea = inputAdapter ? null : document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
-        if (inputAdapter) {
-          setInputText(inputAdapter.getText())
-        } else if (textArea) {
-          setInputText(textArea.value)
-        }
-      } else if (
-        action &&
-        !['outsideclick', 'esc', 'enter_empty', 'no_result'].includes(action) &&
-        ctx.triggerInfo?.type === 'input'
-      ) {
-        setTimeoutTimer(
-          'quickpanel_deferred_clear',
-          () => {
-            clearSearchText(true)
-          },
-          0
-        )
-      }
     },
-    [ctx, clearSearchText, inputAdapter, setInputText, searchText, setTimeoutTimer]
+    [ctx, searchText]
   )
 
   const handleItemAction = useCallback(
@@ -357,7 +221,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
             afterAction: ctx.afterAction
           }
         ])
-        clearSearchText(false)
+        setSearchText('')
         return
       }
 
@@ -366,145 +230,38 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
 
       handleClose(action)
     },
-    [ctx, searchText, handleClose, clearSearchText, index, inputAdapter]
+    [ctx, searchText, handleClose, index, inputAdapter]
   )
 
-  useEffect(() => {
-    searchTextRef.current = searchText
-  }, [searchText])
-
-  // Track onSearchChange callback and search state for debouncing
   const prevSearchCallbackTextRef = useRef('')
-  const isFirstSearchRef = useRef(true)
-  const searchCallbackTimerRef = useRef<NodeJS.Timeout | null>(null)
   const onSearchChangeRef = useRef(ctx.onSearchChange)
 
-  // Keep onSearchChange ref up to date
   useEffect(() => {
     onSearchChangeRef.current = ctx.onSearchChange
   }, [ctx.onSearchChange])
 
-  // Reset search history when panel closes
   useEffect(() => {
     if (!ctx.isVisible) {
       prevSearchCallbackTextRef.current = ''
-      isFirstSearchRef.current = true
-      if (searchCallbackTimerRef.current) {
-        clearTimeout(searchCallbackTimerRef.current)
-        searchCallbackTimerRef.current = null
-      }
     }
   }, [ctx.isVisible])
 
-  // Trigger onSearchChange with debounce (called from handleInput)
   const triggerSearchChange = useCallback((searchText: string) => {
-    if (!onSearchChangeRef.current) return
+    const cleanSearchText = searchText.trim()
 
-    // Clean search text: remove leading symbol (/ or @) and trim
-    const cleanSearchText = searchText.replace(/^[/@]/, '').trim()
-
-    // Don't trigger if search text hasn't changed
     if (cleanSearchText === prevSearchCallbackTextRef.current) {
       return
     }
 
-    // Don't trigger callback for empty search text
-    if (!cleanSearchText) {
-      prevSearchCallbackTextRef.current = ''
-      return
-    }
-
-    // Clear previous timer
-    if (searchCallbackTimerRef.current) {
-      clearTimeout(searchCallbackTimerRef.current)
-    }
-
-    // First search triggers immediately (0ms), subsequent searches have 300ms debounce
-    const delay = isFirstSearchRef.current ? 0 : 300
-
-    searchCallbackTimerRef.current = setTimeout(() => {
-      prevSearchCallbackTextRef.current = cleanSearchText
-      isFirstSearchRef.current = false
-      onSearchChangeRef.current?.(cleanSearchText)
-      searchCallbackTimerRef.current = null
-    }, delay)
+    prevSearchCallbackTextRef.current = cleanSearchText
+    onSearchChangeRef.current?.(cleanSearchText)
   }, [])
 
-  // Cleanup timer on unmount
   useEffect(() => {
-    return () => {
-      if (searchCallbackTimerRef.current) {
-        clearTimeout(searchCallbackTimerRef.current)
-        searchCallbackTimerRef.current = null
-      }
+    if (ctx.isVisible) {
+      searchInputRef.current?.focus()
     }
-  }, [])
-
-  // 获取当前输入的搜索词
-  const isComposing = useRef(false)
-  useEffect(() => {
-    return () => {
-      setSearchTextDebounced.cancel()
-    }
-  }, [setSearchTextDebounced])
-
-  useEffect(() => {
-    if (!ctx.isVisible) return
-
-    const handleSearchInput = (value: string, cursorPosition: number, composing = false) => {
-      if (composing || isComposing.current) return
-
-      const textBeforeCursor = value.slice(0, cursorPosition)
-      const lastSlashIndex = textBeforeCursor.lastIndexOf('/')
-      const lastAtIndex = textBeforeCursor.lastIndexOf('@')
-      const lastSymbolIndex = Math.max(lastSlashIndex, lastAtIndex)
-
-      if (lastSymbolIndex !== -1) {
-        const newSearchText = textBeforeCursor.slice(lastSymbolIndex)
-        setSearchTextDebounced(newSearchText)
-        triggerSearchChange(newSearchText)
-      } else {
-        handleClose('delete-symbol')
-      }
-    }
-
-    if (inputAdapter?.subscribeInput) {
-      return inputAdapter.subscribeInput((event) => {
-        handleSearchInput(
-          inputAdapter.getText(),
-          inputAdapter.getCursorOffset?.() ?? inputAdapter.getText().length,
-          event?.isComposing
-        )
-      })
-    }
-
-    const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
-    if (!textArea) return
-
-    const handleInput = (e: Event) => {
-      const target = e.target as HTMLTextAreaElement
-      handleSearchInput(target.value, target.selectionStart)
-    }
-
-    const handleCompositionUpdate = () => {
-      isComposing.current = true
-    }
-
-    const handleCompositionEnd = (e: CompositionEvent) => {
-      isComposing.current = false
-      handleInput(e)
-    }
-
-    textArea.addEventListener('input', handleInput)
-    textArea.addEventListener('compositionupdate', handleCompositionUpdate)
-    textArea.addEventListener('compositionend', handleCompositionEnd)
-
-    return () => {
-      textArea.removeEventListener('input', handleInput)
-      textArea.removeEventListener('compositionupdate', handleCompositionUpdate)
-      textArea.removeEventListener('compositionend', handleCompositionEnd)
-    }
-  }, [ctx.isVisible, ctx.symbol, handleClose, inputAdapter, setSearchTextDebounced, triggerSearchChange])
+  }, [ctx.isVisible])
 
   useEffect(() => {
     if (ctx.isVisible) return
@@ -525,14 +282,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
     scrollTriggerRef.current = 'none'
   }, [index])
 
-  // 处理键盘事件：
-  // - 可见且未折叠时：拦截 Enter 及其组合键（纯 Enter 选择项；带修饰键仅拦截不处理）。
-  // - 软隐藏/折叠时：不拦截 Enter，允许输入框处理（用于发送消息等）。
-  // - 不可见时：不拦截，输入框按常规处理。
-  useEffect(() => {
-    if (!ctx.isVisible) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
+  const handlePanelKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (isMac ? e.metaKey : e.ctrlKey) {
         setIsAssistiveKeyPressed(true)
       }
@@ -605,7 +356,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
           if (!isAssistiveKeyPressed) return
           if (!historyPanel.length) return
           scrollTriggerRef.current = 'initial'
-          clearSearchText(false)
+          setSearchText('')
           if (historyPanel.length > 0) {
             const lastPanel = historyPanel.pop()
             if (lastPanel) {
@@ -618,16 +369,16 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
           if (!isAssistiveKeyPressed) return
           if (!list?.[index]?.isMenu) return
           scrollTriggerRef.current = 'initial'
-          clearSearchText(false)
+          setSearchText('')
           handleItemAction(list[index], 'enter')
           break
 
         case 'Enter':
         case 'NumpadEnter': {
-          if (isComposing.current) return
+          if (e.nativeEvent.isComposing) return
 
           // 折叠/软隐藏时不拦截，让输入框处理（用于发送消息）
-          const hasSearch = searchText.replace(/^[/@]/, '').length > 0
+          const hasSearch = searchText.length > 0
           const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
           const isCollapsed = hasSearch && nonPinnedCount === 0
           if (isCollapsed) return
@@ -663,14 +414,18 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
           handleClose('esc')
           break
       }
-    }
+    },
+    [index, isAssistiveKeyPressed, historyPanel, ctx, list, handleItemAction, handleClose, searchText]
+  )
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (isMac ? !e.metaKey : !e.ctrlKey) {
-        setIsAssistiveKeyPressed(false)
-      }
+  const handlePanelKeyUp = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isMac ? !e.metaKey : !e.ctrlKey) {
+      setIsAssistiveKeyPressed(false)
     }
+  }, [])
 
+  useEffect(() => {
+    if (!ctx.isVisible) return
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       if (target.closest('#inputbar')) return
@@ -679,26 +434,12 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown, true)
-    window.addEventListener('keyup', handleKeyUp, true)
     window.addEventListener('click', handleClickOutside, true)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown, true)
-      window.removeEventListener('keyup', handleKeyUp, true)
       window.removeEventListener('click', handleClickOutside, true)
     }
-  }, [
-    index,
-    isAssistiveKeyPressed,
-    historyPanel,
-    ctx,
-    list,
-    handleItemAction,
-    handleClose,
-    clearSearchText,
-    searchText
-  ])
+  }, [ctx.isVisible, handleClose])
 
   const [footerWidth, setFooterWidth] = useState(0)
 
@@ -715,10 +456,19 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
     return () => window.removeEventListener('resize', handleResize)
   }, [ctx.isVisible])
 
+  const handleSearchTextChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const nextSearchText = event.target.value
+      setSearchText(nextSearchText)
+      triggerSearchChange(nextSearchText)
+    },
+    [triggerSearchChange]
+  )
+
   const listHeight = useMemo(() => {
     return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
   }, [ctx.pageSize, list.length])
-  const hasSearchText = useMemo(() => searchText.replace(/^[/@]/, '').length > 0, [searchText])
+  const hasSearchText = useMemo(() => searchText.length > 0, [searchText])
   // 折叠仅依据“非固定项”的匹配数；仅剩固定项（如“清除”）时仍视为无匹配，保持折叠
   const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
   const collapsed = !ctx.manageListExternally && hasSearchText && visibleNonPinnedCount === 0
@@ -780,7 +530,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
 
   return (
     <div
-      style={{ maxHeight: ctx.isVisible && !collapsed ? ctx.pageSize * ITEM_HEIGHT + 100 : 0 }}
+      style={{ maxHeight: ctx.isVisible && !collapsed ? ctx.pageSize * ITEM_HEIGHT + 138 : 0 }}
       className={classNames(
         '-translate-y-full pointer-events-none absolute top-px right-0 left-0 w-full origin-bottom overflow-hidden px-[35px] transition-[max-height] duration-200 ease-in-out',
         ctx.isVisible && 'visible',
@@ -790,12 +540,23 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
       <div
         ref={bodyRef}
         className="before:-z-10 relative isolate rounded-t-lg border-border/60 border-x-[0.5px] border-t-[0.5px] py-[5px] before:absolute before:inset-0 before:rounded-[inherit] before:bg-popover/80 before:backdrop-blur-[35px] before:backdrop-saturate-150 before:content-[''] [&::-webkit-scrollbar]:w-[3px]"
+        onKeyDown={handlePanelKeyDown}
+        onKeyUp={handlePanelKeyUp}
         onMouseMove={() =>
           setIsMouseOver((prev) => {
             scrollTriggerRef.current = 'initial'
             return prev ? prev : true
           })
         }>
+        <div className="px-2 pb-1">
+          <Input
+            ref={searchInputRef}
+            value={_searchText}
+            placeholder={t('common.search')}
+            className="h-8 rounded-md border-border/60 bg-background/70 text-xs shadow-none focus-visible:ring-1"
+            onChange={handleSearchTextChange}
+          />
+        </div>
         {collapsed ? (
           <div className="p-4 text-center text-[13px] text-muted-foreground">
             {t('settings.quickPanel.noResult', 'No results')}

@@ -84,6 +84,8 @@ export type ComposerMessageTokenKind =
   | 'command'
   | 'model'
   | 'knowledge'
+  | 'mcpPrompt'
+  | 'mcpResource'
   | 'reference'
   | 'environment'
 

@@ -4,6 +4,8 @@ export const COMPOSER_DRAFT_TOKEN_KINDS = [
   'command',
   'model',
   'knowledge',
+  'mcpPrompt',
+  'mcpResource',
   'reference',
   'environment'
 ] as const

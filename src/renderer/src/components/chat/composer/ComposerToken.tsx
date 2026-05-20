@@ -10,6 +10,8 @@ const tokenIconByKind: Record<ComposerDraftTokenKind, ReactNode> = {
   command: <Code2 size={14} />,
   model: <Bot size={14} />,
   knowledge: <Boxes size={14} />,
+  mcpPrompt: <Wrench size={14} />,
+  mcpResource: <Globe2 size={14} />,
   reference: <Globe2 size={14} />,
   environment: <Monitor size={14} />
 }

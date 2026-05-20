@@ -5,6 +5,7 @@ import AnimatedRevealText from '@renderer/components/AnimatedRevealText'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
+  ComposerActiveToolControls,
   ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -13,6 +14,8 @@ import {
   useComposerToolLauncherController,
   useComposerToolState
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
+import { getComposerToolConfig } from '@renderer/components/chat/composer/tools/registry'
+import type { ToolContext } from '@renderer/components/chat/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { AgentSelector, ModelSelector, WorkspaceSelector } from '@renderer/components/Selector'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
@@ -24,10 +27,8 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { AgentLabel, isSoulModeEnabled } from '@renderer/pages/agents/AgentSettings/shared'
-import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
-import type { ToolContext } from '@renderer/pages/home/Inputbar/types'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Assistant, FileMetadata, ThinkingOption } from '@renderer/types'
+import { type Assistant, FILE_TYPE, type FileMetadata, type ThinkingOption } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -36,11 +37,13 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { getFileTypeByExt } from '@shared/file/types'
 import { ChevronDown, Folder } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { createComposerUserMessageParts } from '../composerDraft'
+import { createComposerUserMessageParts, serializeComposerDocument } from '../composerDraft'
+import type { ComposerSuggestionSource } from '../ComposerSuggestion'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { agentComposerTokenId, agentFileToComposerToken, getAgentComposerTokenIds } from './agentComposerTokens'
 
@@ -52,6 +55,47 @@ const COMPOSER_TOOLBAR_CLASS =
 const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
 
 const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentId}`
+
+const getBaseName = (filePath: string) => {
+  const normalized = filePath.replace(/\\/g, '/')
+  return normalized.split('/').pop() || normalized
+}
+
+const getFileExtension = (fileName: string) => {
+  const lastDotIndex = fileName.lastIndexOf('.')
+  return lastDotIndex > 0 ? fileName.slice(lastDotIndex) : ''
+}
+
+const createFileMetadataFromPath = (filePath: string): FileMetadata => {
+  const name = getBaseName(filePath)
+  const ext = getFileExtension(name)
+  return {
+    id: filePath,
+    name,
+    origin_name: name,
+    path: filePath,
+    size: 0,
+    ext,
+    type: ext ? getFileTypeByExt(ext) : FILE_TYPE.OTHER,
+    created_at: new Date().toISOString(),
+    count: 1
+  }
+}
+
+const getRelativePath = (filePath: string, accessiblePaths: readonly string[]) => {
+  const normalizedFilePath = filePath.replace(/\\/g, '/')
+
+  for (const basePath of accessiblePaths) {
+    const normalizedBasePath = basePath.replace(/\\/g, '/')
+    const baseWithSlash = normalizedBasePath.endsWith('/') ? normalizedBasePath : `${normalizedBasePath}/`
+
+    if (normalizedFilePath.startsWith(baseWithSlash)) {
+      return normalizedFilePath.slice(baseWithSlash.length)
+    }
+  }
+
+  return filePath
+}
 
 type Props = {
   agentId: string
@@ -332,7 +376,12 @@ interface AgentComposerToolbarControlsProps extends Omit<AgentComposerContextCon
 }
 
 const AgentComposerToolMenuControls = ({ inputAdapter }: { inputAdapter?: QuickPanelInputAdapter }) => {
-  return <ComposerToolMenu inputAdapter={inputAdapter} />
+  return (
+    <>
+      <ComposerToolMenu inputAdapter={inputAdapter} />
+      <ComposerActiveToolControls inputAdapter={inputAdapter} />
+    </>
+  )
 }
 
 const AgentComposerToolbarControls = ({ inputAdapter, ...contextProps }: AgentComposerToolbarControlsProps) => {
@@ -404,15 +453,16 @@ const AgentComposerInner = ({
   const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
-  const config = getInputbarConfig(scope)
+  const config = getComposerToolConfig(scope)
   const { files, isExpanded } = useComposerToolState()
-  const { setFiles, setIsExpanded, triggers } = useComposerToolDispatch()
+  const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { setCouldAddImageFile, setExtensions } = useComposerToolInternalDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
   const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
@@ -421,6 +471,8 @@ const AgentComposerInner = ({
   const draftCacheKey = getAgentDraftCacheKey(agentId)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(draftCacheKey) ?? '')
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
+  const accessiblePaths = sessionData?.accessiblePaths ?? []
+  const enableMentionModelTrigger = accessiblePaths.length > 0
 
   const isVisionAssistant = useMemo(() => (model ? isVisionModel(model) : false), [model])
   const isGenerateImageAssistant = useMemo(() => (model ? isGenerateImageModel(model) : false), [model])
@@ -549,6 +601,100 @@ const AgentComposerInner = ({
     [agentId, chatSendMessage, files, sessionId, sessionTopicId, setFiles, setText, setTimeoutTimer, text]
   )
 
+  const resourceSuggestionStateRef = useRef({ accessiblePaths, files, setFiles, t })
+  resourceSuggestionStateRef.current = { accessiblePaths, files, setFiles, t }
+
+  const resourceSuggestionSource = useMemo<ComposerSuggestionSource>(
+    () => ({
+      pluginKey: 'agent-resource-mention-suggestion',
+      char: '@',
+      allowedPrefixes: [' ', '\n'],
+      items: async ({ query }) => {
+        const { accessiblePaths, files, setFiles, t } = resourceSuggestionStateRef.current
+        if (accessiblePaths.length === 0) {
+          return [
+            {
+              id: 'agent-resource:no-paths',
+              label: t('chat.input.resource_panel.no_items_found.label'),
+              description: t('chat.input.resource_panel.no_items_found.description'),
+              disabled: true,
+              command: () => undefined
+            }
+          ]
+        }
+
+        const searchPattern = query.trim() || '.'
+        const results = await Promise.allSettled(
+          accessiblePaths.map((dirPath) =>
+            window.api.file.listDirectory(dirPath, {
+              recursive: true,
+              maxDepth: 10,
+              includeHidden: false,
+              includeFiles: true,
+              includeDirectories: true,
+              maxEntries: 20,
+              searchPattern
+            })
+          )
+        )
+        const collected = new Set<string>()
+        for (const result of results) {
+          if (result.status !== 'fulfilled') continue
+          for (const filePath of result.value) {
+            collected.add(filePath.replace(/\\/g, '/'))
+          }
+        }
+
+        if (collected.size === 0 && results.some((result) => result.status === 'rejected')) {
+          return [
+            {
+              id: 'agent-resource:error',
+              label: t('common.error'),
+              description: t('chat.input.resource_panel.no_items_found.description'),
+              disabled: true,
+              command: () => undefined
+            }
+          ]
+        }
+
+        return [...collected].slice(0, 50).map((filePath) => {
+          const relativePath = getRelativePath(filePath, accessiblePaths)
+          const file = files.find((currentFile) => currentFile.path === filePath || currentFile.id === filePath)
+          const tokenFile = file ?? createFileMetadataFromPath(filePath)
+          const token = agentFileToComposerToken(tokenFile)
+
+          return {
+            id: token.id,
+            label: relativePath,
+            description: filePath,
+            icon: <Folder size={16} />,
+            filterText: `${relativePath} ${filePath}`,
+            disabled: files.some((currentFile) => agentComposerTokenId.file(currentFile) === token.id),
+            command: ({ editor }) => {
+              const exists = serializeComposerDocument(editor).tokens.some(
+                (currentToken) => currentToken.id === token.id
+              )
+              if (!exists) {
+                editor.chain().focus().insertComposerToken(token).insertContent(' ').run()
+              }
+              setFiles((prevFiles) =>
+                prevFiles.some((currentFile) => agentComposerTokenId.file(currentFile) === token.id)
+                  ? prevFiles
+                  : [...prevFiles, tokenFile]
+              )
+            }
+          }
+        })
+      }
+    }),
+    []
+  )
+
+  const suggestionSources = useMemo(
+    () => (enableQuickPanelTriggers && enableMentionModelTrigger ? [resourceSuggestionSource] : []),
+    [enableMentionModelTrigger, enableQuickPanelTriggers, resourceSuggestionSource]
+  )
+
   const controlSlots = renderControls({
     agent: agentBase,
     model,
@@ -587,15 +733,14 @@ const AgentComposerInner = ({
         isExpanded={isExpanded}
         onExpandedChange={setIsExpanded}
         quickPanelEnabled={config.enableQuickPanel ?? true}
-        enableQuickPanelTriggers
-        enableMentionModelTrigger
+        enableQuickPanelTriggers={enableQuickPanelTriggers}
         enableDragDrop={config.enableDragDrop ?? true}
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
         narrowMode={narrowMode}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers('root-panel')}
-        emitToolTrigger={triggers.emit}
+        suggestionSources={suggestionSources}
         topContent={topContent}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}

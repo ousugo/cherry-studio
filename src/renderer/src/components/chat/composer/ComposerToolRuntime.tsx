@@ -1,32 +1,27 @@
-import '@renderer/pages/home/Inputbar/tools'
+import '@renderer/components/chat/composer/tools'
 
 import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import type {
-  QuickPanelInputAdapter,
-  QuickPanelListItem,
-  QuickPanelReservedSymbol
-} from '@renderer/components/QuickPanel'
-import { QuickPanelReservedSymbol as ReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { useProvider } from '@renderer/hooks/useProvider'
 import {
-  InputbarToolsProvider,
-  useInputbarTools,
-  useInputbarToolsDispatch,
-  useInputbarToolsInternalDispatch,
-  useInputbarToolsState
-} from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
+  ComposerToolProvider,
+  useComposerToolProvider,
+  useComposerToolProviderDispatch,
+  useComposerToolProviderInternalDispatch,
+  useComposerToolProviderState
+} from '@renderer/components/chat/composer/tools/ComposerToolProvider'
 import type {
-  InputbarScope,
+  ComposerToolScope,
   ToolActionKey,
   ToolActionMap,
   ToolContext,
   ToolDefinition,
-  ToolQuickPanelApi,
   ToolRenderContext,
   ToolStateKey,
   ToolStateMap
-} from '@renderer/pages/home/Inputbar/types'
-import { getToolsForScope } from '@renderer/pages/home/Inputbar/types'
+} from '@renderer/components/chat/composer/tools/types'
+import { getToolsForScope } from '@renderer/components/chat/composer/tools/types'
+import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import { QuickPanelReservedSymbol as ReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
+import { useProvider } from '@renderer/hooks/useProvider'
 import type { Assistant, FileMetadata } from '@renderer/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
@@ -58,14 +53,14 @@ interface ComposerToolRuntimeProviderProps {
 
 export const ComposerToolRuntimeProvider = ({ children, initialState, actions }: ComposerToolRuntimeProviderProps) => {
   return (
-    <InputbarToolsProvider initialState={initialState} actions={actions}>
+    <ComposerToolProvider initialState={initialState} actions={actions}>
       {children}
-    </InputbarToolsProvider>
+    </ComposerToolProvider>
   )
 }
 
 interface ComposerToolRuntimeBootstrapProps {
-  scope: InputbarScope
+  scope: ComposerToolScope
   assistant: Assistant
   model: Model
   session?: ToolContext['session']
@@ -74,51 +69,22 @@ interface ComposerToolRuntimeBootstrapProps {
 type AnyToolDefinition = ToolDefinition<readonly ToolStateKey[], readonly ToolActionKey[]>
 type AnyToolRenderContext = ToolRenderContext<readonly ToolStateKey[], readonly ToolActionKey[]>
 
-const ComposerToolRenderSlot = ({ tool, context }: { tool: AnyToolDefinition; context: AnyToolRenderContext }) => {
-  const render = tool.render
-  if (!render) return null
-  return <>{render(context)}</>
-}
-
-const ComposerToolManagerSlot = ({ tool, context }: { tool: AnyToolDefinition; context: AnyToolRenderContext }) => {
-  const Manager = tool.quickPanelManager
-  if (!Manager) return null
-  return <Manager context={context} />
+const ComposerToolRuntimeSlot = ({ tool, context }: { tool: AnyToolDefinition; context: AnyToolRenderContext }) => {
+  const Runtime = tool.composer?.runtime
+  if (!Runtime) return null
+  return <Runtime context={context} />
 }
 
 export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
-  const toolsContext = useInputbarTools()
+  const toolsContext = useComposerToolProvider()
   const quickPanelContext = useQuickPanel()
-  const quickPanelApiCacheRef = useRef(new Map<string, ToolQuickPanelApi>())
   const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
   const { provider } = useProvider(model.providerId)
 
   const availableTools = useMemo(() => {
     return getToolsForScope(scope, { assistant, model, session, provider })
   }, [assistant, model, provider, scope, session])
-
-  const getQuickPanelApiForTool = useCallback(
-    (toolKey: string): ToolQuickPanelApi => {
-      const cache = quickPanelApiCacheRef.current
-
-      if (!cache.has(toolKey)) {
-        cache.set(toolKey, {
-          // Composer-native menus are built from launchers. Legacy root menu
-          // registrations remain available to the old horizontal Inputbar only.
-          registerRootMenu: (entries: QuickPanelListItem[]) => {
-            void entries
-            return () => undefined
-          },
-          registerTrigger: (symbol: QuickPanelReservedSymbol, handler: (payload?: unknown) => void) =>
-            toolsContext.toolsRegistry.registerTrigger(toolKey, symbol, handler)
-        })
-      }
-
-      return cache.get(toolKey)!
-    },
-    [toolsContext.toolsRegistry]
-  )
 
   const getLauncherApiForTool = useCallback(
     (toolKey: string): ToolRenderContext<any, any>['launcher'] => {
@@ -140,7 +106,6 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
       tool: ToolDefinition<S, A>
     ): ToolRenderContext<S, A> => {
       const deps = tool.dependencies
-      const quickPanel = getQuickPanelApiForTool(tool.key)
 
       const state = (deps?.state || ([] as unknown as S)).reduce(
         (acc, key) => {
@@ -168,23 +133,12 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
         session,
         state,
         actions: runtimeActions,
-        quickPanel,
         launcher: getLauncherApiForTool(tool.key),
         quickPanelController: quickPanelContext,
         t
       } as ToolRenderContext<S, A>
     },
-    [
-      assistant,
-      getLauncherApiForTool,
-      getQuickPanelApiForTool,
-      model,
-      quickPanelContext,
-      scope,
-      session,
-      t,
-      toolsContext
-    ]
+    [assistant, getLauncherApiForTool, model, quickPanelContext, scope, session, t, toolsContext]
   )
 
   useEffect(() => {
@@ -193,17 +147,9 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
     for (const tool of availableTools) {
       const context = buildRenderContext(tool)
 
-      if (tool.launcher) {
-        const launchers = tool.launcher.createLaunchers(context)
+      if (tool.composer?.menuItems) {
+        const launchers = tool.composer.menuItems.createItems(context)
         const dispose = toolsContext.toolsRegistry.registerLaunchers(tool.key, launchers)
-        disposeCallbacks.push(dispose)
-      }
-
-      if (!tool.quickPanel?.triggers) continue
-
-      for (const triggerConfig of tool.quickPanel.triggers) {
-        const handler = triggerConfig.createHandler(context)
-        const dispose = toolsContext.toolsRegistry.registerTrigger(tool.key, triggerConfig.symbol, handler)
         disposeCallbacks.push(dispose)
       }
     }
@@ -215,25 +161,11 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
 
   return (
     <>
-      {availableTools.some((tool) => tool.render) && (
-        <div className="hidden" aria-hidden>
-          {availableTools.map((tool) => {
-            if (!tool.render) return null
-            return (
-              <ComposerToolRenderSlot
-                key={`${tool.key}-runtime-render`}
-                tool={tool}
-                context={buildRenderContext(tool)}
-              />
-            )
-          })}
-        </div>
-      )}
       {availableTools.map((tool) => {
-        if (!tool.quickPanelManager) return null
+        if (!tool.composer?.runtime) return null
         return (
-          <ComposerToolManagerSlot
-            key={`${tool.key}-quick-panel-manager`}
+          <ComposerToolRuntimeSlot
+            key={`${tool.key}-composer-runtime`}
             tool={tool}
             context={buildRenderContext(tool)}
           />
@@ -243,8 +175,8 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   )
 }
 
-export const useComposerToolState = useInputbarToolsState
-export const useComposerToolDispatch = useInputbarToolsDispatch
+export const useComposerToolState = useComposerToolProviderState
+export const useComposerToolDispatch = useComposerToolProviderDispatch
 
 interface ComposerToolInternalDispatch {
   setCouldAddImageFile: React.Dispatch<React.SetStateAction<boolean>>
@@ -252,7 +184,7 @@ interface ComposerToolInternalDispatch {
 }
 
 export const useComposerToolInternalDispatch = (): ComposerToolInternalDispatch => {
-  return useInputbarToolsInternalDispatch()
+  return useComposerToolProviderInternalDispatch()
 }
 
 export function useComposerToolLauncherController() {
@@ -294,6 +226,34 @@ export function useComposerToolLauncherController() {
 
 interface ComposerToolMenuProps {
   inputAdapter?: QuickPanelInputAdapter
+}
+
+export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuProps) => {
+  const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
+  const activeLaunchers = useMemo(
+    () => getLaunchers('popover').filter((launcher) => launcher.active && !launcher.hidden),
+    [getLaunchers]
+  )
+
+  if (activeLaunchers.length === 0) return null
+
+  return (
+    <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
+      {activeLaunchers.map((launcher) => (
+        <button
+          key={launcher.id}
+          type="button"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 font-medium text-foreground-secondary text-xs transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40 data-[active=true]:bg-accent data-[active=true]:text-foreground [&_svg]:size-4"
+          data-active
+          disabled={launcher.disabled}
+          aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}
+          onClick={() => dispatchLauncher(launcher, { source: 'popover', inputAdapter })}>
+          <span className="flex shrink-0 items-center justify-center text-foreground-muted">{launcher.icon}</span>
+          {launcher.suffix ? <span className="max-w-24 truncate">{launcher.suffix}</span> : null}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {

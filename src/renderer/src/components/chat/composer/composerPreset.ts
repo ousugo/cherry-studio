@@ -8,18 +8,21 @@ import {
   ComposerText,
   ComposerUndoRedo
 } from './composerSchema'
+import { type ComposerSuggestionSource, createComposerSuggestionExtension } from './ComposerSuggestion'
 import { ComposerTokenNode, type ComposerTokenRenderer } from './ComposerTokenNode'
 
 export interface ComposerEditorPresetOptions {
   placeholder?: string
   enableUndoRedo?: boolean
   renderToken?: ComposerTokenRenderer
+  suggestionSources?: readonly ComposerSuggestionSource[]
 }
 
 export function createComposerEditorPreset({
   placeholder,
   enableUndoRedo = true,
-  renderToken
+  renderToken,
+  suggestionSources = []
 }: ComposerEditorPresetOptions = {}): EditorOptions['extensions'] {
   return [
     ComposerDocument,
@@ -33,6 +36,7 @@ export function createComposerEditorPreset({
       includeChildren: false
     }),
     ComposerTokenNode.configure({ renderToken }),
+    ...(suggestionSources.length > 0 ? [createComposerSuggestionExtension(suggestionSources)] : []),
     ...(enableUndoRedo ? [ComposerUndoRedo] : [])
   ]
 }

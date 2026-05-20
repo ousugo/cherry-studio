@@ -87,6 +87,7 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
   },
   ComposerToolRuntimeHost: () => null,
   ComposerToolMenu: () => <button type="button">tool menu</button>,
+  ComposerActiveToolControls: () => null,
   useComposerToolState: () => ({
     files: [],
     mentionedModels: mocks.mentionedModels ?? [],
@@ -106,14 +107,11 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
     onTextChange: vi.fn(),
     toggleExpanded: vi.fn(),
     toolsRegistry: {
-      registerRootMenu: vi.fn(() => vi.fn()),
-      registerLaunchers: vi.fn(() => vi.fn()),
-      registerTrigger: vi.fn(() => vi.fn())
+      registerLaunchers: vi.fn(() => vi.fn())
     },
     triggers: {
-      emit: vi.fn(),
-      getRootMenu: vi.fn(() => []),
-      getLaunchers: vi.fn(() => [])
+      getLaunchers: vi.fn(() => []),
+      version: 0
     }
   }),
   useComposerToolInternalDispatch: () => ({
@@ -184,8 +182,10 @@ vi.mock('@renderer/components/Selector', () => ({
 }))
 
 vi.mock('@renderer/config/models', () => ({
+  isEmbeddingModel: () => false,
   isGenerateImageModel: () => false,
   isGenerateImageModels: () => false,
+  isRerankModel: () => false,
   isVisionModel: () => false,
   isVisionModels: () => false
 }))
@@ -235,11 +235,14 @@ vi.mock('@renderer/hooks/useKnowledgeBaseDataApi', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ setDefaultModel: mocks.setDefaultModel })
+  useDefaultModel: () => ({ setDefaultModel: mocks.setDefaultModel }),
+  useModels: () => ({ models: [model, modelB] })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviderDisplayName: (providerId?: string) => (providerId ? 'Provider' : undefined)
+  getProviderDisplayName: () => 'Provider',
+  useProviderDisplayName: (providerId?: string) => (providerId ? 'Provider' : undefined),
+  useProviders: () => ({ providers: [{ id: 'provider', name: 'Provider' }] })
 }))
 
 vi.mock('@renderer/hooks/useShortcuts', () => ({

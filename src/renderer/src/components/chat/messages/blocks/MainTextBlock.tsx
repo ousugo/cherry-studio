@@ -29,6 +29,8 @@ const composerTokenIcon = {
   environment: Monitor,
   file: FileText,
   knowledge: Boxes,
+  mcpPrompt: Wrench,
+  mcpResource: Globe2,
   model: Bot,
   reference: Globe2,
   skill: Wrench

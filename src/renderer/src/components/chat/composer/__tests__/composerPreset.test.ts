@@ -27,4 +27,25 @@ describe('createComposerEditorPreset', () => {
 
     expect(extensionNames).not.toContain('composerUndoRedo')
   })
+
+  it('adds composer suggestion plugins only when suggestion sources are provided', () => {
+    const extensionNames = createComposerEditorPreset({
+      suggestionSources: [
+        {
+          pluginKey: 'test-suggestion',
+          char: '/',
+          items: () => [
+            {
+              id: 'test',
+              label: 'Test',
+              icon: '',
+              command: () => undefined
+            }
+          ]
+        }
+      ]
+    }).map((extension) => extension.name)
+
+    expect(extensionNames).toContain('composerSuggestion')
+  })
 })

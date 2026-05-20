@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { InputbarScope } from '@renderer/pages/home/Inputbar/types'
+import type { ComposerToolScope } from '@renderer/components/chat/composer/tools/types'
 import { TopicType } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
 
@@ -44,11 +44,11 @@ export const DEFAULT_TOOL_ORDER: ToolOrder = {
 // Note: New tools not listed here will auto-show at the end.
 // Tools are filtered by visibleInScopes first, so this only controls order/visibility of available tools.
 //
-// The 'mini-window' key is legacy — InputbarScope has been renamed to 'quick-assistant' upstream.
+// The 'mini-window' key is legacy — ComposerToolScope has been renamed to 'quick-assistant' upstream.
 // It is retained here so Redux-persisted state carrying the old key still typechecks.
 // Both entries will be collapsed to 'quick-assistant' alone when Redux is removed and the
 // corresponding persisted data is migrated out.
-export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<InputbarScope | 'mini-window', ToolOrder> = {
+export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<ComposerToolScope | 'mini-window', ToolOrder> = {
   [TopicType.Chat]: DEFAULT_TOOL_ORDER,
   [TopicType.Session]: {
     visible: ['create_session', 'permission_mode', 'slash_commands', 'attachment'],
@@ -80,7 +80,7 @@ const inputToolsSlice = createSlice({
   name: 'inputTools',
   initialState,
   reducers: {
-    setToolOrder: (state, action: PayloadAction<{ scope: InputbarScope; toolOrder: ToolOrder }>) => {
+    setToolOrder: (state, action: PayloadAction<{ scope: ComposerToolScope; toolOrder: ToolOrder }>) => {
       if (action.payload.scope === TopicType.Session) {
         state.sessionToolOrder = action.payload.toolOrder
       } else {
@@ -96,7 +96,10 @@ const inputToolsSlice = createSlice({
 export const { setToolOrder, setIsCollapsed } = inputToolsSlice.actions
 
 // Selector to get tool order for a specific scope
-export const selectToolOrderForScope = (state: { inputTools: InputToolsState }, scope: InputbarScope): ToolOrder => {
+export const selectToolOrderForScope = (
+  state: { inputTools: InputToolsState },
+  scope: ComposerToolScope
+): ToolOrder => {
   return scope === TopicType.Session ? state.inputTools.sessionToolOrder : state.inputTools.toolOrder
 }
 

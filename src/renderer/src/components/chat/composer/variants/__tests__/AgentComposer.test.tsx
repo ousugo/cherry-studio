@@ -88,6 +88,7 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
     return null
   },
   ComposerToolMenu: () => null,
+  ComposerActiveToolControls: () => null,
   useComposerToolState: () => ({
     files: mocks.files,
     mentionedModels: [],
@@ -105,14 +106,11 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
     onTextChange: vi.fn(),
     toggleExpanded: vi.fn(),
     toolsRegistry: {
-      registerRootMenu: vi.fn(() => vi.fn()),
-      registerLaunchers: vi.fn(() => vi.fn()),
-      registerTrigger: vi.fn(() => vi.fn())
+      registerLaunchers: vi.fn(() => vi.fn())
     },
     triggers: {
-      emit: vi.fn(),
-      getRootMenu: vi.fn(() => []),
-      getLaunchers: vi.fn(() => [])
+      getLaunchers: vi.fn(() => []),
+      version: 0
     }
   }),
   useComposerToolInternalDispatch: () => ({

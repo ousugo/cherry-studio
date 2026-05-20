@@ -1,5 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React, { useEffect } from 'react'
 import { Provider } from 'react-redux'
@@ -82,16 +82,17 @@ function wrapWithProviders(children: React.ReactNode) {
 
 describe('QuickPanelView', () => {
   beforeEach(() => {
-    // 添加一个假的 .inputbar textarea 到 document.body
+    // 添加一个假的 composer textarea 到 document.body
     const inputbar = document.createElement('div')
-    inputbar.className = 'inputbar'
+    inputbar.dataset.testid = 'composer-fixture'
     const textarea = document.createElement('textarea')
+    textarea.dataset.testid = 'composer-textarea'
     inputbar.appendChild(textarea)
     document.body.appendChild(inputbar)
   })
 
   afterEach(() => {
-    const inputbar = document.querySelector('.inputbar')
+    const inputbar = document.querySelector('[data-testid="composer-fixture"]')
     if (inputbar) inputbar.remove()
   })
 
@@ -121,6 +122,34 @@ describe('QuickPanelView', () => {
       expect(panel.classList.contains('visible')).toBe(true)
       // 检查第一个 item 是否渲染
       expect(screen.getByText('Item 1')).toBeInTheDocument()
+    })
+
+    it('filters from the panel search input instead of scanning the composer textarea', async () => {
+      const list = createList(3, 'Item')
+      const user = userEvent.setup()
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView setInputText={vi.fn()} />
+            <OpenPanelOnMount list={list} />
+          </>
+        )
+      )
+
+      const panel = screen.getByTestId('quick-panel')
+      const textarea = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')!
+      textarea.value = '/Item 3'
+      fireEvent.input(textarea)
+      expect(screen.getByText('Item 1')).toBeInTheDocument()
+      expect(screen.getByText('Item 3')).toBeInTheDocument()
+
+      const searchInput = within(panel).getByRole('textbox')
+      await user.clear(searchInput)
+      await user.type(searchInput, 'Item 2')
+
+      expect(screen.getByText('Item 2')).toBeInTheDocument()
+      expect(screen.queryByText('Item 1')).not.toBeInTheDocument()
     })
   })
 

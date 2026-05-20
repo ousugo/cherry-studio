@@ -1,0 +1,16 @@
+// Tool registry loader
+// Import all tool definitions to register them
+
+import './definitions/attachmentTool'
+import './definitions/quickPhrasesTool'
+import './definitions/thinkingTool'
+import './definitions/webSearchTool'
+import './definitions/knowledgeBaseTool'
+import './definitions/mcpToolsTool'
+import './definitions/generateImageTool'
+import './definitions/toggleExpandTool'
+import './definitions/slashCommandsTool'
+import './definitions/permissionModeTool'
+
+// Export registry functions
+export { getAllTools, getTool, getToolsForScope, registerTool } from './types'
