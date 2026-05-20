@@ -35,6 +35,7 @@ Each cluster doc:
 | Renderer Transport | `IpcChatTransport`, dispatch coordinator, topic-level subscription, awaiting-approval bridge | [renderer-transport-cluster.md](./renderer-transport-cluster.md) |
 | Renderer V2 Chat UI | Parts-based rendering, approval cards, branch navigation, execution overlay | [renderer-ui-cluster.md](./renderer-ui-cluster.md) |
 | Package Changes | `packages/aiCore`, `packages/provider-registry`, shared types | [packages-cluster.md](./packages-cluster.md) |
+| Data Layer | Agent / session / workspace schema rewrite, MessageService, migrators, DataApi handlers, shared types/schemas | [data-cluster.md](./data-cluster.md) |
 
 ## Already-documented sub-features
 
@@ -65,7 +66,5 @@ since they consume the Main contract.
 
 - v1 deletion artefacts (file removals only, no logic) — those are part
   of the renderer cleanup chain and reviewed at git level.
-- Database schema changes for messages/topics — those land in the
-  Messaging refactor PR, not this one.
-- Quick assistant / API server / agent session lifecycle — separate
-  PRs / clusters with their own docs.
+- Quick assistant / API server lifecycle — separate PRs with their own
+  docs.
