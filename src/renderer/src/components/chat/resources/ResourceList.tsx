@@ -750,7 +750,7 @@ function HeaderActionButton({ className, ref, size, variant = 'ghost', ...props 
       size={size}
       variant={variant}
       className={cn(
-        '!text-foreground/70 hover:!text-foreground data-[state=open]:!text-foreground [&_.lucide:not(.lucide-custom)]:!text-current inline-flex h-[30px] min-w-[30px] shrink-0 items-center justify-center rounded-[8px] px-[7px] py-0 leading-none shadow-none hover:bg-muted data-[state=open]:bg-muted [&_svg]:block [&_svg]:size-[18px] [&_svg]:shrink-0',
+        '!text-foreground/70 hover:!text-foreground data-[state=open]:!text-foreground [&_.lucide:not(.lucide-custom)]:!text-current !size-6 !min-h-6 !min-w-6 !p-0 [&_svg]:!size-3 inline-flex shrink-0 items-center justify-center rounded-md leading-none shadow-none hover:bg-muted data-[state=open]:bg-muted [&_svg]:block [&_svg]:shrink-0',
         className
       )}
       {...props}
