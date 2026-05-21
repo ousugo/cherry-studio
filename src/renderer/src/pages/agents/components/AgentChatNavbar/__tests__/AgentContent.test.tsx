@@ -1,10 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  activeSession: null as any
-}))
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => children
@@ -22,10 +18,6 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
   )
 }))
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
-  useActiveSession: () => ({ session: mocks.activeSession })
-}))
-
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => children,
   motion: {
@@ -35,10 +27,6 @@ vi.mock('motion/react', () => ({
 
 vi.mock('../../AgentSidePanelDrawer', () => ({
   default: { show: vi.fn() }
-}))
-
-vi.mock('../OpenExternalAppButton', () => ({
-  default: () => <button type="button">open workspace</button>
 }))
 
 vi.mock('../Tools', () => ({
@@ -61,10 +49,6 @@ const agentA = {
 } as any
 
 describe('AgentContent', () => {
-  beforeEach(() => {
-    mocks.activeSession = null
-  })
-
   it('keeps agent page tools in the navbar', () => {
     render(<AgentContent activeAgent={agentA} artifactPaneOpen={false} onToggleArtifactPane={vi.fn()} />)
 
@@ -73,12 +57,10 @@ describe('AgentContent', () => {
     expect(screen.queryByText('select model b')).not.toBeInTheDocument()
   })
 
-  it('keeps the workspace opener when a session workspace exists', () => {
-    mocks.activeSession = { id: 'session-1', agentId: 'agent-a', workspace: { path: '/workspace' } }
-
+  it('does not render the workspace opener in the navbar', () => {
     render(<AgentContent activeAgent={agentA} artifactPaneOpen={false} onToggleArtifactPane={vi.fn()} />)
 
-    expect(screen.getByRole('button', { name: 'open workspace' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'open workspace' })).not.toBeInTheDocument()
   })
 
   it('hides agent-scoped navbar actions when no agent is active', () => {

@@ -2,14 +2,12 @@ import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import { useActiveSession } from '@renderer/hooks/agents/useSession'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { Menu } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 
 import AgentSidePanelDrawer from '../AgentSidePanelDrawer'
-import OpenExternalAppButton from './OpenExternalAppButton'
 import Tools from './Tools'
 
 type AgentContentProps = {
@@ -22,7 +20,6 @@ const AgentContent = ({ activeAgent, artifactPaneOpen, onToggleArtifactPane }: A
   const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
-  const { session: activeSession } = useActiveSession()
 
   return (
     <div className="flex w-full justify-between">
@@ -56,9 +53,6 @@ const AgentContent = ({ activeAgent, artifactPaneOpen, onToggleArtifactPane }: A
         </AnimatePresence>
       </div>
       <div className="flex items-center">
-        {activeSession?.workspace?.path && (
-          <OpenExternalAppButton workdir={activeSession.workspace.path} className="mr-2" />
-        )}
         {activeAgent && <Tools artifactPaneOpen={artifactPaneOpen} onToggleArtifactPane={onToggleArtifactPane} />}
       </div>
     </div>

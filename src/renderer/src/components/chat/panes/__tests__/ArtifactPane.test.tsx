@@ -21,6 +21,34 @@ vi.mock('@cherrystudio/ui', async () => {
         {children}
       </button>
     ),
+    ButtonGroup: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
+      <div {...props}>{children}</div>
+    ),
+    MenuItem: ({
+      label,
+      icon,
+      active,
+      onClick
+    }: {
+      label: string
+      icon?: React.ReactNode
+      active?: boolean
+      onClick?: () => void
+    }) => (
+      <button type="button" data-active={String(active)} onClick={onClick}>
+        {icon}
+        {label}
+      </button>
+    ),
+    MenuList: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    NormalTooltip: ({ children, content }: PropsWithChildren<{ content: string }>) => (
+      <div data-testid="normal-tooltip" data-content={content}>
+        {children}
+      </div>
+    ),
+    Popover: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    PopoverContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    PopoverTrigger: ({ children }: PropsWithChildren) => <>{children}</>,
     Tooltip: ({ children, content }: PropsWithChildren<{ content: string }>) => (
       <div data-testid="tooltip" data-content={content}>
         {children}
@@ -87,22 +115,45 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   )
 }))
 
+vi.mock('@data/hooks/useCache', () => ({
+  usePersistCache: () => [null, vi.fn()]
+}))
+
+vi.mock('@renderer/components/Icons/SVGIcon', () => ({
+  FinderIcon: (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" {...props} />
+}))
+
+vi.mock('@renderer/config/constant', () => ({
+  isMac: true,
+  isWin: false
+}))
+
+vi.mock('@renderer/hooks/useExternalApps', () => ({
+  useExternalApps: () => ({ data: [] })
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { count?: number }) =>
-      key === 'agent.preview_pane.items' ? `${options?.count ?? 0} localized items` : key
+    t: (key: string, options?: { count?: number; name?: string }) => {
+      if (key === 'agent.preview_pane.items') return `${options?.count ?? 0} localized items`
+      if (key === 'agent.session.file_manager.finder') return 'Finder'
+      if (key === 'common.open_in') return `Open in ${options?.name ?? ''}`
+      return key
+    }
   })
 }))
 
 describe('ArtifactPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.listDirectory.mockResolvedValue([])
     mocks.createObjectURL.mockReturnValue('blob:fake-url')
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         file: {
-          listDirectory: mocks.listDirectory
+          listDirectory: mocks.listDirectory,
+          openPath: vi.fn()
         },
         fs: {
           read: mocks.fsRead,
@@ -171,6 +222,26 @@ describe('ArtifactPane', () => {
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   })
 
+  it('renders the workspace opener between refresh and maximize when a workspace path exists', async () => {
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(mocks.listDirectory).toHaveBeenCalledWith('/tmp/workspace', expect.any(Object)))
+
+    const refreshButton = screen.getByRole('button', { name: 'agent.preview_pane.refresh' })
+    const openButton = screen.getByRole('button', { name: 'Open in Finder' })
+    const maximizeButton = screen.getByRole('button', { name: 'agent.preview_pane.maximize' })
+    const toolbarButtons = screen.getAllByRole('button')
+
+    expect(toolbarButtons.indexOf(openButton)).toBe(toolbarButtons.indexOf(refreshButton) + 1)
+    expect(toolbarButtons.indexOf(maximizeButton)).toBe(toolbarButtons.indexOf(openButton) + 1)
+  })
+
+  it('does not render the workspace opener without a workspace path', () => {
+    render(<ArtifactPane />)
+
+    expect(screen.queryByRole('button', { name: 'Open in Finder' })).not.toBeInTheDocument()
+  })
+
   it('defaults to preview mode with the file tree collapsed', () => {
     render(<ArtifactPane />)
 
@@ -183,17 +254,22 @@ describe('ArtifactPane', () => {
     expect(screen.queryByTestId('file-tree')).not.toBeInTheDocument()
   })
 
-  it('keeps the content viewport constrained to the pane height', () => {
+  it('keeps the toolbar inside the right content column', () => {
     const { container } = render(<ArtifactPane />)
 
     const root = container.firstElementChild
-    const body = root?.children.item(1)
+    const body = root?.firstElementChild
     const content = body?.querySelector('section')
+    const toolbar = content?.firstElementChild
+    const preview = content?.children.item(1)
 
     expect(root).toHaveClass('h-full', 'min-h-0', 'overflow-hidden')
     expect(root).not.toHaveClass('rounded-2xl', 'border-frame-border', 'shadow-sm')
     expect(body).toHaveClass('min-h-0', 'overflow-hidden')
-    expect(content).toHaveClass('min-h-0', 'min-w-0', 'overflow-auto')
+    expect(toolbar).toHaveClass('h-(--navbar-height)')
+    expect(toolbar).toContainElement(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    expect(content).toHaveClass('min-h-0', 'min-w-0')
+    expect(preview).toHaveClass('min-h-0', 'min-w-0', 'overflow-auto')
   })
 
   it('toggles the file tree when the folder button is clicked', async () => {
@@ -251,7 +327,7 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('const value = "a very long line";')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'typescript')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
-    expect(container.querySelector('section')).toHaveClass('overflow-auto')
+    expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-auto')
   })
 
   it('renders HTML previews in an iframe with Popup-aligned sandbox and hidden outer overflow', async () => {
@@ -272,7 +348,7 @@ describe('ArtifactPane', () => {
     expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
     expect(iframe).toHaveAttribute('title', 'index.html')
     expect(iframe).toHaveClass('h-full', 'w-full', 'border-0', 'bg-background')
-    expect(container.querySelector('section')).toHaveClass('overflow-hidden')
+    expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-hidden')
   })
 
   it('keeps empty HTML previews blank without showing the Popup empty text', async () => {
@@ -289,7 +365,7 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/empty.html'))
     expect(container.querySelector('iframe')).toBeNull()
     expect(screen.queryByText('html_artifacts.empty_preview')).not.toBeInTheDocument()
-    expect(container.querySelector('section')).toHaveClass('overflow-hidden')
+    expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-hidden')
   })
 
   it('does not read content when a folder node is selected', async () => {

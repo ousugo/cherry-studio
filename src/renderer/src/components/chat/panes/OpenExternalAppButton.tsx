@@ -20,6 +20,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const FILE_MANAGER_TARGET = 'file_manager' as const
+const TOOLBAR_BUTTON_CLASS = 'text-muted-foreground hover:bg-accent hover:text-foreground'
 
 type OpenExternalAppButtonProps = {
   workdir: string
@@ -101,9 +102,10 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
     return (
       <NormalTooltip content={primaryLabel} delayDuration={500}>
         <Button
-          variant="outline"
+          type="button"
+          variant="ghost"
           size="icon-sm"
-          className={className}
+          className={[TOOLBAR_BUTTON_CLASS, className].filter(Boolean).join(' ')}
           aria-label={primaryLabel}
           onClick={handlePrimaryClick}>
           {primaryIcon}
@@ -116,8 +118,9 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
     <ButtonGroup className={className}>
       <NormalTooltip content={primaryLabel} delayDuration={500}>
         <Button
-          className="h-7 w-8 min-w-8 border-r-0 p-0"
-          variant="outline"
+          type="button"
+          className={`h-7 w-8 min-w-8 border-r-0 p-0 ${TOOLBAR_BUTTON_CLASS}`}
+          variant="ghost"
           size="icon-sm"
           aria-label={primaryLabel}
           onClick={handlePrimaryClick}>
@@ -126,7 +129,12 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
       </NormalTooltip>
       <Popover>
         <PopoverTrigger asChild>
-          <Button className="h-7 w-6 min-w-6 p-0" variant="outline" size="icon-sm" aria-label={t('common.more')}>
+          <Button
+            type="button"
+            className={`h-7 w-6 min-w-6 p-0 ${TOOLBAR_BUTTON_CLASS}`}
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('common.more')}>
             <ChevronDown size={14} />
           </Button>
         </PopoverTrigger>

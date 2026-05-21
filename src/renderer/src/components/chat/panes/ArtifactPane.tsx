@@ -11,6 +11,8 @@ import { AlertCircle, CodeXml, Eye, FileText, FolderOpen, Maximize2, RotateCw, S
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import OpenExternalAppButton from './OpenExternalAppButton'
+
 const logger = loggerService.withContext('ArtifactPane')
 
 export const ARTIFACT_PANE_WIDTH = 460
@@ -496,59 +498,6 @@ const ArtifactPane = ({ workspacePath }: ArtifactPaneProps) => {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
-      <div className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-1 border-border-subtle px-2">
-        <div className="flex items-center gap-1">
-          <Tooltip content={t('agent.preview_pane.file_tree')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className={headerToggleClass(treeOpen)}
-              aria-label={t('agent.preview_pane.file_tree')}
-              aria-pressed={treeOpen}
-              onClick={() => setTreeOpen((v) => !v)}>
-              <FolderOpen size={16} />
-            </Button>
-          </Tooltip>
-          <Tooltip content={viewModeLabel} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:bg-accent hover:text-foreground"
-              aria-label={viewModeLabel}
-              disabled={!sourceViewAvailable}
-              onClick={handleViewModeToggle}>
-              <ViewModeIcon size={16} />
-            </Button>
-          </Tooltip>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <Tooltip content={t('agent.preview_pane.refresh')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:bg-accent hover:text-foreground"
-              aria-label={t('agent.preview_pane.refresh')}
-              onClick={handleRefresh}>
-              <RotateCw size={16} />
-            </Button>
-          </Tooltip>
-          <Tooltip content={t('agent.preview_pane.maximize')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:bg-accent hover:text-foreground"
-              aria-label={t('agent.preview_pane.maximize')}>
-              <Maximize2 size={16} />
-            </Button>
-          </Tooltip>
-        </div>
-      </div>
-
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {treeOpen && (
           <aside className="flex w-40 shrink-0 flex-col overflow-hidden border-border-subtle border-r">
@@ -576,12 +525,63 @@ const ArtifactPane = ({ workspacePath }: ArtifactPaneProps) => {
             </div>
           </aside>
         )}
-        <section
-          className={cn(
-            'flex min-h-0 min-w-0 flex-1 flex-col',
-            isSelectedHtmlPreview ? 'overflow-hidden' : 'overflow-auto'
-          )}>
-          {renderRight()}
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-1 border-border-subtle px-2">
+            <div className="flex items-center gap-1">
+              <Tooltip content={t('agent.preview_pane.file_tree')} delay={800}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className={headerToggleClass(treeOpen)}
+                  aria-label={t('agent.preview_pane.file_tree')}
+                  aria-pressed={treeOpen}
+                  onClick={() => setTreeOpen((v) => !v)}>
+                  <FolderOpen size={16} />
+                </Button>
+              </Tooltip>
+              <Tooltip content={viewModeLabel} delay={800}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label={viewModeLabel}
+                  disabled={!sourceViewAvailable}
+                  onClick={handleViewModeToggle}>
+                  <ViewModeIcon size={16} />
+                </Button>
+              </Tooltip>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <Tooltip content={t('agent.preview_pane.refresh')} delay={800}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label={t('agent.preview_pane.refresh')}
+                  onClick={handleRefresh}>
+                  <RotateCw size={16} />
+                </Button>
+              </Tooltip>
+              {workspacePath && <OpenExternalAppButton workdir={workspacePath} />}
+              <Tooltip content={t('agent.preview_pane.maximize')} delay={800}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label={t('agent.preview_pane.maximize')}>
+                  <Maximize2 size={16} />
+                </Button>
+              </Tooltip>
+            </div>
+          </div>
+          <div className={cn('min-h-0 min-w-0 flex-1', isSelectedHtmlPreview ? 'overflow-hidden' : 'overflow-auto')}>
+            {renderRight()}
+          </div>
         </section>
       </div>
     </div>
