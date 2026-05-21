@@ -361,7 +361,7 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
           type="button"
           className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground"
           aria-label={t('common.add')}>
-          <Plus size={20} />
+          <Plus size={18} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" side="top" sideOffset={10} className="w-64 rounded-[20px] p-2 shadow-xl">
