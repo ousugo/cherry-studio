@@ -86,22 +86,30 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
     workspacePath,
     maximized,
     selectedFile,
+    viewMode,
     onSelectedFileChange,
+    onViewModeChange,
     onToggleMaximized
   }: {
     workspacePath?: string
     maximized?: boolean
     selectedFile?: string | null
+    viewMode?: 'preview' | 'code'
     onSelectedFileChange?: (file: string | null) => void
+    onViewModeChange?: (mode: 'preview' | 'code') => void
     onToggleMaximized?: () => void
   }) => (
     <div
       data-testid="artifact-pane"
       data-workspace-path={workspacePath ?? ''}
       data-selected-file={selectedFile ?? ''}
+      data-view-mode={viewMode ?? ''}
       data-maximized={String(Boolean(maximized))}>
       <button type="button" onClick={() => onSelectedFileChange?.('README.md')}>
         select artifact file
+      </button>
+      <button type="button" onClick={() => onViewModeChange?.(viewMode === 'code' ? 'preview' : 'code')}>
+        toggle artifact view mode
       </button>
       <button type="button" onClick={onToggleMaximized}>
         {maximized ? 'minimize artifact pane' : 'maximize artifact pane'}
@@ -377,6 +385,47 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'false')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
+  })
+
+  it('keeps the artifact view mode when maximizing and restoring the pane', () => {
+    render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'toggle artifact pane' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'preview')
+
+    fireEvent.click(screen.getByRole('button', { name: 'toggle artifact view mode' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+
+    fireEvent.click(screen.getByRole('button', { name: 'maximize artifact pane' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+
+    fireEvent.click(screen.getByRole('button', { name: 'minimize artifact pane' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'false')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+  })
+
+  it('resets the artifact view mode when the workspace changes', () => {
+    const { rerender } = render(
+      <AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'toggle artifact pane' }))
+    fireEvent.click(screen.getByRole('button', { name: 'toggle artifact view mode' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
+
+    activeSessionMocks.result = {
+      ...activeSessionMocks.result,
+      session: { id: 'session-2', agentId: 'agent-1', workspace: { path: '/tmp/other-workspace' } }
+    }
+    rerender(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
+
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/other-workspace')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'preview')
   })
 
   it('renders the temporary session composer in home placement', () => {

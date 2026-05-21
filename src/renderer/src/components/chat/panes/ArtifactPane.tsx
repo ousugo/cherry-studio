@@ -23,11 +23,13 @@ export interface ArtifactPaneProps {
   workspacePath?: string
   maximized?: boolean
   selectedFile?: string | null
+  viewMode?: ArtifactPaneViewMode
   onSelectedFileChange?: (file: string | null) => void
+  onViewModeChange?: (mode: ArtifactPaneViewMode) => void
   onToggleMaximized?: () => void
 }
 
-type ViewMode = 'preview' | 'code'
+export type ArtifactPaneViewMode = 'preview' | 'code'
 
 const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
 const HTML_EXT = new Set(['.html', '.htm'])
@@ -297,14 +299,16 @@ const ArtifactPane = ({
   workspacePath,
   maximized = false,
   selectedFile: selectedFileProp,
+  viewMode: viewModeProp,
   onSelectedFileChange,
+  onViewModeChange,
   onToggleMaximized
 }: ArtifactPaneProps) => {
   const { t } = useTranslation()
   const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(workspacePath)
 
   const [treeOpen, setTreeOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>('preview')
+  const [internalViewMode, setInternalViewMode] = useState<ArtifactPaneViewMode>('preview')
   const [internalSelectedFile, setInternalSelectedFile] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileContent, setFileContent] = useState<string | null>(null)
@@ -313,12 +317,21 @@ const ArtifactPane = ({
   const previousWorkspacePathRef = useRef(workspacePath)
   const selectedFileControlled = selectedFileProp !== undefined
   const selectedFile = selectedFileControlled ? selectedFileProp : internalSelectedFile
+  const viewModeControlled = viewModeProp !== undefined
+  const viewMode = viewModeControlled ? viewModeProp : internalViewMode
   const setSelectedFile = useCallback(
     (file: string | null) => {
       if (!selectedFileControlled) setInternalSelectedFile(file)
       onSelectedFileChange?.(file)
     },
     [onSelectedFileChange, selectedFileControlled]
+  )
+  const setViewMode = useCallback(
+    (mode: ArtifactPaneViewMode) => {
+      if (!viewModeControlled) setInternalViewMode(mode)
+      onViewModeChange?.(mode)
+    },
+    [onViewModeChange, viewModeControlled]
   )
 
   const nodeById = useMemo(() => {
@@ -335,13 +348,16 @@ const ArtifactPane = ({
 
   // Reset transient state when the workspace changes.
   useEffect(() => {
-    if (previousWorkspacePathRef.current !== workspacePath) setSelectedFile(null)
+    if (previousWorkspacePathRef.current !== workspacePath) {
+      setSelectedFile(null)
+      setViewMode('preview')
+    }
     previousWorkspacePathRef.current = workspacePath
     setExpandedIds(workspacePath ? new Set([WORKSPACE_ROOT_ID]) : new Set())
     setFileContent(null)
     setLoadingContent(false)
     setContentRefreshToken(0)
-  }, [setSelectedFile, workspacePath])
+  }, [setSelectedFile, setViewMode, workspacePath])
 
   useEffect(() => {
     if (!selectedFile || !hasLoaded) return
@@ -412,9 +428,9 @@ const ArtifactPane = ({
 
   const handleViewModeToggle = useCallback(() => {
     if (!selectedFile || isSourceViewAvailable(selectedFile)) {
-      setViewMode((mode) => (mode === 'preview' ? 'code' : 'preview'))
+      setViewMode(viewMode === 'preview' ? 'code' : 'preview')
     }
-  }, [selectedFile])
+  }, [selectedFile, setViewMode, viewMode])
 
   const sourceViewAvailable = selectedFile ? isSourceViewAvailable(selectedFile) : true
 
@@ -422,7 +438,7 @@ const ArtifactPane = ({
     if (selectedFile && !sourceViewAvailable && viewMode === 'code') {
       setViewMode('preview')
     }
-  }, [selectedFile, sourceViewAvailable, viewMode])
+  }, [selectedFile, setViewMode, sourceViewAvailable, viewMode])
 
   const isSelectedHtmlPreview = viewMode === 'preview' && selectedFile ? isHtmlFile(selectedFile) : false
   const viewModeLabel = t(viewMode === 'preview' ? 'agent.preview_pane.preview' : 'agent.preview_pane.code')

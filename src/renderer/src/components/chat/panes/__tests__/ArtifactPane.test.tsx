@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ArtifactPane from '../ArtifactPane'
@@ -392,6 +393,55 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
 
     expect(onSelectedFileChange).toHaveBeenCalledWith('src/index.ts')
+  })
+
+  it('supports controlled view mode state', async () => {
+    const onViewModeChange = vi.fn()
+    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+    mocks.fsReadText.mockResolvedValue('# Controlled')
+
+    render(
+      <ArtifactPane
+        workspacePath="/tmp/workspace"
+        selectedFile="README.md"
+        viewMode="code"
+        onViewModeChange={onViewModeChange}
+      />
+    )
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/README.md'))
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('# Controlled')
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.code' }))
+
+    expect(onViewModeChange).toHaveBeenCalledWith('preview')
+  })
+
+  it('requests preview mode when a controlled source-unavailable file is selected in code mode', async () => {
+    const onViewModeChange = vi.fn()
+    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
+
+    const ControlledArtifactPane = () => {
+      const [viewMode, setViewMode] = useState<'preview' | 'code'>('code')
+
+      return (
+        <ArtifactPane
+          workspacePath="/tmp/workspace"
+          selectedFile="paper.pdf"
+          viewMode={viewMode}
+          onViewModeChange={(next) => {
+            onViewModeChange(next)
+            setViewMode(next)
+          }}
+        />
+      )
+    }
+
+    const { container } = render(<ControlledArtifactPane />)
+
+    await waitFor(() => expect(onViewModeChange).toHaveBeenCalledWith('preview'))
+    await waitFor(() => expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull())
+    expect(screen.getByRole('button', { name: 'agent.preview_pane.preview' })).toBeDisabled()
   })
 
   it('renders text file previews without wrapping so horizontal overflow can scroll', async () => {

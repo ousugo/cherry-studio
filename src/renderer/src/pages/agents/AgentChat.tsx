@@ -17,7 +17,10 @@ import AgentComposer, { AgentHomeComposer } from '@renderer/components/chat/comp
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import ArtifactPane, { ARTIFACT_PANE_WIDTH } from '@renderer/components/chat/panes/ArtifactPane'
+import ArtifactPane, {
+  ARTIFACT_PANE_WIDTH,
+  type ArtifactPaneViewMode
+} from '@renderer/components/chat/panes/ArtifactPane'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
@@ -79,6 +82,7 @@ const AgentChat = ({
   const [artifactPaneOpen, setArtifactPaneOpen] = useState(false)
   const [artifactPaneMaximized, setArtifactPaneMaximized] = useState(false)
   const [artifactPaneSelectedFile, setArtifactPaneSelectedFile] = useState<string | null>(null)
+  const [artifactPaneViewMode, setArtifactPaneViewMode] = useState<ArtifactPaneViewMode>('preview')
   const [artifactOverlayBottomInset, setArtifactOverlayBottomInset] = useState(0)
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [temporaryComposerDocked, setTemporaryComposerDocked] = useState(false)
@@ -113,6 +117,7 @@ const AgentChat = ({
 
   useEffect(() => {
     setArtifactPaneSelectedFile(null)
+    setArtifactPaneViewMode('preview')
   }, [artifactPaneWorkspacePath])
 
   useEffect(() => {
@@ -230,9 +235,11 @@ const AgentChat = ({
         artifactPaneMaximized={artifactPaneMaximized}
         artifactPaneWorkspacePath={artifactPaneWorkspacePath}
         artifactPaneSelectedFile={artifactPaneSelectedFile}
+        artifactPaneViewMode={artifactPaneViewMode}
         artifactOverlayBottomInset={artifactOverlayBottomInset}
         onCloseArtifactPane={closeArtifactPane}
         onArtifactPaneSelectedFileChange={setArtifactPaneSelectedFile}
+        onArtifactPaneViewModeChange={setArtifactPaneViewMode}
         onToggleArtifactPaneMaximized={toggleArtifactPaneMaximized}
         main={<MessageListInitialLoading />}
       />
@@ -286,9 +293,11 @@ const AgentChat = ({
         artifactPaneMaximized={artifactPaneMaximized}
         artifactPaneWorkspacePath={artifactPaneWorkspacePath}
         artifactPaneSelectedFile={artifactPaneSelectedFile}
+        artifactPaneViewMode={artifactPaneViewMode}
         artifactOverlayBottomInset={artifactOverlayBottomInset}
         onCloseArtifactPane={closeArtifactPane}
         onArtifactPaneSelectedFileChange={setArtifactPaneSelectedFile}
+        onArtifactPaneViewModeChange={setArtifactPaneViewMode}
         onToggleArtifactPaneMaximized={toggleArtifactPaneMaximized}
         topBar={
           <div className="flex h-fit w-full min-w-0">
@@ -332,9 +341,11 @@ const AgentChat = ({
       artifactPaneMaximized={artifactPaneMaximized}
       artifactPaneWorkspacePath={artifactPaneWorkspacePath}
       artifactPaneSelectedFile={artifactPaneSelectedFile}
+      artifactPaneViewMode={artifactPaneViewMode}
       artifactOverlayBottomInset={artifactOverlayBottomInset}
       onCloseArtifactPane={closeArtifactPane}
       onArtifactPaneSelectedFileChange={setArtifactPaneSelectedFile}
+      onArtifactPaneViewModeChange={setArtifactPaneViewMode}
       onToggleArtifactPaneMaximized={toggleArtifactPaneMaximized}
       topBar={
         <div className="flex h-fit w-full min-w-0">
@@ -557,9 +568,11 @@ interface AgentChatFrameBaseProps {
   artifactPaneMaximized?: boolean
   artifactPaneWorkspacePath?: string
   artifactPaneSelectedFile?: string | null
+  artifactPaneViewMode?: ArtifactPaneViewMode
   artifactOverlayBottomInset?: number
   onCloseArtifactPane?: () => void
   onArtifactPaneSelectedFileChange?: (file: string | null) => void
+  onArtifactPaneViewModeChange?: (mode: ArtifactPaneViewMode) => void
   onToggleArtifactPaneMaximized?: () => void
 }
 
@@ -592,9 +605,11 @@ const AgentChatFrame = ({
   artifactPaneMaximized,
   artifactPaneWorkspacePath,
   artifactPaneSelectedFile,
+  artifactPaneViewMode,
   artifactOverlayBottomInset = 0,
   onCloseArtifactPane,
   onArtifactPaneSelectedFileChange,
+  onArtifactPaneViewModeChange,
   onToggleArtifactPaneMaximized
 }: AgentChatFrameProps) => {
   const artifactCenterOverlay =
@@ -606,7 +621,9 @@ const AgentChatFrame = ({
           workspacePath={artifactPaneWorkspacePath}
           maximized
           selectedFile={artifactPaneSelectedFile}
+          viewMode={artifactPaneViewMode}
           onSelectedFileChange={onArtifactPaneSelectedFileChange}
+          onViewModeChange={onArtifactPaneViewModeChange}
           onToggleMaximized={onToggleArtifactPaneMaximized}
         />
       </div>
@@ -653,7 +670,9 @@ const AgentChatFrame = ({
           <ArtifactPane
             workspacePath={artifactPaneWorkspacePath}
             selectedFile={artifactPaneSelectedFile}
+            viewMode={artifactPaneViewMode}
             onSelectedFileChange={onArtifactPaneSelectedFileChange}
+            onViewModeChange={onArtifactPaneViewModeChange}
             onToggleMaximized={onToggleArtifactPaneMaximized}
           />
         )}
