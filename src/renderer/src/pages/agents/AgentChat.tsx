@@ -83,13 +83,16 @@ const AgentChat = ({
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [temporaryComposerDocked, setTemporaryComposerDocked] = useState(false)
 
+  const temporaryAgentConversation = temporaryConversation?.type === 'agent' ? temporaryConversation : null
   const { session: activeSession, activeSessionId, isLoading: isSessionLoading } = useActiveSession()
   const lastActiveSessionRef = useRef<NonNullable<typeof activeSession> | null>(null)
-  const visibleSession =
-    activeSession ?? (isSessionLoading && activeSessionId ? lastActiveSessionRef.current : undefined)
+  const selectedSession =
+    activeSession && (!activeSessionId || activeSession.id === activeSessionId) ? activeSession : undefined
+  const canShowPreviousSession =
+    isSessionLoading && Boolean(activeSessionId && temporaryAgentConversation?.sessionId !== activeSessionId)
+  const visibleSession = selectedSession ?? (canShowPreviousSession ? lastActiveSessionRef.current : undefined)
   const isShowingPreviousSession =
     isSessionLoading && Boolean(activeSessionId && visibleSession && visibleSession.id !== activeSessionId)
-  const temporaryAgentConversation = temporaryConversation?.type === 'agent' ? temporaryConversation : null
   const invalidateCache = useInvalidateCache()
   const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(
     visibleSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
@@ -203,11 +206,10 @@ const AgentChat = ({
   }, [])
 
   useEffect(() => {
-    if (activeSession) lastActiveSessionRef.current = activeSession
-  }, [activeSession])
+    if (selectedSession) lastActiveSessionRef.current = selectedSession
+  }, [selectedSession])
 
-  const isInitializing =
-    !visibleSession && (isSessionLoading || Boolean(temporaryAgentConversation?.agentId && isAgentLoading))
+  const isInitializing = !visibleSession && (temporaryAgentConversation ? isAgentLoading : isSessionLoading)
   const citationsPanelOpen = citationPanelCitations !== null
 
   if (isInitializing) {

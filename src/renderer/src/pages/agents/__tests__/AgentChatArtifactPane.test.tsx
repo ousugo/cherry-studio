@@ -267,7 +267,7 @@ vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
-  default: () => <div data-testid="agent-messages" />
+  default: ({ sessionId }: { sessionId: string }) => <div data-testid="agent-messages" data-session-id={sessionId} />
 }))
 
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
@@ -443,6 +443,42 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('agent-messages')).toBeInTheDocument()
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-send-disabled', 'true')
     expect(paneMounts).toEqual(['mounted'])
+  })
+
+  it('does not render the previous session while a temporary session is being persisted', () => {
+    const { rerender } = render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} />)
+
+    expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'session-1')
+
+    activeSessionMocks.result = {
+      activeSessionId: 'temp-session-1',
+      session: undefined,
+      isLoading: true,
+      setActiveSessionId: vi.fn()
+    }
+
+    rerender(
+      <AgentChat
+        pane={<aside data-testid="session-pane" />}
+        paneOpen={true}
+        temporaryConversation={
+          {
+            type: 'agent',
+            id: 'temp-session-1',
+            sessionId: 'temp-session-1',
+            topicId: 'agent-session:temp-session-1',
+            agentId: 'agent-1',
+            workspace: { path: '/tmp/workspace' },
+            name: 'Temp Session',
+            session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } }
+          } as any
+        }
+      />
+    )
+
+    expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('session-pane')).toBeInTheDocument()
   })
 
   it('shows history without composer for an unlinked session', () => {
