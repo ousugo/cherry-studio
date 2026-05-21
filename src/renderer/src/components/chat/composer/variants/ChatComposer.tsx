@@ -50,7 +50,6 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel, isWebSearchModel } from '@shared/utils/model'
 import type { Editor } from '@tiptap/core'
-import { ChevronDown } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -243,7 +242,6 @@ const ChatComposerContextControls = ({
           <Button variant="ghost" size="sm" className={triggerClassName}>
             {assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : null}
             <span className="max-w-40 truncate">{assistantName}</span>
-            <ChevronDown size={14} className="text-muted-foreground" />
           </Button>
         }
       />
@@ -263,7 +261,6 @@ const ChatComposerContextControls = ({
             <Button variant="ghost" size="sm" className={triggerClassName} disabled={modelPending}>
               <ModelAvatar model={displayModel} size={20} />
               <span className="max-w-52 truncate">{modelLabel}</span>
-              <ChevronDown size={14} className="text-muted-foreground" />
             </Button>
           }
         />
@@ -281,7 +278,6 @@ const ChatComposerContextControls = ({
             <Button variant="ghost" size="sm" className={triggerClassName} disabled={modelPending}>
               <ModelAvatar model={model} size={20} />
               <span className="max-w-52 truncate">{modelLabel}</span>
-              <ChevronDown size={14} className="text-muted-foreground" />
             </Button>
           }
         />
