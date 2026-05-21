@@ -297,6 +297,9 @@ export interface OldToolBlock extends OldMessageBlock {
   }
 }
 
+type OldRawToolResponse = NonNullable<OldToolBlock['metadata']>['rawMcpToolResponse']
+type MigratedToolType = 'mcp' | 'builtin' | 'provider'
+
 /**
  * Old CitationMessageBlock - contains web search, knowledge, and memory references
  * This is the primary source for ContentReference transformation
@@ -717,6 +720,30 @@ function buildCherryMetadata(oldBlock: OldMessageBlock): ProviderMetadata {
   return { cherry }
 }
 
+function normalizeMigratedToolType(value: unknown): MigratedToolType | undefined {
+  return value === 'mcp' || value === 'builtin' || value === 'provider' ? value : undefined
+}
+
+function buildToolProviderMetadata(raw: OldRawToolResponse | undefined): ProviderMetadata | undefined {
+  const tool = raw?.tool
+  if (!tool) return undefined
+
+  const toolType = normalizeMigratedToolType(tool.type)
+  const serverId = typeof tool.serverId === 'string' ? tool.serverId : undefined
+  const serverName = typeof tool.serverName === 'string' ? tool.serverName : undefined
+  if (!toolType && !serverId && !serverName) return undefined
+
+  return {
+    cherry: {
+      tool: {
+        ...(toolType ? { type: toolType } : {}),
+        ...(serverId ? { serverId } : {}),
+        ...(serverName ? { serverName } : {})
+      }
+    }
+  }
+}
+
 /**
  * Transform a single old block to UIMessage part(s).
  * Most blocks produce a single part, but citation blocks may produce multiple
@@ -761,11 +788,19 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
       const rawName = block.toolName || raw?.tool?.name || 'unknown'
       const serverName = raw?.tool?.serverName
       const toolName = serverName ? `${serverName}: ${rawName}` : rawName
+      const toolCallId = block.toolId || raw?.toolCallId || raw?.id || block.id
       const input = block.arguments ?? raw?.arguments ?? {}
       const output = raw?.response ?? block.content
       const isError = contentObj?.isError === true || raw?.status === 'error'
+      const callProviderMetadata = buildToolProviderMetadata(raw)
 
-      const base = { type: 'dynamic-tool' as const, toolName, toolCallId: block.toolId, input }
+      const base = {
+        type: 'dynamic-tool' as const,
+        toolName,
+        toolCallId,
+        input,
+        ...(callProviderMetadata ? { callProviderMetadata } : {})
+      }
 
       const part: DynamicToolUIPart = isError
         ? { ...base, state: 'output-error', errorText: typeof output === 'string' ? output : JSON.stringify(output) }

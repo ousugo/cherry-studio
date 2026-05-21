@@ -3,9 +3,7 @@ import type {
   JSONValue,
   LanguageModelV3,
   LanguageModelV3FinishReason,
-  LanguageModelV3StreamPart,
-  LanguageModelV3Usage,
-  SharedV3Warning
+  LanguageModelV3Usage
 } from '@ai-sdk/provider'
 import { generateId } from '@ai-sdk/provider-utils'
 import type {
@@ -16,17 +14,23 @@ import type {
   SDKSystemMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
+import type {
+  BetaContentBlock,
+  BetaContentBlockParam,
+  BetaMCPToolUseBlock,
+  BetaRawContentBlockDeltaEvent,
+  BetaRawContentBlockStartEvent,
+  BetaRawContentBlockStopEvent,
+  BetaRawMessageDeltaEvent,
+  BetaServerToolUseBlock,
+  BetaToolUseBlock
+} from '@anthropic-ai/sdk/resources/beta/messages'
 import { loggerService } from '@logger'
-
-import type { ClaudeCodeSettings } from './types'
+import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
 
 const logger = loggerService.withContext('ClaudeCodeStreamAdapter')
 
-const CLAUDE_CODE_TRUNCATION_WARNING =
-  'Claude Code SDK output ended unexpectedly; returning truncated response from buffered text. Await upstream fix to avoid data loss.'
-
 const MIN_TRUNCATION_LENGTH = 512
-const MAX_TOOL_RESULT_SIZE = 10000
 const UNKNOWN_TOOL_NAME = 'unknown-tool'
 const MAX_TOOL_INPUT_SIZE = 1_048_576
 const MAX_TOOL_INPUT_WARN = 102_400
@@ -34,20 +38,10 @@ const MAX_DELTA_CALC_SIZE = 10_000
 
 // ── Internal types ──────────────────────────────────────────────────
 
-type SDKStreamEvent = SDKPartialAssistantMessage['event']
-type BetaContentBlock = SDKAssistantMessage['message']['content'][number]
-type BetaContentBlockParam = Exclude<SDKUserMessage['message']['content'], string>[number]
-type BetaRawContentBlockDeltaEvent = Extract<SDKStreamEvent, { type: 'content_block_delta' }>
-type BetaRawContentBlockStartEvent = Extract<SDKStreamEvent, { type: 'content_block_start' }>
-type BetaRawContentBlockStopEvent = Extract<SDKStreamEvent, { type: 'content_block_stop' }>
-type BetaRawMessageDeltaEvent = Extract<SDKStreamEvent, { type: 'message_delta' }>
-type BetaToolResultBlockParam = Extract<BetaContentBlockParam, { type: 'tool_result' }>
-type BetaToolUseBlock = Extract<BetaContentBlock, { type: 'tool_use' }>
 type BetaUsage = SDKResultMessage['usage']
-
-/** Tool use with parent tracking (for subagent hierarchy) */
-type ToolUseWithParent = BetaToolUseBlock & { parent_tool_use_id?: string | null }
-type ToolResultWithName = BetaToolResultBlockParam & { name?: string }
+type SDKParentToolUseId = SDKAssistantMessage['parent_tool_use_id']
+type ClaudeToolUseBlock = BetaToolUseBlock | BetaServerToolUseBlock | BetaMCPToolUseBlock
+type ClaudeToolResultBlock = Extract<BetaContentBlock | BetaContentBlockParam, { tool_use_id: string }>
 
 type ToolStreamState = {
   name: string
@@ -56,10 +50,14 @@ type ToolStreamState = {
   inputClosed: boolean
   callEmitted: boolean
   parentToolCallId?: string | null
+  sdkBlockType?: string
+  serverName?: string
+  serverId?: string
+  toolType?: 'mcp' | 'provider'
 }
 
 type StreamSink = {
-  enqueue(part: LanguageModelV3StreamPart): void
+  enqueue(part: CherryUIMessageChunk): void
 }
 
 type StreamContext = {
@@ -69,6 +67,7 @@ type StreamContext = {
   activeTaskTools: Map<string, { startTime: number }>
   toolBlocksByIndex: Map<number, string>
   toolInputAccumulators: Map<string, string>
+  toolResultsEmitted: Set<string>
   textBlocksByIndex: Map<number, string>
   reasoningBlocksByIndex: Map<number, string>
   currentReasoningPartId: string | undefined
@@ -79,12 +78,10 @@ type StreamContext = {
   hasReceivedStreamEvents: boolean
   hasStreamedJson: boolean
   textStreamedViaContentBlock: boolean
-  warnings: SharedV3Warning[]
 }
 
 export type ClaudeCodeStreamAdapterOptions = {
   modelId: string
-  settings: Pick<ClaudeCodeSettings, 'maxToolResultSize'>
   streamOptions: Parameters<LanguageModelV3['doStream']>[0]
   sink: StreamSink
   onSessionId?: (sessionId: string) => void
@@ -116,11 +113,8 @@ function isClaudeCodeTruncationError(error: unknown, bufferedText: string): bool
   return bufferedText.length >= MIN_TRUNCATION_LENGTH
 }
 
-function filterContentBlocks<T extends BetaContentBlock['type']>(
-  content: BetaContentBlock[],
-  type: T
-): Extract<BetaContentBlock, { type: T }>[] {
-  return content.filter((block): block is Extract<BetaContentBlock, { type: T }> => block.type === type)
+function isSubagentToolName(toolName: string): boolean {
+  return toolName === 'Task' || toolName === 'Agent'
 }
 
 function createEmptyUsage(): LanguageModelV3Usage {
@@ -178,59 +172,13 @@ function mapClaudeCodeFinishReason(subtype?: string, stopReason?: string | null)
   }
 }
 
-function truncateToolResultForStream(result: unknown, maxSize: number = MAX_TOOL_RESULT_SIZE): unknown {
-  if (typeof result === 'string') {
-    if (result.length <= maxSize) return result
-    return result.slice(0, maxSize) + `\n...[truncated ${result.length - maxSize} chars]`
-  }
-  if (typeof result !== 'object' || result === null) return result
-
-  if (Array.isArray(result)) {
-    let largestIndex = -1
-    let largestSize = 0
-    for (let i = 0; i < result.length; i++) {
-      if (typeof result[i] === 'string' && (result[i] as string).length > largestSize) {
-        largestIndex = i
-        largestSize = (result[i] as string).length
-      }
-    }
-    if (largestIndex >= 0 && largestSize > maxSize) {
-      const cloned = [...result]
-      cloned[largestIndex] =
-        (result[largestIndex] as string).slice(0, maxSize) + `\n...[truncated ${largestSize - maxSize} chars]`
-      return cloned
-    }
-    return result
-  }
-
-  const obj = result as Record<string, unknown>
-  let largestKey: string | null = null
-  let largestSize = 0
-  for (const [key, value] of Object.entries(obj)) {
-    if (typeof value === 'string' && value.length > largestSize) {
-      largestKey = key
-      largestSize = value.length
-    }
-  }
-  if (largestKey && largestSize > maxSize) {
-    return {
-      ...obj,
-      [largestKey]: (obj[largestKey] as string).slice(0, maxSize) + `\n...[truncated ${largestSize - maxSize} chars]`
-    }
-  }
-  return result
-}
-
 export class ClaudeCodeStreamAdapter {
   private readonly ctx: StreamContext
   private readonly modelId: string
-  private readonly settings: Pick<ClaudeCodeSettings, 'maxToolResultSize'>
   private readonly onSessionId?: (sessionId: string) => void
-  private sessionId?: string
 
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
-    this.settings = options.settings
     this.onSessionId = options.onSessionId
     this.ctx = {
       sink: options.sink,
@@ -239,6 +187,7 @@ export class ClaudeCodeStreamAdapter {
       activeTaskTools: new Map(),
       toolBlocksByIndex: new Map(),
       toolInputAccumulators: new Map(),
+      toolResultsEmitted: new Set(),
       textBlocksByIndex: new Map(),
       reasoningBlocksByIndex: new Map(),
       currentReasoningPartId: undefined,
@@ -248,8 +197,7 @@ export class ClaudeCodeStreamAdapter {
       usage: createEmptyUsage(),
       hasReceivedStreamEvents: false,
       hasStreamedJson: false,
-      textStreamedViaContentBlock: false,
-      warnings: []
+      textStreamedViaContentBlock: false
     }
   }
 
@@ -272,10 +220,8 @@ export class ClaudeCodeStreamAdapter {
           this.handleSystemMessage(message, this.ctx)
         }
         return { type: 'continue' }
-      default:
-        this.ctx.sink.enqueue({ type: 'raw', rawValue: message })
-        return { type: 'continue' }
     }
+    return { type: 'continue' }
   }
 
   finalizeOpenParts(): void {
@@ -288,9 +234,6 @@ export class ClaudeCodeStreamAdapter {
     logger.warn(
       `Detected truncated stream response, returning ${this.ctx.accumulatedText.length} chars of buffered text`
     )
-    const truncationWarning: SharedV3Warning = { type: 'other', message: CLAUDE_CODE_TRUNCATION_WARNING }
-    this.ctx.warnings.push(truncationWarning)
-
     if (this.ctx.textPartId) {
       this.ctx.sink.enqueue({ type: 'text-end', id: this.ctx.textPartId })
     } else if (this.ctx.accumulatedText && !this.ctx.textStreamedViaContentBlock) {
@@ -301,18 +244,10 @@ export class ClaudeCodeStreamAdapter {
     }
 
     this.finalizeToolCalls(this.ctx)
-    const warningsJson = this.serializeWarningsForMetadata(this.ctx.warnings)
     this.ctx.sink.enqueue({
       type: 'finish',
-      finishReason: { unified: 'length', raw: 'truncation' },
-      usage: this.ctx.usage,
-      providerMetadata: {
-        'claude-code': {
-          ...(this.sessionId !== undefined && { sessionId: this.sessionId }),
-          truncated: true,
-          ...(this.ctx.warnings.length > 0 && { warnings: warningsJson as unknown as JSONValue })
-        }
-      }
+      finishReason: 'length',
+      messageMetadata: this.buildMessageMetadata(this.ctx.usage)
     })
     return true
   }
@@ -321,7 +256,7 @@ export class ClaudeCodeStreamAdapter {
     const { event } = message
     switch (event.type) {
       case 'content_block_start':
-        this.handleContentBlockStart(event, ctx)
+        this.handleContentBlockStart(event, message.parent_tool_use_id, ctx)
         break
       case 'content_block_delta':
         this.handleContentBlockDelta(event, ctx)
@@ -338,54 +273,81 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleContentBlockStart(event: BetaRawContentBlockStartEvent, ctx: StreamContext): void {
+  private handleContentBlockStart(
+    event: BetaRawContentBlockStartEvent,
+    sdkParentToolUseId: SDKParentToolUseId,
+    ctx: StreamContext
+  ): void {
     ctx.hasReceivedStreamEvents = true
-    switch (event.content_block.type) {
+    const block = event.content_block
+
+    switch (block.type) {
       case 'tool_use':
-        this.handleToolUseBlockStart(event, ctx)
-        break
+      case 'server_tool_use':
+      case 'mcp_tool_use':
+        this.handleToolUseBlockStart(block, event.index, sdkParentToolUseId, ctx)
+        return
+      case 'mcp_tool_result':
+      case 'web_search_tool_result':
+      case 'web_fetch_tool_result':
+      case 'code_execution_tool_result':
+      case 'bash_code_execution_tool_result':
+      case 'text_editor_code_execution_tool_result':
+      case 'tool_search_tool_result':
+        this.handleToolResult(block, sdkParentToolUseId, ctx)
+        return
       case 'text':
         this.handleTextBlockStart(event, ctx)
-        break
+        return
       case 'thinking':
         this.handleThinkingBlockStart(event, ctx)
-        break
+        return
     }
   }
 
-  private handleToolUseBlockStart(event: BetaRawContentBlockStartEvent, ctx: StreamContext): void {
-    const toolBlock = event.content_block as BetaToolUseBlock
-    const toolId = toolBlock.id || generateId()
-    const toolName = toolBlock.name || UNKNOWN_TOOL_NAME
+  private handleToolUseBlockStart(
+    toolBlock: ClaudeToolUseBlock,
+    blockIndex: number,
+    sdkParentToolUseId: SDKParentToolUseId,
+    ctx: StreamContext
+  ): void {
+    const toolId = toolBlock.id
+    const toolName = toolBlock.name
+    const toolMetadata = this.getToolUseMetadata(toolBlock)
 
     this.closeActiveTextPart(ctx)
 
-    ctx.toolBlocksByIndex.set(event.index, toolId)
+    ctx.toolBlocksByIndex.set(blockIndex, toolId)
     ctx.toolInputAccumulators.set(toolId, '')
 
     let state = ctx.toolStates.get(toolId)
     if (!state) {
-      const currentParentId = toolName === 'Task' ? null : this.getFallbackParentId(ctx)
+      const currentParentId = isSubagentToolName(toolName)
+        ? null
+        : (sdkParentToolUseId ?? this.getFallbackParentId(ctx))
       state = {
         name: toolName,
         inputStarted: false,
         inputClosed: false,
         callEmitted: false,
-        parentToolCallId: currentParentId
+        parentToolCallId: currentParentId,
+        ...toolMetadata
       }
       ctx.toolStates.set(toolId, state)
     }
+    this.mergeToolMetadata(state, toolMetadata)
 
     if (!state.inputStarted) {
       ctx.sink.enqueue({
         type: 'tool-input-start',
-        id: toolId,
+        toolCallId: toolId,
         toolName,
         providerExecuted: true,
         dynamic: true,
-        providerMetadata: { 'claude-code': { parentToolCallId: state.parentToolCallId ?? null } }
+        title: this.getToolTitle(state),
+        providerMetadata: this.buildToolProviderMetadata(state)
       })
-      if (toolName === 'Task') ctx.activeTaskTools.set(toolId, { startTime: Date.now() })
+      if (isSubagentToolName(toolName)) ctx.activeTaskTools.set(toolId, { startTime: Date.now() })
       state.inputStarted = true
     }
   }
@@ -462,7 +424,7 @@ export class ClaudeCodeStreamAdapter {
     if (toolId) {
       const accumulated = (ctx.toolInputAccumulators.get(toolId) ?? '') + partialJson
       ctx.toolInputAccumulators.set(toolId, accumulated)
-      ctx.sink.enqueue({ type: 'tool-input-delta', id: toolId, delta: partialJson })
+      ctx.sink.enqueue({ type: 'tool-input-delta', toolCallId: toolId, inputTextDelta: partialJson })
     }
   }
 
@@ -504,24 +466,12 @@ export class ClaudeCodeStreamAdapter {
     const state = ctx.toolStates.get(toolId)
     if (state && !state.inputClosed) {
       const accumulatedInput = ctx.toolInputAccumulators.get(toolId) ?? ''
-      ctx.sink.enqueue({ type: 'tool-input-end', id: toolId })
       state.inputClosed = true
       const effectiveInput = accumulatedInput || state.lastSerializedInput || ''
       state.lastSerializedInput = effectiveInput
 
       if (!state.callEmitted) {
-        ctx.sink.enqueue({
-          type: 'tool-call',
-          toolCallId: toolId,
-          toolName: state.name,
-          input: effectiveInput,
-          providerExecuted: true,
-          dynamic: true,
-          providerMetadata: {
-            'claude-code': { rawInput: effectiveInput, parentToolCallId: state.parentToolCallId ?? null }
-          }
-        })
-        state.callEmitted = true
+        this.emitToolInputAvailable(toolId, state, ctx)
       }
     }
     ctx.toolBlocksByIndex.delete(blockIndex)
@@ -538,13 +488,18 @@ export class ClaudeCodeStreamAdapter {
     const sdkParentToolUseId = message.parent_tool_use_id
     const content = message.message.content
     const tools = this.extractToolUses(content)
+    const results = this.extractToolResults(content)
 
-    if (ctx.textPartId && tools.length > 0) {
+    if (ctx.textPartId && (tools.length > 0 || results.length > 0)) {
       this.closeActiveTextPart(ctx)
     }
 
     for (const tool of tools) {
       this.handleAssistantToolUse(tool, sdkParentToolUseId, ctx)
+    }
+
+    for (const result of results) {
+      this.handleToolResult(result, sdkParentToolUseId, ctx)
     }
 
     const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
@@ -554,35 +509,43 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleAssistantToolUse(tool: ToolUseWithParent, sdkParentToolUseId: string | null, ctx: StreamContext): void {
+  private handleAssistantToolUse(
+    tool: ClaudeToolUseBlock,
+    sdkParentToolUseId: SDKParentToolUseId,
+    ctx: StreamContext
+  ): void {
     const toolId = tool.id
     let state = ctx.toolStates.get(toolId)
     if (!state) {
-      const currentParentId =
-        tool.name === 'Task' ? null : (sdkParentToolUseId ?? tool.parent_tool_use_id ?? this.getFallbackParentId(ctx))
+      const currentParentId = isSubagentToolName(tool.name)
+        ? null
+        : (sdkParentToolUseId ?? this.getFallbackParentId(ctx))
       state = {
         name: tool.name,
         inputStarted: false,
         inputClosed: false,
         callEmitted: false,
-        parentToolCallId: currentParentId
+        parentToolCallId: currentParentId,
+        ...this.getToolUseMetadata(tool)
       }
       ctx.toolStates.set(toolId, state)
-    } else if (!state.parentToolCallId && sdkParentToolUseId && tool.name !== 'Task') {
+    } else if (!state.parentToolCallId && sdkParentToolUseId && !isSubagentToolName(tool.name)) {
       state.parentToolCallId = sdkParentToolUseId
     }
     state.name = tool.name
+    this.mergeToolMetadata(state, this.getToolUseMetadata(tool))
 
     if (!state.inputStarted) {
       ctx.sink.enqueue({
         type: 'tool-input-start',
-        id: toolId,
+        toolCallId: toolId,
         toolName: tool.name,
         providerExecuted: true,
         dynamic: true,
-        providerMetadata: { 'claude-code': { parentToolCallId: state.parentToolCallId ?? null } }
+        title: this.getToolTitle(state),
+        providerMetadata: this.buildToolProviderMetadata(state)
       })
-      if (tool.name === 'Task') ctx.activeTaskTools.set(toolId, { startTime: Date.now() })
+      if (isSubagentToolName(tool.name)) ctx.activeTaskTools.set(toolId, { startTime: Date.now() })
       state.inputStarted = true
     }
 
@@ -601,7 +564,7 @@ export class ClaudeCodeStreamAdapter {
         deltaPayload = ''
       }
       if (deltaPayload) {
-        ctx.sink.enqueue({ type: 'tool-input-delta', id: toolId, delta: deltaPayload })
+        ctx.sink.enqueue({ type: 'tool-input-delta', toolCallId: toolId, inputTextDelta: deltaPayload })
       }
       state.lastSerializedInput = serializedInput
     }
@@ -650,12 +613,20 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleToolResult(result: ToolResultWithName, sdkParentToolUseId: string | null, ctx: StreamContext): void {
+  private handleToolResult(
+    result: ClaudeToolResultBlock,
+    sdkParentToolUseId: SDKParentToolUseId,
+    ctx: StreamContext
+  ): void {
+    if (ctx.toolResultsEmitted.has(result.tool_use_id)) return
+
     let state = ctx.toolStates.get(result.tool_use_id)
-    const toolName = result.name ?? state?.name ?? UNKNOWN_TOOL_NAME
+    const toolName = state?.name ?? this.getToolNameFromResultType(result.type) ?? UNKNOWN_TOOL_NAME
 
     if (!state) {
-      const resolvedParentId = toolName === 'Task' ? null : (sdkParentToolUseId ?? this.getFallbackParentId(ctx))
+      const resolvedParentId = isSubagentToolName(toolName)
+        ? null
+        : (sdkParentToolUseId ?? this.getFallbackParentId(ctx))
       state = {
         name: toolName,
         inputStarted: false,
@@ -664,21 +635,6 @@ export class ClaudeCodeStreamAdapter {
         parentToolCallId: resolvedParentId
       }
       ctx.toolStates.set(result.tool_use_id, state)
-      if (!state.inputStarted) {
-        ctx.sink.enqueue({
-          type: 'tool-input-start',
-          id: result.tool_use_id,
-          toolName,
-          providerExecuted: true,
-          dynamic: true,
-          providerMetadata: { 'claude-code': { parentToolCallId: state.parentToolCallId ?? null } }
-        })
-        state.inputStarted = true
-      }
-      if (!state.inputClosed) {
-        ctx.sink.enqueue({ type: 'tool-input-end', id: result.tool_use_id })
-        state.inputClosed = true
-      }
     }
     state.name = toolName
 
@@ -694,29 +650,33 @@ export class ClaudeCodeStreamAdapter {
             }
           })()
 
-    const maxToolResultSize = this.settings.maxToolResultSize
-    const truncatedResult = truncateToolResultForStream(normalizedResult, maxToolResultSize) as NonNullable<JSONValue>
-    const truncatedRawResult = truncateToolResultForStream(rawResult, maxToolResultSize) as string
-    const rawResultTruncated = truncatedRawResult !== rawResult
-
     this.emitToolCall(result.tool_use_id, state, ctx)
-    if (toolName === 'Task') ctx.activeTaskTools.delete(result.tool_use_id)
+    if (isSubagentToolName(toolName)) ctx.activeTaskTools.delete(result.tool_use_id)
 
-    ctx.sink.enqueue({
-      type: 'tool-result',
-      toolCallId: result.tool_use_id,
-      toolName,
-      result: truncatedResult,
-      isError: result.is_error,
-      dynamic: true,
-      providerMetadata: {
-        'claude-code': {
-          rawResult: truncatedRawResult,
-          rawResultTruncated,
-          parentToolCallId: state.parentToolCallId ?? null
-        }
-      }
+    const providerMetadata = this.buildToolProviderMetadata(state, {
+      rawResult
     })
+    const isError = this.isToolResultError(result)
+    if (isError) {
+      ctx.sink.enqueue({
+        type: 'tool-output-error',
+        toolCallId: result.tool_use_id,
+        errorText: rawResult,
+        dynamic: true,
+        providerExecuted: true,
+        providerMetadata
+      })
+    } else {
+      ctx.sink.enqueue({
+        type: 'tool-output-available',
+        toolCallId: result.tool_use_id,
+        output: this.buildToolOutput(normalizedResult, state),
+        dynamic: true,
+        providerExecuted: true,
+        providerMetadata
+      })
+    }
+    ctx.toolResultsEmitted.add(result.tool_use_id)
   }
 
   private handleResultMessage(message: SDKResultMessage, ctx: StreamContext): void {
@@ -756,20 +716,10 @@ export class ClaudeCodeStreamAdapter {
 
     this.finalizeToolCalls(ctx)
 
-    const warningsJson = this.serializeWarningsForMetadata(ctx.warnings)
     ctx.sink.enqueue({
       type: 'finish',
-      finishReason,
-      usage: ctx.usage,
-      providerMetadata: {
-        'claude-code': {
-          sessionId: message.session_id,
-          ...(message.total_cost_usd !== undefined && { costUsd: message.total_cost_usd }),
-          ...(message.duration_ms !== undefined && { durationMs: message.duration_ms }),
-          ...(message.modelUsage !== undefined && { modelUsage: message.modelUsage }),
-          ...(ctx.warnings.length > 0 && { warnings: warningsJson })
-        }
-      }
+      finishReason: finishReason.unified,
+      messageMetadata: this.buildMessageMetadata(ctx.usage)
     })
   }
 
@@ -780,36 +730,43 @@ export class ClaudeCodeStreamAdapter {
     this.setSessionId(message.session_id)
     logger.info(`Stream session initialized: ${message.session_id}`)
 
-    ctx.sink.enqueue({
-      type: 'response-metadata',
-      id: message.session_id,
-      timestamp: new Date(),
-      modelId: this.modelId
-    })
+    ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
   }
 
-  private extractToolUses(content: BetaContentBlock[]): ToolUseWithParent[] {
-    return filterContentBlocks(content, 'tool_use').map((block) => {
-      const b = block as BetaToolUseBlock & { parent_tool_use_id?: string | null }
-      return {
-        type: 'tool_use' as const,
-        id: b.id || generateId(),
-        name: b.name || UNKNOWN_TOOL_NAME,
-        input: b.input,
-        parent_tool_use_id: b.parent_tool_use_id ?? null
+  private extractToolUses(content: BetaContentBlock[]): ClaudeToolUseBlock[] {
+    const tools: ClaudeToolUseBlock[] = []
+    for (const block of content) {
+      switch (block.type) {
+        case 'tool_use':
+        case 'server_tool_use':
+        case 'mcp_tool_use':
+          tools.push(block)
+          break
       }
-    })
+    }
+    return tools
   }
 
-  private extractToolResults(content: string | BetaContentBlockParam[]): ToolResultWithName[] {
+  private extractToolResults(
+    content: string | Array<BetaContentBlock | BetaContentBlockParam>
+  ): ClaudeToolResultBlock[] {
     if (!Array.isArray(content)) return []
-    return content
-      .filter((b): b is BetaToolResultBlockParam => b.type === 'tool_result')
-      .map((b) => ({
-        ...b,
-        tool_use_id: b.tool_use_id || generateId(),
-        name: undefined
-      }))
+    const results: ClaudeToolResultBlock[] = []
+    for (const block of content) {
+      switch (block.type) {
+        case 'tool_result':
+        case 'mcp_tool_result':
+        case 'web_search_tool_result':
+        case 'web_fetch_tool_result':
+        case 'code_execution_tool_result':
+        case 'bash_code_execution_tool_result':
+        case 'text_editor_code_execution_tool_result':
+        case 'tool_search_tool_result':
+          results.push(block)
+          break
+      }
+    }
+    return results
   }
 
   private serializeToolInput(input: unknown): string {
@@ -832,7 +789,7 @@ export class ClaudeCodeStreamAdapter {
     return str
   }
 
-  private normalizeToolResult(result: BetaToolResultBlockParam['content']): NonNullable<JSONValue> {
+  private normalizeToolResult(result: unknown): NonNullable<JSONValue> {
     if (typeof result === 'string') {
       try {
         return JSON.parse(result)
@@ -854,6 +811,120 @@ export class ClaudeCodeStreamAdapter {
       }
     }
     return typeof result === 'object' && result !== null ? JSON.parse(JSON.stringify(result)) : String(result ?? '')
+  }
+  private deserializeToolInput(input: string | undefined): unknown {
+    if (!input) return {}
+    try {
+      return JSON.parse(input)
+    } catch {
+      return input
+    }
+  }
+
+  private getToolUseMetadata(
+    tool: Pick<ClaudeToolUseBlock, 'type'> & { server_name?: string }
+  ): Pick<ToolStreamState, 'sdkBlockType' | 'serverName' | 'serverId' | 'toolType'> {
+    if (tool.type === 'mcp_tool_use') {
+      const serverName = typeof tool.server_name === 'string' ? tool.server_name : undefined
+      return {
+        sdkBlockType: tool.type,
+        serverName,
+        serverId: serverName,
+        toolType: 'mcp'
+      }
+    }
+    return {
+      sdkBlockType: tool.type,
+      toolType: 'provider'
+    }
+  }
+
+  private mergeToolMetadata(
+    state: ToolStreamState,
+    metadata: Pick<ToolStreamState, 'sdkBlockType' | 'serverName' | 'serverId' | 'toolType'>
+  ): void {
+    state.sdkBlockType = metadata.sdkBlockType ?? state.sdkBlockType
+    state.serverName = metadata.serverName ?? state.serverName
+    state.serverId = metadata.serverId ?? state.serverId
+    state.toolType = metadata.toolType ?? state.toolType
+  }
+
+  private getToolTitle(state: ToolStreamState): string | undefined {
+    return state.toolType === 'mcp' && state.serverName ? `${state.serverName}: ${state.name}` : undefined
+  }
+
+  private buildToolProviderMetadata(
+    state: ToolStreamState,
+    extra: Record<string, JSONValue | undefined> = {}
+  ): Record<string, JSONObject> {
+    const claudeCode: JSONObject = {
+      parentToolCallId: state.parentToolCallId ?? null,
+      ...(state.sdkBlockType ? { sdkBlockType: state.sdkBlockType } : {}),
+      ...(state.serverName ? { serverName: state.serverName } : {}),
+      ...(state.serverId ? { serverId: state.serverId } : {})
+    }
+    for (const [key, value] of Object.entries(extra)) {
+      if (value !== undefined) claudeCode[key] = value
+    }
+
+    return {
+      'claude-code': claudeCode,
+      cherry: {
+        transport: 'claude-agent',
+        tool: {
+          type: state.toolType ?? 'provider',
+          ...(state.serverName ? { serverName: state.serverName } : {}),
+          ...(state.serverId ? { serverId: state.serverId } : {})
+        }
+      }
+    }
+  }
+
+  private buildToolOutput(result: NonNullable<JSONValue>, state: ToolStreamState): NonNullable<JSONValue> {
+    if (state.toolType !== 'mcp') return result
+    return {
+      content: result,
+      metadata: {
+        type: 'mcp',
+        serverName: state.serverName ?? 'MCP',
+        serverId: state.serverId ?? state.serverName ?? 'unknown'
+      }
+    }
+  }
+
+  private getToolNameFromResultType(type: string): string | undefined {
+    switch (type) {
+      case 'mcp_tool_result':
+        return 'mcp_tool'
+      case 'web_search_tool_result':
+        return 'web_search'
+      case 'web_fetch_tool_result':
+        return 'web_fetch'
+      case 'code_execution_tool_result':
+        return 'code_execution'
+      case 'bash_code_execution_tool_result':
+        return 'bash_code_execution'
+      case 'text_editor_code_execution_tool_result':
+        return 'text_editor_code_execution'
+      case 'tool_search_tool_result':
+        return 'tool_search'
+      default:
+        return undefined
+    }
+  }
+
+  private isToolResultError(result: ClaudeToolResultBlock): boolean {
+    if ('is_error' in result && result.is_error === true) return true
+    const content = result.content
+    if (
+      typeof content === 'object' &&
+      content !== null &&
+      !Array.isArray(content) &&
+      typeof content.type === 'string'
+    ) {
+      return content.type.endsWith('_error')
+    }
+    return false
   }
 
   private logMcpConnectionIssues(
@@ -900,21 +971,24 @@ export class ClaudeCodeStreamAdapter {
 
   private emitToolCall(toolId: string, state: ToolStreamState, ctx: StreamContext): void {
     if (state.callEmitted) return
-    if (!state.inputClosed && state.inputStarted) {
-      ctx.sink.enqueue({ type: 'tool-input-end', id: toolId })
-      state.inputClosed = true
-    }
+    this.emitToolInputAvailable(toolId, state, ctx)
+  }
+
+  private emitToolInputAvailable(toolId: string, state: ToolStreamState, ctx: StreamContext): void {
+    if (state.callEmitted) return
+    const serializedInput = state.lastSerializedInput ?? ''
     ctx.sink.enqueue({
-      type: 'tool-call',
+      type: 'tool-input-available',
       toolCallId: toolId,
       toolName: state.name,
-      input: state.lastSerializedInput ?? '',
+      input: this.deserializeToolInput(serializedInput),
       providerExecuted: true,
       dynamic: true,
-      providerMetadata: {
-        'claude-code': { rawInput: state.lastSerializedInput ?? '', parentToolCallId: state.parentToolCallId ?? null }
-      }
+      title: this.getToolTitle(state),
+      providerMetadata: this.buildToolProviderMetadata(state, { rawInput: serializedInput })
     })
+    state.inputStarted = true
+    state.inputClosed = true
     state.callEmitted = true
   }
 
@@ -926,26 +1000,19 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private setSessionId(sessionId: string): void {
-    this.sessionId = sessionId
     this.onSessionId?.(sessionId)
   }
 
-  private serializeWarningsForMetadata(warnings: SharedV3Warning[]): JSONValue {
-    return warnings.map((w) => {
-      const base: Record<string, string> = { type: w.type }
-      if ('message' in w) {
-        const m = (w as { message?: unknown }).message
-        if (m !== undefined) base.message = String(m)
-      }
-      if (w.type === 'unsupported' || w.type === 'compatibility') {
-        const feature = (w as { feature: unknown }).feature
-        if (feature !== undefined) base.feature = String(feature)
-        if ('details' in w) {
-          const d = (w as { details?: unknown }).details
-          if (d !== undefined) base.details = String(d)
-        }
-      }
-      return base
-    }) as unknown as JSONValue
+  private buildMessageMetadata(usage: LanguageModelV3Usage): CherryUIMessageMetadata {
+    const promptTokens = usage.inputTokens.total ?? 0
+    const completionTokens = usage.outputTokens.total ?? 0
+    const thoughtsTokens = usage.outputTokens.reasoning
+    return {
+      modelId: this.modelId,
+      totalTokens: promptTokens + completionTokens,
+      promptTokens,
+      completionTokens,
+      ...(thoughtsTokens !== undefined ? { thoughtsTokens } : {})
+    }
   }
 }

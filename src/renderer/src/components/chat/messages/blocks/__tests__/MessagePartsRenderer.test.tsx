@@ -288,6 +288,14 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
   })
 
+  it('renders grouped dynamic-tool parts without persisted toolCallId using fallback ids', () => {
+    renderParts([
+      { type: 'dynamic-tool', toolName: 'TodoWrite', state: 'output-available', output: {} },
+      { type: 'dynamic-tool', toolName: 'WebSearch', state: 'output-available', output: {} }
+    ] as unknown as CherryMessagePart[])
+    expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
+  })
+
   it('filters hidden tool responses inside ToolBlockGroup', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 'visible-tool', state: 'output-available', output: {} },

@@ -199,7 +199,7 @@ export class AgentSessionRuntimeService extends BaseService {
           if (input.signal.aborted) onAbort()
           else input.signal.addEventListener('abort', onAbort, { once: true })
 
-          controller.enqueue({ type: 'stream-start', warnings: [] } as unknown as UIMessageChunk)
+          controller.enqueue({ type: 'start' })
           await this.ensureConnection(entry)
           await this.admitTurn(entry, turn)
         } catch (error) {
@@ -354,9 +354,14 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private enqueueTurnChunk(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn, chunk: UIMessageChunk): void {
     const toolChunk = chunk as { type?: string; toolCallId?: string }
-    if (toolChunk.type === 'tool-call' && toolChunk.toolCallId) {
+    if ((toolChunk.type === 'tool-input-start' || toolChunk.type === 'tool-input-available') && toolChunk.toolCallId) {
       turn.activeToolIds.add(toolChunk.toolCallId)
-    } else if (toolChunk.type === 'tool-result' && toolChunk.toolCallId) {
+    } else if (
+      (toolChunk.type === 'tool-output-available' ||
+        toolChunk.type === 'tool-output-error' ||
+        toolChunk.type === 'tool-output-denied') &&
+      toolChunk.toolCallId
+    ) {
       turn.activeToolIds.delete(toolChunk.toolCallId)
     }
 

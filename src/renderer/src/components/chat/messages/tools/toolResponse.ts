@@ -1,12 +1,16 @@
 import type { BaseTool, MCPTool, MCPToolResponse, MCPToolResponseStatus, NormalToolResponse } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { UIMessagePart } from 'ai'
-import { isToolUIPart } from 'ai'
+import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
+import { getToolName, isToolUIPart } from 'ai'
+
+import { AgentToolsType } from './agent/types'
 
 /** AI-SDK-v6 ToolUIPart approval-state string literals. */
 export const APPROVAL_REQUESTED = 'approval-requested'
 export const APPROVAL_RESPONDED = 'approval-responded'
 export const CLAUDE_AGENT_TRANSPORT = 'claude-agent'
+const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
+const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
 
 type ToolType = 'mcp' | 'builtin' | 'provider'
 
@@ -16,17 +20,7 @@ type ToolMetadata = {
   type?: ToolType
 }
 
-type ToolPart = {
-  type: string
-  toolCallId?: string
-  toolName?: string
-  state?: string
-  input?: unknown
-  output?: unknown
-  errorText?: string
-  providerMetadata?: Record<string, unknown>
-  callProviderMetadata?: Record<string, unknown>
-}
+type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 
 export type ToolResponseLike = MCPToolResponse | NormalToolResponse
 
@@ -43,10 +37,9 @@ function isToolType(value: unknown): value is ToolType {
   return value === 'mcp' || value === 'builtin' || value === 'provider'
 }
 
-function normalizeToolName(part: ToolPart): string {
-  if (part.toolName && part.toolName.trim()) return part.toolName
-  if (part.type.startsWith('tool-')) return part.type.replace(/^tool-/, '')
-  return 'unknown'
+function normalizeToolName(part: ToolResponsePart): string {
+  const toolName = getToolName(part)
+  return toolName.trim() || 'unknown'
 }
 
 function mapPartStateToStatus(state: string | undefined): MCPToolResponseStatus {
@@ -70,7 +63,7 @@ function mapPartStateToStatus(state: string | undefined): MCPToolResponseStatus 
   }
 }
 
-function extractOutputMetadata(part: ToolPart): { response: unknown; metadata?: ToolMetadata } {
+function extractOutputMetadata(part: ToolResponsePart): { response: unknown; metadata?: ToolMetadata } {
   const output = part.output
   if (!isRecord(output)) return { response: output }
 
@@ -89,13 +82,17 @@ function extractOutputMetadata(part: ToolPart): { response: unknown; metadata?: 
   return { response: output }
 }
 
-function hasProviderMetadata(part: ToolPart, provider: string): boolean {
+function hasProviderMetadata(part: ToolResponsePart, provider: string): boolean {
   return isRecord(part.callProviderMetadata) && provider in part.callProviderMetadata
 }
 
-function extractCherryToolMetadata(part: ToolPart): ToolMetadata | undefined {
-  if (!isRecord(part.providerMetadata)) return undefined
-  const cherry = isRecord(part.providerMetadata.cherry) ? part.providerMetadata.cherry : undefined
+function isLegacyAgentToolName(toolName: string): boolean {
+  return AGENT_TOOL_NAMES.has(toolName) || toolName.startsWith(AGENT_MCP_TOOLS_PREFIX)
+}
+
+function extractCherryToolMetadataFrom(metadata: ProviderMetadata | undefined): ToolMetadata | undefined {
+  if (!isRecord(metadata)) return undefined
+  const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
   const tool = cherry && isRecord(cherry.tool) ? cherry.tool : undefined
   if (!tool) return undefined
   return {
@@ -105,12 +102,24 @@ function extractCherryToolMetadata(part: ToolPart): ToolMetadata | undefined {
   }
 }
 
-function resolveToolType(part: ToolPart, toolName: string, metadata?: ToolMetadata): ToolType {
+function extractCherryToolMetadata(part: ToolResponsePart): ToolMetadata | undefined {
+  const resultProviderMetadata = 'resultProviderMetadata' in part ? part.resultProviderMetadata : undefined
+  return (
+    extractCherryToolMetadataFrom(part.callProviderMetadata) ?? extractCherryToolMetadataFrom(resultProviderMetadata)
+  )
+}
+
+function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
+  if (!isRecord(metadata)) return false
+  const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
+  return cherry?.transport === CLAUDE_AGENT_TRANSPORT
+}
+
+function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {
   if (metadata?.type) return metadata.type
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'
-  if ((part.providerMetadata?.cherry as { transport?: unknown } | undefined)?.transport === CLAUDE_AGENT_TRANSPORT) {
-    return 'provider'
-  }
+  if (hasCherryTransport(part.callProviderMetadata)) return 'provider'
+  if (part.type === 'dynamic-tool' && isLegacyAgentToolName(toolName)) return 'provider'
   if (part.type === 'dynamic-tool') return 'mcp'
   if (toolName.startsWith('builtin_')) return 'builtin'
   return 'builtin'
@@ -138,7 +147,7 @@ function buildBaseToolDescriptor(toolType: Exclude<ToolType, 'mcp'>, toolCallId:
   return baseTool
 }
 
-function normalizeErrorOutput(part: ToolPart): unknown {
+function normalizeErrorOutput(part: ToolResponsePart): unknown {
   if (part.state !== 'output-error') return undefined
   return {
     isError: true,
@@ -147,10 +156,9 @@ function normalizeErrorOutput(part: ToolPart): unknown {
 }
 
 export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: string): ToolResponseLike | null {
-  const partType = part.type as string
-  if (!partType.startsWith('tool-') && partType !== 'dynamic-tool') return null
+  if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) return null
 
-  const toolPart = part as unknown as ToolPart
+  const toolPart = part as unknown as ToolResponsePart
   const toolCallId = toolPart.toolCallId || fallbackId
   if (!toolCallId) return null
   const toolName = normalizeToolName(toolPart)
@@ -220,13 +228,8 @@ export function findToolPartByCallId(
   if (!partsMap || !toolCallId) return null
   for (const [messageId, parts] of Object.entries(partsMap)) {
     for (const part of parts) {
-      if (!isToolUIPart(part as UIMessagePart<never, never>)) continue
-      const p = part as unknown as {
-        toolCallId?: string
-        state?: string
-        input?: unknown
-        approval?: { id?: string }
-      }
+      if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) continue
+      const p = part as unknown as ToolResponsePart
       if (p.toolCallId !== toolCallId) continue
       const approvalId = p.approval?.id
       if (!approvalId) continue

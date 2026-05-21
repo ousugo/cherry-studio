@@ -243,7 +243,7 @@ describe('AgentSessionRuntimeService', () => {
     })
     const reader = stream.getReader()
 
-    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'stream-start' }, done: false })
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
     await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
 
     events.push({ type: 'resume-token', token: 'resume-1' })

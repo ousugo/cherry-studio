@@ -22,8 +22,6 @@ export function createClaudeCodeQueryOptions({
 }: ClaudeCodeQueryOptionsInput): Options {
   const {
     // oxlint-disable-next-line no-unused-vars
-    maxToolResultSize: _mts,
-    // oxlint-disable-next-line no-unused-vars
     approvalEmitter: _approvalEmitter,
     // oxlint-disable-next-line no-unused-vars
     warmQueryKey: _warmQueryKey,

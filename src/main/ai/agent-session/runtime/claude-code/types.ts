@@ -21,8 +21,6 @@ export type {
  * are managed by the language model internally.
  */
 export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'prompt' | 'outputFormat'> & {
-  /** Max chars for tool results in client stream. @default 10000 */
-  maxToolResultSize?: number
   /**
    * Per-stream holder for the controller's `enqueue` binding. `canUseTool`
    * calls `emit` to inject a `tool-approval-request` part into the live

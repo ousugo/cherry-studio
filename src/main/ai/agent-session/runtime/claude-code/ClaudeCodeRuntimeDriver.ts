@@ -6,7 +6,6 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@main/core/application'
 import type { Message } from '@shared/data/types/message'
-import type { UIMessageChunk } from 'ai'
 
 import type {
   AgentRuntimeConnectInput,
@@ -101,7 +100,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private query?: Query
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
-  private adapterMaxToolResultSize?: number
   private pendingInitMessage?: SDKSystemMessage
   private resumeToken?: string
 
@@ -132,13 +130,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       ? warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
-    this.adapterMaxToolResultSize = request.settings.maxToolResultSize
     void this.runQueryLoop()
     return this
   }
 
   send(input: AgentRuntimeUserInput): void {
-    this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId, this.adapterMaxToolResultSize)
+    this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
 
     if (this.pendingInitMessage) {
       this.adapter.handleMessage(this.pendingInitMessage)
@@ -192,13 +189,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  private createAdapter(modelId: string, maxToolResultSize: number | undefined): ClaudeCodeStreamAdapter {
+  private createAdapter(modelId: string): ClaudeCodeStreamAdapter {
     return new ClaudeCodeStreamAdapter({
       modelId,
-      settings: { maxToolResultSize },
       streamOptions: {} as never,
       sink: {
-        enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk: chunk as unknown as UIMessageChunk })
+        enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
       },
       onSessionId: (resumeToken) => this.updateResumeToken(resumeToken)
     })

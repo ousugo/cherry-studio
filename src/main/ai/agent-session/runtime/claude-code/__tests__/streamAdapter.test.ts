@@ -1,4 +1,4 @@
-import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -10,11 +10,10 @@ vi.mock('@logger', () => ({
 const { ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 
 function createAdapter(overrides: Partial<ConstructorParameters<typeof ClaudeCodeStreamAdapter>[0]> = {}) {
-  const parts: LanguageModelV3StreamPart[] = []
+  const parts: CherryUIMessageChunk[] = []
   const sessionIds: string[] = []
   const adapter = new ClaudeCodeStreamAdapter({
     modelId: 'sonnet',
-    settings: { maxToolResultSize: 10000 },
     streamOptions: { prompt: [] } as any,
     sink: { enqueue: (part) => parts.push(part) },
     onSessionId: (sessionId) => sessionIds.push(sessionId),
@@ -86,10 +85,8 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(sessionIds).toEqual(['sdk-init'])
     expect(parts).toEqual([
       expect.objectContaining({
-        type: 'response-metadata',
-        id: 'sdk-init',
-        modelId: 'sonnet',
-        timestamp: expect.any(Date)
+        type: 'message-metadata',
+        messageMetadata: { modelId: 'sonnet' }
       })
     ])
   })
@@ -152,15 +149,14 @@ describe('ClaudeCodeStreamAdapter', () => {
       'tool-input-start',
       'tool-input-delta',
       'tool-input-delta',
-      'tool-input-end',
-      'tool-call'
+      'tool-input-available'
     ])
-    expect(parts[0]).toMatchObject({ type: 'tool-input-start', id: 'tool-1', toolName: 'Bash' })
-    expect(parts[4]).toMatchObject({
-      type: 'tool-call',
+    expect(parts[0]).toMatchObject({ type: 'tool-input-start', toolCallId: 'tool-1', toolName: 'Bash' })
+    expect(parts[3]).toMatchObject({
+      type: 'tool-input-available',
       toolCallId: 'tool-1',
       toolName: 'Bash',
-      input: '{"cmd":"pwd"}'
+      input: { cmd: 'pwd' }
     })
   })
 
@@ -189,16 +185,135 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts.map((part) => part.type)).toEqual([
       'tool-input-start',
       'tool-input-delta',
-      'tool-input-end',
-      'tool-call',
-      'tool-result'
+      'tool-input-available',
+      'tool-output-available'
     ])
-    expect(parts[4]).toMatchObject({
-      type: 'tool-result',
+    expect(parts[2]).toMatchObject({
+      type: 'tool-input-available',
       toolCallId: 'tool-2',
       toolName: 'Read',
-      result: { ok: true },
-      isError: false
+      input: { file_path: 'a.txt' }
+    })
+    expect(parts[3]).toMatchObject({
+      type: 'tool-output-available',
+      toolCallId: 'tool-2',
+      output: { ok: true }
+    })
+  })
+
+  it('maps streamed MCP tool use and result blocks', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'mcp_tool_use',
+          id: 'mcp-1',
+          name: 'search_docs',
+          server_name: 'docs',
+          input: {}
+        }
+      })
+    )
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'input_json_delta', partial_json: '{"query":"agent sdk"}' }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'mcp_tool_result',
+          tool_use_id: 'mcp-1',
+          is_error: false,
+          content: [{ type: 'text', text: 'result text' }]
+        }
+      })
+    )
+
+    expect(parts.map((part) => part.type)).toEqual([
+      'tool-input-start',
+      'tool-input-delta',
+      'tool-input-available',
+      'tool-output-available'
+    ])
+    expect(parts[0]).toMatchObject({
+      type: 'tool-input-start',
+      toolCallId: 'mcp-1',
+      toolName: 'search_docs',
+      title: 'docs: search_docs'
+    })
+    expect(parts[2]).toMatchObject({
+      type: 'tool-input-available',
+      toolCallId: 'mcp-1',
+      input: { query: 'agent sdk' }
+    })
+    expect(parts[3]).toMatchObject({
+      type: 'tool-output-available',
+      toolCallId: 'mcp-1',
+      output: {
+        content: 'result text',
+        metadata: { type: 'mcp', serverName: 'docs', serverId: 'docs' }
+      }
+    })
+  })
+
+  it('maps assistant server tool use and server tool result blocks', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        content: [
+          {
+            type: 'server_tool_use',
+            id: 'srv-1',
+            name: 'web_search',
+            input: { query: 'agent sdk' }
+          },
+          {
+            type: 'web_search_tool_result',
+            tool_use_id: 'srv-1',
+            content: [
+              {
+                type: 'web_search_result',
+                title: 'Docs',
+                url: 'https://example.com',
+                encrypted_content: '',
+                page_age: null
+              }
+            ]
+          }
+        ]
+      }
+    } as any)
+
+    expect(parts.map((part) => part.type)).toEqual([
+      'tool-input-start',
+      'tool-input-delta',
+      'tool-input-available',
+      'tool-output-available'
+    ])
+    expect(parts[2]).toMatchObject({
+      type: 'tool-input-available',
+      toolCallId: 'srv-1',
+      toolName: 'web_search',
+      input: { query: 'agent sdk' }
+    })
+    expect(parts[3]).toMatchObject({
+      type: 'tool-output-available',
+      toolCallId: 'srv-1',
+      output: [{ title: 'Docs', url: 'https://example.com' }]
     })
   })
 
@@ -213,13 +328,15 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts).toEqual([
       expect.objectContaining({
         type: 'finish',
-        finishReason: { unified: 'stop', raw: 'end_turn' },
-        providerMetadata: {
-          'claude-code': expect.objectContaining({ sessionId: 'sdk-result', costUsd: 0.01, durationMs: 123 })
-        }
+        finishReason: 'stop',
+        messageMetadata: expect.objectContaining({
+          modelId: 'sonnet',
+          totalTokens: 26,
+          promptTokens: 21,
+          completionTokens: 5
+        })
       })
     ])
-    expect((parts[0] as any).usage.inputTokens).toEqual({ total: 21, noCache: 3, cacheRead: 11, cacheWrite: 7 })
   })
 
   it('throws SDK error results after capturing session id', () => {
@@ -249,8 +366,8 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts.map((part) => part.type)).toEqual(['text-start', 'text-delta', 'text-end', 'finish'])
     expect(parts[3]).toMatchObject({
       type: 'finish',
-      finishReason: { unified: 'length', raw: 'truncation' },
-      providerMetadata: { 'claude-code': expect.objectContaining({ truncated: true }) }
+      finishReason: 'length',
+      messageMetadata: expect.objectContaining({ modelId: 'sonnet' })
     })
   })
 })

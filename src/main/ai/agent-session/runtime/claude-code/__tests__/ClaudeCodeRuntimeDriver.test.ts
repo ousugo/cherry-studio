@@ -31,7 +31,7 @@ vi.mock('../streamAdapter', () => ({
     handleMessage(message: any) {
       if (message.type === 'system' && message.subtype === 'init') {
         this.options.onSessionId(message.session_id)
-        this.options.sink.enqueue({ type: 'response-metadata', id: message.session_id })
+        this.options.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
         return { type: 'continue' }
       }
       if (message.type === 'stream_event') {
@@ -106,7 +106,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     mocks.buildRequest.mockResolvedValue({
       key: 'warm-key',
       options: { model: 'sonnet' },
-      settings: { maxToolResultSize: 123 },
+      settings: {},
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100
     })
@@ -159,7 +159,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     connection.send({ message: userMessage() })
     await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'chunk', chunk: { type: 'response-metadata', id: 'resume-init' } }
+      value: { type: 'chunk', chunk: { type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } } }
     })
 
     queryQueue.push({ type: 'stream_event', event: {}, session_id: 'resume-init' })

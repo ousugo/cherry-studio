@@ -18,6 +18,7 @@ import { FILE_TYPE } from '@renderer/types/file'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
+import { isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
@@ -97,23 +98,7 @@ interface Props {
 
 /** Check if a part is an image file part. */
 function isImageFilePart(part: CherryMessagePart): boolean {
-  return (
-    part.type === 'file' &&
-    'mediaType' in part &&
-    typeof part.mediaType === 'string' &&
-    part.mediaType.startsWith('image/')
-  )
-}
-
-/** Check if a part is a tool part (tool-* or dynamic-tool). */
-function isToolPart(part: CherryMessagePart): boolean {
-  const t = part.type as string
-  return t.startsWith('tool-') || t === 'dynamic-tool'
-}
-
-/** Check if a part is a video data part. */
-function isVideoDataPart(part: CherryMessagePart): boolean {
-  return (part.type as string) === 'data-video'
+  return isFileUIPart(part) && part.mediaType.startsWith('image/')
 }
 
 /** Extract image URL from a file part. */
@@ -125,8 +110,8 @@ function extractImageUrl(part: CherryMessagePart): string | undefined {
 
 /** Get video filePath from a data-video part. */
 function getVideoFilePath(part: CherryMessagePart): string | undefined {
-  if ((part.type as string) === 'data-video' && 'data' in part) {
-    return (part.data as { filePath?: string })?.filePath
+  if (isDataUIPart(part) && part.type === 'data-video') {
+    return (part.data as VideoPartData).filePath
   }
   return undefined
 }
@@ -149,17 +134,21 @@ function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
       } else {
         acc.push([entry])
       }
-    } else if (isToolPart(part)) {
+    } else if (isToolUIPart(part)) {
       const prev = acc[acc.length - 1]
-      if (Array.isArray(prev) && isToolPart(prev[0].part)) {
+      if (Array.isArray(prev) && isToolUIPart(prev[0].part)) {
         prev.push(entry)
       } else {
         acc.push([entry])
       }
-    } else if (isVideoDataPart(part)) {
+    } else if (isDataUIPart(part) && part.type === 'data-video') {
       const filePath = getVideoFilePath(part)
       const existingGroup = acc.find(
-        (g) => Array.isArray(g) && isVideoDataPart(g[0].part) && getVideoFilePath(g[0].part) === filePath
+        (g) =>
+          Array.isArray(g) &&
+          isDataUIPart(g[0].part) &&
+          g[0].part.type === 'data-video' &&
+          getVideoFilePath(g[0].part) === filePath
       ) as PartEntry[] | undefined
       if (existingGroup) {
         existingGroup.push(entry)
@@ -394,8 +383,7 @@ function renderPart(
       return null
 
     default: {
-      // Handle tool-* parts (from useChat streaming) and dynamic-tool
-      if (partType.startsWith('tool-') || partType === 'dynamic-tool') {
+      if (isToolUIPart(part)) {
         return renderToolPart(part, partId)
       }
 
@@ -498,7 +486,7 @@ function getCompletedToolHistory(
 
   let lastToolIndex = -1
   for (let index = entries.length - 1; index >= 0; index--) {
-    if (isToolPart(entries[index].part)) {
+    if (isToolUIPart(entries[index].part)) {
       lastToolIndex = index
       break
     }
@@ -516,7 +504,7 @@ function getCompletedToolHistory(
   const resultEntries = entries.slice(collapsedEndIndex + 1)
   if (!resultEntries.some((entry) => isResultPart(entry.part))) return null
 
-  const toolCount = collapsedEntries.filter((entry) => isToolPart(entry.part)).length
+  const toolCount = collapsedEntries.filter((entry) => isToolUIPart(entry.part)).length
   if (toolCount === 0) return null
 
   return {
@@ -559,10 +547,10 @@ function renderGroupedEntry(
       )
     }
 
-    if (isToolPart(firstPart)) {
+    if (isToolUIPart(firstPart)) {
       if (
         !entry.some((e) => {
-          const toolResponse = buildToolResponseFromPart(e.part)
+          const toolResponse = buildToolResponseFromPart(e.part, `${message.id}-part-${e.index}`)
           return toolResponse && canRenderMessageTool(toolResponse)
         })
       )
@@ -576,7 +564,7 @@ function renderGroupedEntry(
       )
     }
 
-    if (isVideoDataPart(firstPart)) {
+    if (isDataUIPart(firstPart) && firstPart.type === 'data-video') {
       const firstEntry = entry[0]
       const partId = `${message.id}-part-${firstEntry.index}`
       return (

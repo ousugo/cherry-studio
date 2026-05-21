@@ -84,6 +84,47 @@ describe('toolResponse adapter', () => {
     expect(response?.tool.name).toBe('CustomTool')
   })
 
+  it('keeps migrated agent dynamic-tool calls without metadata on the provider renderer path', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'WebSearch',
+      toolCallId: 'legacy-call',
+      state: 'output-available',
+      input: { query: 'desktop clients' },
+      output: 'ok'
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.status).toBe('done')
+    expect(response?.tool.type).toBe('provider')
+    expect(response?.tool.name).toBe('WebSearch')
+  })
+
+  it('uses migrated cherry tool metadata from callProviderMetadata before name fallbacks', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'WebSearch',
+      toolCallId: 'legacy-mcp-call',
+      state: 'output-available',
+      input: { query: 'desktop clients' },
+      output: 'ok',
+      callProviderMetadata: {
+        cherry: {
+          tool: {
+            type: 'mcp',
+            serverId: 'search-server',
+            serverName: 'Search'
+          }
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.tool.type).toBe('mcp')
+    expect((response?.tool as any).serverId).toBe('search-server')
+    expect((response?.tool as any).serverName).toBe('Search')
+  })
+
   it('does not synthesize a tool response without an AI SDK toolCallId', () => {
     const part = {
       type: 'dynamic-tool',
