@@ -6,45 +6,33 @@
  * incrementally as the virtual list scrolls up. Reads go through SWR's
  * shared cache (dedup, revalidation, cross-window consistency).
  *
- * After the blocks→parts migration each message row's `content` carries
- * `{ message: { id, role, data: { parts }, status, createdAt }, blocks }` —
- * we unwrap that shape and project to `CherryUIMessage`.
+ * Each message row stores parts directly in `data`, matching regular topic
+ * messages. Row fields carry identity, role, status, and timestamps.
  */
 
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import type { CherryMessagePart, CherryUIMessage, MessageStatus } from '@shared/data/types/message'
+import type { CherryUIMessage, MessageStatus } from '@shared/data/types/message'
 import { useCallback, useMemo } from 'react'
 
 const PAGE_SIZE = 50
 
 const VALID_STATUS: ReadonlySet<MessageStatus> = new Set(['pending', 'success', 'error', 'paused'])
 
-interface AgentMessageContent {
-  message?: {
-    id?: string
-    role?: string
-    status?: string
-    data?: { parts?: CherryMessagePart[] }
-    createdAt?: string
-  }
-}
-
 function toUIMessage(row: AgentSessionMessageEntity): CherryUIMessage | null {
-  const content = row.content as AgentMessageContent | undefined
-  const msg = content?.message
-  if (!msg?.id) return null
-
   const metadata: CherryUIMessage['metadata'] = {}
-  if (msg.createdAt) metadata.createdAt = msg.createdAt
-  if (msg.status && VALID_STATUS.has(msg.status as MessageStatus)) {
-    metadata.status = msg.status as MessageStatus
+  if (row.createdAt) metadata.createdAt = row.createdAt
+  if (row.modelId) metadata.modelId = row.modelId
+  if (row.modelSnapshot) metadata.modelSnapshot = row.modelSnapshot
+  if (row.stats) metadata.stats = row.stats
+  if (VALID_STATUS.has(row.status)) {
+    metadata.status = row.status
   }
 
   return {
-    id: msg.id,
-    role: msg.role as CherryUIMessage['role'],
-    parts: msg.data?.parts ?? [],
+    id: row.id,
+    role: row.role,
+    parts: row.data?.parts ?? [],
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined
   } as CherryUIMessage
 }

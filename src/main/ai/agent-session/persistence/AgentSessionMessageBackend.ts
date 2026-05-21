@@ -1,5 +1,5 @@
 /**
- * Agents DB backend — writes assistant turns to the `session_messages`
+ * Agent-session DB backend — writes assistant turns to the `agent_session_message`
  * table via `agentSessionMessageService`. The user message is persisted
  * by AgentChatContextProvider before streaming starts (not here).
  *
@@ -12,36 +12,38 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { UniqueModelId } from '@shared/data/types/model'
 import { v7 as uuidv7 } from 'uuid'
 
-import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../PersistenceBackend'
+import {
+  finalizeInterruptedParts,
+  type PersistAssistantInput,
+  type PersistenceBackend
+} from '../../stream-manager/persistence/PersistenceBackend'
 
-export interface AgentMessageBackendOptions {
-  /** Cherry Studio session id (not the SDK session id). */
+export interface AgentSessionMessageBackendOptions {
+  /** Cherry Studio agent-session id. */
   sessionId: string
-  /** Agent id that owns the session. */
-  agentId: string
   /** Model id used for this assistant message. */
   modelId?: UniqueModelId
-  /** Claude Code / SDK session token for resume; empty string when unknown. */
-  agentSessionId?: string | (() => string | undefined)
+  /** Opaque runtime resume token persisted for future recovery; empty string when unknown. */
+  runtimeResumeToken?: string | (() => string | undefined)
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
 
-export class AgentMessageBackend implements PersistenceBackend {
+export class AgentSessionMessageBackend implements PersistenceBackend {
   readonly kind = 'agents-db'
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 
-  constructor(private readonly opts: AgentMessageBackendOptions) {
+  constructor(private readonly opts: AgentSessionMessageBackendOptions) {
     this.afterPersist = opts.afterPersist
   }
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status } = input
     const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
-    const agentSessionId = this.getAgentSessionId()
+    const runtimeResumeToken = this.getRuntimeResumeToken()
     await agentSessionMessageService.saveMessage({
       sessionId: this.opts.sessionId,
-      ...(agentSessionId ? { agentSessionId } : {}),
+      ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
       message: {
         id: finalMessage?.id ?? uuidv7(),
         role: 'assistant',
@@ -52,7 +54,9 @@ export class AgentMessageBackend implements PersistenceBackend {
     })
   }
 
-  private getAgentSessionId(): string | undefined {
-    return typeof this.opts.agentSessionId === 'function' ? this.opts.agentSessionId() : this.opts.agentSessionId
+  private getRuntimeResumeToken(): string | undefined {
+    return typeof this.opts.runtimeResumeToken === 'function'
+      ? this.opts.runtimeResumeToken()
+      : this.opts.runtimeResumeToken
   }
 }

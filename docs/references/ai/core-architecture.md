@@ -76,6 +76,10 @@ each subsystem.
      `ActiveStream`, launch one `StreamExecution` per model.
 7. Each `StreamExecution` calls `Agent.stream(buildAgentParams(...))`.
    `Agent.stream` opens AI SDK's stream and yields `UIMessageChunk`s.
+   Agent-session runtime requests skip the generic agent loop here:
+   `AiService.streamText()` calls
+   `AgentSessionRuntimeService.openTurnStream()` so the registered driver
+   can own the concrete agent runtime.
 8. `pipeStreamLoop` reads the chunk stream once, tees: broadcast to
    listeners, accumulate via `readUIMessageStream`.
 9. On terminal (`done` / `error` / `aborted` / `awaiting-approval`):
@@ -108,6 +112,7 @@ overlay-vs-persist conditional write.
 | Subsystem | Reference |
 |---|---|
 | Active-stream registry, listeners, persistence backends, reconnect, abort, grace-period eviction | [Stream Manager](./stream-manager.md) |
+| Claude Code agent-session long-lived runtime, SDK input queue, resume fallback | [Agent Session Runtime](./agent-session-runtime.md) |
 | `Agent.stream` semantics, hooks model, `PendingMessageQueue`, error/abort | [Agent Loop](./agent-loop.md) |
 | `buildAgentParams`, `RequestFeature` composition, `INTERNAL_FEATURES` order | [Params Pipeline](./params-pipeline.md) |
 | Tool registry, MCP sync, meta-tools (`tool_search` / `tool_inspect` / `tool_invoke` / `tool_exec`), defer exposition | [Tool Registry](./tool-registry.md) |
@@ -141,6 +146,7 @@ overlay-vs-persist conditional write.
 src/main/ai/
 ├── AiService.ts                  ← lifecycle owner, IPC entry
 ├── agent/                        ← Agent class, loop, observers, params/features
+├── agent-session/                ← agent-session topic host + runtime drivers
 ├── stream-manager/               ← AiStreamManager, listeners, persistence
 ├── provider/                     ← provider config, endpoint resolution, custom providers
 ├── tools/                        ← unified tool registry

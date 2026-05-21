@@ -83,13 +83,15 @@ code branches only on `stream.lifecycle.cleanup(...)`.
 
 `PersistenceListener` is storage-agnostic; it folds error parts into
 `finalMessage.parts` and calls the backend's `persistAssistant` /
-`persistTranslate` / etc. Four backends:
+`persistTranslate` / etc. Stream-manager owns these built-in backends:
 
 - `MessageServiceBackend` — persistent chats (SQLite tree).
 - `TemporaryChatBackend` — temporary topics (in-memory).
-- `AgentMessageBackend` — agent sessions (agents DB).
 - `TranslationBackend` — translate-on-main rows (see
   [translate-on-main.md](./translate-on-main.md)).
+
+Agent session persistence is owned by `agent-session/persistence`, not
+by stream-manager.
 
 ### `pipeStreamLoop`
 

@@ -114,9 +114,6 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
    * Session-isolated queue of follow-up messages injected mid-stream.
    * Drained twice per run: mid-flight via `attachSteeringObserver` on
    * `prepareStep`, and tail-recheck after the stream settles.
-   *
-   * Claude Code provider consumes this as `AsyncIterable` directly via
-   * `injectedMessageSource`; steering observer is a no-op there.
    */
   pendingMessages?: PendingMessageQueue
 }

@@ -10,7 +10,7 @@ import { useMessage } from '@renderer/hooks/useMessage'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Assistant, Topic } from '@renderer/types'
+import { type Assistant, type Topic, TopicType } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames, cn } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
@@ -69,7 +69,8 @@ const MessageItem: FC<Props> = ({
   isHorizontalMultiModelLayout = false
 }) => {
   const { t } = useTranslation()
-  const { assistant, setModel } = useAssistant(message.assistantId)
+  const assistantLookupId = topic.type === TopicType.Session ? undefined : message.assistantId
+  const { assistant, setModel } = useAssistant(assistantLookupId)
   const { isMultiSelectMode } = useChatContext()
   // Use the message-embedded snapshot rather than re-resolving the live model
   // config: the snapshot is what the message was actually generated with.

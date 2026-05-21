@@ -2,13 +2,15 @@ import type { Message } from '@shared/data/types/message'
 
 /**
  * Mid-stream follow-up queue. Three consumption modes:
- * `drain()` (agent loop), `AsyncIterable` (Claude Code
- * `query.streamInput()`), `list`/`remove`/`reorder` (UI).
+ * `drain()` (agent loop), `AsyncIterable` (runtime adapters),
+ * `list`/`remove`/`reorder` (UI).
  */
 export class PendingMessageQueue {
   private messages: Message[] = []
   private waitResolve?: (message: Message) => void
   private closed = false
+
+  constructor(private readonly onPush?: (message: Message) => void) {}
 
   // ── Push ──
 
@@ -21,6 +23,7 @@ export class PendingMessageQueue {
     } else {
       this.messages.push(message)
     }
+    this.onPush?.(message)
   }
 
   // ── Batch drain (for agentLoop outer loop) ──
@@ -68,7 +71,7 @@ export class PendingMessageQueue {
     this.messages = reordered
   }
 
-  // ── AsyncIterable (for Claude Code's injectedMessageSource → query.streamInput) ──
+  // ── AsyncIterable (for runtime adapters) ──
 
   /** Stop the async iterator. No more messages will be yielded. */
   close(): void {

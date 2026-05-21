@@ -14,6 +14,8 @@ export interface AiChatRequestBody {
 export { applyApprovalDecisions } from './applyApprovalDecisions'
 export type {
   ActiveExecution,
+  AiAgentSessionWarmCloseRequest,
+  AiAgentSessionWarmRequest,
   AiStreamAbortRequest,
   AiStreamAttachRequest,
   AiStreamAttachResponse,

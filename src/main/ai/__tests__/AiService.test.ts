@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGenerateImage = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
+const mockApplicationGet = vi.fn()
+
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: mockApplicationGet
+  }
+}))
 
 vi.mock('@main/services/agents/services/channels/ChannelAdapter', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
@@ -33,6 +40,45 @@ describe('AiService', () => {
   // image-request abort lifecycle moved to imageRequestRegistry.test.ts —
   // the service no longer owns that state, so its tests live with the
   // registry instead of with the AiService surface.
+
+  it('routes agent-session runtime requests directly to the runtime service', async () => {
+    const service = createService()
+    const stream = new ReadableStream()
+    const openTurnStream = vi.fn(() => stream)
+    mockApplicationGet.mockReturnValue({ openTurnStream })
+
+    await expect(
+      service.streamText({
+        chatId: 'agent-session:session-1',
+        trigger: 'submit-message',
+        runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
+        requestOptions: { signal: new AbortController().signal }
+      } as any)
+    ).resolves.toBe(stream)
+
+    expect(mockApplicationGet).toHaveBeenCalledWith('AgentSessionRuntimeService')
+    expect(openTurnStream).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+      signal: expect.any(AbortSignal)
+    })
+  })
+
+  it('rejects agent-session streams that do not carry a runtime request', async () => {
+    const service = createService()
+    const buildAgentParamsFor = vi.spyOn(service as any, 'buildAgentParamsFor')
+
+    await expect(
+      service.streamText({
+        chatId: 'agent-session:session-1',
+        trigger: 'submit-message',
+        requestOptions: { signal: new AbortController().signal }
+      } as any)
+    ).rejects.toThrow('requires an agent-session runtime request')
+
+    expect(buildAgentParamsFor).not.toHaveBeenCalled()
+    expect(mockApplicationGet).not.toHaveBeenCalled()
+  })
 
   it('normalizes base64 and url images from ai-core generateImage', async () => {
     const service = createService()

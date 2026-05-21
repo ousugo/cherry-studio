@@ -88,7 +88,7 @@ export function usePendingMessages(topicId: string, uiMessages: CherryUIMessage[
     const off = streamDispatchCoordinator.subscribe(topicId, (result) => {
       setGroups((prev) => {
         if (prev.length === 0) return prev
-        if (!result.ok) {
+        if (!result.ok || result.ack.mode === 'blocked') {
           // Dispatch failed — drop the oldest unjoined group (its bubble
           // vanishes; handleSendV2's throw lets the Inputbar recover text).
           const idx = prev.findIndex((g) => !g.joinIds)

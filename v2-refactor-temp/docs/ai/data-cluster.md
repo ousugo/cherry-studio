@@ -134,18 +134,17 @@ export const agentSessionMessageTable = sqliteTable('agent_session_message', {
   sessionId: text().notNull().references(() => agentSessionTable.id, { onDelete: 'cascade' }),
   role: text().notNull(),
   content: text({ mode: 'json' }).$type<AgentPersistedMessage>().notNull(),
-  // Claude Agent SDK resume token; null when the session never ran or was reset.
-  agentSessionId: text(),
+  // Opaque runtime resume token; null when the session never ran or was reset.
+  runtimeResumeToken: text(),
   metadata: text({ mode: 'json' }).$type<Record<string, unknown>>(),
   ...createUpdateTimestamps
 })
 ```
 
 `content` is now `AgentPersistedMessage` (parts model). The legacy
-`blocks` column is gone. `agentSessionId` is the Claude Agent SDK's
-resume token — written through the AI pipeline by the stream-manager's
-PersistenceListener, used to resume an interrupted Claude Code session
-without re-uploading the whole context.
+`blocks` column is gone. `runtimeResumeToken` is an opaque recovery token
+owned by the active agent runtime driver; Claude Code maps it to its SDK
+session id, while other drivers may use a different resume token or none.
 
 ### `agent_channel` + `agent_channel_task` (new — `agentChannel.ts`)
 
@@ -331,7 +330,7 @@ Three places where the data model now distinguishes models:
 4. **`blocks` field is gone.** Any newly added code that reads
    `data.blocks` or `message.blocks` is wrong. The migration is the only
    place legacy `blocks` ever appears, and it converts to `parts`.
-5. **`agent_session_id` (Claude SDK resume token) is null until first
+5. **`runtime_resume_token` (opaque runtime resume token) is null until first
    run.** Persistence writes it; reads must accept null.
 6. **Tool IDs are `${serverName}__${toolName}`** (double underscore) in
    the `allowedTools` JSON arrays. `mcps` is `string[]` of server ids.

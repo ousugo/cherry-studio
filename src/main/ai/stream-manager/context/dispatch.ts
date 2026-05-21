@@ -7,6 +7,7 @@
 import { loggerService } from '@logger'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 
+import { isAgentSessionWorkspaceError } from '../../agent-session/runtime/claude-code/settingsBuilder'
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
 import { agentChatContextProvider } from './AgentChatContextProvider'
@@ -54,7 +55,21 @@ export async function dispatchStreamRequest(
   logger.debug('Dispatching stream request', { topicId: req.topicId, provider: provider.name })
 
   const hasLiveStream = manager.hasLiveStream(req.topicId)
-  const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream })
+  const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
+    if (isAgentSessionWorkspaceError(error)) {
+      return {
+        blocked: {
+          reason: 'agent-session-workspace' as const,
+          message: error.message
+        }
+      }
+    }
+    throw error
+  })
+  if ('blocked' in prepared) {
+    return { mode: 'blocked', ...prepared.blocked }
+  }
+
   const result = manager.send({
     topicId: prepared.topicId,
     models: prepared.models,

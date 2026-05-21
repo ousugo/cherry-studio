@@ -14,6 +14,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { Loader2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
@@ -112,19 +113,10 @@ const AgentChatInner = ({
   const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
 
   // ── Rendering pipeline ────────────────────────────────────────────
-  //
-  // Mirrors V2ChatContent: uiMessages (agents.db snapshot) projected
-  // into renderer Messages; streaming parts overlaid via per-execution
-  // collectors. Main always tags chunks with the execution's modelId so
-  // the collector's useChat receives them; primary useChat here is a
-  // trigger-only wrapper (sendMessage/stop) and its `state.messages`
-  // does not drive the visible list.
-  const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
-    const modelString = activeAgent?.model
-    if (!modelString) return undefined
-    const [provider, id] = modelString.split(':')
-    if (!provider || !id) return undefined
-    return { id, name: id, provider }
+  const snapshot = useMemo<ModelSnapshot | undefined>(() => {
+    if (!activeAgent?.model) return undefined
+    const { providerId, modelId } = parseUniqueModelId(activeAgent.model)
+    return { id: modelId, name: modelId, provider: providerId }
   }, [activeAgent?.model])
 
   const projectedMessages = useMemo<Message[]>(
@@ -133,10 +125,10 @@ const AgentChatInner = ({
         uiToMessage(m, {
           assistantId: agentId,
           topicId: sessionTopicId,
-          modelFallback: fallbackSnapshot
+          modelFallback: snapshot
         })
       ),
-    [uiMessages, agentId, sessionTopicId, fallbackSnapshot]
+    [uiMessages, agentId, sessionTopicId, snapshot]
   )
 
   const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {

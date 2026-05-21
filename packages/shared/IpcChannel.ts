@@ -462,6 +462,10 @@ export enum IpcChannel {
   Ai_Stream_Detach = 'ai:stream:detach',
   /** Renderer → Main: abort the active generation on a topic */
   Ai_Stream_Abort = 'ai:stream:abort',
+  /** Renderer → Main: prewarm the next Claude Agent SDK query for an agent session */
+  Ai_AgentSession_Prewarm = 'ai:agent-session:prewarm',
+  /** Renderer → Main: close unused Claude Agent SDK warm query for an agent session */
+  Ai_AgentSession_CloseWarm = 'ai:agent-session:close-warm',
   Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
 
   // AI Non-streaming

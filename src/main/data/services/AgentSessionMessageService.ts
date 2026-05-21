@@ -128,26 +128,29 @@ export class AgentSessionMessageService {
       modelSnapshot: row.modelSnapshot ?? null,
       traceId: row.traceId ?? null,
       stats: row.stats ?? null,
-      agentSessionId: row.agentSessionId,
+      runtimeResumeToken: row.runtimeResumeToken,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
     }
   }
 
-  async getLastAgentSessionId(sessionId: string): Promise<string | null> {
+  async getLastRuntimeResumeToken(sessionId: string): Promise<string | null> {
     try {
       const database = application.get('DbService').getDb()
       const result = await database
-        .select({ agentSessionId: sessionMessagesTable.agentSessionId })
+        .select({ runtimeResumeToken: sessionMessagesTable.runtimeResumeToken })
         .from(sessionMessagesTable)
-        .where(and(eq(sessionMessagesTable.sessionId, sessionId), isNotNull(sessionMessagesTable.agentSessionId)))
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), isNotNull(sessionMessagesTable.runtimeResumeToken)))
         .orderBy(desc(sessionMessagesTable.createdAt))
         .limit(1)
 
-      logger.silly('Last agent session ID result:', { agentSessionId: result[0]?.agentSessionId, sessionId })
-      return result[0]?.agentSessionId ?? null
+      logger.silly('Last runtime resume token result:', {
+        runtimeResumeToken: result[0]?.runtimeResumeToken,
+        sessionId
+      })
+      return result[0]?.runtimeResumeToken ?? null
     } catch (error) {
-      logger.error('Failed to get last agent session ID', {
+      logger.error('Failed to get last runtime resume token', {
         sessionId,
         error
       })
@@ -173,10 +176,10 @@ export class AgentSessionMessageService {
 
   private async upsertMessage(
     db: DbOrTx,
-    params: { sessionId: string; agentSessionId?: string; message: CreateAgentSessionMessageDto },
+    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
     timestampMs = Date.now()
   ): Promise<AgentSessionMessageEntity> {
-    const { sessionId, agentSessionId = null, message } = params
+    const { sessionId, runtimeResumeToken = null, message } = params
     const messageId = message.id ?? uuidv7()
     const status = message.status ?? 'success'
 
@@ -191,7 +194,7 @@ export class AgentSessionMessageService {
     const existingRow = await this.findExistingMessageRow(db, sessionId, messageId)
 
     if (existingRow) {
-      const agentSessionToPersist = agentSessionId ?? existingRow.agentSessionId ?? null
+      const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
       const modelSnapshot = message.modelSnapshot === undefined ? existingRow.modelSnapshot : message.modelSnapshot
@@ -210,7 +213,7 @@ export class AgentSessionMessageService {
               modelSnapshot,
               traceId,
               stats,
-              agentSessionId: agentSessionToPersist,
+              runtimeResumeToken: runtimeResumeTokenToPersist,
               updatedAt: updatedAtMs
             })
             .where(eq(sessionMessagesTable.id, existingRow.id)),
@@ -227,7 +230,7 @@ export class AgentSessionMessageService {
         modelSnapshot,
         traceId,
         stats,
-        agentSessionId: agentSessionToPersist,
+        runtimeResumeToken: runtimeResumeTokenToPersist,
         updatedAt: updatedAtMs
       })
     }
@@ -242,7 +245,7 @@ export class AgentSessionMessageService {
       modelSnapshot: message.modelSnapshot,
       traceId: message.traceId,
       stats: message.stats,
-      agentSessionId,
+      runtimeResumeToken,
       createdAt: timestampMs,
       updatedAt: timestampMs
     }
@@ -252,7 +255,7 @@ export class AgentSessionMessageService {
   }
 
   async saveMessage(
-    params: { sessionId: string; agentSessionId?: string; message: CreateAgentSessionMessageDto },
+    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
     db?: DbOrTx
   ): Promise<AgentSessionMessageEntity> {
     const database = db ?? application.get('DbService').getDb()
@@ -260,14 +263,14 @@ export class AgentSessionMessageService {
   }
 
   async saveMessages(params: CreateAgentSessionMessagesDto): Promise<AgentSessionMessageEntity[]> {
-    const { sessionId, agentSessionId, messages } = params
+    const { sessionId, runtimeResumeToken, messages } = params
     const database = application.get('DbService').getDb()
 
     return database.transaction(async (tx) => {
       const timestampMs = Date.now()
       const saved: AgentSessionMessageEntity[] = []
       for (const message of messages) {
-        saved.push(await this.upsertMessage(tx, { sessionId, agentSessionId, message }, timestampMs))
+        saved.push(await this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
       }
       return saved
     })

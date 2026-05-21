@@ -61,7 +61,7 @@ Object.assign(window, {
   api: {
     ...(window as any).api,
     ai: {
-      ...((window as any).api?.ai ?? {}),
+      ...(window as any).api?.ai,
       listModels: (...args: any[]) => mockListModels(...args)
     }
   }

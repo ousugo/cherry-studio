@@ -4,14 +4,13 @@ import UserPopup from '@renderer/components/Popups/UserPopup'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useActiveSession } from '@renderer/hooks/agents/useSession'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMessageStyle } from '@renderer/hooks/useSettings'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getMessageModelId } from '@renderer/services/MessagesService'
-import type { Assistant, Model, Topic } from '@renderer/types'
+import { type Assistant, type Model, type Topic, TopicType } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import dayjs from 'dayjs'
@@ -30,14 +29,13 @@ interface Props {
   isGroupContextMessage?: boolean
 }
 
-const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupContextMessage }) => {
+const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const [userName] = usePreference('app.user.name')
   const showMiniAppIcon = useSidebarIconShow('mini_app')
-  const { session: activeSession } = useActiveSession()
-  const { agent } = useAgent(activeSession?.agentId ?? null)
-  const isAgentView = window.location.hash.startsWith('#/agents')
+  const isAgentSessionAssistantMessage = topic.type === TopicType.Session && message.role === 'assistant'
+  const { agent } = useAgent(isAgentSessionAssistantMessage ? (topic.assistantId ?? null) : null)
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
   const { openMiniAppById } = useMiniAppPopup()
@@ -49,7 +47,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupConte
   const ModelIcon = useMemo(() => getModelLogo(message.model ?? model), [message.model, model])
 
   const getUserName = useCallback(() => {
-    if (isAgentView && message.role === 'assistant') {
+    if (isAgentSessionAssistantMessage) {
       return agent?.name ?? t('common.unknown')
     }
 
@@ -58,7 +56,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, isGroupConte
     }
 
     return userName || t('common.you')
-  }, [agent?.name, isAgentView, message, model, t, userName])
+  }, [agent?.name, isAgentSessionAssistantMessage, message, model, t, userName])
 
   const isAssistantMessage = message.role === 'assistant'
   const isUserMessage = message.role === 'user'

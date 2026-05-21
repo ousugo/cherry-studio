@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { AiChatRequestBody, AiStreamOpenRequest, StreamChunkPayload } from '@shared/ai/transport'
+import { type AiChatRequestBody, type AiStreamOpenRequest, type StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
@@ -156,6 +156,13 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         }
 
         unsubscribers.push(
+          streamDispatchCoordinator.subscribe(topicId, (result) => {
+            if (result.ok) {
+              if (result.ack.mode === 'blocked') closeStream()
+              return
+            }
+            errorStream(result.error)
+          }),
           window.api.ai.onStreamChunk((data) => {
             if (data.topicId !== topicId || isStreamClosed) return
             if (executionId && data.executionId !== executionId) return

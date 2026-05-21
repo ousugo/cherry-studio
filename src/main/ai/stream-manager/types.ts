@@ -94,9 +94,10 @@ export interface StreamListener {
  * one entry; multi-model (`@gpt-4o @claude-sonnet`) have N entries
  * running independently against the same listeners and siblingsGroupId.
  *
- * Each execution owns its own `pendingMessages` queue. Injected follow-up
- * messages fan out to every queue so heterogeneous consumers (agent
- * loop, Claude Code session) each see the message.
+ * Each execution has a `pendingMessages` queue. Callers may provide a
+ * session-level queue, otherwise the manager creates an execution-local one.
+ * Injected follow-up messages fan out to every queue so each runtime consumer
+ * sees the message.
  */
 export interface StreamExecution {
   /** Format: "providerId::modelId". */
@@ -116,8 +117,6 @@ export interface StreamExecution {
   awaitingApproval?: boolean
   error?: SerializedError
   siblingsGroupId?: number
-  /** Backend-specific resume token (ClaudeCodeService). */
-  sourceSessionId?: string
   /** Resolves when the execution loop terminates. Awaited by `onStop` for graceful shutdown. */
   loopPromise: Promise<void>
   timings: TransportTimings

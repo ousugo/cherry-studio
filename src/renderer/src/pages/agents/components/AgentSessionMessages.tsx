@@ -94,6 +94,17 @@ const AgentSessionMessages = ({
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [scrollToBottom])
 
+  useEffect(() => {
+    void window.api.ai.prewarmAgentSession({ sessionId }).catch((error) => {
+      logger.warn('Failed to prewarm agent session', error as Error)
+    })
+    return () => {
+      void window.api.ai.closeAgentSessionWarm({ sessionId }).catch((error) => {
+        logger.warn('Failed to close agent session warm query', error as Error)
+      })
+    }
+  }, [sessionId])
+
   logger.silly('Rendering agent session messages', {
     sessionId,
     messageCount: adaptedMessages.length,

@@ -3,6 +3,8 @@ import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
 import type {
+  AiAgentSessionWarmCloseRequest,
+  AiAgentSessionWarmRequest,
   AiStreamAbortRequest,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
@@ -834,6 +836,10 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Ai_Stream_Attach, req),
     streamDetach: (req: AiStreamDetachRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
     streamAbort: (req: AiStreamAbortRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req),
+    prewarmAgentSession: (req: AiAgentSessionWarmRequest): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Ai_AgentSession_Prewarm, req),
+    closeAgentSessionWarm: (req: AiAgentSessionWarmCloseRequest): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Ai_AgentSession_CloseWarm, req),
 
     // ── Non-streaming operations ──
     // All use uniqueModelId ("providerId::modelId") instead of separate providerId/modelId.

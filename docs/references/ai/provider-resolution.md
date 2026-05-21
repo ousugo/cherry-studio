@@ -61,7 +61,7 @@ idempotent when the base id is already a variant.
 
 ## Provider config
 
-`providerToAiSdkConfig(provider, model, { agentSessionId? })`
+`providerToAiSdkConfig(provider, model)`
 (`src/main/ai/provider/config.ts`) returns
 `{ providerId: AppProviderId, providerSettings: AppProviderSettingsMap[id] }`.
 It calls `resolveAiSdkProviderId` internally and then builds the
@@ -71,9 +71,6 @@ headers, ...).
 Special cases:
 
 - **Gateway** — settings built asynchronously (model-list dependent).
-- **Claude Code** — `agentSessionId` (extracted from a topicId of the
-  form `agent-session:<sessionId>`) routes through
-  `buildClaudeCodeSessionSettings`.
 
 ## Custom providers
 

@@ -50,7 +50,7 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   /** Session ID this message belongs to */
   sessionId: z.string(),
   searchableText: z.string(),
-  agentSessionId: z.string().nullable(),
+  runtimeResumeToken: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -73,7 +73,7 @@ export type CreateAgentSessionMessageDto = z.infer<typeof CreateAgentSessionMess
 
 export const CreateAgentSessionMessagesSchema = z.strictObject({
   sessionId: z.string(),
-  agentSessionId: z.string().optional(),
+  runtimeResumeToken: z.string().optional(),
   messages: z.array(CreateAgentSessionMessageSchema)
 })
 export type CreateAgentSessionMessagesDto = z.infer<typeof CreateAgentSessionMessagesSchema>

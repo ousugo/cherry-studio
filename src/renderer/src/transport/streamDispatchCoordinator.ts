@@ -29,7 +29,12 @@ export const streamDispatchCoordinator = {
   dispatch(topicId: string, request: AiStreamOpenRequest): void {
     window.api.ai
       .streamOpen(request)
-      .then((ack) => notify({ ok: true, topicId, ack }))
+      .then((ack) => {
+        if (ack.mode === 'blocked' && ack.reason === 'agent-session-workspace') {
+          window.toast?.error(ack.message)
+        }
+        notify({ ok: true, topicId, ack })
+      })
       .catch((error: unknown) => {
         const err = error instanceof Error ? error : new Error(String(error))
         logger.error('streamOpen IPC failed', err)

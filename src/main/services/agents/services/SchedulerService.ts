@@ -5,7 +5,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId, parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
+import { buildAgentSessionTopicId } from '@main/ai/agent-session/topic'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
 import type { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
 import { application } from '@main/core/application'
@@ -316,7 +316,7 @@ class SchedulerService {
 
       // Start execution via AiStreamManager
       const topicId = buildAgentSessionTopicId(session.id)
-      const uniqueModelId = parseAgentSessionModel(agent.model)
+      const uniqueModelId = agent.model
 
       const aiStreamManager = application.get('AiStreamManager') as unknown as AiStreamManager
       aiStreamManager.send({

@@ -135,7 +135,7 @@ Object.assign(window, {
   api: {
     ...(window as any).api,
     ai: {
-      ...((window as any).api?.ai ?? {}),
+      ...(window as any).api?.ai,
       embedMany: mocks.embedMany
     }
   }

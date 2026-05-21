@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   saveMessages: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
-  spanCacheSetTopicId: vi.fn()
+  spanCacheSetTopicId: vi.fn(),
+  runtimeBeginTurn: vi.fn()
 }))
 
 vi.mock('@data/services/SessionService', () => ({
@@ -37,6 +38,7 @@ vi.mock('@main/core/application', () => ({
 }))
 
 const { AgentChatContextProvider } = await import('../AgentChatContextProvider')
+const { agentRuntimeDriverRegistry } = await import('../../../agent-session/runtime')
 
 function makeSubscriber(id = 'wc:1:agent-session:session-1'): StreamListener {
   return {
@@ -65,17 +67,25 @@ describe('AgentChatContextProvider', () => {
     provider = new AgentChatContextProvider()
 
     vi.clearAllMocks()
+    agentRuntimeDriverRegistry.clearForTest()
+    agentRuntimeDriverRegistry.register({ type: 'claude-code', connect: vi.fn() })
     mocks.getSession.mockResolvedValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
     mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'claude-code', model: 'anthropic::claude-sonnet' })
     mocks.saveMessage.mockResolvedValue(undefined)
     mocks.saveMessages.mockResolvedValue(undefined)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
+      if (name === 'AgentSessionRuntimeService') return { beginTurn: mocks.runtimeBeginTurn }
       throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.runtimeBeginTurn.mockReturnValue({
+      pendingMessages: { kind: 'runtime-pending-messages' },
+      listeners: [makeSubscriber('runtime:persistence'), makeSubscriber('runtime:terminal')],
+      turnId: 'turn-1'
     })
   })
 
-  it('prepares fresh agent-session dispatch without requiring runtime service', async () => {
+  it('prepares fresh agent-session dispatch through the long-lived runtime service', async () => {
     const subscriber = makeSubscriber()
 
     const prepared = await provider.prepareDispatch(subscriber, openReq(), { hasLiveStream: false })
@@ -85,9 +95,31 @@ describe('AgentChatContextProvider', () => {
 
     expect(prepared.models).toHaveLength(1)
     expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet')
-    expect(prepared.models[0].request.runtime).toBeUndefined()
-    expect(prepared.models[0].request.pendingMessages).toBeUndefined()
-    expect(prepared.listeners).toEqual([subscriber, expect.any(Object)])
+    expect(prepared.models[0].request.runtime).toEqual({
+      kind: 'agent-session',
+      sessionId: 'session-1',
+      turnId: 'turn-1'
+    })
+    expect(prepared.models[0].request.pendingMessages).toEqual({ kind: 'runtime-pending-messages' })
+    expect(prepared.models[0].request.messages).toEqual([
+      { id: expect.any(String), role: 'user', parts: [{ type: 'text', text: 'hello' }] },
+      { id: expect.any(String), role: 'assistant', parts: [] }
+    ])
+    expect(prepared.models[0].request.messageId).toBe(prepared.models[0].request.messages?.[1]?.id)
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      topicId: 'agent-session:session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      modelId: 'anthropic::claude-sonnet',
+      assistantMessageId: prepared.models[0].request.messageId,
+      userMessage: prepared.userMessage
+    })
+    expect(prepared.listeners).toEqual([
+      subscriber,
+      expect.objectContaining({ id: 'runtime:persistence' }),
+      expect.objectContaining({ id: 'runtime:terminal' })
+    ])
   })
 
   it('prepares live inject without creating a new runtime turn or assistant placeholder', async () => {
@@ -97,8 +129,20 @@ describe('AgentChatContextProvider', () => {
 
     expect(mocks.saveMessage).toHaveBeenCalledOnce()
     expect(mocks.saveMessages).not.toHaveBeenCalled()
+    expect(mocks.runtimeBeginTurn).not.toHaveBeenCalled()
     expect(prepared.models).toEqual([])
     expect(prepared.userMessage?.role).toBe('user')
     expect(prepared.listeners).toEqual([subscriber])
+  })
+
+  it('rejects agent sessions without a registered runtime driver', async () => {
+    agentRuntimeDriverRegistry.clearForTest()
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })
+
+    await expect(provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })).rejects.toThrow(
+      'Unsupported agent runtime type: custom-runtime'
+    )
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.saveMessages).not.toHaveBeenCalled()
   })
 })
