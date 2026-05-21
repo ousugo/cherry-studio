@@ -78,6 +78,7 @@ vi.mock('../list/SelectionBox', () => ({
 vi.mock('../list/MessageVirtualList', async () => {
   const React = await import('react')
   return {
+    MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX: 12,
     MessageVirtualList: ({ forceScrollToBottomKey, handleRef, items, renderItem }: any) => {
       React.useImperativeHandle(
         handleRef as Ref<MessageVirtualListHandle>,

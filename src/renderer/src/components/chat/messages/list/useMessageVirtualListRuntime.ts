@@ -2,6 +2,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { type Ref, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef } from 'react'
 
 const AT_BOTTOM_THRESHOLD_PX = 8
+const USER_SCROLL_INTENT_MS = 500
 
 export interface MessageVirtualListHandle {
   /** Scroll to the bottom of the list. */
@@ -59,6 +60,7 @@ export function useMessageVirtualListRuntime<T>({
   const prevForceScrollToBottomKeyRef = useRef(forceScrollToBottomKey)
   const didTrackForceScrollToBottomKeyRef = useRef(false)
   const wasAtBottomRef = useRef(true)
+  const lastUserScrollIntentAtRef = useRef(0)
 
   const computeIsAtBottom = useCallback((): boolean => {
     const el = scrollerRef.current
@@ -69,12 +71,32 @@ export function useMessageVirtualListRuntime<T>({
   useEffect(() => {
     const el = scrollerRef.current
     if (!el) return
-    const handler = (): void => {
-      wasAtBottomRef.current = computeIsAtBottom()
+    const markUserScrollIntent = (): void => {
+      lastUserScrollIntentAtRef.current = performance.now()
     }
+    const handler = (): void => {
+      const isAtBottom = computeIsAtBottom()
+      if (isAtBottom) {
+        wasAtBottomRef.current = true
+        return
+      }
+      if (performance.now() - lastUserScrollIntentAtRef.current < USER_SCROLL_INTENT_MS) {
+        wasAtBottomRef.current = false
+      }
+    }
+    el.addEventListener('wheel', markUserScrollIntent, { passive: true })
+    el.addEventListener('touchstart', markUserScrollIntent, { passive: true })
+    el.addEventListener('pointerdown', markUserScrollIntent, { passive: true })
+    el.addEventListener('keydown', markUserScrollIntent)
     el.addEventListener('scroll', handler, { passive: true })
     handler()
-    return () => el.removeEventListener('scroll', handler)
+    return () => {
+      el.removeEventListener('wheel', markUserScrollIntent)
+      el.removeEventListener('touchstart', markUserScrollIntent)
+      el.removeEventListener('pointerdown', markUserScrollIntent)
+      el.removeEventListener('keydown', markUserScrollIntent)
+      el.removeEventListener('scroll', handler)
+    }
   }, [computeIsAtBottom])
 
   const didInitialScrollRef = useRef(false)
@@ -186,27 +208,15 @@ export function useMessageVirtualListRuntime<T>({
       if (!wasAtBottomRef.current) return
       const node = scrollerRef.current
       if (!node) return
-      const observed = observedItemsRef.current
-      let lastBottom = -Infinity
-      for (const el of observed) {
-        if (!el.isConnected) continue
-        const rect = el.getBoundingClientRect()
-        if (rect.bottom > lastBottom) lastBottom = rect.bottom
-      }
-      if (lastBottom === -Infinity) {
-        node.scrollTop = node.scrollHeight
-        return
-      }
-      const scrollerRect = node.getBoundingClientRect()
-      const target = lastBottom - scrollerRect.top + node.scrollTop - node.clientHeight + bottomPadding
-      node.scrollTop = Math.max(0, target)
+      node.scrollTop = node.scrollHeight
+      wasAtBottomRef.current = true
     })
     return () => {
       stickyObserverRef.current?.disconnect()
       stickyObserverRef.current = null
       observedItemsRef.current.clear()
     }
-  }, [bottomPadding])
+  }, [])
 
   const measureItem = useCallback(
     (node: HTMLDivElement | null) => {
