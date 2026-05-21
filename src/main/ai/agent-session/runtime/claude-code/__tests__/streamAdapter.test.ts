@@ -123,6 +123,37 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts[2]).toMatchObject({ type: 'reasoning-end', id: (parts[0] as any).id })
   })
 
+  it('attaches parent tool metadata to streamed text and reasoning parts', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      ...streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }),
+      parent_tool_use_id: 'parent-tool'
+    } as any)
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage({
+      ...streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'thinking', thinking: '' } }),
+      parent_tool_use_id: 'parent-tool'
+    } as any)
+
+    expect(parts[0]).toMatchObject({
+      type: 'text-start',
+      providerMetadata: {
+        'claude-code': {
+          parentToolCallId: 'parent-tool'
+        }
+      }
+    })
+    expect(parts[2]).toMatchObject({
+      type: 'reasoning-start',
+      providerMetadata: {
+        'claude-code': {
+          parentToolCallId: 'parent-tool'
+        }
+      }
+    })
+  })
+
   it('maps tool input deltas to tool call parts', () => {
     const { adapter, parts } = createAdapter()
 

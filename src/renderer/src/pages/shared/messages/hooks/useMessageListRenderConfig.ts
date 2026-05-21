@@ -29,6 +29,7 @@ export function useMessageListRenderConfig() {
       renderInputMessageAsMarkdown,
       codeFancyBlock,
       thoughtAutoCollapse,
+      collapseCompletedToolHistory: true,
       mathEnableSingleDollar,
       showMessageOutline,
       multiModelMessageStyle,

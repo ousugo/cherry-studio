@@ -6,6 +6,8 @@ import type { EditToolInput, EditToolOutput } from './types'
 import { AgentToolsType } from './types'
 
 function EditToolChildren({ input, output }: { input?: EditToolInput; output?: EditToolOutput }) {
+  const outputText = typeof output === 'string' ? output : undefined
+
   return (
     <AgentFileDiffView
       filePath={input?.file_path}
@@ -15,7 +17,7 @@ function EditToolChildren({ input, output }: { input?: EditToolInput; output?: E
           newString: input?.new_string
         }
       ]}>
-      {output}
+      {outputText}
     </AgentFileDiffView>
   )
 }

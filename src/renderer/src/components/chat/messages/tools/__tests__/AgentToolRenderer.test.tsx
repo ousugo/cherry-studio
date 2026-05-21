@@ -164,6 +164,8 @@ describe('AgentToolRenderer', () => {
     it('should return true for valid tool types', () => {
       expect(isValidAgentToolsType('Read')).toBe(true)
       expect(isValidAgentToolsType('Bash')).toBe(true)
+      expect(isValidAgentToolsType('Agent')).toBe(true)
+      expect(isValidAgentToolsType('TaskCreate')).toBe(true)
     })
 
     it('should return false for invalid tool types', () => {
@@ -256,6 +258,66 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('completed tool rendering', () => {
+    it('should render newly supported structured agent tools', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'TaskCreate', name: 'TaskCreate', description: 'Create task', type: 'provider' },
+        status: 'done',
+        arguments: {
+          subject: 'Wire tool registry',
+          description: 'Register the new SDK task tools'
+        },
+        response: {
+          task: {
+            id: 'task-1',
+            subject: 'Wire tool registry'
+          }
+        }
+      })
+
+      const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('TaskCreate')).toBeInTheDocument()
+      expect(screen.getByText('Register the new SDK task tools')).toBeInTheDocument()
+      expect(container.textContent).not.toContain('task-1')
+      expect(screen.queryByTestId('collapse-content-TaskCreate')).toBeNull()
+    })
+
+    it('should route Agent through the task renderer', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
+        status: 'done',
+        arguments: {
+          description: 'Inspect renderer',
+          prompt: 'Check the message renderer'
+        },
+        response: {
+          agentId: 'agent-1',
+          content: [{ type: 'text', text: 'Inspection complete' }],
+          totalToolUseCount: 0,
+          totalDurationMs: 1,
+          totalTokens: 1,
+          usage: {
+            input_tokens: 1,
+            output_tokens: 1,
+            cache_creation_input_tokens: null,
+            cache_read_input_tokens: null,
+            server_tool_use: null,
+            service_tier: null,
+            cache_creation: null
+          },
+          status: 'completed',
+          prompt: 'Check the message renderer'
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Agent')).toBeInTheDocument()
+      expect(screen.getByText('Inspect renderer')).toBeInTheDocument()
+      expect(screen.queryByText('Inspection complete')).toBeNull()
+      expect(screen.queryByTestId('collapse-content-Agent')).toBeNull()
+    })
+
     it('should render tool with full arguments when done', () => {
       const toolResponse = createToolResponse({
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
@@ -390,6 +452,50 @@ describe('AgentToolRenderer', () => {
 
       fireEvent.click(screen.getByRole('button'))
       expect(screen.getByText('tavily_search')).toBeInTheDocument()
+    })
+  })
+
+  describe('agent tool flow action', () => {
+    it('opens the right-pane flow only from subagent rows', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Agent', name: 'Agent', description: 'Run subagent', type: 'provider' },
+        status: 'done',
+        arguments: { description: 'Inspect renderer', prompt: 'Check the message renderer' },
+        response: 'ok'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      fireEvent.click(screen.getByText('Agent').closest('[role="button"]')!)
+      expect(openAgentToolFlow).toHaveBeenCalledWith({
+        toolCallId: 'call-123',
+        toolName: 'Agent',
+        sourceMessageId: undefined,
+        title: 'Inspect renderer'
+      })
+      expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()
+    })
+
+    it('keeps ordinary tool row clicks local even when the flow action exists', () => {
+      const openAgentToolFlow = vi.fn()
+      mockMessageListActions.mockReturnValue({ openAgentToolFlow })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Bash', name: 'Bash', description: 'Execute command', type: 'provider' },
+        status: 'done',
+        arguments: { command: 'pwd' },
+        response: 'ok'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      fireEvent.click(screen.getByText('Bash').closest('[role="button"]')!)
+      expect(openAgentToolFlow).not.toHaveBeenCalled()
+      expect(screen.getByTestId('collapse-content-Bash')).toBeVisible()
+
+      fireEvent.click(screen.getByRole('button', { name: 'button.collapse' }))
+      expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
     })
   })
 

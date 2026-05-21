@@ -6,10 +6,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
+  Button: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
+    <button {...props}>{children}</button>
+  ),
+  Tabs: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  TabsContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  TabsList: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  TabsTrigger: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
+  Tooltip: ({ children }: PropsWithChildren) => children
+}))
+
 vi.mock('@renderer/components/chat', () => ({
   ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH: 540,
+  ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
   ChatAppShell: ({
     pane,
@@ -42,6 +59,12 @@ vi.mock('@renderer/components/chat', () => ({
       <div>{bottomComposer}</div>
       <div data-testid="chat-center-overlay">{centerOverlay}</div>
       <div>{overlay}</div>
+    </div>
+  ),
+  EmptyState: ({ title, description }: { title?: string; description?: string }) => (
+    <div data-testid="empty-state">
+      {title}
+      {description}
     </div>
   ),
   LoadingState: () => <div data-testid="loading-state" />,
@@ -158,6 +181,14 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
+vi.mock('@renderer/components/NavbarIcon', () => ({
+  default: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  )
+}))
+
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [false]
 }))
@@ -252,19 +283,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  default: ({
-    artifactPaneOpen,
-    onToggleArtifactPane
-  }: {
-    artifactPaneOpen?: boolean
-    onToggleArtifactPane?: () => void
-  }) => (
-    <div>
-      <button type="button" aria-pressed={Boolean(artifactPaneOpen)} onClick={onToggleArtifactPane}>
-        toggle artifact pane
-      </button>
-    </div>
-  )
+  default: ({ tools }: { tools?: ReactNode }) => <div>{tools}</div>
 }))
 
 vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
@@ -275,7 +294,32 @@ vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
-  default: ({ sessionId }: { sessionId: string }) => <div data-testid="agent-messages" data-session-id={sessionId} />
+  default: ({ sessionId, openAgentToolFlow }: { sessionId: string; openAgentToolFlow?: (input: any) => void }) => (
+    <div data-testid="agent-messages" data-session-id={sessionId}>
+      <button
+        type="button"
+        onClick={() =>
+          openAgentToolFlow?.({
+            toolCallId: 'agent-a',
+            toolName: 'Agent',
+            title: 'cache-usage.md'
+          })
+        }>
+        open flow a
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          openAgentToolFlow?.({
+            toolCallId: 'agent-b',
+            toolName: 'Agent',
+            title: 'renderer audit'
+          })
+        }>
+        open flow b
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
@@ -313,9 +357,10 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('chat-app-shell')).toHaveAttribute('data-pane-open', 'true')
     expect(screen.getByTestId('chat-app-shell')).toHaveAttribute('data-pane-position', 'left')
     expect(screen.getByTestId('session-pane')).toBeInTheDocument()
+    expect(screen.queryByTestId('pinned-todo-panel')).not.toBeInTheDocument()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
 
-    const toggle = screen.getByRole('button', { name: 'toggle artifact pane' })
+    const toggle = screen.getByRole('button', { name: 'agent.right_pane.files_toggle' })
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
 
     fireEvent.click(toggle)
@@ -325,9 +370,12 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-resizable', 'true')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-min-width', '360')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-default-width', '460')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-max-width', '540')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-max-width', '720')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-cache-key', 'ui.chat.artifact_pane.width')
-    expect(screen.getByTestId('artifact-right-pane').getAttribute('data-class-name')).not.toContain('p-4')
+    expect(screen.getByTestId('artifact-right-pane').getAttribute('data-class-name')).not.toContain('p-2')
+    expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.files/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.status/ })).toBeInTheDocument()
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
 
@@ -341,7 +389,7 @@ describe('AgentChat artifact pane', () => {
   it('maximizes the artifact pane over the navbar without covering the composer', () => {
     render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'toggle artifact pane' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.files_toggle' }))
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'false')
 
@@ -369,7 +417,7 @@ describe('AgentChat artifact pane', () => {
   it('keeps the selected artifact file when maximizing and restoring the pane', () => {
     render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'toggle artifact pane' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.files_toggle' }))
     fireEvent.click(screen.getByRole('button', { name: 'select artifact file' }))
 
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
@@ -456,6 +504,22 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'false')
     expect(screen.getByTestId('agent-home-composer')).toBeInTheDocument()
+  })
+
+  it('opens one right-pane tab per selected subagent flow', () => {
+    render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow a' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByRole('button', { name: /cache-usage\.md/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow b' }))
+
+    expect(screen.getByRole('button', { name: /cache-usage\.md/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /renderer audit/ })).toBeInTheDocument()
+    expect(screen.queryByText('Agent')).not.toBeInTheDocument()
   })
 
   it('keeps the session pane and content mounted while a selected session reloads', () => {

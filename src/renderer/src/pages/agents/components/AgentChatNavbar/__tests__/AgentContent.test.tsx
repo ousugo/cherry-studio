@@ -50,7 +50,7 @@ const agentA = {
 
 describe('AgentContent', () => {
   it('keeps agent page tools in the navbar', () => {
-    render(<AgentContent activeAgent={agentA} artifactPaneOpen={false} onToggleArtifactPane={vi.fn()} />)
+    render(<AgentContent activeAgent={agentA} tools={<span>files</span>} />)
 
     expect(screen.getByText('tools')).toBeInTheDocument()
     expect(screen.queryByText('select agent b')).not.toBeInTheDocument()
@@ -58,13 +58,13 @@ describe('AgentContent', () => {
   })
 
   it('does not render the workspace opener in the navbar', () => {
-    render(<AgentContent activeAgent={agentA} artifactPaneOpen={false} onToggleArtifactPane={vi.fn()} />)
+    render(<AgentContent activeAgent={agentA} tools={<span>files</span>} />)
 
     expect(screen.queryByRole('button', { name: 'open workspace' })).not.toBeInTheDocument()
   })
 
   it('hides agent-scoped navbar actions when no agent is active', () => {
-    render(<AgentContent activeAgent={null} artifactPaneOpen={false} onToggleArtifactPane={vi.fn()} />)
+    render(<AgentContent activeAgent={null} tools={<span>files</span>} />)
 
     expect(screen.queryByText('tools')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'open workspace' })).not.toBeInTheDocument()

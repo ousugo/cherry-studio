@@ -10,16 +10,25 @@ import { NotebookEditTool } from './NotebookEditTool'
 import { ReadTool } from './ReadTool'
 import { SearchTool } from './SearchTool'
 import { SkillTool } from './SkillTool'
+import { createStructuredAgentTool } from './StructuredAgentTool'
 import { TaskTool } from './TaskTool'
 import { ToolSearchTool } from './ToolSearchTool'
-import { AgentToolsType, type ToolInput, type ToolOutput } from './types'
+import { AgentToolsType, type TaskToolInput, type TaskToolOutput, type ToolInput, type ToolOutput } from './types'
 import { WebFetchTool } from './WebFetchTool'
 import { WebSearchTool } from './WebSearchTool'
 import { WriteTool } from './WriteTool'
 
 export const toolRenderers = {
+  [AgentToolsType.Agent]: ({ input, output }: { input?: unknown; output?: unknown }) =>
+    TaskTool({
+      input: input as TaskToolInput,
+      output: output as TaskToolOutput,
+      toolName: AgentToolsType.Agent
+    }),
   [AgentToolsType.Read]: ReadTool,
   [AgentToolsType.Task]: TaskTool,
+  [AgentToolsType.TaskOutput]: createStructuredAgentTool(AgentToolsType.TaskOutput),
+  [AgentToolsType.TaskStop]: createStructuredAgentTool(AgentToolsType.TaskStop),
   [AgentToolsType.Bash]: BashTool,
   [AgentToolsType.Search]: SearchTool,
   [AgentToolsType.Glob]: GlobTool,
@@ -33,7 +42,15 @@ export const toolRenderers = {
   [AgentToolsType.NotebookEdit]: NotebookEditTool,
   [AgentToolsType.ExitPlanMode]: ExitPlanModeTool,
   [AgentToolsType.Skill]: SkillTool,
-  [AgentToolsType.ToolSearch]: ToolSearchTool
+  [AgentToolsType.ToolSearch]: ToolSearchTool,
+  [AgentToolsType.ListMcpResources]: createStructuredAgentTool(AgentToolsType.ListMcpResources),
+  [AgentToolsType.ReadMcpResource]: createStructuredAgentTool(AgentToolsType.ReadMcpResource),
+  [AgentToolsType.TaskCreate]: createStructuredAgentTool(AgentToolsType.TaskCreate),
+  [AgentToolsType.TaskGet]: createStructuredAgentTool(AgentToolsType.TaskGet),
+  [AgentToolsType.TaskUpdate]: createStructuredAgentTool(AgentToolsType.TaskUpdate),
+  [AgentToolsType.TaskList]: createStructuredAgentTool(AgentToolsType.TaskList),
+  [AgentToolsType.EnterWorktree]: createStructuredAgentTool(AgentToolsType.EnterWorktree),
+  [AgentToolsType.ExitWorktree]: createStructuredAgentTool(AgentToolsType.ExitWorktree)
 }
 
 export function renderTool(

@@ -35,8 +35,8 @@ describe('buildInitialAgentFormState', () => {
       name: 'Demo',
       description: 'd',
       model: 'p-1::m-1',
-      planModel: 'p-1',
-      smallModel: 's-1',
+      planModel: 'p-1::p-1',
+      smallModel: 'p-1::s-1',
       instructions: 'hi',
       mcps: ['mcp-1'],
       allowedTools: ['Read']
@@ -46,8 +46,8 @@ describe('buildInitialAgentFormState', () => {
       name: 'Demo',
       description: 'd',
       model: 'p-1::m-1',
-      planModel: 'p-1',
-      smallModel: 's-1',
+      planModel: 'p-1::p-1',
+      smallModel: 'p-1::s-1',
       instructions: 'hi',
       mcps: ['mcp-1'],
       allowedTools: ['Read']

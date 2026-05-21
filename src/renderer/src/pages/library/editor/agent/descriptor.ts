@@ -70,8 +70,8 @@ export interface AgentFormState {
   description: string
   /** `''` is the explicit "no model selected yet" draft sentinel; once chosen it is always a valid UniqueModelId. */
   model: UniqueModelId | ''
-  planModel: string
-  smallModel: string
+  planModel: UniqueModelId | ''
+  smallModel: UniqueModelId | ''
   instructions: string
   mcps: string[]
   allowedTools: string[]

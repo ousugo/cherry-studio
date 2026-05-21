@@ -16,7 +16,8 @@ export function ExitPlanModeTool({
 }): ToolDisclosureItem {
   const { t } = useTranslation()
   const plan = input?.plan ?? ''
-  const combinedContent = plan + '\n\n' + (output ?? '')
+  const outputContent = typeof output === 'string' ? output : (output?.plan ?? '')
+  const combinedContent = plan + '\n\n' + outputContent
   const { data: truncatedContent, isTruncated, originalLength } = truncateOutput(combinedContent)
   const planCount = plan.split('\n\n').length
 

@@ -1,30 +1,16 @@
 import { loggerService } from '@logger'
-import {
-  ARTIFACT_RIGHT_PANE_CACHE_KEY,
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  ChatAppShell,
-  type ChatPanePosition,
-  RightPaneHost
-} from '@renderer/components/chat'
+import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
 import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
 import ComposerDockTransitionFrame from '@renderer/components/chat/composer/ComposerDockTransitionFrame'
 import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import AgentComposer, { AgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
-import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import ArtifactPane, {
-  ARTIFACT_PANE_WIDTH,
-  type ArtifactPaneViewMode
-} from '@renderer/components/chat/panes/ArtifactPane'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
-import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useSession'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
@@ -37,17 +23,19 @@ import { isPerExecutionOnly } from '@renderer/transport/IpcChatTransport'
 import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import type { PropsWithChildren, ReactNode } from 'react'
+import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
 import AgentChatNavbar from './components/AgentChatNavbar'
+import { AgentRightPane, useAgentRightPaneActions } from './components/AgentRightPane'
 import AgentSessionMessages from './components/AgentSessionMessages'
 
 const logger = loggerService.withContext('AgentChat')
+const EMPTY_MESSAGES: CherryUIMessage[] = []
+const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
 
 interface AgentChatProps {
   pane?: ReactNode
@@ -79,11 +67,6 @@ const AgentChat = ({
   const { t } = useTranslation()
   const { messageStyle } = useSettings()
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
-  const [artifactPaneOpen, setArtifactPaneOpen] = useState(false)
-  const [artifactPaneMaximized, setArtifactPaneMaximized] = useState(false)
-  const [artifactPaneSelectedFile, setArtifactPaneSelectedFile] = useState<string | null>(null)
-  const [artifactPaneViewMode, setArtifactPaneViewMode] = useState<ArtifactPaneViewMode>('preview')
-  const [artifactOverlayBottomInset, setArtifactOverlayBottomInset] = useState(0)
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [temporaryComposerDocked, setTemporaryComposerDocked] = useState(false)
 
@@ -108,17 +91,10 @@ const AgentChat = ({
   const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(
     visibleSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
   )
-  const artifactPaneWorkspacePath =
-    visibleSession?.workspace?.path ?? temporaryAgentConversation?.session.workspace?.path
 
   useEffect(() => {
     setTemporaryComposerDocked(false)
   }, [temporaryAgentConversation?.id])
-
-  useEffect(() => {
-    setArtifactPaneSelectedFile(null)
-    setArtifactPaneViewMode('preview')
-  }, [artifactPaneWorkspacePath])
 
   useEffect(() => {
     if (!activeSession || !temporaryAgentConversation || activeSession.id !== temporaryAgentConversation.sessionId)
@@ -202,17 +178,6 @@ const AgentChat = ({
     [onPersistTemporarySession, refreshPersistedSession, temporaryAgentConversation, watchTemporaryStream]
   )
 
-  const closeArtifactPane = useCallback(() => {
-    setArtifactPaneOpen(false)
-    setArtifactPaneMaximized(false)
-  }, [])
-  const toggleArtifactPane = useCallback(() => {
-    setArtifactPaneOpen((prev) => {
-      if (prev) setArtifactPaneMaximized(false)
-      return !prev
-    })
-  }, [])
-  const toggleArtifactPaneMaximized = useCallback(() => setArtifactPaneMaximized((prev) => !prev), [])
   const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
     setCitationPanelCitations(citations)
   }, [])
@@ -226,23 +191,19 @@ const AgentChat = ({
 
   if (isInitializing) {
     return (
-      <AgentChatFrame
-        className={messageStyle}
-        pane={pane}
-        paneOpen={paneOpen}
-        panePosition={panePosition}
-        artifactPaneOpen={artifactPaneOpen}
-        artifactPaneMaximized={artifactPaneMaximized}
-        artifactPaneWorkspacePath={artifactPaneWorkspacePath}
-        artifactPaneSelectedFile={artifactPaneSelectedFile}
-        artifactPaneViewMode={artifactPaneViewMode}
-        artifactOverlayBottomInset={artifactOverlayBottomInset}
-        onCloseArtifactPane={closeArtifactPane}
-        onArtifactPaneSelectedFileChange={setArtifactPaneSelectedFile}
-        onArtifactPaneViewModeChange={setArtifactPaneViewMode}
-        onToggleArtifactPaneMaximized={toggleArtifactPaneMaximized}
-        main={<MessageListInitialLoading />}
-      />
+      <AgentRightPane.Provider
+        workspacePath={activeSession?.workspace?.path ?? temporaryAgentConversation?.session.workspace?.path}
+        messages={EMPTY_MESSAGES}
+        partsByMessageId={EMPTY_PARTS}>
+        <AgentChatFrame
+          className={messageStyle}
+          pane={pane}
+          paneOpen={paneOpen}
+          panePosition={panePosition}
+          main={<MessageListInitialLoading />}
+          rightPane={<AgentRightPane.Host />}
+        />
+      </AgentRightPane.Provider>
     )
   }
 
@@ -284,100 +245,74 @@ const AgentChat = ({
     ) : null
 
     return (
-      <AgentChatFrame
-        className={messageStyle}
-        pane={pane}
-        paneOpen={paneOpen}
-        panePosition={panePosition}
-        artifactPaneOpen={artifactPaneOpen}
-        artifactPaneMaximized={artifactPaneMaximized}
-        artifactPaneWorkspacePath={artifactPaneWorkspacePath}
-        artifactPaneSelectedFile={artifactPaneSelectedFile}
-        artifactPaneViewMode={artifactPaneViewMode}
-        artifactOverlayBottomInset={artifactOverlayBottomInset}
-        onCloseArtifactPane={closeArtifactPane}
-        onArtifactPaneSelectedFileChange={setArtifactPaneSelectedFile}
-        onArtifactPaneViewModeChange={setArtifactPaneViewMode}
-        onToggleArtifactPaneMaximized={toggleArtifactPaneMaximized}
-        topBar={
-          <div className="flex h-fit w-full min-w-0">
-            <AgentChatNavbar
-              className="min-w-0"
-              activeAgent={activeAgent ?? null}
-              artifactPaneOpen={artifactPaneOpen}
-              onToggleArtifactPane={toggleArtifactPane}
+      <AgentRightPane.Provider
+        workspacePath={temporaryAgentConversation.session.workspace?.path}
+        messages={EMPTY_MESSAGES}
+        partsByMessageId={EMPTY_PARTS}
+        sessionId={temporaryAgentConversation.sessionId}
+        sessionName={temporaryAgentConversation.session.name}
+        agentId={temporaryAgentConversation.agentId}
+        agentName={activeAgent?.name}
+        agentAvatar={activeAgent?.configuration?.avatar}>
+        <AgentChatFrame
+          className={messageStyle}
+          pane={pane}
+          paneOpen={paneOpen}
+          panePosition={panePosition}
+          topBar={
+            <div className="flex h-fit w-full min-w-0">
+              <AgentChatNavbar
+                className="min-w-0"
+                activeAgent={activeAgent ?? null}
+                tools={<AgentRightPane.FilesToggle />}
+              />
+            </div>
+          }
+          main={
+            <RightPaneInsetComposerDock
+              placement={temporaryComposerDocked ? 'docked' : 'home'}
+              main={<div className="h-full min-h-0 flex-1" />}
+              composer={homeComposer}
+              mainVisible={temporaryComposerDocked}
             />
-          </div>
-        }
-        main={
-          <ComposerDockTransitionFrame
-            placement={temporaryComposerDocked ? 'docked' : 'home'}
-            main={<div className="h-full min-h-0 flex-1" />}
-            composer={homeComposer}
-            mainVisible={temporaryComposerDocked}
-            onMainOverlayBottomInsetChange={setArtifactOverlayBottomInset}
-          />
-        }
-        sidePanel={
-          <CitationsPanel
-            open={citationsPanelOpen}
-            onClose={() => setCitationPanelCitations(null)}
-            citations={citationPanelCitations ?? []}
-          />
-        }
-      />
+          }
+          sidePanel={
+            <CitationsPanel
+              open={citationsPanelOpen}
+              onClose={() => setCitationPanelCitations(null)}
+              citations={citationPanelCitations ?? []}
+            />
+          }
+          centerOverlay={<AgentRightPane.MaximizedOverlay />}
+          rightPane={<AgentRightPane.Host />}
+        />
+      </AgentRightPane.Provider>
     )
   }
 
   const sendableAgentId = activeAgent ? (visibleSession.agentId ?? undefined) : undefined
 
   return (
-    <AgentChatFrame
+    <AgentChatSessionFrame
       className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}
       pane={pane}
       paneOpen={paneOpen}
       panePosition={panePosition}
-      artifactPaneOpen={artifactPaneOpen}
-      artifactPaneMaximized={artifactPaneMaximized}
-      artifactPaneWorkspacePath={artifactPaneWorkspacePath}
-      artifactPaneSelectedFile={artifactPaneSelectedFile}
-      artifactPaneViewMode={artifactPaneViewMode}
-      artifactOverlayBottomInset={artifactOverlayBottomInset}
-      onCloseArtifactPane={closeArtifactPane}
-      onArtifactPaneSelectedFileChange={setArtifactPaneSelectedFile}
-      onArtifactPaneViewModeChange={setArtifactPaneViewMode}
-      onToggleArtifactPaneMaximized={toggleArtifactPaneMaximized}
-      topBar={
-        <div className="flex h-fit w-full min-w-0">
-          <AgentChatNavbar
-            className="min-w-0"
-            activeAgent={activeAgent ?? null}
-            artifactPaneOpen={artifactPaneOpen}
-            onToggleArtifactPane={toggleArtifactPane}
-          />
-        </div>
-      }
-      centerContent={
-        <AgentChatSessionContent
-          key={visibleSession.id}
-          agentId={sendableAgentId}
-          sessionId={visibleSession.id}
-          activeAgent={activeAgent}
-          isMultiSelectMode={isMultiSelectMode}
-          sendDisabled={isShowingPreviousSession}
-          onOpenCitationsPanel={handleOpenCitationsPanel}
-          onMainOverlayBottomInsetChange={setArtifactOverlayBottomInset}
-          onNewSessionDraft={
-            sendableAgentId
-              ? () =>
-                  onStartTemporarySession?.({
-                    agentId: sendableAgentId,
-                    workspaceId: visibleSession.workspaceId ?? undefined,
-                    name: t('common.unnamed')
-                  })
-              : undefined
-          }
-        />
+      visibleSession={visibleSession}
+      agentId={sendableAgentId}
+      activeAgent={activeAgent}
+      isMultiSelectMode={isMultiSelectMode}
+      sendDisabled={isShowingPreviousSession}
+      onOpenCitationsPanel={handleOpenCitationsPanel}
+      onNewSessionDraft={
+        sendableAgentId
+          ? () =>
+              onStartTemporarySession?.({
+                agentId: sendableAgentId,
+                workspaceId: visibleSession.workspaceId ?? undefined,
+                name: t('common.unnamed')
+              })
+          : undefined
       }
       sidePanel={
         <CitationsPanel
@@ -392,28 +327,38 @@ const AgentChat = ({
 
 // ── Inner: session-scoped history; agentId is present only while the session is sendable ──
 
-interface InnerProps {
+type VisibleAgentSession = NonNullable<ReturnType<typeof useActiveSession>['session']>
+
+interface AgentChatSessionFrameProps {
+  className?: string
+  pane?: ReactNode
+  paneOpen?: boolean
+  panePosition?: ChatPanePosition
+  sidePanel?: ReactNode
+  visibleSession: VisibleAgentSession
   agentId?: string
-  sessionId: string
   activeAgent: GetAgentResponse | undefined
   isMultiSelectMode: boolean
   sendDisabled?: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
-  onMainOverlayBottomInsetChange?: (inset: number) => void
   onNewSessionDraft?: () => void | Promise<void>
 }
 
-const AgentChatSessionContent = ({
+const AgentChatSessionFrame = ({
+  className,
+  pane,
+  paneOpen,
+  panePosition,
+  sidePanel,
+  visibleSession,
   agentId,
-  sessionId,
   activeAgent,
   isMultiSelectMode,
   sendDisabled = false,
   onOpenCitationsPanel,
-  onMainOverlayBottomInsetChange,
   onNewSessionDraft
-}: InnerProps) => {
-  const [narrowMode] = usePreference('chat.narrow_mode')
+}: AgentChatSessionFrameProps) => {
+  const sessionId = visibleSession.id
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const {
     messages: uiMessages,
@@ -522,7 +467,7 @@ const AgentChatSessionContent = ({
   const main = (
     <div className="translate-z-0 relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
       <div className="min-h-0 flex-1">
-        <AgentSessionMessages
+        <AgentSessionMessagesWithRightPaneAction
           agentId={agentId}
           sessionId={sessionId}
           messages={uiMessages}
@@ -537,23 +482,54 @@ const AgentChatSessionContent = ({
           respondToolApproval={agentId ? handleToolApprovalRespond : undefined}
         />
       </div>
-      <div className="shrink-0 px-4.5 pb-2">
-        <NarrowLayout narrowMode={narrowMode}>
-          <PinnedTodoPanel messages={uiMessages} partsByMessageId={partsByMessageId} />
-        </NarrowLayout>
-      </div>
     </div>
   )
 
   return (
-    <ComposerDockTransitionFrame
-      placement="docked"
-      main={main}
-      composer={bottomComposer}
-      mainVisible
-      onMainOverlayBottomInsetChange={onMainOverlayBottomInsetChange}
-    />
+    <AgentRightPane.Provider
+      workspacePath={visibleSession.workspace?.path}
+      messages={uiMessages}
+      partsByMessageId={partsByMessageId}
+      sessionId={sessionId}
+      sessionName={visibleSession.name}
+      agentId={agentId ?? visibleSession.agentId ?? undefined}
+      agentName={activeAgent?.name}
+      agentAvatar={activeAgent?.configuration?.avatar}
+      modelFallback={fallbackSnapshot}>
+      <AgentChatFrame
+        className={className}
+        pane={pane}
+        paneOpen={paneOpen}
+        panePosition={panePosition}
+        topBar={
+          <div className="flex h-fit w-full min-w-0">
+            <AgentChatNavbar
+              className="min-w-0"
+              activeAgent={activeAgent ?? null}
+              tools={<AgentRightPane.FilesToggle />}
+            />
+          </div>
+        }
+        centerContent={
+          <RightPaneInsetComposerDock placement="docked" main={main} composer={bottomComposer} mainVisible />
+        }
+        sidePanel={sidePanel}
+        centerOverlay={<AgentRightPane.MaximizedOverlay />}
+        rightPane={<AgentRightPane.Host />}
+      />
+    </AgentRightPane.Provider>
   )
+}
+
+const AgentSessionMessagesWithRightPaneAction = (props: ComponentProps<typeof AgentSessionMessages>) => {
+  const { openAgentToolFlow } = useAgentRightPaneActions()
+  return <AgentSessionMessages {...props} openAgentToolFlow={openAgentToolFlow} />
+}
+
+// Reports the docked composer's overlay inset so the maximized right pane stops above it.
+const RightPaneInsetComposerDock = (props: ComponentProps<typeof ComposerDockTransitionFrame>) => {
+  const { setOverlayBottomInset } = useAgentRightPaneActions()
+  return <ComposerDockTransitionFrame {...props} onMainOverlayBottomInsetChange={setOverlayBottomInset} />
 }
 
 interface AgentChatFrameBaseProps {
@@ -563,17 +539,9 @@ interface AgentChatFrameBaseProps {
   topBar?: ReactNode
   sidePanel?: ReactNode
   overlay?: ReactNode
+  centerOverlay?: ReactNode
+  rightPane?: ReactNode
   className?: string
-  artifactPaneOpen?: boolean
-  artifactPaneMaximized?: boolean
-  artifactPaneWorkspacePath?: string
-  artifactPaneSelectedFile?: string | null
-  artifactPaneViewMode?: ArtifactPaneViewMode
-  artifactOverlayBottomInset?: number
-  onCloseArtifactPane?: () => void
-  onArtifactPaneSelectedFileChange?: (file: string | null) => void
-  onArtifactPaneViewModeChange?: (mode: ArtifactPaneViewMode) => void
-  onToggleArtifactPaneMaximized?: () => void
 }
 
 type AgentChatFrameMainProps = AgentChatFrameBaseProps & {
@@ -600,35 +568,10 @@ const AgentChatFrame = ({
   bottomComposer,
   sidePanel,
   overlay,
-  className,
-  artifactPaneOpen,
-  artifactPaneMaximized,
-  artifactPaneWorkspacePath,
-  artifactPaneSelectedFile,
-  artifactPaneViewMode,
-  artifactOverlayBottomInset = 0,
-  onCloseArtifactPane,
-  onArtifactPaneSelectedFileChange,
-  onArtifactPaneViewModeChange,
-  onToggleArtifactPaneMaximized
+  centerOverlay,
+  rightPane,
+  className
 }: AgentChatFrameProps) => {
-  const artifactCenterOverlay =
-    artifactPaneOpen && artifactPaneMaximized ? (
-      <div
-        className="absolute inset-x-0 top-0 z-40 min-h-0 overflow-hidden bg-background p-4"
-        style={{ bottom: artifactOverlayBottomInset }}>
-        <ArtifactPane
-          workspacePath={artifactPaneWorkspacePath}
-          maximized
-          selectedFile={artifactPaneSelectedFile}
-          viewMode={artifactPaneViewMode}
-          onSelectedFileChange={onArtifactPaneSelectedFileChange}
-          onViewModeChange={onArtifactPaneViewModeChange}
-          onToggleMaximized={onToggleArtifactPaneMaximized}
-        />
-      </div>
-    ) : undefined
-
   const shell =
     centerContent !== undefined ? (
       <ChatAppShell
@@ -638,7 +581,7 @@ const AgentChatFrame = ({
         topBar={topBar}
         centerContent={centerContent}
         sidePanel={sidePanel}
-        centerOverlay={artifactCenterOverlay}
+        centerOverlay={centerOverlay}
         overlay={overlay}
       />
     ) : (
@@ -650,7 +593,7 @@ const AgentChatFrame = ({
         main={main ?? null}
         bottomComposer={bottomComposer}
         sidePanel={sidePanel}
-        centerOverlay={artifactCenterOverlay}
+        centerOverlay={centerOverlay}
         overlay={overlay}
       />
     )
@@ -658,25 +601,7 @@ const AgentChatFrame = ({
   return (
     <Container className={className}>
       <QuickPanelProvider>{shell}</QuickPanelProvider>
-      <RightPaneHost
-        open={artifactPaneOpen && !artifactPaneMaximized}
-        width={ARTIFACT_PANE_WIDTH}
-        resizable
-        minWidth={ARTIFACT_RIGHT_PANE_MIN_WIDTH}
-        defaultWidth={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
-        maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
-        cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}>
-        {onCloseArtifactPane && (
-          <ArtifactPane
-            workspacePath={artifactPaneWorkspacePath}
-            selectedFile={artifactPaneSelectedFile}
-            viewMode={artifactPaneViewMode}
-            onSelectedFileChange={onArtifactPaneSelectedFileChange}
-            onViewModeChange={onArtifactPaneViewModeChange}
-            onToggleMaximized={onToggleArtifactPaneMaximized}
-          />
-        )}
-      </RightPaneHost>
+      {rightPane}
     </Container>
   )
 }

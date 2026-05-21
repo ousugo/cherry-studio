@@ -125,6 +125,25 @@ describe('toolResponse adapter', () => {
     expect((response?.tool as any).serverName).toBe('Search')
   })
 
+  it('extracts parent tool id from Claude Code provider metadata', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'Read',
+      toolCallId: 'child-call',
+      state: 'output-available',
+      input: { file_path: '/tmp/a.ts' },
+      output: 'ok',
+      callProviderMetadata: {
+        'claude-code': {
+          parentToolCallId: 'parent-call'
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.parentToolUseId).toBe('parent-call')
+  })
+
   it('does not synthesize a tool response without an AI SDK toolCallId', () => {
     const part = {
       type: 'dynamic-tool',

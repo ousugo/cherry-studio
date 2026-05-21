@@ -106,8 +106,8 @@ export const AgentBaseSchema = z.strictObject({
   description: z.string().optional(),
   instructions: z.string().optional(),
   model: UniqueModelIdSchema,
-  planModel: z.string().optional(),
-  smallModel: z.string().optional(),
+  planModel: UniqueModelIdSchema.optional(),
+  smallModel: UniqueModelIdSchema.optional(),
   mcps: z.array(z.string()).optional(),
   allowedTools: z.array(z.string()).optional(),
   configuration: AgentConfigurationSchema.optional()

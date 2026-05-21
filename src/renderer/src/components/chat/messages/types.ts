@@ -183,6 +183,13 @@ export interface MessageErrorDetailInput {
   diagnosisContext?: MessageErrorDiagnosisContext
 }
 
+export interface OpenAgentToolFlowInput {
+  toolCallId: string
+  toolName?: string
+  sourceMessageId?: string
+  title?: string
+}
+
 export interface RemoveMessageErrorPartInput {
   messageId: string
   partId: string
@@ -220,6 +227,7 @@ export interface MessageRenderConfig {
   renderInputMessageAsMarkdown: boolean
   codeFancyBlock: boolean
   thoughtAutoCollapse: boolean
+  collapseCompletedToolHistory: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
   multiModelMessageStyle: MultiModelMessageStyle
@@ -236,6 +244,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   renderInputMessageAsMarkdown: false,
   codeFancyBlock: true,
   thoughtAutoCollapse: true,
+  collapseCompletedToolHistory: true,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
   multiModelMessageStyle: 'horizontal',
@@ -310,6 +319,7 @@ export interface MessageListActions {
   openTrace?: (message: MessageListItem, options?: { modelName?: string }) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
+  openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
   showInFolder?: (path: string) => void | Promise<void>
   openExternalUrl?: (url: string) => void | Promise<void>
   openInExternalApp?: (app: ExternalAppInfo, path: string) => void | Promise<void>

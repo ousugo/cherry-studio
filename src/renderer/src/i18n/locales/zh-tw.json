@@ -358,6 +358,39 @@
       "select_file": "選擇檔案以預覽",
       "toggle": "顯示預覽面板"
     },
+    "right_pane": {
+      "close": "關閉",
+      "files_toggle": "顯示檔案",
+      "flow": {
+        "empty": {
+          "description": "選擇一個 Agent 工具呼叫來查看它的子訊息流。",
+          "title": "未選擇工具"
+        },
+        "no_messages": {
+          "description": "這個工具呼叫沒有捕捉到子訊息流。",
+          "title": "暫無訊息"
+        }
+      },
+      "status": {
+        "activity": "活動",
+        "agent": "智能體",
+        "context": "上下文",
+        "no_tasks": "暫無活動任務",
+        "selected_tool": "選中工具",
+        "task_count": "{{completed}} / {{total}} 已完成",
+        "tasks": "任務",
+        "tools_active": "活躍",
+        "tools_done": "完成",
+        "tools_failed": "失敗",
+        "tools_total": "總數",
+        "workspace": "工作區"
+      },
+      "tabs": {
+        "files": "檔案",
+        "flow": "訊息流",
+        "status": "狀態"
+      }
+    },
     "reorder": {
       "error": {
         "failed": "Agent 排序失敗"

@@ -27,6 +27,7 @@ type Props = {
   /** Trigger fetching the next older page. */
   loadOlder?: () => void
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
+  openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
 }
@@ -42,6 +43,7 @@ const AgentSessionMessages = ({
   hasOlder = false,
   loadOlder,
   onOpenCitationsPanel,
+  openAgentToolFlow,
   deleteMessage,
   respondToolApproval
 }: Props) => {
@@ -83,6 +85,7 @@ const AgentSessionMessages = ({
     hasOlder,
     loadOlder,
     openCitationsPanel: onOpenCitationsPanel,
+    openAgentToolFlow,
     deleteMessage,
     respondToolApproval,
     messageNavigation

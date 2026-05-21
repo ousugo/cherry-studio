@@ -1,14 +1,13 @@
-import ArtifactPaneToggleButton from './ArtifactPaneToggleButton'
+import type { ReactNode } from 'react'
 
 interface Props {
-  artifactPaneOpen: boolean
-  onToggleArtifactPane: () => void
+  children?: ReactNode
 }
 
-const Tools = ({ artifactPaneOpen, onToggleArtifactPane }: Props) => {
+const Tools = ({ children }: Props) => {
   return (
     <div className="flex items-center gap-0.5">
-      <ArtifactPaneToggleButton open={artifactPaneOpen} onToggle={onToggleArtifactPane} />
+      {children}
       {/* TODO: Add search button back when global search supports agent messages */}
     </div>
   )

@@ -279,6 +279,45 @@ describe('MessagePartsRenderer', () => {
     expect(el.getAttribute('data-server-name')).toBe('S')
   })
 
+  it('hides tool parts that belong to a parent agent flow', () => {
+    renderParts([
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'parent',
+        toolName: 'Agent',
+        state: 'output-available',
+        input: { description: 'Explore project' },
+        output: {}
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'child',
+        toolName: 'Read',
+        state: 'output-available',
+        output: {},
+        callProviderMetadata: {
+          'claude-code': {
+            parentToolCallId: 'parent'
+          }
+        }
+      },
+      {
+        type: 'text',
+        text: 'child text',
+        providerMetadata: {
+          'claude-code': {
+            parentToolCallId: 'parent'
+          }
+        }
+      }
+    ] as unknown as CherryMessagePart[])
+
+    const tools = screen.getAllByTestId('mock-message-tools')
+    expect(tools).toHaveLength(1)
+    expect(tools[0].getAttribute('data-tool-name')).toBe('Agent')
+    expect(screen.queryByText('child text')).toBeNull()
+  })
+
   // -- tool group --
   it('renders multiple tool parts as ToolBlockGroup', () => {
     renderParts([

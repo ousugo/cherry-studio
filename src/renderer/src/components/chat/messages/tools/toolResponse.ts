@@ -109,6 +109,21 @@ function extractCherryToolMetadata(part: ToolResponsePart): ToolMetadata | undef
   )
 }
 
+function extractClaudeParentToolCallIdFrom(metadata: ProviderMetadata | undefined): string | undefined {
+  if (!isRecord(metadata)) return undefined
+  const claudeCode = isRecord(metadata['claude-code']) ? metadata['claude-code'] : undefined
+  const parentToolCallId = claudeCode?.parentToolCallId ?? claudeCode?.parentToolUseId
+  return typeof parentToolCallId === 'string' && parentToolCallId ? parentToolCallId : undefined
+}
+
+function extractParentToolUseId(part: ToolResponsePart): string | undefined {
+  const resultProviderMetadata = 'resultProviderMetadata' in part ? part.resultProviderMetadata : undefined
+  return (
+    extractClaudeParentToolCallIdFrom(part.callProviderMetadata) ??
+    extractClaudeParentToolCallIdFrom(resultProviderMetadata)
+  )
+}
+
 function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
   if (!isRecord(metadata)) return false
   const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
@@ -169,6 +184,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const metadata = outputMetadata ?? cherryMetadata
   const toolType = resolveToolType(toolPart, toolName, metadata)
   const response = status === 'error' ? normalizeErrorOutput(toolPart) : rawResponse
+  const parentToolUseId = extractParentToolUseId(toolPart)
 
   const partialArguments =
     (status === 'streaming' || status === 'invoking') && typeof toolPart.input === 'string' ? toolPart.input : undefined
@@ -182,6 +198,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
       status,
       response,
       toolCallId,
+      ...(parentToolUseId ? { parentToolUseId } : {}),
       ...(partialArguments ? { partialArguments } : {})
     }
     return mcpResponse
@@ -195,6 +212,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     status,
     response,
     toolCallId,
+    ...(parentToolUseId ? { parentToolUseId } : {}),
     ...(partialArguments ? { partialArguments } : {})
   }
   return normalResponse

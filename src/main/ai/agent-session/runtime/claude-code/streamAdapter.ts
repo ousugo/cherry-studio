@@ -297,10 +297,10 @@ export class ClaudeCodeStreamAdapter {
         this.handleToolResult(block, sdkParentToolUseId, ctx)
         return
       case 'text':
-        this.handleTextBlockStart(event, ctx)
+        this.handleTextBlockStart(event, sdkParentToolUseId, ctx)
         return
       case 'thinking':
-        this.handleThinkingBlockStart(event, ctx)
+        this.handleThinkingBlockStart(event, sdkParentToolUseId, ctx)
         return
     }
   }
@@ -352,21 +352,37 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleTextBlockStart(event: BetaRawContentBlockStartEvent, ctx: StreamContext): void {
+  private handleTextBlockStart(
+    event: BetaRawContentBlockStartEvent,
+    sdkParentToolUseId: SDKParentToolUseId,
+    ctx: StreamContext
+  ): void {
     const partId = generateId()
     ctx.textBlocksByIndex.set(event.index, partId)
     ctx.textPartId = partId
-    ctx.sink.enqueue({ type: 'text-start', id: partId })
+    ctx.sink.enqueue({
+      type: 'text-start',
+      id: partId,
+      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+    })
     ctx.textStreamedViaContentBlock = true
   }
 
-  private handleThinkingBlockStart(event: BetaRawContentBlockStartEvent, ctx: StreamContext): void {
+  private handleThinkingBlockStart(
+    event: BetaRawContentBlockStartEvent,
+    sdkParentToolUseId: SDKParentToolUseId,
+    ctx: StreamContext
+  ): void {
     this.closeActiveTextPart(ctx)
 
     const reasoningPartId = generateId()
     ctx.reasoningBlocksByIndex.set(event.index, reasoningPartId)
     ctx.currentReasoningPartId = reasoningPartId
-    ctx.sink.enqueue({ type: 'reasoning-start', id: reasoningPartId })
+    ctx.sink.enqueue({
+      type: 'reasoning-start',
+      id: reasoningPartId,
+      providerMetadata: this.buildParentProviderMetadata(sdkParentToolUseId)
+    })
   }
 
   private handleContentBlockDelta(event: BetaRawContentBlockDeltaEvent, ctx: StreamContext): void {
@@ -505,7 +521,7 @@ export class ClaudeCodeStreamAdapter {
     const text = content.map((c: BetaContentBlock) => (c.type === 'text' ? c.text : '')).join('')
 
     if (text) {
-      this.handleAssistantText(text, ctx)
+      this.handleAssistantText(text, sdkParentToolUseId, ctx)
     }
   }
 
@@ -570,7 +586,8 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private handleAssistantText(text: string, ctx: StreamContext): void {
+  private handleAssistantText(text: string, sdkParentToolUseId: SDKParentToolUseId, ctx: StreamContext): void {
+    const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
     if (ctx.hasReceivedStreamEvents) {
       const newTextStart = ctx.streamedTextLength
       const deltaText = text.length > newTextStart ? text.slice(newTextStart) : ''
@@ -579,7 +596,7 @@ export class ClaudeCodeStreamAdapter {
       if (ctx.options.responseFormat?.type !== 'json' && deltaText) {
         if (!ctx.textPartId) {
           ctx.textPartId = generateId()
-          ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+          ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
         }
         ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: deltaText })
       }
@@ -589,7 +606,7 @@ export class ClaudeCodeStreamAdapter {
       if (ctx.options.responseFormat?.type !== 'json') {
         if (!ctx.textPartId) {
           ctx.textPartId = generateId()
-          ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId })
+          ctx.sink.enqueue({ type: 'text-start', id: ctx.textPartId, providerMetadata })
         }
         ctx.sink.enqueue({ type: 'text-delta', id: ctx.textPartId, delta: text })
       }
@@ -851,6 +868,18 @@ export class ClaudeCodeStreamAdapter {
 
   private getToolTitle(state: ToolStreamState): string | undefined {
     return state.toolType === 'mcp' && state.serverName ? `${state.serverName}: ${state.name}` : undefined
+  }
+
+  private buildParentProviderMetadata(sdkParentToolUseId: SDKParentToolUseId): Record<string, JSONObject> | undefined {
+    if (!sdkParentToolUseId) return undefined
+    return {
+      'claude-code': {
+        parentToolCallId: sdkParentToolUseId
+      },
+      cherry: {
+        transport: 'claude-agent'
+      }
+    }
   }
 
   private buildToolProviderMetadata(

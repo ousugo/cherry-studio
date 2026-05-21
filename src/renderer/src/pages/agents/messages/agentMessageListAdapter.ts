@@ -1,3 +1,4 @@
+import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import type {
   MessageListActions,
   MessageListMeta,
@@ -40,6 +41,7 @@ interface AgentMessageListParams {
   hasOlder?: boolean
   loadOlder?: () => void
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
   messageNavigation: string
@@ -56,21 +58,31 @@ export function useAgentMessageListProviderValue({
   hasOlder = false,
   loadOlder,
   openCitationsPanel,
+  openAgentToolFlow,
   deleteMessage,
   respondToolApproval,
   messageNavigation
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
+  const visibleMessages = useMemo(
+    () =>
+      messages.filter((message) => {
+        const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+        if (parts.length === 0) return true
+        return parts.some((part) => !hasPartParentToolCallId(part))
+      }),
+    [messages, partsByMessageId]
+  )
   const messageItems = useMemo(
     () =>
-      messages.map((message) =>
+      visibleMessages.map((message) =>
         toMessageListItem(message, {
           assistantId: assistantId ?? topic.assistantId,
           topicId: topic.id,
           modelFallback
         })
       ),
-    [assistantId, messages, modelFallback, topic.assistantId, topic.id]
+    [assistantId, visibleMessages, modelFallback, topic.assistantId, topic.id]
   )
 
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
@@ -160,6 +172,7 @@ export function useAgentMessageListProviderValue({
       respondToolApproval,
       openPath,
       openCitationsPanel,
+      openAgentToolFlow,
       showInFolder,
       abortTool,
       ...selectionController.actions,
@@ -178,6 +191,7 @@ export function useAgentMessageListProviderValue({
       loadOlder,
       messageUiStateCache.updateMessageUiState,
       openCitationsPanel,
+      openAgentToolFlow,
       openPath,
       respondToolApproval,
       selectionController.actions,

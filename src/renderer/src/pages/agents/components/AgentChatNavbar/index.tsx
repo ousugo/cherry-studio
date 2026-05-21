@@ -3,17 +3,17 @@ import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { cn } from '@renderer/utils'
 import type { AgentEntity } from '@shared/data/types/agent'
+import type { ReactNode } from 'react'
 
 import AgentContent from './AgentContent'
 
 interface Props {
   activeAgent: AgentEntity | null
-  artifactPaneOpen: boolean
-  onToggleArtifactPane: () => void
+  tools?: ReactNode
   className?: string
 }
 
-const AgentChatNavbar = ({ activeAgent, artifactPaneOpen, onToggleArtifactPane, className }: Props) => {
+const AgentChatNavbar = ({ activeAgent, tools, className }: Props) => {
   useShortcut('general.search', () => {
     void SearchPopup.show()
   })
@@ -21,11 +21,7 @@ const AgentChatNavbar = ({ activeAgent, artifactPaneOpen, onToggleArtifactPane, 
   return (
     <NavbarHeader className={cn('agent-navbar h-(--navbar-height)', className)}>
       <div className="-mx-1 flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
-        <AgentContent
-          activeAgent={activeAgent}
-          artifactPaneOpen={artifactPaneOpen}
-          onToggleArtifactPane={onToggleArtifactPane}
-        />
+        <AgentContent activeAgent={activeAgent} tools={tools} />
       </div>
     </NavbarHeader>
   )

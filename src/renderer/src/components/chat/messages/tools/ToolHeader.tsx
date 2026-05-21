@@ -43,9 +43,17 @@ export interface ToolHeaderProps {
 
 const getAgentToolIcon = (toolName: string): ReactNode => {
   switch (toolName) {
+    case AgentToolsType.Agent:
+      return <Bot size={14} />
     case AgentToolsType.Read:
       return <FileText size={14} />
     case AgentToolsType.Task:
+    case AgentToolsType.TaskCreate:
+    case AgentToolsType.TaskGet:
+    case AgentToolsType.TaskUpdate:
+    case AgentToolsType.TaskList:
+    case AgentToolsType.TaskOutput:
+    case AgentToolsType.TaskStop:
       return <Bot size={14} />
     case AgentToolsType.Bash:
     case AgentToolsType.BashOutput:
@@ -70,6 +78,8 @@ const getAgentToolIcon = (toolName: string): ReactNode => {
     case AgentToolsType.TodoWrite:
       return <ListTodo size={14} />
     case AgentToolsType.ExitPlanMode:
+    case AgentToolsType.EnterWorktree:
+    case AgentToolsType.ExitWorktree:
       return <DoorOpen size={14} />
     case AgentToolsType.Skill:
       return <PencilRuler size={14} />

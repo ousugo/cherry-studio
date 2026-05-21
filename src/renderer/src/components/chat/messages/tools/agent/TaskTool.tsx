@@ -13,27 +13,27 @@ import {
 
 export function TaskTool({
   input,
-  output
+  output,
+  toolName = AgentToolsType.Task
 }: {
   input?: TaskToolInputType
   output?: TaskToolOutputType
+  toolName?: typeof AgentToolsType.Agent | typeof AgentToolsType.Task
 }): ToolDisclosureItem {
   const { t } = useTranslation()
-  const hasOutput = Array.isArray(output) && output.length > 0
 
-  // Combine all text outputs and truncate
   const { truncatedText, isTruncated, originalLength } = useMemo(() => {
-    if (!hasOutput) return { truncatedText: '', isTruncated: false, originalLength: 0 }
-    const combinedText = output.map((item) => item.text).join('\n\n')
-    const result = truncateOutput(combinedText)
+    const result = truncateOutput(output)
     return { truncatedText: result.data, isTruncated: result.isTruncated, originalLength: result.originalLength }
-  }, [output, hasOutput])
+  }, [output])
+
+  const hasOutput = truncatedText.length > 0
 
   return {
-    key: AgentToolsType.Task,
+    key: toolName,
     label: (
       <ToolHeader
-        toolName={AgentToolsType.Task}
+        toolName={toolName}
         params={<SkeletonValue value={input?.description} width="150px" />}
         variant="collapse-label"
         showStatus={false}

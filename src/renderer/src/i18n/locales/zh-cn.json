@@ -358,6 +358,39 @@
       "select_file": "选择文件以预览",
       "toggle": "显示预览面板"
     },
+    "right_pane": {
+      "close": "关闭",
+      "files_toggle": "显示文件",
+      "flow": {
+        "empty": {
+          "description": "选择一个 Agent 工具调用来查看它的子消息流。",
+          "title": "未选择工具"
+        },
+        "no_messages": {
+          "description": "这个工具调用没有捕获到子消息流。",
+          "title": "暂无消息"
+        }
+      },
+      "status": {
+        "activity": "活动",
+        "agent": "智能体",
+        "context": "上下文",
+        "no_tasks": "暂无活动任务",
+        "selected_tool": "选中工具",
+        "task_count": "{{completed}} / {{total}} 已完成",
+        "tasks": "任务",
+        "tools_active": "活跃",
+        "tools_done": "完成",
+        "tools_failed": "失败",
+        "tools_total": "总数",
+        "workspace": "工作区"
+      },
+      "tabs": {
+        "files": "文件",
+        "flow": "消息流",
+        "status": "状态"
+      }
+    },
     "reorder": {
       "error": {
         "failed": "智能体排序失败"

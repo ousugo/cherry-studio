@@ -289,10 +289,18 @@ async function buildEnvironment(
     throw new Error(`buildEnvironment: agent ${agent.id} has no model`)
   }
   const { providerId, modelId: rawModelId } = parseUniqueModelId(agent.model)
+  const { providerId: sonnetProviderId, modelId: sonnetModelId } = parseUniqueModelId(agent?.planModel ?? agent.model)
+  const { providerId: haikuProviderId, modelId: haikuModelId } = parseUniqueModelId(agent?.smallModel ?? agent.model)
   let apiModelId = rawModelId
+  let sonnetApiModelId = sonnetModelId
+  let haikuApiModelId = haikuModelId
   try {
     const model = await modelService.getByKey(providerId, rawModelId)
+    const sonnetModel = await modelService.getByKey(sonnetProviderId, sonnetModelId)
+    const haikuModel = await modelService.getByKey(haikuProviderId, haikuApiModelId)
     apiModelId = model.apiModelId ?? rawModelId
+    sonnetApiModelId = sonnetModel.apiModelId ?? rawModelId
+    haikuApiModelId = haikuModel.apiModelId ?? rawModelId
   } catch {
     // Model not in model table — use raw ID (common for agent-specific models)
   }
@@ -305,13 +313,13 @@ async function buildEnvironment(
     // not duplicated here.
     ANTHROPIC_MODEL: apiModelId,
     ANTHROPIC_DEFAULT_OPUS_MODEL: apiModelId,
-    ANTHROPIC_DEFAULT_SONNET_MODEL: apiModelId,
-    // TODO: support set small model in UI
-    ANTHROPIC_DEFAULT_HAIKU_MODEL: apiModelId,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: sonnetApiModelId,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: haikuApiModelId,
     ELECTRON_RUN_AS_NODE: '1',
     ELECTRON_NO_ATTACH_CONSOLE: '1',
     CLAUDE_CONFIG_DIR: application.getPath('feature.agents.claude.root'),
     ENABLE_TOOL_SEARCH: 'auto',
+    CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
     CHERRY_STUDIO_BUN_PATH: bunPath,
     ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
   }

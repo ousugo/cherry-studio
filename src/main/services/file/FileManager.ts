@@ -129,6 +129,7 @@ import { fileRefService } from '@data/services/FileRefService'
 import { orphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { fileStorage } from '@main/services/FileStorage'
 import { stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { FileEntryIdSchema } from '@shared/data/types/file'
@@ -618,15 +619,18 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   /**
-   * Register the Phase 1 File_* IPC handlers. Kept as a dedicated helper so
-   * `onInit` stays a narrow three-step sequence (init → register → sweep) and
-   * Phase 2 channels land next to these two without bloating the lifecycle
-   * method.
+   * Register the File_* IPC handlers owned by this lifecycle service. Kept as
+   * a dedicated helper so `onInit` stays a narrow three-step sequence
+   * (init → register → sweep).
    *
-   * Every handler Zod-parses its `params` before delegating, matching the
-   * DataApi handler discipline (`b8709c964` / `2437c1104`). Without this the
-   * batch fan-out is unbounded: a 100k-id `Promise.all` over `findById`
-   * would saturate the event loop and the DB connection pool.
+   * The dangling-state handlers Zod-parse their `params` before delegating,
+   * matching the DataApi handler discipline (`b8709c964` / `2437c1104`):
+   * without it the batch fan-out is unbounded — a 100k-id `Promise.all` over
+   * `findById` would saturate the event loop and the DB connection pool.
+   *
+   * The directory handlers delegate to the legacy `fileStorage` singleton.
+   * They live here (not in the post-bootstrap `registerIpc()`) so they are
+   * registered during bootstrap, before the renderer can invoke them.
    */
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params: unknown) =>
@@ -635,6 +639,8 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
+    this.ipcHandle(IpcChannel.File_ListDirectory, fileStorage.listDirectory)
+    this.ipcHandle(IpcChannel.File_GetDirectoryStructure, fileStorage.getDirectoryStructure)
   }
 
   /**

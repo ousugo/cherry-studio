@@ -9,7 +9,7 @@ import { CHAT_SHELL_PANE_WIDTH, CHAT_SHELL_TRANSITION } from './types'
 
 export const ARTIFACT_RIGHT_PANE_MIN_WIDTH = 360
 export const ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH = 460
-export const ARTIFACT_RIGHT_PANE_MAX_WIDTH = 540
+export const ARTIFACT_RIGHT_PANE_MAX_WIDTH = 720
 export const ARTIFACT_RIGHT_PANE_CACHE_KEY = 'ui.chat.artifact_pane.width'
 
 type RightPaneResizeCacheKey = typeof ARTIFACT_RIGHT_PANE_CACHE_KEY

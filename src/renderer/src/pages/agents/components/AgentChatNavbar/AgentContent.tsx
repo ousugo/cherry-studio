@@ -5,6 +5,7 @@ import NavbarIcon from '@renderer/components/NavbarIcon'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { Menu } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentSidePanelDrawer from '../AgentSidePanelDrawer'
@@ -12,11 +13,10 @@ import Tools from './Tools'
 
 type AgentContentProps = {
   activeAgent: AgentEntity | null
-  artifactPaneOpen: boolean
-  onToggleArtifactPane: () => void
+  tools?: ReactNode
 }
 
-const AgentContent = ({ activeAgent, artifactPaneOpen, onToggleArtifactPane }: AgentContentProps) => {
+const AgentContent = ({ activeAgent, tools }: AgentContentProps) => {
   const { t } = useTranslation()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
@@ -52,9 +52,7 @@ const AgentContent = ({ activeAgent, artifactPaneOpen, onToggleArtifactPane }: A
           )}
         </AnimatePresence>
       </div>
-      <div className="flex items-center">
-        {activeAgent && <Tools artifactPaneOpen={artifactPaneOpen} onToggleArtifactPane={onToggleArtifactPane} />}
-      </div>
+      <div className="flex items-center">{activeAgent && <Tools>{tools}</Tools>}</div>
     </div>
   )
 }

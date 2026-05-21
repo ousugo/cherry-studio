@@ -35,6 +35,13 @@ const normalizeOutputString = (output?: ReadToolOutputType): string | null => {
       .join('')
   }
 
+  if (typeof output === 'object' && 'file' in output) {
+    const file = output.file
+    if (typeof file === 'object' && file !== null && 'content' in file && typeof file.content === 'string') {
+      return removeSystemReminderTags(file.content)
+    }
+  }
+
   if (typeof output !== 'string') return null
 
   return removeSystemReminderTags(output)

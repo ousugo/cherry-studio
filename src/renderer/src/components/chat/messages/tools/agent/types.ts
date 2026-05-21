@@ -1,469 +1,321 @@
+import type {
+  AgentInput,
+  AgentOutput,
+  AskUserQuestionInput,
+  AskUserQuestionOutput,
+  BashInput,
+  BashOutput,
+  EnterWorktreeInput,
+  EnterWorktreeOutput,
+  ExitPlanModeInput,
+  ExitPlanModeOutput,
+  ExitWorktreeInput,
+  ExitWorktreeOutput,
+  FileEditInput,
+  FileEditOutput,
+  FileReadInput,
+  FileReadOutput,
+  FileWriteInput,
+  FileWriteOutput,
+  GlobInput,
+  GlobOutput,
+  GrepInput,
+  GrepOutput,
+  ListMcpResourcesInput,
+  ListMcpResourcesOutput,
+  NotebookEditInput,
+  NotebookEditOutput,
+  ReadMcpResourceInput,
+  ReadMcpResourceOutput,
+  TaskCreateInput,
+  TaskCreateOutput,
+  TaskGetInput,
+  TaskGetOutput,
+  TaskListInput,
+  TaskListOutput,
+  TaskOutputInput,
+  TaskStopInput,
+  TaskStopOutput,
+  TaskUpdateInput,
+  TaskUpdateOutput,
+  TodoWriteInput,
+  TodoWriteOutput,
+  WebFetchInput,
+  WebFetchOutput,
+  WebSearchInput,
+  WebSearchOutput
+} from '@anthropic-ai/claude-agent-sdk/sdk-tools'
 import * as z from 'zod'
 
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 
-export enum AgentToolsType {
-  Skill = 'Skill',
-  Read = 'Read',
-  Task = 'Task',
-  Bash = 'Bash',
-  Search = 'Search',
-  Glob = 'Glob',
-  TodoWrite = 'TodoWrite',
-  WebSearch = 'WebSearch',
-  Grep = 'Grep',
-  Write = 'Write',
-  WebFetch = 'WebFetch',
-  Edit = 'Edit',
-  MultiEdit = 'MultiEdit',
-  BashOutput = 'BashOutput',
-  NotebookEdit = 'NotebookEdit',
-  ExitPlanMode = 'ExitPlanMode',
-  AskUserQuestion = 'AskUserQuestion',
-  ToolSearch = 'ToolSearch'
-}
+export const AgentToolsType = {
+  Skill: 'Skill',
+  Agent: 'Agent',
+  Read: 'Read',
+  Task: 'Task',
+  TaskOutput: 'TaskOutput',
+  TaskStop: 'TaskStop',
+  Bash: 'Bash',
+  Search: 'Search',
+  Glob: 'Glob',
+  TodoWrite: 'TodoWrite',
+  WebSearch: 'WebSearch',
+  Grep: 'Grep',
+  Write: 'Write',
+  WebFetch: 'WebFetch',
+  Edit: 'Edit',
+  MultiEdit: 'MultiEdit',
+  BashOutput: 'BashOutput',
+  NotebookEdit: 'NotebookEdit',
+  ExitPlanMode: 'ExitPlanMode',
+  AskUserQuestion: 'AskUserQuestion',
+  ToolSearch: 'ToolSearch',
+  ListMcpResources: 'ListMcpResources',
+  ReadMcpResource: 'ReadMcpResource',
+  TaskCreate: 'TaskCreate',
+  TaskGet: 'TaskGet',
+  TaskUpdate: 'TaskUpdate',
+  TaskList: 'TaskList',
+  EnterWorktree: 'EnterWorktree',
+  ExitWorktree: 'ExitWorktree'
+} as const
+
+export type AgentToolsType = (typeof AgentToolsType)[keyof typeof AgentToolsType]
 
 export type TextOutput = {
   type: 'text'
   text: string
 }
 
-// Read 工具的类型定义
 export interface SkillToolInput {
-  /**
-   * The skill to use
-   */
   skill: string
   args?: string
 }
-
 export type SkillToolOutput = string
 
-export interface ReadToolInput {
-  /**
-   * The absolute path to the file to read
-   */
-  file_path: string
-  /**
-   * The line number to start reading from
-   */
-  offset?: number
-  /**
-   * The number of lines to read
-   */
-  limit?: number
-}
+export type ReadToolInput = FileReadInput
+export type ReadToolOutput = FileReadOutput | string | TextOutput[]
 
-export type ReadToolOutput = string | TextOutput[]
+export type TaskToolInput = AgentInput
+export type TaskToolOutput = AgentOutput | TextOutput[]
 
-// Task 工具的类型定义
-export type TaskToolInput = {
-  /**
-   * A short (3-5 word) description of the task
-   */
-  description: string
-  /**
-   * The task for the agent to perform
-   */
-  prompt: string
-  /**
-   * The type of specialized agent to use for this task
-   */
-  subagent_type: string
-}
+export type AgentToolInput = AgentInput
+export type AgentToolOutput = AgentOutput | TextOutput[]
 
-export type TaskToolOutput = TextOutput[]
+export type TaskOutputToolInput = TaskOutputInput
+export type TaskOutputToolOutput = Record<string, unknown> | unknown[] | string
 
-// Bash 工具的类型定义
-export type BashToolInput = {
-  /**
-   * The command to execute
-   */
-  command: string
-  /**
-   * Optional timeout in milliseconds (max 600000)
-   */
-  timeout?: number
-  /**
-   * Clear, concise description of what this command does in 5-10 words
-   */
-  description?: string
-  /**
-   * Set to true to run this command in the background
-   */
-  run_in_background?: boolean
-}
+export type TaskStopToolInput = TaskStopInput
+export type TaskStopToolOutput = TaskStopOutput | string
 
-export type BashToolOutput = string
+export type BashToolInput = BashInput
+export type BashToolOutput = BashOutput | string
 
-// Search 工具的类型定义
 export type SearchToolInput = string
-
 export type SearchToolOutput = string
 
-// Glob 工具的类型定义
-export interface GlobToolInput {
-  /**
-   * The glob pattern to match files against
-   */
-  pattern: string
-  /**
-   * The directory to search in (defaults to cwd)
-   */
-  path?: string
-}
+export type GlobToolInput = GlobInput
+export type GlobToolOutput = GlobOutput | string
 
-export type GlobToolOutput = string
+export type TodoItem = TodoWriteInput['todos'][number]
+export type TodoWriteToolInput = TodoWriteInput
+export type TodoWriteToolOutput = TodoWriteOutput | string
 
-// TodoWrite 工具的类型定义
-export interface TodoItem {
-  /**
-   * The task description
-   */
-  content: string
-  /**
-   * The task status
-   */
-  status: 'pending' | 'in_progress' | 'completed'
-  /**
-   * Active form of the task description
-   */
-  activeForm: string
-}
+export type WebSearchToolInput = WebSearchInput
+export type WebSearchToolOutput = WebSearchOutput | string
 
-export type TodoWriteToolInput = {
-  todos: TodoItem[]
-}
+export type WebFetchToolInput = WebFetchInput
+export type WebFetchToolOutput = WebFetchOutput | string
 
-export type TodoWriteToolOutput = string
+export type GrepToolInput = GrepInput
+export type GrepToolOutput = GrepOutput | string
 
-// WebSearch 工具的类型定义
-export interface WebSearchToolInput {
-  /**
-   * The search query to use
-   */
-  query: string
-  /**
-   * Only include results from these domains
-   */
-  allowed_domains?: string[]
-  /**
-   * Never include results from these domains
-   */
-  blocked_domains?: string[]
-}
-export type WebSearchToolOutput = string
+export type WriteToolInput = FileWriteInput
+export type WriteToolOutput = FileWriteOutput | string
 
-// WebFetch 工具的类型定义
-export type WebFetchToolInput = {
-  /**
-   * The URL to fetch content from
-   */
-  url: string
-  /**
-   * The prompt to run on the fetched content
-   */
-  prompt: string
-}
-export type WebFetchToolOutput = string
+export type EditToolInput = FileEditInput
+export type EditToolOutput = FileEditOutput | string
 
-// Grep 工具的类型定义
-export interface GrepToolInput {
-  /**
-   * The regular expression pattern to search for
-   */
-  pattern: string
-  /**
-   * File or directory to search in (defaults to cwd)
-   */
-  path?: string
-  /**
-   * Glob pattern to filter files (e.g. "*.js")
-   */
-  glob?: string
-  /**
-   * File type to search (e.g. "js", "py", "rust")
-   */
-  type?: string
-  /**
-   * Output mode: "content", "files_with_matches", or "count"
-   */
-  output_mode?: 'content' | 'files_with_matches' | 'count'
-  /**
-   * Case insensitive search
-   */
-  '-i'?: boolean
-  /**
-   * Show line numbers (for content mode)
-   */
-  '-n'?: boolean
-  /**
-   * Lines to show before each match
-   */
-  '-B'?: number
-  /**
-   * Lines to show after each match
-   */
-  '-A'?: number
-  /**
-   * Lines to show before and after each match
-   */
-  '-C'?: number
-  /**
-   * Limit output to first N lines/entries
-   */
-  head_limit?: number
-  /**
-   * Enable multiline mode
-   */
-  multiline?: boolean
-}
-
-export type GrepToolOutput = string
-
-// Write 工具的类型定义
-export type WriteToolInput = {
-  /**
-   * The absolute path to the file to write
-   */
-  file_path: string
-  /**
-   * The content to write to the file
-   */
-  content: string
-}
-
-export type WriteToolOutput = string
-
-// Edit 工具的类型定义
-export type EditToolInput = {
-  /**
-   * The absolute path to the file to modify
-   */
-  file_path: string
-  /**
-   * The text to replace
-   */
-  old_string: string
-  /**
-   * The text to replace it with (must be different from old_string)
-   */
-  new_string: string
-  /**
-   * Replace all occurrences of old_string (default false)
-   */
-  replace_all?: boolean
-}
-export type EditToolOutput = string
-
-// MultiEdit 工具的类型定义
 export type MultiEditToolInput = {
-  /**
-   * The absolute path to the file to modify
-   */
   file_path: string
-  /**
-   * Array of edit operations to perform sequentially
-   */
   edits: Array<{
-    /**
-     * The text to replace
-     */
     old_string: string
-    /**
-     * The text to replace it with
-     */
     new_string: string
-    /**
-     * Replace all occurrences (default false)
-     */
     replace_all?: boolean
   }>
 }
 export type MultiEditToolOutput = string
 
-// BashOutput 工具的类型定义
-export type BashOutputToolInput = {
-  /**
-   * The ID of the background shell to retrieve output from
-   */
-  bash_id: string
-  /**
-   * Optional regex to filter output lines
-   */
+export type BashOutputToolInput = Partial<TaskOutputInput> & {
+  bash_id?: string
   filter?: string
 }
 export type BashOutputToolOutput = string
 
-// NotebookEdit 工具的类型定义
-export type NotebookEditToolInput = {
-  /**
-   * The absolute path to the Jupyter notebook file
-   */
-  notebook_path: string
-  /**
-   * The ID of the cell to edit
-   */
-  cell_id?: string
-  /**
-   * The new source for the cell
-   */
-  new_source: string
-  /**
-   * The type of the cell (code or markdown)
-   */
-  cell_type?: 'code' | 'markdown'
-  /**
-   * The type of edit (replace, insert, delete)
-   */
-  edit_mode?: 'replace' | 'insert' | 'delete'
-}
-export type NotebookEditToolOutput = string
+export type NotebookEditToolInput = NotebookEditInput
+export type NotebookEditToolOutput = NotebookEditOutput | string
 
-// ExitPlanModeToolInput
-export type ExitPlanModeToolInput = {
-  /**
-   * The plan to run by the user for approval
-   */
-  plan: string
+export type ExitPlanModeToolInput = ExitPlanModeInput & {
+  plan?: string
 }
-export type ExitPlanModeToolOutput = string
+export type ExitPlanModeToolOutput = ExitPlanModeOutput | string
 
-// ToolSearch 工具的类型定义
 export interface ToolSearchToolInput {
-  /**
-   * Query to find deferred tools
-   */
   query: string
-  /**
-   * Maximum number of results to return
-   */
   max_results?: number
 }
-/**
- * ToolSearch output is an array of tool_reference objects when matches are found,
- * or a string message when no matches are found.
- */
+
 export const ToolSearchToolOutputSchema = z.union([
   z.array(z.object({ type: z.literal('tool_reference'), tool_name: z.string() })),
   z.string()
 ])
 export type ToolSearchToolOutput = z.infer<typeof ToolSearchToolOutputSchema>
 
-// AskUserQuestion 工具的类型定义 (使用 Zod)
 export const AskUserQuestionOptionSchema = z.object({
-  /** The display text for this option */
   label: z.string(),
-  /** Explanation of what this option means */
-  description: z.string().optional()
+  description: z.string().optional(),
+  preview: z.string().optional()
 })
 
 export const AskUserQuestionItemSchema = z.object({
-  /** The complete question to ask the user */
   question: z.string(),
-  /** Very short label displayed as a chip/tag (max 12 chars) */
   header: z.string(),
-  /** The available choices for this question (2-4 options) */
-  options: z.array(AskUserQuestionOptionSchema),
-  /** Set to true to allow multiple selections */
+  options: z.array(AskUserQuestionOptionSchema).min(2).max(4),
   multiSelect: z.boolean()
 })
 
 export const AskUserQuestionAnswerSchema = z.record(z.string(), z.string())
 
 export const AskUserQuestionToolInputSchema = z.object({
-  /** Questions to ask the user (1-4 questions) */
-  questions: z.array(AskUserQuestionItemSchema),
-  answers: AskUserQuestionAnswerSchema.optional()
+  questions: z.array(AskUserQuestionItemSchema).min(1).max(4),
+  answers: AskUserQuestionAnswerSchema.optional(),
+  annotations: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional()
 })
 
-// 从 Zod schema 推断类型
-export type AskUserQuestionOption = z.infer<typeof AskUserQuestionOptionSchema>
-export type AskUserQuestionItem = z.infer<typeof AskUserQuestionItemSchema>
-export type AskUserQuestionToolInput = z.infer<typeof AskUserQuestionToolInputSchema>
-export type AskUserQuestionAnswer = z.infer<typeof AskUserQuestionAnswerSchema>
+type SDKAskUserQuestionItem = AskUserQuestionInput['questions'][number]
+type SDKAskUserQuestionOption = SDKAskUserQuestionItem['options'][number]
 
-/**
- * Safely parse AskUserQuestionToolInput from unknown data.
- * Returns undefined if the data doesn't match the expected structure.
- */
+export type AskUserQuestionOption = Omit<SDKAskUserQuestionOption, 'description'> & {
+  description?: string
+}
+export type AskUserQuestionItem = Omit<SDKAskUserQuestionItem, 'options'> & {
+  options: AskUserQuestionOption[]
+}
+export type AskUserQuestionToolInput = Omit<AskUserQuestionInput, 'questions'> & {
+  questions: AskUserQuestionItem[]
+}
+export type AskUserQuestionToolOutput = AskUserQuestionOutput
+export type AskUserQuestionAnswer = NonNullable<AskUserQuestionInput['answers']>
+
 export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionToolInput | undefined {
   const result = AskUserQuestionToolInputSchema.safeParse(value)
-  return result.success ? result.data : undefined
+  return result.success ? (result.data as AskUserQuestionToolInput) : undefined
 }
 
-// ListMcpResourcesToolInput
-export type ListMcpResourcesToolInput = {
-  /**
-   * Optional server name to filter resources by
-   */
-  server?: string
-}
-// ReadMcpResourceToolInput
-export type ReadMcpResourceToolInput = {
-  /**
-   * The MCP server name
-   */
-  server: string
-  /**
-   * The resource URI to read
-   */
-  uri: string
-}
-export type KillBashToolInput = {
-  /**
-   * The ID of the background shell to kill
-   */
-  shell_id: string
-}
-// 联合类型
+export type ListMcpResourcesToolInput = ListMcpResourcesInput
+export type ListMcpResourcesToolOutput = ListMcpResourcesOutput | string
+
+export type ReadMcpResourceToolInput = ReadMcpResourceInput
+export type ReadMcpResourceToolOutput = ReadMcpResourceOutput | string
+
+export type KillBashToolInput = TaskStopInput
+export type KillBashToolOutput = TaskStopOutput | string
+
+export type TaskCreateToolInput = TaskCreateInput
+export type TaskCreateToolOutput = TaskCreateOutput | string
+
+export type TaskGetToolInput = TaskGetInput
+export type TaskGetToolOutput = TaskGetOutput | string
+
+export type TaskUpdateToolInput = TaskUpdateInput
+export type TaskUpdateToolOutput = TaskUpdateOutput | string
+
+export type TaskListToolInput = TaskListInput
+export type TaskListToolOutput = TaskListOutput | string
+
+export type EnterWorktreeToolInput = EnterWorktreeInput
+export type EnterWorktreeToolOutput = EnterWorktreeOutput | string
+
+export type ExitWorktreeToolInput = ExitWorktreeInput
+export type ExitWorktreeToolOutput = ExitWorktreeOutput | string
+
 export type ToolInput =
+  | SkillToolInput
+  | AgentToolInput
+  | ReadToolInput
   | TaskToolInput
+  | TaskOutputToolInput
+  | TaskStopToolInput
   | BashToolInput
   | BashOutputToolInput
+  | SearchToolInput
+  | GlobToolInput
+  | TodoWriteToolInput
+  | WebSearchToolInput
+  | GrepToolInput
+  | WriteToolInput
+  | WebFetchToolInput
   | EditToolInput
   | MultiEditToolInput
-  | ReadToolInput
-  | WriteToolInput
-  | GlobToolInput
-  | GrepToolInput
-  | KillBashToolInput
   | NotebookEditToolInput
-  | WebFetchToolInput
-  | WebSearchToolInput
-  | TodoWriteToolInput
   | ExitPlanModeToolInput
   | ListMcpResourcesToolInput
   | ReadMcpResourceToolInput
+  | KillBashToolInput
   | AskUserQuestionToolInput
   | ToolSearchToolInput
+  | TaskCreateToolInput
+  | TaskGetToolInput
+  | TaskUpdateToolInput
+  | TaskListToolInput
+  | EnterWorktreeToolInput
+  | ExitWorktreeToolInput
 
-export type ToolOutput = ReadToolOutput | TaskToolOutput | BashToolOutput | ToolSearchToolOutput
-// These types are all just aliases for string, duplicating BashToolOutput.
-// They will be added back later if more complex type distinctions are needed.
-// | SearchToolOutput
-// | GlobToolOutput
-// | TodoWriteToolOutput
-// | WebSearchToolOutput
-// | GrepToolOutput
-// | WebFetchToolOutput
-// | WriteToolOutput
-// | EditToolOutput
-// | MultiEditToolOutput
-// | BashOutputToolOutput
-// | NotebookEditToolOutput
-// | ExitPlanModeToolOutput
+export type ToolOutput =
+  | SkillToolOutput
+  | AgentToolOutput
+  | ReadToolOutput
+  | TaskToolOutput
+  | TaskOutputToolOutput
+  | TaskStopToolOutput
+  | BashToolOutput
+  | BashOutputToolOutput
+  | SearchToolOutput
+  | GlobToolOutput
+  | TodoWriteToolOutput
+  | WebSearchToolOutput
+  | GrepToolOutput
+  | WriteToolOutput
+  | WebFetchToolOutput
+  | EditToolOutput
+  | MultiEditToolOutput
+  | NotebookEditToolOutput
+  | ExitPlanModeToolOutput
+  | ListMcpResourcesToolOutput
+  | ReadMcpResourceToolOutput
+  | KillBashToolOutput
+  | AskUserQuestionToolOutput
+  | ToolSearchToolOutput
+  | TaskCreateToolOutput
+  | TaskGetToolOutput
+  | TaskUpdateToolOutput
+  | TaskListToolOutput
+  | EnterWorktreeToolOutput
+  | ExitWorktreeToolOutput
 
-// 工具渲染器接口
 export interface ToolRenderer {
   render: (props: { input: ToolInput; output?: ToolOutput }) => React.ReactElement
 }
 
-// 工具类型到输入类型的映射（用于文档和类型提示）
 export interface ToolInputMap {
   [AgentToolsType.Skill]: SkillToolInput
+  [AgentToolsType.Agent]: AgentToolInput
   [AgentToolsType.Read]: ReadToolInput
   [AgentToolsType.Task]: TaskToolInput
+  [AgentToolsType.TaskOutput]: TaskOutputToolInput
+  [AgentToolsType.TaskStop]: TaskStopToolInput
   [AgentToolsType.Bash]: BashToolInput
   [AgentToolsType.Search]: SearchToolInput
   [AgentToolsType.Glob]: GlobToolInput
@@ -477,14 +329,25 @@ export interface ToolInputMap {
   [AgentToolsType.BashOutput]: BashOutputToolInput
   [AgentToolsType.NotebookEdit]: NotebookEditToolInput
   [AgentToolsType.ExitPlanMode]: ExitPlanModeToolInput
+  [AgentToolsType.AskUserQuestion]: AskUserQuestionToolInput
   [AgentToolsType.ToolSearch]: ToolSearchToolInput
+  [AgentToolsType.ListMcpResources]: ListMcpResourcesToolInput
+  [AgentToolsType.ReadMcpResource]: ReadMcpResourceToolInput
+  [AgentToolsType.TaskCreate]: TaskCreateToolInput
+  [AgentToolsType.TaskGet]: TaskGetToolInput
+  [AgentToolsType.TaskUpdate]: TaskUpdateToolInput
+  [AgentToolsType.TaskList]: TaskListToolInput
+  [AgentToolsType.EnterWorktree]: EnterWorktreeToolInput
+  [AgentToolsType.ExitWorktree]: ExitWorktreeToolInput
 }
 
-// 工具类型到输出类型的映射
 export interface ToolOutputMap {
   [AgentToolsType.Skill]: SkillToolOutput
+  [AgentToolsType.Agent]: AgentToolOutput
   [AgentToolsType.Read]: ReadToolOutput
   [AgentToolsType.Task]: TaskToolOutput
+  [AgentToolsType.TaskOutput]: TaskOutputToolOutput
+  [AgentToolsType.TaskStop]: TaskStopToolOutput
   [AgentToolsType.Bash]: BashToolOutput
   [AgentToolsType.Search]: SearchToolOutput
   [AgentToolsType.Glob]: GlobToolOutput
@@ -498,14 +361,21 @@ export interface ToolOutputMap {
   [AgentToolsType.BashOutput]: BashOutputToolOutput
   [AgentToolsType.NotebookEdit]: NotebookEditToolOutput
   [AgentToolsType.ExitPlanMode]: ExitPlanModeToolOutput
+  [AgentToolsType.AskUserQuestion]: AskUserQuestionToolOutput
   [AgentToolsType.ToolSearch]: ToolSearchToolOutput
+  [AgentToolsType.ListMcpResources]: ListMcpResourcesToolOutput
+  [AgentToolsType.ReadMcpResource]: ReadMcpResourceToolOutput
+  [AgentToolsType.TaskCreate]: TaskCreateToolOutput
+  [AgentToolsType.TaskGet]: TaskGetToolOutput
+  [AgentToolsType.TaskUpdate]: TaskUpdateToolOutput
+  [AgentToolsType.TaskList]: TaskListToolOutput
+  [AgentToolsType.EnterWorktree]: EnterWorktreeToolOutput
+  [AgentToolsType.ExitWorktree]: ExitWorktreeToolOutput
 }
 
-// 通用工具渲染器函数类型 - 接受宽松的输入类型
 export type ToolRendererFn = (props: {
   input?: ToolInput | Record<string, unknown> | string
   output?: ToolOutput | unknown
 }) => ToolDisclosureItem
 
-// 工具渲染器映射类型
-export type ToolRenderersMap = Record<AgentToolsType, ToolRendererFn>
+export type ToolRenderersMap = Partial<Record<AgentToolsType, ToolRendererFn>>

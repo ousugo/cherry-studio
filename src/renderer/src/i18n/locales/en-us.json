@@ -358,6 +358,39 @@
       "select_file": "Select a file to preview",
       "toggle": "Show preview panel"
     },
+    "right_pane": {
+      "close": "Close",
+      "files_toggle": "Show files",
+      "flow": {
+        "empty": {
+          "description": "Select an agent tool call to inspect its child message flow.",
+          "title": "No tool selected"
+        },
+        "no_messages": {
+          "description": "This tool call has no captured child message flow.",
+          "title": "No messages"
+        }
+      },
+      "status": {
+        "activity": "Activity",
+        "agent": "Agent",
+        "context": "Context",
+        "no_tasks": "No active tasks",
+        "selected_tool": "Selected tool",
+        "task_count": "{{completed}} / {{total}} complete",
+        "tasks": "Tasks",
+        "tools_active": "Active",
+        "tools_done": "Done",
+        "tools_failed": "Failed",
+        "tools_total": "Total",
+        "workspace": "Workspace"
+      },
+      "tabs": {
+        "files": "Files",
+        "flow": "Flow",
+        "status": "Status"
+      }
+    },
     "reorder": {
       "error": {
         "failed": "Failed to reorder agents"

@@ -18,7 +18,7 @@ import { FILE_TYPE } from '@renderer/types/file'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData, VideoPartData } from '@shared/data/types/uiParts'
-import { isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
+import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
@@ -26,7 +26,10 @@ import { useTranslation } from 'react-i18next'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
+import { useMessageRenderConfig } from '../MessageListProvider'
+import { AgentToolsType } from '../tools/agent/types'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
+import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
 import BlockErrorFallback from './BlockErrorFallback'
@@ -188,6 +191,12 @@ function isCollapsedMessagePart(part: CherryMessagePart): boolean {
 function isResultPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   return isSummaryMessagePart(part) || partType === 'data-error' || partType === 'file' || partType === 'data-video'
+}
+
+function isTopLevelSubagentToolPart(part: CherryMessagePart): boolean {
+  if (!isToolUIPart(part) || hasPartParentToolCallId(part)) return false
+  const toolName = getToolName(part)
+  return toolName === AgentToolsType.Agent || toolName === AgentToolsType.Task
 }
 
 function shouldCollapseAfterLastTool(part: CherryMessagePart): boolean {
@@ -503,6 +512,7 @@ function getCompletedToolHistory(
   const collapsedEntries = entries.slice(0, collapsedEndIndex + 1)
   const resultEntries = entries.slice(collapsedEndIndex + 1)
   if (!resultEntries.some((entry) => isResultPart(entry.part))) return null
+  if (collapsedEntries.some((entry) => isTopLevelSubagentToolPart(entry.part))) return null
 
   const toolCount = collapsedEntries.filter((entry) => isToolUIPart(entry.part)).length
   if (toolCount === 0) return null
@@ -600,16 +610,21 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const { isPending: isTopicStreaming } = useTopicStreamStatus(message.topicId)
   const isStreaming = isTopicStreaming && message.status === 'pending'
   const isTranslationOverlayActive = useTranslationOverlayEntry(message.id) !== undefined
+  const renderConfig = useMessageRenderConfig()
 
   // Beat loader visible only when THIS specific message is the active turn
   // target. The identity predicate lives in `useIsActiveTurnTarget` so
   // consumers do not over-scope topic-level stream status to user messages.
   const isProcessing = useIsActiveTurnTarget(message)
 
-  const partEntries = useMemo(() => messageParts.map((part, index) => ({ part, index })), [messageParts])
+  const partEntries = useMemo(
+    () => messageParts.flatMap((part, index) => (hasPartParentToolCallId(part) ? [] : [{ part, index }])),
+    [messageParts]
+  )
   const completedToolHistory = useMemo(
-    () => getCompletedToolHistory(partEntries, message, isProcessing),
-    [partEntries, message, isProcessing]
+    () =>
+      renderConfig.collapseCompletedToolHistory ? getCompletedToolHistory(partEntries, message, isProcessing) : null,
+    [partEntries, message, isProcessing, renderConfig.collapseCompletedToolHistory]
   )
   const visibleEntries = completedToolHistory?.resultEntries ?? partEntries
 
@@ -620,7 +635,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder
-  if (messageParts.length === 0) {
+  if (partEntries.length === 0) {
     if (isProcessing) {
       return (
         <AnimatePresence mode="sync">
