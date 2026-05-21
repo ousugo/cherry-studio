@@ -61,6 +61,38 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' ')
 }))
 
+vi.mock('motion/react', () => ({
+  AnimatePresence: ({ children }: PropsWithChildren) => <>{children}</>,
+  motion: {
+    div: ({
+      children,
+      initial,
+      animate,
+      exit,
+      transition,
+      ...props
+    }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>> & {
+      initial?: { width?: number; opacity?: number }
+      animate?: { width?: number; opacity?: number }
+      exit?: { width?: number; opacity?: number }
+      transition?: unknown
+    }) => (
+      <div
+        data-testid="artifact-file-tree-motion-pane"
+        data-initial-width={initial?.width}
+        data-initial-opacity={initial?.opacity}
+        data-animate-width={animate?.width}
+        data-animate-opacity={animate?.opacity}
+        data-exit-width={exit?.width}
+        data-exit-opacity={exit?.opacity}
+        data-has-transition={String(Boolean(transition))}
+        {...props}>
+        {children}
+      </div>
+    )
+  }
+}))
+
 vi.mock('@renderer/components/chat', () => ({
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div data-testid="empty-state">
@@ -281,12 +313,19 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(folderButton)
     await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
+    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-initial-width', '0')
+    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-initial-opacity', '0')
+    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-animate-width', '160')
+    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-animate-opacity', '1')
+    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-exit-width', '0')
+    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-exit-opacity', '0')
+    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-has-transition', 'true')
     expect(screen.getByTestId('tree-node-__workspace_root__')).toHaveTextContent('workspace')
     expect(screen.getByTestId('tree-node-README.md')).toHaveTextContent('README.md')
     expect(folderButton).toHaveAttribute('aria-pressed', 'true')
 
     fireEvent.click(folderButton)
-    expect(screen.queryByTestId('file-tree')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByTestId('file-tree')).not.toBeInTheDocument())
     expect(folderButton).toHaveAttribute('aria-pressed', 'false')
   })
 

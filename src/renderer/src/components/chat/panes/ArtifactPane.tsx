@@ -8,9 +8,11 @@ import RichEditor from '@renderer/components/RichEditor'
 import type { FilePath } from '@shared/file/types'
 import { toFileUrl } from '@shared/file/urlUtil'
 import { AlertCircle, CodeXml, Eye, FileText, FolderOpen, Maximize2, RotateCw, Sparkles } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { CHAT_SHELL_TRANSITION } from '../shell/types'
 import OpenExternalAppButton from './OpenExternalAppButton'
 
 const logger = loggerService.withContext('ArtifactPane')
@@ -499,32 +501,42 @@ const ArtifactPane = ({ workspacePath }: ArtifactPaneProps) => {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {treeOpen && (
-          <aside className="flex w-40 shrink-0 flex-col overflow-hidden border-border-subtle border-r">
-            <div className="min-h-0 flex-1 overflow-auto px-1 py-2">
-              {isLoading ? (
-                <LoadingState variant="skeleton" rows={4} />
-              ) : (
-                <FileTree
-                  nodes={tree}
-                  expandedIds={expandedIds}
-                  onExpandedChange={setExpandedIds}
-                  selectedId={selectedFile}
-                  onSelectedChange={handleSelectedChange}
-                  emptyState={
-                    <div className="px-2 py-3 text-muted-foreground text-xs">
-                      {error
-                        ? t('common.error')
-                        : workspacePath
-                          ? t('agent.preview_pane.empty.title')
-                          : t('agent.preview_pane.empty.description')}
-                    </div>
-                  }
-                />
-              )}
-            </div>
-          </aside>
-        )}
+        <AnimatePresence initial={false}>
+          {treeOpen && (
+            <motion.div
+              key="artifact-file-tree"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 160, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={CHAT_SHELL_TRANSITION}
+              className="shrink-0 overflow-hidden">
+              <aside className="flex h-full w-40 flex-col overflow-hidden border-border-subtle border-r">
+                <div className="min-h-0 flex-1 overflow-auto px-1 py-2">
+                  {isLoading ? (
+                    <LoadingState variant="skeleton" rows={4} />
+                  ) : (
+                    <FileTree
+                      nodes={tree}
+                      expandedIds={expandedIds}
+                      onExpandedChange={setExpandedIds}
+                      selectedId={selectedFile}
+                      onSelectedChange={handleSelectedChange}
+                      emptyState={
+                        <div className="px-2 py-3 text-muted-foreground text-xs">
+                          {error
+                            ? t('common.error')
+                            : workspacePath
+                              ? t('agent.preview_pane.empty.title')
+                              : t('agent.preview_pane.empty.description')}
+                        </div>
+                      }
+                    />
+                  )}
+                </div>
+              </aside>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <section className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-1 border-border-subtle px-2">
             <div className="flex items-center gap-1">
