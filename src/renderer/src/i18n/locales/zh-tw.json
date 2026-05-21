@@ -343,6 +343,7 @@
     "preview_pane": {
       "close": "關閉預覽",
       "code": "程式碼",
+      "code_unavailable": "二進位檔案無法顯示原始碼",
       "empty": {
         "description": "開始與 Agent 對話，生成的程式碼與即時預覽將在此處顯示。",
         "title": "準備就緒"
@@ -353,6 +354,7 @@
       "maximize": "最大化",
       "preview": "預覽",
       "refresh": "重新整理",
+      "select_file": "選擇檔案以預覽",
       "toggle": "顯示預覽面板"
     },
     "reorder": {

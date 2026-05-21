@@ -23,7 +23,7 @@ export function RightPaneHost({ children, open, width = CHAT_SHELL_PANE_WIDTH, c
           animate={{ width, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={CHAT_SHELL_TRANSITION}
-          className={cn('shrink-0 overflow-hidden', className)}
+          className={cn('h-full min-h-0 shrink-0 overflow-hidden', className)}
           style={style}>
           <ErrorBoundary>{children}</ErrorBoundary>
         </motion.div>

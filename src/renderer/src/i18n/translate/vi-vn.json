@@ -343,6 +343,7 @@
     "preview_pane": {
       "close": "[to be translated]:Close preview",
       "code": "[to be translated]:Code",
+      "code_unavailable": "[to be translated]:Source view not available for binary files",
       "empty": {
         "description": "[to be translated]:Start chatting with the agent; generated code and live previews will appear here.",
         "title": "[to be translated]:Ready"
@@ -353,6 +354,7 @@
       "maximize": "[to be translated]:Maximize",
       "preview": "[to be translated]:Preview",
       "refresh": "[to be translated]:Refresh",
+      "select_file": "[to be translated]:Select a file to preview",
       "toggle": "[to be translated]:Show preview panel"
     },
     "reorder": {
