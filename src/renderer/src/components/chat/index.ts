@@ -19,5 +19,12 @@ export * from './primitives'
 export { ChatAppShell, type ChatAppShellProps } from './shell/ChatAppShell'
 export { OverlayHost, type OverlayHostProps } from './shell/OverlayHost'
 export { PageSidebar, type PageSidebarProps } from './shell/PageSidebar'
-export { RightPaneHost, type RightPaneHostProps } from './shell/RightPaneHost'
+export {
+  ARTIFACT_RIGHT_PANE_CACHE_KEY,
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
+  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
+  RightPaneHost,
+  type RightPaneHostProps
+} from './shell/RightPaneHost'
 export type { ChatPanePosition } from './shell/types'

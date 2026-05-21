@@ -1,5 +1,13 @@
 import { loggerService } from '@logger'
-import { ChatAppShell, type ChatPanePosition, RightPaneHost } from '@renderer/components/chat'
+import {
+  ARTIFACT_RIGHT_PANE_CACHE_KEY,
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
+  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
+  ChatAppShell,
+  type ChatPanePosition,
+  RightPaneHost
+} from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
 import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
@@ -554,10 +562,15 @@ const AgentChatFrame = ({
   return (
     <Container className={className}>
       <QuickPanelProvider>{shell}</QuickPanelProvider>
-      <RightPaneHost open={artifactPaneOpen} width={ARTIFACT_PANE_WIDTH} className="p-2">
-        {onCloseArtifactPane && (
-          <ArtifactPane workspacePath={artifactPaneWorkspacePath} onClose={onCloseArtifactPane} />
-        )}
+      <RightPaneHost
+        open={artifactPaneOpen}
+        width={ARTIFACT_PANE_WIDTH}
+        resizable
+        minWidth={ARTIFACT_RIGHT_PANE_MIN_WIDTH}
+        defaultWidth={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
+        maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
+        cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}>
+        {onCloseArtifactPane && <ArtifactPane workspacePath={artifactPaneWorkspacePath} />}
       </RightPaneHost>
     </Container>
   )

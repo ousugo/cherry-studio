@@ -12,6 +12,10 @@ const partsByMessageIdMock = vi.hoisted(() => ({
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/components/chat', () => ({
+  ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
+  ARTIFACT_RIGHT_PANE_MAX_WIDTH: 540,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
   ChatAppShell: ({
     topBar,
     sidePanel,

@@ -1,4 +1,4 @@
-import { Button, Tabs, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
@@ -7,7 +7,7 @@ import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import RichEditor from '@renderer/components/RichEditor'
 import type { FilePath } from '@shared/file/types'
 import { toFileUrl } from '@shared/file/urlUtil'
-import { AlertCircle, CodeXml, Eye, FileText, FolderOpen, Maximize2, RotateCw, Sparkles, X } from 'lucide-react'
+import { AlertCircle, CodeXml, Eye, FileText, FolderOpen, Maximize2, RotateCw, Sparkles } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,7 +17,6 @@ export const ARTIFACT_PANE_WIDTH = 460
 
 export interface ArtifactPaneProps {
   workspacePath?: string
-  onClose: () => void
 }
 
 type ViewMode = 'preview' | 'code'
@@ -62,6 +61,10 @@ const extOf = (name: string): string => {
 const isMarkdownFile = (name: string) => MARKDOWN_EXT.has(extOf(name))
 const isHtmlFile = (name: string) => HTML_EXT.has(extOf(name))
 const isPdfFile = (name: string) => PDF_EXT.has(extOf(name))
+const isSourceViewAvailable = (name: string) => {
+  const ext = extOf(name).slice(1)
+  return Boolean(ext && LANG_MAP[ext])
+}
 const guessLanguage = (name: string) => LANG_MAP[extOf(name).slice(1)] ?? 'text'
 
 const joinPath = (base: string, rel: string): string => {
@@ -276,7 +279,7 @@ const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult
   return { tree, isLoading, error, refresh }
 }
 
-const ArtifactPane = ({ workspacePath, onClose }: ArtifactPaneProps) => {
+const ArtifactPane = ({ workspacePath }: ArtifactPaneProps) => {
   const { t } = useTranslation()
   const { tree, isLoading, error, refresh } = useWorkspaceFileTree(workspacePath)
 
@@ -328,7 +331,7 @@ const ArtifactPane = ({ workspacePath, onClose }: ArtifactPaneProps) => {
       return
     }
 
-    if (isPdfFile(selectedFile)) {
+    if (!isSourceViewAvailable(selectedFile)) {
       setFileContent(null)
       setLoadingContent(false)
       return
@@ -373,10 +376,26 @@ const ArtifactPane = ({ workspacePath, onClose }: ArtifactPaneProps) => {
 
   const handleRefresh = useCallback(() => {
     refresh()
-    if (workspacePath && selectedFile) setContentRefreshToken((v) => v + 1)
+    if (workspacePath && selectedFile && isSourceViewAvailable(selectedFile)) setContentRefreshToken((v) => v + 1)
   }, [refresh, selectedFile, workspacePath])
 
+  const handleViewModeToggle = useCallback(() => {
+    if (!selectedFile || isSourceViewAvailable(selectedFile)) {
+      setViewMode((mode) => (mode === 'preview' ? 'code' : 'preview'))
+    }
+  }, [selectedFile])
+
+  const sourceViewAvailable = selectedFile ? isSourceViewAvailable(selectedFile) : true
+
+  useEffect(() => {
+    if (selectedFile && !sourceViewAvailable && viewMode === 'code') {
+      setViewMode('preview')
+    }
+  }, [selectedFile, sourceViewAvailable, viewMode])
+
   const isSelectedHtmlPreview = viewMode === 'preview' && selectedFile ? isHtmlFile(selectedFile) : false
+  const viewModeLabel = t(viewMode === 'preview' ? 'agent.preview_pane.preview' : 'agent.preview_pane.code')
+  const ViewModeIcon = viewMode === 'preview' ? Eye : CodeXml
 
   const renderRight = () => {
     if (!workspacePath) {
@@ -401,7 +420,7 @@ const ArtifactPane = ({ workspacePath, onClose }: ArtifactPaneProps) => {
     const name = selectedFile
 
     if (viewMode === 'code') {
-      if (isPdfFile(name)) {
+      if (!isSourceViewAvailable(name)) {
         return (
           <EmptyState
             icon={FileText}
@@ -436,6 +455,15 @@ const ArtifactPane = ({ workspacePath, onClose }: ArtifactPaneProps) => {
     if (isHtmlFile(name)) {
       return <HtmlPreviewPanel key={`html-${name}-${contentRefreshToken}`} html={fileContent ?? ''} title={name} />
     }
+    if (!isSourceViewAvailable(name)) {
+      return (
+        <EmptyState
+          icon={FileText}
+          title={t('agent.preview_pane.preview')}
+          description={t('agent.preview_pane.code_unavailable')}
+        />
+      )
+    }
     if (isMarkdownFile(name)) {
       return (
         <div className="min-w-0 px-5 py-4">
@@ -467,7 +495,7 @@ const ArtifactPane = ({ workspacePath, onClose }: ArtifactPaneProps) => {
     )
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border-frame-border bg-card text-card-foreground shadow-sm">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
       <div className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-1 border-border-subtle px-2">
         <div className="flex items-center gap-1">
           <Tooltip content={t('agent.preview_pane.file_tree')} delay={800}>
@@ -482,26 +510,18 @@ const ArtifactPane = ({ workspacePath, onClose }: ArtifactPaneProps) => {
               <FolderOpen size={16} />
             </Button>
           </Tooltip>
-          <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as ViewMode)} className="gap-0">
-            <TabsList className="h-8 rounded-md bg-muted/70 p-0.5">
-              <Tooltip content={t('agent.preview_pane.preview')} delay={800}>
-                <TabsTrigger
-                  value="preview"
-                  className="h-7 w-7 flex-none rounded-sm px-0"
-                  aria-label={t('agent.preview_pane.preview')}>
-                  <Eye size={16} />
-                </TabsTrigger>
-              </Tooltip>
-              <Tooltip content={t('agent.preview_pane.code')} delay={800}>
-                <TabsTrigger
-                  value="code"
-                  className="h-7 w-7 flex-none rounded-sm px-0"
-                  aria-label={t('agent.preview_pane.code')}>
-                  <CodeXml size={16} />
-                </TabsTrigger>
-              </Tooltip>
-            </TabsList>
-          </Tabs>
+          <Tooltip content={viewModeLabel} delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label={viewModeLabel}
+              disabled={!sourceViewAvailable}
+              onClick={handleViewModeToggle}>
+              <ViewModeIcon size={16} />
+            </Button>
+          </Tooltip>
         </div>
 
         <div className="flex items-center gap-1">
@@ -524,17 +544,6 @@ const ArtifactPane = ({ workspacePath, onClose }: ArtifactPaneProps) => {
               className="text-muted-foreground hover:bg-accent hover:text-foreground"
               aria-label={t('agent.preview_pane.maximize')}>
               <Maximize2 size={16} />
-            </Button>
-          </Tooltip>
-          <Tooltip content={t('agent.preview_pane.close')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:bg-accent hover:text-foreground"
-              onClick={onClose}
-              aria-label={t('agent.preview_pane.close')}>
-              <X size={16} />
             </Button>
           </Tooltip>
         </div>

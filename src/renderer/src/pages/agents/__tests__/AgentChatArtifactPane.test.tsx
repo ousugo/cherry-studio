@@ -7,6 +7,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentChat from '../AgentChat'
 
 vi.mock('@renderer/components/chat', () => ({
+  ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
+  ARTIFACT_RIGHT_PANE_MAX_WIDTH: 540,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
   ChatAppShell: ({
     pane,
     paneOpen,
@@ -41,12 +45,33 @@ vi.mock('@renderer/components/chat', () => ({
   RightPaneHost: ({
     children,
     open,
-    width
+    width,
+    resizable,
+    minWidth,
+    defaultWidth,
+    maxWidth,
+    cacheKey,
+    className
   }: PropsWithChildren<{
     open?: boolean
     width?: string | number
+    resizable?: boolean
+    minWidth?: number
+    defaultWidth?: number
+    maxWidth?: number
+    cacheKey?: string
+    className?: string
   }>) => (
-    <section data-testid="artifact-right-pane" data-open={String(Boolean(open))} data-width={String(width)}>
+    <section
+      data-testid="artifact-right-pane"
+      data-open={String(Boolean(open))}
+      data-width={String(width)}
+      data-resizable={String(Boolean(resizable))}
+      data-min-width={String(minWidth)}
+      data-default-width={String(defaultWidth)}
+      data-max-width={String(maxWidth)}
+      data-cache-key={cacheKey}
+      data-class-name={className ?? ''}>
       {open ? children : null}
     </section>
   )
@@ -54,12 +79,8 @@ vi.mock('@renderer/components/chat', () => ({
 
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ARTIFACT_PANE_WIDTH: 460,
-  default: ({ workspacePath, onClose }: { workspacePath?: string; onClose: () => void }) => (
-    <div data-testid="artifact-pane" data-workspace-path={workspacePath ?? ''}>
-      <button type="button" onClick={onClose}>
-        close artifact pane
-      </button>
-    </div>
+  default: ({ workspacePath }: { workspacePath?: string }) => (
+    <div data-testid="artifact-pane" data-workspace-path={workspacePath ?? ''} />
   )
 }))
 
@@ -262,10 +283,16 @@ describe('AgentChat artifact pane', () => {
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-width', '460')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-resizable', 'true')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-min-width', '360')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-default-width', '460')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-max-width', '540')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-cache-key', 'ui.chat.artifact_pane.width')
+    expect(screen.getByTestId('artifact-right-pane').getAttribute('data-class-name')).not.toContain('p-2')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
 
-    fireEvent.click(screen.getByRole('button', { name: 'close artifact pane' }))
+    fireEvent.click(toggle)
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
