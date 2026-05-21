@@ -494,8 +494,16 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private closeEntry(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
+    this.closeCurrentTurn(entry, 'paused')
     entry.pendingMessages.close()
-    void entry.connection?.close()
+
+    const connection = entry.connection
+    entry.connection = undefined
+    entry.connectionLoop = undefined
+    entry.currentTurn = undefined
+    entry.startingNextTurn = false
+
+    void connection?.close()
   }
 }
 

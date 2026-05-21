@@ -184,12 +184,19 @@ describe('AgentSessionRuntimeService', () => {
     const handle = service.beginTurn(baseTurnInput)
     const next = handle.pendingMessages[Symbol.asyncIterator]().next()
     const connection = { close: vi.fn(), send: vi.fn(), events: [] }
-    getEntry(service).connection = connection
+    const entry = getEntry(service)
+    entry.connection = connection
+    entry.connectionLoop = Promise.resolve()
+    entry.startingNextTurn = true
 
     service.closeSession('session-1')
 
     await expect(next).resolves.toMatchObject({ done: true })
     expect(connection.close).toHaveBeenCalled()
+    expect(entry.connection).toBeUndefined()
+    expect(entry.connectionLoop).toBeUndefined()
+    expect(entry.currentTurn).toBeUndefined()
+    expect(entry.startingNextTurn).toBe(false)
     expect(service.inspect('session-1')).toBeUndefined()
   })
 
