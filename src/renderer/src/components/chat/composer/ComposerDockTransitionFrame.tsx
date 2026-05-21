@@ -9,6 +9,7 @@ const COMPOSER_DOCK_TRANSITION = {
   duration: 0.28,
   ease: 'easeInOut'
 } as const
+const COMPOSER_MESSAGE_GAP_PX = 16
 
 export type ComposerDockPlacement = 'home' | 'docked'
 
@@ -62,7 +63,7 @@ export default function ComposerDockTransitionFrame({
       const scrollerRect = scroller?.getBoundingClientRect()
       const scrollerClientWidth = scroller?.clientWidth ?? 0
       setBottomOverlayInsets({
-        contentBottomPadding: Math.max(0, inputbarRect.bottom - composerRect.top),
+        contentBottomPadding: Math.max(0, inputbarRect.bottom - composerRect.top + COMPOSER_MESSAGE_GAP_PX),
         scrollerBottomMargin: Math.max(0, rootRect.bottom - inputbarRect.bottom)
       })
       setComposerInlineInsets({

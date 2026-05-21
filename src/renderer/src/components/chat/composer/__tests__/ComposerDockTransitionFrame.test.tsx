@@ -88,7 +88,7 @@ describe('ComposerDockTransitionFrame', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByTestId('content-bottom-padding')).toHaveTextContent('220')
+      expect(screen.getByTestId('content-bottom-padding')).toHaveTextContent('236')
       expect(screen.getByTestId('scroller-bottom-margin')).toHaveTextContent('80')
     })
   })
