@@ -88,9 +88,16 @@ const AgentChat = ({
   const lastActiveSessionRef = useRef<NonNullable<typeof activeSession> | null>(null)
   const selectedSession =
     activeSession && (!activeSessionId || activeSession.id === activeSessionId) ? activeSession : undefined
+  const pendingPersistedTemporarySession =
+    temporaryAgentConversation && activeSessionId === temporaryAgentConversation.sessionId
+      ? temporaryAgentConversation.session
+      : undefined
   const canShowPreviousSession =
     isSessionLoading && Boolean(activeSessionId && temporaryAgentConversation?.sessionId !== activeSessionId)
-  const visibleSession = selectedSession ?? (canShowPreviousSession ? lastActiveSessionRef.current : undefined)
+  const visibleSession =
+    selectedSession ??
+    pendingPersistedTemporarySession ??
+    (canShowPreviousSession ? lastActiveSessionRef.current : undefined)
   const isShowingPreviousSession =
     isSessionLoading && Boolean(activeSessionId && visibleSession && visibleSession.id !== activeSessionId)
   const invalidateCache = useInvalidateCache()

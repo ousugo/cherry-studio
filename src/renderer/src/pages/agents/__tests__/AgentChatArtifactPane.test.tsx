@@ -445,10 +445,10 @@ describe('AgentChat artifact pane', () => {
     expect(paneMounts).toEqual(['mounted'])
   })
 
-  it('does not render the previous session while a temporary session is being persisted', () => {
-    const { rerender } = render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} />)
-
-    expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'session-1')
+  it('shows the persisted temporary session while the active session query catches up', () => {
+    const { rerender } = render(
+      <AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />
+    )
 
     activeSessionMocks.result = {
       activeSessionId: 'temp-session-1',
@@ -456,11 +456,11 @@ describe('AgentChat artifact pane', () => {
       isLoading: true,
       setActiveSessionId: vi.fn()
     }
-
     rerender(
       <AgentChat
         pane={<aside data-testid="session-pane" />}
         paneOpen={true}
+        panePosition="left"
         temporaryConversation={
           {
             type: 'agent',
@@ -468,17 +468,15 @@ describe('AgentChat artifact pane', () => {
             sessionId: 'temp-session-1',
             topicId: 'agent-session:temp-session-1',
             agentId: 'agent-1',
-            workspace: { path: '/tmp/workspace' },
             name: 'Temp Session',
-            session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } }
+            session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/temp-workspace' } }
           } as any
         }
       />
     )
 
-    expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
-    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
-    expect(screen.getByTestId('session-pane')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'temp-session-1')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-send-disabled', 'false')
   })
 
   it('shows history without composer for an unlinked session', () => {
