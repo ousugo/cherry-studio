@@ -77,6 +77,9 @@ const AgentChat = ({
   const { messageStyle } = useSettings()
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const [artifactPaneOpen, setArtifactPaneOpen] = useState(false)
+  const [artifactPaneMaximized, setArtifactPaneMaximized] = useState(false)
+  const [artifactPaneSelectedFile, setArtifactPaneSelectedFile] = useState<string | null>(null)
+  const [artifactOverlayBottomInset, setArtifactOverlayBottomInset] = useState(0)
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [temporaryComposerDocked, setTemporaryComposerDocked] = useState(false)
 
@@ -91,10 +94,16 @@ const AgentChat = ({
   const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(
     visibleSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
   )
+  const artifactPaneWorkspacePath =
+    visibleSession?.workspace?.path ?? temporaryAgentConversation?.session.workspace?.path
 
   useEffect(() => {
     setTemporaryComposerDocked(false)
   }, [temporaryAgentConversation?.id])
+
+  useEffect(() => {
+    setArtifactPaneSelectedFile(null)
+  }, [artifactPaneWorkspacePath])
 
   useEffect(() => {
     if (!activeSession || !temporaryAgentConversation || activeSession.id !== temporaryAgentConversation.sessionId)
@@ -178,8 +187,17 @@ const AgentChat = ({
     [onPersistTemporarySession, refreshPersistedSession, temporaryAgentConversation, watchTemporaryStream]
   )
 
-  const closeArtifactPane = useCallback(() => setArtifactPaneOpen(false), [])
-  const toggleArtifactPane = useCallback(() => setArtifactPaneOpen((prev) => !prev), [])
+  const closeArtifactPane = useCallback(() => {
+    setArtifactPaneOpen(false)
+    setArtifactPaneMaximized(false)
+  }, [])
+  const toggleArtifactPane = useCallback(() => {
+    setArtifactPaneOpen((prev) => {
+      if (prev) setArtifactPaneMaximized(false)
+      return !prev
+    })
+  }, [])
+  const toggleArtifactPaneMaximized = useCallback(() => setArtifactPaneMaximized((prev) => !prev), [])
   const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
     setCitationPanelCitations(citations)
   }, [])
@@ -200,10 +218,13 @@ const AgentChat = ({
         paneOpen={paneOpen}
         panePosition={panePosition}
         artifactPaneOpen={artifactPaneOpen}
-        artifactPaneWorkspacePath={
-          activeSession?.workspace?.path ?? temporaryAgentConversation?.session.workspace?.path
-        }
+        artifactPaneMaximized={artifactPaneMaximized}
+        artifactPaneWorkspacePath={artifactPaneWorkspacePath}
+        artifactPaneSelectedFile={artifactPaneSelectedFile}
+        artifactOverlayBottomInset={artifactOverlayBottomInset}
         onCloseArtifactPane={closeArtifactPane}
+        onArtifactPaneSelectedFileChange={setArtifactPaneSelectedFile}
+        onToggleArtifactPaneMaximized={toggleArtifactPaneMaximized}
         main={<MessageListInitialLoading />}
       />
     )
@@ -253,8 +274,13 @@ const AgentChat = ({
         paneOpen={paneOpen}
         panePosition={panePosition}
         artifactPaneOpen={artifactPaneOpen}
-        artifactPaneWorkspacePath={temporaryAgentConversation.session.workspace?.path}
+        artifactPaneMaximized={artifactPaneMaximized}
+        artifactPaneWorkspacePath={artifactPaneWorkspacePath}
+        artifactPaneSelectedFile={artifactPaneSelectedFile}
+        artifactOverlayBottomInset={artifactOverlayBottomInset}
         onCloseArtifactPane={closeArtifactPane}
+        onArtifactPaneSelectedFileChange={setArtifactPaneSelectedFile}
+        onToggleArtifactPaneMaximized={toggleArtifactPaneMaximized}
         topBar={
           <div className="flex h-fit w-full min-w-0">
             <AgentChatNavbar
@@ -271,6 +297,7 @@ const AgentChat = ({
             main={<div className="h-full min-h-0 flex-1" />}
             composer={homeComposer}
             mainVisible={temporaryComposerDocked}
+            onMainOverlayBottomInsetChange={setArtifactOverlayBottomInset}
           />
         }
         sidePanel={
@@ -293,8 +320,13 @@ const AgentChat = ({
       paneOpen={paneOpen}
       panePosition={panePosition}
       artifactPaneOpen={artifactPaneOpen}
-      artifactPaneWorkspacePath={visibleSession.workspace?.path}
+      artifactPaneMaximized={artifactPaneMaximized}
+      artifactPaneWorkspacePath={artifactPaneWorkspacePath}
+      artifactPaneSelectedFile={artifactPaneSelectedFile}
+      artifactOverlayBottomInset={artifactOverlayBottomInset}
       onCloseArtifactPane={closeArtifactPane}
+      onArtifactPaneSelectedFileChange={setArtifactPaneSelectedFile}
+      onToggleArtifactPaneMaximized={toggleArtifactPaneMaximized}
       topBar={
         <div className="flex h-fit w-full min-w-0">
           <AgentChatNavbar
@@ -314,6 +346,7 @@ const AgentChat = ({
           isMultiSelectMode={isMultiSelectMode}
           sendDisabled={isShowingPreviousSession}
           onOpenCitationsPanel={handleOpenCitationsPanel}
+          onMainOverlayBottomInsetChange={setArtifactOverlayBottomInset}
           onNewSessionDraft={
             sendableAgentId
               ? () =>
@@ -346,6 +379,7 @@ interface InnerProps {
   isMultiSelectMode: boolean
   sendDisabled?: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
+  onMainOverlayBottomInsetChange?: (inset: number) => void
   onNewSessionDraft?: () => void | Promise<void>
 }
 
@@ -356,6 +390,7 @@ const AgentChatSessionContent = ({
   isMultiSelectMode,
   sendDisabled = false,
   onOpenCitationsPanel,
+  onMainOverlayBottomInsetChange,
   onNewSessionDraft
 }: InnerProps) => {
   const [narrowMode] = usePreference('chat.narrow_mode')
@@ -490,7 +525,15 @@ const AgentChatSessionContent = ({
     </div>
   )
 
-  return <ComposerDockTransitionFrame placement="docked" main={main} composer={bottomComposer} mainVisible />
+  return (
+    <ComposerDockTransitionFrame
+      placement="docked"
+      main={main}
+      composer={bottomComposer}
+      mainVisible
+      onMainOverlayBottomInsetChange={onMainOverlayBottomInsetChange}
+    />
+  )
 }
 
 interface AgentChatFrameBaseProps {
@@ -502,8 +545,13 @@ interface AgentChatFrameBaseProps {
   overlay?: ReactNode
   className?: string
   artifactPaneOpen?: boolean
+  artifactPaneMaximized?: boolean
   artifactPaneWorkspacePath?: string
+  artifactPaneSelectedFile?: string | null
+  artifactOverlayBottomInset?: number
   onCloseArtifactPane?: () => void
+  onArtifactPaneSelectedFileChange?: (file: string | null) => void
+  onToggleArtifactPaneMaximized?: () => void
 }
 
 type AgentChatFrameMainProps = AgentChatFrameBaseProps & {
@@ -532,9 +580,29 @@ const AgentChatFrame = ({
   overlay,
   className,
   artifactPaneOpen,
+  artifactPaneMaximized,
   artifactPaneWorkspacePath,
-  onCloseArtifactPane
+  artifactPaneSelectedFile,
+  artifactOverlayBottomInset = 0,
+  onCloseArtifactPane,
+  onArtifactPaneSelectedFileChange,
+  onToggleArtifactPaneMaximized
 }: AgentChatFrameProps) => {
+  const artifactCenterOverlay =
+    artifactPaneOpen && artifactPaneMaximized ? (
+      <div
+        className="absolute inset-x-0 top-0 z-40 min-h-0 overflow-hidden bg-background p-4"
+        style={{ bottom: artifactOverlayBottomInset }}>
+        <ArtifactPane
+          workspacePath={artifactPaneWorkspacePath}
+          maximized
+          selectedFile={artifactPaneSelectedFile}
+          onSelectedFileChange={onArtifactPaneSelectedFileChange}
+          onToggleMaximized={onToggleArtifactPaneMaximized}
+        />
+      </div>
+    ) : undefined
+
   const shell =
     centerContent !== undefined ? (
       <ChatAppShell
@@ -544,6 +612,7 @@ const AgentChatFrame = ({
         topBar={topBar}
         centerContent={centerContent}
         sidePanel={sidePanel}
+        centerOverlay={artifactCenterOverlay}
         overlay={overlay}
       />
     ) : (
@@ -555,6 +624,7 @@ const AgentChatFrame = ({
         main={main ?? null}
         bottomComposer={bottomComposer}
         sidePanel={sidePanel}
+        centerOverlay={artifactCenterOverlay}
         overlay={overlay}
       />
     )
@@ -563,14 +633,21 @@ const AgentChatFrame = ({
     <Container className={className}>
       <QuickPanelProvider>{shell}</QuickPanelProvider>
       <RightPaneHost
-        open={artifactPaneOpen}
+        open={artifactPaneOpen && !artifactPaneMaximized}
         width={ARTIFACT_PANE_WIDTH}
         resizable
         minWidth={ARTIFACT_RIGHT_PANE_MIN_WIDTH}
         defaultWidth={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
         maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
         cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}>
-        {onCloseArtifactPane && <ArtifactPane workspacePath={artifactPaneWorkspacePath} />}
+        {onCloseArtifactPane && (
+          <ArtifactPane
+            workspacePath={artifactPaneWorkspacePath}
+            selectedFile={artifactPaneSelectedFile}
+            onSelectedFileChange={onArtifactPaneSelectedFileChange}
+            onToggleMaximized={onToggleArtifactPaneMaximized}
+          />
+        )}
       </RightPaneHost>
     </Container>
   )
@@ -580,7 +657,7 @@ const Container = ({ children, className }: PropsWithChildren<{ className?: stri
   return (
     <div
       className={cn(
-        'flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-(--color-background)',
+        'flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background',
         className
       )}>
       {children}

@@ -20,7 +20,8 @@ vi.mock('@renderer/components/chat', () => ({
     main,
     centerContent,
     bottomComposer,
-    overlay
+    overlay,
+    centerOverlay
   }: {
     pane?: ReactNode
     paneOpen?: boolean
@@ -31,6 +32,7 @@ vi.mock('@renderer/components/chat', () => ({
     centerContent?: ReactNode
     bottomComposer?: ReactNode
     overlay?: ReactNode
+    centerOverlay?: ReactNode
   }) => (
     <div data-testid="chat-app-shell" data-pane-open={String(Boolean(paneOpen))} data-pane-position={panePosition}>
       <div data-testid="agent-top-bar">{topBar}</div>
@@ -38,6 +40,7 @@ vi.mock('@renderer/components/chat', () => ({
       <div data-testid="agent-side-panel">{sidePanel}</div>
       <div>{centerContent ?? main}</div>
       <div>{bottomComposer}</div>
+      <div data-testid="chat-center-overlay">{centerOverlay}</div>
       <div>{overlay}</div>
     </div>
   ),
@@ -79,8 +82,31 @@ vi.mock('@renderer/components/chat', () => ({
 
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ARTIFACT_PANE_WIDTH: 460,
-  default: ({ workspacePath }: { workspacePath?: string }) => (
-    <div data-testid="artifact-pane" data-workspace-path={workspacePath ?? ''} />
+  default: ({
+    workspacePath,
+    maximized,
+    selectedFile,
+    onSelectedFileChange,
+    onToggleMaximized
+  }: {
+    workspacePath?: string
+    maximized?: boolean
+    selectedFile?: string | null
+    onSelectedFileChange?: (file: string | null) => void
+    onToggleMaximized?: () => void
+  }) => (
+    <div
+      data-testid="artifact-pane"
+      data-workspace-path={workspacePath ?? ''}
+      data-selected-file={selectedFile ?? ''}
+      data-maximized={String(Boolean(maximized))}>
+      <button type="button" onClick={() => onSelectedFileChange?.('README.md')}>
+        select artifact file
+      </button>
+      <button type="button" onClick={onToggleMaximized}>
+        {maximized ? 'minimize artifact pane' : 'maximize artifact pane'}
+      </button>
+    </div>
   )
 }))
 
@@ -101,15 +127,20 @@ vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => 
     placement,
     main,
     composer,
-    mainVisible
+    mainVisible,
+    onMainOverlayBottomInsetChange
   }: {
     placement: string
     main: ReactNode
     composer: ReactNode
     mainVisible?: boolean
+    onMainOverlayBottomInsetChange?: (inset: number) => void
   }) => (
     <div data-testid="composer-dock-frame" data-placement={placement} data-main-visible={String(Boolean(mainVisible))}>
       {main}
+      <button type="button" onClick={() => onMainOverlayBottomInsetChange?.(316)}>
+        report composer inset
+      </button>
       {composer}
     </div>
   )
@@ -288,7 +319,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-default-width', '460')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-max-width', '540')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-cache-key', 'ui.chat.artifact_pane.width')
-    expect(screen.getByTestId('artifact-right-pane').getAttribute('data-class-name')).not.toContain('p-2')
+    expect(screen.getByTestId('artifact-right-pane').getAttribute('data-class-name')).not.toContain('p-4')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
 
@@ -297,6 +328,55 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByTestId('session-pane')).toBeInTheDocument()
+  })
+
+  it('maximizes the artifact pane over the navbar without covering the composer', () => {
+    render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'toggle artifact pane' }))
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'maximize artifact pane' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('chat-center-overlay').firstElementChild).toHaveClass('p-4')
+    expect(screen.getByTestId('chat-center-overlay').firstElementChild).toHaveClass(
+      'absolute',
+      'top-0',
+      'z-40',
+      'bg-background'
+    )
+    expect(screen.getByTestId('chat-center-overlay').firstElementChild).toHaveStyle({ bottom: '0px' })
+    expect(screen.getByTestId('agent-top-bar')).toBeInTheDocument()
+    expect(screen.getByTestId('chat-center-overlay')).toContainElement(screen.getByTestId('artifact-pane'))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'true')
+    expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'report composer inset' }))
+
+    expect(screen.getByTestId('chat-center-overlay').firstElementChild).toHaveStyle({ bottom: '316px' })
+  })
+
+  it('keeps the selected artifact file when maximizing and restoring the pane', () => {
+    render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'toggle artifact pane' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select artifact file' }))
+
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
+
+    fireEvent.click(screen.getByRole('button', { name: 'maximize artifact pane' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
+
+    fireEvent.click(screen.getByRole('button', { name: 'minimize artifact pane' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'false')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
   })
 
   it('renders the temporary session composer in home placement', () => {

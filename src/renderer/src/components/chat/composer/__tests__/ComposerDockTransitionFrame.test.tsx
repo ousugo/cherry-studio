@@ -104,4 +104,22 @@ describe('ComposerDockTransitionFrame', () => {
       expect(dockLayer).toHaveStyle({ paddingInlineStart: '8px', paddingInlineEnd: '24px' })
     })
   })
+
+  it('reports the bottom inset needed to keep overlays above the composer', async () => {
+    const onMainOverlayBottomInsetChange = vi.fn()
+
+    render(
+      <ComposerDockTransitionFrame
+        placement="docked"
+        main={<InsetProbe />}
+        onMainOverlayBottomInsetChange={onMainOverlayBottomInsetChange}
+        composer={<div data-composer-inputbar="" />}
+        mainVisible
+      />
+    )
+
+    await waitFor(() => {
+      expect(onMainOverlayBottomInsetChange).toHaveBeenLastCalledWith(316)
+    })
+  })
 })

@@ -7,9 +7,9 @@ import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import RichEditor from '@renderer/components/RichEditor'
 import type { FilePath } from '@shared/file/types'
 import { toFileUrl } from '@shared/file/urlUtil'
-import { AlertCircle, CodeXml, Eye, FileText, FolderOpen, Maximize2, RotateCw, Sparkles } from 'lucide-react'
+import { AlertCircle, CodeXml, Eye, FileText, FolderOpen, Maximize2, Minimize2, RotateCw, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CHAT_SHELL_TRANSITION } from '../shell/types'
@@ -21,6 +21,10 @@ export const ARTIFACT_PANE_WIDTH = 460
 
 export interface ArtifactPaneProps {
   workspacePath?: string
+  maximized?: boolean
+  selectedFile?: string | null
+  onSelectedFileChange?: (file: string | null) => void
+  onToggleMaximized?: () => void
 }
 
 type ViewMode = 'preview' | 'code'
@@ -206,6 +210,7 @@ function buildFileTreeNodes(workspacePath: string | undefined, paths: readonly s
 interface WorkspaceFileTreeResult {
   tree: FileTreeNode[]
   isLoading: boolean
+  hasLoaded: boolean
   error?: Error
   refresh: () => void
 }
@@ -236,6 +241,7 @@ const HtmlPreviewPanel = memo<HtmlPreviewPanelProps>(({ html, title }) => {
 const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult => {
   const [paths, setPaths] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [hasLoaded, setHasLoaded] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
   const [refreshToken, setRefreshToken] = useState(0)
 
@@ -243,12 +249,14 @@ const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult
     if (!path) {
       setPaths([])
       setIsLoading(false)
+      setHasLoaded(false)
       setError(undefined)
       return
     }
 
     let cancelled = false
     setIsLoading(true)
+    setHasLoaded(false)
     setError(undefined)
 
     window.api.file
@@ -262,6 +270,7 @@ const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult
         if (cancelled) return
         setPaths(result)
         setIsLoading(false)
+        setHasLoaded(true)
       })
       .catch((err: unknown) => {
         if (cancelled) return
@@ -270,6 +279,7 @@ const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult
         setError(normalized)
         setPaths([])
         setIsLoading(false)
+        setHasLoaded(true)
       })
 
     return () => {
@@ -280,20 +290,36 @@ const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult
   const tree = useMemo(() => buildFileTreeNodes(path, paths), [path, paths])
   const refresh = useCallback(() => setRefreshToken((v) => v + 1), [])
 
-  return { tree, isLoading, error, refresh }
+  return { tree, isLoading, hasLoaded, error, refresh }
 }
 
-const ArtifactPane = ({ workspacePath }: ArtifactPaneProps) => {
+const ArtifactPane = ({
+  workspacePath,
+  maximized = false,
+  selectedFile: selectedFileProp,
+  onSelectedFileChange,
+  onToggleMaximized
+}: ArtifactPaneProps) => {
   const { t } = useTranslation()
-  const { tree, isLoading, error, refresh } = useWorkspaceFileTree(workspacePath)
+  const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(workspacePath)
 
   const [treeOpen, setTreeOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('preview')
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [internalSelectedFile, setInternalSelectedFile] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
+  const previousWorkspacePathRef = useRef(workspacePath)
+  const selectedFileControlled = selectedFileProp !== undefined
+  const selectedFile = selectedFileControlled ? selectedFileProp : internalSelectedFile
+  const setSelectedFile = useCallback(
+    (file: string | null) => {
+      if (!selectedFileControlled) setInternalSelectedFile(file)
+      onSelectedFileChange?.(file)
+    },
+    [onSelectedFileChange, selectedFileControlled]
+  )
 
   const nodeById = useMemo(() => {
     const result = new Map<string, FileTreeNode>()
@@ -309,15 +335,16 @@ const ArtifactPane = ({ workspacePath }: ArtifactPaneProps) => {
 
   // Reset transient state when the workspace changes.
   useEffect(() => {
-    setSelectedFile(null)
+    if (previousWorkspacePathRef.current !== workspacePath) setSelectedFile(null)
+    previousWorkspacePathRef.current = workspacePath
     setExpandedIds(workspacePath ? new Set([WORKSPACE_ROOT_ID]) : new Set())
     setFileContent(null)
     setLoadingContent(false)
     setContentRefreshToken(0)
-  }, [workspacePath])
+  }, [setSelectedFile, workspacePath])
 
   useEffect(() => {
-    if (!selectedFile) return
+    if (!selectedFile || !hasLoaded) return
 
     const selectedNode = nodeById.get(selectedFile)
     if (selectedNode?.kind === 'file') return
@@ -325,7 +352,7 @@ const ArtifactPane = ({ workspacePath }: ArtifactPaneProps) => {
     setSelectedFile(null)
     setFileContent(null)
     setLoadingContent(false)
-  }, [nodeById, selectedFile])
+  }, [hasLoaded, nodeById, selectedFile, setSelectedFile])
 
   // Load the selected text file. PDFs are rendered directly from a file:// URL.
   useEffect(() => {
@@ -375,7 +402,7 @@ const ArtifactPane = ({ workspacePath }: ArtifactPaneProps) => {
       const node = nodeById.get(id)
       if (node?.kind === 'file') setSelectedFile(id)
     },
-    [nodeById]
+    [nodeById, setSelectedFile]
   )
 
   const handleRefresh = useCallback(() => {
@@ -399,7 +426,9 @@ const ArtifactPane = ({ workspacePath }: ArtifactPaneProps) => {
 
   const isSelectedHtmlPreview = viewMode === 'preview' && selectedFile ? isHtmlFile(selectedFile) : false
   const viewModeLabel = t(viewMode === 'preview' ? 'agent.preview_pane.preview' : 'agent.preview_pane.code')
+  const maximizeLabel = t(maximized ? 'agent.preview_pane.minimize' : 'agent.preview_pane.maximize')
   const ViewModeIcon = viewMode === 'preview' ? Eye : CodeXml
+  const MaximizeIcon = maximized ? Minimize2 : Maximize2
 
   const renderRight = () => {
     if (!workspacePath) {
@@ -499,7 +528,11 @@ const ArtifactPane = ({ workspacePath }: ArtifactPaneProps) => {
     )
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
+    <div
+      className={cn(
+        'flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground',
+        maximized && 'rounded-lg border border-border-subtle shadow-sm'
+      )}>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <AnimatePresence initial={false}>
           {treeOpen && (
@@ -579,14 +612,16 @@ const ArtifactPane = ({ workspacePath }: ArtifactPaneProps) => {
                 </Button>
               </Tooltip>
               {workspacePath && <OpenExternalAppButton workdir={workspacePath} />}
-              <Tooltip content={t('agent.preview_pane.maximize')} delay={800}>
+              <Tooltip content={maximizeLabel} delay={800}>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
                   className="text-muted-foreground hover:bg-accent hover:text-foreground"
-                  aria-label={t('agent.preview_pane.maximize')}>
-                  <Maximize2 size={16} />
+                  aria-label={maximizeLabel}
+                  aria-pressed={maximized}
+                  onClick={onToggleMaximized}>
+                  <MaximizeIcon size={16} />
                 </Button>
               </Tooltip>
             </div>

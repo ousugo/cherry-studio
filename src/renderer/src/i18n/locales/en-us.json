@@ -352,6 +352,7 @@
       "items_one": "{{count}} item",
       "items_other": "{{count}} items",
       "maximize": "Maximize",
+      "minimize": "Minimize",
       "preview": "Preview",
       "refresh": "Refresh",
       "select_file": "Select a file to preview",

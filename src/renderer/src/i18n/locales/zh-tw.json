@@ -352,6 +352,7 @@
       "items_one": "{{count}} 個項目",
       "items_other": "{{count}} 個項目",
       "maximize": "最大化",
+      "minimize": "最小化",
       "preview": "預覽",
       "refresh": "重新整理",
       "select_file": "選擇檔案以預覽",

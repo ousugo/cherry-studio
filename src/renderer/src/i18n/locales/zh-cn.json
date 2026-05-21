@@ -352,6 +352,7 @@
       "items_one": "{{count}} 个项目",
       "items_other": "{{count}} 个项目",
       "maximize": "最大化",
+      "minimize": "最小化",
       "preview": "预览",
       "refresh": "刷新",
       "select_file": "选择文件以预览",

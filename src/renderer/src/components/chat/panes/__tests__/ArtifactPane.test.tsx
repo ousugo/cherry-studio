@@ -106,9 +106,11 @@ vi.mock('@renderer/components/chat', () => ({
 vi.mock('@renderer/components/FileTree', () => ({
   FileTree: ({
     nodes,
+    selectedId,
     onSelectedChange
   }: {
     nodes: MockFileTreeNode[]
+    selectedId?: string | null
     onSelectedChange?: (id: string | null) => void
   }) => {
     const renderNode = (node: MockFileTreeNode) => (
@@ -117,6 +119,7 @@ vi.mock('@renderer/components/FileTree', () => ({
           type="button"
           data-testid={`tree-node-${node.id}`}
           data-kind={node.kind}
+          data-selected={String(selectedId === node.id)}
           onClick={() => onSelectedChange?.(node.id)}>
           {node.name}
         </button>
@@ -254,6 +257,21 @@ describe('ArtifactPane', () => {
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   })
 
+  it('uses the minimize action while maximized', () => {
+    const onToggleMaximized = vi.fn()
+
+    const { container } = render(<ArtifactPane maximized onToggleMaximized={onToggleMaximized} />)
+
+    const minimizeButton = screen.getByRole('button', { name: 'agent.preview_pane.minimize' })
+    expect(container.firstElementChild).toHaveClass('rounded-lg', 'border', 'border-border-subtle', 'shadow-sm')
+    expect(minimizeButton).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.maximize' })).not.toBeInTheDocument()
+
+    fireEvent.click(minimizeButton)
+
+    expect(onToggleMaximized).toHaveBeenCalledTimes(1)
+  })
+
   it('renders the workspace opener between refresh and maximize when a workspace path exists', async () => {
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -349,6 +367,31 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('# Hello')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'markdown')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
+  })
+
+  it('supports controlled selected file state', async () => {
+    const onSelectedFileChange = vi.fn()
+    mocks.listDirectory.mockResolvedValueOnce(['README.md', 'src/index.ts'])
+    mocks.fsReadText.mockResolvedValue('# Controlled')
+
+    render(
+      <ArtifactPane
+        workspacePath="/tmp/workspace"
+        selectedFile="README.md"
+        onSelectedFileChange={onSelectedFileChange}
+      />
+    )
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/README.md'))
+    expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Controlled')
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'true')
+
+    fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
+
+    expect(onSelectedFileChange).toHaveBeenCalledWith('src/index.ts')
   })
 
   it('renders text file previews without wrapping so horizontal overflow can scroll', async () => {

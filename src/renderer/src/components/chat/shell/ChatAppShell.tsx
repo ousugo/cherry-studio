@@ -14,6 +14,7 @@ interface ChatAppShellBaseProps {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   sidePanel?: ReactNode
+  centerOverlay?: ReactNode
   overlay?: ReactNode
   rootId?: string
   rootClassName?: string
@@ -46,6 +47,7 @@ export function ChatAppShell({
   centerContent,
   bottomComposer,
   sidePanel,
+  centerOverlay,
   overlay,
   rootId,
   rootClassName,
@@ -79,6 +81,7 @@ export function ChatAppShell({
               {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
             </>
           )}
+          {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
         </motion.div>
 
         <RightPaneHost open={paneOpen && panePosition === 'right'}>{pane}</RightPaneHost>
