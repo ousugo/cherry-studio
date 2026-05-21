@@ -8,20 +8,14 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { sessionService } from '@data/services/SessionService'
 import { application } from '@main/core/application'
-import { topicNamingService } from '@main/services/TopicNamingService'
 import { trace } from '@opentelemetry/api'
 import type { Message } from '@shared/data/types/message'
 import { v7 as uuidv7 } from 'uuid'
 
-import {
-  assertClaudeCodeWorkspaceDirectory,
-  extractAgentSessionId,
-  isAgentSessionTopic,
-  parseAgentSessionModel
-} from '../../provider/claudeCodeSettingsBuilder'
+import { agentRuntimeDriverRegistry } from '../../agent-session/runtime'
+import { assertClaudeCodeWorkspaceDirectory } from '../../agent-session/runtime/claude-code/settingsBuilder'
+import { extractAgentSessionId, isAgentSessionTopic } from '../../agent-session/topic'
 import { AdapterTracer, TRACER_NAME } from '../../trace'
-import { PersistenceListener } from '../listeners/PersistenceListener'
-import { AgentMessageBackend } from '../persistence/backends/AgentMessageBackend'
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
@@ -61,16 +55,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
     if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
 
-    // Below we ship ONLY the latest user turn — Claude Code resumes context via its
-    // SDK session id (see `lastAgentSessionId` in provider/config.ts). A non-CC
-    // agent without server-side state would lose history; reject until a loader exists.
-    if (agent.type !== 'claude-code') {
-      throw new Error(
-        `AgentChatContextProvider only supports 'claude-code' agents (got '${agent.type}'); other types need a history loader before dispatch.`
-      )
+    if (!agentRuntimeDriverRegistry.get(agent.type)) {
+      throw new Error(`Unsupported agent runtime type: ${agent.type}`)
     }
 
-    const uniqueModelId = parseAgentSessionModel(agent.model)
+    const uniqueModelId = agent.model
 
     const userText =
       req.userMessageParts
@@ -154,17 +143,14 @@ export class AgentChatContextProvider implements ChatContextProvider {
       ]
     })
 
-    const agentPersistenceListener = new PersistenceListener({
+    const runtime = application.get('AgentSessionRuntimeService').beginTurn({
+      sessionId,
       topicId: req.topicId,
+      agentId,
+      agentType: agent.type,
       modelId: uniqueModelId,
-      backend: new AgentMessageBackend({
-        sessionId,
-        agentId: agentId,
-        modelId: uniqueModelId,
-        afterPersist: async (finalMessage) => {
-          await topicNamingService.maybeRenameAgentSession(agentId, sessionId, userText, finalMessage)
-        }
-      })
+      assistantMessageId,
+      userMessage
     })
 
     return {
@@ -177,14 +163,19 @@ export class AgentChatContextProvider implements ChatContextProvider {
             trigger: 'submit-message',
             assistantId: agentId,
             uniqueModelId,
-            messages: [{ id: userMessageId, role: 'user', parts: [{ type: 'text', text: userText }] }],
-            messageId: assistantMessageId
+            messages: [
+              { id: userMessageId, role: 'user', parts: userMessageParts },
+              { id: assistantMessageId, role: 'assistant', parts: [] }
+            ],
+            messageId: assistantMessageId,
+            runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId },
+            pendingMessages: runtime.pendingMessages
           },
           rootSpan
         }
       ],
       userMessage,
-      listeners: [subscriber, agentPersistenceListener],
+      listeners: [subscriber, ...runtime.listeners],
       isMultiModel: false
     }
   }

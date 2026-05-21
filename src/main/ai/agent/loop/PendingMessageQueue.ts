@@ -2,15 +2,19 @@ import type { Message } from '@shared/data/types/message'
 
 /**
  * Mid-stream follow-up queue. Three consumption modes:
- * `drain()` (agent loop), `AsyncIterable` (Claude Code
- * `query.streamInput()`), `list`/`remove`/`reorder` (UI).
+ * `drain()` (agent loop), `AsyncIterable` (runtime adapters),
+ * `list`/`remove`/`reorder` (UI).
  */
 export class PendingMessageQueue {
   private messages: Message[] = []
   private waitResolve?: (message: Message) => void
   private closed = false
 
-  constructor(private readonly onChange?: () => void) {}
+  constructor(private callbacks: { onChange?: () => void; onPush?: (message: Message) => void } = {}) {}
+
+  setOnChange(onChange?: () => void): void {
+    this.callbacks = { ...this.callbacks, onChange }
+  }
 
   // ── Push ──
 
@@ -24,6 +28,7 @@ export class PendingMessageQueue {
       this.messages.push(message)
       this.emitChange()
     }
+    this.callbacks.onPush?.(message)
   }
 
   // ── Batch drain (for agentLoop outer loop) ──
@@ -84,7 +89,7 @@ export class PendingMessageQueue {
     if (this.messages.length > 0) this.emitChange()
   }
 
-  // ── AsyncIterable (for Claude Code's injectedMessageSource → query.streamInput) ──
+  // ── AsyncIterable (for runtime adapters) ──
 
   /** Stop the async iterator. No more messages will be yielded. */
   close(): void {
@@ -127,6 +132,6 @@ export class PendingMessageQueue {
   }
 
   private emitChange(): void {
-    this.onChange?.()
+    this.callbacks.onChange?.()
   }
 }

@@ -8,14 +8,18 @@ const req: AiStreamOpenRequest = { trigger: 'submit-message', topicId: TOPIC, us
 
 let streamOpen: ReturnType<typeof vi.fn>
 let originalApi: unknown
+let originalToast: unknown
 
 beforeEach(() => {
   streamOpen = vi.fn()
   originalApi = (window as unknown as { api: unknown }).api
+  originalToast = (window as unknown as { toast: unknown }).toast
   ;(window as unknown as { api: unknown }).api = { ...(originalApi as object), ai: { streamOpen } }
+  ;(window as unknown as { toast: unknown }).toast = { error: vi.fn() }
 })
 afterEach(() => {
   ;(window as unknown as { api: unknown }).api = originalApi
+  ;(window as unknown as { toast: unknown }).toast = originalToast
   vi.clearAllMocks()
 })
 
@@ -50,7 +54,21 @@ describe('streamDispatchCoordinator', () => {
 
     expect(seen).toHaveLength(1)
     expect(seen[0]).toMatchObject({ ok: false, topicId: TOPIC })
+    expect(window.toast.error).not.toHaveBeenCalled()
     off()
+  })
+
+  it('shows workspace dispatch failures as toast', async () => {
+    streamOpen.mockResolvedValue({
+      mode: 'blocked',
+      reason: 'agent-session-workspace',
+      message: 'Workspace path for session session-1 is not accessible: /missing'
+    } satisfies AiStreamOpenResponse)
+
+    streamDispatchCoordinator.dispatch(TOPIC, req)
+    await flush()
+
+    expect(window.toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
   })
 
   it('peek() returns the latest result for late subscribers', async () => {

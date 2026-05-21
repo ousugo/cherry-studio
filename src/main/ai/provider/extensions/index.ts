@@ -21,8 +21,6 @@ import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
-import type { ClaudeCodeProviderSettings } from '../claude-code'
-import { createClaudeCode } from '../claude-code'
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapi-provider'
 
@@ -157,13 +155,6 @@ export const VoyageExtension = ProviderExtension.create({
   create: createVoyage
 } as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV3, 'voyage'>)
 
-/** Claude Agent SDK adapted to the AI SDK `Provider` shape; produces UIMessageChunks natively. */
-export const ClaudeCodeExtension = ProviderExtension.create({
-  name: 'claude-code',
-  supportsImageGeneration: false,
-  create: (options?: ClaudeCodeProviderSettings) => createClaudeCode(options)
-} as const satisfies ProviderExtensionConfig<ClaudeCodeProviderSettings, ProviderV3, 'claude-code'>)
-
 export const extensions = [
   GoogleVertexExtension,
   GoogleVertexAnthropicExtension,
@@ -179,6 +170,5 @@ export const extensions = [
   NewApiExtension,
   VoyageExtension,
   TogetherAIExtension,
-  GroqExtension,
-  ClaudeCodeExtension
+  GroqExtension
 ] as const

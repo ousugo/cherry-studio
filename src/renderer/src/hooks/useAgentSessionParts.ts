@@ -5,6 +5,9 @@
  * infinite pagination so chat-style transcripts of arbitrary length load
  * incrementally as the virtual list scrolls up. Reads go through SWR's
  * shared cache (dedup, revalidation, cross-window consistency).
+ *
+ * Each message row stores parts directly in `data`, matching regular topic
+ * messages. Row fields carry identity, role, status, and timestamps.
  */
 
 import { useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@renderer/data/hooks/useDataApi'

@@ -18,7 +18,7 @@ describe('AgentSessionMessage schemas', () => {
     modelSnapshot: null,
     traceId: null,
     stats: null,
-    agentSessionId: null,
+    runtimeResumeToken: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
   }
@@ -38,12 +38,12 @@ describe('AgentSessionMessage schemas', () => {
     ).toBe(false)
   })
 
-  it('allows batch create without agentSessionId', () => {
+  it('allows batch create without runtimeResumeToken', () => {
     const parsed = CreateAgentSessionMessagesSchema.parse({
       sessionId: 'session-1',
       messages: [{ role: 'user', data: { parts: [{ type: 'text', text: 'hello' }] } }]
     })
 
-    expect(parsed.agentSessionId).toBeUndefined()
+    expect(parsed.runtimeResumeToken).toBeUndefined()
   })
 })

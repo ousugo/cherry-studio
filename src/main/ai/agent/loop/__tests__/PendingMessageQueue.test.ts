@@ -43,7 +43,7 @@ describe('PendingMessageQueue', () => {
 
   it('notifies when queued messages are consumed', async () => {
     const onChange = vi.fn()
-    const queue = new PendingMessageQueue(onChange)
+    const queue = new PendingMessageQueue({ onChange })
 
     queue.push(makeMessage('first', 'first'))
     expect(onChange).toHaveBeenCalledTimes(1)

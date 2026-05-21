@@ -749,7 +749,7 @@ export async function importLegacySessionMessages(db: DbType, schemaInfo: Agents
       data: normalized.data,
       status: normalized.status,
       modelId: await resolveUserModelId(db, modelCache, normalized.modelId),
-      agentSessionId: row.agentSessionId,
+      runtimeResumeToken: row.agentSessionId,
       createdAt,
       updatedAt
     })

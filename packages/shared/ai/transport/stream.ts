@@ -188,6 +188,16 @@ export interface AiStreamQueueUpdateRequest {
   payload: ComposerQueuedMessagePayload
 }
 
+/** Prewarm the next Claude Agent SDK query for an agent session. */
+export interface AiAgentSessionWarmRequest {
+  sessionId: string
+}
+
+/** Close any unused warm query for an agent session. */
+export interface AiAgentSessionWarmCloseRequest {
+  sessionId: string
+}
+
 /** Result of an attach attempt.
  *
  * Terminal-state variants (`done` / `paused` / `error`) carry per-execution
@@ -208,28 +218,34 @@ export type AiStreamAttachResponse =
   | { status: 'error'; error?: SerializedError }
 
 /** Result of an open attempt. */
-export interface AiStreamOpenResponse {
-  /**
-   * `'started'`  — a brand new stream was created on this topic.
-   * `'injected'` — a stream was already live on this topic; the new
-   *                 message was injected into every running execution
-   *                 via `AiStreamManager.injectMessage`.
-   */
-  mode: 'started' | 'injected'
-  /** Multi-model: execution IDs for frontend to create per-model streams. */
-  executionIds?: UniqueModelId[]
-  /**
-   * Authoritative DB id of the user message created for this turn, when the
-   * dispatch created one (submit on a persisted topic; agent session).
-   * Absent for regenerate / continue / temporary topics. The renderer joins
-   * its optimistic user bubble against this.
-   */
-  userMessageId?: string
-  /**
-   * Authoritative DB ids of the assistant placeholder row(s) reserved for
-   * this turn, one per execution (model order matches `executionIds`).
-   * Created atomically with the user message, so the presence of any of
-   * these in `uiMessages` also implies the user row landed.
-   */
-  placeholderIds?: string[]
-}
+export type AiStreamOpenResponse =
+  | {
+      /**
+       * `'started'`  — a brand new stream was created on this topic.
+       * `'injected'` — a stream was already live on this topic; the new
+       *                 message was injected into every running execution
+       *                 via `AiStreamManager.injectMessage`.
+       */
+      mode: 'started' | 'injected'
+      /** Multi-model: execution IDs for frontend to create per-model streams. */
+      executionIds?: UniqueModelId[]
+      /**
+       * Authoritative DB id of the user message created for this turn, when the
+       * dispatch created one (submit on a persisted topic; agent session).
+       * Absent for regenerate / continue / temporary topics. The renderer joins
+       * its optimistic user bubble against this.
+       */
+      userMessageId?: string
+      /**
+       * Authoritative DB ids of the assistant placeholder row(s) reserved for
+       * this turn, one per execution (model order matches `executionIds`).
+       * Created atomically with the user message, so the presence of any of
+       * these in `uiMessages` also implies the user row landed.
+       */
+      placeholderIds?: string[]
+    }
+  | {
+      mode: 'blocked'
+      reason: 'agent-session-workspace'
+      message: string
+    }

@@ -12,6 +12,7 @@ translate, summarisation) and the renderer-side transport that connects to it.
 |---|---|
 | [Core Architecture](./core-architecture.md) | End-to-end call flow: `Ai_Stream_Open` IPC → context provider → AiStreamManager → Agent loop → `@ai-sdk/*` → broadcast / persist |
 | [Stream Manager](./stream-manager.md) | Active-stream registry, listeners, reconnect, abort, mid-stream injection, persistence backends |
+| [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, pending queue injection, resume token persistence, Claude Code driver fallback |
 | [Adapter Family](./adapter-family.md) | How `provider.endpointConfigs[ep].adapterFamily` picks the right `@ai-sdk/*` package per request |
 
 ### Subsystems
@@ -21,7 +22,7 @@ translate, summarisation) and the renderer-side transport that connects to it.
 | [Agent Loop](./agent-loop.md) | Main-process `Agent.stream()`: pendingMessages queue, hook composition, observer pattern, error/abort semantics |
 | [Params Pipeline](./params-pipeline.md) | `buildAgentParams` + `RequestFeature` model: how capabilities, plugins, tools, and provider-specific quirks are composed |
 | [Tool Registry](./tool-registry.md) | Built-in tools (knowledge / web search), MCP tools, meta-tools (`tool_search` / `tool_inspect` / `tool_invoke` / `tool_exec`), deferred exposition |
-| [Provider Resolution](./provider-resolution.md) | `Provider.endpointConfigs` schema, endpoint resolution chain, variant suffixes, custom provider extensions (aihubmix, newapi, claude-code) |
+| [Provider Resolution](./provider-resolution.md) | `Provider.endpointConfigs` schema, endpoint resolution chain, variant suffixes, custom provider extensions (aihubmix, newapi) |
 | [Trace / Telemetry](./trace.md) | `AiSdkSpanAdapter`, root span propagation, OTel attribute shape, what each span captures |
 
 ### Renderer-side glue
@@ -42,6 +43,10 @@ src/main/ai/
 │   ├── loop/                     ← runAgentLoop, PendingMessageQueue, internal helpers
 │   ├── observers/                ← steering, usage
 │   └── params/                   ← buildAgentParams + feature plugins
+├── agent-session/                ← agent-session topic host + runtime drivers
+│   ├── AgentSessionRuntimeService.ts
+│   └── runtime/                  ← AgentRuntimeDriver registry + concrete drivers
+│       └── claude-code/          ← Claude Code driver, warm query, SDK adapter
 ├── stream-manager/               ← AiStreamManager + listeners + persistence backends
 │   ├── AiStreamManager.ts
 │   ├── context/                  ← ChatContextProvider implementations
@@ -50,7 +55,6 @@ src/main/ai/
 │   ├── persistence/              ← MessageService / TemporaryChat / AgentMessage / Translation backends
 │   └── pipeStreamLoop.ts         ← shared chunk-pipe primitive
 ├── provider/                     ← provider config, endpoint resolution, custom providers
-│   ├── claude-code/              ← anthropic claude-agent-sdk adapter
 │   ├── custom/                   ← aihubmix, newapi
 │   ├── config.ts                 ← providerToAiSdkConfig
 │   ├── endpoint.ts               ← resolveEffectiveEndpoint + adapterFamily routing
@@ -87,6 +91,9 @@ src/main/ai/
    composes hooks from `RequestFeature[]` (anthropic cache, gateway usage
    normalisation, reasoning extraction, …), opens the AI SDK stream, and
    yields `UIMessageChunk`s.
+   Agent-session runtime requests are the exception: `AiService.streamText`
+   routes them to `AgentSessionRuntimeService.openTurnStream()` so the
+   registered driver can own the concrete agent runtime.
 6. `pipeStreamLoop` tees the chunk stream: one branch broadcasts to listeners
    (WebContents / SSE / channel-adapter / persistence), one branch runs
    `readUIMessageStream` to accumulate a `CherryUIMessage` snapshot.

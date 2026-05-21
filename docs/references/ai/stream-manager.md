@@ -96,7 +96,7 @@ Main. The renderer's only job is rendering chunks.
 │    PersistenceListener    → PersistenceBackend.persistAssistant
 │      • MessageServiceBackend  (SQLite tree)                  │
 │      • TemporaryChatBackend   (in-memory)                    │
-│      • AgentMessageBackend    (agents DB)                    │
+│      • AgentSessionMessageBackend (agent-session DB)         │
 │      • TranslationBackend     (translate row)                │
 │    ChannelAdapterListener → adapter.onStreamComplete         │
 │    SSEListener            → res.write('[DONE]')              │
@@ -211,9 +211,11 @@ src/main/ai/stream-manager/
     └── backends/
         ├── MessageServiceBackend.ts   finalize a SQLite pending placeholder
         ├── TemporaryChatBackend.ts    append to in-memory topic
-        ├── AgentMessageBackend.ts     write to session_messages table
         └── TranslationBackend.ts      attach `data-translation` part to a target message
 ```
+
+Agent session persistence is implemented under `agent-session/persistence`
+because it writes the agent-session domain tables.
 
 ## StreamListener interface
 
@@ -338,7 +340,6 @@ interface StreamExecution {
 
   error?: SerializedError
   siblingsGroupId?: number
-  sourceSessionId?: string
   loopPromise: Promise<void>     // awaited by onStop for graceful shutdown
 
   // Transport-side timings owned by the execution loop — chunk-shape-agnostic.
@@ -764,7 +765,7 @@ The scenario differences are entirely in the listener composition:
 | Scenario | Listeners | Effect |
 |---|---|---|
 | Renderer user message | `WebContentsListener` + `PersistenceListener` | live UI + persist |
-| Channel bot reply | `ChannelAdapterListener` + `PersistenceListener(AgentMessageBackend)` | IM send + agents DB |
+| Channel bot reply | `ChannelAdapterListener` + agent-session persistence listener | IM send + agents DB |
 | Channel + user both watching | above + `WebContentsListener(B)` | parallel fan-out |
 | API server SSE | `SSEListener` + `PersistenceListener` | SSE push + persist |
 | Translate | `WebContentsListener` + `PersistenceListener(TranslationBackend)` | live overlay + writes `data-translation` part on success |
@@ -882,7 +883,7 @@ type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest
 
 | Provider | `canHandle` | Data layer | User message | Assistant message |
 |---|---|---|---|---|
-| **AgentChatContextProvider** | `topicId.startsWith('agent-session:')` | `agentMessageRepository` | written upfront | `PersistenceListener(AgentMessageBackend)` writes on done |
+| **AgentChatContextProvider** | `topicId.startsWith('agent-session:')` | `agentMessageRepository` | written upfront | runtime provides `PersistenceListener(AgentSessionMessageBackend)` |
 | **TemporaryChatContextProvider** | `temporaryChatService.hasTopic(topicId)` | `TemporaryChatService` (in-memory) | appended upfront | `PersistenceListener(TemporaryChatBackend)` appends on done |
 | **PersistentChatContextProvider** | `true` (catch-all) | `messageService` + SQLite | transactional create | `PersistenceListener(MessageServiceBackend)` updates pending on done |
 
@@ -896,7 +897,7 @@ wins).
 | User message timing | before stream (tree node) | before stream (append) | before stream (agents DB) |
 | Assistant placeholder | created pending before stream | none | none |
 | Terminal write | `update` placeholder | `append` new row | `persistAssistantMessage` |
-| Backend | `MessageServiceBackend` | `TemporaryChatBackend` | `AgentMessageBackend` |
+| Backend | `MessageServiceBackend` | `TemporaryChatBackend` | `AgentSessionMessageBackend` |
 | Multi-model | ✓ | ✗ (single-model) | ✗ (single-model) |
 | Regenerate | ✓ | ✗ | ✗ |
 

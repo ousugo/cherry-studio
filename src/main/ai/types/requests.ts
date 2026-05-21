@@ -46,5 +46,6 @@ export interface AiStreamRequest extends AiBaseRequest {
   messageId?: string
   messages?: UIMessage[]
   knowledgeBaseIds?: string[]
+  runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
   pendingMessages?: PendingMessageQueue
 }

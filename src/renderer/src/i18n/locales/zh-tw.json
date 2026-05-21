@@ -4787,6 +4787,10 @@
       "name_required": "請輸入名稱",
       "refresh_failed": "已新建，但列表刷新失敗",
       "submit_failed": "新建失敗"
+    },
+    "workspace": {
+      "empty_text": "暫無工作區",
+      "placeholder": "選擇工作區"
     }
   },
   "settings": {

@@ -84,7 +84,7 @@ and hook signatures stay stable.
 `PendingMessageQueue` (`agent/loop/PendingMessageQueue.ts`) is a
 session-isolated FIFO. The stream manager pushes onto it from
 `Ai_Stream_Open` IPC when a topic already has a live stream
-(**inject** path); the agent loop drains:
+(**inject** path). Generic AI SDK agent loops drain it in two places:
 
 1. **Mid-flight** — `attachSteeringObserver` registers on `prepareStep`,
    appends queued messages to the message list AI SDK is about to send.
@@ -93,9 +93,9 @@ session-isolated FIFO. The stream manager pushes onto it from
    messages appended. This catches the race where the user injects after
    AI SDK's last `prepareStep` fired.
 
-The Claude Code provider consumes the queue as `AsyncIterable` directly
-through `injectedMessageSource`. For that provider the steering observer
-is a no-op to avoid double consumption.
+Agent-session runtimes may own their own long-lived input queue. In that
+case the stream manager still uses the same live-inject path, but the
+runtime consumes the pending messages instead of the generic agent loop.
 
 ## Error and abort
 

@@ -55,10 +55,10 @@ describe('WorkspaceEntitySchema', () => {
     ).toBeNull()
   })
 
-  it('allows workspace selection only at session creation', () => {
+  it('allows workspace selection on session create and update', () => {
     expect(
       CreateSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceId: workspace.id }).workspaceId
     ).toBe(workspace.id)
-    expect(UpdateSessionSchema.safeParse({ workspaceId: workspace.id }).success).toBe(false)
+    expect(UpdateSessionSchema.parse({ workspaceId: workspace.id }).workspaceId).toBe(workspace.id)
   })
 })

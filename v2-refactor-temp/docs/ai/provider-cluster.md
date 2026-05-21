@@ -6,9 +6,8 @@
 |---|---|---|
 | `src/main/ai/provider/` | `config.ts` (495), `endpoint.ts` (99), `factory.ts` (17), `constants.ts` (14) | Provider config builder, endpoint resolver, derived helpers |
 | `provider/extensions/` | `index.ts` (236) | All `ProviderExtension.create(...)` registrations |
-| `provider/claude-code/` | `claude-code-language-model.ts` (1425), `claude-code-provider.ts` (67), `types.ts` (88), `deepseekContext.ts`, `index.ts` | Anthropic claude-agent-sdk adapter |
 | `provider/custom/` | `aihubmix-provider.ts` (167), `newapi-provider.ts` (151) | Aggregator-provider implementations |
-| `provider/` | `claudeCodeSettingsBuilder.ts` (640), `listModels.ts` (559), `listModelsSchemas.ts` (232), `listModels/vertex.ts` | Settings construction for claude-code; per-provider model listing |
+| `provider/` | `listModels.ts` (559), `listModelsSchemas.ts` (232), `listModels/vertex.ts` | Per-provider model listing |
 | Tests | `__tests__/endpoint.test.ts` (307) | Resolver coverage |
 
 ## Intent
@@ -25,8 +24,9 @@ once at row-write time, read at request time. The full design is in
 [adapter-family.md](./adapter-family.md) and the reference at
 [`docs/references/ai/adapter-family.md`](../../../docs/references/ai/adapter-family.md).
 
-This cluster bundles the resolver + the SDK-package wiring (extensions,
-custom providers, claude-code).
+This cluster bundles the resolver + the SDK-package wiring (extensions
+and custom providers). Claude Code is not a generic provider extension;
+it is only entered through the agent-session runtime.
 
 ## Key changes
 
@@ -46,16 +46,13 @@ Three pure functions:
 
 ### `config.ts` (provider-to-SDK config)
 
-`providerToAiSdkConfig(provider, model, opts?)` builds the
+`providerToAiSdkConfig(provider, model)` builds the
 `{ providerId, providerSettings }` pair. Per-id branches build the
 SDK-specific settings shape:
 
 - `openai`, `anthropic`, `google`, `azure`, etc. — standard apiKey +
   baseURL + headers.
 - `gateway` — async, model-list dependent.
-- `claude-code` — receives `opts.agentSessionId` (extracted from
-  `topicId === 'agent-session:<sessionId>'`), calls
-  `buildClaudeCodeSessionSettings`.
 - `aihubmix` / `newapi` — pass through to the custom provider factories.
 
 ### Provider extensions
@@ -80,22 +77,18 @@ declares:
   `toolFactory`.
 - **newapi** — same shape, different relay backend.
 
-### Claude Code provider
+### Claude Code runtime helpers
 
-The biggest single file in the cluster:
-`provider/claude-code/claude-code-language-model.ts` (1425 lines). It
-adapts the `@anthropic-ai/claude-agent-sdk` to AI SDK's
-`LanguageModelV3` shape: pushes user messages onto the SDK's
-`AsyncIterable` input, converts agent SDK events into AI SDK chunks,
-proxies tool approval through `toolApprovalRegistry`, handles workspace
-mounting via `buildClaudeCodeSessionSettings`.
-
-`claudeCodeSettingsBuilder.ts` (640 lines) builds
-`ClaudeCodeSettings` from an `AgentSessionEntity` — model selection,
-MCP server configs, allowed-tools list, prompt builder, proxy env, OS
-shell quirks. Heavy because it covers everything an
-`AgentService.invoke` call used to do; now factored out so the
-provider stays focused on the AI SDK contract.
+Claude Code no longer registers a normal AI SDK provider extension.
+The Claude-specific runtime pieces live under
+`src/main/ai/agent-session/runtime/claude-code/`: the driver owns the
+SDK query, warm query reuse, SDK input queue, and stream adapter that
+converts agent SDK events into UI message chunks. `settingsBuilder.ts`
+builds `ClaudeCodeSettings` from an `AgentSessionEntity` — model
+selection, MCP server configs, allowed-tools list, prompt builder, proxy
+env, and OS shell quirks. `agentSessionWarmup.ts` then turns those
+settings into SDK query options using the agent session, provider,
+model, and latest persisted SDK session id.
 
 ### `listModels.ts`
 
@@ -111,7 +104,7 @@ provider response bodies.
 - Adding a new provider means: (a) register the extension, (b) add it
   to `providerToAiSdkConfig`'s branch, (c) add the
   `adapterFamily` per endpoint in `providers.json`. No other touchpoint.
-- `claude-code`'s `buildClaudeCodeSessionSettings` is the only path that
+- `claude-code` runtime's `buildClaudeCodeSessionSettings` is the only path that
   reads agent session data — it must throw on orphan sessions
   (`agentId === null`) rather than fall back to defaults.
 

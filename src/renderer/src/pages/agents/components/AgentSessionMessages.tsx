@@ -8,7 +8,7 @@ import type { GetAgentResponse, Topic, TopicType as TopicTypeEnum } from '@rende
 import { TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { memo, useMemo } from 'react'
+import { memo, useEffect, useMemo } from 'react'
 
 import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
 
@@ -87,6 +87,17 @@ const AgentSessionMessages = ({
     respondToolApproval,
     messageNavigation
   })
+
+  useEffect(() => {
+    void window.api.ai.prewarmAgentSession({ sessionId }).catch((error) => {
+      logger.warn('Failed to prewarm agent session', error as Error)
+    })
+    return () => {
+      void window.api.ai.closeAgentSessionWarm({ sessionId }).catch((error) => {
+        logger.warn('Failed to close agent session warm query', error as Error)
+      })
+    }
+  }, [sessionId])
 
   logger.silly('Rendering agent session messages', {
     sessionId,

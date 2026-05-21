@@ -6,7 +6,7 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId, parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
+import { buildAgentSessionTopicId } from '@main/ai/agent-session/topic'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
 import { application } from '@main/core/application'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
@@ -535,7 +535,7 @@ export class ChannelMessageHandler {
       throw new Error(`Agent ${agentId} not found or has no model configured`)
     }
     const topicId = buildAgentSessionTopicId(session.id)
-    const uniqueModelId = parseAgentSessionModel(agent.model)
+    const uniqueModelId = agent.model
 
     // Build listeners
     // Renderer subscribes via Ai_Stream_Attach IPC → WebContentsListener added by AiStreamManager.

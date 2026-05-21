@@ -29,7 +29,7 @@ Each cluster doc:
 | Agent Loop | `Agent` class, hooks composition, `PendingMessageQueue`, observers, tool-execution events | [agent-cluster.md](./agent-cluster.md) |
 | Params Pipeline | `buildAgentParams`, `RequestFeature` set, capability resolution, system-prompt assembly | [params-cluster.md](./params-cluster.md) |
 | Tool Registry | Registry, built-in tools, MCP sync, meta-tools, defer exposition, tool-call repair | [tool-cluster.md](./tool-cluster.md) |
-| Provider Resolution | `provider/config.ts`, `endpoint.ts`, extensions, custom providers (aihubmix, newapi, claude-code) | [provider-cluster.md](./provider-cluster.md) |
+| Provider Resolution | `provider/config.ts`, `endpoint.ts`, extensions, custom providers (aihubmix, newapi), Claude Code runtime helpers | [provider-cluster.md](./provider-cluster.md) |
 | Messages & Trace | UI part conversion, file processor, OTel span adapter | [messages-trace-cluster.md](./messages-trace-cluster.md) |
 | AiService & IPC | `AiService` lifecycle wiring, IPC handlers, request-type schemas | [ai-service-cluster.md](./ai-service-cluster.md) |
 | Renderer Transport | `IpcChatTransport`, dispatch coordinator, topic-level subscription, awaiting-approval bridge | [renderer-transport-cluster.md](./renderer-transport-cluster.md) |

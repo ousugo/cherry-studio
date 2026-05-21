@@ -23,7 +23,7 @@ export const agentSessionMessageTable = sqliteTable(
     modelSnapshot: text({ mode: 'json' }).$type<ModelSnapshot>(),
     traceId: text(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),
-    agentSessionId: text(),
+    runtimeResumeToken: text(),
     ...createUpdateTimestamps
   },
   (t) => [

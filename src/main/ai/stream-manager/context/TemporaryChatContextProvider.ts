@@ -5,7 +5,7 @@
  */
 
 import { loggerService } from '@logger'
-import { isAgentSessionTopic } from '@main/ai/provider/claudeCodeSettingsBuilder'
+import { isAgentSessionTopic } from '@main/ai/agent-session/topic'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 

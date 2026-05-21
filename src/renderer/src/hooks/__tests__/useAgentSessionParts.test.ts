@@ -22,16 +22,10 @@ describe('toAgentSessionUIMessage', () => {
       modelSnapshot: { id: 'claude', name: 'Claude', provider: 'anthropic' },
       traceId: 'trace-1',
       stats: { totalTokens: 10 },
-      agentSessionId: 'agent-session-1',
+      runtimeResumeToken: 'agent-session-1',
       createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:01.000Z',
-      content: {
-        message: {
-          id: 'legacy-wrapper-message',
-          data: { parts: [{ type: 'text', text: 'wrong' }] }
-        }
-      }
-    } as AgentSessionMessageEntity & { content: unknown }
+      updatedAt: '2026-01-01T00:00:01.000Z'
+    } as AgentSessionMessageEntity
 
     expect(toAgentSessionUIMessage(row)).toMatchObject({
       id: 'message-1',

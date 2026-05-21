@@ -4787,6 +4787,10 @@
       "name_required": "Please enter a name",
       "refresh_failed": "Created, but failed to refresh the list",
       "submit_failed": "Create failed"
+    },
+    "workspace": {
+      "empty_text": "No workspaces yet",
+      "placeholder": "Select workspace"
     }
   },
   "settings": {

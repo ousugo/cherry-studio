@@ -8,7 +8,7 @@
  * backend may not actually serve.
  *
  * Ported from the pre-v2 `claudecode/utils.ts` (#14965) into the v2
- * claude-code provider path.
+ * claude-code runtime path.
  * @see https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/claude_code
  */
 

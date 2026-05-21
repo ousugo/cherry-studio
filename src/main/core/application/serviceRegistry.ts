@@ -2,6 +2,9 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { AgentSessionRuntimeService } from '@main/ai/agent-session/AgentSessionRuntimeService'
+import { ClaudeCodeWarmQueryManager } from '@main/ai/agent-session/runtime/claude-code/ClaudeCodeWarmQueryManager'
+import { ClaudeCodeWarmupService } from '@main/ai/agent-session/runtime/claude-code/ClaudeCodeWarmupService'
 import { AiService } from '@main/ai/AiService'
 import { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
 import { JobManager } from '@main/core/job/JobManager'
@@ -108,7 +111,10 @@ export const services = {
   McpService,
   OpenClawService,
   SearchService,
+  AgentSessionRuntimeService,
   AiService,
+  ClaudeCodeWarmQueryManager,
+  ClaudeCodeWarmupService,
   AiStreamManager,
   KnowledgeOrchestrationService,
   KnowledgeVectorStoreService,

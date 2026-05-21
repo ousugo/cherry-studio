@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -14,7 +16,7 @@ import type {
   AiStreamQueueUpdateRequest
 } from '@shared/ai/transport'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
-import type { Message } from '@shared/data/types/message'
+import type { CherryMessagePart, Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
@@ -89,6 +91,14 @@ export interface SendResult {
   executionIds: UniqueModelId[]
 }
 
+export interface StartRuntimeTurnInput {
+  topicId: string
+  modelId: UniqueModelId
+  request: AiStreamRequest
+  listeners: StreamListener[]
+  rootSpan?: Span
+}
+
 // ── Inspection snapshots ────────────────────────────────────────────
 // Read-only snapshots so diagnostics/tests can query state without
 // poking `activeStreams`.
@@ -127,6 +137,41 @@ function isLiveStatus(status: ActiveStream['status']): boolean {
 
 function errorFromStreamChunk(errorText: string): SerializedError {
   return { name: 'StreamError', message: errorText, stack: null }
+}
+
+function createInjectedUserMessage(topicId: string, models: ReadonlyArray<SendModelSpec>): Message | undefined {
+  for (const model of models) {
+    const lastUserMessage = [...(model.request.messages ?? [])].reverse().find((message) => message.role === 'user')
+    if (!lastUserMessage) continue
+
+    const parts = (lastUserMessage.parts ?? []) as CherryMessagePart[]
+    const now = new Date().toISOString()
+    return {
+      id: lastUserMessage.id ?? randomUUID(),
+      topicId,
+      parentId: null,
+      role: 'user',
+      data: { parts },
+      searchableText: '',
+      status: 'success',
+      siblingsGroupId: 0,
+      createdAt: now,
+      updatedAt: now
+    }
+  }
+  return undefined
+}
+
+function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
+  if (exec.finalMessage) return exec.finalMessage
+
+  const finalMessage = {
+    id: exec.anchorMessageId ?? randomUUID(),
+    role: 'assistant',
+    parts: []
+  } as CherryUIMessage
+  exec.finalMessage = finalMessage
+  return finalMessage
 }
 
 /**
@@ -223,10 +268,10 @@ export class AiStreamManager extends BaseService {
     const existing = this.activeStreams.get(input.topicId)
 
     if (existing && isLiveStatus(existing.status)) {
-      // Fan the message out per execution so heterogeneous consumers (agent
-      // loop `drain()`, Claude Code `AsyncIterable.next()`) each see it.
-      if (input.userMessage) {
-        for (const exec of existing.executions.values()) exec.pendingMessages.push(input.userMessage)
+      // Fan the message out per execution so each runtime consumer sees it.
+      const injectedMessage = input.userMessage ?? createInjectedUserMessage(input.topicId, input.models)
+      if (injectedMessage) {
+        for (const exec of existing.executions.values()) exec.pendingMessages.push(injectedMessage)
       }
       for (const listener of input.listeners) this.addListener(input.topicId, listener)
       return {
@@ -348,6 +393,38 @@ export class AiStreamManager extends BaseService {
         }) || updated
     }
     return updated
+  }
+
+  startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
+    const existing = this.activeStreams.get(input.topicId)
+    const carriedListeners = existing
+      ? [...existing.listeners.values()].filter(
+          (listener) => !listener.id.startsWith('persistence:') && !listener.id.startsWith('agent-runtime:')
+        )
+      : []
+
+    if (existing) this.evictStream(input.topicId)
+
+    return this.send({
+      topicId: input.topicId,
+      models: [{ modelId: input.modelId, request: input.request, rootSpan: input.rootSpan }],
+      listeners: [...carriedListeners, ...input.listeners]
+    })
+  }
+
+  pauseRuntimeTurn(topicId: string, reason: string): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || !isLiveStatus(stream.status)) return false
+
+    logger.info('Pausing runtime stream turn', { topicId, reason })
+    for (const exec of stream.executions.values()) {
+      if (exec.status === 'streaming') {
+        exec.status = 'aborted'
+        exec.abortController.abort(reason)
+      }
+    }
+    stream.status = 'aborted'
+    return true
   }
 
   /**
@@ -516,10 +593,11 @@ export class AiStreamManager extends BaseService {
 
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
+    const finalMessage = ensureTerminalFinalMessage(exec)
 
     const result: StreamErrorResult = {
       error,
-      finalMessage: exec.finalMessage,
+      finalMessage,
       status: 'error',
       modelId: exec.modelId,
       isTopicDone,
@@ -654,7 +732,9 @@ export class AiStreamManager extends BaseService {
     siblingsGroupId?: number,
     rootSpan?: Span
   ): StreamExecution {
-    const pendingMessages = new PendingMessageQueue(() => this.notifyPendingQueueChanged(topicId))
+    const pendingMessages =
+      request.pendingMessages ?? new PendingMessageQueue({ onChange: () => this.notifyPendingQueueChanged(topicId) })
+    pendingMessages.setOnChange(() => this.notifyPendingQueueChanged(topicId))
     // `loopPromise` is overwritten right after launch; initialise to a resolved sentinel
     // so the `exec` object reference is stable inside the arrow function below.
     const exec: StreamExecution = {

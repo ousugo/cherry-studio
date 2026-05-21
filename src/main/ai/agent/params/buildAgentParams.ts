@@ -6,7 +6,6 @@ import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { stepCountIs, type ToolSet } from 'ai'
 
-import { extractAgentSessionId, isAgentSessionTopic } from '../../provider/claudeCodeSettingsBuilder'
 import { providerToAiSdkConfig } from '../../provider/config'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { RequestContext } from '../../tools/context'
@@ -105,11 +104,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   }
 }
 
-/** sdkConfig with optional Claude Code agent-session id derived from chatId. */
-async function resolveSdkConfig(provider: Provider, model: Model, chatId: string | undefined): Promise<SdkConfig> {
-  const agentSessionId = chatId && isAgentSessionTopic(chatId) ? extractAgentSessionId(chatId) : undefined
+async function resolveSdkConfig(provider: Provider, model: Model, _chatId: string | undefined): Promise<SdkConfig> {
   return {
-    ...(await providerToAiSdkConfig(provider, model, { agentSessionId })),
+    ...(await providerToAiSdkConfig(provider, model)),
     modelId: model.apiModelId ?? model.id
   }
 }

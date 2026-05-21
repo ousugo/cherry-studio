@@ -465,6 +465,10 @@ export enum IpcChannel {
   Ai_Stream_Queue_Remove = 'ai:stream:queue:remove',
   Ai_Stream_Queue_Reorder = 'ai:stream:queue:reorder',
   Ai_Stream_Queue_Update = 'ai:stream:queue:update',
+  /** Renderer → Main: prewarm the next Claude Agent SDK query for an agent session */
+  Ai_AgentSession_Prewarm = 'ai:agent-session:prewarm',
+  /** Renderer → Main: close unused Claude Agent SDK warm query for an agent session */
+  Ai_AgentSession_CloseWarm = 'ai:agent-session:close-warm',
   Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
 
   // Composer draft queue

@@ -1,6 +1,5 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
-import type { Message } from '@shared/data/types/message'
 
 export type {
   AgentMcpServerSpec,
@@ -25,17 +24,21 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
   /** Max chars for tool results in client stream. @default 10000 */
   maxToolResultSize?: number
   /**
-   * Follow-up messages injected mid-stream — forwarded to the Claude
-   * Agent SDK's `query.streamInput()` as `SDKUserMessage`. Backed by
-   * `PendingMessageQueue` (which implements AsyncIterable).
-   */
-  injectedMessageSource?: AsyncIterable<Message>
-  /**
    * Per-stream holder for the controller's `enqueue` binding. `canUseTool`
    * calls `emit` to inject a `tool-approval-request` part into the live
    * stream; `dispose` is the session-scoped cleanup fired in `finally`.
    */
   approvalEmitter?: ToolApprovalEmitterHolder
+  /**
+   * Session-scoped key used by ClaudeCodeWarmQueryManager. This is not passed
+   * to the Claude Agent SDK; it only controls warm query lookup in Main.
+   */
+  warmQueryKey?: string
+  /**
+   * Optional startup initialize timeout for SDK warm queries. Not passed to
+   * normal query options.
+   */
+  warmQueryInitializeTimeoutMs?: number
 }
 
 export type ToolApprovalEmitterHolder = {
@@ -43,12 +46,4 @@ export type ToolApprovalEmitterHolder = {
   emit?: (event: LanguageModelV3ToolApprovalRequest) => void
   /** Session-scoped cleanup (e.g. `toolApprovalRegistry.abort(sessionId)`). */
   dispose?: () => void
-}
-
-export interface ClaudeCodeProviderSettings {
-  /** Injected as `ANTHROPIC_API_KEY` env var to the SDK process. */
-  apiKey?: string
-  /** Injected as `ANTHROPIC_BASE_URL` env var to the SDK process. */
-  baseURL?: string
-  defaultSettings?: ClaudeCodeSettings
 }

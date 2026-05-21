@@ -78,19 +78,23 @@ describe('IpcChatTransport', () => {
   let transport: IpcChatTransport
   let mock: ReturnType<typeof createMockAiApi>
   let originalApi: unknown
+  let originalToast: unknown
 
   beforeEach(() => {
     mock = createMockAiApi()
     originalApi = (window as unknown as { api: unknown }).api
+    originalToast = (window as unknown as { toast: unknown }).toast
     ;(window as unknown as { api: { ai: MockAiApi } }).api = {
       ...(originalApi as object),
       ai: mock.mockApi
     } as { ai: MockAiApi }
+    ;(window as unknown as { toast: unknown }).toast = { error: vi.fn() }
     transport = new IpcChatTransport()
   })
 
   afterEach(() => {
     ;(window as unknown as { api: unknown }).api = originalApi
+    ;(window as unknown as { toast: unknown }).toast = originalToast
   })
 
   const topicId = 'topic-1'
@@ -168,6 +172,20 @@ describe('IpcChatTransport', () => {
     mock.emitError(topicId, 'Something went wrong')
 
     await expect(reader.read()).rejects.toThrow('Something went wrong')
+  })
+
+  it('shows workspace dispatch failures as toast and closes the stream', async () => {
+    mock.mockApi.streamOpen.mockResolvedValue({
+      mode: 'blocked',
+      reason: 'agent-session-workspace',
+      message: 'Workspace path for session session-1 is not accessible: /missing'
+    })
+
+    const stream = await transport.sendMessages(baseOptions)
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ done: true })
+    expect(window.toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
   })
 
   it('calls streamAbort on abort signal', async () => {

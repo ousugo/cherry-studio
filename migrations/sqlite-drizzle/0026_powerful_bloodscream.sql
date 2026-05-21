@@ -69,7 +69,7 @@ CREATE TABLE `__new_agent_session_message` (
 	`model_snapshot` text,
 	`trace_id` text,
 	`stats` text,
-	`agent_session_id` text,
+	`runtime_resume_token` text,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`session_id`) REFERENCES `agent_session`(`id`) ON UPDATE no action ON DELETE cascade,
@@ -78,7 +78,7 @@ CREATE TABLE `__new_agent_session_message` (
 	CONSTRAINT "agent_session_message_status_check" CHECK("__new_agent_session_message"."status" IN ('pending', 'success', 'error', 'paused'))
 );
 --> statement-breakpoint
-INSERT INTO `__new_agent_session_message`("id", "session_id", "role", "data", "searchable_text", "status", "model_id", "model_snapshot", "trace_id", "stats", "agent_session_id", "created_at", "updated_at")
+INSERT INTO `__new_agent_session_message`("id", "session_id", "role", "data", "searchable_text", "status", "model_id", "model_snapshot", "trace_id", "stats", "runtime_resume_token", "created_at", "updated_at")
 SELECT
 	CASE
 		WHEN "id" LIKE '________-____-____-____-____________' THEN "id"

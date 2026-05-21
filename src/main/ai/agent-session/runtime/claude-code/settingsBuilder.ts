@@ -5,14 +5,9 @@
  * tool permissions, prompt builder) to ai-sdk-provider-claude-code's ClaudeCodeSettings.
  *
  * Usage:
- *   if (isAgentSessionTopic(topicId)) {
- *     const sessionId = extractAgentSessionId(topicId)
- *     const session = await sessionService.getSession(sessionId)
- *     const settings = await buildClaudeCodeSessionSettings(session, provider, options)
- *   }
+ *   const settings = await buildClaudeCodeSessionSettings(session, provider, options)
  */
 
-import { fork } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
@@ -25,8 +20,7 @@ import type {
   HookJSONOutput,
   McpServerConfig,
   PermissionResult,
-  SdkPluginConfig,
-  SpawnedProcess
+  SdkPluginConfig
 } from '@anthropic-ai/claude-agent-sdk'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
@@ -34,7 +28,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
+import { isLinux, isWin } from '@main/constant'
 import { application } from '@main/core/application'
 import AssistantServer from '@main/mcpServers/assistant'
 import ClawServer from '@main/mcpServers/claw'
@@ -43,7 +37,7 @@ import { PromptBuilder } from '@main/services/agents/services/cherryclaw/prompt'
 import { createSdkMcpServerInstance } from '@main/services/agents/services/claudecode/createSdkMcpServerInstance'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
 import { checkWorkspacePathStatus, formatWorkspacePathStatus } from '@main/services/agents/workspacePathStatus'
-import { getNodeProxyConfigFromEnvironment, getProxyEnvironment } from '@main/services/proxy/nodeProxy'
+import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
 import { shouldAutoApprove } from '@main/services/toolApproval/autoApprovePolicy'
 import { toAsarUnpackedPath } from '@main/utils'
 import { getAppLanguage } from '@main/utils/language'
@@ -58,76 +52,37 @@ import {
 import { languageEnglishNameMap } from '@shared/config/languages'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { app } from 'electron'
 
-import type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './claude-code'
+import type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const require_ = createRequire(import.meta.url)
 const promptBuilder = new PromptBuilder()
 
-// ── Topic ID convention ──────────────────────────────────────────────
+// ── Tool call ID convention ─────────────────────────────────────────
 
 function buildNamespacedToolCallId(sessionId: string, rawToolCallId: string): string {
   return `${sessionId}:${rawToolCallId}`
 }
 
-const AGENT_SESSION_PREFIX = 'agent-session:'
+const toolApprovalEmitters = new Map<string, ToolApprovalEmitterHolder>()
 
-/** Check if a topicId represents an agent session (vs a normal chat). */
-export function isAgentSessionTopic(topicId: string): boolean {
-  return topicId.startsWith(AGENT_SESSION_PREFIX)
-}
-
-/** Extract the agent session ID from a topic ID. Throws if not an agent session topic. */
-export function extractAgentSessionId(topicId: string): string {
-  if (!isAgentSessionTopic(topicId)) {
-    throw new Error(`Not an agent session topicId: ${topicId}`)
+function getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
+  let holder = toolApprovalEmitters.get(sessionId)
+  if (!holder) {
+    const nextHolder: ToolApprovalEmitterHolder = {
+      dispose: () => {
+        nextHolder.emit = undefined
+        toolApprovalRegistry.abort(sessionId, 'stream-ended')
+      }
+    }
+    holder = nextHolder
+    toolApprovalEmitters.set(sessionId, holder)
   }
-  return topicId.slice(AGENT_SESSION_PREFIX.length)
-}
-
-/** Build the topic id for an agent session. */
-export function buildAgentSessionTopicId(sessionId: string): string {
-  return `${AGENT_SESSION_PREFIX}${sessionId}`
-}
-
-/**
- * Parse a model id string (sourced from `agent.model`) into a `UniqueModelId`
- * (`"providerId::modelId"`).
- *
- * The agents DB stores the model string in canonical `providerId::modelId`
- * form after `data_0003`. Some legacy rows and test fixtures still use the
- * single-colon form `providerId:modelId`; this helper handles both so
- * scheduler / channel / stream-manager call sites never hand-roll string
- * splitting again. Historically three different sites did, and two of
- * them used `indexOf(':')` which silently corrupts the `::` form by
- * leaving a leading colon on the model id.
- */
-export function parseAgentSessionModel(sessionModel: string): UniqueModelId {
-  if (!sessionModel) {
-    throw new Error('parseAgentSessionModel: empty session.model')
-  }
-
-  // Canonical `providerId::modelId` — the shared type guard narrows the
-  // string to `UniqueModelId` without a second parse round-trip.
-  if (isUniqueModelId(sessionModel)) {
-    return sessionModel
-  }
-
-  // Legacy single-colon `providerId:modelId`. A model id that itself
-  // contains colons (e.g. `anthropic:claude:latest`) is ambiguous; we
-  // split on the first `:` which matches the previous behaviour.
-  const singleIdx = sessionModel.indexOf(':')
-  if (singleIdx > 0) {
-    const providerId = sessionModel.slice(0, singleIdx)
-    const rawModelId = sessionModel.slice(singleIdx + 1)
-    return createUniqueModelId(providerId, rawModelId)
-  }
-
-  throw new Error(`parseAgentSessionModel: cannot parse "${sessionModel}" — expected "providerId::modelId"`)
+  return holder
 }
 
 /**
@@ -229,23 +184,16 @@ export async function buildClaudeCodeSessionSettings(
 
   // 4. Tool permissions — shared emitter holder between settings and
   // `canUseTool` so the language model's stream controller can populate
-  // `emit` per-stream (see `claude-code-language-model.ts` doStream).
+  // `emit` per-stream (see AgentSessionRuntimeService's stream adapter setup).
   // `dispose` drops any approval still pending for this session when the
   // stream exits abnormally.
-  const approvalEmitter: ToolApprovalEmitterHolder = {
-    dispose: () => {
-      toolApprovalRegistry.abort(session.id, 'stream-ended')
-    }
-  }
+  const approvalEmitter = getToolApprovalEmitterHolder(session.id)
   const { canUseTool, hooks, allowedTools, disallowedTools } = buildToolPermissions(session, agent, approvalEmitter)
 
   // 5. System prompt
   const systemPrompt = await buildSystemPrompt(session, agent, cwd)
 
-  // 6. Spawn options
-  const spawnClaudeCodeProcess = buildSpawnProcess()
-
-  // 7. MCP servers (session + built-in)
+  // 6. MCP servers (session + built-in)
   const agentConfig = agent.configuration
   const soulEnabled = agentConfig?.soul_enabled === true
   const isAssistant = agentConfig?.builtin_role === 'assistant'
@@ -259,7 +207,6 @@ export async function buildClaudeCodeSessionSettings(
     cwd,
     env,
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
-    spawnClaudeCodeProcess,
     systemPrompt,
     settingSources: getSettingSources(agent),
     includePartialMessages: true,
@@ -271,6 +218,7 @@ export async function buildClaudeCodeSessionSettings(
     canUseTool,
     hooks,
     approvalEmitter,
+    warmQueryKey: session.id,
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
     ...(options?.thinkingOptions?.thinking ? { thinking: options.thinkingOptions.thinking } : {}),
@@ -283,7 +231,26 @@ export async function buildClaudeCodeSessionSettings(
 // ── Subsection builders ─────────────────────────────────────────────
 
 export function resolveClaudeExecutablePath(): string {
-  return toAsarUnpackedPath(path.join(path.dirname(require_.resolve('@anthropic-ai/claude-agent-sdk')), 'cli.js'))
+  const sdkRequire = createRequire(require_.resolve('@anthropic-ai/claude-agent-sdk'))
+  const extension = isWin ? '.exe' : ''
+  const nativePackages = isLinux
+    ? [
+        `@anthropic-ai/claude-agent-sdk-linux-${process.arch}-musl`,
+        `@anthropic-ai/claude-agent-sdk-linux-${process.arch}`
+      ]
+    : [`@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`]
+
+  for (const packageName of nativePackages) {
+    try {
+      return toAsarUnpackedPath(sdkRequire.resolve(`${packageName}/claude${extension}`))
+    } catch {
+      // Optional native packages are platform-specific; try the next candidate.
+    }
+  }
+
+  throw new Error(
+    `Claude Code native binary not found for ${process.platform}-${process.arch}. Reinstall @anthropic-ai/claude-agent-sdk with optional dependencies.`
+  )
 }
 
 export class AgentSessionWorkspaceError extends Error {
@@ -291,6 +258,10 @@ export class AgentSessionWorkspaceError extends Error {
     super(message)
     this.name = 'AgentSessionWorkspaceError'
   }
+}
+
+export function isAgentSessionWorkspaceError(error: unknown): error is AgentSessionWorkspaceError {
+  return error instanceof AgentSessionWorkspaceError
 }
 
 export function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): void {
@@ -309,15 +280,15 @@ async function buildEnvironment(
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
 
-  // API key and base URL are injected by the provider layer (ClaudeCodeProviderSettings),
-  // not set here. This function only builds agent-specific env vars.
+  // API key and base URL are injected by the agent-session runtime query builder.
+  // This function only builds agent-specific env vars.
 
-  // agent.model is UniqueModelId ("providerId::modelId"); helper accepts legacy
-  // single-colon form too. DB lookup for apiModelId, fall back to raw if missing.
+  // agent.model is UniqueModelId ("providerId::modelId"). DB lookup for
+  // apiModelId, fall back to raw if missing.
   if (!agent.model) {
     throw new Error(`buildEnvironment: agent ${agent.id} has no model`)
   }
-  const { providerId, modelId: rawModelId } = parseUniqueModelId(parseAgentSessionModel(agent.model))
+  const { providerId, modelId: rawModelId } = parseUniqueModelId(agent.model)
   let apiModelId = rawModelId
   try {
     const model = await modelService.getByKey(providerId, rawModelId)
@@ -330,8 +301,8 @@ async function buildEnvironment(
     ...loginShellEnv,
     ...getProxyEnvironment(process.env),
     CLAUDE_CODE_USE_BEDROCK: '0',
-    // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the provider layer
-    // (ClaudeCodeProviderSettings.apiKey/baseURL → env), not duplicated here.
+    // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the runtime query builder,
+    // not duplicated here.
     ANTHROPIC_MODEL: apiModelId,
     ANTHROPIC_DEFAULT_OPUS_MODEL: apiModelId,
     ANTHROPIC_DEFAULT_SONNET_MODEL: apiModelId,
@@ -531,33 +502,6 @@ async function buildSystemPrompt(
     type: 'preset',
     preset: 'claude_code',
     append: `${channelSecurityBlock}\n\n${langInstruction}`
-  }
-}
-
-export function buildSpawnProcess(): ClaudeCodeSettings['spawnClaudeCodeProcess'] {
-  const claudeProxyBootstrapPath = toAsarUnpackedPath(path.join(app.getAppPath(), 'out', 'proxy', 'index.js'))
-
-  return (spawnOptions) => {
-    const childEnv = { ...spawnOptions.env } as NodeJS.ProcessEnv
-    childEnv.NODE_PATH = toAsarUnpackedPath(path.join(app.getAppPath(), 'node_modules'))
-
-    let execArgv = process.execArgv
-    const activeProxyConfig = getNodeProxyConfigFromEnvironment(childEnv)
-    if (activeProxyConfig) {
-      execArgv = [...process.execArgv, '--disable-warning=UNDICI-EHPA', '--require', claudeProxyBootstrapPath]
-    }
-
-    const child = fork(spawnOptions.args[0], spawnOptions.args.slice(1), {
-      cwd: spawnOptions.cwd,
-      env: childEnv,
-      execArgv,
-      stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-      signal: spawnOptions.signal
-    })
-    child.stderr?.on('data', (data: Buffer) => {
-      logger.warn('claude stderr', { chunk: data.toString() })
-    })
-    return child as unknown as SpawnedProcess
   }
 }
 

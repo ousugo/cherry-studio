@@ -131,6 +131,27 @@ describe('SessionService', () => {
     })
   })
 
+  it('updates a session workspace', async () => {
+    const firstWorkspace = await workspaceService.findOrCreateByPath(path.join(root, 'before-switch'))
+    const secondWorkspace = await workspaceService.findOrCreateByPath(path.join(root, 'after-switch'))
+    const session = await createSession('Workspace switch', firstWorkspace.id)
+
+    const updated = await sessionService.update(session.id, {
+      workspaceId: secondWorkspace.id
+    })
+
+    expect(updated.workspaceId).toBe(secondWorkspace.id)
+    expect(updated.workspace?.path).toBe(secondWorkspace.path)
+  })
+
+  it('rejects missing workspace updates', async () => {
+    const session = await createSession('Missing workspace update')
+
+    await expect(sessionService.update(session.id, { workspaceId: 'missing-workspace' })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+  })
+
   it('deletes a session', async () => {
     const session = await createSession('Delete me')
 

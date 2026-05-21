@@ -34,10 +34,10 @@ this cluster doc lists what reviewers should look at and why.
 1. Calls `attachUsageObserver(this)` — registers an `onStepFinish` that
    writes a `message-metadata` UIMessageChunk carrying token usage onto
    the currently active writer.
-2. Conditionally calls `attachSteeringObserver(this, pendingMessages)` —
-   registers a `prepareStep` that drains the queue and appends to
-   `messages`. Skipped for the Claude Code provider, which consumes the
-   queue as `AsyncIterable` directly via `injectedMessageSource`.
+2. Calls `attachSteeringObserver(this, pendingMessages)` — registers a
+   `prepareStep` that drains the queue and appends to `messages`.
+   Agent-session runtimes bypass this generic loop and consume their own
+   long-lived pending queue.
 
 Two public methods, `stream(initialMessages)` and
 `generate(messages)`, share `buildAiSdkAgent()` because the agent config

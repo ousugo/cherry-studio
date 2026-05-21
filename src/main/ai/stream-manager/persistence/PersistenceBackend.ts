@@ -1,8 +1,7 @@
 /**
  * Persistence backend strategy — the storage-specific half of
- * `PersistenceListener`. Three implementations cover Cherry's chat
- * topologies: `MessageServiceBackend` (SQLite), `TemporaryChatBackend`
- * (in-memory), `AgentMessageBackend` (agents DB).
+ * `PersistenceListener`. Concrete backends live near the storage domain
+ * they write to; stream-manager only owns the generic contract.
  *
  * The listener attaches error parts and composes `MessageStats` before
  * calling the backend — backends never synthesise UIMessages or repeat

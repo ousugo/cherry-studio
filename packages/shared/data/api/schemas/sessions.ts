@@ -50,7 +50,7 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   /** Session ID this message belongs to */
   sessionId: z.string(),
   searchableText: z.string(),
-  agentSessionId: z.string().nullable(),
+  runtimeResumeToken: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -73,7 +73,7 @@ export type CreateAgentSessionMessageDto = z.infer<typeof CreateAgentSessionMess
 
 export const CreateAgentSessionMessagesSchema = z.strictObject({
   sessionId: z.string(),
-  agentSessionId: z.string().optional(),
+  runtimeResumeToken: z.string().optional(),
   messages: z.array(CreateAgentSessionMessageSchema)
 })
 export type CreateAgentSessionMessagesDto = z.infer<typeof CreateAgentSessionMessagesSchema>
@@ -83,8 +83,6 @@ export const AgentSessionEntitySchema = z.strictObject({
   agentId: z.string().nullable(),
   name: AgentNameAtomSchema,
   description: z.string().optional(),
-  // Workspace bound at session create time. Read-only post-creation —
-  // `UpdateSessionSchema` (below) intentionally doesn't pick this.
   workspaceId: z.string().nullable(),
   workspace: WorkspaceEntitySchema.nullable(),
   orderKey: z.string(),
@@ -107,7 +105,8 @@ export type CreateSessionDto = z.infer<typeof CreateSessionSchema>
 export const UpdateSessionSchema = z.strictObject({
   name: AgentNameAtomSchema.optional(),
   description: z.string().optional(),
-  agentId: z.string().min(1).optional()
+  agentId: z.string().min(1).optional(),
+  workspaceId: z.string().min(1).optional()
 })
 
 export type UpdateSessionDto = z.infer<typeof UpdateSessionSchema>

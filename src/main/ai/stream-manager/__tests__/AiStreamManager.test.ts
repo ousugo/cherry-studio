@@ -3,6 +3,7 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PendingMessageQueue } from '../../agent/loop/PendingMessageQueue'
 import type { AiStreamRequest } from '../../types/requests'
 import type {
   AiStreamManagerConfig,
@@ -63,10 +64,16 @@ vi.mock('@main/data/services/MessageService', () => ({
 // Default mock: never-closing stream so the execution loop parks in `reader.read()`
 // and tests can drive terminal state (onExecutionDone / onExecutionError /
 // abort + onExecutionPaused) explicitly.
-function pendingStream(): ReadableStream<UIMessageChunk> {
+function pendingStream(signal?: AbortSignal): ReadableStream<UIMessageChunk> {
   return new ReadableStream<UIMessageChunk>({
-    start() {
-      // Intentionally no enqueue / close. Cancel is a no-op.
+    start(controller) {
+      // Real provider streams close when their upstream `AbortSignal` fires.
+      // Tee'd downstream readers stall otherwise — the accumulator branch
+      // keeps reading and `await accumulator` hangs in tests.
+      if (signal) {
+        if (signal.aborted) controller.close()
+        else signal.addEventListener('abort', () => controller.close(), { once: true })
+      }
     }
   })
 }
@@ -184,7 +191,9 @@ describe('AiStreamManager', () => {
     vi.useFakeTimers()
     mgr = createManager()
     vi.clearAllMocks()
-    mockStreamText.mockImplementation(async () => pendingStream())
+    mockStreamText.mockImplementation(async (request: AiStreamRequest) =>
+      pendingStream((request.requestOptions as { signal?: AbortSignal } | undefined)?.signal)
+    )
     sharedCacheStore.clear()
   })
 
@@ -297,6 +306,63 @@ describe('AiStreamManager', () => {
       mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
       expect(l1.chunks).toHaveLength(0)
       expect(l2.chunks).toHaveLength(1)
+    })
+
+    it('injects direct-send model requests when no persisted userMessage is supplied', () => {
+      startSingle(mgr, {
+        topicId: 'agent-session:s1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:s1'),
+        listeners: [new FakeListener('l:a')]
+      })
+      expect(mockStreamText).toHaveBeenCalledTimes(1)
+
+      const result = mgr.send({
+        topicId: 'agent-session:s1',
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: {
+              ...req('agent-session:s1'),
+              messages: [{ id: 'incoming-user', role: 'user', parts: [{ type: 'text', text: 'ping' }] }]
+            }
+          }
+        ],
+        listeners: [new FakeListener('l:b')]
+      })
+
+      expect(result.mode).toBe('injected')
+      expect(mockStreamText).toHaveBeenCalledTimes(1)
+      expect(mgr.inspect('agent-session:s1')?.executions[0].pendingMessageCount).toBe(1)
+    })
+
+    it('pushes live injected messages into a request-provided pending queue', () => {
+      const pendingMessages = new PendingMessageQueue()
+      startSingle(mgr, {
+        topicId: 'agent-session:s1',
+        modelId: 'provider-a::model-a',
+        request: { ...req('agent-session:s1'), pendingMessages },
+        listeners: [new FakeListener('l:a')]
+      })
+
+      mgr.send({
+        topicId: 'agent-session:s1',
+        models: [{ modelId: 'provider-a::model-a', request: req('agent-session:s1') }],
+        userMessage: {
+          id: 'user-2',
+          topicId: 'agent-session:s1',
+          parentId: null,
+          role: 'user',
+          data: {},
+          status: 'success',
+          createdAt: '',
+          updatedAt: ''
+        } as any,
+        listeners: [new FakeListener('l:b')]
+      })
+
+      expect(pendingMessages.list().map((message) => message.id)).toEqual(['user-2'])
+      expect(mgr.inspect('agent-session:s1')?.executions[0].pendingMessageCount).toBe(1)
     })
   })
 
@@ -507,10 +573,10 @@ describe('AiStreamManager', () => {
       })
       mgr.abort('a', 'test-pause')
 
-      // abort() cancels the tee reader(s), so the execution loop exits and
-      // calls onExecutionPaused. Drain microtasks so the broadcast lands
-      // before we assert.
-      for (let i = 0; i < 20; i++) await Promise.resolve()
+      // Drain the microtask chain that follows the abort propagating through
+      // the pipeStreamLoop, but stop short of the grace-period cleanup so
+      // `inspect()` still returns the stream.
+      await vi.advanceTimersByTimeAsync(0)
 
       expect(mgr.inspect('a')!.status).toBe('aborted')
       expect(l.pausedResults).toHaveLength(1)
@@ -554,6 +620,21 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')!.status).toBe('error')
       expect(l.errorResults).toHaveLength(1)
       expect(l.errorResults[0]).toMatchObject({ status: 'error', error: error('fail') })
+    })
+
+    it('uses the anchor message id when execution errors before receiving chunks', async () => {
+      const l = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: { ...req('a'), messageId: 'assistant-1' },
+        listeners: [l]
+      })
+
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('fail'))
+
+      expect(l.errorResults[0].finalMessage?.id).toBe('assistant-1')
+      expect(mgr.inspect('a')!.executions[0].finalMessage?.id).toBe('assistant-1')
     })
   })
 
@@ -845,7 +926,7 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:t')]
       })
       mgr.abort('t', 'user-stop')
-      for (let i = 0; i < 20; i++) await Promise.resolve()
+      await vi.runAllTimersAsync()
 
       expect(statusSequence('t')).toEqual(['pending', 'aborted'])
     })

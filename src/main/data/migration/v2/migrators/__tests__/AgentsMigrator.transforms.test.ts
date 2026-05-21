@@ -136,7 +136,7 @@ describe('importLegacySessionMessages', () => {
     expect(isUuid(row.id)).toBe(true)
     expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hello' }] })
     expect(JSON.stringify(row.data)).not.toContain('"message"')
-    expect(row.agentSessionId).toBe('sdk-1')
+    expect(row.runtimeResumeToken).toBe('sdk-1')
   })
 
   it('converts legacy block envelopes during import without a second pass', async () => {

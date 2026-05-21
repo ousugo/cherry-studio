@@ -3,7 +3,6 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import type { AiGenerateRequest } from '@main/ai/AiService'
-import { parseAgentSessionModel } from '@main/ai/provider/claudeCodeSettingsBuilder'
 import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
 import { sessionService } from '@main/services/agents'
@@ -236,10 +235,9 @@ export class TopicNamingService {
         { role: finalMessage.role, mainText: cleanMarkdownImages(getMainTextContentFromUiMessage(finalMessage)) }
       ]
 
-      const uniqueModelId = parseAgentSessionModel(agent.model)
       const title = await this.generateSummaryTitle(
         agentId,
-        uniqueModelId,
+        agent.model,
         buildStructuredConversation(structuredConversation)
       )
       if (!title) return

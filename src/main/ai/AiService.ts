@@ -28,8 +28,8 @@ import type { AgentLoopHooks } from './agent/loop'
 import { mergeUsage, ZERO_USAGE } from './agent/observers/usage'
 import { buildAgentParams } from './agent/params/buildAgentParams'
 import type { RequestFeature } from './agent/params/feature'
+import { isAgentSessionTopic } from './agent-session/topic'
 import { resolveUIMessageFileUrls } from './messages/messageConverter'
-import type { ClaudeCodeProviderSettings } from './provider/claude-code/types'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import { dispatchStreamRequest } from './stream-manager/context'
 import { WebContentsListener } from './stream-manager/listeners/WebContentsListener'
@@ -287,20 +287,23 @@ export class AiService extends BaseService {
       throw new Error('streamText requires requestOptions.signal — no AbortController was attached by the caller')
     }
 
+    if (request.runtime?.kind === 'agent-session') {
+      return application.get('AgentSessionRuntimeService').openTurnStream({
+        sessionId: request.runtime.sessionId,
+        turnId: request.runtime.turnId,
+        signal
+      })
+    }
+
+    if (isAgentSessionTopic(request.chatId)) {
+      throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
+    }
+
     const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
       request,
       signal,
       extraFeatures
     )
-
-    // Claude Code consumes the queue directly via AsyncIterable.
-    if (request.pendingMessages && sdkConfig.providerId === 'claude-code') {
-      const ccSettings = sdkConfig.providerSettings as ClaudeCodeProviderSettings
-      ccSettings.defaultSettings = {
-        ...ccSettings.defaultSettings,
-        injectedMessageSource: request.pendingMessages
-      }
-    }
 
     const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
 
