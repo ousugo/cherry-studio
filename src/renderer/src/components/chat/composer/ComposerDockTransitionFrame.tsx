@@ -1,14 +1,9 @@
 import { cn } from '@renderer/utils'
-import { LayoutGroup, motion } from 'motion/react'
 import type { ReactNode } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
 
 import { ChatBottomOverlayInsetProvider, type ChatBottomOverlayInsets } from '../layout/ChatViewportInsetContext'
 
-const COMPOSER_DOCK_TRANSITION = {
-  duration: 0.28,
-  ease: 'easeInOut'
-} as const
 const COMPOSER_MESSAGE_GAP_PX = 16
 
 export type ComposerDockPlacement = 'home' | 'docked'
@@ -86,45 +81,37 @@ export default function ComposerDockTransitionFrame({
   }, [composer, isDocked])
 
   return (
-    <LayoutGroup id="composer-dock-transition-frame">
-      <div ref={rootRef} className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-        <ChatBottomOverlayInsetProvider value={bottomOverlayInsets}>
-          <motion.div
-            className={cn('flex h-full min-h-0 flex-1 flex-col overflow-hidden', !mainVisible && 'pointer-events-none')}
-            animate={{ opacity: mainVisible ? 1 : 0 }}
-            initial={false}
-            transition={COMPOSER_DOCK_TRANSITION}>
-            {main}
-          </motion.div>
-        </ChatBottomOverlayInsetProvider>
-
+    <div ref={rootRef} className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <ChatBottomOverlayInsetProvider value={bottomOverlayInsets}>
         <div
-          data-composer-dock-layer=""
-          style={
-            isDocked
-              ? {
-                  paddingInlineStart: composerInlineInsets.left,
-                  paddingInlineEnd: composerInlineInsets.right
-                }
-              : undefined
-          }
-          className={cn(
-            'absolute inset-x-0 z-10 w-full',
-            isDocked ? 'bottom-0' : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh]'
-          )}>
-          <motion.div
-            layout="position"
-            layoutId="composer-dock-transition-composer"
-            className="pointer-events-auto w-full"
-            transition={COMPOSER_DOCK_TRANSITION}>
-            <div ref={composerRef} data-composer-dock-surface="" className="w-full">
-              {composer}
-            </div>
-          </motion.div>
+          className={cn('flex h-full min-h-0 flex-1 flex-col overflow-hidden', !mainVisible && 'pointer-events-none')}
+          style={{ opacity: mainVisible ? 1 : 0 }}>
+          {main}
         </div>
+      </ChatBottomOverlayInsetProvider>
 
-        {overlay}
+      <div
+        data-composer-dock-layer=""
+        style={
+          isDocked
+            ? {
+                paddingInlineStart: composerInlineInsets.left,
+                paddingInlineEnd: composerInlineInsets.right
+              }
+            : undefined
+        }
+        className={cn(
+          'absolute inset-x-0 z-10 w-full',
+          isDocked ? 'bottom-0' : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh]'
+        )}>
+        <div className="pointer-events-auto w-full">
+          <div ref={composerRef} data-composer-dock-surface="" className="w-full">
+            {composer}
+          </div>
+        </div>
       </div>
-    </LayoutGroup>
+
+      {overlay}
+    </div>
   )
 }

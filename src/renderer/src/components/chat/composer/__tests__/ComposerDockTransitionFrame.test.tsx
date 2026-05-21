@@ -1,30 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useChatBottomOverlayInset } from '../../layout/ChatViewportInsetContext'
 import ComposerDockTransitionFrame from '../ComposerDockTransitionFrame'
-
-vi.mock('motion/react', () => ({
-  LayoutGroup: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  motion: {
-    div: ({
-      animate: _animate,
-      initial: _initial,
-      layout: _layout,
-      layoutId: _layoutId,
-      transition: _transition,
-      children,
-      ...props
-    }: React.ComponentProps<'div'> & {
-      animate?: unknown
-      initial?: unknown
-      layout?: unknown
-      layoutId?: unknown
-      transition?: unknown
-    }) => <div {...props}>{children}</div>
-  }
-}))
 
 function rect(top: number, bottom: number, left = 0, right = 1020): DOMRect {
   return {
