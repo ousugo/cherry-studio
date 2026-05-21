@@ -38,7 +38,7 @@ const getRipgrepBinaryPath = (): string | null => {
     const platform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
     let ripgrepBinaryPath = path.join(
       __dirname,
-      '../../node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep',
+      '../../node_modules/@cherrystudio/ripgrep/vendor/ripgrep',
       `${arch}-${platform}`,
       process.platform === 'win32' ? 'rg.exe' : 'rg'
     )

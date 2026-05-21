@@ -132,7 +132,7 @@ exports.default = async function (context) {
       }
       return f !== `${arch}-${platform}`
     })
-    .map((f) => '!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/' + f + '/**')
+    .map((f) => '!node_modules/@cherrystudio/ripgrep/vendor/ripgrep/' + f + '/**')
 
   // Exclude rtk binaries for other platform-arch combinations
   const currentPlatformKey = `${platform}-${arch}`
