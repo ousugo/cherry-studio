@@ -49,6 +49,15 @@ const truncateText = (text: string, maxLength = 100) => {
   return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
 }
 
+const getCitationHostname = (citation: Citation) => {
+  if (!citation.url) return undefined
+  try {
+    return new URL(citation.url).hostname
+  } catch {
+    return undefined
+  }
+}
+
 const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   const { t } = useTranslation()
   const openCitationsPanel = useOptionalMessageListActions()?.openCitationsPanel
@@ -66,22 +75,25 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
       variant="ghost"
       disabled={!openCitationsPanel}
       onClick={handleOpenCitationsPanel}
-      className="mb-2 flex items-center self-start rounded-lg bg-muted px-2 py-0.75 text-xs">
-      <div className="flex items-center">
-        {previewItems.map((c, i) => (
-          <div
-            key={i}
-            className="-ml-2 flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-foreground-secondary first:ml-0"
-            style={{ zIndex: previewItems.length - i }}>
-            {c.type === 'websearch' && c.url ? (
-              <Favicon hostname={new URL(c.url).hostname} alt={c.title || ''} />
-            ) : (
-              <FileSearch width={16} />
-            )}
-          </div>
-        ))}
+      className="mb-2 inline-flex h-8 items-center gap-2 self-start rounded-full border border-border-subtle bg-card px-2.5 py-0 text-xs disabled:opacity-60">
+      <div className="flex items-center gap-0.5">
+        {previewItems.map((citation) => {
+          const hostname = getCitationHostname(citation)
+          return (
+            <div
+              key={`${citation.number}-${citation.url || citation.title}`}
+              className="flex size-5 items-center justify-center overflow-hidden rounded-full border border-border-subtle bg-background text-foreground-secondary">
+              {citation.type === 'websearch' && hostname ? (
+                <Favicon hostname={hostname} alt={citation.title || ''} />
+              ) : (
+                <FileSearch size={12} strokeWidth={2} />
+              )}
+            </div>
+          )
+        })}
       </div>
-      {t('message.citation', { count })}
+      <span className="h-3.5 w-px bg-border-subtle" />
+      <span className="font-medium text-foreground-secondary">{t('message.citation', { count })}</span>
     </Button>
   )
 }

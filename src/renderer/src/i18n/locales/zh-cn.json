@@ -343,6 +343,7 @@
     "preview_pane": {
       "close": "关闭预览",
       "code": "代码",
+      "code_unavailable": "二进制文件无法显示源代码",
       "empty": {
         "description": "开始与智能体对话，生成的代码和实时预览将在此处显示。",
         "title": "准备就绪"
@@ -353,6 +354,7 @@
       "maximize": "最大化",
       "preview": "预览",
       "refresh": "刷新",
+      "select_file": "选择文件以预览",
       "toggle": "显示预览面板"
     },
     "reorder": {

@@ -274,6 +274,7 @@ vi.mock('@renderer/hooks/useTopicAwaitingApproval', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  useTopicAwaitingApproval: () => false,
   useTopicStreamStatus: () => ({ isPending: mocks.topicPending })
 }))
 

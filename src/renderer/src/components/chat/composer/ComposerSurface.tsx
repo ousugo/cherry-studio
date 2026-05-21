@@ -565,12 +565,10 @@ export default function ComposerSurface({
       id="inputbar"
       data-composer-inputbar=""
       className={cn(
-        'inputbar-container relative rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background) pt-2 transition-all duration-200 ease-in-out',
-        belowControls
-          ? 'mb-0.5 shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:shadow-[0_10px_24px_rgba(0,0,0,0.22)]'
-          : 'mb-3',
+        'inputbar-container relative rounded-[20px] border-(--color-border) border-[0.5px] bg-card pt-2 shadow-[0_4px_12px_rgba(15,23,42,0.08)] transition-all duration-200 ease-in-out dark:shadow-[0_4px_12px_rgba(0,0,0,0.2)]',
+        belowControls ? 'mb-0.5' : 'mb-3',
         isDragging &&
-          "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[14px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
+          "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
         isExpanded && 'expanded'
       )}>
       <div style={customHeight ? { height: customHeight } : { minHeight: editorMinHeight }}>

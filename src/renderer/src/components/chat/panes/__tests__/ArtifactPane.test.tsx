@@ -7,20 +7,74 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ArtifactPane from '../ArtifactPane'
 
 const mocks = vi.hoisted(() => ({
-  listDirectory: vi.fn()
+  listDirectory: vi.fn(),
+  fsRead: vi.fn(),
+  fsReadText: vi.fn(),
+  createObjectURL: vi.fn(),
+  revokeObjectURL: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  Tooltip: ({ children, content }: PropsWithChildren<{ content: string }>) => (
-    <div data-testid="tooltip" data-content={content}>
-      {children}
-    </div>
-  )
+vi.mock('@cherrystudio/ui', async () => {
+  const ReactModule = await vi.importActual<typeof React>('react')
+  const TabsContext = ReactModule.createContext<{
+    value?: string
+    onValueChange?: (value: string) => void
+  }>({})
+
+  return {
+    Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Tabs: ({
+      children,
+      value,
+      onValueChange,
+      ...props
+    }: PropsWithChildren<
+      React.HTMLAttributes<HTMLDivElement> & { value?: string; onValueChange?: (value: string) => void }
+    >) => (
+      <TabsContext value={{ value, onValueChange }}>
+        <div {...props}>{children}</div>
+      </TabsContext>
+    ),
+    TabsList: ({ children, ...props }: PropsWithChildren<React.HTMLAttributes<HTMLDivElement>>) => (
+      <div role="tablist" {...props}>
+        {children}
+      </div>
+    ),
+    TabsTrigger: ({
+      children,
+      value,
+      onClick,
+      ...props
+    }: PropsWithChildren<React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string }>) => {
+      const context = ReactModule.use(TabsContext)
+      return (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={context.value === value}
+          {...props}
+          onClick={(event) => {
+            onClick?.(event)
+            context.onValueChange?.(value)
+          }}>
+          {children}
+        </button>
+      )
+    },
+    Tooltip: ({ children, content }: PropsWithChildren<{ content: string }>) => (
+      <div data-testid="tooltip" data-content={content}>
+        {children}
+      </div>
+    )
+  }
+})
+
+vi.mock('@cherrystudio/ui/lib/utils', () => ({
+  cn: (...args: unknown[]) => args.filter(Boolean).join(' ')
 }))
 
 vi.mock('@renderer/components/chat', () => ({
@@ -33,6 +87,50 @@ vi.mock('@renderer/components/chat', () => ({
   LoadingState: ({ rows }: { rows?: number }) => <div data-testid="loading-state" data-rows={rows} />
 }))
 
+vi.mock('@renderer/components/FileTree', () => ({
+  FileTree: ({
+    nodes,
+    onSelectedChange
+  }: {
+    nodes: MockFileTreeNode[]
+    onSelectedChange?: (id: string | null) => void
+  }) => {
+    const renderNode = (node: MockFileTreeNode) => (
+      <div key={node.id}>
+        <button
+          type="button"
+          data-testid={`tree-node-${node.id}`}
+          data-kind={node.kind}
+          onClick={() => onSelectedChange?.(node.id)}>
+          {node.name}
+        </button>
+        {node.children?.map(renderNode)}
+      </div>
+    )
+
+    return <div data-testid="file-tree">{nodes.map(renderNode)}</div>
+  }
+}))
+
+interface MockFileTreeNode {
+  id: string
+  name: string
+  kind: 'file' | 'folder'
+  children?: MockFileTreeNode[]
+}
+
+vi.mock('@renderer/components/RichEditor', () => ({
+  default: ({ initialContent }: { initialContent?: string }) => <div data-testid="rich-editor">{initialContent}</div>
+}))
+
+vi.mock('@renderer/components/CodeViewer', () => ({
+  default: ({ value, language, wrapped }: { value: string; language: string; wrapped?: boolean }) => (
+    <div data-testid="code-viewer" data-language={language} data-wrapped={String(wrapped)}>
+      {value}
+    </div>
+  )
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { count?: number }) =>
@@ -43,13 +141,26 @@ vi.mock('react-i18next', () => ({
 describe('ArtifactPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.createObjectURL.mockReturnValue('blob:fake-url')
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         file: {
           listDirectory: mocks.listDirectory
+        },
+        fs: {
+          read: mocks.fsRead,
+          readText: mocks.fsReadText
         }
       }
+    })
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: mocks.createObjectURL
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: mocks.revokeObjectURL
     })
   })
 
@@ -65,23 +176,19 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.empty.description')
   })
 
-  it('lists the workspace directory with the expected options', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md', 'src'])
+  it('lists the workspace directory recursively', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['README.md', 'src/index.ts'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
 
-    expect(screen.getByTestId('loading-state')).toHaveAttribute('data-rows', '4')
-
     await waitFor(() =>
       expect(mocks.listDirectory).toHaveBeenCalledWith('/tmp/workspace', {
-        recursive: false,
+        recursive: true,
         includeHidden: false,
         includeFiles: true,
         includeDirectories: true
       })
     )
-    expect(screen.getByTitle('/tmp/workspace')).toHaveTextContent('/tmp/workspace')
-    expect(screen.getByText('2 localized items')).toBeInTheDocument()
   })
 
   it('logs and displays directory listing errors', async () => {
@@ -92,6 +199,8 @@ describe('ArtifactPane', () => {
     render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
 
     await waitFor(() => expect(screen.getByText('Permission denied')).toBeInTheDocument())
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('common.error')
+    expect(screen.getByTestId('empty-state')).not.toHaveTextContent('agent.preview_pane.empty.title')
     expect(errorSpy).toHaveBeenCalledWith('Failed to list directory: /tmp/workspace', error)
   })
 
@@ -102,17 +211,282 @@ describe('ArtifactPane', () => {
 
     for (const label of [
       'agent.preview_pane.file_tree',
-      'agent.preview_pane.preview',
-      'agent.preview_pane.code',
       'agent.preview_pane.refresh',
       'agent.preview_pane.maximize',
       'agent.preview_pane.close'
     ]) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
     }
+    expect(screen.getByRole('tab', { name: 'agent.preview_pane.preview' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'agent.preview_pane.code' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.close' }))
 
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('defaults to preview mode with the file tree collapsed', () => {
+    render(<ArtifactPane onClose={vi.fn()} />)
+
+    expect(screen.getByRole('tab', { name: 'agent.preview_pane.preview' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'agent.preview_pane.code' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+    expect(screen.queryByTestId('file-tree')).not.toBeInTheDocument()
+  })
+
+  it('keeps the content viewport constrained to the pane height', () => {
+    const { container } = render(<ArtifactPane onClose={vi.fn()} />)
+
+    const root = container.firstElementChild
+    const body = root?.children.item(1)
+    const content = body?.querySelector('section')
+
+    expect(root).toHaveClass('h-full', 'min-h-0', 'overflow-hidden')
+    expect(body).toHaveClass('min-h-0', 'overflow-hidden')
+    expect(content).toHaveClass('min-h-0', 'min-w-0', 'overflow-auto')
+  })
+
+  it('toggles the file tree when the folder button is clicked', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
+
+    const folderButton = screen.getByRole('button', { name: 'agent.preview_pane.file_tree' })
+
+    fireEvent.click(folderButton)
+    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
+    expect(screen.getByTestId('tree-node-__workspace_root__')).toHaveTextContent('workspace')
+    expect(screen.getByTestId('tree-node-README.md')).toHaveTextContent('README.md')
+    expect(folderButton).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(folderButton)
+    expect(screen.queryByTestId('file-tree')).not.toBeInTheDocument()
+    expect(folderButton).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('renders markdown files with RichEditor in preview mode and CodeViewer in code mode', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+    mocks.fsReadText.mockResolvedValue('# Hello')
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/README.md'))
+    expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Hello')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'agent.preview_pane.code' }))
+    expect(screen.queryByTestId('rich-editor')).not.toBeInTheDocument()
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('# Hello')
+    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'markdown')
+    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
+  })
+
+  it('renders text file previews without wrapping so horizontal overflow can scroll', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['src/index.ts'])
+    mocks.fsReadText.mockResolvedValue('const value = "a very long line";')
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/index.ts')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/src/index.ts'))
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('const value = "a very long line";')
+    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'typescript')
+    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
+    expect(container.querySelector('section')).toHaveClass('overflow-auto')
+  })
+
+  it('renders HTML previews in an iframe with Popup-aligned sandbox and hidden outer overflow', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['index.html'])
+    mocks.fsReadText.mockResolvedValue('<!doctype html><html><body><h1>Hello</h1></body></html>')
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-index.html')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-index.html'))
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/index.html'))
+    const iframe = container.querySelector('iframe')
+    expect(iframe).not.toBeNull()
+    expect(iframe).toHaveAttribute('srcdoc', '<!doctype html><html><body><h1>Hello</h1></body></html>')
+    expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
+    expect(iframe).toHaveAttribute('title', 'index.html')
+    expect(iframe).toHaveClass('h-full', 'w-full', 'border-0', 'bg-background')
+    expect(container.querySelector('section')).toHaveClass('overflow-hidden')
+  })
+
+  it('keeps empty HTML previews blank without showing the Popup empty text', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['empty.html'])
+    mocks.fsReadText.mockResolvedValue('   ')
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-empty.html')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-empty.html'))
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/empty.html'))
+    expect(container.querySelector('iframe')).toBeNull()
+    expect(screen.queryByText('html_artifacts.empty_preview')).not.toBeInTheDocument()
+    expect(container.querySelector('section')).toHaveClass('overflow-hidden')
+  })
+
+  it('does not read content when a folder node is selected', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['src/index.ts'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-__workspace_root__')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-__workspace_root__'))
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+
+    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+  })
+
+  it('keeps returned directory entries as folders with real child files', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['src', 'src/index.ts'])
+    mocks.fsReadText.mockResolvedValue('export {}')
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    expect(screen.getByTestId('tree-node-src')).toHaveAttribute('data-kind', 'folder')
+    expect(screen.getByTestId('tree-node-src/index.ts')).toHaveAttribute('data-kind', 'file')
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/src/index.ts'))
+  })
+
+  it('renders absolute file paths under the workspace root as relative children', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['/Users/me/dev/test.md'])
+
+    render(<ArtifactPane workspacePath="/Users/me/dev" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-test.md')).toBeInTheDocument())
+
+    expect(screen.getByTestId('tree-node-__workspace_root__')).toHaveTextContent('dev')
+    expect(screen.queryByTestId('tree-node-Users')).not.toBeInTheDocument()
+  })
+
+  it('keeps absolute directory entries as relative folders with real child files', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['/Users/me/dev/src', '/Users/me/dev/src/index.ts'])
+    mocks.fsReadText.mockResolvedValue('export {}')
+
+    render(<ArtifactPane workspacePath="/Users/me/dev" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    expect(screen.getByTestId('tree-node-src')).toHaveAttribute('data-kind', 'folder')
+    expect(screen.getByTestId('tree-node-src/index.ts')).toHaveAttribute('data-kind', 'file')
+    expect(screen.queryByTestId('tree-node-Users')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/Users/me/dev/src/index.ts'))
+  })
+
+  it('renders PDF files with an iframe viewer pointing at the local file URL', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
+
+    await waitFor(() => expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull())
+    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+    expect(mocks.createObjectURL).not.toHaveBeenCalled()
+    expect(container.querySelector('iframe')?.getAttribute('src')).toBe('file:///tmp/workspace/paper.pdf#toolbar=0')
+    expect(container.querySelector('iframe')).not.toHaveAttribute('sandbox')
+  })
+
+  it('refreshes the workspace tree and selected text file content when refresh is clicked', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['README.md']).mockResolvedValueOnce(['README.md'])
+    mocks.fsReadText.mockResolvedValueOnce('# Before').mockResolvedValueOnce('# After')
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    await waitFor(() => expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Before'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+
+    await waitFor(() => expect(mocks.listDirectory).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledTimes(2))
+    expect(mocks.fsReadText).toHaveBeenLastCalledWith('/tmp/workspace/README.md')
+    expect(screen.getByTestId('rich-editor')).toHaveTextContent('# After')
+  })
+
+  it('clears the selected file when refresh removes it from the workspace tree', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['README.md']).mockResolvedValueOnce([])
+    mocks.fsReadText.mockResolvedValueOnce('# Before').mockResolvedValueOnce('# Stale read')
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    await waitFor(() => expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Before'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+
+    await waitFor(() => expect(mocks.listDirectory).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.select_file'))
+    expect(screen.queryByTestId('rich-editor')).not.toBeInTheDocument()
+  })
+
+  it('refreshes the selected PDF viewer without creating blob URLs', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf']).mockResolvedValueOnce(['paper.pdf'])
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
+    await waitFor(() =>
+      expect(container.querySelector('iframe')?.getAttribute('src')).toBe('file:///tmp/workspace/paper.pdf#toolbar=0')
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+
+    await waitFor(() => expect(mocks.listDirectory).toHaveBeenCalledTimes(2))
+    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.createObjectURL).not.toHaveBeenCalled()
+    expect(mocks.revokeObjectURL).not.toHaveBeenCalled()
+    expect(container.querySelector('iframe')?.getAttribute('src')).toBe('file:///tmp/workspace/paper.pdf#toolbar=0')
+    expect(container.querySelector('iframe')).not.toHaveAttribute('sandbox')
   })
 })

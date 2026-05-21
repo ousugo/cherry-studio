@@ -75,7 +75,7 @@ const MessageList = () => {
   const { bindRuntime, copyImage, saveImage } = actions
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
-    [messageUi.getMessageUiState]
+    [messageUi]
   )
   const useWideMessageLayout = useMemo(
     () =>

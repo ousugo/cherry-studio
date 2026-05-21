@@ -17,8 +17,10 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePreference } from '@data/hooks/usePreference'
 import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataURL } from '@renderer/utils/image'
@@ -29,44 +31,51 @@ import { useTranslation } from 'react-i18next'
 interface CodePanelProps {
   codeEditorRef: React.RefObject<CodeEditorHandles | null>
   html: string
+  theme: React.ComponentProps<typeof CodeEditor>['theme']
+  fontSize: number
   onSave?: (html: string) => void
   saved: boolean
   onClickSave: () => void
   saveLabel: string
 }
 
-const CodePanel = memo<CodePanelProps>(({ codeEditorRef, html, onSave, saved, onClickSave, saveLabel }) => {
-  return (
-    <div className="relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">
-      <CodeEditor
-        ref={codeEditorRef}
-        value={html}
-        language="html"
-        editable={true}
-        onSave={onSave}
-        height="100%"
-        expanded={false}
-        wrapped
-        style={{ minHeight: 0 }}
-        options={{
-          stream: true, // FIXME: 避免多余空行
-          lineNumbers: true,
-          keymap: true
-        }}
-      />
-      <div className="absolute right-4 bottom-4 z-10 flex flex-col items-center gap-1">
-        <Tooltip content={saveLabel}>
-          <Button
-            size="icon"
-            className="border-none shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)]"
-            onClick={onClickSave}>
-            {saved ? <Check size={16} className="text-success" /> : <SaveIcon size={16} className="custom-lucide" />}
-          </Button>
-        </Tooltip>
+const CodePanel = memo<CodePanelProps>(
+  ({ codeEditorRef, html, theme, fontSize, onSave, saved, onClickSave, saveLabel }) => {
+    return (
+      <div className="relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">
+        <CodeEditor
+          ref={codeEditorRef}
+          value={html}
+          language="html"
+          theme={theme}
+          fontSize={fontSize}
+          editable={true}
+          onSave={onSave}
+          height="100%"
+          expanded={false}
+          wrapped
+          style={{ minHeight: 0 }}
+          options={{
+            stream: true, // FIXME: 避免多余空行
+            lineNumbers: true,
+            keymap: true
+          }}
+        />
+        <div className="absolute right-4 bottom-4 z-10 flex flex-col items-center gap-1">
+          <Tooltip content={saveLabel}>
+            <Button
+              variant="secondary"
+              size="icon"
+              className="border border-border bg-popover text-popover-foreground shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)] hover:bg-accent hover:text-accent-foreground"
+              onClick={onClickSave}>
+              {saved ? <Check size={16} className="text-success" /> : <SaveIcon size={16} />}
+            </Button>
+          </Tooltip>
+        </div>
       </div>
-    </div>
-  )
-})
+    )
+  }
+)
 
 interface PreviewPanelProps {
   previewFrameRef: React.RefObject<HTMLIFrameElement | null>
@@ -107,6 +116,8 @@ type ViewMode = 'split' | 'code' | 'preview'
 
 const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, html, onSave, onClose }) => {
   const { t } = useTranslation()
+  const { activeCmTheme } = useCodeStyle()
+  const [fontSize] = usePreference('chat.message.font_size')
   const [viewMode, setViewMode] = useState<ViewMode>('split')
   const [isFullscreen, setIsFullscreen] = useState(true)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
@@ -161,6 +172,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
     <CodePanel
       codeEditorRef={codeEditorRef}
       html={html}
+      theme={activeCmTheme}
+      fontSize={fontSize - 1}
       onSave={onSave}
       saved={saved}
       onClickSave={handleSave}
@@ -227,8 +240,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
         className={cn(
           'grid gap-0 overflow-hidden p-0',
           isFullscreen
-            ? '!top-0 !left-0 !translate-x-0 !translate-y-0 z-[10000] h-screen w-screen max-w-none rounded-none border-0 shadow-none sm:max-w-none'
-            : 'h-[80vh] w-[90vw] max-w-[1400px] sm:max-w-[1400px]'
+            ? 'top-0! left-0! z-10000 h-screen w-screen max-w-none translate-x-0! translate-y-0! rounded-none border-0 shadow-none sm:max-w-none'
+            : 'h-[80vh] w-[90vw] max-w-350 sm:max-w-350'
         )}>
         <div className="grid h-full min-h-0 grid-rows-[45px_minmax(0,1fr)]">
           <header
@@ -237,8 +250,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               isFullscreen && '[-webkit-app-region:drag]'
             )}
             onDoubleClick={() => setIsFullscreen(!isFullscreen)}>
-            <div className={cn('min-w-0 flex-1', isFullscreen && isMac ? 'pl-[65px]' : 'pl-3')}>
-              <DialogTitle className="max-w-[45vw] truncate font-bold text-base text-foreground">{title}</DialogTitle>
+            <div className={cn('min-w-0 flex-1', isFullscreen && isMac ? 'pl-20' : 'pl-3')}>
+              <DialogTitle className="max-w-[45vw] truncate font-bold text-foreground text-sm">{title}</DialogTitle>
             </div>
 
             <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 [-webkit-app-region:no-drag]">
@@ -280,12 +293,12 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
             </div>
 
             <div
-              className="flex flex-1 items-center justify-end gap-2 pr-3 [-webkit-app-region:no-drag]"
+              className="flex flex-1 items-center justify-end gap-2 pr-3"
               onDoubleClick={(event) => event.stopPropagation()}>
               <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
                 <Tooltip content={t('html_artifacts.capture.label')}>
                   <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon">
+                    <Button variant="ghost" size="icon" className="[-webkit-app-region:no-drag]">
                       <Camera size={16} />
                     </Button>
                   </PopoverTrigger>
@@ -305,10 +318,14 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
                   </MenuList>
                 </PopoverContent>
               </Popover>
-              <Button onClick={() => setIsFullscreen(!isFullscreen)} variant="ghost" size="icon">
+              <Button
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                variant="ghost"
+                size="icon"
+                className="[-webkit-app-region:no-drag]">
                 {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
               </Button>
-              <Button onClick={onClose} variant="ghost" size="icon">
+              <Button onClick={onClose} variant="ghost" size="icon" className="[-webkit-app-region:no-drag]">
                 <X size={16} />
               </Button>
             </div>
