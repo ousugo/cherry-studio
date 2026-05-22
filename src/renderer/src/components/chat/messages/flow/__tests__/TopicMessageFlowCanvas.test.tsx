@@ -150,6 +150,7 @@ describe('TopicMessageFlowCanvas', () => {
     expect(screen.getByTestId('topic-message-flow-legend')).toBeInTheDocument()
     expect(screen.getByText('Plan the topic branch')).toBeInTheDocument()
     expect(screen.getByText('gpt-5-codex')).toBeInTheDocument()
+    expect(screen.queryByText('#2')).not.toBeInTheDocument()
   })
 
   it('calls onNodeSelect with the clicked message id', () => {

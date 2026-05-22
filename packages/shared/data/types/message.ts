@@ -154,6 +154,8 @@ export interface CherryUIMessageMetadata {
   stats?: MessageStats
   /** Trace span id associated with the persisted message row. */
   traceId?: string | null
+  /** Whether this projected message is the on-path member for its sibling group. */
+  isActiveBranch?: boolean
 }
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */

@@ -32,7 +32,7 @@ const mocks = vi.hoisted(() => ({
     startEditing: vi.fn(),
     stopEditing: vi.fn()
   }),
-  MessageGroupMenuBar: vi.fn((_props: unknown) => <div className="group-menu-bar">menu</div>),
+  MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
   HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
   MessageContent: vi.fn(() => <div style={{ minHeight: 600 }}>Long message content</div>),
   MessageEditor: vi.fn(() => <div>editor</div>),
@@ -591,5 +591,51 @@ describe('MessageGroup', () => {
       )
     })
     expect(updateMessageUiState).toHaveBeenCalledWith('msg-3', { foldSelected: true })
+  })
+
+  it('follows the active branch message when a multi-model group keeps the same columns', async () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const updateMessageUiState = vi.fn()
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      updateMessageUiState
+    })
+
+    const messages = [
+      { ...createMessage('model-a', 0, 'fold'), isActiveBranch: true },
+      { ...createMessage('model-b', 1, 'fold'), isActiveBranch: false }
+    ]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { rerender } = render(<MessageGroup messages={messages} topic={topic} />)
+
+    rerender(
+      <MessageGroup
+        messages={[
+          { ...messages[0], isActiveBranch: false },
+          { ...messages[1], isActiveBranch: true }
+        ]}
+        topic={topic}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.MessageGroupMenuBar).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          selectMessageId: 'model-b'
+        }),
+        undefined
+      )
+    })
+    expect(updateMessageUiState).toHaveBeenCalledWith('model-a', { foldSelected: false })
+    expect(updateMessageUiState).toHaveBeenCalledWith('model-b', { foldSelected: true })
   })
 })

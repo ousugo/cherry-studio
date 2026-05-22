@@ -72,7 +72,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
       data-on-active-path={data.isOnActivePath ? 'true' : 'false'}>
       <Handle className="opacity-0" isConnectable={false} position={Position.Top} type="target" />
 
-      <div className="flex min-w-0 items-center justify-between gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="shrink-0 rounded-3xs bg-background/70 px-1.5 py-0.5 font-medium text-[10px] text-foreground leading-3.5">
             {roleLabel}
@@ -81,12 +81,6 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
             <span className="truncate font-mono text-[10px] text-foreground-muted leading-3.5">{modelLabel}</span>
           ) : null}
         </div>
-
-        {data.siblingsGroupId ? (
-          <span className="shrink-0 rounded-3xs border border-border-muted px-1 py-0.5 text-[10px] text-foreground-muted leading-3">
-            #{data.siblingsGroupId}
-          </span>
-        ) : null}
       </div>
 
       <p className="mt-2 line-clamp-2 min-h-9 text-[12px] text-foreground leading-4">{data.preview || '-'}</p>

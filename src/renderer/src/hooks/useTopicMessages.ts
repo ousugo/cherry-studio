@@ -22,6 +22,11 @@ import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 const PAGE_SIZE = 50
 
+interface DisplayBranchMessage {
+  message: SharedMessage
+  isActiveBranch: boolean
+}
+
 /**
  * Bucket an assistant siblings-group (on-path `active` + off-path `siblings`)
  * by `modelId`. Each bucket = one model's regenerate cohort (1..N siblings
@@ -84,11 +89,11 @@ function pickDisplayMember(bucket: SharedMessage[], activeMessageId: string): Sh
  * where at least one has >1 → N bubbles, per-model navigator on the larger
  * buckets).
  */
-function flattenBranchMessages(items: BranchMessage[]): SharedMessage[] {
-  const result: SharedMessage[] = []
+function flattenBranchMessages(items: BranchMessage[]): DisplayBranchMessage[] {
+  const result: DisplayBranchMessage[] = []
   for (const item of items) {
     if (!item.siblingsGroup || item.siblingsGroup.length === 0 || item.message.role === 'user') {
-      result.push(item.message)
+      result.push({ message: item.message, isActiveBranch: true })
       continue
     }
 
@@ -97,7 +102,8 @@ function flattenBranchMessages(items: BranchMessage[]): SharedMessage[] {
       compareMessageOrder(getBucketFirstMessage(a), getBucketFirstMessage(b))
     )
     for (const bucket of sortedBuckets) {
-      result.push(pickDisplayMember(bucket, item.message.id))
+      const message = pickDisplayMember(bucket, item.message.id)
+      result.push({ message, isActiveBranch: message.id === item.message.id })
     }
   }
   return result
@@ -261,11 +267,15 @@ function projectPagesToUI(
   branchItems: BranchMessage[],
   cache: WeakMap<SharedMessage, CherryUIMessage>
 ): CherryUIMessage[] {
-  return flattenBranchMessages(branchItems).map((shared) => {
-    const cached = cache.get(shared)
-    if (cached) return cached
-    const projected = sharedMessageToUIMessage(shared)
-    cache.set(shared, projected)
+  return flattenBranchMessages(branchItems).map(({ message, isActiveBranch }) => {
+    const cached = cache.get(message)
+    if (cached && cached.metadata?.isActiveBranch === isActiveBranch) return cached
+    const projected = sharedMessageToUIMessage(message)
+    projected.metadata = {
+      ...projected.metadata,
+      isActiveBranch
+    }
+    cache.set(message, projected)
     return projected
   })
 }

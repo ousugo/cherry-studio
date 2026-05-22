@@ -207,6 +207,7 @@ export interface MessageListItem {
   modelId?: string
   modelSnapshot?: ModelSnapshot
   siblingsGroupId?: number
+  isActiveBranch?: boolean
   stats?: MessageStats
   traceId?: string | null
   mentions?: Array<{

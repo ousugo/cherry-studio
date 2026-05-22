@@ -35,7 +35,9 @@ function pickPreferredSelectedMessage(
   getMessageUiState: (messageId: string) => MessageUiState
 ) {
   return (
-    messages.find((message) => getMessageUiState(message.id).foldSelected) ?? messages.find(isMessageListItemProcessing)
+    messages.find((message) => message.isActiveBranch) ??
+    messages.find((message) => getMessageUiState(message.id).foldSelected) ??
+    messages.find(isMessageListItemProcessing)
   )
 }
 
@@ -96,12 +98,9 @@ const MessageGroup = ({
     return useful?.id ?? null
   })
 
-  // Re-sync selected/useful ids when the group's membership changes
-  // (e.g., retry adds a new sibling and flips activeNodeId, so the old
-  // selected id falls off-path). Without this, `selectedMessageId` can
-  // point to a message no longer in `messages`, and the fold-mode CSS
-  // renders NOTHING (no wrapper gets the `selected` class) — the whole
-  // group looks empty until the component re-mounts on topic switch.
+  // Re-sync selected/useful ids when the active branch or group membership
+  // changes. Without this, fold mode can keep showing an old model column even
+  // after branch navigation moves the active path to another multi-model node.
   useEffect(() => {
     const previousIds = previousMessageIdsRef.current
     const previousIdSet = new Set(previousIds)
@@ -109,11 +108,16 @@ const MessageGroup = ({
     previousMessageIdsRef.current = messages.map((message) => message.id)
 
     const hasSelected = messages.some((m) => m.id === selectedMessageId)
-    const nextSelectedMessage = !hasSelected
-      ? (pickPreferredSelectedMessage(messages, getMessageUiState) ?? messages.at(-1) ?? messages[0])
-      : addedMessages.length > 0
-        ? (pickPreferredSelectedMessage(addedMessages, getMessageUiState) ?? addedMessages.at(-1))
-        : undefined
+    const activeBranchMessage = messages.find((message) => message.isActiveBranch)
+    let nextSelectedMessage: MessageListItem | undefined
+
+    if (activeBranchMessage && activeBranchMessage.id !== selectedMessageId) {
+      nextSelectedMessage = activeBranchMessage
+    } else if (!hasSelected) {
+      nextSelectedMessage = pickPreferredSelectedMessage(messages, getMessageUiState) ?? messages.at(-1) ?? messages[0]
+    } else if (addedMessages.length > 0) {
+      nextSelectedMessage = pickPreferredSelectedMessage(addedMessages, getMessageUiState) ?? addedMessages.at(-1)
+    }
 
     if (nextSelectedMessage && nextSelectedMessage.id !== selectedMessageId) {
       if (selectedMessageId) {
