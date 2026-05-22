@@ -6,7 +6,6 @@ import * as z from 'zod'
 
 import { extractRtkBinaries } from '../utils/rtk'
 import { channelManager } from './agents/services/channels'
-import { schedulerService } from './agents/services/SchedulerService'
 
 const logger = loggerService.withContext('AgentBootstrapService')
 const RunTaskArgsSchema = z.strictObject({
@@ -30,9 +29,9 @@ export function validateListToolsArgs(args: unknown) {
 /**
  * Lifecycle-managed service that orchestrates agent subsystem initialization.
  *
- * Wraps the non-lifecycle agent singletons (schedulerService, channelManager)
- * so their startup/shutdown is managed by the application lifecycle instead of
- * manual calls in index.ts.
+ * Wraps the non-lifecycle agent singletons (channelManager) so their
+ * startup/shutdown is managed by the application lifecycle. The `agent.task`
+ * scheduler / Run-Now IPC now lives in `AgentJobsService`.
  */
 @Injectable('AgentBootstrapService')
 @ServicePhase(Phase.WhenReady)
@@ -40,14 +39,6 @@ export function validateListToolsArgs(args: unknown) {
 export class AgentBootstrapService extends BaseService {
   protected async onReady(): Promise<void> {
     await this.extractRtkBinaries()
-
-    await schedulerService.restoreSchedulers()
-    logger.info('Schedulers restored')
-
-    this.ipcHandle(IpcChannel.Agent_RunTask, async (_, agentId: string, taskId: string) => {
-      const parsed = validateRunTaskArgs(agentId, taskId)
-      await schedulerService.runTaskNow(parsed.agentId, parsed.taskId)
-    })
 
     this.ipcHandle(IpcChannel.Agent_ListTools, async (_, args: unknown) => {
       const parsed = validateListToolsArgs(args)
@@ -65,10 +56,7 @@ export class AgentBootstrapService extends BaseService {
   protected async onStop(): Promise<void> {
     // Cleanup belongs to onStop (not onDestroy) so the service is restartable:
     // a restart after `application.stop('AgentBootstrapService')` would
-    // otherwise leak two scheduler poll loops + channel adapter sets.
-    schedulerService.stopAll()
-    logger.info('Schedulers stopped')
-
+    // otherwise leak channel adapter sets.
     await channelManager.stop()
     logger.info('Channel manager stopped')
   }

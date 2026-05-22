@@ -374,6 +374,13 @@ export class AgentTaskService {
     return result.map((row) => this.rowToEntity(row))
   }
 
+  /** All active tasks (heartbeat included). Used by `AgentJobsService` to reconcile JobManager schedules at startup. */
+  async listAllActiveTasksIncludingHeartbeat(): Promise<ScheduledTaskEntity[]> {
+    const database = application.get('DbService').getDb()
+    const result = await database.select().from(scheduledTasksTable).where(eq(scheduledTasksTable.status, 'active'))
+    return result.map((row) => this.rowToEntity(row))
+  }
+
   async updateTaskAfterRun(taskId: string, nextRun: number | null, lastResult: string): Promise<void> {
     const updateData: Partial<TaskRow> = {
       lastRun: Date.now(),

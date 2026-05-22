@@ -2,6 +2,7 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { AgentJobsService } from '@main/ai/agent-session/AgentJobsService'
 import { AgentSessionRuntimeService } from '@main/ai/agent-session/AgentSessionRuntimeService'
 import { ClaudeCodeWarmQueryManager } from '@main/ai/agent-session/runtime/claude-code/ClaudeCodeWarmQueryManager'
 import { ClaudeCodeWarmupService } from '@main/ai/agent-session/runtime/claude-code/ClaudeCodeWarmupService'
@@ -110,6 +111,7 @@ export const services = {
   OpenClawService,
   SearchService,
   AgentSessionRuntimeService,
+  AgentJobsService,
   AiService,
   ClaudeCodeWarmQueryManager,
   ClaudeCodeWarmupService,
