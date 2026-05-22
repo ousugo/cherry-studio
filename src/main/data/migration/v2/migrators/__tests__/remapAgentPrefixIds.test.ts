@@ -15,19 +15,17 @@ async function insertAgent(db: ReturnType<typeof setupTestDatabase>['db'], id: s
     type: 'claude-code',
     name: 'Test Agent',
     instructions: 'You are a helpful assistant.',
-    model: 'claude-3-5-sonnet',
-    sortOrder: 0
+    model: null,
+    orderKey: 'a0'
   })
 }
 
 async function insertSession(db: ReturnType<typeof setupTestDatabase>['db'], sessionId: string, agentId: string) {
   await db.insert(agentSessionTable).values({
     id: sessionId,
-    agentType: 'claude-code',
     agentId,
     name: 'Test Session',
-    instructions: 'You are a helpful assistant.',
-    model: 'claude-3-5-sonnet'
+    orderKey: 'a0'
   })
 }
 
@@ -58,7 +56,7 @@ describe('remapAgentPrefixIds', () => {
     await dbh.db.insert(agentSessionMessageTable).values({
       sessionId,
       role: 'user',
-      content: { role: 'user', content: 'hello' } as never
+      data: { parts: [{ type: 'text', text: 'hello' }] } as never
     })
 
     await remapAgentPrefixIds(dbh.db)

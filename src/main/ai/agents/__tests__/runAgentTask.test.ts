@@ -1,14 +1,15 @@
 /**
  * Phase 1 coverage: focuses on the pure branches that do not engage the
  * Claude Code subprocess (heartbeat skip + agent-not-found). The full
- * streaming path is exercised by integration tests / Phase 5 manual e2e —
- * mocking SessionMessageOrchestrator + adapter fan-out at unit scope buys
- * little over what the integration suite already covers.
+ * streaming path is exercised by integration tests / Phase 5 manual e2e.
+ *
+ * Each fire creates a fresh session — there is no cross-fire session reuse.
  */
 
 import type { JobContext } from '@main/core/job/types'
-import type { AgentEntity, AgentSessionEntity } from '@shared/data/api/schemas/agents'
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
@@ -22,32 +23,24 @@ vi.mock('@data/services/AgentChannelService', () => ({
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: vi.fn() }
 }))
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getSession: vi.fn(), createSession: vi.fn() }
+vi.mock('@data/services/SessionService', () => ({
+  sessionService: { createSession: vi.fn() }
 }))
 vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
-  jobService: { getById: vi.fn(), list: vi.fn() }
+  jobService: { getById: vi.fn() }
 }))
-vi.mock('@main/services/agents/services/channels/ChannelManager', () => ({
-  channelManager: { getAdapter: vi.fn() }
-}))
-vi.mock('@main/services/agents/services/channels/sessionStreamIpc', () => ({
-  broadcastSessionChanged: vi.fn()
-}))
-vi.mock('@main/services/agents/services/cherryclaw/heartbeat', () => ({
+vi.mock('@main/ai/agents/cherryclaw/heartbeat', () => ({
   readHeartbeat: vi.fn()
-}))
-vi.mock('@main/services/agents/services/SessionMessageOrchestrator', () => ({
-  sessionMessageOrchestrator: { createSessionMessage: vi.fn() }
 }))
 
 import { agentService } from '@data/services/AgentService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
-import { readHeartbeat } from '@main/services/agents/services/cherryclaw/heartbeat'
+import { sessionService } from '@data/services/SessionService'
+import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
 
 import { runAgentTask } from '../runAgentTask'
 
@@ -91,18 +84,40 @@ function makeCtx(overrides: Partial<JobContext<{ agentId: string; prompt: string
   } as JobContext<{ agentId: string; prompt: string; timeoutMinutes: number }>
 }
 
-function makeAgent(config: Record<string, unknown> = {}, accessiblePaths: string[] = ['/ws/a']): AgentEntity {
+function makeAgent(config: Record<string, unknown> = {}): AgentEntity {
   return {
     id: 'a1',
     type: 'claude-code',
     name: 'Agent A',
-    model: 'sonnet',
-    accessiblePaths,
+    model: 'sonnet' as never,
+    accessiblePaths: [],
     configuration: config as never,
     createdAt: '2026-05-20T00:00:00.000Z',
     updatedAt: '2026-05-20T00:00:00.000Z',
     modelName: null
   }
+}
+
+function makeSession(workspacePath: string | null = '/ws/a'): AgentSessionEntity {
+  return {
+    id: 'sess-new',
+    agentId: 'a1',
+    name: 'Scheduled task',
+    workspaceId: workspacePath ? 'ws-1' : null,
+    workspace: workspacePath
+      ? {
+          id: 'ws-1',
+          name: 'ws',
+          path: workspacePath,
+          orderKey: 'k',
+          createdAt: '2026-05-20T00:00:00.000Z',
+          updatedAt: '2026-05-20T00:00:00.000Z'
+        }
+      : null,
+    orderKey: 'k',
+    createdAt: '2026-05-20T00:00:00.000Z',
+    updatedAt: '2026-05-20T00:00:00.000Z'
+  } as AgentSessionEntity
 }
 
 function makeSchedule(name: string | null = 'heartbeat') {
@@ -125,9 +140,9 @@ function makeSchedule(name: string | null = 'heartbeat') {
 describe('runAgentTask', () => {
   beforeEach(() => {
     vi.mocked(jobService.getById).mockReset()
-    vi.mocked(jobService.list).mockReset()
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(agentService.getAgent).mockReset()
+    vi.mocked(sessionService.createSession).mockReset()
     vi.mocked(readHeartbeat).mockReset()
   })
 
@@ -135,7 +150,7 @@ describe('runAgentTask', () => {
     vi.clearAllMocks()
   })
 
-  it('skips when the agent cannot be found (throws)', async () => {
+  it('throws when the agent cannot be found', async () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('heartbeat'))
     vi.mocked(agentService.getAgent).mockResolvedValueOnce(null as never)
@@ -147,21 +162,23 @@ describe('runAgentTask', () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('heartbeat'))
     vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: false }))
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession())
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ sessionId: null, result: 'Skipped (disabled)' })
+    expect(out).toEqual({ sessionId: 'sess-new', result: 'Skipped (disabled)' })
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
 
   it('returns "Skipped (disabled)" when heartbeat task has no workspace', async () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('heartbeat'))
-    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }, []))
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession(null))
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ sessionId: null, result: 'Skipped (disabled)' })
+    expect(out).toEqual({ sessionId: 'sess-new', result: 'Skipped (disabled)' })
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
 
@@ -169,72 +186,23 @@ describe('runAgentTask', () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('heartbeat'))
     vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
     vi.mocked(readHeartbeat).mockResolvedValueOnce(undefined)
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ sessionId: null, result: 'Skipped (no file)' })
+    expect(out).toEqual({ sessionId: 'sess-new', result: 'Skipped (no file)' })
     expect(readHeartbeat).toHaveBeenCalledWith('/ws/a')
   })
 
-  it('does not invoke heartbeat branch when the prompt is not the sentinel', async () => {
-    // Without the sentinel, heartbeat skip cannot fire — execution proceeds to
-    // channel/session setup, which we intentionally don't mock here. We only
-    // assert that readHeartbeat is NOT called and that getSubscribedChannels
-    // is reached (proving we exited the heartbeat branch).
-    vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot(null))
-    vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(null as never)
-    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }))
-
-    // Force a clean throw past the heartbeat branch — createSession returning
-    // null is the simplest deterministic failure.
-    const sessionService = await import('@data/services/AgentSessionService')
-    vi.mocked(sessionService.agentSessionService.createSession).mockResolvedValueOnce(null as never)
-    vi.mocked(jobService.list).mockResolvedValueOnce([])
-
-    const channelService = await import('@data/services/AgentChannelService')
-    vi.mocked(channelService.agentChannelService.getSubscribedChannels).mockResolvedValueOnce([])
-
-    await expect(
-      runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'do something', timeoutMinutes: 2 } }))
-    ).rejects.toThrow('Failed to create session for agent a1')
-
-    expect(readHeartbeat).not.toHaveBeenCalled()
-  })
-
-  it('reuses an existing session id from the last completed run when available', async () => {
+  it('always calls createSession (fresh session per fire — no reuse)', async () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
-    vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('user-task'))
-    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('heartbeat'))
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: false }))
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession())
 
-    const channelService = await import('@data/services/AgentChannelService')
-    vi.mocked(channelService.agentChannelService.getSubscribedChannels).mockResolvedValueOnce([])
+    await runAgentTask(makeCtx())
 
-    vi.mocked(jobService.list).mockResolvedValueOnce([{ output: { sessionId: 'sess-old' } } as JobSnapshot])
-
-    const sessionService = await import('@data/services/AgentSessionService')
-    const sessionEntity = {
-      id: 'sess-old',
-      agentId: 'a1',
-      agentType: 'claude-code',
-      accessiblePaths: [],
-      model: 'sonnet',
-      createdAt: '2026-05-20T00:00:00.000Z',
-      updatedAt: '2026-05-20T00:00:00.000Z'
-    } as unknown as AgentSessionEntity
-    vi.mocked(sessionService.agentSessionService.getSession).mockResolvedValueOnce(sessionEntity)
-    vi.mocked(sessionService.agentSessionService.getSession).mockResolvedValueOnce(sessionEntity)
-
-    const orchestrator = await import('@main/services/agents/services/SessionMessageOrchestrator')
-    vi.mocked(orchestrator.sessionMessageOrchestrator.createSessionMessage).mockRejectedValueOnce(
-      new Error('orchestrator-stub')
-    )
-
-    await expect(
-      runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'real prompt', timeoutMinutes: 2 } }))
-    ).rejects.toThrow('orchestrator-stub')
-
-    expect(sessionService.agentSessionService.getSession).toHaveBeenCalledWith('a1', 'sess-old')
-    expect(sessionService.agentSessionService.createSession).not.toHaveBeenCalled()
+    expect(sessionService.createSession).toHaveBeenCalledWith({ agentId: 'a1', name: 'heartbeat' })
   })
 })

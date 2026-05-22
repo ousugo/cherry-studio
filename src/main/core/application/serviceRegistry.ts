@@ -5,6 +5,7 @@ import { PreferenceService } from '@data/PreferenceService'
 import { AgentSessionRuntimeService } from '@main/ai/agent-session/AgentSessionRuntimeService'
 import { ClaudeCodeWarmQueryManager } from '@main/ai/agent-session/runtime/claude-code/ClaudeCodeWarmQueryManager'
 import { ClaudeCodeWarmupService } from '@main/ai/agent-session/runtime/claude-code/ClaudeCodeWarmupService'
+import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels/ChannelManager'
 import { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
@@ -110,6 +111,7 @@ export const services = {
   OpenClawService,
   SearchService,
   AgentSessionRuntimeService,
+  AgentJobsService,
   ChannelManager,
   AiService,
   ClaudeCodeWarmQueryManager,

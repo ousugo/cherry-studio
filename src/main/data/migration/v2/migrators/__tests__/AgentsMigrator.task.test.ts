@@ -143,8 +143,8 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
       type: 'claude-code',
       name: 'V1 Agent',
       instructions: 'helper',
-      model: 'sonnet',
-      sortOrder: 0
+      model: null,
+      orderKey: 'a0'
     })
     await dbh.db.insert(agentChannelTable).values({
       id: CHANNEL_ID,

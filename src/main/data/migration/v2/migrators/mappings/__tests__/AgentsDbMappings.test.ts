@@ -94,7 +94,9 @@ describe('AgentsDbMappings', () => {
     expect(sessionsInsert).toContain('WHERE agent_id IN (SELECT id FROM agent)')
   })
 
-  it('appends WHERE clause for session_messages to match migrated sessions only', () => {
+  // session_messages is now manualImport: true — handled by
+  // importLegacySessionMessages in TS via Drizzle, not by buildAgentsImportStatements.
+  it.skip('appends WHERE clause for session_messages to match migrated sessions only', () => {
     const schemaInfo = createEmptyAgentsSchemaInfo()
     schemaInfo.session_messages.exists = true
     schemaInfo.session_messages.columns = new Set([

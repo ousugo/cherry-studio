@@ -3,12 +3,12 @@ import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflow
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/services/channels/channelConfig'
-import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
+import { application } from '@main/core/application'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
+import { type ChannelConfig, ChannelConfigSchema } from '@shared/data/types/channel'
 import type { AgentConfiguration } from '@types'
 import QRCode from 'qrcode'
 
@@ -365,7 +365,7 @@ class ClawServer {
     if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for notify")
 
     const targetChannelId = args.channel_id
-    let adapters = channelManager.getAgentAdapters(this.agentId)
+    let adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
 
     if (targetChannelId) {
       adapters = adapters.filter((a) => a.channelId === targetChannelId)
@@ -423,7 +423,7 @@ class ClawServer {
     const config = agent.configuration
     const channels = await channelService.listChannels({ agentId: this.agentId })
 
-    const adapterStatuses = channelManager.getAdapterStatuses(this.agentId)
+    const adapterStatuses = application.get('ChannelManager').getAdapterStatuses(this.agentId)
     const statusMap = new Map(adapterStatuses.map((s) => [s.channelId, s.connected]))
 
     const channelSummary = channels.map((ch) => ({
@@ -497,6 +497,7 @@ class ClawServer {
         isActive: enabled ?? true
       })
 
+      const channelManager = application.get('ChannelManager')
       const qrPromise = channelManager.waitForQrUrl(this.agentId, newChannel.id, 30_000)
       // Fire-and-forget: syncChannel will complete once the user scans
       channelManager.syncChannel(newChannel.id).catch((err) => {
@@ -622,6 +623,7 @@ class ClawServer {
 
     const needsQr = channel.type === 'wechat' || (channel.type === 'feishu' && !channel.config.app_id)
 
+    const channelManager = application.get('ChannelManager')
     if (!needsQr) {
       await channelManager.syncChannel(channelId)
       return {

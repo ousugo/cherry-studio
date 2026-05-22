@@ -363,54 +363,6 @@ export type AgentSchemas = {
     }
   }
 
-  /** List sessions for an agent, create a new session */
-  '/agents/:agentId/sessions': {
-    GET: {
-      params: { agentId: string }
-      query?: ListQuery
-      response: OffsetPaginationResponse<AgentSessionEntity>
-    }
-    POST: {
-      params: { agentId: string }
-      body: CreateSessionDto
-      response: AgentSessionEntity
-    }
-  }
-
-  /** Get, update, or delete a specific session */
-  '/agents/:agentId/sessions/:sessionId': {
-    GET: {
-      params: { agentId: string; sessionId: string }
-      response: AgentSessionEntity
-    }
-    PATCH: {
-      params: { agentId: string; sessionId: string }
-      body: UpdateSessionDto
-      response: AgentSessionEntity
-    }
-    DELETE: {
-      params: { agentId: string; sessionId: string }
-      response: void
-    }
-  }
-
-  /** List session messages (paginated) */
-  '/agents/:agentId/sessions/:sessionId/messages': {
-    GET: {
-      params: { agentId: string; sessionId: string }
-      query?: ListQuery
-      response: OffsetPaginationResponse<AgentSessionMessageEntity>
-    }
-  }
-
-  /** Delete a specific session message */
-  '/agents/:agentId/sessions/:sessionId/messages/:messageId': {
-    DELETE: {
-      params: { agentId: string; sessionId: string; messageId: string }
-      response: void
-    }
-  }
-
   /** List tasks for an agent, create a new task */
   '/agents/:agentId/tasks': {
     GET: {
