@@ -41,7 +41,6 @@ vi.mock('@main/ai/agents/agentUtils', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...(actual as object),
-    validateAgentModels: vi.fn().mockResolvedValue(undefined),
     resolveAccessiblePaths: vi.fn((paths: string[]) => paths)
   }
 })

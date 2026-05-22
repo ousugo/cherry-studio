@@ -94,28 +94,6 @@ describe('AgentsDbMappings', () => {
     expect(sessionsInsert).toContain('WHERE agent_id IN (SELECT id FROM agent)')
   })
 
-  // session_messages is now manualImport: true — handled by
-  // importLegacySessionMessages in TS via Drizzle, not by buildAgentsImportStatements.
-  it.skip('appends WHERE clause for session_messages to match migrated sessions only', () => {
-    const schemaInfo = createEmptyAgentsSchemaInfo()
-    schemaInfo.session_messages.exists = true
-    schemaInfo.session_messages.columns = new Set([
-      'id',
-      'session_id',
-      'role',
-      'content',
-      'agent_session_id',
-      'metadata',
-      'created_at',
-      'updated_at'
-    ])
-
-    const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
-    const messagesInsert = statements.find((s) => s.startsWith('INSERT INTO agent_session_message '))
-
-    expect(messagesInsert).toContain('WHERE session_id IN (SELECT id FROM agent_session)')
-  })
-
   it('appends WHERE clause for channels to exclude orphaned agent and session references', () => {
     const schemaInfo = createEmptyAgentsSchemaInfo()
     schemaInfo.channels.exists = true

@@ -175,13 +175,20 @@ describe('AgentsMigrator', () => {
     expect(executed.some((stmt) => stmt?.startsWith('DELETE FROM agent'))).toBe(false)
   })
 
-  it.skip('validate fails when imported table counts are lower than the expected filtered counts', async () => {
+  it('validate fails when imported table counts are lower than the expected filtered counts', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
+    // Workspace prelude (3 calls): selectLegacySessionWorkspaceRows skips
+    // db.all because the test schema lacks `sessions.agent_id`; the other 3
+    // (workspaceRows, invalidSessionWorkspaceRows, targetWorkspacePathCounts)
+    // fire before the spec loop.
     const all = vi
       .fn()
+      .mockResolvedValueOnce([{ count: 0 }]) // workspaceRows target
+      .mockResolvedValueOnce([{ count: 0 }]) // invalidSessionWorkspaceRows
+      .mockResolvedValueOnce([]) // targetWorkspacePathCounts
       .mockResolvedValueOnce([{ count: 0 }]) // agent target (expected 1 → mismatch)
       .mockResolvedValueOnce([{ count: 1 }]) // agent expected
       .mockResolvedValueOnce([{ count: 2 }]) // agent_session target
@@ -210,7 +217,7 @@ describe('AgentsMigrator', () => {
     expect(result.stats.targetCount).toBe(24)
   })
 
-  it.skip('validate skips specs whose source table is missing from the legacy db', async () => {
+  it('validate skips specs whose source table is missing from the legacy db', async () => {
     // Reproduces the production crash where a legacy agents.db lacks newer
     // tables (e.g. agent_skills): validate would otherwise SELECT FROM
     // agents_legacy.agent_skills and the libsql client would raise
@@ -224,13 +231,16 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(partialSchema as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(partialCounts)
 
-    // Each present spec issues two queries (target count + expected count). After
-    // removing 3 task-related specs we have 6 total; partialSchema drops
-    // agent_skills and session_messages, leaving 4 present specs → 8 calls,
-    // all matched (target === expected) so validation succeeds. If the guard
-    // regresses, the mock will run out of queued responses and return
-    // undefined, surfacing the failure.
-    const all = vi.fn()
+    // 3 workspace-prelude calls + 4 present specs × 2 = 11 total. Each present
+    // spec issues two queries (target count + expected count) and the workspace
+    // prelude fires workspaceRows + invalidSessionWorkspaceRows + path counts
+    // before the spec loop. If the spec-skip guard regresses, the mock will run
+    // out of queued responses and return undefined, surfacing the failure.
+    const all = vi
+      .fn()
+      .mockResolvedValueOnce([{ count: 0 }]) // workspaceRows target
+      .mockResolvedValueOnce([{ count: 0 }]) // invalidSessionWorkspaceRows
+      .mockResolvedValueOnce([]) // targetWorkspacePathCounts
     for (let i = 0; i < 4; i++) {
       all.mockResolvedValueOnce([{ count: 1 }]).mockResolvedValueOnce([{ count: 1 }])
     }
@@ -242,19 +252,22 @@ describe('AgentsMigrator', () => {
 
     expect(result.success).toBe(true)
     expect(result.errors).toEqual([])
-    expect(all).toHaveBeenCalledTimes(8)
+    expect(all).toHaveBeenCalledTimes(11)
     const queries = all.mock.calls.map(([statement]) => statement.queryChunks[0]?.value?.[0])
     expect(queries.some((q) => q?.includes('agents_legacy.agent_skills'))).toBe(false)
     expect(queries.some((q) => q?.includes('agents_legacy.session_messages'))).toBe(false)
   })
 
-  it.skip('validate flags target tables whose row count exceeds the expected filtered count', async () => {
+  it('validate flags target tables whose row count exceeds the expected filtered count', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockResolvedValue(createCounts())
 
     const all = vi
       .fn()
+      .mockResolvedValueOnce([{ count: 0 }]) // workspaceRows target
+      .mockResolvedValueOnce([{ count: 0 }]) // invalidSessionWorkspaceRows
+      .mockResolvedValueOnce([]) // targetWorkspacePathCounts
       .mockResolvedValueOnce([{ count: 2 }]) // agent target (expected 1 → too high)
       .mockResolvedValueOnce([{ count: 1 }]) // agent expected
       .mockResolvedValueOnce([{ count: 2 }]) // agent_session target
