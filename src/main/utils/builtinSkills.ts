@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { skillService } from '@main/services/skills/SkillService'
+import { skillService } from '@main/ai/agent-session/skills/SkillService'
 import { app } from 'electron'
 
 import { toAsarUnpackedPath } from '.'

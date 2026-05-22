@@ -25,7 +25,7 @@ vi.mock('@main/apiServer/services/models', () => ({
   }
 }))
 
-vi.mock('@main/services/skills/SkillService', () => ({
+vi.mock('@main/ai/agent-session/skills/SkillService', () => ({
   skillService: {
     initSkillsForAgent: vi.fn()
   }

@@ -6,6 +6,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -316,7 +317,7 @@ describe('SkillService', () => {
       vi.spyOn(skillService as never, 'getAgentSessionWorkspaces').mockResolvedValue(['/fake/workspace'])
       vi.spyOn(skillService, 'linkSkill').mockRejectedValue(new Error('symlink failed'))
       // First call (enable) succeeds; second call (rollback) fails → AggregateError
-      vi.spyOn(skillService as never, 'upsertAgentSkill')
+      vi.spyOn(agentGlobalSkillService, 'upsertJoin')
         .mockResolvedValueOnce(undefined)
         .mockRejectedValueOnce(new Error('rollback failed'))
 

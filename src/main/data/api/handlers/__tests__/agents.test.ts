@@ -55,7 +55,7 @@ vi.mock('@data/services/AgentTaskService', () => ({
   }
 }))
 
-vi.mock('@main/services/skills/SkillService', () => ({
+vi.mock('@main/ai/agent-session/skills/SkillService', () => ({
   skillService: {
     list: listSkillsMock,
     getById: getSkillByIdMock

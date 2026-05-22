@@ -1,7 +1,7 @@
 import { mkdir, readdir } from 'node:fs/promises'
 
 import { loggerService } from '@logger'
-import { skillService } from '@main/services/skills/SkillService'
+import { skillService } from '@main/ai/agent-session/skills/SkillService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'

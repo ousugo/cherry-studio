@@ -35,7 +35,7 @@ const { mockSyncBuiltinSkill } = vi.hoisted(() => ({
   mockSyncBuiltinSkill: vi.fn()
 }))
 
-vi.mock('@main/services/skills/SkillService', () => ({
+vi.mock('@main/ai/agent-session/skills/SkillService', () => ({
   skillService: { syncBuiltinSkill: mockSyncBuiltinSkill }
 }))
 
