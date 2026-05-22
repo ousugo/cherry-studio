@@ -8,6 +8,7 @@ import { useToolApprovalComposerOverrides } from '@renderer/components/chat/comp
 import AgentComposer, { AgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import { useShellState } from '@renderer/components/chat/panes/Shell'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
@@ -191,7 +192,7 @@ const AgentChat = ({
 
   if (isInitializing) {
     return (
-      <AgentRightPane.Provider
+      <AgentRightPane
         workspacePath={activeSession?.workspace?.path ?? temporaryAgentConversation?.session.workspace?.path}
         messages={EMPTY_MESSAGES}
         partsByMessageId={EMPTY_PARTS}>
@@ -203,7 +204,7 @@ const AgentChat = ({
           main={<MessageListInitialLoading />}
           rightPane={<AgentRightPane.Host />}
         />
-      </AgentRightPane.Provider>
+      </AgentRightPane>
     )
   }
 
@@ -245,7 +246,7 @@ const AgentChat = ({
     ) : null
 
     return (
-      <AgentRightPane.Provider
+      <AgentRightPane
         workspacePath={temporaryAgentConversation.session.workspace?.path}
         messages={EMPTY_MESSAGES}
         partsByMessageId={EMPTY_PARTS}
@@ -269,7 +270,7 @@ const AgentChat = ({
             </div>
           }
           main={
-            <RightPaneInsetComposerDock
+            <AgentComposerDock
               placement={temporaryComposerDocked ? 'docked' : 'home'}
               main={<div className="h-full min-h-0 flex-1" />}
               composer={homeComposer}
@@ -286,7 +287,7 @@ const AgentChat = ({
           centerOverlay={<AgentRightPane.MaximizedOverlay />}
           rightPane={<AgentRightPane.Host />}
         />
-      </AgentRightPane.Provider>
+      </AgentRightPane>
     )
   }
 
@@ -467,7 +468,7 @@ const AgentChatSessionFrame = ({
   const main = (
     <div className="translate-z-0 relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
       <div className="min-h-0 flex-1">
-        <AgentSessionMessagesWithRightPaneAction
+        <AgentSessionMessagesWithAgentRightPaneAction
           agentId={agentId}
           sessionId={sessionId}
           messages={uiMessages}
@@ -486,7 +487,7 @@ const AgentChatSessionFrame = ({
   )
 
   return (
-    <AgentRightPane.Provider
+    <AgentRightPane
       workspacePath={visibleSession.workspace?.path}
       messages={uiMessages}
       partsByMessageId={partsByMessageId}
@@ -510,26 +511,24 @@ const AgentChatSessionFrame = ({
             />
           </div>
         }
-        centerContent={
-          <RightPaneInsetComposerDock placement="docked" main={main} composer={bottomComposer} mainVisible />
-        }
+        centerContent={<AgentComposerDock placement="docked" main={main} composer={bottomComposer} mainVisible />}
         sidePanel={sidePanel}
         centerOverlay={<AgentRightPane.MaximizedOverlay />}
         rightPane={<AgentRightPane.Host />}
       />
-    </AgentRightPane.Provider>
+    </AgentRightPane>
   )
 }
 
-const AgentSessionMessagesWithRightPaneAction = (props: ComponentProps<typeof AgentSessionMessages>) => {
+const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<typeof AgentSessionMessages>) => {
   const { openAgentToolFlow } = useAgentRightPaneActions()
   return <AgentSessionMessages {...props} openAgentToolFlow={openAgentToolFlow} />
 }
 
-// Reports the docked composer's overlay inset so the maximized right pane stops above it.
-const RightPaneInsetComposerDock = (props: ComponentProps<typeof ComposerDockTransitionFrame>) => {
-  const { setOverlayBottomInset } = useAgentRightPaneActions()
-  return <ComposerDockTransitionFrame {...props} onMainOverlayBottomInsetChange={setOverlayBottomInset} />
+// Lifts the composer above the maximized right-pane overlay so it stays usable while maximized.
+const AgentComposerDock = (props: ComponentProps<typeof ComposerDockTransitionFrame>) => {
+  const { maximized } = useShellState()
+  return <ComposerDockTransitionFrame {...props} composerElevated={maximized} />
 }
 
 interface AgentChatFrameBaseProps {

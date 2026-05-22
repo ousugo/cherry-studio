@@ -628,18 +628,20 @@ const ArtifactPane = ({
                 </Button>
               </Tooltip>
               {workspacePath && <OpenExternalAppButton workdir={workspacePath} />}
-              <Tooltip content={maximizeLabel} delay={800}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:bg-accent hover:text-foreground"
-                  aria-label={maximizeLabel}
-                  aria-pressed={maximized}
-                  onClick={onToggleMaximized}>
-                  <MaximizeIcon size={16} />
-                </Button>
-              </Tooltip>
+              {onToggleMaximized && (
+                <Tooltip content={maximizeLabel} delay={800}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                    aria-label={maximizeLabel}
+                    aria-pressed={maximized}
+                    onClick={onToggleMaximized}>
+                    <MaximizeIcon size={16} />
+                  </Button>
+                </Tooltip>
+              )}
             </div>
           </div>
           <div className={cn('min-h-0 min-w-0 flex-1', isSelectedHtmlPreview ? 'overflow-hidden' : 'overflow-auto')}>

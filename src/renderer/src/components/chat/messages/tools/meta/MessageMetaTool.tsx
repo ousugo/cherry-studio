@@ -463,7 +463,7 @@ const ResponseSectionStyled = ({ className, ...props }: ComponentPropsWithoutRef
 const CodeBlock = ({ className, ...props }: ComponentPropsWithoutRef<'pre'>) => (
   <pre
     className={[
-      'm-0 max-h-[300px] overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-2 font-[var(--font-family-mono,monospace)] text-xs [&[data-error=true]]:text-[var(--status-color-error,var(--color-foreground-secondary))]',
+      'wrap-break-word m-0 max-h-[300px] overflow-auto whitespace-pre-wrap rounded bg-muted p-2 font-(--font-family-mono,monospace) text-xs data-[error=true]:text-(--status-color-error,var(--color-foreground-secondary))',
       className
     ]
       .filter(Boolean)
@@ -487,7 +487,7 @@ const Highlighted = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) =
 const InnerHint = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
     className={[
-      'flex items-center gap-1 text-[11px] text-foreground-muted [&_code]:font-[var(--font-family-mono,monospace)]',
+      'flex items-center gap-1 text-[11px] text-foreground-muted [&_code]:font-(--font-family-mono,monospace)',
       className
     ]
       .filter(Boolean)

@@ -105,21 +105,17 @@ describe('ComposerDockTransitionFrame', () => {
     })
   })
 
-  it('reports the bottom inset needed to keep overlays above the composer', async () => {
-    const onMainOverlayBottomInsetChange = vi.fn()
+  it('lifts the composer dock layer above a full-area overlay only when elevated', () => {
+    const baseProps = {
+      placement: 'docked' as const,
+      main: <InsetProbe />,
+      composer: <div data-composer-inputbar="" />,
+      mainVisible: true
+    }
+    const { container, rerender } = render(<ComposerDockTransitionFrame {...baseProps} />)
+    expect(container.querySelector('[data-composer-dock-layer]')).toHaveClass('z-10')
 
-    render(
-      <ComposerDockTransitionFrame
-        placement="docked"
-        main={<InsetProbe />}
-        onMainOverlayBottomInsetChange={onMainOverlayBottomInsetChange}
-        composer={<div data-composer-inputbar="" />}
-        mainVisible
-      />
-    )
-
-    await waitFor(() => {
-      expect(onMainOverlayBottomInsetChange).toHaveBeenLastCalledWith(316)
-    })
+    rerender(<ComposerDockTransitionFrame {...baseProps} composerElevated />)
+    expect(container.querySelector('[data-composer-dock-layer]')).toHaveClass('z-50')
   })
 })

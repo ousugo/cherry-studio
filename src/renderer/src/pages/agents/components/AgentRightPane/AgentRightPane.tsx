@@ -1,17 +1,9 @@
-import { Badge, Button, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
-import {
-  ARTIFACT_RIGHT_PANE_CACHE_KEY,
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  RightPaneHost
-} from '@renderer/components/chat'
+import { Badge } from '@cherrystudio/ui'
 import { EmptyState } from '@renderer/components/chat'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import ArtifactPane, { ARTIFACT_PANE_WIDTH } from '@renderer/components/chat/panes/ArtifactPane'
-import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/Icons'
-import NavbarIcon from '@renderer/components/NavbarIcon'
+import ArtifactPane from '@renderer/components/chat/panes/ArtifactPane'
+import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentMessageListProviderValue } from '@renderer/pages/agents/messages/agentMessageListAdapter'
 import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
@@ -19,43 +11,45 @@ import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { Activity, CheckCircle, Circle, FolderOpen, GitBranch, Loader2, Wrench, X } from 'lucide-react'
+import { Activity, CheckCircle, Circle, FolderOpen, GitBranch, Loader2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   type AgentRightPaneStatus,
-  type AgentRightPaneTab,
   type AgentStatusTask,
   type AgentToolFlowOpenInput,
   buildAgentRightPaneStatus,
   buildAgentToolFlowProjection
 } from './agentRightPaneProjection'
 
-interface AgentRightPaneState {
-  open: boolean
-  maximized: boolean
-  overlayBottomInset: number
-  activeTab: AgentRightPaneTab
-  flowTabs: AgentRightPaneFlowTab[]
-  activeFlowTab?: AgentRightPaneFlowTab
-  selectedToolCallId?: string
-  selectedToolName?: string
-  workspacePath?: string
-  selectedFile: string | null
-  flow: ReturnType<typeof buildAgentToolFlowProjection>
-  status: AgentRightPaneStatus
+// ── Agent-specific composition over the generic RightPane shell ─────────────
+// Owns the agent business logic — subagent tool-flow tabs, task/status
+// projections, agent session metadata — and feeds it into Shell.* slots.
+
+const FLOW_TAB_PREFIX = 'flow:'
+const MAX_FLOW_TAB_TITLE_LENGTH = 32
+const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
+
+function getFlowTabValue(toolCallId: string): string {
+  return `${FLOW_TAB_PREFIX}${toolCallId}`
 }
 
-interface AgentRightPaneActions {
-  close: () => void
-  openTab: (tab: AgentRightPaneTab) => void
-  toggleFiles: () => void
-  toggleMaximized: () => void
-  setOverlayBottomInset: (inset: number) => void
-  setSelectedFile: (file: string | null) => void
-  openAgentToolFlow: (input: AgentToolFlowOpenInput) => void
+function getFlowToolCallId(tab: string): string | undefined {
+  return tab.startsWith(FLOW_TAB_PREFIX) ? tab.slice(FLOW_TAB_PREFIX.length) : undefined
+}
+
+function getFlowTabTitle(input: AgentToolFlowOpenInput): string {
+  const title = input.title?.trim() || input.toolName?.trim() || input.toolCallId
+  return title.length > MAX_FLOW_TAB_TITLE_LENGTH ? `${title.slice(0, MAX_FLOW_TAB_TITLE_LENGTH - 3)}...` : title
+}
+
+interface AgentFlowTab {
+  toolCallId: string
+  toolName?: string
+  sourceMessageId?: string
+  title: string
 }
 
 interface AgentRightPaneMeta {
@@ -65,6 +59,21 @@ interface AgentRightPaneMeta {
   agentName?: string
   agentAvatar?: string
   modelFallback?: ModelSnapshot
+}
+
+interface AgentRightPaneState {
+  flowTabs: AgentFlowTab[]
+  activeFlowTab?: AgentFlowTab
+  flow: ReturnType<typeof buildAgentToolFlowProjection>
+  status: AgentRightPaneStatus
+  selectedFile: string | null
+  workspacePath?: string
+}
+
+interface AgentRightPaneActions {
+  openAgentToolFlow: (input: AgentToolFlowOpenInput) => void
+  closeFlowTab: (toolCallId: string) => void
+  setSelectedFile: (file: string | null) => void
 }
 
 interface AgentRightPaneContextValue {
@@ -80,33 +89,11 @@ interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
   partsByMessageId: Record<string, CherryMessagePart[]>
 }
 
-interface AgentRightPaneFlowTab {
-  toolCallId: string
-  toolName?: string
-  sourceMessageId?: string
-  title: string
-}
-
 const AgentRightPaneContext = createContext<AgentRightPaneContextValue | null>(null)
-const FLOW_TAB_PREFIX = 'flow:'
-const MAX_FLOW_TAB_TITLE_LENGTH = 32
-
-function getFlowTabValue(toolCallId: string): AgentRightPaneTab {
-  return `${FLOW_TAB_PREFIX}${toolCallId}` as AgentRightPaneTab
-}
-
-function getFlowToolCallId(tab: AgentRightPaneTab): string | undefined {
-  return tab.startsWith(FLOW_TAB_PREFIX) ? tab.slice(FLOW_TAB_PREFIX.length) : undefined
-}
-
-function getFlowTabTitle(input: AgentToolFlowOpenInput): string {
-  const title = input.title?.trim() || input.toolName?.trim() || input.toolCallId
-  return title.length > MAX_FLOW_TAB_TITLE_LENGTH ? `${title.slice(0, MAX_FLOW_TAB_TITLE_LENGTH - 3)}...` : title
-}
 
 function useAgentRightPane(): AgentRightPaneContextValue {
   const value = use(AgentRightPaneContext)
-  if (!value) throw new Error('useAgentRightPane must be used within AgentRightPane.Provider')
+  if (!value) throw new Error('useAgentRightPane must be used within <AgentRightPane>')
   return value
 }
 
@@ -114,7 +101,7 @@ export function useAgentRightPaneActions(): AgentRightPaneActions {
   return useAgentRightPane().actions
 }
 
-function AgentRightPaneProvider({
+function AgentRightPaneStateProvider({
   children,
   workspacePath,
   messages,
@@ -126,12 +113,11 @@ function AgentRightPaneProvider({
   agentAvatar,
   modelFallback
 }: AgentRightPaneProviderProps) {
-  const [open, setOpen] = useState(false)
-  const [maximized, setMaximized] = useState(false)
-  const [overlayBottomInset, setOverlayBottomInset] = useState(0)
+  const { activeTab } = useShellState()
+  const { openTab } = useShellActions()
+  const [flowTabs, setFlowTabs] = useState<AgentFlowTab[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<AgentRightPaneTab>('files')
-  const [flowTabs, setFlowTabs] = useState<AgentRightPaneFlowTab[]>([])
+
   const activeFlowToolCallId = getFlowToolCallId(activeTab)
   const activeFlowTab = activeFlowToolCallId
     ? flowTabs.find((flowTab) => flowTab.toolCallId === activeFlowToolCallId)
@@ -147,103 +133,50 @@ function AgentRightPaneProvider({
     setSelectedFile(null)
   }, [workspacePath])
 
-  const close = useCallback(() => {
-    setOpen(false)
-    setMaximized(false)
-    setActiveTab('files')
-  }, [])
-  const openTab = useCallback(
-    (tab: AgentRightPaneTab) => {
-      const flowToolCallId = getFlowToolCallId(tab)
-      if (flowToolCallId && !flowTabs.some((flowTab) => flowTab.toolCallId === flowToolCallId)) return
-      setActiveTab(tab)
-      setOpen(true)
-    },
-    [flowTabs]
-  )
-  const toggleFiles = useCallback(() => {
-    setOpen((currentOpen) => {
-      if (currentOpen && activeTab === 'files') {
-        setMaximized(false)
-        return false
+  const openAgentToolFlow = useCallback(
+    (input: AgentToolFlowOpenInput) => {
+      const nextTab: AgentFlowTab = {
+        toolCallId: input.toolCallId,
+        toolName: input.toolName,
+        sourceMessageId: input.sourceMessageId,
+        title: getFlowTabTitle(input)
       }
-      setActiveTab('files')
-      return true
-    })
-  }, [activeTab])
-  const toggleMaximized = useCallback(() => {
-    setMaximized((currentMaximized) => !currentMaximized)
-  }, [])
-  const openAgentToolFlow = useCallback((input: AgentToolFlowOpenInput) => {
-    const nextTab = {
-      toolCallId: input.toolCallId,
-      toolName: input.toolName,
-      sourceMessageId: input.sourceMessageId,
-      title: getFlowTabTitle(input)
-    }
-    setFlowTabs((currentTabs) => {
-      if (!currentTabs.some((tab) => tab.toolCallId === input.toolCallId)) return [...currentTabs, nextTab]
-      return currentTabs.map((tab) => (tab.toolCallId === input.toolCallId ? { ...tab, ...nextTab } : tab))
-    })
-    setActiveTab(getFlowTabValue(input.toolCallId))
-    setOpen(true)
-  }, [])
+      setFlowTabs((currentTabs) => {
+        if (!currentTabs.some((tab) => tab.toolCallId === input.toolCallId)) return [...currentTabs, nextTab]
+        return currentTabs.map((tab) => (tab.toolCallId === input.toolCallId ? { ...tab, ...nextTab } : tab))
+      })
+      openTab(getFlowTabValue(input.toolCallId))
+    },
+    [openTab]
+  )
+  const closeFlowTab = useCallback(
+    (toolCallId: string) => {
+      setFlowTabs((currentTabs) => currentTabs.filter((tab) => tab.toolCallId !== toolCallId))
+      if (getFlowToolCallId(activeTab) === toolCallId) openTab('files')
+    },
+    [activeTab, openTab]
+  )
 
   const value = useMemo<AgentRightPaneContextValue>(
     () => ({
-      state: {
-        open,
-        maximized,
-        overlayBottomInset,
-        activeTab,
-        flowTabs,
-        activeFlowTab,
-        selectedToolCallId: activeFlowTab?.toolCallId,
-        selectedToolName: activeFlowTab?.toolName,
-        workspacePath,
-        selectedFile,
-        flow,
-        status
-      },
-      actions: {
-        close,
-        openTab,
-        toggleFiles,
-        toggleMaximized,
-        setOverlayBottomInset,
-        setSelectedFile,
-        openAgentToolFlow
-      },
-      meta: {
-        sessionId,
-        sessionName,
-        agentId,
-        agentName,
-        agentAvatar,
-        modelFallback
-      }
+      state: { flowTabs, activeFlowTab, flow, status, selectedFile, workspacePath },
+      actions: { openAgentToolFlow, closeFlowTab, setSelectedFile },
+      meta: { sessionId, sessionName, agentId, agentName, agentAvatar, modelFallback }
     }),
     [
-      activeTab,
+      activeFlowTab,
       agentAvatar,
       agentId,
       agentName,
-      close,
+      closeFlowTab,
       flow,
       flowTabs,
-      activeFlowTab,
-      maximized,
       modelFallback,
-      open,
       openAgentToolFlow,
-      openTab,
-      overlayBottomInset,
       selectedFile,
       sessionId,
       sessionName,
       status,
-      toggleFiles,
-      toggleMaximized,
       workspacePath
     ]
   )
@@ -251,111 +184,22 @@ function AgentRightPaneProvider({
   return <AgentRightPaneContext value={value}>{children}</AgentRightPaneContext>
 }
 
-function AgentRightPaneHost() {
-  const { state } = useAgentRightPane()
-
+function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
+  const { children, ...rest } = props
   return (
-    <RightPaneHost
-      open={state.open && !state.maximized}
-      width={ARTIFACT_PANE_WIDTH}
-      resizable
-      minWidth={ARTIFACT_RIGHT_PANE_MIN_WIDTH}
-      defaultWidth={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
-      maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
-      cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}>
-      <AgentRightPaneShell />
-    </RightPaneHost>
+    <Shell defaultTab="files">
+      <AgentRightPaneStateProvider {...rest}>{children}</AgentRightPaneStateProvider>
+    </Shell>
   )
 }
 
-function AgentRightPaneMaximizedOverlay() {
-  const { state } = useAgentRightPane()
-  if (!state.open || !state.maximized) return null
-
-  return (
-    <div
-      className="absolute inset-x-0 top-0 z-40 min-h-0 overflow-hidden bg-background p-4"
-      style={{ bottom: state.overlayBottomInset }}>
-      <AgentRightPaneShell />
-    </div>
-  )
-}
-
-function AgentRightPaneShell() {
-  const { state, actions } = useAgentRightPane()
-  const { t } = useTranslation()
-  const incompleteTasks = state.status.tasks.filter((task) => task.status !== 'completed').length
-
-  return (
-    <Tabs
-      value={state.activeTab}
-      onValueChange={(value) => actions.openTab(value as AgentRightPaneTab)}
-      variant="line"
-      className="h-full gap-0 overflow-hidden bg-card text-card-foreground">
-      <div className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-3">
-        <TabsList className="min-w-0 flex-1 justify-start gap-2 overflow-x-auto">
-          <TabsTrigger value="files" className="shrink-0 gap-1.5 px-1.5 py-2 text-xs">
-            <FolderOpen size={14} />
-            {t('agent.right_pane.tabs.files')}
-          </TabsTrigger>
-          {state.flowTabs.map((flowTab) => (
-            <TabsTrigger
-              key={flowTab.toolCallId}
-              value={getFlowTabValue(flowTab.toolCallId)}
-              className="max-w-40 shrink-0 gap-1.5 px-1.5 py-2 text-xs">
-              <GitBranch size={14} />
-              <span className="min-w-0 truncate">{flowTab.title}</span>
-            </TabsTrigger>
-          ))}
-          <TabsTrigger value="status" className="shrink-0 gap-1.5 px-1.5 py-2 text-xs">
-            <Activity size={14} />
-            {t('agent.right_pane.tabs.status')}
-            {incompleteTasks > 0 && (
-              <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] leading-3">
-                {incompleteTasks}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-        <Tooltip content={t('agent.right_pane.close')} delay={800}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label={t('agent.right_pane.close')}
-            onClick={actions.close}>
-            <X size={15} />
-          </Button>
-        </Tooltip>
-      </div>
-      <TabsContent value="files" className="min-h-0 overflow-hidden">
-        <AgentRightPaneFilesTab />
-      </TabsContent>
-      {state.flowTabs.map((flowTab) => {
-        const tabValue = getFlowTabValue(flowTab.toolCallId)
-        return (
-          <TabsContent key={flowTab.toolCallId} value={tabValue} className="min-h-0 overflow-hidden">
-            {state.activeTab === tabValue ? <AgentRightPaneFlowTab tab={flowTab} /> : null}
-          </TabsContent>
-        )
-      })}
-      <TabsContent value="status" className="min-h-0 overflow-auto">
-        <AgentRightPaneStatusTab />
-      </TabsContent>
-    </Tabs>
-  )
-}
-
-function AgentRightPaneFilesTab() {
+function AgentRightPaneFilesPanel() {
   const { state, actions } = useAgentRightPane()
   return (
     <ArtifactPane
       workspacePath={state.workspacePath}
-      maximized={state.maximized}
       selectedFile={state.selectedFile}
       onSelectedFileChange={actions.setSelectedFile}
-      onToggleMaximized={actions.toggleMaximized}
     />
   )
 }
@@ -422,26 +266,19 @@ function AgentToolFlowMessageList({
   )
 }
 
-function AgentRightPaneFlowTab({ tab }: { tab?: AgentRightPaneFlowTab }) {
+function AgentRightPaneFlowPanel({ tab }: { tab: AgentFlowTab }) {
   const { state } = useAgentRightPane()
+  const { activeTab } = useShellState()
   const { t } = useTranslation()
-  const activeTab = tab ?? state.activeFlowTab
 
-  if (!activeTab) {
-    return (
-      <EmptyState
-        icon={Wrench}
-        title={t('agent.right_pane.flow.empty.title')}
-        description={t('agent.right_pane.flow.empty.description')}
-      />
-    )
-  }
+  // Only the active flow tab drives the projection, so skip stale siblings.
+  if (activeTab !== getFlowTabValue(tab.toolCallId)) return null
 
   if (!state.flow.messages.length) {
     return (
       <EmptyState
         icon={GitBranch}
-        title={activeTab.title || t('agent.right_pane.flow.no_messages.title')}
+        title={tab.title || t('agent.right_pane.flow.no_messages.title')}
         description={t('agent.right_pane.flow.no_messages.description')}
       />
     )
@@ -468,7 +305,16 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
   }
 }
 
-function AgentRightPaneStatusTab() {
+function StatusMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border-subtle px-3 py-2">
+      <div className="text-muted-foreground">{label}</div>
+      <div className="font-medium text-foreground text-lg leading-6">{value}</div>
+    </div>
+  )
+}
+
+function AgentAgentRightPaneStatusPanel() {
   const { state, meta } = useAgentRightPane()
   const { t } = useTranslation()
   const { status } = state
@@ -525,10 +371,7 @@ function AgentRightPaneStatusTab() {
           <div className="space-y-0.5">
             <dt className="text-muted-foreground">{t('agent.right_pane.status.selected_tool')}</dt>
             <dd className="break-all text-foreground">
-              {state.activeFlowTab?.title ||
-                state.flow.selectedTool?.toolName ||
-                state.selectedToolName ||
-                t('common.none')}
+              {state.activeFlowTab?.title || state.flow.selectedTool?.toolName || t('common.none')}
             </dd>
           </div>
         </dl>
@@ -552,42 +395,81 @@ function AgentRightPaneStatusTab() {
   )
 }
 
-function StatusMetric({ label, value }: { label: string; value: number }) {
+function AgentRightPaneSurface() {
+  const { state, actions } = useAgentRightPane()
+  const { t } = useTranslation()
+  const incompleteTasks = state.status.tasks.filter((task) => task.status !== 'completed').length
+
   return (
-    <div className="rounded-md border border-border-subtle px-3 py-2">
-      <div className="text-muted-foreground">{label}</div>
-      <div className="font-medium text-foreground text-lg leading-6">{value}</div>
-    </div>
+    <Shell.Tabs>
+      <Shell.TabList>
+        <Shell.Tab value="files" icon={<FolderOpen className="size-3.5" />}>
+          {t('agent.right_pane.tabs.files')}
+        </Shell.Tab>
+        {state.flowTabs.map((flowTab) => (
+          <Shell.Tab
+            key={flowTab.toolCallId}
+            value={getFlowTabValue(flowTab.toolCallId)}
+            icon={<GitBranch className="size-3.5" />}
+            onClose={() => actions.closeFlowTab(flowTab.toolCallId)}>
+            {flowTab.title}
+          </Shell.Tab>
+        ))}
+        <Shell.Tab
+          value="status"
+          icon={<Activity className="size-3.5" />}
+          badge={
+            incompleteTasks > 0 ? (
+              <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] leading-3">
+                {incompleteTasks}
+              </Badge>
+            ) : undefined
+          }>
+          {t('agent.right_pane.tabs.status')}
+        </Shell.Tab>
+      </Shell.TabList>
+      <Shell.Panel value="files">
+        <AgentRightPaneFilesPanel />
+      </Shell.Panel>
+      {state.flowTabs.map((flowTab) => (
+        <Shell.Panel key={flowTab.toolCallId} value={getFlowTabValue(flowTab.toolCallId)}>
+          <AgentRightPaneFlowPanel tab={flowTab} />
+        </Shell.Panel>
+      ))}
+      <Shell.Panel value="status" className="overflow-auto">
+        <AgentAgentRightPaneStatusPanel />
+      </Shell.Panel>
+    </Shell.Tabs>
+  )
+}
+
+function AgentRightPaneHost() {
+  return (
+    <Shell.Host>
+      <AgentRightPaneSurface />
+    </Shell.Host>
+  )
+}
+
+function AgentRightPaneMaximizedOverlay() {
+  return (
+    <Shell.MaximizedOverlay>
+      <AgentRightPaneSurface />
+    </Shell.MaximizedOverlay>
   )
 }
 
 function AgentRightPaneFilesToggle() {
-  const { state, actions } = useAgentRightPane()
   const { t } = useTranslation()
-  const pressed = state.open && state.activeTab === 'files'
-
-  return (
-    <Tooltip content={t('agent.right_pane.files_toggle')} delay={800}>
-      <NavbarIcon
-        onClick={actions.toggleFiles}
-        aria-pressed={pressed}
-        aria-label={t('agent.right_pane.files_toggle')}
-        data-state={pressed ? 'open' : 'closed'}>
-        {pressed ? <RightSidebarCollapseIcon /> : <RightSidebarExpandIcon />}
-      </NavbarIcon>
-    </Tooltip>
-  )
+  return <Shell.Toggle tab="files" label={t('agent.right_pane.files_toggle')} />
 }
 
-const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
-
-export const AgentRightPane = {
-  Provider: AgentRightPaneProvider,
+// `AgentRightPane` is the provider itself, with the other parts attached as
+// statics — used as `<AgentRightPane>` / `<AgentRightPane.Host>`.
+export const AgentRightPane = Object.assign(AgentRightPaneProvider, {
   Host: AgentRightPaneHost,
   MaximizedOverlay: AgentRightPaneMaximizedOverlay,
-  Shell: AgentRightPaneShell,
-  FilesTab: AgentRightPaneFilesTab,
-  FlowTab: AgentRightPaneFlowTab,
-  StatusTab: AgentRightPaneStatusTab,
   FilesToggle: AgentRightPaneFilesToggle
-}
+})
+
+export type { AgentToolFlowOpenInput }

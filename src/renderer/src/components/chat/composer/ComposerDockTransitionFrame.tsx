@@ -1,6 +1,6 @@
 import { cn } from '@renderer/utils'
 import type { ReactNode } from 'react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 
 import { ChatBottomOverlayInsetProvider, type ChatBottomOverlayInsets } from '../layout/ChatViewportInsetContext'
 
@@ -13,7 +13,8 @@ interface ComposerDockTransitionFrameProps {
   main: ReactNode
   composer: ReactNode
   mainVisible?: boolean
-  onMainOverlayBottomInsetChange?: (inset: number) => void
+  /** Lift the composer above a full-area overlay (e.g. a maximized side pane). */
+  composerElevated?: boolean
   overlay?: ReactNode
 }
 
@@ -27,7 +28,7 @@ export default function ComposerDockTransitionFrame({
   main,
   composer,
   mainVisible = placement === 'docked',
-  onMainOverlayBottomInsetChange,
+  composerElevated = false,
   overlay
 }: ComposerDockTransitionFrameProps) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -35,13 +36,6 @@ export default function ComposerDockTransitionFrame({
   const [bottomOverlayInsets, setBottomOverlayInsets] = useState<ChatBottomOverlayInsets | null>(null)
   const [composerInlineInsets, setComposerInlineInsets] = useState<ComposerInlineInsets>({ left: 0, right: 0 })
   const isDocked = placement === 'docked'
-  const mainOverlayBottomInset = bottomOverlayInsets
-    ? bottomOverlayInsets.contentBottomPadding + bottomOverlayInsets.scrollerBottomMargin
-    : 0
-
-  useEffect(() => {
-    onMainOverlayBottomInsetChange?.(mainOverlayBottomInset)
-  }, [mainOverlayBottomInset, onMainOverlayBottomInsetChange])
 
   useLayoutEffect(() => {
     const node = composerRef.current
@@ -110,7 +104,8 @@ export default function ComposerDockTransitionFrame({
             : undefined
         }
         className={cn(
-          'absolute inset-x-0 z-10 w-full',
+          'absolute inset-x-0 w-full',
+          composerElevated ? 'z-50' : 'z-10',
           isDocked ? 'bottom-0' : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh]'
         )}>
         <div className="pointer-events-auto w-full">

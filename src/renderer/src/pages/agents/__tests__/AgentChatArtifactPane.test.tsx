@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -107,35 +107,16 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ARTIFACT_PANE_WIDTH: 460,
   default: ({
     workspacePath,
-    maximized,
     selectedFile,
-    viewMode,
-    onSelectedFileChange,
-    onViewModeChange,
-    onToggleMaximized
+    onSelectedFileChange
   }: {
     workspacePath?: string
-    maximized?: boolean
     selectedFile?: string | null
-    viewMode?: 'preview' | 'code'
     onSelectedFileChange?: (file: string | null) => void
-    onViewModeChange?: (mode: 'preview' | 'code') => void
-    onToggleMaximized?: () => void
   }) => (
-    <div
-      data-testid="artifact-pane"
-      data-workspace-path={workspacePath ?? ''}
-      data-selected-file={selectedFile ?? ''}
-      data-view-mode={viewMode ?? ''}
-      data-maximized={String(Boolean(maximized))}>
+    <div data-testid="artifact-pane" data-workspace-path={workspacePath ?? ''} data-selected-file={selectedFile ?? ''}>
       <button type="button" onClick={() => onSelectedFileChange?.('README.md')}>
         select artifact file
-      </button>
-      <button type="button" onClick={() => onViewModeChange?.(viewMode === 'code' ? 'preview' : 'code')}>
-        toggle artifact view mode
-      </button>
-      <button type="button" onClick={onToggleMaximized}>
-        {maximized ? 'minimize artifact pane' : 'maximize artifact pane'}
       </button>
     </div>
   )
@@ -159,19 +140,20 @@ vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => 
     main,
     composer,
     mainVisible,
-    onMainOverlayBottomInsetChange
+    composerElevated
   }: {
     placement: string
     main: ReactNode
     composer: ReactNode
     mainVisible?: boolean
-    onMainOverlayBottomInsetChange?: (inset: number) => void
+    composerElevated?: boolean
   }) => (
-    <div data-testid="composer-dock-frame" data-placement={placement} data-main-visible={String(Boolean(mainVisible))}>
+    <div
+      data-testid="composer-dock-frame"
+      data-placement={placement}
+      data-main-visible={String(Boolean(mainVisible))}
+      data-composer-elevated={String(Boolean(composerElevated))}>
       {main}
-      <button type="button" onClick={() => onMainOverlayBottomInsetChange?.(316)}>
-        report composer inset
-      </button>
       {composer}
     </div>
   )
@@ -179,6 +161,14 @@ vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => 
 
 vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: PropsWithChildren) => <>{children}</>
+}))
+
+// Keep `motion` real; collapse AnimatePresence so exit animations don't retain
+// a stale maximized overlay during the test's synchronous assertions.
+vi.mock('motion/react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('motion/react')>()),
+  AnimatePresence: ({ children }: PropsWithChildren) => <>{children}</>,
+  useReducedMotion: () => false
 }))
 
 vi.mock('@renderer/components/NavbarIcon', () => ({
@@ -386,32 +376,28 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('session-pane')).toBeInTheDocument()
   })
 
-  it('maximizes the artifact pane over the navbar without covering the composer', () => {
+  it('maximizes into the chat-area overlay, unmounting the docked host', () => {
     render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.files_toggle' }))
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'false')
 
-    fireEvent.click(screen.getByRole('button', { name: 'maximize artifact pane' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
-    expect(screen.getByTestId('chat-center-overlay').firstElementChild).toHaveClass('p-4')
+    // The docked host unmounts entirely while maximized (snap, no width animation).
+    expect(screen.queryByTestId('artifact-right-pane')).toBeNull()
+    // The overlay fills the chat area; the composer dock layer lifts above it.
     expect(screen.getByTestId('chat-center-overlay').firstElementChild).toHaveClass(
       'absolute',
-      'top-0',
+      'inset-0',
       'z-40',
       'bg-background'
     )
-    expect(screen.getByTestId('chat-center-overlay').firstElementChild).toHaveStyle({ bottom: '0px' })
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-composer-elevated', 'true')
     expect(screen.getByTestId('agent-top-bar')).toBeInTheDocument()
     expect(screen.getByTestId('chat-center-overlay')).toContainElement(screen.getByTestId('artifact-pane'))
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'true')
+    expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'report composer inset' }))
-
-    expect(screen.getByTestId('chat-center-overlay').firstElementChild).toHaveStyle({ bottom: '316px' })
   })
 
   it('keeps the selected artifact file when maximizing and restoring the pane', () => {
@@ -419,19 +405,14 @@ describe('AgentChat artifact pane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.files_toggle' }))
     fireEvent.click(screen.getByRole('button', { name: 'select artifact file' }))
-
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
 
-    fireEvent.click(screen.getByRole('button', { name: 'maximize artifact pane' }))
-
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('chat-center-overlay')).toContainElement(screen.getByTestId('artifact-pane'))
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
 
-    fireEvent.click(screen.getByRole('button', { name: 'minimize artifact pane' }))
-
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-maximized', 'false')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
   })
 
@@ -520,6 +501,22 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByRole('button', { name: /cache-usage\.md/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /renderer audit/ })).toBeInTheDocument()
     expect(screen.queryByText('Agent')).not.toBeInTheDocument()
+  })
+
+  it('closes a subagent flow tab from its hover close button', () => {
+    render(<AgentChat pane={<aside data-testid="session-pane" />} paneOpen={true} panePosition="left" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow a' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open flow b' }))
+    expect(screen.getByRole('button', { name: /cache-usage\.md/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /renderer audit/ })).toBeInTheDocument()
+
+    const flowBTab = screen.getByRole('button', { name: /renderer audit/ })
+    fireEvent.click(within(flowBTab.parentElement as HTMLElement).getByRole('button', { name: 'common.close' }))
+
+    expect(screen.queryByRole('button', { name: /renderer audit/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /cache-usage\.md/ })).toBeInTheDocument()
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
   })
 
   it('keeps the session pane and content mounted while a selected session reloads', () => {
