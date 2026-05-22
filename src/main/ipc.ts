@@ -23,7 +23,7 @@ import checkDiskSpace from 'check-disk-space'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
-import { skillService } from './ai/agent-session/skills/SkillService'
+import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
 import BackupManager from './services/BackupManager'
 import { ConfigKeys, configManager } from './services/ConfigManager'

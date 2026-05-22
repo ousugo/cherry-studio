@@ -45,7 +45,7 @@ vi.mock('@data/services/AgentService', () => ({ agentService: {} }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: {} }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService: {} }))
 vi.mock('@data/services/AgentTaskWorkflowService', () => ({ agentTaskWorkflowService: {} }))
-vi.mock('@main/ai/agent-session/skills/SkillService', () => ({ skillService: {} }))
+vi.mock('@main/ai/skills/SkillService', () => ({ skillService: {} }))
 
 import { agentChannelHandlers } from '../agentChannels'
 import { agentHandlers } from '../agents'

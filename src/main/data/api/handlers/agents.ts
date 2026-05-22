@@ -12,7 +12,7 @@
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { agentTaskWorkflowService } from '@data/services/AgentTaskWorkflowService'
-import { skillService } from '@main/ai/agent-session/skills/SkillService'
+import { skillService } from '@main/ai/skills/SkillService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
