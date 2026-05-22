@@ -1,4 +1,3 @@
-import { cn } from '@renderer/utils/style'
 import { Fragment, useMemo, useState } from 'react'
 
 import {
@@ -12,36 +11,6 @@ import {
 } from '../primitives'
 import { ActionConfirmDialog } from './ActionConfirmDialog'
 import type { ResolvedAction } from './actionTypes'
-
-const ACTION_MENU_CONTENT_CLASS = cn(
-  'z-50 max-h-(--radix-context-menu-content-available-height) min-w-[8rem] origin-(--radix-context-menu-content-transform-origin)',
-  'overflow-y-auto overflow-x-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
-  'data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out',
-  'data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in',
-  'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2'
-)
-const ACTION_MENU_ITEM_CLASS = cn(
-  'relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden',
-  'focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-  'data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10',
-  'data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20',
-  "[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-  "[&_svg:not([class*='text-'])]:text-muted-foreground data-[variant=destructive]:*:[svg]:text-destructive!"
-)
-const ACTION_MENU_SUB_TRIGGER_CLASS = cn(
-  'flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden',
-  'focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground',
-  "[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-  "[&_svg:not([class*='text-'])]:text-muted-foreground"
-)
-const ACTION_MENU_SUB_CONTENT_CLASS = cn(
-  'z-50 min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-hidden',
-  'rounded-md border bg-popover p-1 text-popover-foreground shadow-lg',
-  'data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out',
-  'data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in',
-  'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2'
-)
-const ACTION_MENU_SEPARATOR_CLASS = '-mx-1 my-1 h-px bg-border'
 
 export interface ActionMenuProps<TContext = unknown> {
   actions: readonly ResolvedAction<TContext>[]
@@ -88,7 +57,7 @@ export function ActionMenu<TContext = unknown>({
     const content = (
       <>
         {action.icon}
-        <span className="min-w-0 flex-1 truncate">{action.label}</span>
+        <span>{action.label}</span>
         {action.shortcut && <ContextMenuShortcut>{action.shortcut}</ContextMenuShortcut>}
       </>
     )
@@ -96,12 +65,8 @@ export function ActionMenu<TContext = unknown>({
     if (action.children.length > 0) {
       return (
         <ContextMenuSub key={action.id}>
-          <ContextMenuSubTrigger disabled={disabled} className={ACTION_MENU_SUB_TRIGGER_CLASS}>
-            {content}
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className={ACTION_MENU_SUB_CONTENT_CLASS}>
-            {action.children.map(renderAction)}
-          </ContextMenuSubContent>
+          <ContextMenuSubTrigger disabled={disabled}>{content}</ContextMenuSubTrigger>
+          <ContextMenuSubContent>{action.children.map(renderAction)}</ContextMenuSubContent>
         </ContextMenuSub>
       )
     }
@@ -111,7 +76,6 @@ export function ActionMenu<TContext = unknown>({
         key={action.id}
         disabled={disabled}
         variant={action.danger ? 'destructive' : 'default'}
-        className={ACTION_MENU_ITEM_CLASS}
         onSelect={(event) => {
           if (action.confirm) {
             event.preventDefault()
@@ -127,10 +91,10 @@ export function ActionMenu<TContext = unknown>({
 
   return (
     <>
-      <ContextMenuContent className={cn(ACTION_MENU_CONTENT_CLASS, className)}>
+      <ContextMenuContent className={className}>
         {groupedActions.map(({ action, separatorBefore }) => (
           <Fragment key={action.id}>
-            {separatorBefore && <ContextMenuSeparator className={ACTION_MENU_SEPARATOR_CLASS} />}
+            {separatorBefore && <ContextMenuSeparator />}
             {renderAction(action)}
           </Fragment>
         ))}

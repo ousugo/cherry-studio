@@ -186,18 +186,16 @@ const MessageActionMenuPopover = ({
   actions,
   align = 'end',
   children,
-  contentClassName,
   onAction
 }: {
   actions: MessageMenuBarResolvedAction[]
   align?: 'start' | 'center' | 'end'
   children: ReactNode
-  contentClassName?: string
   onAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
 }) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-    <DropdownMenuContent className={classNames('min-w-36', contentClassName)} align={align} side="top">
+    <DropdownMenuContent align={align} side="top">
       <MessageActionMenuItems actions={actions} onAction={onAction} />
     </DropdownMenuContent>
   </DropdownMenu>
@@ -245,7 +243,7 @@ const MessageActionMenuItem = ({
           {action.icon}
           <span>{action.label}</span>
         </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="min-w-56 max-w-80">
+        <DropdownMenuSubContent>
           <MessageActionMenuItems actions={action.children} onAction={onAction} />
         </DropdownMenuSubContent>
       </DropdownMenuSub>
@@ -267,18 +265,16 @@ const MessageActionMenuItem = ({
 
 const TranslateMenuPopover = ({
   children,
-  contentClassName,
   items,
   align = 'end'
 }: {
   children: ReactNode
-  contentClassName?: string
   items: MessageMenuBarTranslationItem[]
   align?: 'start' | 'center' | 'end'
 }) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-    <DropdownMenuContent className={classNames('min-w-36', contentClassName)} align={align} side="top">
+    <DropdownMenuContent align={align} side="top">
       {items.map((item) => {
         if (isMessageMenuBarTranslationDivider(item)) {
           return <DropdownMenuSeparator key={item.key} />
@@ -349,7 +345,7 @@ export function renderTranslateToolbarAction({
 
   return (
     <Tooltip content={action.label} delay={1200}>
-      <TranslateMenuPopover items={translationItems} align="center" contentClassName="max-h-[250px] overflow-y-auto">
+      <TranslateMenuPopover items={translationItems} align="center">
         <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()} $softHoverBg={softHoverBg}>
           {action.icon}
         </ActionButton>

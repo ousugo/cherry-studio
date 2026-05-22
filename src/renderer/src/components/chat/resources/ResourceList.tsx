@@ -3,6 +3,7 @@ import {
   ContextMenu as UiContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuItemContent,
   ContextMenuSeparator as UiContextMenuSeparator,
   ContextMenuSubContent as UiContextMenuSubContent,
   ContextMenuSubTrigger as UiContextMenuSubTrigger,
@@ -52,12 +53,6 @@ const GROUP_HEADER_COLOR_STYLE = {
   '--resource-list-group-color': 'color-mix(in srgb, var(--color-muted-foreground) 55%, transparent)'
 } as CSSProperties
 const GROUP_HEADER_TEXT_CLASS = 'text-[color:var(--resource-list-group-color)]'
-const CONTEXT_MENU_CONTENT_CLASS = 'w-[184px] rounded-lg border-border p-1.5 shadow-lg'
-const CONTEXT_MENU_ITEM_CLASS =
-  'h-7 gap-2 rounded-lg px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-accent focus:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
-const CONTEXT_MENU_SUB_TRIGGER_CLASS =
-  'h-7 gap-2 rounded-lg px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-accent focus:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
-const GROUP_CONTEXT_MENU_CONTENT_CLASS = 'w-44 rounded-lg border-border p-1 shadow-lg'
 const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
 const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = []
 const getDefaultItemId = (item: ResourceListItemBase) => item.id
@@ -918,12 +913,10 @@ function GroupHeader({ group, className, ref, style, onContextMenu, ...props }: 
   }
 
   return (
-    <UiContextMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen}>
+    <UiContextMenu onOpenChange={setContextMenuOpen}>
       <ContextMenuTrigger asChild>{header}</ContextMenuTrigger>
       {contextMenuOpen && (
-        <ContextMenuContent className={GROUP_CONTEXT_MENU_CONTENT_CLASS} onClick={() => setContextMenuOpen(false)}>
-          {groupHeaderContextMenu}
-        </ContextMenuContent>
+        <ContextMenuContent onClick={() => setContextMenuOpen(false)}>{groupHeaderContextMenu}</ContextMenuContent>
       )}
     </UiContextMenu>
   )
@@ -1299,32 +1292,26 @@ function VirtualItems<T extends ResourceListItemBase>({ className, ref, renderIt
   )
 }
 
-type ContextMenuProps<T extends ResourceListItemBase, TActionContext = unknown> = {
+type ResourceListContextMenuProps<T extends ResourceListItemBase, TActionContext = unknown> = {
   actions?: readonly ResolvedAction<TActionContext>[]
   item: T
   children: ReactNode
   content?: ReactNode
-  contentClassName?: string
   confirmDialogContentClassName?: string
   confirmDialogOverlayClassName?: string
-  menuClassName?: string
   onAction?: (action: ResolvedAction<TActionContext>) => void | Promise<void>
 }
 
-function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
+function ResourceListContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
   actions: menuActions,
   item,
   children,
   content,
-  contentClassName,
   confirmDialogContentClassName,
   confirmDialogOverlayClassName,
-  menuClassName,
   onAction
-}: ContextMenuProps<T, TActionContext>) {
+}: ResourceListContextMenuProps<T, TActionContext>) {
   const { actions, meta } = useResourceList<T>()
-  const contentClass = cn(CONTEXT_MENU_CONTENT_CLASS, contentClassName)
-  const actionMenuClass = cn(contentClassName, menuClassName)
   const handleOpenChange = useCallback(
     (open: boolean) => {
       if (open) actions.openContextMenu(meta.getItemId(item))
@@ -1348,66 +1335,50 @@ function ContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
       {menuActions ? (
         <ActionMenu
           actions={menuActions}
-          className={actionMenuClass}
           confirmDialogContentClassName={confirmDialogContentClassName}
           confirmDialogOverlayClassName={confirmDialogOverlayClassName}
           onAction={handleAction}
           onConfirmActionComplete={() => setContextMenuKey((key) => key + 1)}
         />
       ) : (
-        <ContextMenuContent className={contentClass}>{content}</ContextMenuContent>
+        <ContextMenuContent>{content}</ContextMenuContent>
       )}
     </UiContextMenu>
   )
 }
 
 type ContextMenuActionProps = ComponentProps<typeof ContextMenuItem> & {
+  children: ReactNode
   icon?: ReactNode
 }
 
 function ContextMenuAction({ children, className, icon, variant, ...props }: ContextMenuActionProps) {
   return (
-    <ContextMenuItem
-      variant={variant}
-      className={cn(
-        CONTEXT_MENU_ITEM_CLASS,
-        variant === 'destructive' && 'text-destructive focus:bg-destructive/10 focus:text-destructive',
-        className
-      )}
-      {...props}>
-      {icon && (
-        <span
-          className={cn(
-            'flex size-4 shrink-0 items-center justify-center',
-            variant === 'destructive' ? 'text-destructive' : 'text-muted-foreground'
-          )}>
-          {icon}
-        </span>
-      )}
-      <span className="min-w-0 flex-1 truncate text-left">{children}</span>
+    <ContextMenuItem variant={variant} className={className} {...props}>
+      <ContextMenuItemContent icon={icon}>{children}</ContextMenuItemContent>
     </ContextMenuItem>
   )
 }
 
 type ContextMenuSubActionProps = ComponentProps<typeof UiContextMenuSubTrigger> & {
+  children: ReactNode
   icon?: ReactNode
 }
 
 function ContextMenuSubAction({ children, className, icon, ...props }: ContextMenuSubActionProps) {
   return (
-    <UiContextMenuSubTrigger className={cn(CONTEXT_MENU_SUB_TRIGGER_CLASS, className)} {...props}>
-      {icon && <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">{icon}</span>}
-      <span className="min-w-0 flex-1 truncate text-left">{children}</span>
+    <UiContextMenuSubTrigger className={className} {...props}>
+      <ContextMenuItemContent icon={icon}>{children}</ContextMenuItemContent>
     </UiContextMenuSubTrigger>
   )
 }
 
 function ContextMenuSeparator({ className, ...props }: ComponentProps<typeof UiContextMenuSeparator>) {
-  return <UiContextMenuSeparator className={cn('my-1 bg-border-muted', className)} {...props} />
+  return <UiContextMenuSeparator className={className} {...props} />
 }
 
 function ContextMenuSubContent({ className, ...props }: ComponentProps<typeof UiContextMenuSubContent>) {
-  return <UiContextMenuSubContent className={cn(CONTEXT_MENU_CONTENT_CLASS, className)} {...props} />
+  return <UiContextMenuSubContent className={className} {...props} />
 }
 
 type ContextMenuRenameActionProps<T extends ResourceListItemBase> = {
@@ -1658,7 +1629,7 @@ const ResourceList = {
   ItemLeadingAction,
   ItemTitle,
   RenameField,
-  ContextMenu,
+  ContextMenu: ResourceListContextMenu,
   ContextMenuAction,
   ContextMenuRenameAction,
   ContextMenuSeparator,

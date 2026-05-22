@@ -1,4 +1,15 @@
-import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
@@ -97,7 +108,7 @@ type AssistantGroupMoreMenuContentProps = {
   pinned: boolean
 }
 
-function AssistantGroupMoreMenuContent({
+function AssistantGroupMoreContextMenuContent({
   disabled,
   onDeleteAllTopics,
   onEdit,
@@ -107,36 +118,75 @@ function AssistantGroupMoreMenuContent({
   const { t } = useTranslation()
 
   return (
-    <MenuList className="gap-0.5">
-      <MenuItem
-        label={t('assistants.edit.title')}
+    <>
+      <ResourceList.ContextMenuAction
         icon={<Edit3 size={14} />}
-        className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
-        onClick={(event) => {
+        onSelect={(event) => {
           event.stopPropagation()
           onEdit()
-        }}
-      />
-      <MenuItem
-        label={pinned ? t('assistants.unpin.title') : t('assistants.pin.title')}
+        }}>
+        {t('assistants.edit.title')}
+      </ResourceList.ContextMenuAction>
+      <ResourceList.ContextMenuAction
         icon={pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />}
         disabled={disabled}
-        className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
-        onClick={(event) => {
+        onSelect={(event) => {
           event.stopPropagation()
           void onTogglePin()
-        }}
-      />
-      <MenuItem
-        label={t('assistants.clear.menu_title')}
-        icon={<Trash2 size={14} className="lucide-custom text-destructive" />}
-        className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px] text-destructive hover:text-destructive"
-        onClick={(event) => {
+        }}>
+        {pinned ? t('assistants.unpin.title') : t('assistants.pin.title')}
+      </ResourceList.ContextMenuAction>
+      <ResourceList.ContextMenuAction
+        icon={<Trash2 size={14} />}
+        variant="destructive"
+        onSelect={(event) => {
           event.stopPropagation()
           void onDeleteAllTopics()
-        }}
-      />
-    </MenuList>
+        }}>
+        {t('assistants.clear.menu_title')}
+      </ResourceList.ContextMenuAction>
+    </>
+  )
+}
+
+function AssistantGroupMoreDropdownMenuContent({
+  disabled,
+  onDeleteAllTopics,
+  onEdit,
+  onTogglePin,
+  pinned
+}: AssistantGroupMoreMenuContentProps) {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      <DropdownMenuItem
+        onSelect={(event) => {
+          event.stopPropagation()
+          onEdit()
+        }}>
+        <Edit3 size={14} />
+        <span>{t('assistants.edit.title')}</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        disabled={disabled}
+        onSelect={(event) => {
+          event.stopPropagation()
+          void onTogglePin()
+        }}>
+        {pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />}
+        <span>{pinned ? t('assistants.unpin.title') : t('assistants.pin.title')}</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        variant="destructive"
+        onSelect={(event) => {
+          event.stopPropagation()
+          void onDeleteAllTopics()
+        }}>
+        <Trash2 size={14} />
+        <span>{t('assistants.clear.menu_title')}</span>
+      </DropdownMenuItem>
+    </>
   )
 }
 
@@ -208,55 +258,28 @@ function AssistantGroupMoreMenu({
   onEdit: (assistantId: string) => void
   onTogglePin: (assistantId: string) => void | Promise<void>
 }) {
-  const [open, setOpen] = useState(false)
-  const [popoverKey, setPopoverKey] = useState(0)
-  const pendingCloseActionRef = useRef<(() => void) | null>(null)
   const { t } = useTranslation()
 
-  const runPendingCloseAction = useCallback(() => {
-    const action = pendingCloseActionRef.current
-    if (!action) return
-
-    pendingCloseActionRef.current = null
-    action()
-  }, [])
-
-  const closeBeforeAction = useCallback(
-    (action: () => void) => {
-      pendingCloseActionRef.current = action
-      setPopoverKey((key) => key + 1)
-      setOpen(false)
-      window.requestAnimationFrame(runPendingCloseAction)
-    },
-    [runPendingCloseAction]
-  )
-
   return (
-    <Popover key={popoverKey} open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
         <ResourceList.HeaderActionButton
           type="button"
           aria-label={t('common.more')}
           onClick={(event) => event.stopPropagation()}>
           <MoreHorizontal className="block" />
         </ResourceList.HeaderActionButton>
-      </PopoverTrigger>
-      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 rounded-lg border-border p-1 shadow-lg">
-        <AssistantGroupMoreMenuContent
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="bottom">
+        <AssistantGroupMoreDropdownMenuContent
           disabled={disabled}
           pinned={pinned}
-          onDeleteAllTopics={() => {
-            setOpen(false)
-            return onDeleteAllTopics(assistantId)
-          }}
-          onEdit={() => closeBeforeAction(() => onEdit(assistantId))}
-          onTogglePin={() => {
-            setOpen(false)
-            return onTogglePin(assistantId)
-          }}
+          onDeleteAllTopics={() => onDeleteAllTopics(assistantId)}
+          onEdit={() => window.requestAnimationFrame(() => onEdit(assistantId))}
+          onTogglePin={() => onTogglePin(assistantId)}
         />
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -727,7 +750,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       if (!assistantId || !assistantById.has(assistantId)) return null
 
       return (
-        <AssistantGroupMoreMenuContent
+        <AssistantGroupMoreContextMenuContent
           disabled={isAssistantPinActionDisabled}
           pinned={assistantPinnedIdSet.has(assistantId)}
           onDeleteAllTopics={() => handleDeleteAssistantTopics(assistantId)}
