@@ -5,7 +5,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
-import type { PendingMessageQueue } from '../agent/loop/PendingMessageQueue'
+import type { PendingMessageQueue } from '../ai-sdk/loop/PendingMessageQueue'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 
 // ── Re-export shared types for consumers ────────────────────────────

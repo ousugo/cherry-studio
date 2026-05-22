@@ -10,7 +10,7 @@ import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
 
-import { PendingMessageQueue } from '../agent/loop/PendingMessageQueue'
+import { PendingMessageQueue } from '../ai-sdk/loop/PendingMessageQueue'
 import { PersistenceListener } from '../stream-manager/listeners/PersistenceListener'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../stream-manager/types'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'

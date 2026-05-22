@@ -22,12 +22,12 @@ import {
   type UIMessageChunk
 } from 'ai'
 
-import { Agent } from './agent/Agent'
-import type { AgentLoopHooks } from './agent/loop'
-import { mergeUsage, ZERO_USAGE } from './agent/observers/usage'
-import { buildAgentParams } from './agent/params/buildAgentParams'
-import type { RequestFeature } from './agent/params/feature'
 import { isAgentSessionTopic } from './agent-session/topic'
+import { Agent } from './ai-sdk/Agent'
+import type { AgentLoopHooks } from './ai-sdk/loop'
+import { mergeUsage, ZERO_USAGE } from './ai-sdk/observers/usage'
+import { buildAgentParams } from './ai-sdk/params/buildAgentParams'
+import type { RequestFeature } from './ai-sdk/params/feature'
 import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import { dispatchStreamRequest } from './stream-manager/context'
