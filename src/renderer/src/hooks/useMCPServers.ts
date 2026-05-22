@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import NavigationService from '@renderer/services/NavigationService'
 import type { MCPTool } from '@renderer/types'
+import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import type { CreateMCPServerDto, ListMCPServersQuery } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -71,23 +72,22 @@ export const useMCPServer = (id: string) => {
 }
 
 /**
- * Mutation-only hook for a single MCP server — no query, no N+1.
- * Use when server data is already available from a parent (e.g. from useMCPServers list).
- */
-/**
  * Resolve auto-approval for a tool without plumbing the server prop through
  * every renderer. Reads the server list from the shared `/mcp-servers` SWR
  * query.
  */
-export const useIsToolAutoApproved = (tool: MCPTool, allowedTools?: string[]): boolean => {
+export const useIsToolAutoApproved = (tool: MCPTool): boolean => {
   const { mcpServers } = useMCPServers()
   return useMemo(() => {
-    if (allowedTools?.includes(tool.id)) return true
     const server = mcpServers.find((s) => s.id === tool.serverId)
-    return server ? !server.disabledAutoApproveTools?.includes(tool.name) : false
-  }, [mcpServers, tool, allowedTools])
+    return server ? resolveMcpSourceToolAccess(server, tool).approval === 'auto' : false
+  }, [mcpServers, tool])
 }
 
+/**
+ * Mutation-only hook for a single MCP server — no query, no N+1.
+ * Use when server data is already available from a parent (e.g. from useMCPServers list).
+ */
 export const useMCPServerMutations = (id: string) => {
   const path = `/mcp-servers/${id}` as const
 

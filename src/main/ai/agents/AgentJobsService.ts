@@ -12,7 +12,7 @@ export class AgentJobsService extends BaseService {
     const jobManager = application.get('JobManager')
     jobManager.registerHandler('agent.task', AgentTaskJobHandler)
 
-    this.ipcHandle(IpcChannel.Agent_RunTask, async (_event, _agentId: string, taskId: string) => {
+    this.ipcHandle(IpcChannel.Ai_Agent_RunTask, async (_event, taskId: string) => {
       return jobManager.triggerJobScheduleNowById(taskId)
     })
   }

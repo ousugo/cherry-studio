@@ -1,6 +1,6 @@
-import type { AgentDetail } from '@shared/data/types/agent'
 import { describe, expect, it } from 'vitest'
 
+import type { AgentDetail } from '../../../types'
 import {
   type AgentFormState,
   applyAgentFormPatch,
@@ -157,28 +157,41 @@ describe('agent create flow helpers', () => {
 
 describe('applyAgentFormPatch', () => {
   const tools = [
-    { id: 'Read', name: 'Read', type: 'builtin' as const, requirePermissions: false },
-    { id: 'Glob', name: 'Glob', type: 'builtin' as const, requirePermissions: false },
-    { id: 'Edit', name: 'Edit', type: 'builtin' as const, requirePermissions: true }
+    {
+      id: 'Read',
+      name: 'Read',
+      origin: 'builtin' as const,
+      approval: 'auto' as const
+    },
+    {
+      id: 'Glob',
+      name: 'Glob',
+      origin: 'builtin' as const,
+      approval: 'auto' as const
+    },
+    {
+      id: 'Edit',
+      name: 'Edit',
+      origin: 'builtin' as const,
+      approval: 'prompt' as const
+    }
   ]
 
-  it('updates allowedTools when permission mode changes', () => {
+  it('does not persist mode defaults when permission mode changes', () => {
     const draft = buildInitialAgentFormState()
     const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' }, tools)
 
     expect(next.permissionMode).toBe('acceptEdits')
-    expect(next.allowedTools).toEqual(
-      expect.arrayContaining(['Read', 'Glob', 'Edit', 'Bash(mkdir:*)', 'Bash(touch:*)'])
-    )
+    expect(next.allowedTools).toEqual([])
   })
 
-  it('enabling soul mode switches to bypass permissions and approves all available tools', () => {
+  it('enabling soul mode switches to bypass permissions without mutating explicit tool approvals', () => {
     const draft = buildInitialAgentFormState()
     const next = applyAgentFormPatch(draft, { soulEnabled: true }, tools)
 
     expect(next.soulEnabled).toBe(true)
     expect(next.permissionMode).toBe('bypassPermissions')
-    expect(next.allowedTools).toEqual(expect.arrayContaining(['Read', 'Glob', 'Edit']))
+    expect(next.allowedTools).toEqual([])
   })
 
   it('leaving bypass permissions disables soul mode to match the legacy settings popup', () => {

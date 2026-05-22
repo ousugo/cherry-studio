@@ -9,15 +9,12 @@
 export type {
   AgentBase,
   AgentConfiguration,
-  AgentDetail,
   AgentEntity,
-  AgentTool,
-  InstalledSkill,
   ScheduledTaskEntity,
-  SlashCommand,
   TaskRunLogEntity
 } from '../api/schemas/agents'
 export type { AgentSessionMessageEntity } from '../api/schemas/sessions'
+export type { InstalledSkill } from '../api/schemas/skills'
 
 // ============================================================================
 // Core agent types (plain aliases for non-Zod consumers)

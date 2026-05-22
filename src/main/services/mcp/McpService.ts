@@ -6,7 +6,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
@@ -36,9 +36,11 @@ import {
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
+import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import type { MCPProgressEvent } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
+import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import { IpcChannel } from '@shared/IpcChannel'
 import { buildFunctionCallToolName } from '@shared/mcp'
 import { defaultAppHeaders } from '@shared/utils'
@@ -68,8 +70,14 @@ import { ServerLogBuffer } from './ServerLogBuffer'
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
 type CallToolArgs = { server: MCPServer; name: string; args: any; callId?: string }
+type ListToolsOptions = { includeDisabled?: boolean }
 
 const logger = loggerService.withContext('McpService')
+const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
+
+export interface McpToolListChangedEvent {
+  serverId: string
+}
 
 /** JSON-Schema validator for MCP tool input/output schemas. `loose()` keeps
  *  any extra fields the protocol may add; the input transform guarantees
@@ -184,6 +192,8 @@ export class McpService extends BaseService {
   private dxtService = new DxtService()
   private activeToolCalls: Map<string, AbortController> = new Map()
   private serverLogs = new ServerLogBuffer(200)
+  private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
+  readonly onToolListChanged: Event<McpToolListChangedEvent> = this._onToolListChanged.event
 
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
@@ -203,7 +213,9 @@ export class McpService extends BaseService {
     this.ipcHandle(IpcChannel.Mcp_RemoveServer, (_e, server) => this.removeServer(server))
     this.ipcHandle(IpcChannel.Mcp_RestartServer, (_e, server) => this.restartServer(server))
     this.ipcHandle(IpcChannel.Mcp_StopServer, (_e, server) => this.stopServer(server))
-    this.ipcHandle(IpcChannel.Mcp_ListTools, (_e, server) => this.listTools(server))
+    this.ipcHandle(IpcChannel.Mcp_RefreshTools, async (_e, server) => {
+      await this.refreshTools(server)
+    })
     this.ipcHandle(IpcChannel.Mcp_CallTool, (_e, args) => this.callTool(args))
     this.ipcHandle(IpcChannel.Mcp_ListPrompts, (_e, server) => this.listPrompts(server))
     this.ipcHandle(IpcChannel.Mcp_GetPrompt, (_e, args) => this.getPrompt(args))
@@ -261,8 +273,17 @@ export class McpService extends BaseService {
       args: Array.isArray(server.args) ? server.args : [],
       registryUrl: server.registryUrl,
       env: server.env,
+      headers: server.headers,
       id: server.id
     })
+  }
+
+  private isServerKeyForId(serverKey: string, serverId: string): boolean {
+    try {
+      return (JSON.parse(serverKey) as { id?: unknown }).id === serverId
+    } catch {
+      return false
+    }
   }
 
   private emitServerLog(server: MCPServer, entry: MCPServerLogEntry) {
@@ -656,7 +677,7 @@ export class McpService extends BaseService {
           this.setupNotificationHandlers(client, server)
 
           // Clear existing cache to ensure fresh data
-          this.clearServerCache(serverKey)
+          this.clearServerCache(server)
 
           logger.debug(`Activated server: ${server.name}`)
           this.emitServerLog(server, {
@@ -702,6 +723,11 @@ export class McpService extends BaseService {
         logger.debug(`Tools list changed for server: ${server.name}`)
         // Clear tools cache
         cacheService.delete(`mcp:list_tool:${serverKey}`)
+        this._onToolListChanged.fire({ serverId: server.id })
+        void this.refreshTools(server).catch((error) => {
+          getServerLogger(server).warn(`Failed to refresh tools after tool list changed notification`, { error })
+          this.writeToolsCache(server.id, [])
+        })
       })
 
       // Set up resources list changed notification handler
@@ -763,12 +789,30 @@ export class McpService extends BaseService {
   /**
    * Clear all caches for a specific server
    */
-  private clearServerCache(serverKey: string) {
+  private clearServerCache(serverOrKey: MCPServer | string) {
+    const serverKey = typeof serverOrKey === 'string' ? serverOrKey : this.getServerKey(serverOrKey)
     const cacheService = application.get('CacheService')
     cacheService.delete(`mcp:list_tool:${serverKey}`)
     cacheService.delete(`mcp:list_prompts:${serverKey}`)
     cacheService.delete(`mcp:list_resources:${serverKey}`)
     logger.debug(`Cleared all caches for server`, { serverKey })
+  }
+
+  private writeToolsCache(serverId: string, tools: MCPTool[]): void {
+    application.get('CacheService').setShared(mcpToolsCacheKey(serverId), tools)
+  }
+
+  private async getLatestSourcePolicy(server: MCPServer): Promise<MCPServer> {
+    try {
+      return await mcpServerService.getById(server.id)
+    } catch {
+      return server
+    }
+  }
+
+  private async filterEnabledTools(server: MCPServer, tools: MCPTool[]): Promise<MCPTool[]> {
+    const sourcePolicy = await this.getLatestSourcePolicy(server)
+    return tools.filter((tool) => !isMcpToolDisabledBySource(sourcePolicy, tool))
   }
 
   async closeClient(serverKey: string) {
@@ -786,8 +830,12 @@ export class McpService extends BaseService {
     }
   }
 
+  private async closeClientsForServer(serverId: string): Promise<void> {
+    const serverKeys = Array.from(this.clients.keys()).filter((key) => this.isServerKeyForId(key, serverId))
+    await Promise.all(serverKeys.map((key) => this.closeClient(key)))
+  }
+
   async stopServer(server: MCPServer) {
-    const serverKey = this.getServerKey(server)
     getServerLogger(server).debug(`Stopping server`)
     this.emitServerLog(server, {
       timestamp: Date.now(),
@@ -795,15 +843,13 @@ export class McpService extends BaseService {
       message: 'Stopping server',
       source: 'client'
     })
-    await this.closeClient(serverKey)
+    await this.closeClientsForServer(server.id)
+    this.writeToolsCache(server.id, [])
   }
 
   async removeServer(server: MCPServer) {
-    const serverKey = this.getServerKey(server)
-    const existingClient = this.clients.get(serverKey)
-    if (existingClient) {
-      await this.closeClient(serverKey)
-    }
+    await this.closeClientsForServer(server.id)
+    this.writeToolsCache(server.id, [])
 
     // Cleanup OAuth token file for this server, but only if no other server
     // entry still points at the same baseUrl (shared OAuth storage key is
@@ -843,17 +889,17 @@ export class McpService extends BaseService {
 
   async restartServer(server: MCPServer) {
     getServerLogger(server).debug(`Restarting server`)
-    const serverKey = this.getServerKey(server)
     this.emitServerLog(server, {
       timestamp: Date.now(),
       level: 'info',
       message: 'Restarting server',
       source: 'client'
     })
-    await this.closeClient(serverKey)
+    await this.closeClientsForServer(server.id)
     // Clear cache before restarting to ensure fresh data
-    this.clearServerCache(serverKey)
+    this.clearServerCache(server)
     await this.initClient(server)
+    await this.refreshTools(server)
   }
 
   /**
@@ -920,7 +966,7 @@ export class McpService extends BaseService {
     }
   }
 
-  async listTools(server: MCPServer) {
+  async listTools(server: MCPServer, options: ListToolsOptions = {}): Promise<MCPTool[]> {
     const listFunc = (server: MCPServer) => {
       const cachedListTools = withCache<[MCPServer], MCPTool[]>(
         this.listToolsImpl.bind(this),
@@ -932,11 +978,25 @@ export class McpService extends BaseService {
         `[MCP] Tools from ${server.name}`
       )
 
-      const result = cachedListTools(server)
-      return result
+      return cachedListTools(server)
     }
 
-    return withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
+    try {
+      const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
+      this.writeToolsCache(server.id, tools)
+      if (options.includeDisabled === false) {
+        return await this.filterEnabledTools(server, tools)
+      }
+      return tools
+    } catch (error) {
+      this.writeToolsCache(server.id, [])
+      throw error
+    }
+  }
+
+  async refreshTools(server: MCPServer): Promise<void> {
+    application.get('CacheService').delete(`mcp:list_tool:${this.getServerKey(server)}`)
+    await this.listTools(server)
   }
 
   /**
@@ -963,6 +1023,10 @@ export class McpService extends BaseService {
           if (args === '') {
             args = {}
           }
+        }
+        const sourcePolicy = await this.getLatestSourcePolicy(server)
+        if (isMcpToolDisabledBySource(sourcePolicy, { name })) {
+          throw new Error(`MCP tool is disabled: ${name}`)
         }
         const client = await this.initClient(server)
         const result = await client.callTool({ name, arguments: args }, undefined, {

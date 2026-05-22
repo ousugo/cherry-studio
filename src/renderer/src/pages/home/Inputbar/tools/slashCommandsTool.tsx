@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import SlashCommandsButton from '@renderer/pages/home/Inputbar/tools/components/SlashCommandsButton'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
-import { getBuiltinSlashCommands } from '@shared/agents/agentSlashCommands'
+import { getBuiltinSlashCommands } from '@shared/ai/agentSlashCommands'
 import { Terminal } from 'lucide-react'
 
 const logger = loggerService.withContext('SlashCommandsTool')

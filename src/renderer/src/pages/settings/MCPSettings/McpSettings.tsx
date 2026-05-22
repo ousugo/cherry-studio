@@ -35,6 +35,7 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { DeleteIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useSharedCache } from '@renderer/data/hooks/useCache'
 import { useMCPServer } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
@@ -112,6 +113,9 @@ type McpTabItem = {
   label: React.ReactNode
   children: React.ReactNode
 }
+type McpToolsCacheKey = `mcp.tools.${string}`
+
+const mcpToolsCacheKey = (serverId: string): McpToolsCacheKey => `mcp.tools.${serverId}`
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -149,8 +153,8 @@ const McpSettings: React.FC = () => {
   const [loadingServer, setLoadingServer] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>('settings')
   const [toolSearchText, setToolSearchText] = useState('')
+  const [tools] = useSharedCache(serverId ? mcpToolsCacheKey(serverId) : mcpToolsCacheKey('__draft__'), [] as MCPTool[])
 
-  const [tools, setTools] = useState<MCPTool[]>([])
   const [prompts, setPrompts] = useState<MCPPrompt[]>([])
   const [resources, setResources] = useState<MCPResource[]>([])
   const [isShowRegistry, setIsShowRegistry] = useState(false)
@@ -253,11 +257,9 @@ const McpSettings: React.FC = () => {
     if (server?.isActive) {
       try {
         setLoadingServer(server.id)
-        const localTools = await window.api.mcp.listTools(server)
-        setTools(localTools)
+        await window.api.mcp.refreshTools(server)
       } catch (error) {
         logger.error('Failed to list MCP tools', error as Error)
-        setTools([])
       } finally {
         setLoadingServer(null)
       }
@@ -524,8 +526,7 @@ const McpSettings: React.FC = () => {
 
     try {
       if (active) {
-        const localTools = await window.api.mcp.listTools(serverForUpdate)
-        setTools(localTools)
+        await window.api.mcp.refreshTools(serverForUpdate)
 
         const localPrompts = await window.api.mcp.listPrompts(serverForUpdate)
         setPrompts(localPrompts)

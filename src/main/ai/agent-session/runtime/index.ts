@@ -6,5 +6,6 @@ export type {
   AgentRuntimeConnection,
   AgentRuntimeDriver,
   AgentRuntimeEvent,
+  AgentRuntimePolicyUpdate,
   AgentRuntimeUserInput
 } from './types'

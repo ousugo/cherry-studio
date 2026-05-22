@@ -4,8 +4,14 @@ import {
   type SDKSystemMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
+import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claude-code/agentTools'
+import {
+  buildClaudeToolPolicy,
+  descriptorToTool,
+  listClaudeAgentToolDescriptors
+} from '@main/ai/tools/adapters/claude-code/agentTools'
 import { application } from '@main/core/application'
-import type { AgentTool } from '@shared/data/api/schemas/agents'
+import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { Message } from '@shared/data/types/message'
 import type { UIMessageChunk } from 'ai'
@@ -15,6 +21,7 @@ import type {
   AgentRuntimeConnection,
   AgentRuntimeDriver,
   AgentRuntimeEvent,
+  AgentRuntimePolicyUpdate,
   AgentRuntimeUserInput
 } from '../types'
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
@@ -107,6 +114,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private adapterMaxToolResultSize?: number
   private pendingInitMessage?: SDKSystemMessage
   private resumeToken?: string
+  private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
 
   readonly events = this.eventQueue
 
@@ -136,6 +144,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
     this.adapterMaxToolResultSize = request.settings.maxToolResultSize
+    this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     void this.runQueryLoop()
     return this
   }
@@ -154,6 +163,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   async interrupt(): Promise<void> {
     this.adapter?.finalizeOpenParts()
     await this.query?.interrupt()
+  }
+
+  async applyPolicyUpdate(update: AgentRuntimePolicyUpdate): Promise<boolean> {
+    if (!this.query) return false
+    if (update.type === 'tool-policy') {
+      await this.toolPolicySnapshot?.update(update.agent)
+      return true
+    }
+    this.toolPolicySnapshot?.setPermissionMode(update.permissionMode)
+    await this.query.setPermissionMode(update.permissionMode ?? 'default')
+    return true
   }
 
   close(): void {
@@ -243,12 +263,10 @@ export class ClaudeCodeRuntimeDriver implements AgentRuntimeDriver {
     assertClaudeCodeWorkspaceDirectory(session.id, cwd)
   }
 
-  async listAvailableTools(mcpIds: string[]): Promise<AgentTool[]> {
-    // Lazy import: agentUtils transitively pulls in @application + apiServer,
-    // which creates a load-time cycle with `register.ts` constructing the
-    // driver.
-    const { listMcpTools } = await import('@main/ai/agents/agentUtils')
-    return listMcpTools('claude-code', mcpIds)
+  async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
+    const catalog = await listClaudeAgentToolDescriptors({ mcps: mcpIds })
+    const policy = buildClaudeToolPolicy({})
+    return catalog.descriptors.map((descriptor) => descriptorToTool(descriptor, policy))
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {

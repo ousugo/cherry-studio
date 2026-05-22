@@ -1003,16 +1003,14 @@ const TasksSettings: FC = () => {
 
   const handleRun = useCallback(
     async (taskId: string) => {
-      const task = tasks.find((t) => t.id === taskId)
-      if (!task) return
-      await runTask(task.agentId, taskId)
+      await runTask(taskId)
       void loadData()
       // Task runs asynchronously — refresh again after a delay to capture completion
       setTimeout(() => {
         void loadData()
       }, 1000)
     },
-    [runTask, tasks, loadData]
+    [runTask, loadData]
   )
 
   const handleToggleStatus = useCallback(

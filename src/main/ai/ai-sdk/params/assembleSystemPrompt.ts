@@ -7,9 +7,9 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
 
-import { getDeferredToolsSystemPrompt } from '../../prompts/deferredTools'
-import { TOOL_SEARCH_TOOL_NAME } from '../../tools/meta/toolSearch'
-import type { ToolEntry } from '../../tools/types'
+import { TOOL_SEARCH_TOOL_NAME } from '../../tools/adapters/ai-sdk/meta/toolSearch'
+import type { ToolEntry } from '../../tools/adapters/ai-sdk/types'
+import { getDeferredToolsSystemPrompt } from '../prompts/deferredTools'
 
 export interface AssembleSystemPromptInput {
   assistant?: Assistant

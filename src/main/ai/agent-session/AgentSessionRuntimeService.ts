@@ -1,26 +1,26 @@
+import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CherryUIMessage, Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
-import * as z from 'zod'
 
 import { PendingMessageQueue } from '../ai-sdk/loop/PendingMessageQueue'
 import { PersistenceListener } from '../stream-manager/listeners/PersistenceListener'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../stream-manager/types'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
-import { type AgentRuntimeConnection, agentRuntimeDriverRegistry, type AgentRuntimeEvent } from './runtime'
+import {
+  type AgentRuntimeConnection,
+  agentRuntimeDriverRegistry,
+  type AgentRuntimeEvent,
+  type AgentRuntimePolicyUpdate
+} from './runtime'
 import { type DispatchDecision, toolApprovalRegistry } from './runtime/claude-code/ToolApprovalRegistry'
-
-const ListToolsArgsSchema = z.strictObject({
-  type: z.enum(['claude-code']).default('claude-code'),
-  mcps: z.array(z.string()).default([])
-})
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -129,14 +129,13 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
 
   protected async onInit(): Promise<void> {
-    this.ipcHandle(IpcChannel.Agent_ListTools, async (_event, args: unknown) => {
-      const parsed = ListToolsArgsSchema.parse(args ?? {})
-      const driver = agentRuntimeDriverRegistry.get(parsed.type)
-      if (!driver) {
-        throw new Error(`Unsupported agent runtime type: ${parsed.type}`)
-      }
-      return driver.listAvailableTools(parsed.mcps)
-    })
+    this.registerDisposable(
+      agentService.onAgentUpdated(({ agentId, updates, agent }) => {
+        void this.handleAgentUpdated(agentId, updates, agent).catch((error) => {
+          logger.warn('Failed to apply live agent policy update', { agentId, error })
+        })
+      })
+    )
   }
 
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
@@ -196,6 +195,35 @@ export class AgentSessionRuntimeService extends BaseService {
         new AgentSessionRuntimeTerminalListener(this, input.sessionId)
       ],
       turnId
+    }
+  }
+
+  async applyAgentPolicyUpdate(agentId: string, update: AgentRuntimePolicyUpdate): Promise<void> {
+    const updates: Array<Promise<boolean> | boolean> = []
+    for (const entry of this.entries.values()) {
+      if (entry.agentId !== agentId || !entry.connection?.applyPolicyUpdate) continue
+      updates.push(entry.connection.applyPolicyUpdate(update))
+    }
+    await Promise.allSettled(updates)
+  }
+
+  private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
+    const configuration = updates.configuration as { permission_mode?: unknown } | undefined
+    const hasPermissionModeUpdate =
+      configuration !== undefined && Object.prototype.hasOwnProperty.call(configuration, 'permission_mode')
+
+    if (hasPermissionModeUpdate) {
+      await this.applyAgentPolicyUpdate(agentId, {
+        type: 'permission-mode',
+        permissionMode: configuration.permission_mode as AgentPermissionMode | undefined
+      })
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(updates, 'allowedTools') ||
+      Object.prototype.hasOwnProperty.call(updates, 'mcps')
+    ) {
+      await this.applyAgentPolicyUpdate(agentId, { type: 'tool-policy', agent })
     }
   }
 

@@ -47,16 +47,14 @@ function isSelectableAgentModel(model: Model): boolean {
 }
 
 /**
- * Mirrors the legacy AgentSettings **Essential** tab: the section where
- * everything identity- and runtime-related lives. Fields (in original
- * popup order):
+ * The section where everything identity- and runtime-related lives. Fields:
  *
  * - name
  * - model (primary + plan + small — all from `AgentBase`)
  * - configuration.soul_enabled
  * - configuration.heartbeat_enabled / heartbeat_interval
  * - description
- * - configuration.avatar (new here — old popup surfaced it via NameSetting)
+ * - configuration.avatar
  *
  * Each sub-field stays in one flat list to match the "one tall Essential
  * tab" feel of the legacy popup.

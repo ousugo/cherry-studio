@@ -8,7 +8,6 @@ import { useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { SessionLabel } from '@renderer/pages/agents/AgentSettings/shared'
 import { classNames } from '@renderer/utils'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -19,6 +18,8 @@ import { MenuIcon, PinIcon, PinOffIcon, XIcon } from 'lucide-react'
 import React, { memo, startTransition, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import { SessionLabel } from './SessionLabel'
 
 // const logger = loggerService.withContext('AgentItem')
 

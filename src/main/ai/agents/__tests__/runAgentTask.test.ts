@@ -90,7 +90,6 @@ function makeAgent(config: Record<string, unknown> = {}): AgentEntity {
     type: 'claude-code',
     name: 'Agent A',
     model: 'sonnet' as never,
-    accessiblePaths: [],
     configuration: config as never,
     createdAt: '2026-05-20T00:00:00.000Z',
     updatedAt: '2026-05-20T00:00:00.000Z',

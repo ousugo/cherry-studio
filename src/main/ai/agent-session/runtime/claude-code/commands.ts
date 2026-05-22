@@ -1,4 +1,4 @@
-import { getBuiltinSlashCommands } from '@shared/agents/agentSlashCommands'
-import type { SlashCommand } from '@shared/data/types/agent'
+import { getBuiltinSlashCommands } from '@shared/ai/agentSlashCommands'
+import type { SlashCommand } from '@shared/ai/slashCommands'
 
 export const builtinSlashCommands: SlashCommand[] = getBuiltinSlashCommands('claude-code')

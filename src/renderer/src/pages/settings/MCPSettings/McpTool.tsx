@@ -2,16 +2,13 @@ import type { ColumnDef } from '@cherrystudio/ui'
 import { Badge, ColFlex, DataTable, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import type { MCPServer, MCPTool } from '@renderer/types'
+import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import { Zap } from 'lucide-react'
 import type { Key } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { McpDetailItem, McpDetailList, RequiredMark } from './McpDetailList'
-
-function isToolAutoApproved(tool: MCPTool, server: MCPServer): boolean {
-  return !server.disabledAutoApproveTools?.includes(tool.name)
-}
 
 interface MCPToolsSectionProps {
   tools: MCPTool[]
@@ -27,7 +24,11 @@ const MCPToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
 
   // Check if a tool is enabled (not in the disabledTools array)
   const isToolEnabled = (tool: MCPTool) => {
-    return !server.disabledTools?.includes(tool.name)
+    return resolveMcpSourceToolAccess(server, tool).enabled
+  }
+
+  const isToolAutoApproved = (tool: MCPTool, server: MCPServer) => {
+    return resolveMcpSourceToolAccess(server, tool).approval === 'auto'
   }
 
   // Handle tool toggle

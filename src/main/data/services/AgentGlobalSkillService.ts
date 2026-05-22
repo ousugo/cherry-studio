@@ -9,8 +9,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { workspaceTable } from '@data/db/schemas/workspace'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import type { ListSkillsQuery } from '@shared/data/api/schemas/agents'
-import type { InstalledSkill } from '@types'
+import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import { and, asc, eq, or, type SQL, sql } from 'drizzle-orm'
 
 /**

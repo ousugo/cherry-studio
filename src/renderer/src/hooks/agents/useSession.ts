@@ -15,15 +15,17 @@
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
-import type { CreateSessionForm, UpdateSessionForm } from '@renderer/types'
-import type { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@renderer/types/agent'
+import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { getErrorMessage } from '@renderer/utils/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity, CreateSessionDto, UpdateSessionDto } from '@shared/data/api/schemas/sessions'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
+
+export type CreateSessionForm = Omit<CreateSessionDto, 'agentId'>
+export type UpdateSessionForm = UpdateSessionDto & { id: string }
 
 /**
  * Fetch a single session by id. Config (model / instructions / ...) lives on
@@ -193,7 +195,7 @@ export const useUpdateSession = (agentId: string | null) => {
     refresh: ({ args }) => ['/sessions', `/sessions/${args!.params.sessionId}`]
   })
 
-  const updateSession: UpdateAgentSessionFunction = useCallback(
+  const updateSession = useCallback(
     async (form: UpdateSessionForm, options?: UpdateAgentBaseOptions): Promise<AgentSessionEntity | undefined> => {
       if (!agentId) return
       try {

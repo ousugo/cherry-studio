@@ -415,7 +415,8 @@ const api = {
     removeServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RemoveServer, server),
     restartServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, server),
     stopServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, server),
-    listTools: (server: MCPServer, context?: SpanContext) => tracedInvoke(IpcChannel.Mcp_ListTools, context, server),
+    refreshTools: (server: MCPServer, context?: SpanContext) =>
+      tracedInvoke(IpcChannel.Mcp_RefreshTools, context, server),
     callTool: (
       { server, name, args, callId }: { server: MCPServer; name: string; args: any; callId?: string },
       context?: SpanContext
@@ -897,6 +898,9 @@ const api = {
         topicId?: string
         anchorId?: string
       }): Promise<{ ok: boolean }> => ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
+    },
+    agent: {
+      runTask: (taskId: string) => ipcRenderer.invoke(IpcChannel.Ai_Agent_RunTask, taskId)
     }
   },
   translate: {
@@ -998,10 +1002,6 @@ const api = {
   },
   analytics: {
     trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)
-  },
-  agent: {
-    runTask: (agentId: string, taskId: string) => ipcRenderer.invoke(IpcChannel.Agent_RunTask, agentId, taskId),
-    listTools: (request: unknown) => ipcRenderer.invoke(IpcChannel.Agent_ListTools, request)
   }
 }
 

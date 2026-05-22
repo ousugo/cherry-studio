@@ -31,12 +31,12 @@ import { loggerService } from '@logger'
 import { createSdkMcpServerInstance } from '@main/ai/agent-session/runtime/claude-code/createSdkMcpServerInstance'
 import { isProvisioned, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/cherryclaw/prompt'
+import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claude-code/agentTools'
 import { isLinux, isWin } from '@main/constant'
 import { application } from '@main/core/application'
 import AssistantServer from '@main/mcpServers/assistant'
 import ClawServer from '@main/mcpServers/claw'
 import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
-import { shouldAutoApprove } from '@main/services/toolApproval/autoApprovePolicy'
 import { toAsarUnpackedPath } from '@main/utils'
 import { checkWorkspacePathStatus, formatWorkspacePathStatus } from '@main/utils/file/workspacePathStatus'
 import { getAppLanguage } from '@main/utils/language'
@@ -47,7 +47,7 @@ import {
   CHANNEL_SECURITY_PROMPT,
   GLOBALLY_DISALLOWED_TOOLS,
   SOUL_MODE_DISALLOWED_TOOLS
-} from '@shared/agents/claudecode/constants'
+} from '@shared/ai/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
@@ -188,7 +188,11 @@ export async function buildClaudeCodeSessionSettings(
   // `dispose` drops any approval still pending for this session when the
   // stream exits abnormally.
   const approvalEmitter = getToolApprovalEmitterHolder(session.id)
-  const { canUseTool, hooks, allowedTools, disallowedTools } = buildToolPermissions(session, agent, approvalEmitter)
+  const { canUseTool, hooks, allowedTools, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
+    session,
+    agent,
+    approvalEmitter
+  )
 
   // 5. System prompt
   const systemPrompt = await buildSystemPrompt(session, agent, cwd)
@@ -218,6 +222,7 @@ export async function buildClaudeCodeSessionSettings(
     canUseTool,
     hooks,
     approvalEmitter,
+    toolPolicySnapshot,
     warmQueryKey: session.id,
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
@@ -373,27 +378,34 @@ async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginC
   }
 }
 
-function buildToolPermissions(
+async function buildToolPermissions(
   session: AgentSessionEntity,
   agent: AgentEntity,
   approvalEmitter: ToolApprovalEmitterHolder
-) {
+): Promise<{
+  canUseTool: CanUseTool
+  hooks: ClaudeCodeSettings['hooks']
+  allowedTools: string[] | undefined
+  disallowedTools: string[]
+  toolPolicySnapshot: Awaited<ReturnType<typeof createClaudeAgentToolPolicySnapshot>>
+}> {
   const agentConfig = agent.configuration
   const soulEnabled = agentConfig?.soul_enabled === true
   const isAssistant = agentConfig?.builtin_role === 'assistant'
+  const toolPolicySnapshot = await createClaudeAgentToolPolicySnapshot(agent, {
+    autoAllowRuntimeNamePrefixes: [
+      ...(soulEnabled ? ['mcp__claw__'] : []),
+      ...(isAssistant ? ['mcp__assistant__'] : [])
+    ]
+  })
 
   const canUseTool: CanUseTool = async (toolName, input, opts) => {
     if (opts.signal.aborted) {
       return { behavior: 'deny', message: 'Tool request was cancelled' }
     }
-    if (
-      shouldAutoApprove({
-        toolKind: 'claude-agent',
-        toolName,
-        agentAllowedTools: agent.allowedTools,
-        permissionMode: agentConfig?.permission_mode
-      })
-    ) {
+
+    const access = toolPolicySnapshot.resolve(toolName, input)
+    if (access?.approval === 'auto') {
       return { behavior: 'allow', updatedInput: input }
     }
 
@@ -444,7 +456,8 @@ function buildToolPermissions(
       ...GLOBALLY_DISALLOWED_TOOLS,
       ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
       ...(isAssistant ? ['AskUserQuestion'] : [])
-    ]
+    ],
+    toolPolicySnapshot
   }
 }
 

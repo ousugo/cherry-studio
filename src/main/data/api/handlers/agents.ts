@@ -6,7 +6,6 @@
  * to the appropriate service method.
  */
 
-import { agentGlobalSkillService as skillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
@@ -18,7 +17,6 @@ import {
   ListAgentsQuerySchema,
   type ListQuery,
   ListQuerySchema,
-  ListSkillsQuerySchema,
   UpdateAgentSchema,
   UpdateTaskSchema
 } from '@shared/data/api/schemas/agents'
@@ -109,29 +107,6 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const deleted = await taskService.deleteTask(params.agentId, params.taskId)
       if (!deleted) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return undefined
-    }
-  },
-
-  '/skills': {
-    GET: async ({ query }) => {
-      const parsed = ListSkillsQuerySchema.safeParse(query ?? {})
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      const { agentId } = parsed.data
-
-      if (agentId) {
-        const agent = await agentService.getAgent(agentId)
-        if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
-      }
-
-      return await skillService.list(parsed.data)
-    }
-  },
-
-  '/skills/:skillId': {
-    GET: async ({ params }) => {
-      const skill = await skillService.getById(params.skillId)
-      if (!skill) throw DataApiErrorFactory.notFound('Skill', params.skillId)
-      return skill
     }
   },
 

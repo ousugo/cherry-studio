@@ -1,7 +1,8 @@
 import { permissionModeCards } from '@renderer/config/agent'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { AgentSettingsPopup } from '@renderer/pages/agents/AgentSettings'
+import { buildLibraryEditSearch, LIBRARY_ROUTE } from '@renderer/pages/library/routeSearch'
 import type { PermissionMode } from '@renderer/types'
+import { useNavigate } from '@tanstack/react-router'
 import { FileEdit, Lightbulb, Shield, ShieldOff } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
@@ -38,6 +39,7 @@ const getPermissionModeConfig = (mode: PermissionMode) => {
 
 const PermissionModeDisplay: FC<Props> = ({ agentId }) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { agent } = useAgent(agentId)
 
   const permissionMode = agent?.configuration?.permission_mode ?? 'default'
@@ -49,7 +51,7 @@ const PermissionModeDisplay: FC<Props> = ({ agentId }) => {
   const modeConfig = useMemo(() => getPermissionModeConfig(permissionMode), [permissionMode])
 
   const handleClick = () => {
-    void AgentSettingsPopup.show({ agentId, tab: 'permission-mode' })
+    void navigate({ to: LIBRARY_ROUTE, search: buildLibraryEditSearch('agent', agentId) })
   }
 
   if (!modeCard) {

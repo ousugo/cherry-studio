@@ -7,17 +7,25 @@
  */
 
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import type { AddAgentForm, GetAgentResponse, UpdateAgentForm } from '@renderer/types'
-import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
+import type { AddAgentForm, UpdateAgentForm } from '@renderer/types'
+import type {
+  AgentEntity as LegacyAgentEntity,
+  UpdateAgentBaseOptions,
+  UpdateAgentFunction
+} from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { AgentEntity } from '@shared/data/types/agent'
+import type { Tool } from '@shared/ai/tool'
+import type { AgentEntity, CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAgentTools } from './useAgentTools'
 import { parseAgentConfiguration } from './utils'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
+
+export type AgentWithTools = AgentEntity & { tools: Tool[] }
 
 /**
  * Fetch a single agent by id from SQLite via DataApi. Parses `configuration`
@@ -36,18 +44,22 @@ export const useAgent = (id: string | null) => {
       keepPreviousData: false
     }
   })
+  const { tools } = useAgentTools(data)
 
-  // Cast to GetAgentResponse for structural compatibility with settings components
-  // (tools field will be undefined — callers use `?? []` fallbacks).
-  const agent = useMemo((): GetAgentResponse | undefined => {
+  const agent = useMemo((): AgentWithTools | undefined => {
     if (!data) return undefined
     return {
-      ...(data as unknown as GetAgentResponse),
+      ...data,
+      tools: tools ?? [],
       configuration: parseAgentConfiguration(data.configuration, { entityId: data.id, entityType: 'agent' })
     }
-  }, [data])
+  }, [data, tools])
 
-  return { agent, error, isLoading, revalidate: refetch }
+  const revalidate = useCallback(async () => {
+    await refetch()
+  }, [refetch])
+
+  return { agent, error, isLoading, revalidate }
 }
 
 /**
@@ -58,15 +70,15 @@ export const useAgent = (id: string | null) => {
 export const useAgents = () => {
   const { t } = useTranslation()
   const { data, isLoading, error } = useQuery('/agents')
-  const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
+  const agents = useMemo<LegacyAgentEntity[]>(() => (data?.items ?? []) as unknown as LegacyAgentEntity[], [data])
 
   const { trigger: createTrigger } = useMutation('POST', '/agents', { refresh: ['/agents'] })
   const addAgent = useCallback(
-    async (form: AddAgentForm): Promise<Result<AgentEntity>> => {
+    async (form: AddAgentForm): Promise<Result<LegacyAgentEntity>> => {
       try {
-        const result = await createTrigger({ body: form })
+        const result = await createTrigger({ body: form as unknown as CreateAgentDto })
         window.toast.success(t('common.add_success'))
-        return { success: true, data: result as unknown as AgentEntity }
+        return { success: true, data: result as unknown as LegacyAgentEntity }
       } catch (error) {
         const msg = formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))
         window.toast.error(msg)
@@ -105,16 +117,16 @@ export const useUpdateAgent = () => {
   })
 
   const updateAgent: UpdateAgentFunction = useCallback(
-    async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<AgentEntity | undefined> => {
+    async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<LegacyAgentEntity | undefined> => {
       try {
         const { id, ...patch } = form
-        const result = await updateTrigger({ params: { agentId: id }, body: patch })
+        const result = await updateTrigger({ params: { agentId: id }, body: patch as unknown as UpdateAgentDto })
         if (options?.showSuccessToast ?? true) {
           window.toast.success({ key: 'update-agent', title: t('common.update_success') })
         }
 
         return {
-          ...(result as unknown as AgentEntity),
+          ...(result as unknown as LegacyAgentEntity),
           configuration: parseAgentConfiguration(result.configuration, { entityId: result.id, entityType: 'agent' })
         }
       } catch (error) {

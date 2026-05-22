@@ -32,7 +32,7 @@ import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import { dispatchStreamRequest } from './stream-manager/context'
 import { WebContentsListener } from './stream-manager/listeners/WebContentsListener'
-import { registerBuiltinTools } from './tools/builtin'
+import { registerBuiltinTools } from './tools/adapters/ai-sdk/builtin'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
 

@@ -68,9 +68,9 @@ export const useUpdateTask = () => {
 export const useRunTask = () => {
   const { t } = useTranslation()
   const runTask = useCallback(
-    async (agentId: string, taskId: string): Promise<boolean> => {
+    async (taskId: string): Promise<boolean> => {
       try {
-        await window.api.agent.runTask(agentId, taskId)
+        await window.api.ai.agent.runTask(taskId)
         window.toast.success({ key: 'run-task', title: t('agent.cherryClaw.tasks.runTriggered') })
         return true
       } catch (error) {

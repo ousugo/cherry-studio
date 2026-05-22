@@ -7,6 +7,7 @@ import { pinService } from '@data/services/PinService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ListOptions } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -25,6 +26,21 @@ import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
 
+export interface AgentUpdatedEvent {
+  agentId: string
+  updates: UpdateAgentDto
+  agent: AgentEntity
+}
+
+export interface AgentCreatedEvent {
+  agentId: string
+  agent: AgentEntity
+}
+
+export interface AgentDeletedEvent {
+  agentId: string
+}
+
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
   if (invalidKeys.length > 0) {
@@ -38,7 +54,7 @@ function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity
   return {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
-    model: clean.model as UniqueModelId | undefined,
+    model: (clean.model ?? null) as UniqueModelId | null,
     configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
@@ -47,6 +63,15 @@ function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity
 }
 
 export class AgentService {
+  private readonly _onAgentCreated = new Emitter<AgentCreatedEvent>()
+  readonly onAgentCreated: Event<AgentCreatedEvent> = this._onAgentCreated.event
+
+  private readonly _onAgentUpdated = new Emitter<AgentUpdatedEvent>()
+  readonly onAgentUpdated: Event<AgentUpdatedEvent> = this._onAgentUpdated.event
+
+  private readonly _onAgentDeleted = new Emitter<AgentDeletedEvent>()
+  readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
+
   async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
     const id = uuidv4()
 
@@ -87,7 +112,9 @@ export class AgentService {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    return rowToAgent(row.agent, row.modelName || null)
+    const agent = rowToAgent(row.agent, row.modelName || null)
+    this._onAgentCreated.fire({ agentId: id, agent })
+    return agent
   }
 
   private async findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): Promise<AgentRow | undefined> {
@@ -199,7 +226,11 @@ export class AgentService {
       defaultHandlersFor('Agent', id)
     )
 
-    return await this.getAgent(id)
+    const updated = await this.getAgent(id)
+    if (updated) {
+      this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
+    }
+    return updated
   }
 
   async deleteAgent(id: string): Promise<boolean> {
@@ -224,7 +255,11 @@ export class AgentService {
       defaultHandlersFor('Agent', id)
     )
 
-    return result.rowsAffected > 0
+    const deleted = result.rowsAffected > 0
+    if (deleted) {
+      this._onAgentDeleted.fire({ agentId: id })
+    }
+    return deleted
   }
 
   async agentExists(id: string): Promise<boolean> {

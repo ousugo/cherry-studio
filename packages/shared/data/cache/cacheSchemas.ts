@@ -249,6 +249,7 @@ export const DefaultUseCache: UseCacheSchema = {
  */
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
+  'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.cache_version': number
   'agent_session.cache_version': number
@@ -267,6 +268,7 @@ export type SharedCacheSchema = {
 
 export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
+  'mcp.tools.${serverId}': [],
   'topic.stream.statuses.${topicId}': null,
   'topic.cache_version': 0,
   'agent_session.cache_version': 0,

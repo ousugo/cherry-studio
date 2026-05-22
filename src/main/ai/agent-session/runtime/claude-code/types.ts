@@ -1,5 +1,6 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
+import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claude-code/agentTools'
 
 export type {
   AgentMcpServerSpec,
@@ -34,6 +35,11 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
    * to the Claude Agent SDK; it only controls warm query lookup in Main.
    */
   warmQueryKey?: string
+  /**
+   * Live policy resolver snapshot used by runtime policy updates. This is
+   * internal to Cherry and not passed to the Claude Agent SDK.
+   */
+  toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   /**
    * Optional startup initialize timeout for SDK warm queries. Not passed to
    * normal query options.

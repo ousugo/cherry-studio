@@ -8,9 +8,8 @@ import { directoryExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand, findExecutableInEnv } from '@main/utils/process'
-import type { ListSkillsQuery } from '@shared/data/api/schemas/agents'
+import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import type {
-  InstalledSkill,
   SkillFileNode,
   SkillInstallFromDirectoryOptions,
   SkillInstallFromZipOptions,

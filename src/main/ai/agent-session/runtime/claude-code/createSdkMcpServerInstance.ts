@@ -2,9 +2,32 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import {
+  CallToolRequestSchema,
+  type CallToolResult,
+  ListToolsRequestSchema,
+  type Tool as SdkTool
+} from '@modelcontextprotocol/sdk/types.js'
+import type { MCPTool } from '@types'
 
 const logger = loggerService.withContext('SdkMcpBridge')
+
+function toSdkTool(tool: MCPTool): SdkTool {
+  const {
+    id: _id,
+    serverId: _serverId,
+    serverName: _serverName,
+    type: _type,
+    ...sdkTool
+  } = tool as MCPTool &
+    SdkTool & {
+      id: string
+      serverId: string
+      serverName: string
+      type: string
+    }
+  return sdkTool
+}
 
 /**
  * Creates an `McpServer` instance that acts as an in-process bridge,
@@ -33,8 +56,10 @@ export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServ
     try {
       logger.debug('SDK bridge: listing tools', { mcpId })
       const mcpService = application.get('McpService')
-      const client = await mcpService.initClient(serverConfig)
-      return client.listTools()
+      const tools = await mcpService.listTools(serverConfig, { includeDisabled: false })
+      return {
+        tools: tools.map(toSdkTool)
+      }
     } catch (error) {
       logger.error('SDK bridge: failed to list tools', { mcpId, error })
       throw error
@@ -45,8 +70,12 @@ export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServ
     try {
       logger.debug('SDK bridge: calling tool', { mcpId, tool: request.params.name })
       const mcpService = application.get('McpService')
-      const client = await mcpService.initClient(serverConfig)
-      return client.callTool(request.params)
+      const result = await mcpService.callTool({
+        server: serverConfig,
+        name: request.params.name,
+        args: request.params.arguments
+      })
+      return result as CallToolResult
     } catch (error) {
       logger.error('SDK bridge: failed to call tool', { mcpId, tool: request.params.name, error })
       throw error

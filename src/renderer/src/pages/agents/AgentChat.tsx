@@ -9,12 +9,12 @@ import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import type { GetAgentResponse } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import type { AgentEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { Loader2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
@@ -92,7 +92,7 @@ const AgentChat = () => {
 interface InnerProps {
   agentId: string
   sessionId: string
-  activeAgent: GetAgentResponse | undefined
+  activeAgent: AgentEntity | undefined
   showRightSessions: boolean
   messageNavigation: string
   messageStyle: string
@@ -114,7 +114,7 @@ const AgentChatInner = ({
 
   // ── Rendering pipeline ────────────────────────────────────────────
   const snapshot = useMemo<ModelSnapshot | undefined>(() => {
-    if (!activeAgent?.model) return undefined
+    if (!isUniqueModelId(activeAgent?.model)) return undefined
     const { providerId, modelId } = parseUniqueModelId(activeAgent.model)
     return { id: modelId, name: modelId, provider: providerId }
   }, [activeAgent?.model])

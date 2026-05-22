@@ -4,6 +4,8 @@
  *
  * WARNING: Any null value will be converted to undefined from api.
  */
+import { type SlashCommand, SlashCommandSchema } from '@shared/ai/slashCommands'
+import { ToolSchema } from '@shared/ai/tool'
 import {
   type AgentConfiguration,
   AgentConfigurationSchema,
@@ -59,29 +61,8 @@ export const isAgentType = (type: unknown): type is AgentType => {
   return AgentTypeSchema.safeParse(type).success
 }
 
-// ------------------ Tool metadata ------------------
-export const ToolSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  type: z.enum(['builtin', 'mcp', 'custom']),
-  description: z.string().optional(),
-  requirePermissions: z.boolean().optional()
-})
-
-export type Tool = z.infer<typeof ToolSchema>
-
-export const SlashCommandSchema = z.object({
-  command: z.string(), // e.g. '/status'
-  description: z.string().optional() // e.g. 'Show help information'
-})
-
-export type SlashCommand = z.infer<typeof SlashCommandSchema>
-
 // ------------------ Agent configuration & base schema ------------------
 export { type AgentConfiguration, AgentConfigurationSchema }
-
-/** @deprecated Use AgentConfiguration directly — all fields are now in AgentConfigurationSchema */
-export type CherryClawConfiguration = AgentConfiguration
 
 // ------------------ Scheduled Task types ------------------
 // Re-exports from @shared/data/api/schemas/agents: ScheduledTaskEntity, TaskRunLogEntity,
@@ -96,7 +77,6 @@ export type { ScheduledTaskEntity, TaskRunLogEntity }
 export const AgentBaseSchema = z.object({
   name: z.string().optional(),
   description: z.string().optional(),
-  accessiblePaths: z.array(z.string()),
   instructions: z.string().optional(),
   model: z.string(),
   planModel: z.string().optional(),
@@ -128,6 +108,8 @@ export const isAgentBaseWithId = (value: unknown): value is AgentBaseWithId => {
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   type: AgentTypeSchema,
+  name: z.string(),
+  modelName: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -220,7 +202,6 @@ export type BaseAgentForm = {
   description?: string
   instructions?: string
   model: string
-  accessiblePaths: string[]
   allowedTools: string[]
   mcps?: string[]
   configuration?: AgentConfiguration
