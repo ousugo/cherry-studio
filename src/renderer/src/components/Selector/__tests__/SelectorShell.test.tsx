@@ -186,6 +186,21 @@ describe('SelectorShell', () => {
     expect(screen.queryByTestId('lazy-body')).not.toBeInTheDocument()
   })
 
+  it('stabilizes bottom lazy-kept placement before available height is measured', () => {
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        mountStrategy="lazy-keep"
+        side="bottom">
+        {({ availableListHeight }) => <div data-testid="available-height">{String(availableListHeight)}</div>}
+      </SelectorShell>
+    )
+
+    expect(screen.getByTestId('available-height')).toHaveTextContent('0')
+  })
+
   it('does not rebind measurement listeners when config object identities change', async () => {
     const observe = vi.fn()
     const disconnect = vi.fn()

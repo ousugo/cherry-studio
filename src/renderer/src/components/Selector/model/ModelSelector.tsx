@@ -35,7 +35,7 @@ import { getProviderDisplayName } from './utils'
 const logger = loggerService.withContext('ModelSelector')
 
 const ITEM_HEIGHT = 36
-const DEFAULT_MODEL_SELECTOR_MAX_LIST_HEIGHT = 640
+const DEFAULT_MODEL_SELECTOR_MAX_LIST_HEIGHT = 400
 const ROW_TAG_SIZE = 8
 const FILTER_TAG_SIZE = 10
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: string[] = []
