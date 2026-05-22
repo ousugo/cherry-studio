@@ -1093,7 +1093,7 @@ describe('Topics', () => {
 
     const createButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })
     expect(createButton).toBeInTheDocument()
-    expect(createButton).toHaveClass('h-[30px]', 'min-w-[30px]', 'rounded-[8px]')
+    expect(createButton).toHaveClass('!size-6', '!min-w-6', 'rounded-md')
     expect(createButton).not.toHaveClass('border')
     expect(createButton.querySelector('.lucide-square-pen')).toBeInTheDocument()
     expect(screen.getByRole('listbox')).toHaveClass('pt-0')
@@ -1377,6 +1377,19 @@ describe('Topics', () => {
 
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+  })
+
+  it('opens the assistant group more menu from the group header context menu', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    renderTopicList()
+
+    const assistantGroupButton = screen.getByRole('button', { name: 'Alpha Assistant' })
+    const assistantHeader = assistantGroupButton.closest('div')
+    expect(assistantHeader).toBeInTheDocument()
+
+    fireEvent.contextMenu(assistantHeader as HTMLElement, { clientX: 123, clientY: 456 })
+
+    expect(screen.getAllByRole('button', { name: 'Edit Assistant' }).length).toBeGreaterThan(0)
   })
 
   it('keeps at least one topic when clearing an assistant group would delete all topics', () => {

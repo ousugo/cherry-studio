@@ -108,6 +108,72 @@ function SessionDisplayModeMenu({
   )
 }
 
+type WorkdirGroupMoreMenuContentProps = {
+  canDelete: boolean
+  canRename: boolean
+  deleteDisabled?: boolean
+  onDelete: () => void | Promise<void>
+  onOpen: () => void | Promise<void>
+  onRename: () => void | Promise<void>
+  renameDisabled?: boolean
+}
+
+function WorkdirGroupMoreMenuContent({
+  canDelete,
+  canRename,
+  deleteDisabled,
+  onDelete,
+  onOpen,
+  onRename,
+  renameDisabled
+}: WorkdirGroupMoreMenuContentProps) {
+  const { t } = useTranslation()
+  const fileManagerName = isMac
+    ? t('agent.session.file_manager.finder')
+    : isWin
+      ? t('agent.session.file_manager.file_explorer')
+      : t('agent.session.file_manager.files')
+  const openLabel = t('common.open_in', { name: fileManagerName })
+
+  return (
+    <MenuList className="gap-0.5">
+      <MenuItem
+        label={openLabel}
+        icon={isMac ? <FinderIcon className="size-3.5" /> : <FolderOpen size={14} />}
+        className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
+        onClick={(event) => {
+          event.stopPropagation()
+          void onOpen()
+        }}
+      />
+      {canRename && (
+        <MenuItem
+          label={t('agent.session.workdir.rename.trigger')}
+          icon={<SquarePen size={14} />}
+          disabled={renameDisabled}
+          className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
+          onClick={(event) => {
+            event.stopPropagation()
+            void onRename()
+          }}
+        />
+      )}
+      {canDelete && (
+        <MenuItem
+          label={t('agent.session.workdir.delete.trigger')}
+          icon={<Trash2 size={14} className="lucide-custom text-destructive" />}
+          disabled={deleteDisabled}
+          className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px] text-destructive hover:text-destructive"
+          onClick={(event) => {
+            event.stopPropagation()
+            void onDelete()
+          }}
+        />
+      )}
+    </MenuList>
+  )
+}
+
 function WorkdirGroupMoreMenu({
   canDelete,
   canRename,
@@ -131,12 +197,6 @@ function WorkdirGroupMoreMenu({
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const fileManagerName = useMemo(() => {
-    if (isMac) return t('agent.session.file_manager.finder')
-    if (isWin) return t('agent.session.file_manager.file_explorer')
-    return t('agent.session.file_manager.files')
-  }, [t])
-  const openLabel = t('common.open_in', { name: fileManagerName })
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -149,44 +209,24 @@ function WorkdirGroupMoreMenu({
         </ResourceList.HeaderActionButton>
       </PopoverTrigger>
       <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 rounded-lg border-border p-1 shadow-lg">
-        <MenuList className="gap-0.5">
-          <MenuItem
-            label={openLabel}
-            icon={isMac ? <FinderIcon className="size-3.5" /> : <FolderOpen size={14} />}
-            className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
-            onClick={(event) => {
-              event.stopPropagation()
-              setOpen(false)
-              void onOpen(workdirPath)
-            }}
-          />
-          {canRename && (
-            <MenuItem
-              label={t('agent.session.workdir.rename.trigger')}
-              icon={<SquarePen size={14} />}
-              disabled={renameDisabled}
-              className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
-              onClick={(event) => {
-                event.stopPropagation()
-                setOpen(false)
-                void onRename(group)
-              }}
-            />
-          )}
-          {canDelete && (
-            <MenuItem
-              label={t('agent.session.workdir.delete.trigger')}
-              icon={<Trash2 size={14} className="lucide-custom text-destructive" />}
-              disabled={deleteDisabled}
-              className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px] text-destructive hover:text-destructive"
-              onClick={(event) => {
-                event.stopPropagation()
-                setOpen(false)
-                void onDelete(group)
-              }}
-            />
-          )}
-        </MenuList>
+        <WorkdirGroupMoreMenuContent
+          canDelete={canDelete}
+          canRename={canRename}
+          deleteDisabled={deleteDisabled}
+          renameDisabled={renameDisabled}
+          onDelete={() => {
+            setOpen(false)
+            return onDelete(group)
+          }}
+          onOpen={() => {
+            setOpen(false)
+            return onOpen(workdirPath)
+          }}
+          onRename={() => {
+            setOpen(false)
+            return onRename(group)
+          }}
+        />
       </PopoverContent>
     </Popover>
   )
@@ -806,6 +846,37 @@ const Sessions = ({
     ]
   )
 
+  const getGroupHeaderContextMenu = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'workdir' || group.id === SESSION_PINNED_GROUP_ID) return null
+
+      const workspaceId = workdirDisplay.workspaceIdByGroupId.get(group.id)
+      const workdirPath = workdirDisplay.pathByGroupId.get(group.id) ?? getWorkdirPathFromSessionGroupId(group.id)
+      if (!workdirPath) return null
+
+      return (
+        <WorkdirGroupMoreMenuContent
+          canDelete={!!workspaceId}
+          canRename={!!workspaceId}
+          deleteDisabled={!!deletingWorkspaceGroupId}
+          renameDisabled={isUpdatingWorkspace}
+          onDelete={() => handleDeleteWorkdirGroup(group)}
+          onOpen={() => handleOpenWorkdirGroup(workdirPath)}
+          onRename={() => handleStartRenameWorkdirGroup(group)}
+        />
+      )
+    },
+    [
+      deletingWorkspaceGroupId,
+      displayMode,
+      handleDeleteWorkdirGroup,
+      handleOpenWorkdirGroup,
+      handleStartRenameWorkdirGroup,
+      isUpdatingWorkspace,
+      workdirDisplay
+    ]
+  )
+
   const listError = error ?? (displayMode === 'workdir' ? workspacesError : undefined)
   const listLoading = isLoadingAll || !isFullyLoaded || isSessionPinsLoading || isWorkdirMetadataLoading
   const listValidating = isValidating || isWorkdirMetadataRefreshing
@@ -824,6 +895,7 @@ const Sessions = ({
       defaultGroupVisibleCount={5}
       groupLoadStep={5}
       getGroupHeaderAction={getGroupHeaderAction}
+      getGroupHeaderContextMenu={getGroupHeaderContextMenu}
       dragCapabilities={{
         groups: workdirDragReady,
         items: workdirDragReady,

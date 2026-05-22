@@ -21,7 +21,7 @@ import {
 } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
 import { ChevronDown, SearchIcon } from 'lucide-react'
-import type { ComponentProps, CSSProperties, ReactNode, Ref, RefObject } from 'react'
+import type { ComponentProps, CSSProperties, MouseEvent, ReactNode, Ref, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
 import { ActionMenu } from '../actions/ActionMenu'
@@ -57,6 +57,7 @@ const CONTEXT_MENU_ITEM_CLASS =
   'h-7 gap-2 rounded-lg px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-accent focus:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
 const CONTEXT_MENU_SUB_TRIGGER_CLASS =
   'h-7 gap-2 rounded-lg px-2 text-[12px] font-normal leading-4 text-foreground/80 focus:bg-accent focus:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0'
+const GROUP_CONTEXT_MENU_CONTENT_CLASS = 'w-44 rounded-lg border-border p-1 shadow-lg'
 const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
 const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = []
 const getDefaultItemId = (item: ResourceListItemBase) => item.id
@@ -117,6 +118,7 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getItemId?: (item: T) => string
   getItemLabel?: (item: T) => string
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
+  getGroupHeaderContextMenu?: ResourceListMeta<T>['getGroupHeaderContextMenu']
   getGroupHeaderLeadingAction?: ResourceListMeta<T>['getGroupHeaderLeadingAction']
   getGroupHeaderIcon?: ResourceListMeta<T>['getGroupHeaderIcon']
   collapsedGroupIds?: readonly string[]
@@ -276,6 +278,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   getItemId = getDefaultItemId as (item: T) => string,
   getItemLabel = getDefaultItemLabel as (item: T) => string,
   getGroupHeaderAction,
+  getGroupHeaderContextMenu,
   getGroupHeaderLeadingAction,
   getGroupHeaderIcon,
   collapsedGroupIds,
@@ -554,6 +557,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         getItemLabel,
         groups: viewGroups.map((group) => group.group),
         getGroupHeaderAction,
+        getGroupHeaderContextMenu,
         getGroupHeaderLeadingAction,
         getGroupHeaderIcon,
         sortOptions,
@@ -593,6 +597,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       getItemId,
       getItemLabel,
       getGroupHeaderAction,
+      getGroupHeaderContextMenu,
       getGroupHeaderLeadingAction,
       getGroupHeaderIcon,
       canDragGroup,
@@ -843,12 +848,14 @@ type GroupHeaderProps = ComponentProps<'div'> & {
   ref?: Ref<HTMLDivElement>
 }
 
-function GroupHeader({ group, className, ref, style, ...props }: GroupHeaderProps) {
+function GroupHeader({ group, className, ref, style, onContextMenu, ...props }: GroupHeaderProps) {
   const { actions, meta, view } = useResourceList()
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
   const collapsed = viewGroup?.collapsed ?? false
+  const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const groupHeaderContext = { collapsed }
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
+  const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
   const groupHeaderLeadingAction = meta.getGroupHeaderLeadingAction?.(group, groupHeaderContext)
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
   const groupHeaderIcon =
@@ -857,9 +864,18 @@ function GroupHeader({ group, className, ref, style, ...props }: GroupHeaderProp
     ) : (
       customGroupHeaderIcon
     )
+  const handleContextMenu = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      onContextMenu?.(event)
+      if (event.defaultPrevented || !groupHeaderContextMenu) return
+
+      setContextMenuOpen(true)
+    },
+    [groupHeaderContextMenu, onContextMenu]
+  )
 
   if (!group.label) return null
-  return (
+  const header = (
     <div
       ref={ref}
       style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
@@ -868,6 +884,7 @@ function GroupHeader({ group, className, ref, style, ...props }: GroupHeaderProp
         GROUP_HEADER_TEXT_CLASS,
         className
       )}
+      onContextMenu={handleContextMenu}
       {...props}>
       {groupHeaderLeadingAction && (
         <div className="flex size-4.5 shrink-0 items-center justify-center">{groupHeaderLeadingAction}</div>
@@ -894,6 +911,21 @@ function GroupHeader({ group, className, ref, style, ...props }: GroupHeaderProp
         </div>
       )}
     </div>
+  )
+
+  if (!groupHeaderContextMenu) {
+    return header
+  }
+
+  return (
+    <UiContextMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen}>
+      <ContextMenuTrigger asChild>{header}</ContextMenuTrigger>
+      {contextMenuOpen && (
+        <ContextMenuContent className={GROUP_CONTEXT_MENU_CONTENT_CLASS} onClick={() => setContextMenuOpen(false)}>
+          {groupHeaderContextMenu}
+        </ContextMenuContent>
+      )}
+    </UiContextMenu>
   )
 }
 

@@ -89,6 +89,57 @@ interface Props {
 
 const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
 
+type AssistantGroupMoreMenuContentProps = {
+  disabled?: boolean
+  onDeleteAllTopics: () => void | Promise<void>
+  onEdit: () => void
+  onTogglePin: () => void | Promise<void>
+  pinned: boolean
+}
+
+function AssistantGroupMoreMenuContent({
+  disabled,
+  onDeleteAllTopics,
+  onEdit,
+  onTogglePin,
+  pinned
+}: AssistantGroupMoreMenuContentProps) {
+  const { t } = useTranslation()
+
+  return (
+    <MenuList className="gap-0.5">
+      <MenuItem
+        label={t('assistants.edit.title')}
+        icon={<Edit3 size={14} />}
+        className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
+        onClick={(event) => {
+          event.stopPropagation()
+          onEdit()
+        }}
+      />
+      <MenuItem
+        label={pinned ? t('assistants.unpin.title') : t('assistants.pin.title')}
+        icon={pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />}
+        disabled={disabled}
+        className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
+        onClick={(event) => {
+          event.stopPropagation()
+          void onTogglePin()
+        }}
+      />
+      <MenuItem
+        label={t('assistants.clear.menu_title')}
+        icon={<Trash2 size={14} className="lucide-custom text-destructive" />}
+        className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px] text-destructive hover:text-destructive"
+        onClick={(event) => {
+          event.stopPropagation()
+          void onDeleteAllTopics()
+        }}
+      />
+    </MenuList>
+  )
+}
+
 function resolveAssistantIdForTopicGroup(
   groupId: string,
   assistantById: ReadonlyMap<string, unknown>
@@ -157,10 +208,10 @@ function AssistantGroupMoreMenu({
   onEdit: (assistantId: string) => void
   onTogglePin: (assistantId: string) => void | Promise<void>
 }) {
-  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [popoverKey, setPopoverKey] = useState(0)
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
+  const { t } = useTranslation()
 
   const runPendingCloseAction = useCallback(() => {
     const action = pendingCloseActionRef.current
@@ -191,38 +242,19 @@ function AssistantGroupMoreMenu({
         </ResourceList.HeaderActionButton>
       </PopoverTrigger>
       <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 rounded-lg border-border p-1 shadow-lg">
-        <MenuList className="gap-0.5">
-          <MenuItem
-            label={t('assistants.edit.title')}
-            icon={<Edit3 size={14} />}
-            className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
-            onClick={(event) => {
-              event.stopPropagation()
-              closeBeforeAction(() => onEdit(assistantId))
-            }}
-          />
-          <MenuItem
-            label={pinned ? t('assistants.unpin.title') : t('assistants.pin.title')}
-            icon={pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />}
-            disabled={disabled}
-            className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
-            onClick={(event) => {
-              event.stopPropagation()
-              setOpen(false)
-              void onTogglePin(assistantId)
-            }}
-          />
-          <MenuItem
-            label={t('assistants.clear.menu_title')}
-            icon={<Trash2 size={14} className="lucide-custom text-destructive" />}
-            className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px] text-destructive hover:text-destructive"
-            onClick={(event) => {
-              event.stopPropagation()
-              setOpen(false)
-              void onDeleteAllTopics(assistantId)
-            }}
-          />
-        </MenuList>
+        <AssistantGroupMoreMenuContent
+          disabled={disabled}
+          pinned={pinned}
+          onDeleteAllTopics={() => {
+            setOpen(false)
+            return onDeleteAllTopics(assistantId)
+          }}
+          onEdit={() => closeBeforeAction(() => onEdit(assistantId))}
+          onTogglePin={() => {
+            setOpen(false)
+            return onTogglePin(assistantId)
+          }}
+        />
       </PopoverContent>
     </Popover>
   )
@@ -687,6 +719,34 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     ]
   )
 
+  const getGroupHeaderContextMenu = useCallback(
+    (group: { id: string }) => {
+      if (displayMode !== 'assistant') return null
+
+      const assistantId = getAssistantIdFromTopicGroupId(group.id)
+      if (!assistantId || !assistantById.has(assistantId)) return null
+
+      return (
+        <AssistantGroupMoreMenuContent
+          disabled={isAssistantPinActionDisabled}
+          pinned={assistantPinnedIdSet.has(assistantId)}
+          onDeleteAllTopics={() => handleDeleteAssistantTopics(assistantId)}
+          onEdit={() => openAssistantEditor(assistantId)}
+          onTogglePin={() => handleToggleAssistantPin(assistantId)}
+        />
+      )
+    },
+    [
+      assistantById,
+      assistantPinnedIdSet,
+      displayMode,
+      handleDeleteAssistantTopics,
+      handleToggleAssistantPin,
+      isAssistantPinActionDisabled,
+      openAssistantEditor
+    ]
+  )
+
   const getSelectableTopicIdsInGroup = useCallback(
     (groupId: string) =>
       filteredTopics
@@ -928,6 +988,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
         getGroupHeaderAction={getGroupHeaderAction}
+        getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderLeadingAction={getGroupHeaderLeadingAction}
         dragCapabilities={{
           groups: isAssistantDisplayMode && !isManageMode,

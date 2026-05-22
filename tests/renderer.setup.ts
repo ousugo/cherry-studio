@@ -152,6 +152,7 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
+  const ContextMenuContext = React.createContext({ open: true, onOpenChange: undefined })
   return {
     Button: ({ children, onPress, disabled, isDisabled, loading, startContent, ...props }) =>
       React.createElement(
@@ -199,12 +200,33 @@ vi.mock('@cherrystudio/ui', () => {
       ),
     AccordionContent: ({ children, ...props }) =>
       React.createElement('div', { 'data-testid': 'accordion-content', ...props }, children),
-    ContextMenu: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'context-menu' }, children),
-    ContextMenuTrigger: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'context-menu-trigger' }, children),
-    ContextMenuContent: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'context-menu-content' }, children),
+    ContextMenu: ({ children, open = true, onOpenChange, ...props }) =>
+      React.createElement(
+        ContextMenuContext.Provider,
+        { value: { open, onOpenChange } },
+        React.createElement('div', { ...props, 'data-testid': 'context-menu' }, children)
+      ),
+    ContextMenuTrigger: ({ children, asChild, ...props }) => {
+      const context = React.useContext(ContextMenuContext)
+      const triggerProps = {
+        ...props,
+        'data-testid': 'context-menu-trigger',
+        onContextMenu: (event: React.MouseEvent) => {
+          props.onContextMenu?.(event)
+          context.onOpenChange?.(true)
+        }
+      }
+      if (asChild && React.isValidElement(children)) {
+        return React.cloneElement(children, { ...triggerProps, ...children.props })
+      }
+      return React.createElement('div', triggerProps, children)
+    },
+    ContextMenuContent: ({ children, ...props }) => {
+      const context = React.useContext(ContextMenuContext)
+      return context.open
+        ? React.createElement('div', { ...props, 'data-testid': 'context-menu-content' }, children)
+        : null
+    },
     ContextMenuItem: ({ children, onSelect, ...props }) =>
       React.createElement(
         'button',

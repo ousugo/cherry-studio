@@ -975,6 +975,19 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(window.api.file.openPath).toHaveBeenCalledWith('/Users/jd/project-a'))
   })
 
+  it('opens the workspace group more menu from the group header context menu', () => {
+    render(<Sessions />)
+
+    const workdirGroupButton = screen.getByRole('button', { name: 'Project A Workspace' })
+    const workdirGroup = workdirGroupButton.closest('div')
+    expect(workdirGroup).not.toBeNull()
+
+    fireEvent.contextMenu(workdirGroup as HTMLElement, { clientX: 123, clientY: 456 })
+
+    expect(screen.getByRole('button', { name: /Open in/ })).toBeInTheDocument()
+    expect(workdirGroupButton).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('renames a workspace group through the workspace update endpoint', async () => {
     render(<Sessions />)
 
