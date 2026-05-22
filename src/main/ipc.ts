@@ -23,6 +23,7 @@ import checkDiskSpace from 'check-disk-space'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
+import { skillService } from './ai/agent-session/skills/SkillService'
 import { appService } from './services/AppService'
 import BackupManager from './services/BackupManager'
 import { ConfigKeys, configManager } from './services/ConfigManager'
@@ -547,7 +548,7 @@ export async function registerIpc() {
   // Global Skills
   ipcMain.handle(IpcChannel.Skill_List, async (_, agentId?: string) => {
     try {
-      const data = await application.get('SkillService').list(agentId ? { agentId } : {})
+      const data = await skillService.list(agentId ? { agentId } : {})
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to list skills', { error })
@@ -557,7 +558,7 @@ export async function registerIpc() {
 
   ipcMain.handle(IpcChannel.Skill_Install, async (_, options) => {
     try {
-      const data = await application.get('SkillService').install(options)
+      const data = await skillService.install(options)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to install skill', { options, error })
@@ -567,7 +568,7 @@ export async function registerIpc() {
 
   ipcMain.handle(IpcChannel.Skill_Uninstall, async (_, skillId: string) => {
     try {
-      await application.get('SkillService').uninstall(skillId)
+      await skillService.uninstall(skillId)
       return { success: true, data: undefined }
     } catch (error) {
       logger.error('Failed to uninstall skill', { skillId, error })
@@ -587,7 +588,7 @@ export async function registerIpc() {
       ) {
         return { success: false, error: 'Invalid toggle options' }
       }
-      const data = await application.get('SkillService').toggle(options)
+      const data = await skillService.toggle(options)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to toggle skill', { options, error })
@@ -597,7 +598,7 @@ export async function registerIpc() {
 
   ipcMain.handle(IpcChannel.Skill_InstallFromZip, async (_, options) => {
     try {
-      const data = await application.get('SkillService').installFromZip(options)
+      const data = await skillService.installFromZip(options)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to install skill from ZIP', { options, error })
@@ -607,7 +608,7 @@ export async function registerIpc() {
 
   ipcMain.handle(IpcChannel.Skill_InstallFromDirectory, async (_, options) => {
     try {
-      const data = await application.get('SkillService').installFromDirectory(options)
+      const data = await skillService.installFromDirectory(options)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to install skill from directory', { options, error })
@@ -617,7 +618,7 @@ export async function registerIpc() {
 
   ipcMain.handle(IpcChannel.Skill_ReadFile, async (_, skillId: string, filename: string) => {
     try {
-      const data = await application.get('SkillService').readFile(skillId, filename)
+      const data = await skillService.readFile(skillId, filename)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to read skill file', { skillId, filename, error })
@@ -627,7 +628,7 @@ export async function registerIpc() {
 
   ipcMain.handle(IpcChannel.Skill_ListFiles, async (_, skillId: string) => {
     try {
-      const data = await application.get('SkillService').listFiles(skillId)
+      const data = await skillService.listFiles(skillId)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to list skill files', { skillId, error })
@@ -640,7 +641,7 @@ export async function registerIpc() {
       if (!workdir || typeof workdir !== 'string') {
         return { success: false, error: 'Invalid workdir' }
       }
-      const data = await application.get('SkillService').listLocal(workdir)
+      const data = await skillService.listLocal(workdir)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to list local plugins', { workdir, error })

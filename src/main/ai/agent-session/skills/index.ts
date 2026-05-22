@@ -1,2 +1,2 @@
 export { SkillInstaller } from './SkillInstaller'
-export { SkillService } from './SkillService'
+export { SkillService, skillService } from './SkillService'

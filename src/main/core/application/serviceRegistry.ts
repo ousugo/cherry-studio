@@ -7,7 +7,6 @@ import { AgentSessionRuntimeService } from '@main/ai/agent-session/AgentSessionR
 import { ChannelManager } from '@main/ai/agent-session/channels/ChannelManager'
 import { ClaudeCodeWarmQueryManager } from '@main/ai/agent-session/runtime/claude-code/ClaudeCodeWarmQueryManager'
 import { ClaudeCodeWarmupService } from '@main/ai/agent-session/runtime/claude-code/ClaudeCodeWarmupService'
-import { SkillService } from '@main/ai/agent-session/skills/SkillService'
 import { AiService } from '@main/ai/AiService'
 import { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
 import { JobManager } from '@main/core/job/JobManager'
@@ -114,7 +113,6 @@ export const services = {
   AgentSessionRuntimeService,
   AgentJobsService,
   ChannelManager,
-  SkillService,
   AiService,
   ClaudeCodeWarmQueryManager,
   ClaudeCodeWarmupService,

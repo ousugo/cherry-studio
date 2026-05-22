@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { skillService } from '@main/ai/agent-session/skills/SkillService'
 import { app } from 'electron'
 
 import { toAsarUnpackedPath } from '.'
@@ -62,7 +63,7 @@ export async function installBuiltinSkills(): Promise<void> {
     }
 
     try {
-      await application.get('SkillService').syncBuiltinSkill(entry.name, destPath, filesUpdated)
+      await skillService.syncBuiltinSkill(entry.name, destPath, filesUpdated)
     } catch (error) {
       logger.warn('Failed to sync built-in skill to DB', {
         folderName: entry.name,

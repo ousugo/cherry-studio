@@ -55,15 +55,12 @@ vi.mock('@data/services/AgentTaskService', () => ({
   }
 }))
 
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    SkillService: {
-      list: listSkillsMock,
-      getById: getSkillByIdMock
-    }
-  } as Parameters<typeof mockApplicationFactory>[0])
-})
+vi.mock('@main/ai/agent-session/skills/SkillService', () => ({
+  skillService: {
+    list: listSkillsMock,
+    getById: getSkillByIdMock
+  }
+}))
 
 vi.mock('@data/services/AgentTaskWorkflowService', () => ({
   agentTaskWorkflowService: {
