@@ -5,14 +5,14 @@
  * service singletons. Each handler validates required inputs and delegates
  * to the appropriate service method.
  *
- * Service layer: src/main/ai/agent-session/
- * Skills layer:  src/main/ai/agent-session/skills/SkillService
+ * Service layer: src/main/data/services/
+ * Skills layer:  src/main/services/skills/SkillService
  */
 
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { agentTaskWorkflowService } from '@data/services/AgentTaskWorkflowService'
-import { skillService } from '@main/ai/agent-session/skills/SkillService'
+import { skillService } from '@main/services/skills/SkillService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
