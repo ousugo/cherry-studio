@@ -114,6 +114,7 @@ interface ChatComposerProps {
     }
   ) => void | Promise<void>
   sendDisabled?: boolean
+  useMentionedModelSelector?: boolean
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
 }
@@ -166,8 +167,13 @@ const ChatComposerContextControls = ({
   const [mentionedModelMultiSelectMode, setMentionedModelMultiSelectMode] = useState(false)
   const [mentionedModelSelectorValue, setMentionedModelSelectorValue] = useState<Model[]>([])
   const mentionedModelSelectorInitKeyRef = useRef<string | null>(null)
+  const previousMentionedModelIdsRef = useRef<string | null>(null)
   const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
   const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
+  const mentionedModelIds = useMemo(
+    () => mentionedModels.map((currentModel) => currentModel.id).join('\n'),
+    [mentionedModels]
+  )
   const selectedMentionedModels = useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
   const selectedMentionedModel = selectedMentionedModels[0]
   const displayModel = useMentionedModelSelector ? selectedMentionedModel : model
@@ -188,6 +194,7 @@ const ChatComposerContextControls = ({
   useEffect(() => {
     if (!useMentionedModelSelector) {
       mentionedModelSelectorInitKeyRef.current = null
+      previousMentionedModelIdsRef.current = null
       return
     }
 
@@ -196,6 +203,7 @@ const ChatComposerContextControls = ({
 
     const isInitialSelection = mentionedModelSelectorInitKeyRef.current === null
     mentionedModelSelectorInitKeyRef.current = initializationKey
+    previousMentionedModelIdsRef.current = mentionedModelIds
     setMentionedModelSelectorValue(
       isInitialSelection && mentionedModels.length > 1 ? mentionedModels : model ? [model] : []
     )
@@ -204,7 +212,23 @@ const ChatComposerContextControls = ({
     if (!isInitialSelection && mentionedModels.length > 0) {
       onMentionedModelsSelect([])
     }
-  }, [assistantId, mentionedModels, model, onMentionedModelsSelect, topicId, useMentionedModelSelector])
+  }, [
+    assistantId,
+    mentionedModelIds,
+    mentionedModels,
+    model,
+    onMentionedModelsSelect,
+    topicId,
+    useMentionedModelSelector
+  ])
+
+  useEffect(() => {
+    if (!useMentionedModelSelector || !mentionedModelSelectorInitKeyRef.current) return
+    if (previousMentionedModelIdsRef.current === mentionedModelIds) return
+
+    previousMentionedModelIdsRef.current = mentionedModelIds
+    setMentionedModelSelectorValue(mentionedModels)
+  }, [mentionedModelIds, mentionedModels, useMentionedModelSelector])
 
   const handleMentionedModelSelect = useCallback(
     (nextModels: Model[]) => {
@@ -343,6 +367,7 @@ const ChatComposerRoot = ({
   topic,
   onSend,
   sendDisabled,
+  useMentionedModelSelector,
   onTemporaryAssistantChange,
   onNewTopic,
   topContent,
@@ -379,6 +404,7 @@ const ChatComposerRoot = ({
         actionsRef={actionsRef}
         onSend={onSend}
         sendDisabled={sendDisabled}
+        useMentionedModelSelector={useMentionedModelSelector}
         onTemporaryAssistantChange={onTemporaryAssistantChange}
         onNewTopic={onNewTopic}
         topContent={topContent}
@@ -399,6 +425,7 @@ const ChatComposerInner = ({
   actionsRef,
   onSend,
   sendDisabled = false,
+  useMentionedModelSelector,
   onTemporaryAssistantChange,
   onNewTopic,
   topContent,
@@ -650,7 +677,7 @@ const ChatComposerInner = ({
                   return
                 }
 
-                editor.chain().focus().insertComposerToken(token).insertContent(' ').run()
+                editor.chain().focus().insertComposerToken(token).run()
                 setMentionedModels((prev) =>
                   prev.some((model) => model.id === currentModel.id) ? prev : [...prev, currentModel]
                 )
@@ -798,6 +825,7 @@ const ChatComposerInner = ({
       loading,
       messageQueue,
       runtimeModel,
+      sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,
       t
@@ -948,6 +976,7 @@ const ChatComposerInner = ({
     modelProviderName: providerName,
     modelPending: runtimeModelPending,
     mentionedModels,
+    useMentionedModelSelector,
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,

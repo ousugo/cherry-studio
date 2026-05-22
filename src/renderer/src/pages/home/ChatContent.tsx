@@ -383,6 +383,7 @@ const ChatContentInner: FC<InnerProps> = ({
                               onSend={handleSend}
                               onNewTopic={onNewTopic}
                               sendDisabled={isHistoryLoading}
+                              useMentionedModelSelector
                             />
                           )
                         }

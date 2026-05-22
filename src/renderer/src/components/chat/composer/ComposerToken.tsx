@@ -23,6 +23,17 @@ export interface ComposerTokenProps {
 }
 
 export function ComposerToken({ token, selected = false, className }: ComposerTokenProps) {
+  if (token.kind === 'model') {
+    return (
+      <span
+        className={cn('inline-flex h-0 w-0 select-none overflow-hidden align-baseline', className)}
+        title={token.label}
+        data-composer-token-kind={token.kind}>
+        <span className="sr-only">{token.label}</span>
+      </span>
+    )
+  }
+
   return (
     <span
       className={cn(

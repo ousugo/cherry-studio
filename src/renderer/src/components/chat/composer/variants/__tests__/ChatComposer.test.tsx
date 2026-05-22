@@ -400,6 +400,21 @@ describe('ChatComposer', () => {
     expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
   })
 
+  it('uses mentioned-model multi-select when requested by the composer toolbar', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multiple', 'true')
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
+    expect(mocks.setMentionedModels).toHaveBeenCalledWith([model, modelB])
+    expect(mocks.setModel).not.toHaveBeenCalled()
+  })
+
   it('does not update the default model while a persisted assistant is loading', () => {
     mocks.assistant = undefined
     mocks.model = undefined

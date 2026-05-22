@@ -62,15 +62,18 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
   default: ({
     onSend,
-    sendDisabled
+    sendDisabled,
+    useMentionedModelSelector
   }: {
     onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
     sendDisabled?: boolean
+    useMentionedModelSelector?: boolean
   }) => (
     (capturedOnSend = onSend),
     (
       <button
         type="button"
+        data-use-mentioned-model-selector={String(Boolean(useMentionedModelSelector))}
         disabled={sendDisabled}
         onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })}>
         send
@@ -264,6 +267,7 @@ describe('ChatContent', () => {
     expect(screen.getByTestId('message-list-loading')).toBeInTheDocument()
     expect(screen.queryByTestId('messages')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'send' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'send' })).toHaveAttribute('data-use-mentioned-model-selector', 'true')
   })
 
   it('centers the home composer for a fresh empty temporary topic and routes assistant changes', () => {
