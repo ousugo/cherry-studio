@@ -358,6 +358,11 @@
       "select_file": "Select a file to preview",
       "toggle": "Show preview panel"
     },
+    "reorder": {
+      "error": {
+        "failed": "Failed to reorder agents"
+      }
+    },
     "right_pane": {
       "close": "Close",
       "files_toggle": "Show files",
@@ -389,11 +394,6 @@
         "files": "Files",
         "flow": "Flow",
         "status": "Status"
-      }
-    },
-    "reorder": {
-      "error": {
-        "failed": "Failed to reorder agents"
       }
     },
     "server": {

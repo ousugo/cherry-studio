@@ -9,6 +9,19 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    children,
+    onPress,
+    ...props
+  }: React.PropsWithChildren<
+    React.ButtonHTMLAttributes<HTMLButtonElement> & {
+      onPress?: React.MouseEventHandler<HTMLButtonElement>
+    }
+  >) => (
+    <button type="button" {...props} onClick={onPress ?? props.onClick}>
+      {children}
+    </button>
+  ),
   Tooltip: ({ children }: React.PropsWithChildren<{ content?: React.ReactNode; delay?: number }>) => <>{children}</>
 }))
 

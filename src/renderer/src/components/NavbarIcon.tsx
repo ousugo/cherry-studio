@@ -1,11 +1,17 @@
+import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComponentPropsWithoutRef } from 'react'
+import type { ComponentProps } from 'react'
 
-const NavbarIcon = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => {
+type NavbarIconProps = Omit<ComponentProps<typeof Button>, 'variant' | 'size'>
+
+const NavbarIcon = ({ className, type = 'button', ...props }: NavbarIconProps) => {
   return (
-    <div
+    <Button
+      type={type}
+      variant="ghost"
+      size="icon-navbar"
       className={cn(
-        'flex h-[30px] cursor-pointer flex-row items-center justify-center rounded-[8px] px-[7px] text-foreground/70 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted hover:text-foreground [&_.anticon]:text-[16px] [&_.anticon]:text-current [&_.icon-a-addchat]:text-[20px] [&_.icon-a-darkmode]:text-[20px] [&_.icon-appstore]:text-[20px] [&_.iconfont]:text-[18px] [&_.iconfont]:text-current [&_svg]:size-[18px] [&_svg]:shrink-0',
+        '!text-foreground/70 duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted hover:text-foreground',
         className
       )}
       {...props}

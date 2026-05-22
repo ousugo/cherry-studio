@@ -358,6 +358,11 @@
       "select_file": "选择文件以预览",
       "toggle": "显示预览面板"
     },
+    "reorder": {
+      "error": {
+        "failed": "智能体排序失败"
+      }
+    },
     "right_pane": {
       "close": "关闭",
       "files_toggle": "显示文件",
@@ -389,11 +394,6 @@
         "files": "文件",
         "flow": "消息流",
         "status": "状态"
-      }
-    },
-    "reorder": {
-      "error": {
-        "failed": "智能体排序失败"
       }
     },
     "server": {

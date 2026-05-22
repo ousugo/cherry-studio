@@ -229,7 +229,7 @@ function ModelTokenHoverInfo({ model, providerName }: { model?: ModelTokenPayloa
   const hasTokenLimits = Boolean(contextWindow || maxInputTokens)
 
   return (
-    <div className="inline-flex min-w-[120px] w-max flex-col gap-1.5">
+    <div className="inline-flex w-max min-w-[120px] flex-col gap-1.5">
       <div className="flex items-start justify-between gap-3">
         <div className="max-w-[150px] truncate font-semibold text-[11px] leading-4">{model?.name}</div>
         {providerName ? (
@@ -712,7 +712,7 @@ export default function ComposerSurface({
       )}>
       {modelTokenViews.length > 0 ? (
         <div className="-translate-y-1/2 absolute top-0 left-4 z-4 flex items-center rounded-full">
-          <div className="pointer-events-none absolute top-1/2 left-0 z-0 h-3 w-full -translate-y-1/2 rounded-full bg-card" />
+          <div className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-0 h-3 w-full rounded-full bg-card" />
           {modelTokenViews.map(({ token, model, providerName }) => (
             <Tooltip
               key={token.id}
@@ -722,7 +722,7 @@ export default function ComposerSurface({
               sideOffset={6}
               showArrow={false}
               isDisabled={!model}
-              className="max-w-none rounded-md border border-border bg-popover/95 p-2 text-popover-foreground shadow-lg shadow-black/10 backdrop-blur-xl dark:bg-popover/95 dark:shadow-black/40">
+              className="max-w-none rounded-md border border-border bg-popover/95 p-2 text-popover-foreground shadow-black/10 shadow-lg backdrop-blur-xl dark:bg-popover/95 dark:shadow-black/40">
               <span className="group/model-token relative z-1 flex size-7 items-center justify-center text-foreground">
                 {model ? (
                   <ModelAvatar

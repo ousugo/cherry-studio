@@ -358,6 +358,11 @@
       "select_file": "選擇檔案以預覽",
       "toggle": "顯示預覽面板"
     },
+    "reorder": {
+      "error": {
+        "failed": "Agent 排序失敗"
+      }
+    },
     "right_pane": {
       "close": "關閉",
       "files_toggle": "顯示檔案",
@@ -389,11 +394,6 @@
         "files": "檔案",
         "flow": "訊息流",
         "status": "狀態"
-      }
-    },
-    "reorder": {
-      "error": {
-        "failed": "Agent 排序失敗"
       }
     },
     "server": {

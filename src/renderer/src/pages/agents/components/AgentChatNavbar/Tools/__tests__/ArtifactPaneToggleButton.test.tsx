@@ -1,10 +1,23 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { PropsWithChildren } from 'react'
+import type { ButtonHTMLAttributes, MouseEventHandler, PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import ArtifactPaneToggleButton from '../ArtifactPaneToggleButton'
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    children,
+    onPress,
+    ...props
+  }: PropsWithChildren<
+    ButtonHTMLAttributes<HTMLButtonElement> & {
+      onPress?: MouseEventHandler<HTMLButtonElement>
+    }
+  >) => (
+    <button type="button" {...props} onClick={onPress ?? props.onClick}>
+      {children}
+    </button>
+  ),
   Tooltip: ({ children, content }: PropsWithChildren<{ content: string }>) => (
     <div data-testid="artifact-tooltip" data-content={content}>
       {children}

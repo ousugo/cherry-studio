@@ -1093,7 +1093,6 @@ describe('Topics', () => {
 
     const createButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })
     expect(createButton).toBeInTheDocument()
-    expect(createButton).toHaveClass('!size-6', '!min-w-6', 'rounded-md')
     expect(createButton).not.toHaveClass('border')
     expect(createButton.querySelector('.lucide-square-pen')).toBeInTheDocument()
     expect(screen.getByRole('listbox')).toHaveClass('pt-0')

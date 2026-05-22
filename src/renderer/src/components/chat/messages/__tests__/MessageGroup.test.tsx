@@ -542,9 +542,12 @@ describe('MessageGroup', () => {
       <MessageGroup messages={messages} topic={topic} onMultiModelMessageStyleChange={onMultiModelMessageStyleChange} />
     )
 
-    const menuProps = mocks.MessageGroupMenuBar.mock.calls.at(-1)?.[0] as {
-      setMultiModelMessageStyle: (style: MultiModelMessageStyle) => void
-    }
+    const lastMenuCall = mocks.MessageGroupMenuBar.mock.calls.at(-1) as unknown as [
+      {
+        setMultiModelMessageStyle: (style: MultiModelMessageStyle) => void
+      }
+    ]
+    const menuProps = lastMenuCall[0]
     act(() => {
       menuProps.setMultiModelMessageStyle('horizontal')
     })
