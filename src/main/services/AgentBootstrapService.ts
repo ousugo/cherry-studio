@@ -5,7 +5,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
 
 import { extractRtkBinaries } from '../utils/rtk'
-import { channelManager } from './agents/services/channels'
 
 const logger = loggerService.withContext('AgentBootstrapService')
 const RunTaskArgsSchema = z.strictObject({
@@ -27,11 +26,9 @@ export function validateListToolsArgs(args: unknown) {
 }
 
 /**
- * Lifecycle-managed service that orchestrates agent subsystem initialization.
- *
- * Wraps the non-lifecycle agent singletons (channelManager) so their
- * startup/shutdown is managed by the application lifecycle. The `agent.task`
- * scheduler / Run-Now IPC now lives in `AgentJobsService`.
+ * Lifecycle-managed service holding the remaining agent IPC handlers and
+ * the one-shot Claude Code binary extraction. `ChannelManager` and
+ * `AgentJobsService` now own their own lifecycles directly.
  */
 @Injectable('AgentBootstrapService')
 @ServicePhase(Phase.WhenReady)
@@ -48,17 +45,6 @@ export class AgentBootstrapService extends BaseService {
       }
       return driver.listAvailableTools(parsed.mcps)
     })
-
-    await channelManager.start()
-    logger.info('Channel manager started')
-  }
-
-  protected async onStop(): Promise<void> {
-    // Cleanup belongs to onStop (not onDestroy) so the service is restartable:
-    // a restart after `application.stop('AgentBootstrapService')` would
-    // otherwise leak channel adapter sets.
-    await channelManager.stop()
-    logger.info('Channel manager stopped')
   }
 
   private async extractRtkBinaries(): Promise<void> {

@@ -5,14 +5,12 @@ import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import type { JobHandler } from '@main/core/job/types'
-import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
 import { readHeartbeat } from '@main/services/agents/services/cherryclaw/heartbeat'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 
 import { ChannelAdapterListener, type StreamListener } from '../../stream-manager'
-import { agentChatContextProvider } from '../../stream-manager/context/AgentChatContextProvider'
-import { buildAgentSessionTopicId } from '../topic'
+import { startAgentSessionRun } from '../api/startAgentSessionRun'
 
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
@@ -107,7 +105,7 @@ export const agentTaskHandler: JobHandler<{ agentId: string; taskId: string }> =
       }
 
       const channelListeners: StreamListener[] = subscribedChannels.flatMap((ch) => {
-        const adapter = channelManager.getAdapter(ch.id)
+        const adapter = application.get('ChannelManager').getAdapter(ch.id)
         if (!adapter) return []
         return adapter.notifyChatIds.map((chatId) => new ChannelAdapterListener(adapter, chatId))
       })
@@ -150,24 +148,10 @@ export const agentTaskHandler: JobHandler<{ agentId: string; taskId: string }> =
         : null
 
       try {
-        const topicId = buildAgentSessionTopicId(session.id)
-        const prepared = await agentChatContextProvider.prepareDispatch(
-          sentinel,
-          {
-            trigger: 'submit-message',
-            topicId,
-            userMessageParts: [{ type: 'text', text: fullPrompt }]
-          },
-          { hasLiveStream: false }
-        )
-
-        application.get('AiStreamManager').send({
-          topicId: prepared.topicId,
-          models: prepared.models,
-          listeners: [...prepared.listeners, ...channelListeners],
-          userMessage: prepared.userMessage,
-          siblingsGroupId: prepared.siblingsGroupId,
-          lifecycle: prepared.lifecycle
+        await startAgentSessionRun({
+          sessionId: session.id,
+          userParts: [{ type: 'text', text: fullPrompt }],
+          listeners: [sentinel, ...channelListeners]
         })
 
         const responseText = await executionDone
@@ -212,7 +196,7 @@ async function notifyTaskError(
   const text = `[Task failed] ${task.name}\nDuration: ${durationSec}s\nError: ${error}`
 
   for (const ch of subscribedChannels) {
-    const adapter = channelManager.getAdapter(ch.id)
+    const adapter = application.get('ChannelManager').getAdapter(ch.id)
     if (!adapter) continue
     for (const chatId of adapter.notifyChatIds) {
       adapter.sendMessage(chatId, text).catch((err) => {

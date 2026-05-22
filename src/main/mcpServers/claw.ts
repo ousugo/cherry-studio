@@ -4,8 +4,8 @@ import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { agentTaskWorkflowService } from '@data/services/AgentTaskWorkflowService'
 import { loggerService } from '@logger'
+import { application } from '@main/core/application'
 import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/services/channels/channelConfig'
-import { channelManager } from '@main/services/agents/services/channels/ChannelManager'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -370,7 +370,7 @@ class ClawServer {
     if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for notify")
 
     const targetChannelId = args.channel_id
-    let adapters = channelManager.getAgentAdapters(this.agentId)
+    let adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
 
     if (targetChannelId) {
       adapters = adapters.filter((a) => a.channelId === targetChannelId)
@@ -428,7 +428,7 @@ class ClawServer {
     const config = agent.configuration
     const channels = await channelService.listChannels({ agentId: this.agentId })
 
-    const adapterStatuses = channelManager.getAdapterStatuses(this.agentId)
+    const adapterStatuses = application.get('ChannelManager').getAdapterStatuses(this.agentId)
     const statusMap = new Map(adapterStatuses.map((s) => [s.channelId, s.connected]))
 
     const channelSummary = channels.map((ch) => ({
@@ -502,15 +502,18 @@ class ClawServer {
         isActive: enabled ?? true
       })
 
-      const qrPromise = channelManager.waitForQrUrl(this.agentId, newChannel.id, 30_000)
+      const qrPromise = application.get('ChannelManager').waitForQrUrl(this.agentId, newChannel.id, 30_000)
       // Fire-and-forget: syncChannel will complete once the user scans
-      channelManager.syncChannel(newChannel.id).catch((err) => {
-        logger.error(`${type} sync failed`, {
-          agentId: this.agentId,
-          channelId: newChannel.id,
-          error: err instanceof Error ? err.message : String(err)
+      application
+        .get('ChannelManager')
+        .syncChannel(newChannel.id)
+        .catch((err) => {
+          logger.error(`${type} sync failed`, {
+            agentId: this.agentId,
+            channelId: newChannel.id,
+            error: err instanceof Error ? err.message : String(err)
+          })
         })
-      })
 
       const channelLabel = type === 'wechat' ? 'WeChat' : 'Feishu'
       const scanHint =
@@ -628,21 +631,24 @@ class ClawServer {
     const needsQr = channel.type === 'wechat' || (channel.type === 'feishu' && !channel.config.app_id)
 
     if (!needsQr) {
-      await channelManager.syncChannel(channelId)
+      await application.get('ChannelManager').syncChannel(channelId)
       return {
         content: [{ type: 'text' as const, text: `Channel "${channelId}" reconnected.` }]
       }
     }
 
     // QR-based reconnect: sync in background, wait for QR URL
-    const qrPromise = channelManager.waitForQrUrl(this.agentId, channelId, 30_000)
-    channelManager.syncChannel(channelId).catch((err) => {
-      logger.error('Reconnect sync failed', {
-        agentId: this.agentId,
-        channelId,
-        error: err instanceof Error ? err.message : String(err)
+    const qrPromise = application.get('ChannelManager').waitForQrUrl(this.agentId, channelId, 30_000)
+    application
+      .get('ChannelManager')
+      .syncChannel(channelId)
+      .catch((err) => {
+        logger.error('Reconnect sync failed', {
+          agentId: this.agentId,
+          channelId,
+          error: err instanceof Error ? err.message : String(err)
+        })
       })
-    })
 
     const channelLabel = channel.type === 'wechat' ? 'WeChat' : 'Feishu'
 

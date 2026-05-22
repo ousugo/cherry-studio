@@ -2,8 +2,10 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChannelAdapter, type ChannelAdapterConfig } from '../ChannelAdapter'
-import { channelManager, registerAdapterFactory } from '../ChannelManager'
+import { ChannelManager, registerAdapterFactory } from '../ChannelManager'
 import { channelMessageHandler } from '../ChannelMessageHandler'
+
+const channelManager = new ChannelManager()
 
 vi.mock('@logger', () => ({
   loggerService: {

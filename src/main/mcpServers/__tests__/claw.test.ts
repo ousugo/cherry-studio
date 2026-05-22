@@ -40,16 +40,19 @@ vi.mock('@data/services/AgentService', () => ({
   }
 }))
 
-vi.mock('@main/services/agents/services/channels/ChannelManager', () => ({
-  channelManager: {
-    getNotifyAdapters: mockGetNotifyAdapters,
-    getAgentAdapters: mockGetNotifyAdapters,
-    getAdapterStatuses: vi.fn().mockReturnValue([]),
-    syncChannel: mockSyncChannel,
-    disconnectChannel: mockDisconnectChannel,
-    waitForQrUrl: mockWaitForQrUrl
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    ChannelManager: {
+      getNotifyAdapters: mockGetNotifyAdapters,
+      getAgentAdapters: mockGetNotifyAdapters,
+      getAdapterStatuses: vi.fn().mockReturnValue([]),
+      syncChannel: mockSyncChannel,
+      disconnectChannel: mockDisconnectChannel,
+      waitForQrUrl: mockWaitForQrUrl
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 vi.mock('qrcode', () => ({
   default: { toDataURL: mockQRCodeToDataURL }

@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { loggerService } from '@logger'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import type { ChannelLogEntry, ChannelStatusEvent } from '@shared/config/types'
 import type { AgentChannelEntity as ChannelRow } from '@shared/data/api/schemas/agentChannels'
@@ -43,8 +44,10 @@ async function ensureAdapterLoaded(type: string): Promise<void> {
   await loader()
 }
 
-class ChannelManager {
-  private static instance: ChannelManager | null = null
+@Injectable('ChannelManager')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['WindowManager'])
+export class ChannelManager extends BaseService {
   private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
   private readonly qrWaiters = new Map<
     string,
@@ -53,11 +56,12 @@ class ChannelManager {
   private readonly channelLogs = new ChannelLogBuffer()
   private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
 
-  static getInstance(): ChannelManager {
-    if (!ChannelManager.instance) {
-      ChannelManager.instance = new ChannelManager()
-    }
-    return ChannelManager.instance
+  protected async onReady(): Promise<void> {
+    await this.start()
+  }
+
+  protected async onStop(): Promise<void> {
+    await this.stop()
   }
 
   async start(): Promise<void> {
@@ -394,5 +398,3 @@ class ChannelManager {
     }
   }
 }
-
-export const channelManager = ChannelManager.getInstance()

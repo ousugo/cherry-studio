@@ -42,11 +42,9 @@ vi.mock('@shared/data/types/model', async (importOriginal) => {
   }
 })
 
-const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }))
-vi.mock('@main/core/application', () => ({
-  application: {
-    get: vi.fn().mockReturnValue({ send: mockSend })
-  }
+const { mockStartAgentSessionRun } = vi.hoisted(() => ({ mockStartAgentSessionRun: vi.fn() }))
+vi.mock('@main/ai/agent-session/api/startAgentSessionRun', () => ({
+  startAgentSessionRun: (...args: unknown[]) => mockStartAgentSessionRun(...args)
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({
@@ -58,14 +56,13 @@ vi.mock('@data/services/AgentChannelService', () => ({
 }))
 
 /**
- * Helper: configure mockSend to simulate streaming chunks then calling onDone.
- *
- * Finds the sentinel listener (id starting with 'channel-completion:') from the
- * listeners array, feeds it chunks, then calls onDone to resolve the execution promise.
+ * Helper: configure mockStartAgentSessionRun to simulate streaming chunks then
+ * calling onDone on the channel-completion sentinel listener so the
+ * `executionDone` promise inside `collectStreamResponse` resolves.
  */
 function simulateStream(parts: Array<{ type: string; text?: string }>) {
-  mockSend.mockImplementationOnce(
-    ({
+  mockStartAgentSessionRun.mockImplementationOnce(
+    async ({
       listeners
     }: {
       listeners: Array<{ id: string; onChunk: (chunk: unknown) => void; onDone: (result: { status: string }) => void }>
@@ -77,7 +74,6 @@ function simulateStream(parts: Array<{ type: string; text?: string }>) {
         }
         sentinel.onDone({ status: 'success' })
       }
-      return { mode: 'started', executionIds: [] }
     }
   )
 }
@@ -251,11 +247,10 @@ describe('ChannelMessageHandler', () => {
       command: 'compact'
     })
 
-    // Verify send() was called with the correct structure
-    expect(mockSend).toHaveBeenCalledWith(
+    expect(mockStartAgentSessionRun).toHaveBeenCalledWith(
       expect.objectContaining({
-        topicId: 'agent-session:session-1',
-        models: expect.arrayContaining([expect.objectContaining({ modelId: expect.any(String) })]),
+        sessionId: 'session-1',
+        userParts: [{ type: 'text', text: '/compact' }],
         listeners: expect.arrayContaining([
           expect.objectContaining({ id: expect.stringContaining('channel-completion:') })
         ])

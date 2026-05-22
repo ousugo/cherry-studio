@@ -6,9 +6,8 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
-import { buildAgentSessionTopicId } from '@main/ai/agent-session/topic'
+import { startAgentSessionRun } from '@main/ai/agent-session/api/startAgentSessionRun'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
-import { application } from '@main/core/application'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 
@@ -524,20 +523,7 @@ export class ChannelMessageHandler {
     if (!session.agentId) {
       throw new Error(`Cannot stream on orphan session ${session.id} — its agent was deleted`)
     }
-    const agentId = session.agentId
-    const agent = await agentService.getAgent(agentId)
-    if (!agent || !agent.model) {
-      throw new Error(`Agent ${agentId} not found or has no model configured`)
-    }
-    const topicId = buildAgentSessionTopicId(session.id)
-    const uniqueModelId = agent.model
 
-    // Build listeners
-    // Renderer subscribes via Ai_Stream_Attach IPC → WebContentsListener added by AiStreamManager.
-    // No manual bus push needed — all subscribers are equal topic listeners.
-    const listeners: StreamListener[] = [new ChannelAdapterListener(adapter, chatId)]
-
-    // Completion sentinel: accumulates text and resolves when done
     let resolveExecution!: (text: string) => void
     let rejectExecution!: (err: unknown) => void
     const executionDone = new Promise<string>((resolve, reject) => {
@@ -545,7 +531,7 @@ export class ChannelMessageHandler {
       rejectExecution = reject
     })
     let accumulatedText = ''
-    listeners.push({
+    const sentinel: StreamListener = {
       id: `channel-completion:${chatId}`,
       onChunk(chunk) {
         const c = chunk as { type: string; text?: string }
@@ -561,25 +547,12 @@ export class ChannelMessageHandler {
         rejectExecution(new Error(result.error.message ?? 'Execution failed'))
       },
       isAlive: () => !abortController.signal.aborted
-    })
+    }
 
-    // Start execution via AiStreamManager
-    const aiStreamManager = application.get('AiStreamManager')
-    aiStreamManager.send({
-      topicId,
-      models: [
-        {
-          modelId: uniqueModelId,
-          request: {
-            chatId: topicId,
-            trigger: 'submit-message',
-            assistantId: agentId,
-            uniqueModelId,
-            messages: [{ id: randomUUID(), role: 'user', parts: [{ type: 'text', text: content }] }]
-          }
-        }
-      ],
-      listeners
+    await startAgentSessionRun({
+      sessionId: session.id,
+      userParts: [{ type: 'text', text: content }],
+      listeners: [sentinel, new ChannelAdapterListener(adapter, chatId)]
     })
 
     return executionDone

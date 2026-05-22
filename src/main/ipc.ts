@@ -478,15 +478,11 @@ export async function registerIpc() {
   )
 
   // Channel logs & status
-  ipcMain.handle(IpcChannel.Channel_GetLogs, async (_event, channelId: string) => {
-    const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
-    return channelManager.getChannelLogs(channelId)
-  })
+  ipcMain.handle(IpcChannel.Channel_GetLogs, (_event, channelId: string) =>
+    application.get('ChannelManager').getChannelLogs(channelId)
+  )
 
-  ipcMain.handle(IpcChannel.Channel_GetStatuses, async () => {
-    const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
-    return channelManager.getAllStatuses()
-  })
+  ipcMain.handle(IpcChannel.Channel_GetStatuses, () => application.get('ChannelManager').getAllStatuses())
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
