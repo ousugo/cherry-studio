@@ -1,5 +1,5 @@
 import type { Span } from '@opentelemetry/api'
-import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
+import type { ApprovalDecision, StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -113,6 +113,8 @@ export interface StreamExecution {
   droppedChunks: number
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
   finalMessage?: CherryUIMessage
+  /** User approval decisions that must be kept on future accumulated snapshots. */
+  approvalDecisions?: ApprovalDecision[]
   /** Set on `tool-approval-request`, cleared on response. Drives the `topic.stream.statuses` cache. */
   awaitingApproval?: boolean
   error?: SerializedError

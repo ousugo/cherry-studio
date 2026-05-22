@@ -114,7 +114,7 @@ function extractImageUrl(part: CherryMessagePart): string | undefined {
 /** Get video filePath from a data-video part. */
 function getVideoFilePath(part: CherryMessagePart): string | undefined {
   if (isDataUIPart(part) && part.type === 'data-video') {
-    return (part.data as VideoPartData).filePath
+    return part.data.filePath
   }
   return undefined
 }

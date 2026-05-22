@@ -129,12 +129,12 @@ describe('ClaudeCodeStreamAdapter', () => {
     adapter.handleMessage({
       ...streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }),
       parent_tool_use_id: 'parent-tool'
-    } as any)
+    })
     adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
     adapter.handleMessage({
       ...streamEvent({ type: 'content_block_start', index: 1, content_block: { type: 'thinking', thinking: '' } }),
       parent_tool_use_id: 'parent-tool'
-    } as any)
+    })
 
     expect(parts[0]).toMatchObject({
       type: 'text-start',

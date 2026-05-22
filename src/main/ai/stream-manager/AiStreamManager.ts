@@ -13,14 +13,15 @@ import type {
   AiStreamOpenRequest,
   AiStreamQueueRemoveRequest,
   AiStreamQueueReorderRequest,
-  AiStreamQueueUpdateRequest
+  AiStreamQueueUpdateRequest,
+  ApprovalDecision
 } from '@shared/ai/transport'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { CherryMessagePart, Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
-import { type UIMessageChunk } from 'ai'
+import { isToolUIPart, type UIMessageChunk } from 'ai'
 
 import { PendingMessageQueue } from '../agent/loop/PendingMessageQueue'
 import type { AiStreamRequest } from '../types/requests'
@@ -172,6 +173,42 @@ function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
   } as CherryUIMessage
   exec.finalMessage = finalMessage
   return finalMessage
+}
+
+function replayApprovalDecisionsOnSnapshot(
+  finalMessage: CherryUIMessage,
+  decisions: readonly ApprovalDecision[] | undefined
+): CherryUIMessage {
+  if (!decisions?.length || !finalMessage.parts?.length) return finalMessage
+
+  const byApprovalId = new Map<string, ApprovalDecision>()
+  for (const decision of decisions) byApprovalId.set(decision.approvalId, decision)
+
+  let changed = false
+  const parts = (finalMessage.parts as CherryMessagePart[]).map((part) => {
+    if (!isToolUIPart(part)) return part
+    const approvalId = part.approval?.id
+    const decision = approvalId ? byApprovalId.get(approvalId) : undefined
+    if (!decision) return part
+
+    changed = true
+    return {
+      ...part,
+      ...(decision.updatedInput !== undefined ? { input: decision.updatedInput } : {}),
+      ...(part.state === 'approval-requested'
+        ? {
+            state: 'approval-responded',
+            approval: {
+              id: decision.approvalId,
+              approved: decision.approved,
+              ...(decision.reason !== undefined ? { reason: decision.reason } : {})
+            }
+          }
+        : {})
+    } as CherryMessagePart
+  })
+
+  return changed ? ({ ...finalMessage, parts } as CherryUIMessage) : finalMessage
 }
 
 /**
@@ -649,6 +686,30 @@ export class AiStreamManager extends BaseService {
     }
   }
 
+  applyApprovalDecision(topicId: string, decision: ApprovalDecision): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return false
+
+    let applied = false
+    for (const exec of stream.executions.values()) {
+      exec.approvalDecisions = [
+        ...(exec.approvalDecisions?.filter((d) => d.approvalId !== decision.approvalId) ?? []),
+        decision
+      ]
+
+      const finalMessage = exec.finalMessage
+      if (!finalMessage) continue
+      const parts = finalMessage.parts
+      if (!parts?.length) continue
+      const targetPresent = parts.some((part) => isToolUIPart(part) && part.approval?.id === decision.approvalId)
+      if (!targetPresent) continue
+
+      exec.finalMessage = replayApprovalDecisionsOnSnapshot(finalMessage, [decision])
+      applied = true
+    }
+    return applied
+  }
+
   // ── Public: attach / detach ──────────────────────────────────────
   // Registered as IPC handlers in `onInit`. Public so tests can drive
   // the same code path with a fake `WebContents`-shaped sender.
@@ -808,7 +869,7 @@ export class AiStreamManager extends BaseService {
       onChunk: (chunk) => this.onChunk(topicId, modelId, chunk),
       accumulatorSeed,
       onAccumulatedSnapshot: (msg) => {
-        exec.finalMessage = msg
+        exec.finalMessage = replayApprovalDecisionsOnSnapshot(msg, exec.approvalDecisions)
       }
     })
 

@@ -10,8 +10,8 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  AgentToolsType,
   type AskUserQuestionToolInput,
+  isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
 } from '../../messages/tools/agent/types'
 import { APPROVAL_REQUESTED } from '../../messages/tools/toolResponse'
@@ -66,11 +66,7 @@ export function findLatestPendingAskUserQuestionRequest(
 
       const toolPart = part as AskUserQuestionToolPart
       const approvalId = toolPart.approval?.id
-      if (
-        getToolName(toolPart) !== AgentToolsType.AskUserQuestion ||
-        toolPart.state !== APPROVAL_REQUESTED ||
-        !approvalId
-      ) {
+      if (!isAskUserQuestionToolName(getToolName(toolPart)) || toolPart.state !== APPROVAL_REQUESTED || !approvalId) {
         continue
       }
 

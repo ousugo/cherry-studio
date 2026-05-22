@@ -8,7 +8,7 @@ import { useToolApprovalComposerOverrides } from '@renderer/components/chat/comp
 import AgentComposer, { AgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
 import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import { useShellState } from '@renderer/components/chat/panes/shell'
+import { useShellState } from '@renderer/components/chat/panes/Shell'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
@@ -412,13 +412,15 @@ const AgentChatSessionFrame = ({
         approvalId,
         approved,
         reason,
-        updatedInput
+        updatedInput,
+        topicId: sessionTopicId,
+        anchorId: match.messageId
       })
 
       if (!result.ok) throw new Error('Tool approval response was not accepted')
       await refresh()
     },
-    [refresh]
+    [refresh, sessionTopicId]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,

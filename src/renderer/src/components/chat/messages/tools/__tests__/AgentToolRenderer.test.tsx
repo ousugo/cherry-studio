@@ -114,6 +114,8 @@ describe('AgentToolRenderer', () => {
     'message.tools.sections.output': 'Output',
     'message.tools.sections.prompt': 'Prompt',
     'message.tools.sections.input': 'Input',
+    'agent.askUserQuestion.title': 'Questions from Agent',
+    'agent.askUserQuestion.answered': 'answered',
     'message.tools.status.done': 'Done',
     'message.tools.units.item_one': '{{count}} item',
     'message.tools.units.item_other': '{{count}} items',
@@ -384,6 +386,97 @@ describe('AgentToolRenderer', () => {
 
       // Should show the ToolStatusIndicator with loading icon
       expect(screen.getByTestId('loading-icon')).toBeInTheDocument()
+    })
+
+    it('hides AskUserQuestion message card while the composer handles the pending question', () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'pending',
+        toolCallId: 'call-ask',
+        arguments: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }, { label: 'Pino' }],
+              multiSelect: false
+            }
+          ]
+        }
+      })
+
+      mockPartsMap.mockReturnValue({
+        msg1: [
+          {
+            type: 'tool-AskUserQuestion',
+            toolName: 'AskUserQuestion',
+            toolCallId: toolResponse.toolCallId,
+            state: 'approval-requested',
+            approval: { id: 'approval-ask' },
+            input: toolResponse.arguments
+          }
+        ]
+      })
+
+      const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(container).toBeEmptyDOMElement()
+    })
+
+    it('shows AskUserQuestion answers from tool output when input only has questions', () => {
+      const questions = [
+        {
+          question: 'Choose logger',
+          header: 'Logger',
+          options: [{ label: 'Winston' }, { label: 'Pino' }],
+          multiSelect: false
+        }
+      ]
+      const toolResponse = createToolResponse({
+        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
+        status: 'done',
+        toolCallId: 'call-ask',
+        arguments: { questions },
+        response: {
+          questions,
+          answers: { 'Choose logger': 'Winston' }
+        }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Winston')).not.toBeVisible()
+      fireEvent.click(screen.getAllByRole('button')[0])
+      expect(screen.getByText('Winston')).toBeInTheDocument()
+      expect(screen.getByText('Winston')).toBeVisible()
+    })
+
+    it('renders builtin AskUserQuestion tool names through MessageTool', () => {
+      const questions = [
+        {
+          question: 'Choose logger',
+          header: 'Logger',
+          options: [{ label: 'Winston' }, { label: 'Pino' }],
+          multiSelect: false
+        }
+      ]
+      const toolResponse = createToolResponse({
+        tool: {
+          id: 'call-ask',
+          name: 'builtin_AskUserQuestion',
+          description: 'Ask user',
+          type: 'builtin'
+        },
+        status: 'done',
+        toolCallId: 'call-ask',
+        arguments: { questions, answers: { 'Choose logger': 'Winston' } }
+      })
+
+      render(<MessageTool toolResponse={toolResponse} />)
+
+      expect(screen.getByText('Questions from Agent')).toBeInTheDocument()
+      fireEvent.click(screen.getAllByRole('button')[0])
+      expect(screen.getByText('Winston')).toBeVisible()
     })
   })
 

@@ -9,7 +9,7 @@ import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { getEffectiveStatus, StreamingContext } from './GenericTools'
 import { NavigateToolInline } from './NavigateTool'
 import ToolPermissionCard from './ToolPermissionCard'
-import { AgentToolsType } from './types'
+import { AgentToolsType, isAskUserQuestionToolName } from './types'
 
 export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
@@ -31,7 +31,9 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
     return <NavigateToolInline input={args ?? parsedPartialArgs} output={response} />
   }
 
-  if (tool?.name === AgentToolsType.AskUserQuestion) {
+  if (isAskUserQuestionToolName(tool?.name)) {
+    if (awaitingApproval) return null
+
     const isLoading = status === 'streaming' || status === 'invoking'
     return (
       <StreamingContext value={isLoading}>

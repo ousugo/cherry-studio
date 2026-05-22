@@ -197,4 +197,45 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(mocks.adapterInstances[0].finalizeOpenParts).toHaveBeenCalled()
     connection.close()
   })
+
+  it('binds tool approval requests into the active turn stream', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const dispose = vi.fn()
+    const approvalEmitter: any = { dispose }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { approvalEmitter },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    void connection.send({ message: userMessage() })
+    approvalEmitter.emit({
+      type: 'tool-approval-request',
+      approvalId: 'approval-1',
+      toolCallId: 'tool-1'
+    } as any)
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-approval-request',
+          approvalId: 'approval-1',
+          toolCallId: 'tool-1'
+        }
+      }
+    })
+    void connection.close()
+    expect(dispose).toHaveBeenCalled()
+  })
 })

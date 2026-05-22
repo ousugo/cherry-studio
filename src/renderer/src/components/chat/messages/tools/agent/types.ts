@@ -182,7 +182,7 @@ export const AskUserQuestionItemSchema = z.object({
   question: z.string(),
   header: z.string(),
   options: z.array(AskUserQuestionOptionSchema).min(2).max(4),
-  multiSelect: z.boolean()
+  multiSelect: z.boolean().default(false)
 })
 
 export const AskUserQuestionAnswerSchema = z.record(z.string(), z.string())
@@ -209,6 +209,14 @@ export type AskUserQuestionToolInput = Omit<AskUserQuestionInput, 'questions'> &
 export type AskUserQuestionToolOutput = AskUserQuestionOutput
 export type AskUserQuestionAnswer = NonNullable<AskUserQuestionInput['answers']>
 
+export function isAskUserQuestionToolName(toolName: unknown): boolean {
+  return toolName === AgentToolsType.AskUserQuestion || toolName === 'builtin_AskUserQuestion'
+}
+
+/**
+ * Safely parse AskUserQuestionToolInput from unknown data.
+ * Returns undefined if the data doesn't match the expected structure.
+ */
 export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionToolInput | undefined {
   const result = AskUserQuestionToolInputSchema.safeParse(value)
   return result.success ? (result.data as AskUserQuestionToolInput) : undefined
@@ -245,7 +253,6 @@ export type ToolInput =
   | SkillToolInput
   | AgentToolInput
   | ReadToolInput
-  | TaskToolInput
   | TaskOutputToolInput
   | TaskStopToolInput
   | BashToolInput
@@ -263,7 +270,6 @@ export type ToolInput =
   | ExitPlanModeToolInput
   | ListMcpResourcesToolInput
   | ReadMcpResourceToolInput
-  | KillBashToolInput
   | AskUserQuestionToolInput
   | ToolSearchToolInput
   | TaskCreateToolInput
@@ -281,8 +287,6 @@ export type ToolOutput =
   | TaskOutputToolOutput
   | TaskStopToolOutput
   | BashToolOutput
-  | BashOutputToolOutput
-  | SearchToolOutput
   | GlobToolOutput
   | TodoWriteToolOutput
   | WebSearchToolOutput
@@ -290,7 +294,6 @@ export type ToolOutput =
   | WriteToolOutput
   | WebFetchToolOutput
   | EditToolOutput
-  | MultiEditToolOutput
   | NotebookEditToolOutput
   | ExitPlanModeToolOutput
   | ListMcpResourcesToolOutput

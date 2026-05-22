@@ -39,6 +39,8 @@ function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     model: clean.model as UniqueModelId | undefined,
+    planModel: clean.planModel as UniqueModelId | undefined,
+    smallModel: clean.smallModel as UniqueModelId | undefined,
     configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),

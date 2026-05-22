@@ -16,6 +16,7 @@ import type {
 } from '../types'
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
 import { ClaudeCodeStreamAdapter } from './streamAdapter'
+import type { ToolApprovalEmitterHolder } from './types'
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
   private readonly items: T[] = []
@@ -100,6 +101,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private query?: Query
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
+  private approvalEmitter?: ToolApprovalEmitterHolder
   private pendingInitMessage?: SDKSystemMessage
   private resumeToken?: string
 
@@ -130,6 +132,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       ? warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
+    this.approvalEmitter = request.settings.approvalEmitter
     void this.runQueryLoop()
     return this
   }
@@ -153,6 +156,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   close(): void {
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
+    this.disposeApprovalEmitter()
     this.query?.close()
     this.eventQueue.close()
   }
@@ -177,11 +181,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         if (result.type === 'result') {
           this.updateResumeToken(result.sessionId)
           this.adapter = undefined
+          this.disposeApprovalEmitter()
           this.eventQueue.push({ type: 'turn-complete' })
         }
       }
     } catch (error) {
       this.adapter = undefined
+      this.disposeApprovalEmitter()
       this.eventQueue.push({ type: 'error', error })
     } finally {
       this.query = undefined
@@ -190,6 +196,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {
+    this.bindApprovalEmitter()
     return new ClaudeCodeStreamAdapter({
       modelId,
       streamOptions: {} as never,
@@ -198,6 +205,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       },
       onSessionId: (resumeToken) => this.updateResumeToken(resumeToken)
     })
+  }
+
+  private bindApprovalEmitter(): void {
+    if (!this.approvalEmitter) return
+    this.approvalEmitter.emit = (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
+  }
+
+  private disposeApprovalEmitter(): void {
+    this.approvalEmitter?.dispose?.()
   }
 
   private updateResumeToken(resumeToken: string): void {

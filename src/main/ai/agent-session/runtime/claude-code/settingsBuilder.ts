@@ -62,10 +62,8 @@ const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const require_ = createRequire(import.meta.url)
 const promptBuilder = new PromptBuilder()
 
-// ── Tool call ID convention ─────────────────────────────────────────
-
-function buildNamespacedToolCallId(sessionId: string, rawToolCallId: string): string {
-  return `${sessionId}:${rawToolCallId}`
+function isAskUserQuestionTool(toolName: string): boolean {
+  return toolName === 'AskUserQuestion' || toolName === 'builtin_AskUserQuestion'
 }
 
 const toolApprovalEmitters = new Map<string, ToolApprovalEmitterHolder>()
@@ -395,6 +393,7 @@ function buildToolPermissions(
       return { behavior: 'deny', message: 'Tool request was cancelled' }
     }
     if (
+      !isAskUserQuestionTool(toolName) &&
       shouldAutoApprove({
         toolKind: 'claude-agent',
         toolName,
@@ -405,7 +404,6 @@ function buildToolPermissions(
       return { behavior: 'allow', updatedInput: input }
     }
 
-    const namespacedToolCallId = buildNamespacedToolCallId(session.id, opts.toolUseID)
     const approvalId = randomUUID()
     const emit = approvalEmitter.emit
     if (!emit) {
@@ -416,7 +414,7 @@ function buildToolPermissions(
       toolApprovalRegistry.register({
         approvalId,
         sessionId: session.id,
-        toolCallId: namespacedToolCallId,
+        toolCallId: opts.toolUseID,
         toolName,
         originalInput: input,
         signal: opts.signal,
@@ -425,7 +423,7 @@ function buildToolPermissions(
       emit({
         type: 'tool-approval-request',
         approvalId,
-        toolCallId: namespacedToolCallId,
+        toolCallId: opts.toolUseID,
         providerMetadata: { cherry: { transport: 'claude-agent', toolName } }
       })
     })

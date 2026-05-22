@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import type * as MotionReact from 'motion/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -7,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AgentChat from '../AgentChat'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
-  ...((await importOriginal()) as Record<string, unknown>),
+  ...(await importOriginal()),
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
   Button: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
     <button {...props}>{children}</button>
@@ -166,7 +167,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 // Keep `motion` real; collapse AnimatePresence so exit animations don't retain
 // a stale maximized overlay during the test's synchronous assertions.
 vi.mock('motion/react', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('motion/react')>()),
+  ...(await importOriginal<typeof MotionReact>()),
   AnimatePresence: ({ children }: PropsWithChildren) => <>{children}</>,
   useReducedMotion: () => false
 }))

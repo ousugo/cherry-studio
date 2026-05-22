@@ -200,13 +200,25 @@ export class AiService extends BaseService {
           anchorId?: string
         }
       ): Promise<{ ok: boolean }> => {
+        const decision = {
+          approvalId: payload.approvalId,
+          approved: payload.approved,
+          ...(payload.reason !== undefined && { reason: payload.reason }),
+          ...(payload.updatedInput !== undefined && { updatedInput: payload.updatedInput })
+        }
+
+        if (payload.topicId) {
+          application.get('AiStreamManager').applyApprovalDecision(payload.topicId, decision)
+        }
+
         // Claude-Agent fast-path: live registry entry unblocks `canUseTool`.
         const dispatched = toolApprovalRegistry.dispatch(payload.approvalId, {
           approved: payload.approved,
           reason: payload.reason,
           updatedInput: payload.updatedInput
         })
-        if (dispatched) return { ok: true }
+
+        if (dispatched && (!payload.topicId || !payload.anchorId)) return { ok: true }
 
         // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
         if (!payload.topicId || !payload.anchorId) {
@@ -223,11 +235,6 @@ export class AiService extends BaseService {
         // explicitly in the IPC payload; apply it here to the DB-authoritative
         // parts (the original stream's terminal persistence wrote the
         // `approval-requested` part onto this row) and persist.
-        const decision = {
-          approvalId: payload.approvalId,
-          approved: payload.approved,
-          ...(payload.reason !== undefined && { reason: payload.reason })
-        }
         const anchor = await messageService.getById(payload.anchorId)
         const beforeParts = anchor.data.parts ?? []
         const targetPresent = beforeParts.some(
@@ -246,6 +253,8 @@ export class AiService extends BaseService {
         if (targetPresent) {
           await messageService.update(payload.anchorId, { data: { parts: afterParts } })
         }
+
+        if (dispatched) return { ok: true }
 
         // Only resume once every approval on this turn is decided — a turn
         // can request several tools at once; the not-yet-decided ones keep

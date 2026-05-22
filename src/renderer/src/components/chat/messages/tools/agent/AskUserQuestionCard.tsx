@@ -1,153 +1,38 @@
-import { Badge, Button, Checkbox, Input, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
+import { Badge, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { usePartsMap } from '@renderer/components/chat/messages/blocks'
 import type { NormalToolResponse } from '@renderer/types'
-import { cn } from '@renderer/utils'
-import { CheckCircle, CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, Send } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { CheckCircle2, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useOptionalMessageListActions } from '../../MessageListProvider'
-import { APPROVAL_REQUESTED, findToolPartByCallId } from '../toolResponse'
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
 import { SkeletonValue } from './GenericTools'
 import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from './types'
 
 const logger = loggerService.withContext('AskUserQuestionCard')
 
-/** Special value used to indicate "Other" option with custom input */
-const OTHER_OPTION_VALUE = '__other__'
-
 // ==================== Sub Components ====================
 
-interface CardHeaderProps {
-  currentIndex: number
-  totalQuestions: number
-  extra?: ReactNode
-}
-
-function CardHeader({ currentIndex, totalQuestions, extra }: CardHeaderProps) {
-  const { t } = useTranslation()
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <HelpCircle className="h-5 w-5 text-primary" />
-        <span className="font-semibold text-default-700">{t('agent.askUserQuestion.title')}</span>
-      </div>
-      <span className="text-default-500 text-xs">
-        <SkeletonValue value={totalQuestions > 0 ? `${currentIndex + 1} / ${totalQuestions}` : null} width="40px" />
-        {extra}
-      </span>
-    </div>
-  )
-}
-
 interface NavigationProps {
-  showPrevious?: boolean
   isFirst: boolean
+  isLast: boolean
   onPrevious: () => void
-  /** The right-side button (Next or Submit) */
-  rightButton: ReactNode
+  onNext: () => void
 }
 
-function Navigation({ showPrevious = true, isFirst, onPrevious, rightButton }: NavigationProps) {
+function Navigation({ isFirst, isLast, onPrevious, onNext }: NavigationProps) {
   const { t } = useTranslation()
   return (
-    <div
-      className={cn(
-        'flex items-center border-default-200 border-t pt-3',
-        showPrevious ? 'justify-between' : 'justify-end'
-      )}>
-      {showPrevious && (
-        <Button variant="outline" disabled={isFirst} onClick={onPrevious} className="flex items-center">
-          <ChevronLeft size={16} />
-          {t('agent.askUserQuestion.previous')}
-        </Button>
-      )}
-      {rightButton}
-    </div>
-  )
-}
-
-interface OptionItemProps {
-  label: string
-  description?: string
-  isSelected: boolean
-  /** The form control element (Radio or Checkbox) to render */
-  control: ReactNode
-  onClick?: () => void
-}
-
-function OptionItem({ label, description, isSelected, control, onClick }: OptionItemProps) {
-  return (
-    <div
-      className={cn(
-        'flex cursor-pointer items-start gap-2 rounded-lg border p-2 transition-colors',
-        'hover:border-primary hover:bg-primary/10',
-        isSelected ? 'border-(--color-primary) bg-primary/10' : 'border-default-200 bg-default-50'
-      )}
-      onClick={onClick}>
-      {control}
-      <div className="min-w-0 flex-1">
-        <div className="text-sm">{label}</div>
-        {description && <div className="mt-0.5 text-default-500 text-xs">{description}</div>}
-      </div>
-    </div>
-  )
-}
-
-interface OptionsListProps {
-  options: Array<{ label: string; description?: string }>
-  selected: string[]
-  hasCustomInput: boolean
-  multiSelect?: boolean
-  onSelect: (label: string, checked?: boolean) => void
-  otherLabel: string
-}
-
-function OptionsList({ options, selected, hasCustomInput, multiSelect, onSelect, otherLabel }: OptionsListProps) {
-  const renderOptionItem = (option: { label: string; description?: string }, isOther = false) => {
-    const label = isOther ? otherLabel : option.label
-    const value = isOther ? OTHER_OPTION_VALUE : option.label
-    const isSelected = isOther ? hasCustomInput : selected.includes(option.label)
-
-    return (
-      <OptionItem
-        key={value}
-        label={label}
-        description={isOther ? undefined : option.description}
-        isSelected={isSelected}
-        control={
-          multiSelect ? (
-            <Checkbox checked={isSelected} className="mt-0.5" size="sm" />
-          ) : (
-            <RadioGroupItem value={value} className="mt-0.5" size="sm" />
-          )
-        }
-        onClick={() => onSelect(value, multiSelect ? !isSelected : undefined)}
-      />
-    )
-  }
-
-  const optionItems = (
-    <>
-      {options.map((option) => renderOptionItem(option))}
-      {renderOptionItem({ label: '' }, true)}
-    </>
-  )
-
-  return (
-    <div className="max-h-64 space-y-2 overflow-y-auto">
-      {multiSelect ? (
-        optionItems
-      ) : (
-        <RadioGroup
-          value={hasCustomInput ? OTHER_OPTION_VALUE : selected[0]}
-          onValueChange={(value) => onSelect(value)}
-          className="w-full">
-          <div className="space-y-2">{optionItems}</div>
-        </RadioGroup>
-      )}
+    <div className="flex items-center justify-between border-default-200 border-t pt-3">
+      <Button variant="outline" disabled={isFirst} onClick={onPrevious} className="flex items-center">
+        <ChevronLeft size={16} />
+        {t('agent.askUserQuestion.previous')}
+      </Button>
+      <Button variant="outline" disabled={isLast} onClick={onNext} className="flex items-center">
+        {t('agent.askUserQuestion.next')}
+        <ChevronRight size={16} />
+      </Button>
     </div>
   )
 }
@@ -162,14 +47,13 @@ interface CompletedContentProps {
 function CompletedContent({ question, answer }: CompletedContentProps) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         <Badge variant={answer ? 'secondary' : 'outline'} className="m-0">
           <SkeletonValue value={question?.header} width="60px" />
         </Badge>
-        {answer && <CheckCircle2 className="h-4 w-4 text-primary" />}
-      </div>
-      <div className="text-default-700 text-sm">
-        <SkeletonValue value={question?.question} width="100%" />
+        <div className="min-w-0 flex-1 text-default-700 text-sm">
+          <SkeletonValue value={question?.question} width="100%" />
+        </div>
       </div>
       {answer && (
         <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 p-2">
@@ -181,310 +65,85 @@ function CompletedContent({ question, answer }: CompletedContentProps) {
   )
 }
 
-// ==================== Pending Mode Content ====================
-
-interface PendingContentProps {
-  question: AskUserQuestionItem
-  selected: string[]
-  hasCustomInput: boolean
-  customInputValue: string
-  isAnswered: boolean
-  /**
-   * Unified handler for option selection.
-   * - Single-select: onSelect(label) - replaces current selection
-   * - Multi-select: onSelect(label, checked) - adds/removes from selection
-   */
-  onSelect: (label: string, checked?: boolean) => void
-  onCustomInputChange: (value: string) => void
-}
-
-function PendingContent({
-  question,
-  selected,
-  hasCustomInput,
-  customInputValue,
-  isAnswered,
-  onSelect,
-  onCustomInputChange
-}: PendingContentProps) {
-  const { t } = useTranslation()
-
-  return (
-    <div className="space-y-3">
-      {/* Header Tag */}
-      <div className="flex items-center gap-2">
-        <Badge variant="secondary" className="m-0">
-          <SkeletonValue value={question?.header} width="60px" />
-        </Badge>
-        {question?.multiSelect && (
-          <Badge variant="secondary" className="m-0">
-            {t('agent.askUserQuestion.multiSelect')}
-          </Badge>
-        )}
-        {isAnswered && <CheckCircle className="h-4 w-4 text-primary" />}
-      </div>
-
-      {/* Question */}
-      <div className="font-medium text-default-700 text-sm">
-        <SkeletonValue value={question?.question} width="100%" />
-      </div>
-
-      {/* Options */}
-      {question?.options ? (
-        <OptionsList
-          options={question.options}
-          selected={selected}
-          hasCustomInput={hasCustomInput}
-          multiSelect={question.multiSelect}
-          onSelect={onSelect}
-          otherLabel={t('agent.askUserQuestion.other')}
-        />
-      ) : (
-        <div className="space-y-2">
-          <SkeletonValue value={null} width="100%" />
-          <SkeletonValue value={null} width="100%" />
-        </div>
-      )}
-
-      {/* Custom input field */}
-      {hasCustomInput && (
-        <Input
-          className="mt-2"
-          placeholder={t('agent.askUserQuestion.customPlaceholder')}
-          value={customInputValue}
-          onChange={(e) => onCustomInputChange(e.target.value)}
-          autoFocus
-        />
-      )}
-    </div>
-  )
-}
-
 // ==================== Main Component ====================
 export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { t } = useTranslation()
-  const partsMap = usePartsMap()
-  const actions = useOptionalMessageListActions()
-  const respondToolApproval = actions?.respondToolApproval
-  const notifyError = actions?.notifyError
-  const match = useMemo(
-    () => findToolPartByCallId(partsMap, toolResponse.toolCallId),
-    [partsMap, toolResponse.toolCallId]
-  )
-  const isPending = match?.state === APPROVAL_REQUESTED
-  const pendingInput = match?.input
 
-  // Parse from available sources — while pending read the part's `input`
-  // (carries the freshly-streamed questions); after response fall back to
-  // the finalized `toolResponse.arguments`.
+  // Parse from available sources. Completed Claude Code AskUserQuestion
+  // parts can keep the original questions in `input` and put user answers
+  // in tool `output`, so read both sides.
   const { questions, answers } = useMemo(() => {
-    const source = isPending ? pendingInput : toolResponse.arguments
-    const parsed = parseAskUserQuestionToolInput(source)
-    if (!parsed?.questions?.length) {
+    const parsedInput = parseAskUserQuestionToolInput(toolResponse.arguments)
+    const parsedOutput = parseAskUserQuestionToolInput(toolResponse.response)
+    const questions = parsedInput?.questions ?? parsedOutput?.questions ?? []
+    const answers = parsedInput?.answers ?? parsedOutput?.answers ?? {}
+
+    if (!questions.length) {
       logger.debug('AskUserQuestion: no questions parsed', {
-        isPending,
         status: toolResponse.status,
-        hasPartInput: !!pendingInput,
-        hasArguments: !!toolResponse.arguments
+        hasArguments: !!toolResponse.arguments,
+        hasResponse: !!toolResponse.response
       })
     }
-    return {
-      questions: parsed?.questions ?? [],
-      answers: parsed?.answers ?? {}
-    }
-  }, [isPending, pendingInput, toolResponse.arguments, toolResponse.status])
+    return { questions, answers }
+  }, [toolResponse.arguments, toolResponse.response, toolResponse.status])
 
   const [currentIndex, setCurrentIndex] = useState(0)
-  // Use question index as key to avoid collision when questions have identical text
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string[]>>({})
-  const [customInputs, setCustomInputs] = useState<Record<number, string>>({})
-  const [showCustomInput, setShowCustomInput] = useState<Record<number, boolean>>({})
-  const [submittedAnswers, setSubmittedAnswers] = useState<Record<string, string>>({})
-
-  const displayAnswers = Object.keys(answers).length > 0 ? answers : submittedAnswers
-
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const currentQuestion = questions[currentIndex]
   const totalQuestions = questions.length
   const isFirstQuestion = currentIndex === 0
   const isLastQuestion = currentIndex === totalQuestions - 1
 
-  const isCurrentAnswered = useMemo(() => {
-    if (!currentQuestion) return false
-    const selected = selectedAnswers[currentIndex] ?? []
-    const custom = customInputs[currentIndex]?.trim()
-    return selected.length > 0 || (showCustomInput[currentIndex] && !!custom)
-  }, [currentQuestion, currentIndex, selectedAnswers, customInputs, showCustomInput])
+  if (!currentQuestion) return null
 
-  const allAnswered = useMemo(() => {
-    return questions.every((_, idx) => {
-      const selected = selectedAnswers[idx] ?? []
-      const custom = customInputs[idx]?.trim()
-      return selected.length > 0 || (showCustomInput[idx] && custom)
-    })
-  }, [questions, selectedAnswers, customInputs, showCustomInput])
+  const answeredCount = Object.keys(answers).length
 
-  const handleSelect = useCallback(
-    (questionIndex: number, label: string, checked?: boolean) => {
-      const isMulti = questions[questionIndex]?.multiSelect
+  const content = (
+    <div className="flex flex-col gap-3">
+      <CompletedContent question={currentQuestion} answer={answers[currentQuestion.question]} />
 
-      if (label === OTHER_OPTION_VALUE) {
-        const showOther = checked ?? true
-        setShowCustomInput((prev) => ({ ...prev, [questionIndex]: showOther }))
-        if (!showOther) setCustomInputs((prev) => ({ ...prev, [questionIndex]: '' }))
-        if (!isMulti) setSelectedAnswers((prev) => ({ ...prev, [questionIndex]: [] }))
-        return
-      }
-
-      if (isMulti) {
-        setSelectedAnswers((prev) => {
-          const current = prev[questionIndex] ?? []
-          return checked
-            ? { ...prev, [questionIndex]: [...current, label] }
-            : { ...prev, [questionIndex]: current.filter((l) => l !== label) }
-        })
-      } else {
-        setShowCustomInput((prev) => ({ ...prev, [questionIndex]: false }))
-        setSelectedAnswers((prev) => ({ ...prev, [questionIndex]: [label] }))
-        setCustomInputs((prev) => ({ ...prev, [questionIndex]: '' }))
-      }
-    },
-    [questions]
+      {totalQuestions > 1 && (
+        <Navigation
+          isFirst={isFirstQuestion}
+          isLast={isLastQuestion}
+          onPrevious={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+          onNext={() => setCurrentIndex((prev) => Math.min(totalQuestions - 1, prev + 1))}
+        />
+      )}
+    </div>
   )
 
-  const handlePrevious = useCallback(() => {
-    if (!isFirstQuestion) setCurrentIndex((prev) => prev - 1)
-  }, [isFirstQuestion])
-
-  const handleNext = useCallback(() => {
-    if (!isLastQuestion) setCurrentIndex((prev) => prev + 1)
-  }, [isLastQuestion])
-
-  const handleSubmit = useCallback(async () => {
-    if (!match || !respondToolApproval) return
-    const collectedAnswers: Record<string, string> = {}
-    questions.forEach((q, idx) => {
-      const selected = selectedAnswers[idx] ?? []
-      const custom = customInputs[idx]?.trim()
-
-      if (showCustomInput[idx] && custom) {
-        collectedAnswers[q.question] = q.multiSelect && selected.length > 0 ? [...selected, custom].join(', ') : custom
-      } else if (selected.length > 0) {
-        collectedAnswers[q.question] = selected.join(', ')
-      }
-    })
-
-    setSubmittedAnswers(collectedAnswers)
-    setIsSubmitting(true)
-
-    // Push `updatedInput` through the ToolApprovalRegistry. The Claude
-    // Agent `canUseTool` resolves with `{behavior:'allow', updatedInput:{
-    // ...originalInput, answers}}` and the same stream continues —
-    // AskUserQuestion reads `answers` as its tool output source.
-    const baseInput = (pendingInput as Record<string, unknown>) ?? {}
-    try {
-      await respondToolApproval({
-        match,
-        approved: true,
-        updatedInput: { ...baseInput, answers: collectedAnswers }
-      })
-    } catch (error) {
-      logger.error('AskUserQuestion submit failed', error as Error)
-      notifyError?.(t('agent.toolPermission.error.sendFailed'))
-    } finally {
-      setIsSubmitting(false)
+  const toolContentItem: ToolDisclosureItem = {
+    key: toolResponse.toolCallId || 'ask-user-question',
+    label: (
+      <AgentToolDisclosureLabel
+        label={
+          <div className="flex items-center gap-2">
+            <span className="tool-icon flex h-4 w-4 shrink-0 items-center justify-center text-foreground-muted">
+              <HelpCircle className="h-4 w-4" />
+            </span>
+            <span className="text-foreground-secondary">{t('agent.askUserQuestion.title')}</span>
+          </div>
+        }
+        trailing={
+          answeredCount > 0 ? (
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-foreground-muted text-xs leading-4">
+              {answeredCount} {t('agent.askUserQuestion.answered')}
+            </span>
+          ) : undefined
+        }
+      />
+    ),
+    children: content,
+    classNames: {
+      header:
+        'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-foreground-secondary [--agent-tool-toggle-left:0px]',
+      body: 'mt-1.5 max-h-96 overflow-auto bg-transparent p-0 text-foreground-900 dark:bg-transparent'
     }
-  }, [
-    match,
-    notifyError,
-    pendingInput,
-    respondToolApproval,
-    questions,
-    selectedAnswers,
-    customInputs,
-    showCustomInput,
-    t
-  ])
-
-  if (isPending && (questions.length === 0 || !currentQuestion)) {
-    return (
-      <div className="rounded-xl border border-default-200 bg-default-100 px-4 py-3 text-default-500 text-sm">
-        {t('agent.toolPermission.waiting')}
-      </div>
-    )
-  }
-
-  const answeredCount = Object.keys(displayAnswers).length
-
-  const submitButton = (
-    <Button
-      variant="default"
-      loading={isSubmitting}
-      disabled={!respondToolApproval || !allAnswered || isSubmitting}
-      onClick={handleSubmit}>
-      <Send size={16} />
-      {t('agent.askUserQuestion.submit')}
-    </Button>
-  )
-
-  function renderRightButton(): ReactNode {
-    if (isPending && isLastQuestion) {
-      return submitButton
-    }
-    if (isPending) {
-      return (
-        <Button variant="default" disabled={!isCurrentAnswered} onClick={handleNext}>
-          {t('agent.askUserQuestion.next')}
-          <ChevronRight size={16} />
-        </Button>
-      )
-    }
-    return (
-      <Button variant="outline" disabled={isLastQuestion} onClick={handleNext} className="flex items-center">
-        {t('agent.askUserQuestion.next')}
-        <ChevronRight size={16} />
-      </Button>
-    )
   }
 
   return (
-    <div className="w-full max-w-xl rounded-xl border border-default-200 bg-default-100 px-4 py-3 shadow-sm">
-      <div className="flex flex-col gap-3">
-        <CardHeader
-          currentIndex={currentIndex}
-          totalQuestions={totalQuestions}
-          extra={
-            !isPending && answeredCount > 0 ? ` · ${answeredCount} ${t('agent.askUserQuestion.answered')}` : undefined
-          }
-        />
-
-        {isPending ? (
-          <PendingContent
-            question={currentQuestion}
-            selected={selectedAnswers[currentIndex] ?? []}
-            hasCustomInput={showCustomInput[currentIndex] ?? false}
-            customInputValue={customInputs[currentIndex] ?? ''}
-            isAnswered={isCurrentAnswered}
-            onSelect={(label, checked) => handleSelect(currentIndex, label, checked)}
-            onCustomInputChange={(value) => setCustomInputs((prev) => ({ ...prev, [currentIndex]: value }))}
-          />
-        ) : (
-          <CompletedContent
-            question={currentQuestion}
-            answer={currentQuestion ? displayAnswers[currentQuestion.question] : undefined}
-          />
-        )}
-
-        {(totalQuestions > 1 || isPending) && (
-          <Navigation
-            showPrevious={totalQuestions > 1}
-            isFirst={isFirstQuestion}
-            onPrevious={handlePrevious}
-            rightButton={totalQuestions === 1 ? submitButton : renderRightButton()}
-          />
-        )}
-      </div>
-    </div>
+    <AgentToolDisclosure className="w-full max-w-full rounded-none border-0 bg-transparent" item={toolContentItem} />
   )
 }
 

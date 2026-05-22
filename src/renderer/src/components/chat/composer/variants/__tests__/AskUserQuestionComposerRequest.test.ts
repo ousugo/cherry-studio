@@ -8,7 +8,7 @@ const input = {
     {
       question: 'Choose logger',
       header: 'Logger',
-      options: [{ label: 'Winston' }],
+      options: [{ label: 'Winston' }, { label: 'Pino' }],
       multiSelect: false
     }
   ]
@@ -60,5 +60,43 @@ describe('findLatestPendingAskUserQuestionRequest', () => {
     })
 
     expect(result).toBeNull()
+  })
+
+  it('accepts AskUserQuestion input without multiSelect and defaults it to false', () => {
+    const result = findLatestPendingAskUserQuestionRequest({
+      'message-1': [
+        makePart({
+          input: {
+            questions: [
+              {
+                question: 'Choose logger',
+                header: 'Logger',
+                options: [{ label: 'Winston' }, { label: 'Pino' }]
+              }
+            ]
+          }
+        })
+      ]
+    })
+
+    expect(result?.input.questions[0]).toMatchObject({
+      question: 'Choose logger',
+      header: 'Logger',
+      options: [{ label: 'Winston' }, { label: 'Pino' }],
+      multiSelect: false
+    })
+  })
+
+  it('accepts builtin AskUserQuestion tool names', () => {
+    const result = findLatestPendingAskUserQuestionRequest({
+      'message-1': [makePart({ toolName: 'builtin_AskUserQuestion', type: 'tool-builtin_AskUserQuestion' })]
+    })
+
+    expect(result).toMatchObject({
+      messageId: 'message-1',
+      toolCallId: 'call-1',
+      approvalId: 'approval-1',
+      input
+    })
   })
 })

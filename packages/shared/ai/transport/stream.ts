@@ -155,6 +155,7 @@ export interface ApprovalDecision {
   approvalId: string
   approved: boolean
   reason?: string
+  updatedInput?: Record<string, unknown>
 }
 
 /** Subscribe to a topic's stream state. */

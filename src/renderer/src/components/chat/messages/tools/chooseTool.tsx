@@ -7,7 +7,7 @@
 import type { NormalToolResponse } from '@renderer/types'
 
 import { AgentExecutionTimeline } from './agent'
-import { AgentToolsType } from './agent/types'
+import { AgentToolsType, isAskUserQuestionToolName } from './agent/types'
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
 import MessageMetaTool, { isMetaToolName } from './meta/MessageMetaTool'
 import { MessageWebSearchToolTitle } from './web-search/MessageWebSearch'
@@ -36,6 +36,10 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
   }
   if (toolName === 'web__search') {
     return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
+  }
+
+  if (isAskUserQuestionToolName(toolName)) {
+    return <AgentExecutionTimeline toolResponse={toolResponse} />
   }
 
   // Historical `builtin_*` prefix kept for messages already stored in DB.
