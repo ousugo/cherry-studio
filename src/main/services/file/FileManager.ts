@@ -648,6 +648,7 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_GetPathStatus, (_e, params: unknown) =>
       this.getPathStatus(GetPathStatusIpcSchema.parse(params))
     )
+    this.ipcHandle(IpcChannel.File_SelectFolder, fileStorage.selectFolder)
     this.ipcHandle(IpcChannel.File_ListDirectory, fileStorage.listDirectory)
     this.ipcHandle(IpcChannel.File_GetDirectoryStructure, fileStorage.getDirectoryStructure)
   }
