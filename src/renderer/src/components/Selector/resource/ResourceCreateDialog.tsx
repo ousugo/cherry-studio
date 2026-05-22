@@ -184,7 +184,6 @@ export function ResourceCreateDialog({
                   selectionType="model"
                   value={selectedModel}
                   filter={modelFilter}
-                  listVisibleCount={8}
                   portalContainer={dialogContentElement}
                   onSelect={setSelectedModel}
                   trigger={

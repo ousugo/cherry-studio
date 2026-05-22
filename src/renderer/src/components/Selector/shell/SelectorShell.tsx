@@ -20,7 +20,7 @@ type PopoverContentProps = ComponentPropsWithoutRef<typeof PopoverContent>
  * Low-frequency selectors should keep the default `destroy` behavior.
  */
 export type SelectorShellMountStrategy = 'destroy' | 'lazy-keep'
-const MIN_SELECTOR_LIST_HEIGHT = 36
+const DEFAULT_COLLISION_PADDING = 12
 
 export type SelectorShellLayout = {
   availableListHeight?: number
@@ -113,7 +113,7 @@ export function SelectorShell({
   children,
   contentClassName,
   width,
-  side,
+  side = 'bottom',
   align = 'start',
   sideOffset = 4,
   maxListHeight,
@@ -123,8 +123,16 @@ export function SelectorShell({
   'data-testid': dataTestId
 }: SelectorShellProps) {
   const triggerNode = isValidElement(trigger) ? trigger : <span>{trigger}</span>
-  const { forceMount, hidden, onInteractOutside, onOpenAutoFocus, onKeyDown, style, ...restContentProps } =
-    contentProps ?? {}
+  const {
+    forceMount,
+    hidden,
+    onInteractOutside,
+    onOpenAutoFocus,
+    onKeyDown,
+    style,
+    collisionPadding = DEFAULT_COLLISION_PADDING,
+    ...restContentProps
+  } = contentProps ?? {}
   const contentRef = useRef<HTMLDivElement | null>(null)
   const searchRef = useRef<HTMLDivElement | null>(null)
   const filterRef = useRef<HTMLDivElement | null>(null)
@@ -159,10 +167,7 @@ export function SelectorShell({
       (height, element) => height + (element?.getBoundingClientRect().height ?? 0),
       0
     )
-    const nextListHeight = Math.max(
-      MIN_SELECTOR_LIST_HEIGHT,
-      Math.floor(availablePopoverHeight - chromeHeight - verticalPadding)
-    )
+    const nextListHeight = Math.max(0, Math.floor(availablePopoverHeight - chromeHeight - verticalPadding))
 
     setAvailableListHeight((previousHeight) => (previousHeight === nextListHeight ? previousHeight : nextListHeight))
   }, [])
@@ -291,6 +296,7 @@ export function SelectorShell({
           side={side}
           align={align}
           sideOffset={sideOffset}
+          collisionPadding={collisionPadding}
           portalContainer={portalContainer}
           forceMount={shouldForceMount}
           hidden={mountStrategy === 'lazy-keep' && !open ? true : hidden}

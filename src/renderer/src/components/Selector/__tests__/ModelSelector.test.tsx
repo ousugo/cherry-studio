@@ -97,14 +97,28 @@ vi.mock('@cherrystudio/ui', () => {
       side?: string
       align?: string
       sideOffset?: number
+      collisionPadding?: number
+      portalContainer?: unknown
       forceMount?: boolean
       onInteractOutside?: unknown
       onOpenAutoFocus?: unknown
     }) => {
-      const { side, align, sideOffset, forceMount, onInteractOutside, onOpenAutoFocus, ...contentProps } = props
+      const {
+        side,
+        align,
+        sideOffset,
+        collisionPadding,
+        portalContainer,
+        forceMount,
+        onInteractOutside,
+        onOpenAutoFocus,
+        ...contentProps
+      } = props
       void side
       void align
       void sideOffset
+      void collisionPadding
+      void portalContainer
       void onInteractOutside
       void onOpenAutoFocus
 
@@ -638,8 +652,8 @@ describe('ModelSelector', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('uses listVisibleCount to size the visible model list', () => {
-    const items = Array.from({ length: 10 }, (_, index) => makeModelItem(`openai::model-${index}` as UniqueModelId))
+  it('uses a 640px default max height for long model lists', () => {
+    const items = Array.from({ length: 30 }, (_, index) => makeModelItem(`openai::model-${index}` as UniqueModelId))
     mockUseModelSelectorData.mockReturnValue(
       makeData({
         listItems: items,
@@ -647,17 +661,9 @@ describe('ModelSelector', () => {
       })
     )
 
-    render(
-      <ModelSelector
-        open
-        multiple={false}
-        listVisibleCount={8}
-        trigger={<button type="button">open</button>}
-        onSelect={vi.fn()}
-      />
-    )
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    expect(mockVirtualListSizes.at(-1)).toBe(8 * 36)
+    expect(mockVirtualListSizes.at(-1)).toBe(640)
   })
 
   it('clamps the visible model list height to the available popover space', async () => {
@@ -671,15 +677,7 @@ describe('ModelSelector', () => {
       })
     )
 
-    render(
-      <ModelSelector
-        open
-        multiple={false}
-        listVisibleCount={8}
-        trigger={<button type="button">open</button>}
-        onSelect={vi.fn()}
-      />
-    )
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
     await waitFor(() => expect(mockVirtualListSizes.at(-1)).toBe(108))
   })

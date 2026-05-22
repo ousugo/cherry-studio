@@ -67,7 +67,6 @@ const MODEL_SETTINGS_DRAWER_WIDTH_CLASS = '!w-[min(500px,calc(100%-1rem))]'
 const TRANSLATE_DRAWER_WIDTH_CLASS = '!w-[min(500px,calc(100%-1rem))]'
 const SETTINGS_DRAWER_BODY_CLASS = 'space-y-0 px-6 py-5'
 const SETTINGS_DRAWER_HEADER_CLASS = 'h-14 px-6'
-const MODEL_SELECTOR_VISIBLE_COUNT = 8
 
 const getModelIdentifier = (model: Model) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
 
@@ -113,7 +112,6 @@ const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     value={model}
     onSelect={onSelect}
     filter={filter}
-    listVisibleCount={MODEL_SELECTOR_VISIBLE_COUNT}
     trigger={renderModelSelectorTrigger({ model, providers, placeholder, compact })}
   />
 )

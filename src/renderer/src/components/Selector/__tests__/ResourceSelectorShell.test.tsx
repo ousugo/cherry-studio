@@ -142,6 +142,31 @@ describe('ResourceSelectorShell', () => {
       )
     })
 
+    it('allows the list height to collapse when chrome uses the available space', async () => {
+      mockSelectorAvailableHeight(80, 52)
+
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          onCreateNew={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      await waitFor(() =>
+        expect(screen.getByRole('listbox')).toHaveStyle({
+          maxHeight: '0',
+          minHeight: '0'
+        })
+      )
+    })
+
     it('uses a smaller default minimum height when there is enough popover space', () => {
       render(
         <ResourceSelectorShell

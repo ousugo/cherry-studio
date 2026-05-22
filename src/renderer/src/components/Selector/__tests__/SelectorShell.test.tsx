@@ -2,8 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react'
 import type { InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { openAutoFocusEvents } = vi.hoisted(() => ({
-  openAutoFocusEvents: [] as Array<{ preventDefault: ReturnType<typeof vi.fn>; defaultPrevented: boolean }>
+const { openAutoFocusEvents, popoverContentProps } = vi.hoisted(() => ({
+  openAutoFocusEvents: [] as Array<{ preventDefault: ReturnType<typeof vi.fn>; defaultPrevented: boolean }>,
+  popoverContentProps: [] as Array<{ align?: string; side?: string; sideOffset?: number; collisionPadding?: number }>
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -19,6 +20,8 @@ vi.mock('@cherrystudio/ui', () => ({
     align,
     side,
     sideOffset,
+    collisionPadding,
+    portalContainer,
     forceMount,
     onInteractOutside,
     ...props
@@ -28,12 +31,13 @@ vi.mock('@cherrystudio/ui', () => ({
     align?: string
     side?: string
     sideOffset?: number
+    collisionPadding?: number
+    portalContainer?: unknown
     forceMount?: unknown
     onInteractOutside?: unknown
   }) => {
-    void align
-    void side
-    void sideOffset
+    popoverContentProps.push({ align, side, sideOffset, collisionPadding })
+    void portalContainer
     void forceMount
     void onInteractOutside
     const event = {
@@ -61,6 +65,85 @@ describe('SelectorShell', () => {
     vi.restoreAllMocks()
     globalThis.ResizeObserver = originalResizeObserver
     openAutoFocusEvents.length = 0
+    popoverContentProps.length = 0
+  })
+
+  it('defaults popover placement to bottom with viewport padding', () => {
+    render(
+      <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
+        <div />
+      </SelectorShell>
+    )
+
+    expect(popoverContentProps.at(-1)).toMatchObject({
+      side: 'bottom',
+      align: 'start',
+      sideOffset: 4,
+      collisionPadding: 12
+    })
+  })
+
+  it('lets contentProps override collision padding', () => {
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        contentProps={{ collisionPadding: 24 }}>
+        <div />
+      </SelectorShell>
+    )
+
+    expect(popoverContentProps.at(-1)).toMatchObject({ collisionPadding: 24 })
+  })
+
+  it('subtracts selector chrome from available list height', async () => {
+    const originalGetComputedStyle = window.getComputedStyle.bind(window)
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+      const style = originalGetComputedStyle(element)
+      const isContent = element instanceof HTMLElement && element.getAttribute('data-selector-shell-content') === 'true'
+      if (!isContent) return style
+
+      Object.defineProperties(style, {
+        paddingTop: { configurable: true, value: '4px' },
+        paddingBottom: { configurable: true, value: '4px' }
+      })
+      vi.spyOn(style, 'getPropertyValue').mockImplementation((property: string) =>
+        property === '--radix-popover-content-available-height'
+          ? '200px'
+          : CSSStyleDeclaration.prototype.getPropertyValue.call(style, property)
+      )
+      return style
+    })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const isChrome = this.hasAttribute('data-selector-shell-chrome')
+      return {
+        x: 0,
+        y: 0,
+        width: 320,
+        height: isChrome ? 20 : 0,
+        top: 0,
+        right: 320,
+        bottom: isChrome ? 20 : 0,
+        left: 0,
+        toJSON: () => {}
+      }
+    })
+
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
+        filterContent={<span>Filter</span>}
+        multiSelect={{ label: 'Multi', checked: false, onCheckedChange: vi.fn() }}
+        bottomAction={{ label: 'Create', onClick: vi.fn() }}>
+        {({ availableListHeight }) => <div data-testid="available-height">{availableListHeight}</div>}
+      </SelectorShell>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('112'))
   })
 
   it('does not force focus into search when search autoFocus is false', async () => {
