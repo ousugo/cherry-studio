@@ -5,8 +5,10 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { CherryUIMessage, Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { IpcChannel } from '@shared/IpcChannel'
 import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
+import * as z from 'zod'
 
 import { PendingMessageQueue } from '../agent/loop/PendingMessageQueue'
 import { PersistenceListener } from '../stream-manager/listeners/PersistenceListener'
@@ -14,6 +16,11 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { type AgentRuntimeConnection, agentRuntimeDriverRegistry, type AgentRuntimeEvent } from './runtime'
 import { type DispatchDecision, toolApprovalRegistry } from './runtime/claude-code/ToolApprovalRegistry'
+
+const ListToolsArgsSchema = z.strictObject({
+  type: z.enum(['claude-code']).default('claude-code'),
+  mcps: z.array(z.string()).default([])
+})
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -120,6 +127,28 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 @ServicePhase(Phase.WhenReady)
 export class AgentSessionRuntimeService extends BaseService {
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
+
+  protected async onInit(): Promise<void> {
+    for (const driver of agentRuntimeDriverRegistry.all()) {
+      try {
+        await driver.init?.()
+      } catch (err) {
+        logger.warn('Driver init failed', {
+          driver: driver.type,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    }
+
+    this.ipcHandle(IpcChannel.Agent_ListTools, async (_event, args: unknown) => {
+      const parsed = ListToolsArgsSchema.parse(args ?? {})
+      const driver = agentRuntimeDriverRegistry.get(parsed.type)
+      if (!driver) {
+        throw new Error(`Unsupported agent runtime type: ${parsed.type}`)
+      }
+      return driver.listAvailableTools(parsed.mcps)
+    })
+  }
 
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
     const pendingMessages = new PendingMessageQueue((message) => this.enqueueUserMessage(input.sessionId, message))

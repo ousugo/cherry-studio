@@ -4,12 +4,16 @@ import {
   type SDKSystemMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
+import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { listMcpTools } from '@main/services/agents/agentUtils'
+import { extractRtkBinaries } from '@main/utils/rtk'
 import type { AgentTool } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { Message } from '@shared/data/types/message'
 import type { UIMessageChunk } from 'ai'
+
+const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 
 import type {
   AgentRuntimeConnectInput,
@@ -235,6 +239,16 @@ function extractMessageText(message: Message): string {
 
 export class ClaudeCodeRuntimeDriver implements AgentRuntimeDriver {
   readonly type = 'claude-code'
+
+  async init(): Promise<void> {
+    try {
+      await extractRtkBinaries()
+    } catch (error) {
+      logger.warn('Failed to extract rtk binaries (non-fatal)', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
 
   validateSession(session: AgentSessionEntity): void {
     const cwd = session.workspace?.path

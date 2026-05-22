@@ -11,7 +11,6 @@ import { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
-import { AgentBootstrapService } from '@main/services/AgentBootstrapService'
 import { ChannelManager } from '@main/services/agents/services/channels/ChannelManager'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
@@ -121,7 +120,6 @@ export const services = {
   KnowledgeOrchestrationService,
   KnowledgeVectorStoreService,
   KnowledgeRuntimeService,
-  AgentBootstrapService,
   ApiServerService,
   AppUpdaterService,
   SchedulerService,
