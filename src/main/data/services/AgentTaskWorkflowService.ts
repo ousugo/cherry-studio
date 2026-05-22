@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { agentTaskToJobTrigger } from '@main/ai/agent-session/jobs/agentTaskTrigger'
+import { agentTaskToJobTrigger } from '@main/ai/agents/jobs/agentTaskTrigger'
 import { application } from '@main/core/application'
 import type { CreateTaskDto, UpdateTaskDto } from '@shared/data/api/schemas/agents'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
