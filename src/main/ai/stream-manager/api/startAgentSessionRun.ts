@@ -1,8 +1,9 @@
 import { application } from '@main/core/application'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import type { StreamListener } from '../../stream-manager/types'
-import { buildAgentSessionTopicId } from '../topic'
+import { buildAgentSessionTopicId } from '../../agent-session/topic'
+import { agentChatContextProvider } from '../context/AgentChatContextProvider'
+import type { StreamListener } from '../types'
 
 /**
  * Start (or inject into) an agent-session stream from a non-renderer caller.
@@ -15,6 +16,12 @@ import { buildAgentSessionTopicId } from '../topic'
  * The first listener is treated as the primary subscriber (gets the
  * `runtime.listeners` augmentation from the context provider); any
  * additional listeners are appended verbatim.
+ *
+ * Lives alongside `dispatch.ts` because stream-manager already owns the
+ * downward dependency on agent-session (`AgentChatContextProvider` imports
+ * agent-session/runtime + agent-session/topic). Putting this facade here
+ * keeps the direction one-way; if it lived in agent-session/ the package
+ * graph would loop back through stream-manager/context.
  */
 export async function startAgentSessionRun(input: {
   sessionId: string
@@ -28,13 +35,6 @@ export async function startAgentSessionRun(input: {
 
   const topicId = buildAgentSessionTopicId(input.sessionId)
   const manager = application.get('AiStreamManager')
-
-  // Lazy import: AgentChatContextProvider transitively loads the runtime
-  // driver registry, and this facade is itself reachable from
-  // agentTaskHandler → AgentTaskWorkflowService → claw MCP → settingsBuilder,
-  // which sits behind the driver class. Lazy-loading the provider keeps the
-  // cycle from materializing at module load time.
-  const { agentChatContextProvider } = await import('../../stream-manager/context/AgentChatContextProvider')
 
   const prepared = await agentChatContextProvider.prepareDispatch(
     primary,

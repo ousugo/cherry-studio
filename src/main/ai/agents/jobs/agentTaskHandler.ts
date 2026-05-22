@@ -8,8 +8,8 @@ import { application } from '@main/core/application'
 import type { JobHandler } from '@main/core/job/types'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 
-import { startAgentSessionRun } from '../../agent-session/api/startAgentSessionRun'
 import { ChannelAdapterListener, type StreamListener } from '../../stream-manager'
+import { startAgentSessionRun } from '../../stream-manager/api/startAgentSessionRun'
 
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {

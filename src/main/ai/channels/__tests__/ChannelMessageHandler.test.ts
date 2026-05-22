@@ -43,7 +43,7 @@ vi.mock('@shared/data/types/model', async (importOriginal) => {
 })
 
 const { mockStartAgentSessionRun } = vi.hoisted(() => ({ mockStartAgentSessionRun: vi.fn() }))
-vi.mock('@main/ai/agent-session/api/startAgentSessionRun', () => ({
+vi.mock('@main/ai/stream-manager/api/startAgentSessionRun', () => ({
   startAgentSessionRun: (...args: unknown[]) => mockStartAgentSessionRun(...args)
 }))
 
