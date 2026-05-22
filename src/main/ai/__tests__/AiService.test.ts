@@ -11,7 +11,7 @@ vi.mock('@main/core/application', () => ({
   }
 }))
 
-vi.mock('@main/services/agents/services/channels/ChannelAdapter', () => ({
+vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
 }))
 

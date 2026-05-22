@@ -1,14 +1,8 @@
+import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { net } from 'electron'
 import WebSocket from 'ws'
 
-import {
-  ChannelAdapter,
-  type ChannelAdapterConfig,
-  type FileAttachment,
-  type ImageAttachment,
-  MAX_FILE_SIZE_BYTES,
-  type SendMessageOptions
-} from '../../ChannelAdapter'
+import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'

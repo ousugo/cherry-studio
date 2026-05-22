@@ -24,7 +24,6 @@ import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences,
 import fontList from 'font-list'
 
 import { skillService } from './services/agents/skills/SkillService'
-import { checkWorkspacePathStatus } from './services/agents/workspacePathStatus'
 import { appService } from './services/AppService'
 import BackupManager from './services/BackupManager'
 import { ConfigKeys, configManager } from './services/ConfigManager'
@@ -42,6 +41,7 @@ import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { isSafeExternalUrl } from './utils/externalUrlSafety'
 import { hasWritePermission, isPathInside, untildify } from './utils/file'
+import { checkWorkspacePathStatus } from './utils/file/workspacePathStatus'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 

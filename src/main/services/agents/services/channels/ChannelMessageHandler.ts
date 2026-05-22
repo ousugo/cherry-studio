@@ -9,16 +9,11 @@ import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agent-session/topic'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
 import { application } from '@main/core/application'
+import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 
 import { sanitizeChannelOutput, wrapExternalContent } from '../security'
-import type {
-  ChannelAdapter,
-  ChannelCommandEvent,
-  ChannelMessageEvent,
-  FileAttachment,
-  ImageAttachment
-} from './ChannelAdapter'
+import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
 import { splitMessage } from './utils'
 

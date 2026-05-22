@@ -1,16 +1,14 @@
-import { Bot } from 'grammy'
-import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
-
 import {
-  ChannelAdapter,
-  type ChannelAdapterConfig,
   downloadFileAsBase64,
   downloadImageAsBase64,
   type FileAttachment,
   type ImageAttachment,
-  MAX_FILE_SIZE_BYTES,
-  type SendMessageOptions
-} from '../../ChannelAdapter'
+  MAX_FILE_SIZE_BYTES
+} from '@main/utils/downloadAsBase64'
+import { Bot } from 'grammy'
+import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
+
+import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 
 const TELEGRAM_MAX_LENGTH = 4096

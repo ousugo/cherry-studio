@@ -4,16 +4,10 @@ import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import { application } from '@application'
 import * as Lark from '@larksuiteoapi/node-sdk'
 import { WindowType } from '@main/core/window/types'
+import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import {
-  ChannelAdapter,
-  type ChannelAdapterConfig,
-  type FileAttachment,
-  type ImageAttachment,
-  MAX_FILE_SIZE_BYTES,
-  type SendMessageOptions
-} from '../../ChannelAdapter'
+import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import type { FeishuDomain } from '../../channelConfig'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
