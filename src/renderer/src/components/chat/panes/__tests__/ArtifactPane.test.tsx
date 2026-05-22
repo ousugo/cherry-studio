@@ -296,12 +296,13 @@ describe('ArtifactPane', () => {
   it('defaults to preview mode with the file tree collapsed', () => {
     render(<ArtifactPane />)
 
+    const folderButton = screen.getByRole('button', { name: 'agent.preview_pane.file_tree' })
+
     expect(screen.getByRole('button', { name: 'agent.preview_pane.preview' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'agent.preview_pane.code' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' })).toHaveAttribute(
-      'aria-pressed',
-      'false'
-    )
+    expect(folderButton).toHaveAttribute('aria-pressed', 'false')
+    expect(folderButton.querySelector('.lucide-folder')).toBeInTheDocument()
+    expect(folderButton.querySelector('.lucide-folder-open')).not.toBeInTheDocument()
     expect(screen.queryByTestId('file-tree')).not.toBeInTheDocument()
   })
 
@@ -330,6 +331,10 @@ describe('ArtifactPane', () => {
 
     const folderButton = screen.getByRole('button', { name: 'agent.preview_pane.file_tree' })
 
+    expect(folderButton).toHaveAttribute('aria-pressed', 'false')
+    expect(folderButton.querySelector('.lucide-folder')).toBeInTheDocument()
+    expect(folderButton.querySelector('.lucide-folder-open')).not.toBeInTheDocument()
+
     fireEvent.click(folderButton)
     await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
     expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-initial-width', '0')
@@ -342,10 +347,14 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('tree-node-__workspace_root__')).toHaveTextContent('workspace')
     expect(screen.getByTestId('tree-node-README.md')).toHaveTextContent('README.md')
     expect(folderButton).toHaveAttribute('aria-pressed', 'true')
+    expect(folderButton.querySelector('.lucide-folder-open')).toBeInTheDocument()
+    expect(folderButton.querySelector('.lucide-folder')).not.toBeInTheDocument()
 
     fireEvent.click(folderButton)
     await waitFor(() => expect(screen.queryByTestId('file-tree')).not.toBeInTheDocument())
     expect(folderButton).toHaveAttribute('aria-pressed', 'false')
+    expect(folderButton.querySelector('.lucide-folder')).toBeInTheDocument()
+    expect(folderButton.querySelector('.lucide-folder-open')).not.toBeInTheDocument()
   })
 
   it('renders markdown files with RichEditor in preview mode and CodeViewer in code mode', async () => {

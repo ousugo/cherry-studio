@@ -7,7 +7,18 @@ import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import RichEditor from '@renderer/components/RichEditor'
 import type { FilePath } from '@shared/file/types'
 import { toFileUrl } from '@shared/file/urlUtil'
-import { AlertCircle, CodeXml, Eye, FileText, FolderOpen, Maximize2, Minimize2, RotateCw, Sparkles } from 'lucide-react'
+import {
+  AlertCircle,
+  CodeXml,
+  Eye,
+  FileText,
+  Folder,
+  FolderOpen,
+  Maximize2,
+  Minimize2,
+  RotateCw,
+  Sparkles
+} from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -443,6 +454,7 @@ const ArtifactPane = ({
   const isSelectedHtmlPreview = viewMode === 'preview' && selectedFile ? isHtmlFile(selectedFile) : false
   const viewModeLabel = t(viewMode === 'preview' ? 'agent.preview_pane.preview' : 'agent.preview_pane.code')
   const maximizeLabel = t(maximized ? 'agent.preview_pane.minimize' : 'agent.preview_pane.maximize')
+  const FileTreeIcon = treeOpen ? FolderOpen : Folder
   const ViewModeIcon = viewMode === 'preview' ? Eye : CodeXml
   const MaximizeIcon = maximized ? Minimize2 : Maximize2
 
@@ -598,7 +610,7 @@ const ArtifactPane = ({
                   aria-label={t('agent.preview_pane.file_tree')}
                   aria-pressed={treeOpen}
                   onClick={() => setTreeOpen((v) => !v)}>
-                  <FolderOpen size={16} />
+                  <FileTreeIcon size={16} />
                 </Button>
               </Tooltip>
               <Tooltip content={viewModeLabel} delay={800}>
