@@ -11,7 +11,7 @@ import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
-import { builtinTools } from '../runtime/claude-code/builtinTools'
+import { builtinTools } from '../agent-session/runtime/claude-code/builtinTools'
 import { type AgentModelField, AgentModelValidationError } from './errors'
 
 const logger = loggerService.withContext('agentUtils')

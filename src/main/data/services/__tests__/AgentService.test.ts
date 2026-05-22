@@ -32,12 +32,12 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 }))
 
 // Mock workspace seeding — filesystem ops not needed in unit tests
-vi.mock('@main/ai/agent-session/agents/cherryclaw/seedWorkspace', () => ({
+vi.mock('@main/ai/agents/cherryclaw/seedWorkspace', () => ({
   seedWorkspaceTemplates: vi.fn()
 }))
 
 // Mock agentUtils functions that call external services
-vi.mock('@main/ai/agent-session/agents/agentUtils', async (importOriginal) => {
+vi.mock('@main/ai/agents/agentUtils', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...(actual as object),

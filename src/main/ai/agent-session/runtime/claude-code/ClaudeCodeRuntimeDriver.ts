@@ -265,7 +265,7 @@ export class ClaudeCodeRuntimeDriver implements AgentRuntimeDriver {
     // Lazy import: agentUtils transitively pulls in @application + apiServer,
     // which creates a load-time cycle with `register.ts` constructing the
     // driver.
-    const { listMcpTools } = await import('@main/ai/agent-session/agents/agentUtils')
+    const { listMcpTools } = await import('@main/ai/agents/agentUtils')
     return listMcpTools('claude-code', mcpIds)
   }
 
