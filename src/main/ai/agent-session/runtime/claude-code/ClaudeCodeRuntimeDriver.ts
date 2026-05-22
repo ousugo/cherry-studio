@@ -4,7 +4,6 @@ import {
   type SDKSystemMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
-import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import type { AgentTool } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
@@ -21,8 +20,6 @@ import type {
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
 import { AgentSessionWorkspaceError, assertClaudeCodeWorkspaceDirectory } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter } from './streamAdapter'
-
-const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
   private readonly items: T[] = []
@@ -237,21 +234,6 @@ function extractMessageText(message: Message): string {
 
 export class ClaudeCodeRuntimeDriver implements AgentRuntimeDriver {
   readonly type = 'claude-code'
-
-  async init(): Promise<void> {
-    // Lazy import to keep the driver module's eager-load surface small —
-    // `register.ts` runs at module load and we don't want this path pulling in
-    // the utils/rtk transitive graph (electron.app, @application) just to
-    // construct the registry entry.
-    const { extractRtkBinaries } = await import('@main/utils/rtk')
-    try {
-      await extractRtkBinaries()
-    } catch (error) {
-      logger.warn('Failed to extract rtk binaries (non-fatal)', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
-  }
 
   validateSession(session: AgentSessionEntity): void {
     const cwd = session.workspace?.path

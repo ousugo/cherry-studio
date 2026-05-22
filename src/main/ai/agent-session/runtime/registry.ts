@@ -11,10 +11,6 @@ class AgentRuntimeDriverRegistry {
     return this.drivers.get(type)
   }
 
-  all(): readonly AgentRuntimeDriver[] {
-    return [...this.drivers.values()]
-  }
-
   clearForTest(): void {
     this.drivers.clear()
   }

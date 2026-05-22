@@ -31,12 +31,6 @@ export interface AgentRuntimeConnection {
 export interface AgentRuntimeDriver {
   readonly type: string
   /**
-   * One-time driver initialization (binary extraction, credential warmup, …).
-   * Called by `AgentSessionRuntimeService.onInit` for every registered driver.
-   * Optional: drivers without async startup work can omit it.
-   */
-  init?(): void | Promise<void>
-  /**
    * Per-driver session prerequisite check: throws if the session can't be
    * served (e.g. workspace path missing, credentials absent). Hosts call
    * this before `connect()` instead of hard-coding driver-specific guards.

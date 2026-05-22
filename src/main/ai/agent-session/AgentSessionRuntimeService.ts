@@ -129,17 +129,6 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
 
   protected async onInit(): Promise<void> {
-    for (const driver of agentRuntimeDriverRegistry.all()) {
-      try {
-        await driver.init?.()
-      } catch (err) {
-        logger.warn('Driver init failed', {
-          driver: driver.type,
-          error: err instanceof Error ? err.message : String(err)
-        })
-      }
-    }
-
     this.ipcHandle(IpcChannel.Agent_ListTools, async (_event, args: unknown) => {
       const parsed = ListToolsArgsSchema.parse(args ?? {})
       const driver = agentRuntimeDriverRegistry.get(parsed.type)
