@@ -40,7 +40,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { getFileTypeByExt } from '@shared/file/types'
-import type { WorkspacePathStatus } from '@shared/file/types/ipc'
+import type { PathStatus } from '@shared/file/types/ipc'
 import type { TFunction } from 'i18next'
 import { ChevronDown, Folder, TriangleAlert } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -55,21 +55,26 @@ import { agentComposerTokenId, agentFileToComposerToken, getAgentComposerTokenId
 const logger = loggerService.withContext('AgentComposer')
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 
-function useWorkspacePathStatus(path: string | undefined): WorkspacePathStatus | null {
-  const [status, setStatus] = useState<WorkspacePathStatus | null>(null)
+function useWorkspacePathStatus(path: string | undefined): PathStatus | null {
+  const [status, setStatus] = useState<PathStatus | null>(null)
   useEffect(() => {
     let disposed = false
     setStatus(null)
     if (!path) return
 
-    window.api.file
-      .checkWorkspacePath(path)
-      .then((next) => {
+    void (async () => {
+      try {
+        const next = await window.api.file.getPathStatus({ path, expectedKind: 'directory' })
         if (!disposed) setStatus(next)
-      })
-      .catch(() => {
-        if (!disposed) setStatus({ ok: false, reason: 'inaccessible' })
-      })
+      } catch (error) {
+        if (!disposed) {
+          logger.warn('Failed to check workspace path status', {
+            path,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+    })()
 
     return () => {
       disposed = true
@@ -80,7 +85,7 @@ function useWorkspacePathStatus(path: string | undefined): WorkspacePathStatus |
 
 function formatWorkspacePathWarning(
   t: TFunction,
-  status: WorkspacePathStatus | null,
+  status: PathStatus | null,
   path: string | undefined
 ): string | undefined {
   if (!status || status.ok) return undefined
@@ -89,6 +94,8 @@ function formatWorkspacePathWarning(
       return t('agent.session.workspace_status.missing', { path })
     case 'not-directory':
       return t('agent.session.workspace_status.not_directory', { path })
+    case 'not-file':
+      return t('agent.session.workspace_status.inaccessible', { path })
     case 'inaccessible':
       return t('agent.session.workspace_status.inaccessible', { path })
   }

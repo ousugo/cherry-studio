@@ -1,6 +1,6 @@
 import type { FileMetadata } from '@renderer/types'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,12 +14,15 @@ const mocks = vi.hoisted(() => ({
   modelLookupId: undefined as UniqueModelId | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
+  getPathStatus: vi.fn(),
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
   enqueueDraft: vi.fn(),
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
-  runtimeHostProps: undefined as { assistant?: { modelId?: string | null }; model?: Model } | undefined
+  runtimeHostProps: undefined as
+    | { assistant?: { modelId?: string | null }; model?: Model; session?: { agentId?: string } }
+    | undefined
 }))
 
 const model = {
@@ -84,7 +87,11 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
 
 vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
   ComposerToolRuntimeProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
-  ComposerToolRuntimeHost: (props: { assistant?: { modelId?: string | null }; model?: Model }) => {
+  ComposerToolRuntimeHost: (props: {
+    assistant?: { modelId?: string | null }
+    model?: Model
+    session?: { agentId?: string }
+  }) => {
     mocks.runtimeHostProps = props
     return null
   },
@@ -268,6 +275,15 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
+    mocks.getPathStatus.mockReset()
+    mocks.getPathStatus.mockImplementation(() => new Promise(() => undefined))
+    window.api = {
+      ...window.api,
+      file: {
+        ...window.api.file,
+        getPathStatus: mocks.getPathStatus
+      }
+    }
     mocks.updateModel.mockReset()
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
@@ -291,7 +307,7 @@ describe('AgentComposer', () => {
     expect(mocks.modelLookupId).toBe('anthropic::claude-sonnet-4-5')
     expect(mocks.surfaceProps?.topContent).toBeUndefined()
     expect(mocks.runtimeHostProps?.model).toBe(model)
-    expect(mocks.runtimeHostProps?.assistant?.modelId).toBe('anthropic::claude-sonnet-4-5')
+    expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
   })
 
   it('bridges file tokens into the existing agent session message text protocol', () => {
@@ -501,5 +517,32 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('select workspace 2'))
 
     expect(onWorkspaceChange).toHaveBeenCalledWith('workspace-2')
+  })
+
+  it('does not block sends when workspace status preflight fails', async () => {
+    mocks.getPathStatus.mockRejectedValueOnce(new Error('preflight unavailable'))
+
+    render(
+      <AgentHomeComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() =>
+      expect(mocks.getPathStatus).toHaveBeenCalledWith({ path: '/workspace', expectedKind: 'directory' })
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByTestId('tooltip-content')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('send'))
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
   })
 })

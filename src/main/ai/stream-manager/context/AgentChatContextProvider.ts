@@ -48,7 +48,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!workspacePath) {
       throw new Error(`Agent session ${sessionId} has no workspace configured`)
     }
-    assertClaudeCodeWorkspaceDirectory(sessionId, workspacePath)
+    await assertClaudeCodeWorkspaceDirectory(sessionId, workspacePath)
 
     const agentId = session.agentId
     const agent = await agentService.getAgent(agentId)

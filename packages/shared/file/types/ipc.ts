@@ -189,9 +189,18 @@ export interface BatchCreateResult {
   failed: Array<{ sourceRef: string; error: string }>
 }
 
-export type WorkspacePathStatusReason = 'missing' | 'not-directory' | 'inaccessible'
+export type PathStatusKind = 'file' | 'directory'
 
-export type WorkspacePathStatus = { ok: true } | { ok: false; reason: WorkspacePathStatusReason; detail?: string }
+export type PathStatusReason = 'missing' | 'not-file' | 'not-directory' | 'inaccessible'
+
+export interface GetPathStatusIpcParams {
+  path: string
+  expectedKind?: PathStatusKind
+}
+
+export type PathStatus =
+  | { ok: true; kind: PathStatusKind }
+  | { ok: false; reason: PathStatusReason; actualKind?: PathStatusKind; detail?: string }
 
 // ─── File IPC API ───
 
@@ -499,9 +508,15 @@ export interface FileIpcApi {
    */
   showInFolder(handle: FileHandle): Promise<void>
 
-  // ─── I. Directory Listing (arbitrary path) ───
+  // ─── I. Path Queries (arbitrary path) ───
   //
-  // Section status: all `@phase 2`.
+  // Section status: mixed; check each method's `@phase` tag.
+
+  /**
+   * Get status for an arbitrary filesystem path, optionally requiring a kind.
+   * @phase 1 — wired in FileManager lifecycle IPC
+   */
+  getPathStatus(params: GetPathStatusIpcParams): Promise<PathStatus>
 
   /**
    * List contents of an arbitrary directory.

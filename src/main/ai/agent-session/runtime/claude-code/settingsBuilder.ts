@@ -36,10 +36,10 @@ import { isProvisioned, provisionBuiltinAgent } from '@main/services/agents/serv
 import { PromptBuilder } from '@main/services/agents/services/cherryclaw/prompt'
 import { createSdkMcpServerInstance } from '@main/services/agents/services/claudecode/createSdkMcpServerInstance'
 import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
-import { checkWorkspacePathStatus, formatWorkspacePathStatus } from '@main/services/agents/workspacePathStatus'
 import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
 import { shouldAutoApprove } from '@main/services/toolApproval/autoApprovePolicy'
 import { toAsarUnpackedPath } from '@main/utils'
+import { formatPathStatusMessage, getPathStatus } from '@main/utils/file/pathStatus'
 import { getAppLanguage } from '@main/utils/language'
 import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
@@ -172,7 +172,7 @@ export async function buildClaudeCodeSessionSettings(
   if (!cwd) {
     throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
   }
-  assertClaudeCodeWorkspaceDirectory(session.id, cwd)
+  await assertClaudeCodeWorkspaceDirectory(session.id, cwd)
 
   // 2. Environment variables
   const env = await buildEnvironment(provider, agent)
@@ -262,11 +262,11 @@ export function isAgentSessionWorkspaceError(error: unknown): error is AgentSess
   return error instanceof AgentSessionWorkspaceError
 }
 
-export function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): void {
-  const status = checkWorkspacePathStatus(cwd)
+export async function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
+  const status = await getPathStatus(cwd, { expectedKind: 'directory' })
   if (status.ok) return
   throw new AgentSessionWorkspaceError(
-    `Workspace path for session ${sessionId}: ${formatWorkspacePathStatus(cwd, status)}`
+    `Workspace path for session ${sessionId}: ${formatPathStatusMessage(cwd, status, 'Workspace path')}`
   )
 }
 

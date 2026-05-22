@@ -131,6 +131,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { fileStorage } from '@main/services/FileStorage'
 import { stat as fsStat } from '@main/utils/file/fs'
+import { getPathStatus as readPathStatus } from '@main/utils/file/pathStatus'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type {
@@ -142,6 +143,7 @@ import type {
   FileURLString,
   PhysicalFileMetadata
 } from '@shared/file/types'
+import type { GetPathStatusIpcParams } from '@shared/file/types/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 import mime from 'mime'
 import * as z from 'zod'
@@ -199,6 +201,10 @@ export const FILE_BATCH_DANGLING_MAX_IDS = 500
 export const GetDanglingStateIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 export const BatchGetDanglingStatesIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)
+})
+export const GetPathStatusIpcSchema = z.strictObject({
+  path: z.string(),
+  expectedKind: z.enum(['file', 'directory']).optional()
 })
 
 // ─── Version types ───
@@ -639,6 +645,9 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
+    this.ipcHandle(IpcChannel.File_GetPathStatus, (_e, params: unknown) =>
+      this.getPathStatus(GetPathStatusIpcSchema.parse(params))
+    )
     this.ipcHandle(IpcChannel.File_ListDirectory, fileStorage.listDirectory)
     this.ipcHandle(IpcChannel.File_GetDirectoryStructure, fileStorage.getDirectoryStructure)
   }
@@ -823,6 +832,10 @@ export class FileManager extends BaseService implements IFileManager {
     const entry = await this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     return pathToFileURL(physicalPath).toString() as FileURLString
+  }
+
+  private async getPathStatus(params: GetPathStatusIpcParams) {
+    return readPathStatus(params.path, { expectedKind: params.expectedKind })
   }
 
   async getPhysicalPath(id: FileEntryId): Promise<FilePath> {
