@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import type { ComposerQueueItem } from '@shared/ai/transport'
 import type { Model } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -73,6 +74,15 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
           <div data-testid="composer-top-content">{props.topContent}</div>
           <div data-testid="composer-left-controls">{props.renderLeftControls?.(undefined)}</div>
           <div data-testid="composer-below-controls">{props.renderBelowControls?.(undefined)}</div>
+          {props.tokens.map((token) => (
+            <button
+              key={token.id}
+              type="button"
+              data-testid={`remove-token-${token.id}`}
+              onClick={() => props.onTokenRemoveRequest?.({ kind: token.kind, tokenId: token.id })}>
+              remove {token.label}
+            </button>
+          ))}
         </div>
       )
     }
@@ -333,6 +343,9 @@ const missingAssistantTopic = {
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    vi.mocked(cacheService.getCasual).mockReset()
+    vi.mocked(cacheService.getCasual).mockReturnValue('')
+    vi.mocked(cacheService.setCasual).mockReset()
     mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
     mocks.setModel.mockReset()
@@ -413,6 +426,24 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([model, modelB])
     expect(mocks.setModel).not.toHaveBeenCalled()
+  })
+
+  it('syncs the mentioned-model selector when a model token remove event is handled', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
+
+    fireEvent.click(screen.getByTestId('remove-token-model:provider::model-b'))
+
+    expect(mocks.setMentionedModels).toHaveBeenLastCalledWith([model])
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+
+    fireEvent.click(screen.getByTestId('remove-token-model:provider::model-a'))
+
+    expect(mocks.setMentionedModels).toHaveBeenLastCalledWith([])
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '0')
   })
 
   it('does not update the default model while a persisted assistant is loading', () => {
@@ -590,8 +621,8 @@ describe('ChatComposer', () => {
     expect(mocks.updateTopic).not.toHaveBeenCalled()
   })
 
-  it('uses the temporary home model selector as a mentioned-model multi-select', () => {
-    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+  it('uses the temporary home model selector as a mentioned-model multi-select', async () => {
+    const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     const selector = screen.getByTestId('model-selector')
     expect(selector).toHaveAttribute('data-multiple', 'true')
@@ -602,7 +633,51 @@ describe('ChatComposer', () => {
     fireEvent.click(screen.getByText('select model 2'))
 
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([])
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
     expect(mocks.setModel).not.toHaveBeenCalled()
+
+    mocks.model = undefined
+    mocks.modelPending = true
+    view.rerender(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+      expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
+    })
+  })
+
+  it('does not hydrate temporary home model selection from mentioned-model cache', () => {
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key.startsWith('inputbar-mentioned-models-') ? [model, modelB] : ''
+    )
+
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
+  })
+
+  it('does not hydrate the docked model selector from mentioned-model cache', () => {
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key.startsWith('inputbar-mentioned-models-') ? [model, modelB] : ''
+    )
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+    expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+  })
+
+  it('keeps cached mentioned models for token-based model mentions', () => {
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key.startsWith('inputbar-mentioned-models-') ? [model, modelB] : ''
+    )
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('remove-token-model:provider::model-a')).toBeInTheDocument()
+    expect(screen.getByTestId('remove-token-model:provider::model-b')).toBeInTheDocument()
   })
 
   it('fills mentioned-model tokens only after enabling multi-select and selecting multiple models', () => {

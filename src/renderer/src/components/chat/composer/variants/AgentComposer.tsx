@@ -172,7 +172,8 @@ const emptyActions: ProviderActionHandlers = {
   resizeTextArea: () => undefined,
   addNewTopic: () => undefined,
   onTextChange: () => undefined,
-  toggleExpanded: () => undefined
+  toggleExpanded: () => undefined,
+  removeToken: () => undefined
 }
 
 const AgentComposerRoot = ({

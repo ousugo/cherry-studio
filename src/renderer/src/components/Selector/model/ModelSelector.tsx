@@ -282,6 +282,8 @@ export function ModelSelector(props: ModelSelectorProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<DynamicVirtualListRef>(null)
   const skipNextFocusScroll = useRef(false)
+  const ignoreNextMultiSelectCloseRef = useRef(false)
+  const ignoreNextMultiSelectCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const focusScrollFrameRef = useRef<number | null>(null)
   const malformedSelectionWarningKeyRef = useRef<string | null>(null)
   // 标记列表是否正在滚动：滚动期间 onMouseEnter 跳过 setFocusedItemKey，
@@ -300,6 +302,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   useEffect(() => {
     return () => {
       if (scrollIdleTimerRef.current) clearTimeout(scrollIdleTimerRef.current)
+      if (ignoreNextMultiSelectCloseTimerRef.current) clearTimeout(ignoreNextMultiSelectCloseTimerRef.current)
       if (focusScrollFrameRef.current !== null) {
         window.cancelAnimationFrame(focusScrollFrameRef.current)
       }
@@ -308,9 +311,20 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const open = openProp ?? internalOpen
   const multiSelectMode = multiple ? (multiSelectModeProp ?? internalMultiSelectMode) : false
+  const multiSelectModeRef = useRef(multiSelectMode)
+  multiSelectModeRef.current = multiSelectMode
 
   const setOpen = useCallback(
     (nextOpen: boolean) => {
+      if (!nextOpen && ignoreNextMultiSelectCloseRef.current) {
+        ignoreNextMultiSelectCloseRef.current = false
+        if (ignoreNextMultiSelectCloseTimerRef.current) {
+          clearTimeout(ignoreNextMultiSelectCloseTimerRef.current)
+          ignoreNextMultiSelectCloseTimerRef.current = null
+        }
+        return
+      }
+
       if (openProp === undefined) {
         setInternalOpen(nextOpen)
       }
@@ -327,6 +341,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         return
       }
 
+      multiSelectModeRef.current = nextEnabled
       if (multiSelectModeProp === undefined) {
         setInternalMultiSelectMode(nextEnabled)
       }
@@ -431,7 +446,15 @@ export function ModelSelector(props: ModelSelectorProps) {
     (item: ModelSelectorModelItem) => {
       skipNextFocusScroll.current = true
 
-      if (multiple && multiSelectMode) {
+      if (multiple && multiSelectModeRef.current) {
+        ignoreNextMultiSelectCloseRef.current = true
+        if (ignoreNextMultiSelectCloseTimerRef.current) {
+          clearTimeout(ignoreNextMultiSelectCloseTimerRef.current)
+        }
+        ignoreNextMultiSelectCloseTimerRef.current = setTimeout(() => {
+          ignoreNextMultiSelectCloseRef.current = false
+          ignoreNextMultiSelectCloseTimerRef.current = null
+        }, 0)
         emitSelection(computeToggledSelection(rawSelectedModelIds, item.modelId))
         return
       }
@@ -439,7 +462,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       emitSelection([item.modelId])
       setOpen(false)
     },
-    [emitSelection, multiple, multiSelectMode, rawSelectedModelIds, setOpen]
+    [emitSelection, multiple, rawSelectedModelIds, setOpen]
   )
 
   const handleClose = useCallback(() => {

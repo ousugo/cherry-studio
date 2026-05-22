@@ -39,6 +39,12 @@ export interface ComposerSurfaceActions {
   resizeTextArea: () => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
   toggleExpanded: (nextState?: boolean) => void
+  removeToken: (tokenId: string) => void
+}
+
+export interface ComposerTokenRemoveRequest {
+  kind: ComposerDraftToken['kind']
+  tokenId: string
 }
 
 export interface ComposerSurfaceProps {
@@ -67,6 +73,7 @@ export interface ComposerSurfaceProps {
   narrowMode: boolean
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
+  onTokenRemoveRequest?: (request: ComposerTokenRemoveRequest) => void
   getToolLaunchers?: () => ComposerToolLauncher[]
   suggestionSources?: readonly ComposerSuggestionSource[]
   topContent?: React.ReactNode
@@ -318,6 +325,7 @@ export default function ComposerSurface({
   narrowMode,
   onFocus,
   onActionsChange,
+  onTokenRemoveRequest,
   getToolLaunchers,
   suggestionSources = [],
   topContent,
@@ -417,7 +425,7 @@ export default function ComposerSurface({
     [onTextChange]
   )
 
-  const handleRemoveToken = useCallback((tokenId: string) => {
+  const removeToken = useCallback((tokenId: string) => {
     const editor = editorRef.current
     if (!editor || editor.isDestroyed) return
     removeComposerTokens(editor, (token) => token.id === tokenId)
@@ -428,9 +436,10 @@ export default function ComposerSurface({
     onActionsChange?.({
       resizeTextArea: () => undefined,
       onTextChange: handleTextChangeFromTool,
-      toggleExpanded: handleToggleExpanded
+      toggleExpanded: handleToggleExpanded,
+      removeToken
     })
-  }, [handleTextChangeFromTool, handleToggleExpanded, onActionsChange])
+  }, [handleTextChangeFromTool, handleToggleExpanded, onActionsChange, removeToken])
 
   const rootSuggestionStateRef = useRef({ getToolLaunchers, onToolLauncherSelect, quickPanel })
   rootSuggestionStateRef.current = { getToolLaunchers, onToolLauncherSelect, quickPanel }
@@ -626,13 +635,28 @@ export default function ComposerSurface({
         isExpanded && 'expanded'
       )}>
       {modelTokenViews.length > 0 ? (
-        <div className="-translate-y-1/2 absolute top-0 left-4 z-4 flex items-center gap-1 rounded-full bg-card px-1">
+        <div className="-translate-y-1/2 absolute top-0 left-4 z-4 flex items-center rounded-full">
+          <div className="pointer-events-none absolute top-1/2 left-0 z-0 h-3 w-full -translate-y-1/2 rounded-full bg-card" />
           {modelTokenViews.map(({ token, model, providerName }) => (
             <span
               key={token.id}
-              className="group/model-token relative flex size-8 items-center justify-center text-foreground"
+              className="group/model-token relative z-1 flex size-7 items-center justify-center text-foreground"
               title={providerName ? `${token.label} | ${providerName}` : token.label}>
-              {model ? <ModelAvatar model={model} size={28} /> : <Bot size={22} />}
+              {model ? (
+                <ModelAvatar
+                  className={cn(
+                    'bg-transparent shadow-none [&_[data-slot=avatar-fallback]]:bg-transparent',
+                    (model.id.toLowerCase().includes('kimi') ||
+                      model.provider?.toLowerCase() === 'moonshot' ||
+                      model.providerId?.toLowerCase() === 'moonshot') &&
+                      '[&_svg>path:first-child]:fill-transparent'
+                  )}
+                  model={model}
+                  size={26}
+                />
+              ) : (
+                <Bot size={22} />
+              )}
               <button
                 type="button"
                 className="-top-1 -right-1 absolute hidden size-3.5 items-center justify-center rounded-full bg-muted text-muted-foreground shadow-sm hover:bg-muted/90 hover:text-foreground group-hover/model-token:flex"
@@ -640,7 +664,7 @@ export default function ComposerSurface({
                 onClick={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
-                  handleRemoveToken(token.id)
+                  onTokenRemoveRequest?.({ kind: token.kind, tokenId: token.id })
                 }}>
                 <X size={10} />
               </button>

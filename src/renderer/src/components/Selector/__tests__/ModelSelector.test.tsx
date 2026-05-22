@@ -83,7 +83,12 @@ vi.mock('@cherrystudio/ui', () => {
     }: InputHTMLAttributes<HTMLInputElement> & { ref?: RefObject<HTMLInputElement | null> }) => (
       <input ref={ref} {...props} />
     ),
-    Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Popover: ({ children, onOpenChange }: { children: ReactNode; onOpenChange?: (open: boolean) => void }) => (
+      <div>
+        <button type="button" data-testid="mock-popover-close" onClick={() => onOpenChange?.(false)} />
+        {children}
+      </div>
+    ),
     PopoverContent: ({
       children,
       style,
@@ -405,6 +410,74 @@ describe('ModelSelector', () => {
     )
 
     expect(mockScrollToIndex).not.toHaveBeenCalled()
+  })
+
+  it('keeps the popover open when enabling controlled multi-select from an existing selection', () => {
+    const firstModelId = 'openai::gpt-4' as UniqueModelId
+    const secondModelId = 'openai::gpt-3.5' as UniqueModelId
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        resolvedSelectedModelIds: [firstModelId],
+        visibleSelectedModelIdSet: makeSelectedSet([firstModelId])
+      })
+    )
+    const onOpenChange = vi.fn()
+    const onSelect = vi.fn()
+    const onMultiSelectModeChange = vi.fn()
+
+    render(
+      <ModelSelector
+        open
+        multiple
+        value={[makeModel(firstModelId, 'gpt-4')]}
+        multiSelectMode={false}
+        trigger={<button type="button">open</button>}
+        onOpenChange={onOpenChange}
+        onSelect={onSelect}
+        onMultiSelectModeChange={onMultiSelectModeChange}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('model-selector-multi-select-switch'))
+    fireEvent.click(screen.getByTestId(`model-selector-item-${secondModelId}`))
+    fireEvent.click(screen.getByTestId('mock-popover-close'))
+
+    expect(onMultiSelectModeChange).toHaveBeenCalledWith(true)
+    expect(onSelect).toHaveBeenCalledWith([
+      expect.objectContaining({ id: firstModelId }),
+      expect.objectContaining({ id: secondModelId })
+    ])
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+  })
+
+  it('still closes normally after the multi-select item click guard expires', async () => {
+    const firstModelId = 'openai::gpt-4' as UniqueModelId
+    const secondModelId = 'openai::gpt-3.5' as UniqueModelId
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        resolvedSelectedModelIds: [firstModelId],
+        visibleSelectedModelIdSet: makeSelectedSet([firstModelId])
+      })
+    )
+    const onOpenChange = vi.fn()
+
+    render(
+      <ModelSelector
+        open
+        multiple
+        value={[makeModel(firstModelId, 'gpt-4')]}
+        multiSelectMode
+        trigger={<button type="button">open</button>}
+        onOpenChange={onOpenChange}
+        onSelect={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId(`model-selector-item-${secondModelId}`))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    fireEvent.click(screen.getByTestId('mock-popover-close'))
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('scrolls to the selected model when reopened after a single-select change', async () => {
