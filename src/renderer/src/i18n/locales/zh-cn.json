@@ -1436,6 +1436,11 @@
       }
     },
     "message": {
+      "flow": {
+        "branches": "分支",
+        "nodes": "节点",
+        "title": "分支管理"
+      },
       "new": {
         "branch": {
           "created": "新分支已创建",

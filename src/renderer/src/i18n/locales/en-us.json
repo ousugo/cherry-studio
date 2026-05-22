@@ -1436,6 +1436,11 @@
       }
     },
     "message": {
+      "flow": {
+        "branches": "branches",
+        "nodes": "nodes",
+        "title": "Branch Management"
+      },
       "new": {
         "branch": {
           "created": "New Branch Created",

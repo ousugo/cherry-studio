@@ -2,10 +2,14 @@ import type { FC } from 'react'
 
 import Tools from '../Tools'
 
-const ChatNavbarContent: FC = () => {
+interface ChatNavbarContentProps {
+  onOpenTopicFlow?: () => void | Promise<void>
+}
+
+const ChatNavbarContent: FC<ChatNavbarContentProps> = ({ onOpenTopicFlow }) => {
   return (
     <div className="flex min-w-0 flex-1 items-center justify-between">
-      <Tools />
+      <Tools onOpenTopicFlow={onOpenTopicFlow} />
     </div>
   )
 }

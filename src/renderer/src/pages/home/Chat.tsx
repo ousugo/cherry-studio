@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavBar'
+import TopicMessageFlowPanel from './components/TopicMessageFlowPanel'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('Chat')
@@ -46,6 +47,7 @@ const Chat: FC<Props> = (props) => {
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
+  const [topicFlowPanelOpen, setTopicFlowPanelOpen] = useState(false)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = useRef<ContentSearchRef>(null)
@@ -114,7 +116,13 @@ const Chat: FC<Props> = (props) => {
   const citationsPanelOpen = citationPanelCitations !== null
 
   const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
+    setTopicFlowPanelOpen(false)
     setCitationPanelCitations(citations)
+  }, [])
+
+  const handleOpenTopicFlowPanel = useCallback(() => {
+    setCitationPanelCitations(null)
+    setTopicFlowPanelOpen(true)
   }, [])
 
   return (
@@ -129,13 +137,28 @@ const Chat: FC<Props> = (props) => {
           pane={props.pane}
           paneOpen={props.paneOpen}
           panePosition={props.panePosition}
-          topBar={props.hideNavbar ? undefined : <ChatNavbar onOpenSidePanelDrawer={props.onOpenSidePanelDrawer} />}
+          topBar={
+            props.hideNavbar ? undefined : (
+              <ChatNavbar
+                onOpenSidePanelDrawer={props.onOpenSidePanelDrawer}
+                onOpenTopicFlow={handleOpenTopicFlowPanel}
+              />
+            )
+          }
           sidePanel={
-            <CitationsPanel
-              open={citationsPanelOpen}
-              onClose={() => setCitationPanelCitations(null)}
-              citations={citationPanelCitations ?? []}
-            />
+            <>
+              <CitationsPanel
+                open={citationsPanelOpen}
+                onClose={() => setCitationPanelCitations(null)}
+                citations={citationPanelCitations ?? []}
+              />
+              <TopicMessageFlowPanel
+                open={topicFlowPanelOpen}
+                onClose={() => setTopicFlowPanelOpen(false)}
+                topicId={props.activeTopic.id}
+                topicName={props.activeTopic.name}
+              />
+            </>
           }
           centerContent={
             <ChatContent
