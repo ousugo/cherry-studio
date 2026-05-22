@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { ChannelAdapter } from '@main/ai/agent-session/channels/ChannelAdapter'
+import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 
