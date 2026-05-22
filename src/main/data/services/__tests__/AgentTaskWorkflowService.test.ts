@@ -5,7 +5,7 @@ const { startLoopMock, syncSchedulerMock } = vi.hoisted(() => ({
   syncSchedulerMock: vi.fn()
 }))
 
-vi.mock('@main/services/agents/services/SchedulerService', () => ({
+vi.mock('@main/ai/agent-session/SchedulerService', () => ({
   schedulerService: {
     startLoop: startLoopMock,
     syncScheduler: syncSchedulerMock

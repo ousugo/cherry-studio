@@ -1,7 +1,6 @@
 import { application } from '@main/core/application'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import { agentChatContextProvider } from '../../stream-manager/context/AgentChatContextProvider'
 import type { StreamListener } from '../../stream-manager/types'
 import { buildAgentSessionTopicId } from '../topic'
 
@@ -29,6 +28,13 @@ export async function startAgentSessionRun(input: {
 
   const topicId = buildAgentSessionTopicId(input.sessionId)
   const manager = application.get('AiStreamManager')
+
+  // Lazy import: AgentChatContextProvider transitively loads the runtime
+  // driver registry, and this facade is itself reachable from
+  // agentTaskHandler → AgentTaskWorkflowService → claw MCP → settingsBuilder,
+  // which sits behind the driver class. Lazy-loading the provider keeps the
+  // cycle from materializing at module load time.
+  const { agentChatContextProvider } = await import('../../stream-manager/context/AgentChatContextProvider')
 
   const prepared = await agentChatContextProvider.prepareDispatch(
     primary,

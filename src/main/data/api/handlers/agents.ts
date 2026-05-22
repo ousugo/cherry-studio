@@ -5,8 +5,8 @@
  * service singletons. Each handler validates required inputs and delegates
  * to the appropriate service method.
  *
- * Service layer: src/main/services/agents/services/
- * Skills layer:  src/main/services/agents/skills/SkillService
+ * Service layer: src/main/ai/agent-session/
+ * Skills layer:  src/main/ai/agent-session/skills/SkillService
  */
 
 import { agentService } from '@data/services/AgentService'

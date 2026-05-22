@@ -35,11 +35,12 @@ const { mockSyncBuiltinSkill } = vi.hoisted(() => ({
   mockSyncBuiltinSkill: vi.fn()
 }))
 
-vi.mock('../services/agents/skills/SkillService', () => ({
-  skillService: {
-    syncBuiltinSkill: mockSyncBuiltinSkill
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    SkillService: { syncBuiltinSkill: mockSyncBuiltinSkill }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 // Matches the stub in tests/main.setup.ts → mockApplicationFactory().getPath
 const resourceSkillsPath = '/mock/feature.agents.skills.builtin'

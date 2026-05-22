@@ -3,10 +3,9 @@ import { agentService } from '@data/services/AgentService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
+import { readHeartbeat } from '@main/ai/agent-session/agents/cherryclaw/heartbeat'
 import { application } from '@main/core/application'
 import type { JobHandler } from '@main/core/job/types'
-import { readHeartbeat } from '@main/services/agents/services/cherryclaw/heartbeat'
-import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 
 import { ChannelAdapterListener, type StreamListener } from '../../stream-manager'
@@ -22,23 +21,7 @@ const logger = loggerService.withContext('AgentTaskHandler')
 
 export const AGENT_TASK_JOB_TYPE = 'agent.task' as const
 
-/** Convert an `agent_task` row's schedule fields to a JobManager Trigger. Returns `null` if unparseable. */
-export function agentTaskToJobTrigger(task: ScheduledTaskEntity): Trigger | null {
-  switch (task.scheduleType) {
-    case 'cron':
-      return { kind: 'cron', expr: task.scheduleValue }
-    case 'interval': {
-      const minutes = parseInt(task.scheduleValue, 10)
-      if (!Number.isFinite(minutes) || minutes <= 0) return null
-      return { kind: 'interval', ms: minutes * 60_000 }
-    }
-    case 'once': {
-      const at = parseInt(task.scheduleValue, 10)
-      if (!Number.isFinite(at)) return null
-      return { kind: 'once', at }
-    }
-  }
-}
+export { agentTaskToJobTrigger } from './agentTaskTrigger'
 
 export const agentTaskHandler: JobHandler<{ agentId: string; taskId: string }> = {
   recovery: 'abandon',
@@ -120,8 +103,7 @@ export const agentTaskHandler: JobHandler<{ agentId: string; taskId: string }> =
       const sentinel: StreamListener = {
         id: `agent-task-job:${task.id}`,
         onChunk(chunk) {
-          const c = chunk as { type: string; text?: string }
-          if (c.type === 'text-delta' && c.text) accumulatedText += c.text
+          if (chunk.type === 'text-delta') accumulatedText += chunk.delta
         },
         onDone() {
           resolveExecution(accumulatedText.trim())

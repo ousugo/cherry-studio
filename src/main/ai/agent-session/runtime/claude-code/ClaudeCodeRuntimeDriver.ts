@@ -6,14 +6,10 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import { listMcpTools } from '@main/services/agents/agentUtils'
-import { extractRtkBinaries } from '@main/utils/rtk'
 import type { AgentTool } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { Message } from '@shared/data/types/message'
 import type { UIMessageChunk } from 'ai'
-
-const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 
 import type {
   AgentRuntimeConnectInput,
@@ -25,6 +21,8 @@ import type {
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
 import { AgentSessionWorkspaceError, assertClaudeCodeWorkspaceDirectory } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter } from './streamAdapter'
+
+const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
   private readonly items: T[] = []
@@ -241,6 +239,11 @@ export class ClaudeCodeRuntimeDriver implements AgentRuntimeDriver {
   readonly type = 'claude-code'
 
   async init(): Promise<void> {
+    // Lazy import to keep the driver module's eager-load surface small —
+    // `register.ts` runs at module load and we don't want this path pulling in
+    // the utils/rtk transitive graph (electron.app, @application) just to
+    // construct the registry entry.
+    const { extractRtkBinaries } = await import('@main/utils/rtk')
     try {
       await extractRtkBinaries()
     } catch (error) {
@@ -259,6 +262,10 @@ export class ClaudeCodeRuntimeDriver implements AgentRuntimeDriver {
   }
 
   async listAvailableTools(mcpIds: string[]): Promise<AgentTool[]> {
+    // Lazy import: agentUtils transitively pulls in @application + apiServer,
+    // which creates a load-time cycle with `register.ts` constructing the
+    // driver.
+    const { listMcpTools } = await import('@main/ai/agent-session/agents/agentUtils')
     return listMcpTools('claude-code', mcpIds)
   }
 

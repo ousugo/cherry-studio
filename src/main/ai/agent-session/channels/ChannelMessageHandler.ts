@@ -11,9 +11,9 @@ import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-man
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 
-import { sanitizeChannelOutput, wrapExternalContent } from '../security'
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
+import { sanitizeChannelOutput, wrapExternalContent } from './security'
 import { splitMessage } from './utils'
 
 const logger = loggerService.withContext('ChannelMessageHandler')

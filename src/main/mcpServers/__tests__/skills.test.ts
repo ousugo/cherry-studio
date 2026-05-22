@@ -17,17 +17,20 @@ vi.mock('node:fs/promises', () => ({
   readdir: (...args: unknown[]) => mockReaddir(...args)
 }))
 
-vi.mock('@main/services/agents/skills', () => ({
-  skillService: {
-    install: mockSkillInstall,
-    uninstallByFolderName: mockSkillUninstallByFolderName,
-    list: mockSkillList,
-    toggle: mockSkillToggle,
-    installFromDirectory: mockSkillInstallFromDirectory,
-    getSkillDirectory: mockSkillGetSkillDirectory,
-    getByFolderName: mockSkillGetByFolderName
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    SkillService: {
+      install: mockSkillInstall,
+      uninstallByFolderName: mockSkillUninstallByFolderName,
+      list: mockSkillList,
+      toggle: mockSkillToggle,
+      installFromDirectory: mockSkillInstallFromDirectory,
+      getSkillDirectory: mockSkillGetSkillDirectory,
+      getByFolderName: mockSkillGetByFolderName
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 // Override net.fetch with our local mock — electron is mocked globally in main.setup.ts
 const electron = await import('electron')
