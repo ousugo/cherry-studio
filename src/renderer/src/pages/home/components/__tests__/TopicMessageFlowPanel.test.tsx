@@ -24,10 +24,16 @@ vi.mock('@data/DataApiService', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: React.PropsWithChildren<React.ButtonHTMLAttributes<HTMLButtonElement>>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   PageSidePanel: ({
     open,
     header,
     closeLabel,
+    showBackdrop,
     contentClassName,
     bodyClassName,
     children
@@ -35,6 +41,7 @@ vi.mock('@cherrystudio/ui', () => ({
     open: boolean
     header?: React.ReactNode
     closeLabel?: string
+    showBackdrop?: boolean
     contentClassName?: string
     bodyClassName?: string
   }>) =>
@@ -42,12 +49,14 @@ vi.mock('@cherrystudio/ui', () => ({
       <section
         data-testid="page-side-panel"
         data-body-class-name={bodyClassName}
-        data-content-class-name={contentClassName}>
+        data-content-class-name={contentClassName}
+        data-show-backdrop={String(showBackdrop)}>
         <div>{header}</div>
         <button type="button" aria-label={closeLabel} />
         {children}
       </section>
-    ) : null
+    ) : null,
+  Tooltip: ({ children }: React.PropsWithChildren<{ content?: React.ReactNode; delay?: number }>) => <>{children}</>
 }))
 
 vi.mock('@renderer/components/chat/messages/flow', () => ({
@@ -116,6 +125,7 @@ describe('TopicMessageFlowPanel', () => {
       'data-content-class-name',
       'w-[min(760px,calc(100vw-24px))]'
     )
+    expect(screen.getByTestId('page-side-panel')).toHaveAttribute('data-show-backdrop', 'false')
     expect(screen.getByTestId('page-side-panel')).toHaveAttribute(
       'data-body-class-name',
       'flex min-h-0 flex-col space-y-0 overflow-hidden p-0'
@@ -180,5 +190,17 @@ describe('TopicMessageFlowPanel', () => {
 
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
+  })
+
+  it('expands the drawer to cover the chat center area', () => {
+    render(<TopicMessageFlowPanel open={true} onClose={vi.fn()} topicId="topic-1" />)
+
+    fireEvent.click(screen.getByLabelText('common.maximize'))
+
+    expect(screen.getByTestId('page-side-panel')).toHaveAttribute(
+      'data-content-class-name',
+      'top-0 right-0 bottom-0 left-0 w-auto rounded-none border-y-0 border-r-0'
+    )
+    expect(screen.getByLabelText('common.minimize')).toHaveAttribute('aria-pressed', 'true')
   })
 })
