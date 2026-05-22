@@ -1,5 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
 import CodeViewer from '@renderer/components/CodeViewer'
@@ -20,7 +21,7 @@ import {
   Sparkles
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CHAT_SHELL_TRANSITION } from '../shell/types'
@@ -29,6 +30,10 @@ import OpenExternalAppButton from './OpenExternalAppButton'
 const logger = loggerService.withContext('ArtifactPane')
 
 export const ARTIFACT_PANE_WIDTH = 460
+export const ARTIFACT_FILE_TREE_DEFAULT_WIDTH = 160
+export const ARTIFACT_FILE_TREE_CACHE_KEY = 'ui.chat.artifact_pane.file_tree.width'
+const ARTIFACT_FILE_TREE_MIN_WIDTH_OFFSET = 340
+const ARTIFACT_FILE_TREE_MAX_WIDTH_OFFSET = 140
 
 export interface ArtifactPaneProps {
   workspacePath?: string
@@ -233,6 +238,97 @@ interface HtmlPreviewPanelProps {
   title: string
 }
 
+function getArtifactFileTreeWidthBounds(artifactPaneWidth: number) {
+  const minWidth = Math.max(0, Math.round(artifactPaneWidth - ARTIFACT_FILE_TREE_MIN_WIDTH_OFFSET))
+  const maxWidth = Math.max(minWidth, Math.round(artifactPaneWidth - ARTIFACT_FILE_TREE_MAX_WIDTH_OFFSET))
+  return { minWidth, maxWidth }
+}
+
+function clampArtifactFileTreeWidth(width: number, artifactPaneWidth: number): number {
+  const { minWidth, maxWidth } = getArtifactFileTreeWidthBounds(artifactPaneWidth)
+  return Math.min(maxWidth, Math.max(minWidth, Math.round(width)))
+}
+
+function useArtifactFileTreeResize() {
+  const [storedWidth, setStoredWidth] = usePersistCache(ARTIFACT_FILE_TREE_CACHE_KEY)
+  const artifactPaneRef = useRef<HTMLDivElement>(null)
+  const paneRef = useRef<HTMLDivElement>(null)
+  const resizeCleanupRef = useRef<(() => void) | null>(null)
+  const isResizingRef = useRef(false)
+  const [isResizing, setIsResizing] = useState(false)
+  const [artifactPaneWidth, setArtifactPaneWidth] = useState(ARTIFACT_PANE_WIDTH)
+  const paneWidth = clampArtifactFileTreeWidth(storedWidth ?? ARTIFACT_FILE_TREE_DEFAULT_WIDTH, artifactPaneWidth)
+
+  const measureArtifactPaneWidth = useCallback(() => {
+    const width = artifactPaneRef.current?.getBoundingClientRect().width
+    return width && Number.isFinite(width) ? width : ARTIFACT_PANE_WIDTH
+  }, [])
+
+  useEffect(() => {
+    return () => resizeCleanupRef.current?.()
+  }, [])
+
+  useEffect(() => {
+    const updateArtifactPaneWidth = () => setArtifactPaneWidth(measureArtifactPaneWidth())
+    updateArtifactPaneWidth()
+
+    const element = artifactPaneRef.current
+    if (!element || typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(updateArtifactPaneWidth)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [measureArtifactPaneWidth])
+
+  const startResizing = useCallback(
+    (event: ReactMouseEvent) => {
+      event.preventDefault()
+
+      isResizingRef.current = true
+      setIsResizing(true)
+
+      const previousCursor = document.body.style.cursor
+      const previousUserSelect = document.body.style.userSelect
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+
+      const currentArtifactPaneWidth = measureArtifactPaneWidth()
+      setArtifactPaneWidth(currentArtifactPaneWidth)
+      const paneLeft = paneRef.current?.getBoundingClientRect().left ?? event.clientX - paneWidth
+
+      const cleanup = () => {
+        isResizingRef.current = false
+        setIsResizing(false)
+        document.body.style.cursor = previousCursor
+        document.body.style.userSelect = previousUserSelect
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+        resizeCleanupRef.current = null
+      }
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        if (!isResizingRef.current) return
+        setStoredWidth(clampArtifactFileTreeWidth(moveEvent.clientX - paneLeft, currentArtifactPaneWidth))
+      }
+
+      const onMouseUp = () => cleanup()
+
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+      resizeCleanupRef.current = cleanup
+    },
+    [measureArtifactPaneWidth, paneWidth, setStoredWidth]
+  )
+
+  return {
+    artifactPaneRef,
+    isResizing,
+    paneRef,
+    paneWidth,
+    startResizing
+  }
+}
+
 // HtmlArtifactsPopup uses this sandbox combination for local artifact previews.
 /* eslint-disable @eslint-react/dom/no-unsafe-iframe-sandbox */
 const HtmlPreviewPanel = memo<HtmlPreviewPanelProps>(({ html, title }) => {
@@ -317,6 +413,13 @@ const ArtifactPane = ({
 }: ArtifactPaneProps) => {
   const { t } = useTranslation()
   const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(workspacePath)
+  const {
+    artifactPaneRef,
+    isResizing: isFileTreeResizing,
+    paneRef: fileTreePaneRef,
+    paneWidth: fileTreeWidth,
+    startResizing: startFileTreeResizing
+  } = useArtifactFileTreeResize()
 
   const [treeOpen, setTreeOpen] = useState(false)
   const [internalViewMode, setInternalViewMode] = useState<ArtifactPaneViewMode>('preview')
@@ -557,6 +660,7 @@ const ArtifactPane = ({
 
   return (
     <div
+      ref={artifactPaneRef}
       className={cn(
         'flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground',
         maximized && 'rounded-lg border border-border-subtle shadow-sm'
@@ -565,14 +669,19 @@ const ArtifactPane = ({
         <AnimatePresence initial={false}>
           {treeOpen && (
             <motion.div
+              ref={fileTreePaneRef}
               key="artifact-file-tree"
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 160, opacity: 1 }}
+              animate={{ width: fileTreeWidth, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              transition={CHAT_SHELL_TRANSITION}
-              className="shrink-0 overflow-hidden">
-              <aside className="flex h-full w-40 flex-col overflow-hidden border-border-subtle border-r">
-                <div className="min-h-0 flex-1 overflow-auto px-1 py-2">
+              transition={isFileTreeResizing ? { duration: 0 } : CHAT_SHELL_TRANSITION}
+              data-artifact-file-tree-pane
+              data-resizing={isFileTreeResizing || undefined}
+              className="group/artifact-file-tree relative shrink-0 overflow-hidden">
+              <aside className="flex h-full w-full flex-col overflow-hidden border-border-subtle border-r">
+                <div
+                  data-artifact-file-tree-scroll-region
+                  className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-1 py-2">
                   {isLoading ? (
                     <LoadingState variant="skeleton" rows={4} />
                   ) : (
@@ -595,6 +704,12 @@ const ArtifactPane = ({
                   )}
                 </div>
               </aside>
+              <div
+                data-artifact-file-tree-resize-handle
+                onMouseDown={startFileTreeResizing}
+                className="group/artifact-file-tree-resize-handle absolute top-0 right-0 bottom-0 z-10 w-2 cursor-col-resize">
+                <div className="absolute top-0 right-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/artifact-file-tree-resize-handle:opacity-100 group-data-[resizing=true]/artifact-file-tree:bg-primary/35 group-data-[resizing=true]/artifact-file-tree:opacity-100" />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -656,7 +771,13 @@ const ArtifactPane = ({
               )}
             </div>
           </div>
-          <div className={cn('min-h-0 min-w-0 flex-1', isSelectedHtmlPreview ? 'overflow-hidden' : 'overflow-auto')}>
+          <div
+            data-artifact-right-pane
+            className={cn(
+              'min-h-0 min-w-0 flex-1',
+              isSelectedHtmlPreview ? 'overflow-hidden' : 'overflow-auto',
+              isFileTreeResizing && 'pointer-events-none'
+            )}>
             {renderRight()}
           </div>
         </section>

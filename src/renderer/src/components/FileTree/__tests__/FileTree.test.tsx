@@ -72,6 +72,12 @@ describe('FileTree - read-only form (no callbacks)', () => {
     await user.click(screen.getByText('Root'))
     expect(onSelectedChange).toHaveBeenCalledWith('root')
   })
+
+  it('truncates labels by default', () => {
+    render(<FileTree nodes={nodes} defaultExpandedIds={new Set(['root'])} renderList={passthroughRenderList} />)
+
+    expect(screen.getByText('A.md')).toHaveClass('truncate')
+  })
 })
 
 describe('FileTree - editable form (all callbacks)', () => {

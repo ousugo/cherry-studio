@@ -291,6 +291,7 @@ export type RendererPersistCacheSchema = {
   'ui.sidebar.width': number
   'ui.chat.sidebar.width': number
   'ui.chat.artifact_pane.width': number
+  'ui.chat.artifact_pane.file_tree.width': number
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
@@ -307,6 +308,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.sidebar.width': 65,
   'ui.chat.sidebar.width': 275,
   'ui.chat.artifact_pane.width': 460,
+  'ui.chat.artifact_pane.file_tree.width': 160,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,

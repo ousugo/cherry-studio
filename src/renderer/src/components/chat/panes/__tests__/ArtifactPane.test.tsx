@@ -5,14 +5,18 @@ import type { PropsWithChildren } from 'react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ArtifactPane from '../ArtifactPane'
+import ArtifactPane, { ARTIFACT_FILE_TREE_DEFAULT_WIDTH } from '../ArtifactPane'
 
 const mocks = vi.hoisted(() => ({
   listDirectory: vi.fn(),
   fsRead: vi.fn(),
   fsReadText: vi.fn(),
   createObjectURL: vi.fn(),
-  revokeObjectURL: vi.fn()
+  revokeObjectURL: vi.fn(),
+  artifactFileTreeWidth: null as number | null,
+  setArtifactFileTreeWidth: vi.fn((width: number) => {
+    mocks.artifactFileTreeWidth = width
+  })
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -108,11 +112,13 @@ vi.mock('@renderer/components/FileTree', () => ({
   FileTree: ({
     nodes,
     selectedId,
-    onSelectedChange
+    onSelectedChange,
+    ...props
   }: {
     nodes: MockFileTreeNode[]
     selectedId?: string | null
     onSelectedChange?: (id: string | null) => void
+    truncateLabels?: boolean
   }) => {
     const renderNode = (node: MockFileTreeNode) => (
       <div key={node.id}>
@@ -128,7 +134,11 @@ vi.mock('@renderer/components/FileTree', () => ({
       </div>
     )
 
-    return <div data-testid="file-tree">{nodes.map(renderNode)}</div>
+    return (
+      <div data-testid="file-tree" data-truncate-labels={String(props.truncateLabels)}>
+        {nodes.map(renderNode)}
+      </div>
+    )
   }
 }))
 
@@ -152,7 +162,10 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => [null, vi.fn()]
+  usePersistCache: (key: string) =>
+    key === 'ui.chat.artifact_pane.file_tree.width'
+      ? [mocks.artifactFileTreeWidth, mocks.setArtifactFileTreeWidth]
+      : [null, vi.fn()]
 }))
 
 vi.mock('@renderer/components/Icons/SVGIcon', () => ({
@@ -182,6 +195,7 @@ vi.mock('react-i18next', () => ({
 describe('ArtifactPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.artifactFileTreeWidth = null
     mocks.listDirectory.mockResolvedValue([])
     mocks.createObjectURL.mockReturnValue('blob:fake-url')
     Object.defineProperty(window, 'api', {
@@ -208,6 +222,8 @@ describe('ArtifactPane', () => {
   })
 
   afterEach(() => {
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
     vi.restoreAllMocks()
   })
 
@@ -248,7 +264,7 @@ describe('ArtifactPane', () => {
   })
 
   it('renders header tool buttons without a close button', () => {
-    render(<ArtifactPane />)
+    render(<ArtifactPane onToggleMaximized={vi.fn()} />)
 
     for (const label of ['agent.preview_pane.file_tree', 'agent.preview_pane.refresh', 'agent.preview_pane.maximize']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
@@ -274,7 +290,7 @@ describe('ArtifactPane', () => {
   })
 
   it('renders the workspace opener between refresh and maximize when a workspace path exists', async () => {
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    render(<ArtifactPane workspacePath="/tmp/workspace" onToggleMaximized={vi.fn()} />)
 
     await waitFor(() => expect(mocks.listDirectory).toHaveBeenCalledWith('/tmp/workspace', expect.any(Object)))
 
@@ -339,11 +355,15 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
     expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-initial-width', '0')
     expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-initial-opacity', '0')
-    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-animate-width', '160')
+    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute(
+      'data-animate-width',
+      String(ARTIFACT_FILE_TREE_DEFAULT_WIDTH)
+    )
     expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-animate-opacity', '1')
     expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-exit-width', '0')
     expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-exit-opacity', '0')
     expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-has-transition', 'true')
+    expect(screen.getByTestId('file-tree')).toHaveAttribute('data-truncate-labels', 'undefined')
     expect(screen.getByTestId('tree-node-__workspace_root__')).toHaveTextContent('workspace')
     expect(screen.getByTestId('tree-node-README.md')).toHaveTextContent('README.md')
     expect(folderButton).toHaveAttribute('aria-pressed', 'true')
@@ -355,6 +375,151 @@ describe('ArtifactPane', () => {
     expect(folderButton).toHaveAttribute('aria-pressed', 'false')
     expect(folderButton.querySelector('.lucide-folder')).toBeInTheDocument()
     expect(folderButton.querySelector('.lucide-folder-open')).not.toBeInTheDocument()
+  })
+
+  it('renders a right-edge resize handle for the file tree', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
+
+    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
+    const scrollRegion = container.querySelector('[data-artifact-file-tree-scroll-region]')
+
+    expect(handle).toBeInTheDocument()
+    expect(handle).toHaveClass('right-0', 'cursor-col-resize')
+    expect(scrollRegion).toHaveClass('overflow-y-auto', 'overflow-x-hidden')
+  })
+
+  it('clamps dragged file tree width from the default artifact pane width and cleans document resize styles', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
+
+    const pane = container.querySelector('[data-artifact-file-tree-pane]')
+    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
+
+    if (!pane || !handle) {
+      throw new Error('Expected artifact file tree pane and resize handle')
+    }
+
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, ARTIFACT_FILE_TREE_DEFAULT_WIDTH, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 260 })
+    expect(document.body.style.cursor).toBe('col-resize')
+    expect(document.body.style.userSelect).toBe('none')
+    expect(pane).toHaveAttribute('data-resizing', 'true')
+    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-has-transition', 'true')
+
+    fireEvent.mouseMove(document, { clientX: 250 })
+    fireEvent.mouseMove(document, { clientX: 180 })
+    fireEvent.mouseMove(document, { clientX: 500 })
+
+    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(1, 150)
+    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(2, 120)
+    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(3, 320)
+
+    fireEvent.mouseUp(document)
+
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+    expect(pane).not.toHaveAttribute('data-resizing')
+  })
+
+  it('clamps dragged file tree width from the measured artifact pane width', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
+
+    const root = container.firstElementChild
+    const pane = container.querySelector('[data-artifact-file-tree-pane]')
+    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
+
+    if (!root || !pane || !handle) {
+      throw new Error('Expected artifact root, file tree pane, and resize handle')
+    }
+
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 500, 500))
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, ARTIFACT_FILE_TREE_DEFAULT_WIDTH, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 260 })
+    fireEvent.mouseMove(document, { clientX: 50 })
+    fireEvent.mouseMove(document, { clientX: 600 })
+    fireEvent.mouseUp(document)
+
+    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(1, 160)
+    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(2, 360)
+  })
+
+  it('disables HTML iframe pointer events while resizing the file tree', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['index.html'])
+    mocks.fsReadText.mockResolvedValue('<!doctype html><html><body><h1>Hello</h1></body></html>')
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-index.html')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-index.html'))
+    await waitFor(() => expect(container.querySelector('iframe[title="index.html"]')).not.toBeNull())
+
+    const pane = container.querySelector('[data-artifact-file-tree-pane]')
+    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
+    const rightPane = container.querySelector('[data-artifact-right-pane]')
+
+    if (!pane || !handle || !rightPane) {
+      throw new Error('Expected artifact panes and resize handle')
+    }
+
+    fireEvent.mouseDown(handle, { clientX: 260 })
+
+    expect(document.body.style.cursor).toBe('col-resize')
+    expect(document.body.style.userSelect).toBe('none')
+    expect(pane).toHaveAttribute('data-resizing', 'true')
+    expect(rightPane).toHaveClass('pointer-events-none')
+
+    fireEvent.mouseUp(document)
+
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+    expect(rightPane).not.toHaveClass('pointer-events-none')
+  })
+
+  it('disables PDF iframe pointer events while resizing the file tree', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
+    await waitFor(() => expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull())
+
+    const pane = container.querySelector('[data-artifact-file-tree-pane]')
+    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
+    const rightPane = container.querySelector('[data-artifact-right-pane]')
+
+    if (!pane || !handle || !rightPane) {
+      throw new Error('Expected artifact panes and resize handle')
+    }
+
+    fireEvent.mouseDown(handle, { clientX: 260 })
+
+    expect(pane).toHaveAttribute('data-resizing', 'true')
+    expect(rightPane).toHaveClass('pointer-events-none')
+
+    fireEvent.mouseUp(document)
+
+    expect(rightPane).not.toHaveClass('pointer-events-none')
   })
 
   it('renders markdown files with RichEditor in preview mode and CodeViewer in code mode', async () => {
