@@ -5,11 +5,11 @@ import { agentTaskService as taskService } from '@data/services/AgentTaskService
 import { agentTaskWorkflowService } from '@data/services/AgentTaskWorkflowService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import { type ChannelConfig, ChannelConfigSchema } from '@main/services/agents/services/channels/channelConfig'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import type { AgentConfiguration, TaskScheduleType } from '@shared/data/types/agent'
+import { type ChannelConfig, ChannelConfigSchema } from '@shared/data/types/channel'
 import QRCode from 'qrcode'
 
 const logger = loggerService.withContext('MCPServer:Claw')

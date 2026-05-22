@@ -12,6 +12,7 @@ import { JobManager } from '@main/core/job/JobManager'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ChannelManager } from '@main/services/agents/services/channels/ChannelManager'
+import { SkillService } from '@main/services/agents/skills/SkillService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
@@ -113,6 +114,7 @@ export const services = {
   AgentSessionRuntimeService,
   AgentJobsService,
   ChannelManager,
+  SkillService,
   AiService,
   ClaudeCodeWarmQueryManager,
   ClaudeCodeWarmupService,

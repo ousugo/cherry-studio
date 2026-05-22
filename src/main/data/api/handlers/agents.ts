@@ -12,7 +12,7 @@
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { agentTaskWorkflowService } from '@data/services/AgentTaskWorkflowService'
-import { skillService } from '@main/services/agents/skills/SkillService'
+import { application } from '@main/core/application'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
@@ -116,13 +116,13 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
         if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
       }
 
-      return await skillService.list(parsed.data)
+      return await application.get('SkillService').list(parsed.data)
     }
   },
 
   '/skills/:skillId': {
     GET: async ({ params }) => {
-      const skill = await skillService.getById(params.skillId)
+      const skill = await application.get('SkillService').getById(params.skillId)
       if (!skill) throw DataApiErrorFactory.notFound('Skill', params.skillId)
       return skill
     }

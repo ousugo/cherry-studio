@@ -7,6 +7,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { loggerService } from '@logger'
+import { BaseService } from '@main/core/lifecycle/BaseService'
 import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -84,11 +85,13 @@ describe('SkillService', () => {
 
   describe('list', () => {
     it('returns empty array when no skills installed', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await expect(skillService.list()).resolves.toEqual([])
     })
 
     it('returns all skills with isEnabled: false when no agentId provided', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await seedSkills()
 
@@ -100,6 +103,7 @@ describe('SkillService', () => {
     })
 
     it('returns source metadata tags and does not expose user tags', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await seedSkills()
       await dbh.db
@@ -115,6 +119,7 @@ describe('SkillService', () => {
     })
 
     it('reflects per-agent enablement when agentId is provided', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await seedAgent()
       await seedSkills()
@@ -135,6 +140,7 @@ describe('SkillService', () => {
     })
 
     it('returns isEnabled: false for all skills when agentId has no skill rows', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await seedAgent()
       await seedSkills()
@@ -145,6 +151,7 @@ describe('SkillService', () => {
     })
 
     it('filters by search against name or description in the database', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await seedSkills()
 
@@ -156,6 +163,7 @@ describe('SkillService', () => {
     })
 
     it('treats LIKE wildcards in search as literal characters', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await seedSkills()
       await dbh.db
@@ -171,11 +179,13 @@ describe('SkillService', () => {
 
   describe('getById', () => {
     it('returns null when skill does not exist', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await expect(skillService.getById('nonexistent')).resolves.toBeNull()
     })
 
     it('returns the skill when found', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await seedSkills()
 
@@ -209,6 +219,7 @@ describe('SkillService', () => {
     })
 
     it('lists user-owned local skill directories and symlinked directories', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       const workdir = await createTempDir('skill-local-workdir-')
       const skillsDir = path.join(workdir, '.claude', 'skills')
@@ -224,6 +235,7 @@ describe('SkillService', () => {
     })
 
     it('skips Cherry-managed skill symlinks that point to the global skill storage', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       const workdir = await createTempDir('skill-local-workdir-')
       const skillsDir = path.join(workdir, '.claude', 'skills')
@@ -252,6 +264,7 @@ describe('SkillService', () => {
 
     it('warns and skips broken local skill symlinks', async () => {
       const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
+      BaseService.resetInstances()
       const skillService = new SkillService()
       const workdir = await createTempDir('skill-local-workdir-')
       const skillsDir = path.join(workdir, '.claude', 'skills')
@@ -276,6 +289,7 @@ describe('SkillService', () => {
     let skillService: SkillService
 
     beforeEach(() => {
+      BaseService.resetInstances()
       skillService = new SkillService()
       vi.spyOn(skillService, 'linkSkill').mockResolvedValue(undefined)
       vi.spyOn(skillService, 'unlinkSkill').mockResolvedValue(undefined)
@@ -328,6 +342,7 @@ describe('SkillService', () => {
 
   describe('initSkillsForAgent', () => {
     it('creates enabled agent_skill rows for all builtin skills', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await seedAgent()
       await seedSkills()
@@ -343,6 +358,7 @@ describe('SkillService', () => {
     })
 
     it('is a no-op when no builtin skills exist', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await seedAgent()
       // Only insert marketplace skills
@@ -364,11 +380,13 @@ describe('SkillService', () => {
 
   describe('uninstall', () => {
     it('throws when skill does not exist', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await expect(skillService.uninstall('nonexistent')).rejects.toThrow('Skill not found: nonexistent')
     })
 
     it('removes DB row and delegates fs cleanup to installer', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await seedSkills()
       vi.spyOn(skillService['installer'], 'uninstall').mockResolvedValue(undefined)
@@ -381,6 +399,7 @@ describe('SkillService', () => {
     })
 
     it('removes symlinks for enabled agents before deleting', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await seedAgent()
       await seedSkills()
@@ -397,6 +416,7 @@ describe('SkillService', () => {
 
   describe('install', () => {
     it('throws on unknown install source', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       await expect(skillService.install({ installSource: 'unknown:foo/bar' })).rejects.toThrow(
         'Unknown install source: unknown'
@@ -404,6 +424,7 @@ describe('SkillService', () => {
     })
 
     it('delegates to installFromClaudePlugins for claude-plugins source', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       const spy = vi.spyOn(skillService as never, 'installFromClaudePlugins').mockResolvedValue({} as never)
       await skillService.install({ installSource: 'claude-plugins:owner/repo/skill' })
@@ -411,6 +432,7 @@ describe('SkillService', () => {
     })
 
     it('delegates to installFromSkillsSh for skills.sh source', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       const spy = vi.spyOn(skillService as never, 'installFromSkillsSh').mockResolvedValue({} as never)
       await skillService.install({ installSource: 'skills.sh:owner/repo' })
@@ -418,6 +440,7 @@ describe('SkillService', () => {
     })
 
     it('delegates to installFromClawhub for clawhub source', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       const spy = vi.spyOn(skillService as never, 'installFromClawhub').mockResolvedValue({} as never)
       await skillService.install({ installSource: 'clawhub:my-skill' })
@@ -441,6 +464,7 @@ describe('SkillService', () => {
     })
 
     it('is a no-op when skill exists and files were not updated', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       vi.spyOn(skillService['installer'], 'computeContentHash').mockResolvedValue('hash1')
       await dbh.db.insert(agentGlobalSkillTable).values({
@@ -458,6 +482,7 @@ describe('SkillService', () => {
     })
 
     it('updates metadata when skill exists and files were updated', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       vi.spyOn(skillService['installer'], 'computeContentHash').mockResolvedValue('hash2')
       await dbh.db.insert(agentGlobalSkillTable).values({
@@ -480,6 +505,7 @@ describe('SkillService', () => {
     })
 
     it('inserts and enables for all agents on first install', async () => {
+      BaseService.resetInstances()
       const skillService = new SkillService()
       vi.spyOn(skillService['installer'], 'computeContentHash').mockResolvedValue('hash3')
       const enableSpy = vi.spyOn(skillService, 'enableForAllAgents').mockResolvedValue(undefined)

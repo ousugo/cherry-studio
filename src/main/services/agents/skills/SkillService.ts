@@ -13,6 +13,7 @@ import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { workspaceTable } from '@data/db/schemas/workspace'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { directoryExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
@@ -53,10 +54,13 @@ const MAX_FOLDER_NAME_LENGTH = 80
  * Skill library metadata lives in `agent_global_skill`. Per-agent enablement
  * state lives in the `agent_skill` join table.
  */
-export class SkillService {
+@Injectable('SkillService')
+@ServicePhase(Phase.WhenReady)
+export class SkillService extends BaseService {
   private readonly installer: SkillInstaller
 
   constructor() {
+    super()
     this.installer = new SkillInstaller()
   }
 
@@ -1006,5 +1010,3 @@ export class SkillService {
     await net.fetch(url, { method: 'POST' })
   }
 }
-
-export const skillService = new SkillService()

@@ -1,7 +1,7 @@
 import { mkdir, readdir } from 'node:fs/promises'
 
 import { loggerService } from '@logger'
-import { skillService } from '@main/services/agents/skills'
+import { application } from '@main/core/application'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -195,12 +195,12 @@ class SkillsServer {
       )
     }
 
-    const installed = await skillService.install({
+    const installed = await application.get('SkillService').install({
       installSource: `claude-plugins:${identifier}`
     })
     // Enable the freshly-installed skill for the CURRENT agent only. Other
     // agents remain untouched — skill enablement is per-agent.
-    const enabled = await skillService.toggle({
+    const enabled = await application.get('SkillService').toggle({
       skillId: installed.id,
       agentId: this.agentId,
       isEnabled: true
@@ -221,7 +221,7 @@ class SkillsServer {
     const name = args.name
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for remove (skill folder name)")
 
-    await skillService.uninstallByFolderName(name)
+    await application.get('SkillService').uninstallByFolderName(name)
 
     logger.info('Skill removed via tool', { agentId: this.agentId, name })
     return {
@@ -230,7 +230,7 @@ class SkillsServer {
   }
 
   private async listSkills() {
-    const skills = await skillService.list({ agentId: this.agentId })
+    const skills = await application.get('SkillService').list({ agentId: this.agentId })
 
     if (skills.length === 0) {
       return { content: [{ type: 'text' as const, text: 'No skills installed.' }] }
@@ -243,7 +243,7 @@ class SkillsServer {
     const results = skills.map((s) => ({
       name: s.name,
       folder: s.folderName,
-      path: skillService.getSkillDirectory(s.folderName),
+      path: application.get('SkillService').getSkillDirectory(s.folderName),
       description: s.description ?? null,
       enabled: s.isEnabled
     }))
@@ -258,10 +258,10 @@ class SkillsServer {
     const name = args.name
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for init")
 
-    const skillDir = skillService.getSkillDirectory(name)
+    const skillDir = application.get('SkillService').getSkillDirectory(name)
 
     // Check for collision with an existing skill in DB.
-    const existingSkill = await skillService.getByFolderName(name)
+    const existingSkill = await application.get('SkillService').getByFolderName(name)
     if (existingSkill) {
       throw new McpError(
         ErrorCode.InvalidParams,
@@ -317,7 +317,7 @@ class SkillsServer {
     const name = args.name
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for register")
 
-    const skillDir = skillService.getSkillDirectory(name)
+    const skillDir = application.get('SkillService').getSkillDirectory(name)
 
     // Pre-flight: ensure SKILL.md exists before attempting install
     try {
@@ -343,10 +343,10 @@ class SkillsServer {
       )
     }
 
-    const installed = await skillService.installFromDirectory({ directoryPath: skillDir })
+    const installed = await application.get('SkillService').installFromDirectory({ directoryPath: skillDir })
     // Same per-agent scope as installSkill above — register only enables the
     // skill for the current agent, not globally.
-    const enabled = await skillService.toggle({
+    const enabled = await application.get('SkillService').toggle({
       skillId: installed.id,
       agentId: this.agentId,
       isEnabled: true

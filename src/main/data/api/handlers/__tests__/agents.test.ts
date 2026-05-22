@@ -55,12 +55,15 @@ vi.mock('@data/services/AgentTaskService', () => ({
   }
 }))
 
-vi.mock('@main/services/agents/skills/SkillService', () => ({
-  skillService: {
-    list: listSkillsMock,
-    getById: getSkillByIdMock
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    SkillService: {
+      list: listSkillsMock,
+      getById: getSkillByIdMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 vi.mock('@data/services/AgentTaskWorkflowService', () => ({
   agentTaskWorkflowService: {
@@ -71,7 +74,6 @@ vi.mock('@data/services/AgentTaskWorkflowService', () => ({
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
-vi.mock('@main/services/agents/services/channels', () => ({ channelManager: {} }))
 
 import { agentHandlers } from '../agents'
 
