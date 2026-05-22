@@ -13,6 +13,7 @@ import { PersistenceListener } from '../stream-manager/listeners/PersistenceList
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../stream-manager/types'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { type AgentRuntimeConnection, agentRuntimeDriverRegistry, type AgentRuntimeEvent } from './runtime'
+import { type DispatchDecision, toolApprovalRegistry } from './runtime/claude-code/ToolApprovalRegistry'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -275,12 +276,23 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  /**
+   * Resolve a Claude `canUseTool` approval that was registered against the live
+   * driver session. Returns `false` if no live entry matches — the caller
+   * falls back to MCP/DB path.
+   */
+  respondToolApproval(approvalId: string, decision: DispatchDecision): boolean {
+    return toolApprovalRegistry.dispatch(approvalId, decision)
+  }
+
   protected onStop(): void {
     this.closeAll()
+    toolApprovalRegistry.clear('agent-session-runtime-stop')
   }
 
   protected onDestroy(): void {
     this.closeAll()
+    toolApprovalRegistry.clear('agent-session-runtime-destroy')
   }
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<void> {

@@ -35,7 +35,6 @@ import ClawServer from '@main/mcpServers/claw'
 import { isProvisioned, provisionBuiltinAgent } from '@main/services/agents/services/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/services/agents/services/cherryclaw/prompt'
 import { createSdkMcpServerInstance } from '@main/services/agents/services/claudecode/createSdkMcpServerInstance'
-import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
 import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
 import { shouldAutoApprove } from '@main/services/toolApproval/autoApprovePolicy'
 import { toAsarUnpackedPath } from '@main/utils'
@@ -56,6 +55,7 @@ import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { app } from 'electron'
 
+import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')

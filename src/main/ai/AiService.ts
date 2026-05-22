@@ -6,7 +6,6 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
-import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import { applyApprovalDecisions } from '@shared/ai/transport'
@@ -127,11 +126,6 @@ export class AiService extends BaseService {
     logger.info('AiService initialized')
   }
 
-  protected async onStop(): Promise<void> {
-    // Reject any pending `canUseTool` promises so they don't hang.
-    toolApprovalRegistry.clear('ai-service-stop')
-  }
-
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.Ai_GenerateText, async (_, request: AiGenerateRequest) => {
       return this.generateText(request)
@@ -201,7 +195,7 @@ export class AiService extends BaseService {
         }
       ): Promise<{ ok: boolean }> => {
         // Claude-Agent fast-path: live registry entry unblocks `canUseTool`.
-        const dispatched = toolApprovalRegistry.dispatch(payload.approvalId, {
+        const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(payload.approvalId, {
           approved: payload.approved,
           reason: payload.reason,
           updatedInput: payload.updatedInput
