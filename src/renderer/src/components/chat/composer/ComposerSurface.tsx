@@ -10,6 +10,8 @@ import type {
 } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
+import { matchesModelTag, MODEL_SELECTOR_TAGS } from '@renderer/components/Selector/model/filters'
+import { ModelTagChip } from '@renderer/components/Selector/model/ModelTagChip'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
@@ -20,6 +22,7 @@ import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import PasteService from '@renderer/services/PasteService'
 import type { FileMetadata } from '@renderer/types'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
@@ -151,6 +154,11 @@ interface ModelTokenPayload {
   name: string
   provider?: string
   providerId?: string
+  contextWindow?: number
+  maxInputTokens?: number
+  capabilities?: Model['capabilities']
+  inputModalities?: Model['inputModalities']
+  outputModalities?: Model['outputModalities']
 }
 
 interface ModelTokenView {
@@ -181,6 +189,74 @@ function getModelTokenViews(tokens: readonly ComposerDraftToken[], providers: re
         providerName
       }
     })
+}
+
+function formatTokenLimit(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? new Intl.NumberFormat().format(value) : undefined
+}
+
+function isTaggableModelPayload(model: ModelTokenPayload | undefined): model is Model {
+  return Boolean(model && Array.isArray(model.capabilities))
+}
+
+function ModelTokenCapabilityTags({ model }: { model?: ModelTokenPayload }) {
+  if (!isTaggableModelPayload(model)) return null
+
+  const tags = MODEL_SELECTOR_TAGS.filter((tag) => matchesModelTag(model, tag))
+  if (tags.length === 0) return null
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {tags.map((tag) => (
+        <ModelTagChip
+          key={tag}
+          tag={tag}
+          size={8}
+          showLabel={false}
+          showTooltip={false}
+          className="border border-current/15 shadow-none dark:border-current/25"
+          style={{ height: 16, justifyContent: 'center', minWidth: 22, padding: 0 }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function ModelTokenHoverInfo({ model, providerName }: { model?: ModelTokenPayload; providerName: string }) {
+  const { t } = useTranslation()
+  const contextWindow = formatTokenLimit(model?.contextWindow)
+  const maxInputTokens = formatTokenLimit(model?.maxInputTokens)
+  const hasTokenLimits = Boolean(contextWindow || maxInputTokens)
+
+  return (
+    <div className="inline-flex min-w-[120px] w-max flex-col gap-1.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="max-w-[150px] truncate font-semibold text-[11px] leading-4">{model?.name}</div>
+        {providerName ? (
+          <div className="shrink-0 whitespace-nowrap text-right text-[10px] text-muted-foreground leading-4">
+            {providerName}
+          </div>
+        ) : null}
+      </div>
+      {hasTokenLimits ? (
+        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[10px] leading-4">
+          {contextWindow ? (
+            <>
+              <span className="text-muted-foreground">{t('settings.models.add.context_window.label')}</span>
+              <span className="text-right font-semibold tabular-nums">{contextWindow}</span>
+            </>
+          ) : null}
+          {maxInputTokens ? (
+            <>
+              <span className="text-muted-foreground">{t('settings.models.add.max_input_tokens.label')}</span>
+              <span className="text-right font-semibold tabular-nums">{maxInputTokens}</span>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+      <ModelTokenCapabilityTags model={model} />
+    </div>
+  )
 }
 
 function isComposerSendKeyPressed(event: KeyboardEvent, shortcut: SendMessageShortcut) {
@@ -638,37 +714,44 @@ export default function ComposerSurface({
         <div className="-translate-y-1/2 absolute top-0 left-4 z-4 flex items-center rounded-full">
           <div className="pointer-events-none absolute top-1/2 left-0 z-0 h-3 w-full -translate-y-1/2 rounded-full bg-card" />
           {modelTokenViews.map(({ token, model, providerName }) => (
-            <span
+            <Tooltip
               key={token.id}
-              className="group/model-token relative z-1 flex size-7 items-center justify-center text-foreground"
-              title={providerName ? `${token.label} | ${providerName}` : token.label}>
-              {model ? (
-                <ModelAvatar
-                  className={cn(
-                    'bg-transparent shadow-none [&_[data-slot=avatar-fallback]]:bg-transparent',
-                    (model.id.toLowerCase().includes('kimi') ||
-                      model.provider?.toLowerCase() === 'moonshot' ||
-                      model.providerId?.toLowerCase() === 'moonshot') &&
-                      '[&_svg>path:first-child]:fill-transparent'
-                  )}
-                  model={model}
-                  size={26}
-                />
-              ) : (
-                <Bot size={22} />
-              )}
-              <button
-                type="button"
-                className="-top-1 -right-1 absolute hidden size-3.5 items-center justify-center rounded-full bg-muted text-muted-foreground shadow-sm hover:bg-muted/90 hover:text-foreground group-hover/model-token:flex"
-                aria-label={t('common.delete')}
-                onClick={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onTokenRemoveRequest?.({ kind: token.kind, tokenId: token.id })
-                }}>
-                <X size={10} />
-              </button>
-            </span>
+              content={<ModelTokenHoverInfo model={model} providerName={providerName} />}
+              placement="top"
+              delay={300}
+              sideOffset={6}
+              showArrow={false}
+              isDisabled={!model}
+              className="max-w-none rounded-md border border-border bg-popover/95 p-2 text-popover-foreground shadow-lg shadow-black/10 backdrop-blur-xl dark:bg-popover/95 dark:shadow-black/40">
+              <span className="group/model-token relative z-1 flex size-7 items-center justify-center text-foreground">
+                {model ? (
+                  <ModelAvatar
+                    className={cn(
+                      'bg-transparent shadow-none [&_[data-slot=avatar-fallback]]:bg-transparent',
+                      (model.id.toLowerCase().includes('kimi') ||
+                        model.provider?.toLowerCase() === 'moonshot' ||
+                        model.providerId?.toLowerCase() === 'moonshot') &&
+                        '[&_svg>path:first-child]:fill-transparent'
+                    )}
+                    model={model}
+                    size={26}
+                  />
+                ) : (
+                  <Bot size={22} />
+                )}
+                <button
+                  type="button"
+                  className="-top-1 -right-1 absolute hidden size-3.5 items-center justify-center rounded-full bg-muted text-muted-foreground shadow-sm hover:bg-muted/90 hover:text-foreground group-hover/model-token:flex"
+                  aria-label={t('common.delete')}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onTokenRemoveRequest?.({ kind: token.kind, tokenId: token.id })
+                  }}>
+                  <X size={10} />
+                </button>
+              </span>
+            </Tooltip>
           ))}
         </div>
       ) : null}

@@ -78,6 +78,7 @@ export interface TooltipProps {
   title?: React.ReactNode
   placement?: string
   delay?: number
+  sideOffset?: TooltipContentProps['sideOffset']
   showArrow?: boolean
   classNames?: {
     content?: string
@@ -96,6 +97,7 @@ export const Tooltip = ({
   title,
   placement,
   delay = 0,
+  sideOffset = 0,
   showArrow = true,
   classNames,
   className,
@@ -136,7 +138,7 @@ export const Tooltip = ({
             data-slot="tooltip-content"
             side={side}
             align={align}
-            sideOffset={0}
+            sideOffset={sideOffset}
             className={cn(contentStyles, classNames?.content, className)}>
             {tooltipContent}
             {showArrow && <RadixArrow className={arrowStyles} />}
