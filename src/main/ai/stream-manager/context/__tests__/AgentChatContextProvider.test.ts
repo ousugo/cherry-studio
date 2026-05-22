@@ -68,7 +68,12 @@ describe('AgentChatContextProvider', () => {
 
     vi.clearAllMocks()
     agentRuntimeDriverRegistry.clearForTest()
-    agentRuntimeDriverRegistry.register({ type: 'claude-code', connect: vi.fn() })
+    agentRuntimeDriverRegistry.register({
+      type: 'claude-code',
+      connect: vi.fn(),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
     mocks.getSession.mockResolvedValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
     mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'claude-code', model: 'anthropic::claude-sonnet' })
     mocks.saveMessage.mockResolvedValue(undefined)

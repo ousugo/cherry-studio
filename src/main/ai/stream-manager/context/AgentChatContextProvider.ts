@@ -13,7 +13,6 @@ import type { Message } from '@shared/data/types/message'
 import { v7 as uuidv7 } from 'uuid'
 
 import { agentRuntimeDriverRegistry } from '../../agent-session/runtime'
-import { assertClaudeCodeWorkspaceDirectory } from '../../agent-session/runtime/claude-code/settingsBuilder'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agent-session/topic'
 import { AdapterTracer, TRACER_NAME } from '../../trace'
 import type { StreamListener } from '../types'
@@ -44,20 +43,17 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!session.agentId) {
       throw new Error(`Cannot dispatch on orphan session ${sessionId} — its agent was deleted`)
     }
-    const workspacePath = session.workspace?.path
-    if (!workspacePath) {
-      throw new Error(`Agent session ${sessionId} has no workspace configured`)
-    }
-    assertClaudeCodeWorkspaceDirectory(sessionId, workspacePath)
 
     const agentId = session.agentId
     const agent = await agentService.getAgent(agentId)
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
     if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
 
-    if (!agentRuntimeDriverRegistry.get(agent.type)) {
+    const driver = agentRuntimeDriverRegistry.get(agent.type)
+    if (!driver) {
       throw new Error(`Unsupported agent runtime type: ${agent.type}`)
     }
+    await driver.validateSession(session)
 
     const uniqueModelId = agent.model
 

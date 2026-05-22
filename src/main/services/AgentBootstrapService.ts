@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
+import { agentRuntimeDriverRegistry } from '@main/ai/agent-session/runtime'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
 
 import { extractRtkBinaries } from '../utils/rtk'
-import { listMcpTools } from './agents/agentUtils'
 import { channelManager } from './agents/services/channels'
 import { schedulerService } from './agents/services/SchedulerService'
 
@@ -51,8 +51,11 @@ export class AgentBootstrapService extends BaseService {
 
     this.ipcHandle(IpcChannel.Agent_ListTools, async (_, args: unknown) => {
       const parsed = validateListToolsArgs(args)
-      const tools = await listMcpTools(parsed.type, parsed.mcps)
-      return tools
+      const driver = agentRuntimeDriverRegistry.get(parsed.type)
+      if (!driver) {
+        throw new Error(`Unsupported agent runtime type: ${parsed.type}`)
+      }
+      return driver.listAvailableTools(parsed.mcps)
     })
 
     await channelManager.start()

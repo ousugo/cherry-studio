@@ -5,6 +5,9 @@ import {
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@main/core/application'
+import { listMcpTools } from '@main/services/agents/agentUtils'
+import type { AgentTool } from '@shared/data/api/schemas/agents'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { Message } from '@shared/data/types/message'
 import type { UIMessageChunk } from 'ai'
 
@@ -16,6 +19,7 @@ import type {
   AgentRuntimeUserInput
 } from '../types'
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
+import { AgentSessionWorkspaceError, assertClaudeCodeWorkspaceDirectory } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter } from './streamAdapter'
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
@@ -231,6 +235,18 @@ function extractMessageText(message: Message): string {
 
 export class ClaudeCodeRuntimeDriver implements AgentRuntimeDriver {
   readonly type = 'claude-code'
+
+  validateSession(session: AgentSessionEntity): void {
+    const cwd = session.workspace?.path
+    if (!cwd) {
+      throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
+    }
+    assertClaudeCodeWorkspaceDirectory(session.id, cwd)
+  }
+
+  async listAvailableTools(mcpIds: string[]): Promise<AgentTool[]> {
+    return listMcpTools('claude-code', mcpIds)
+  }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
     return new ClaudeCodeRuntimeConnection(input).start()

@@ -233,7 +233,12 @@ describe('AgentSessionRuntimeService', () => {
       close: vi.fn()
     }
     const connect = vi.fn().mockResolvedValue(connection)
-    agentRuntimeDriverRegistry.register({ type: 'test-runtime', connect })
+    agentRuntimeDriverRegistry.register({
+      type: 'test-runtime',
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
     const stream = service.openTurnStream({

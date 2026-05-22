@@ -1,3 +1,5 @@
+import type { AgentTool } from '@shared/data/api/schemas/agents'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
@@ -28,5 +30,13 @@ export interface AgentRuntimeConnection {
 
 export interface AgentRuntimeDriver {
   readonly type: string
+  /**
+   * Per-driver session prerequisite check: throws if the session can't be
+   * served (e.g. workspace path missing, credentials absent). Hosts call
+   * this before `connect()` instead of hard-coding driver-specific guards.
+   */
+  validateSession(session: AgentSessionEntity): void | Promise<void>
+  /** Enumerate the tools this driver exposes for the given MCP server set. */
+  listAvailableTools(mcpIds: string[]): Promise<AgentTool[]>
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection>
 }
