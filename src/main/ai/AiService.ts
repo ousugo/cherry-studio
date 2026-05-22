@@ -218,7 +218,7 @@ export class AiService extends BaseService {
           updatedInput: payload.updatedInput
         })
 
-        if (dispatched && (!payload.topicId || !payload.anchorId)) return { ok: true }
+        if (dispatched) return { ok: true }
 
         // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
         if (!payload.topicId || !payload.anchorId) {

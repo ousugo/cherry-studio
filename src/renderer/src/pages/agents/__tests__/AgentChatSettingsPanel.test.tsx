@@ -231,7 +231,7 @@ describe('AgentChat settings panel', () => {
               {
                 question: 'Choose logger',
                 header: 'Logger',
-                options: [{ label: 'Winston' }],
+                options: [{ label: 'Winston' }, { label: 'Pino' }],
                 multiSelect: false
               }
             ]
@@ -276,7 +276,7 @@ describe('AgentChat settings panel', () => {
               {
                 question: 'Choose logger',
                 header: 'Logger',
-                options: [{ label: 'Winston' }],
+                options: [{ label: 'Winston' }, { label: 'Pino' }],
                 multiSelect: false
               }
             ]
@@ -324,7 +324,7 @@ describe('AgentChat settings panel', () => {
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
   })
 
-  it('responds to agent-session approvals without topic anchor context', async () => {
+  it('responds to agent-session approvals with session topic and anchor context', async () => {
     partsByMessageIdMock.value = {
       'message-1': [
         {
@@ -354,9 +354,9 @@ describe('AgentChat settings panel', () => {
       approvalId: 'approval-1',
       approved: true,
       reason: undefined,
-      updatedInput: undefined
+      updatedInput: undefined,
+      topicId: 'agent-session:session-1',
+      anchorId: 'message-1'
     })
-    expect(payload).not.toHaveProperty('topicId')
-    expect(payload).not.toHaveProperty('anchorId')
   })
 })

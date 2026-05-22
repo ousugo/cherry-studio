@@ -6,9 +6,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getEffectiveStatus, type ToolStatus } from '../tools/agent/GenericTools'
-import { useToolApproval } from '../tools/hooks/useToolApproval'
 import MessageTools from '../tools/MessageTools'
-import ToolApprovalActionsComponent from '../tools/ToolApprovalActions'
 import ToolHeader from '../tools/ToolHeader'
 import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
@@ -49,25 +47,6 @@ const headerVariants = {
 
 // ============ Sub-Components ============
 
-// Component for rendering a block with approval actions
-interface WaitingToolHeaderProps {
-  item: ToolRenderItem
-}
-
-const WaitingToolHeader = React.memo(({ item }: WaitingToolHeaderProps) => {
-  const toolResponse = item.toolResponse
-  const approval = useToolApproval(toolResponse)
-  const effectiveStatus = getEffectiveStatus(toolResponse?.status, approval.isWaiting)
-
-  return (
-    <div className="flex w-full items-center justify-between gap-2">
-      <ToolHeader toolResponse={toolResponse} variant="collapse-label" status={effectiveStatus} />
-      {(approval.isWaiting || approval.isExecuting) && <ToolApprovalActionsComponent {...approval} compact />}
-    </div>
-  )
-})
-WaitingToolHeader.displayName = 'WaitingToolHeader'
-
 interface GroupHeaderContentProps {
   items: ToolRenderItem[]
   allCompleted: boolean
@@ -105,7 +84,7 @@ const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderConte
           initial="enter"
           animate="center"
           exit="exit">
-          <WaitingToolHeader item={lastWaitingItem} />
+          <ToolHeader toolResponse={lastWaitingItem.toolResponse} variant="collapse-label" status="waiting" />
         </motion.div>
       </AnimatePresence>
     )

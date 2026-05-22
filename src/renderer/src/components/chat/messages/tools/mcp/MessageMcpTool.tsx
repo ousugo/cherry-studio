@@ -80,6 +80,10 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
     }
   }, [isStreaming, isDone, isError, id])
 
+  if (approval.isWaiting) {
+    return null
+  }
+
   const copyContent = (content: string, toolId: string) => {
     if (!copyText) return
     Promise.resolve(copyText(content, { successMessage: t('message.copied') }))

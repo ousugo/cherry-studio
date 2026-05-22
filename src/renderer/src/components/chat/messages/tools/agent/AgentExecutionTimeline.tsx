@@ -8,7 +8,6 @@ import { AgentToolCallCard } from './AgentToolCallCard'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { getEffectiveStatus, StreamingContext } from './GenericTools'
 import { NavigateToolInline } from './NavigateTool'
-import ToolPermissionCard from './ToolPermissionCard'
 import { AgentToolsType, isAskUserQuestionToolName } from './types'
 
 export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
@@ -49,7 +48,7 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
   const effectiveStatus = getEffectiveStatus(status, awaitingApproval)
 
   if (effectiveStatus === 'waiting') {
-    return <ToolPermissionCard toolResponse={toolResponse} />
+    return null
   }
 
   const isLoading = effectiveStatus === 'streaming' || effectiveStatus === 'invoking'

@@ -9,7 +9,7 @@ const askUserQuestionInput = {
     {
       question: 'Choose logger',
       header: 'Logger',
-      options: [{ label: 'Winston' }],
+      options: [{ label: 'Winston' }, { label: 'Pino' }],
       multiSelect: false
     }
   ]

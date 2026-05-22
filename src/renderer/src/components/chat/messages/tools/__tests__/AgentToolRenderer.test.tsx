@@ -84,11 +84,6 @@ vi.mock('@renderer/components/Icons', () => ({
   LoadingIcon: () => <span data-testid="loading-icon" />
 }))
 
-// Mock ToolPermissionCard
-vi.mock('../agent/ToolPermissionCard', () => ({
-  default: () => <div data-testid="permission-card">Permission Required</div>
-}))
-
 describe('AgentToolRenderer', () => {
   // Mock translations for tools
   const mockTranslations: Record<string, string> = {
@@ -351,7 +346,7 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('pending without streaming', () => {
-    it('should show permission card when pending permission exists', () => {
+    it('hides the message card while the composer handles pending permission', () => {
       const toolResponse = createToolResponse({
         status: 'pending',
         partialArguments: undefined
@@ -371,9 +366,9 @@ describe('AgentToolRenderer', () => {
         ]
       })
 
-      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.getByTestId('permission-card')).toBeInTheDocument()
+      expect(container).toBeEmptyDOMElement()
     })
 
     it('should show pending indicator when no streaming and no permission', () => {
