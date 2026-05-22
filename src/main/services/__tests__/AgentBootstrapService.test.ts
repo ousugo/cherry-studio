@@ -23,9 +23,6 @@ vi.mock('@main/services/agents/agentUtils', () => ({
 vi.mock('../agents/agentUtils', () => ({
   listMcpTools: vi.fn()
 }))
-vi.mock('@main/services/agents/services/SchedulerService', () => ({
-  schedulerService: { runTaskNow: vi.fn(), restoreSchedulers: vi.fn(), stopAll: vi.fn() }
-}))
 vi.mock('@main/services/agents/services/channels', () => ({
   channelManager: { start: vi.fn(), stop: vi.fn() }
 }))
