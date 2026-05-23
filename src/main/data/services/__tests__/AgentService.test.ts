@@ -25,26 +25,16 @@ vi.mock('@main/apiServer/services/models', () => ({
   }
 }))
 
-vi.mock('@main/services/agents/skills/SkillService', () => ({
+vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
     initSkillsForAgent: vi.fn()
   }
 }))
 
 // Mock workspace seeding — filesystem ops not needed in unit tests
-vi.mock('@main/services/agents/services/cherryclaw/seedWorkspace', () => ({
+vi.mock('@main/ai/agents/cherryclaw/seedWorkspace', () => ({
   seedWorkspaceTemplates: vi.fn()
 }))
-
-// Mock agentUtils functions that call external services
-vi.mock('@main/services/agents/agentUtils', async (importOriginal) => {
-  const actual = await importOriginal()
-  return {
-    ...(actual as object),
-    validateAgentModels: vi.fn().mockResolvedValue(undefined),
-    resolveAccessiblePaths: vi.fn((paths: string[]) => paths)
-  }
-})
 
 describe('AgentService', () => {
   const dbh = setupTestDatabase()

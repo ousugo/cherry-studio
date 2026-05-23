@@ -5,7 +5,7 @@ import 'remark-github-blockquote-alert/alert.css'
 import 'streamdown/styles.css'
 
 import ImageViewer from '@renderer/components/ImageViewer'
-import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
+import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import type { MessageStatus } from '@shared/data/types/message'
@@ -384,7 +384,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
       svg: MarkdownSvgRenderer as Components['svg']
     }
     if (hasStyleElement) {
-      result.style = MarkdownShadowDOMRenderer as Components['style']
+      result.style = MarkdownShadowDomRenderer as Components['style']
     }
     return result
   }, [block.id, hasStyleElement])

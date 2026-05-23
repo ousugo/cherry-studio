@@ -317,6 +317,7 @@ function createAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
     modelName: 'Claude',
     name: 'Alpha agent',
     configuration: { avatar: 'A' },
+    orderKey: 'k',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
     ...overrides

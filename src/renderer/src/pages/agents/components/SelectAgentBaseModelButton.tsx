@@ -3,7 +3,6 @@ import { ModelSelector } from '@renderer/components/Selector'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
-import type { AgentBaseWithId } from '@renderer/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ButtonProps } from 'antd'
@@ -13,7 +12,7 @@ import { type CSSProperties, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
-  agentBase: AgentBaseWithId
+  agentBase: { id: string; model: UniqueModelId | null }
   /** Agent type — drives model filtering (e.g. claude-code only allows Anthropic-compatible providers + Claude models). */
   agentType: AgentType
   onSelect: (model: Model) => Promise<void>

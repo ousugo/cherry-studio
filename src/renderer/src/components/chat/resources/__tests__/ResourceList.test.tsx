@@ -7,8 +7,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const animationStyles = readFileSync(join(process.cwd(), 'src/renderer/src/assets/styles/animation.css'), 'utf8')
 
+type VirtualizerOptionsMock = {
+  count: number
+  estimateSize: (index: number) => number
+  overscan?: number
+}
+
 const virtualMocks = vi.hoisted(() => ({
-  useVirtualizer: vi.fn((options: { count: number }) => ({
+  useVirtualizer: vi.fn((options: VirtualizerOptionsMock) => ({
     getVirtualItems: () =>
       Array.from({ length: options.count }, (_, index) => ({
         index,
@@ -184,7 +190,7 @@ function lastVirtualizerOptions() {
   if (!options) {
     throw new Error('Expected DynamicVirtualList to initialize a virtualizer')
   }
-  return options as { estimateSize: (index: number) => number }
+  return options
 }
 
 function droppableData(id: string) {

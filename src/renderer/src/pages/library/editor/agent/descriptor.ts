@@ -2,15 +2,15 @@ import {
   DEFAULT_HEARTBEAT_ENABLED,
   DEFAULT_HEARTBEAT_INTERVAL,
   DEFAULT_MAX_TURNS,
-  mergePermissionModeTools,
   normalizePermissionMode
 } from '@renderer/hooks/agents/permissionMode'
-import type { Tool } from '@renderer/types'
+import type { Tool } from '@shared/ai/tool'
 import type { CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
-import type { AgentConfiguration, AgentDetail, AgentType } from '@shared/data/types/agent'
+import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { FileText, Settings, Shield, SlidersHorizontal, Wrench } from 'lucide-react'
 
+import type { AgentDetail } from '../../types'
 import type { SectionDescriptor } from '../ConfigEditorShell'
 
 // ---------------------------------------------------------------------------
@@ -60,7 +60,7 @@ export const AGENT_CONFIG_SECTIONS: readonly SectionDescriptor<AgentConfigSectio
  * Flat, controlled form-state for the Agent editor.
  *
  * Every editable field (one per `AgentBase` column + the common
- * `configuration.*` sub-keys surfaced by the legacy AgentSettings UI)
+ * `configuration.*` sub-keys surfaced by the agent editor)
  * lives on this object. Section components read / patch it; the page
  * diffs it against the baseline at save time and emits a minimal
  * `UpdateAgentDto`.
@@ -174,17 +174,13 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
 export function applyAgentFormPatch(
   current: AgentFormState,
   patch: Partial<AgentFormState>,
-  tools: Tool[] = []
+  _tools: Tool[] = []
 ): AgentFormState {
   const next: AgentFormState = { ...current, ...patch }
-  const currentMode = normalizePermissionMode(current.permissionMode)
 
   if (Object.prototype.hasOwnProperty.call(patch, 'permissionMode')) {
     const nextMode = normalizePermissionMode(patch.permissionMode)
     next.permissionMode = nextMode
-    if (nextMode !== currentMode) {
-      next.allowedTools = mergePermissionModeTools(current.allowedTools, currentMode, nextMode, tools)
-    }
     if (
       nextMode !== 'bypassPermissions' &&
       current.soulEnabled &&
@@ -196,7 +192,6 @@ export function applyAgentFormPatch(
 
   if (patch.soulEnabled === true && !current.soulEnabled) {
     next.permissionMode = 'bypassPermissions'
-    next.allowedTools = mergePermissionModeTools(current.allowedTools, currentMode, 'bypassPermissions', tools)
   }
 
   return next

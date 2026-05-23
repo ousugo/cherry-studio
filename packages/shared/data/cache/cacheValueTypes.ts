@@ -1,3 +1,4 @@
+import type { MCPTool } from '@types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { ExternalAppId } from '../../externalApp/types'
@@ -21,6 +22,13 @@ export type CacheActiveSearches = Record<string, WebSearchStatus>
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
 export type CacheMiniAppType = MiniApp
+export type CacheMcpTool = MCPTool
+
+export type McpRuntimeStatus = {
+  state: 'disabled' | 'connecting' | 'connected' | 'error'
+  lastCheckedAt: number
+  lastError?: string
+}
 
 /**
  * Tab type for browser-like tabs

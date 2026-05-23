@@ -106,9 +106,24 @@ function createForm(overrides: Partial<AgentFormState> = {}): AgentFormState {
 
 describe('ToolsSection', () => {
   const tools = [
-    { id: 'Read', name: 'Read', type: 'builtin' as const, requirePermissions: false },
-    { id: 'Glob', name: 'Glob', type: 'builtin' as const, requirePermissions: false },
-    { id: 'Bash', name: 'Bash', type: 'builtin' as const, requirePermissions: true }
+    {
+      id: 'Read',
+      name: 'Read',
+      origin: 'builtin' as const,
+      approval: 'auto' as const
+    },
+    {
+      id: 'Glob',
+      name: 'Glob',
+      origin: 'builtin' as const,
+      approval: 'auto' as const
+    },
+    {
+      id: 'Bash',
+      name: 'Bash',
+      origin: 'builtin' as const,
+      approval: 'prompt' as const
+    }
   ]
 
   it('shows permission-mode default tools even when allowedTools is empty', () => {
@@ -120,6 +135,7 @@ describe('ToolsSection', () => {
           name: 'Agent',
           model: 'anthropic::claude-sonnet-4-5',
           modelName: null,
+          orderKey: 'k',
           createdAt: '',
           updatedAt: ''
         }}
@@ -142,6 +158,7 @@ describe('ToolsSection', () => {
           name: 'Agent',
           model: 'anthropic::claude-sonnet-4-5',
           modelName: null,
+          orderKey: 'k',
           createdAt: '',
           updatedAt: ''
         }}
@@ -167,6 +184,7 @@ describe('ToolsSection', () => {
           name: 'Agent',
           model: 'anthropic::claude-sonnet-4-5',
           modelName: null,
+          orderKey: 'k',
           createdAt: '',
           updatedAt: ''
         }}
@@ -179,7 +197,7 @@ describe('ToolsSection', () => {
     await user.click(screen.getByRole('button', { name: 'library.config.agent.section.tools.add' }))
 
     expect(onChange).toHaveBeenCalledWith({
-      allowedTools: ['Read', 'Glob', 'Bash']
+      allowedTools: ['Bash']
     })
   })
 
@@ -192,8 +210,9 @@ describe('ToolsSection', () => {
           id: '',
           type: 'claude-code',
           name: '',
-          model: undefined,
+          model: null,
           modelName: null,
+          orderKey: 'k',
           createdAt: '',
           updatedAt: '',
           tools: []

@@ -7,7 +7,7 @@
 | `src/main/ai/tools/` | `registry.ts` (109), `types.ts` (69), `context.ts` (76), `repair.ts` (79) | Catalog + per-request context + invalid-call repair |
 | `tools/builtin/` | `KnowledgeListTool.ts`, `KnowledgeSearchTool.ts`, `WebSearchTool.ts`, `index.ts` | Built-in tool implementations + registration |
 | `tools/mcp/` | `mcpTools.ts` (169), `resolveAssistantMcpTools.ts`, `utils.ts` | MCP server → ToolEntry sync, assistant resolution |
-| `tools/meta/` | `toolSearch.ts`, `toolInspect.ts`, `toolInvoke.ts`, `toolExec.ts`, `formatJSDoc.ts`, `exec/runtime.ts` (205), `exec/worker.ts` (139) | Meta-tools surfaced on the defer path |
+| `tools/meta/` | `toolSearch.ts`, `toolInspect.ts`, `toolInvoke.ts`, `toolExec.ts`, `formatJsDoc.ts`, `exec/runtime.ts` (205), `exec/worker.ts` (139) | Meta-tools surfaced on the defer path |
 | `tools/exposition/` | `shouldDefer.ts` (89), `applyDeferExposition.ts` (56) | Defer policy + exposition |
 | Tests | `__tests__/` across all subpaths | Per-file coverage (~25 test files total) |
 
@@ -122,6 +122,6 @@ override via a future Preference.
 - `tool_exec` sandboxing currently uses Node `child_process.fork` with
   CPU/memory limits but no syscall sandbox. A future hardening pass
   could move to `vm2` or a container.
-- `formatJSDoc.ts` is shared between `tool_inspect` (Main) and any
+- `formatJsDoc.ts` is shared between `tool_inspect` (Main) and any
   future renderer doc viewer; consider lifting to `@shared` if a
   consumer appears.

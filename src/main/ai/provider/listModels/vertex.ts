@@ -1,6 +1,6 @@
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { vertexAIService } from '@main/services/VertexAIService'
+import { vertexAiService } from '@main/services/VertexAiService'
 import type { Provider } from '@shared/data/types/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import { withoutTrailingSlash } from '@shared/utils/api/utils'
@@ -96,7 +96,7 @@ export async function createVertexModelListRequest(
 
   let authHeaders: Record<string, string>
   try {
-    authHeaders = await vertexAIService.getAuthHeaders({
+    authHeaders = await vertexAiService.getAuthHeaders({
       projectId: project,
       serviceAccount: { privateKey: privateKey!, clientEmail: clientEmail! }
     })

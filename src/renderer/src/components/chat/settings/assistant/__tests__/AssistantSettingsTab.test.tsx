@@ -76,7 +76,7 @@ vi.mock('@renderer/components/chat/settings/settingsPanelPrimitives', () => ({
   SettingRowTitleSmall: ({ children }: { children?: ReactNode }) => <span>{children}</span>
 }))
 
-vi.mock('../OpenAISettingsGroup', () => ({
+vi.mock('../OpenaiSettingsGroup', () => ({
   default: ({
     disabled,
     onProviderSettingsChange
@@ -93,7 +93,7 @@ vi.mock('../OpenAISettingsGroup', () => ({
       update openai settings
     </button>
   ),
-  getOpenAISettingsVisibility: (...args: unknown[]) => visibilityMock(...args)
+  getOpenaiSettingsVisibility: (...args: unknown[]) => visibilityMock(...args)
 }))
 
 vi.mock('../GroqSettingsGroup', () => ({

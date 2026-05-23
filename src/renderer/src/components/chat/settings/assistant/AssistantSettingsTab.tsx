@@ -12,7 +12,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import GroqSettingsGroup from './GroqSettingsGroup'
-import OpenAISettingsGroup, { getOpenAISettingsVisibility } from './OpenAISettingsGroup'
+import OpenaiSettingsGroup, { getOpenaiSettingsVisibility } from './OpenaiSettingsGroup'
 
 interface Props {
   assistant: Assistant
@@ -45,7 +45,7 @@ const AssistantSettingsTab: FC<Props> = ({ assistant, scrollable = true }) => {
     [t, updateProvider]
   )
 
-  const showOpenAiSettings = !!provider && !!model && getOpenAISettingsVisibility(model, provider).hasVisibleSettings
+  const showOpenAiSettings = !!provider && !!model && getOpenaiSettingsVisibility(model, provider).hasVisibleSettings
 
   const content = (
     <>
@@ -67,7 +67,7 @@ const AssistantSettingsTab: FC<Props> = ({ assistant, scrollable = true }) => {
         />
       )}
       {showOpenAiSettings && provider && model && (
-        <OpenAISettingsGroup
+        <OpenaiSettingsGroup
           model={model}
           provider={provider}
           disabled={isUpdating}

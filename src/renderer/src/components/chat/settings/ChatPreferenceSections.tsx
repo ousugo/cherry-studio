@@ -410,7 +410,7 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.font_size.title')}</SettingRowTitleSmall>
           </SettingRow>
-          <div className="w-full pt-[var(--cs-size-3xs)]">
+          <div className="w-full pt-(--cs-size-3xs)">
             <Slider
               value={[fontSizeValue]}
               onValueChange={(values) => setFontSizeValue(values[0])}

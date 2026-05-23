@@ -1,6 +1,6 @@
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
-import { FinderIcon } from '@renderer/components/Icons/SVGIcon'
+import { FinderIcon } from '@renderer/components/Icons/SvgIcon'
 import { isMac, isWin } from '@renderer/config/constant'
 import { getEditorIcon } from '@renderer/utils/editorUtils'
 import { getFileIconName } from '@renderer/utils/fileIconName'

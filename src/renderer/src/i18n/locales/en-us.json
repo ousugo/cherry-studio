@@ -224,9 +224,11 @@
         "intervalUnit": "minutes",
         "lastRun": "Last Run",
         "logs": {
+          "cancelled": "Cancelled",
+          "completed": "Completed",
           "duration": "Duration",
           "empty": "No run history yet.",
-          "error": "Error",
+          "failed": "Failed",
           "justNow": "just now",
           "label": "Run History",
           "loadError": "Failed to load run history",
@@ -235,7 +237,6 @@
           "running": "Running...",
           "search": "Search logs...",
           "status": "Status",
-          "success": "Success",
           "viewSession": "View session"
         },
         "name": {
@@ -6230,8 +6231,13 @@
       },
       "disabled": "Hidden Mini Apps",
       "display_title": "Mini App Display Settings",
-      "empty": "Drag mini apps from the left to hide them",
+      "empty": "Click the hide icon on an app on the left and it will move here",
+      "group": {
+        "display": "Display management",
+        "preferences": "Preferences"
+      },
       "open_link_external": {
+        "description": "Opens new-window links in your default browser",
         "title": "Open new-window links in browser"
       },
       "region": {
@@ -6283,7 +6289,7 @@
       },
       "disabled": "Hidden Mini Apps",
       "display_title": "Mini App Display Settings",
-      "empty": "Drag mini apps from the left to hide them",
+      "empty": "Click the hide icon on an app on the left and it will move here",
       "open_link_external": {
         "title": "Open new-window links in browser"
       },

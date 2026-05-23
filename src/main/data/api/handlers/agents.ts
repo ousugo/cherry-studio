@@ -4,15 +4,10 @@
  * Thin routing layer between the DataApi transport and the existing agent
  * service singletons. Each handler validates required inputs and delegates
  * to the appropriate service method.
- *
- * Service layer: src/main/services/agents/services/
- * Skills layer:  src/main/services/agents/skills/SkillService
  */
 
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
-import { agentTaskWorkflowService } from '@data/services/AgentTaskWorkflowService'
-import { skillService } from '@main/services/agents/skills/SkillService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
@@ -21,11 +16,24 @@ import {
   CreateAgentSchema,
   CreateTaskSchema,
   ListAgentsQuerySchema,
+  type ListQuery,
   ListQuerySchema,
-  ListSkillsQuerySchema,
   UpdateAgentSchema,
   UpdateTaskSchema
 } from '@shared/data/api/schemas/agents'
+
+function paginationFromQuery(query: ListQuery) {
+  const page = query.page ?? 1
+  const limit = query.limit ?? 50
+  const offset = (page - 1) * limit
+  return { page, limit, offset }
+}
+
+function parseListQuery(query: unknown): ListQuery {
+  const parsed = ListQuerySchema.safeParse(query ?? {})
+  if (!parsed.success) throw toDataApiError(parsed.error)
+  return parsed.data
+}
 
 export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents': {
@@ -69,17 +77,15 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
 
   '/agents/:agentId/tasks': {
     GET: async ({ params, query }) => {
-      const parsed = ListQuerySchema.safeParse(query ?? {})
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      const { page, limit } = parsed.data
-      const { tasks, total } = await taskService.listTasks(params.agentId, { limit, offset: (page - 1) * limit })
+      const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
+      const { tasks, total } = await taskService.listTasks(params.agentId, { limit, offset })
       return { items: tasks, total, page }
     },
 
     POST: async ({ params, body }) => {
       const parsed = CreateTaskSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentTaskWorkflowService.createTask(params.agentId, parsed.data)
+      return await taskService.createTask(params.agentId, parsed.data)
     }
   },
 
@@ -93,38 +99,15 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateTaskSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const task = await agentTaskWorkflowService.updateTask(params.agentId, params.taskId, parsed.data)
+      const task = await taskService.updateTask(params.agentId, params.taskId, parsed.data)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return task
     },
 
     DELETE: async ({ params }) => {
-      const deleted = await agentTaskWorkflowService.deleteTask(params.agentId, params.taskId)
+      const deleted = await taskService.deleteTask(params.agentId, params.taskId)
       if (!deleted) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return undefined
-    }
-  },
-
-  '/skills': {
-    GET: async ({ query }) => {
-      const parsed = ListSkillsQuerySchema.safeParse(query ?? {})
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      const { agentId } = parsed.data
-
-      if (agentId) {
-        const agent = await agentService.getAgent(agentId)
-        if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
-      }
-
-      return await skillService.list(parsed.data)
-    }
-  },
-
-  '/skills/:skillId': {
-    GET: async ({ params }) => {
-      const skill = await skillService.getById(params.skillId)
-      if (!skill) throw DataApiErrorFactory.notFound('Skill', params.skillId)
-      return skill
     }
   },
 
@@ -132,10 +115,8 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     GET: async ({ params, query }) => {
       const task = await taskService.getTask(params.agentId, params.taskId)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
-      const parsed = ListQuerySchema.safeParse(query ?? {})
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      const { page, limit } = parsed.data
-      const { logs, total } = await taskService.getTaskLogs(params.taskId, { limit, offset: (page - 1) * limit })
+      const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
+      const { logs, total } = await taskService.getTaskLogs(params.taskId, { limit, offset })
       return { items: logs, total, page }
     }
   },

@@ -71,7 +71,7 @@ export enum IpcChannel {
   Mcp_RemoveServer = 'mcp:remove-server',
   Mcp_RestartServer = 'mcp:restart-server',
   Mcp_StopServer = 'mcp:stop-server',
-  Mcp_ListTools = 'mcp:list-tools',
+  Mcp_RefreshTools = 'mcp:refresh-tools',
   Mcp_CallTool = 'mcp:call-tool',
   Mcp_ListPrompts = 'mcp:list-prompts',
   Mcp_GetPrompt = 'mcp:get-prompt',
@@ -183,8 +183,6 @@ export enum IpcChannel {
   KnowledgeRuntime_DeleteItemChunk = 'knowledge-runtime:delete-item-chunk',
 
   FileProcessing_StartTask = 'file-processing:start-task',
-  FileProcessing_GetTask = 'file-processing:get-task',
-  FileProcessing_CancelTask = 'file-processing:cancel-task',
   FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
 
   //file
@@ -486,6 +484,7 @@ export enum IpcChannel {
   Ai_EmbedMany = 'ai:embed-many',
   Ai_GenerateImage = 'ai:generate-image',
   Ai_ListModels = 'ai:list-models',
+  Ai_Agent_RunTask = 'ai:agent:run-task',
 
   // WindowManager
   SettingsWindow_Open = 'settings-window:open',
@@ -504,11 +503,7 @@ export enum IpcChannel {
   // OS-level only; does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen.
   WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
   // Payload = the initData passed to open(); omitted if none supplied, not fired on fresh creation.
-  WindowManager_Reused = 'window-manager:reused',
-
-  // Agent operations
-  Agent_RunTask = 'agent:run-task',
-  Agent_ListTools = 'agent:list-tools'
+  WindowManager_Reused = 'window-manager:reused'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

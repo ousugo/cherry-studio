@@ -12,9 +12,6 @@ const {
   getTaskMock,
   updateTaskMock,
   deleteTaskMock,
-  workflowCreateTaskMock,
-  workflowUpdateTaskMock,
-  workflowDeleteTaskMock,
   listSkillsMock,
   getSkillByIdMock
 } = vi.hoisted(() => ({
@@ -28,9 +25,6 @@ const {
   getTaskMock: vi.fn(),
   updateTaskMock: vi.fn(),
   deleteTaskMock: vi.fn(),
-  workflowCreateTaskMock: vi.fn(),
-  workflowUpdateTaskMock: vi.fn(),
-  workflowDeleteTaskMock: vi.fn(),
   listSkillsMock: vi.fn(),
   getSkillByIdMock: vi.fn()
 }))
@@ -55,25 +49,17 @@ vi.mock('@data/services/AgentTaskService', () => ({
   }
 }))
 
-vi.mock('@main/services/agents/skills/SkillService', () => ({
-  skillService: {
+vi.mock('@data/services/AgentGlobalSkillService', () => ({
+  agentGlobalSkillService: {
     list: listSkillsMock,
     getById: getSkillByIdMock
   }
 }))
 
-vi.mock('@data/services/AgentTaskWorkflowService', () => ({
-  agentTaskWorkflowService: {
-    createTask: workflowCreateTaskMock,
-    updateTask: workflowUpdateTaskMock,
-    deleteTask: workflowDeleteTaskMock
-  }
-}))
-
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
-vi.mock('@main/services/agents/services/channels', () => ({ channelManager: {} }))
 
 import { agentHandlers } from '../agents'
+import { skillHandlers } from '../skills'
 
 const AGENT_ID = 'agent_1234567890_abcdefghi'
 const TASK_ID = 'task_1234567890_abcdefghi'
@@ -259,18 +245,19 @@ describe('agentHandlers', () => {
       expect(result).toMatchObject({ items: [mockTask], total: 1, page: 1 })
     })
 
-    it('delegates POST to task workflow service', async () => {
-      workflowCreateTaskMock.mockResolvedValueOnce(mockTask)
+    it('delegates POST to agentTaskService.createTask', async () => {
+      createTaskMock.mockResolvedValueOnce(mockTask)
 
       const result = await agentHandlers['/agents/:agentId/tasks'].POST({
         params: { agentId: AGENT_ID },
-        body: { name: 'Daily', prompt: 'Hello', scheduleType: 'cron', scheduleValue: '0 9 * * *' }
+        body: {
+          name: 'Daily',
+          prompt: 'Hello',
+          trigger: { kind: 'cron', expr: '0 9 * * *' }
+        }
       } as never)
 
-      expect(workflowCreateTaskMock).toHaveBeenCalledWith(
-        AGENT_ID,
-        expect.objectContaining({ name: 'Daily', prompt: 'Hello' })
-      )
+      expect(createTaskMock).toHaveBeenCalledWith(AGENT_ID, expect.objectContaining({ name: 'Daily', prompt: 'Hello' }))
       expect(result).toMatchObject({ id: TASK_ID })
     })
 
@@ -282,7 +269,7 @@ describe('agentHandlers', () => {
         } as never)
       ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
 
-      expect(workflowCreateTaskMock).not.toHaveBeenCalled()
+      expect(createTaskMock).not.toHaveBeenCalled()
     })
 
     it('rejects invalid pagination query', async () => {
@@ -310,19 +297,15 @@ describe('agentHandlers', () => {
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
-    it('delegates PATCH to task workflow service and returns updated task', async () => {
-      workflowUpdateTaskMock.mockResolvedValueOnce({ ...mockTask, name: 'Updated' })
+    it('delegates PATCH to agentTaskService.updateTask and returns updated task', async () => {
+      updateTaskMock.mockResolvedValueOnce({ ...mockTask, name: 'Updated' })
 
       const result = await agentHandlers['/agents/:agentId/tasks/:taskId'].PATCH({
         params: { agentId: AGENT_ID, taskId: TASK_ID },
         body: { name: 'Updated' }
       } as never)
 
-      expect(workflowUpdateTaskMock).toHaveBeenCalledWith(
-        AGENT_ID,
-        TASK_ID,
-        expect.objectContaining({ name: 'Updated' })
-      )
+      expect(updateTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID, expect.objectContaining({ name: 'Updated' }))
       expect(result).toMatchObject({ name: 'Updated' })
     })
 
@@ -337,8 +320,8 @@ describe('agentHandlers', () => {
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
-    it('delegates DELETE to task workflow service', async () => {
-      workflowDeleteTaskMock.mockResolvedValueOnce(true)
+    it('delegates DELETE to agentTaskService.deleteTask', async () => {
+      deleteTaskMock.mockResolvedValueOnce(true)
 
       await expect(
         agentHandlers['/agents/:agentId/tasks/:taskId'].DELETE({
@@ -346,7 +329,7 @@ describe('agentHandlers', () => {
         } as never)
       ).resolves.toBeUndefined()
 
-      expect(workflowDeleteTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID)
+      expect(deleteTaskMock).toHaveBeenCalledWith(AGENT_ID, TASK_ID)
     })
 
     it('throws notFound when task does not exist on DELETE', async () => {
@@ -366,7 +349,7 @@ describe('agentHandlers', () => {
     it('delegates GET to skillService.list and returns direct array', async () => {
       listSkillsMock.mockResolvedValueOnce([mockSkill])
 
-      const result = await agentHandlers['/skills'].GET({ query: {} } as never)
+      const result = await skillHandlers['/skills'].GET({ query: {} } as never)
 
       expect(listSkillsMock).toHaveBeenCalledWith({})
       expect(result).toEqual([mockSkill])
@@ -376,7 +359,7 @@ describe('agentHandlers', () => {
       getAgentMock.mockResolvedValueOnce(mockAgent)
       listSkillsMock.mockResolvedValueOnce([mockSkill])
 
-      const result = await agentHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)
+      const result = await skillHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)
 
       expect(getAgentMock).toHaveBeenCalledWith(AGENT_ID)
       expect(listSkillsMock).toHaveBeenCalledWith({ agentId: AGENT_ID })
@@ -386,7 +369,7 @@ describe('agentHandlers', () => {
     it('forwards search to skillService.list', async () => {
       listSkillsMock.mockResolvedValueOnce([mockSkill])
 
-      await agentHandlers['/skills'].GET({
+      await skillHandlers['/skills'].GET({
         query: { search: 'summary' }
       } as never)
 
@@ -395,7 +378,7 @@ describe('agentHandlers', () => {
 
     it('rejects skill tag filters before calling the service', async () => {
       await expect(
-        agentHandlers['/skills'].GET({
+        skillHandlers['/skills'].GET({
           query: { tagIds: ['11111111-1111-4111-8111-111111111111'] }
         } as never)
       ).rejects.toMatchObject({
@@ -408,7 +391,7 @@ describe('agentHandlers', () => {
     it('throws notFound for /skills when agentId is provided but agent does not exist', async () => {
       getAgentMock.mockResolvedValueOnce(null)
 
-      await expect(agentHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)).rejects.toMatchObject({
+      await expect(skillHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
 
@@ -416,7 +399,7 @@ describe('agentHandlers', () => {
     })
 
     it('rejects invalid skill query fields', async () => {
-      await expect(agentHandlers['/skills'].GET({ query: { extra: 'nope' } } as never)).rejects.toMatchObject({
+      await expect(skillHandlers['/skills'].GET({ query: { extra: 'nope' } } as never)).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
 
@@ -430,7 +413,7 @@ describe('agentHandlers', () => {
     it('delegates GET to skillService.getById', async () => {
       getSkillByIdMock.mockResolvedValueOnce(mockSkill)
 
-      const result = await agentHandlers['/skills/:skillId'].GET({ params: { skillId: SKILL_ID } } as never)
+      const result = await skillHandlers['/skills/:skillId'].GET({ params: { skillId: SKILL_ID } } as never)
 
       expect(getSkillByIdMock).toHaveBeenCalledWith(SKILL_ID)
       expect(result).toMatchObject({ id: SKILL_ID })
@@ -440,7 +423,7 @@ describe('agentHandlers', () => {
       getSkillByIdMock.mockResolvedValueOnce(null)
 
       await expect(
-        agentHandlers['/skills/:skillId'].GET({ params: { skillId: SKILL_ID } } as never)
+        skillHandlers['/skills/:skillId'].GET({ params: { skillId: SKILL_ID } } as never)
       ).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })

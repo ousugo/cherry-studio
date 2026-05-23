@@ -5,9 +5,10 @@ import {
   TopicType
 } from '@renderer/components/chat/composer/tools/types'
 import { permissionModeCards } from '@renderer/config/agent'
+import { defaultConfiguration } from '@renderer/hooks/agents/agentConfiguration'
+import { computeModeDefaults } from '@renderer/hooks/agents/permissionMode'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agents/useAgent'
-import { computeModeDefaults, defaultConfiguration } from '@renderer/pages/agents/AgentSettings/shared'
 import type { PermissionMode } from '@renderer/types'
 import { uniq } from 'lodash'
 import { FolderPen, Pointer, RefreshCcw, Route } from 'lucide-react'

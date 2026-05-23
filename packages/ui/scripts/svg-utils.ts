@@ -27,19 +27,6 @@ export function parseLogoTypeArg(): LogoType {
   throw new Error(`Invalid --type value: ${value}. Use "providers" or "models".`)
 }
 
-export function toCamelCase(filename: string): string {
-  const name = filename.replace(/\.svg$/, '')
-  const parts = name.split('-')
-  if (parts.length === 1) return parts[0]
-  return (
-    parts[0] +
-    parts
-      .slice(1)
-      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-      .join('')
-  )
-}
-
 /**
  * Tighten the SVG root viewBox to the bounding box of its visible content.
  *
@@ -48,13 +35,16 @@ export function toCamelCase(filename: string): string {
  * the rendered logo ends up only filling ~40% of the visible container.
  *
  * This helper unions the bounding boxes of every `<path d="...">` and `<rect>`
- * element in the file, then rewrites the root viewBox to that union (plus a
- * tiny 1-unit margin so strokes don't get clipped).
+ * element in the file. When `minimumFrameRatio` is provided, it expands that
+ * union to include a centered minimum frame before the coverage check, so
+ * icons keep intentional internal spacing instead of tightening purely to the
+ * visible content. It then rewrites the root viewBox to the final bounds (plus
+ * a tiny 1-unit margin so strokes don't get clipped).
  *
  * Returns the original code unchanged if it can't find a viewBox, has no
- * visible geometry, or the computed bbox is already a good fit (>95% coverage).
+ * visible geometry, or the final bounds are already a good fit (>95% coverage).
  */
-export function tightenSvgViewBox(svgCode: string): string {
+export function tightenSvgViewBox(svgCode: string, options: { minimumFrameRatio?: number } = {}): string {
   const vbMatch = svgCode.match(/<svg[^>]*\bviewBox="([^"]+)"/)
   if (!vbMatch) return svgCode
   const [vbX, vbY, vbW, vbH] = vbMatch[1].split(/[\s,]+/).map(Number)
@@ -96,6 +86,19 @@ export function tightenSvgViewBox(svgCode: string): string {
   }
 
   if (!foundContent) return svgCode
+
+  const { minimumFrameRatio } = options
+  if (minimumFrameRatio && minimumFrameRatio > 0 && minimumFrameRatio <= 1) {
+    const frameWidth = vbW * minimumFrameRatio
+    const frameHeight = vbH * minimumFrameRatio
+    const frameX = vbX + (vbW - frameWidth) / 2
+    const frameY = vbY + (vbH - frameHeight) / 2
+
+    bounds.minX = Math.min(bounds.minX, frameX)
+    bounds.minY = Math.min(bounds.minY, frameY)
+    bounds.maxX = Math.max(bounds.maxX, frameX + frameWidth)
+    bounds.maxY = Math.max(bounds.maxY, frameY + frameHeight)
+  }
 
   // If content already fills >95% of the viewBox, leave it alone
   const coverage = ((bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY)) / (vbW * vbH)
@@ -139,7 +142,7 @@ export function buildSvgMap(type: LogoType): Map<string, string> {
 
   for (const file of fs.readdirSync(sourceDir)) {
     if (!file.endsWith('.svg')) continue
-    map.set(toCamelCase(file), path.join(sourceDir, file))
+    map.set(file.replace(/\.svg$/, ''), path.join(sourceDir, file))
   }
   return map
 }
@@ -152,7 +155,7 @@ export interface LightDarkSvgPair {
 
 /**
  * Scan a logo source directory with light/ and (optional) dark/ subdirectories,
- * returning a map keyed by camelCase dirName → { light, dark } SVG paths.
+ * returning a map keyed by kebab-case dirName → { light, dark } SVG paths.
  *
  * The light variant is required. The dark variant is optional — if dark/{name}.svg
  * is missing, the entry has dark=null and the public CompoundIcon API falls back
@@ -170,7 +173,7 @@ export function buildLightDarkSvgMap(type: LogoType): Map<string, LightDarkSvgPa
     if (!file.endsWith('.svg')) continue
     const darkPath = path.join(darkDir, file)
     const hasDark = fs.existsSync(darkPath)
-    map.set(toCamelCase(file), {
+    map.set(file.replace(/\.svg$/, ''), {
       light: path.join(lightDir, file),
       dark: hasDark ? darkPath : null
     })

@@ -9,7 +9,7 @@ import {
   PopoverTrigger
 } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
-import { FinderIcon } from '@renderer/components/Icons/SVGIcon'
+import { FinderIcon } from '@renderer/components/Icons/SvgIcon'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { buildEditorUrl, getEditorIcon } from '@renderer/utils/editorUtils'

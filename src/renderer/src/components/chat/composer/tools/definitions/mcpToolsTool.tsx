@@ -1,7 +1,7 @@
 import { defineTool, registerTool, TopicType } from '@renderer/components/chat/composer/tools/types'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
 
-import { MCPToolsRuntime } from '../components/MCPToolsButton'
+import { McpToolsRuntime } from '../components/McpToolsButton'
 
 const mcpToolsTool = defineTool({
   key: 'mcp_tools',
@@ -14,7 +14,7 @@ const mcpToolsTool = defineTool({
   },
   composer: {
     runtime: ({ context: { assistant, actions, launcher } }) => (
-      <MCPToolsRuntime
+      <McpToolsRuntime
         assistantId={assistant!.id}
         launcher={launcher}
         setInputValue={actions.onTextChange}

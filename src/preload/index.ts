@@ -46,7 +46,6 @@ import type {
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
 import type {
-  FileProcessingTaskResult,
   FileProcessingTaskStartResult,
   ListAvailableFileProcessorsResult
 } from '@shared/data/types/fileProcessing'
@@ -76,7 +75,6 @@ import type {
   FileMetadata,
   FileUploadResponse,
   GetApiServerStatusResult,
-  MCPServer,
   Notification,
   OcrProvider,
   OcrResult,
@@ -418,37 +416,38 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Aes_Decrypt, encryptedData, iv, secretKey)
   },
   mcp: {
-    removeServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RemoveServer, server),
-    restartServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, server),
-    stopServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, server),
-    listTools: (server: MCPServer, context?: SpanContext) => tracedInvoke(IpcChannel.Mcp_ListTools, context, server),
+    removeServer: (serverId: string) => ipcRenderer.invoke(IpcChannel.Mcp_RemoveServer, serverId),
+    restartServer: (serverId: string) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, serverId),
+    stopServer: (serverId: string) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, serverId),
+    refreshTools: (serverId: string, context?: SpanContext) =>
+      tracedInvoke(IpcChannel.Mcp_RefreshTools, context, serverId),
     callTool: (
-      { server, name, args, callId }: { server: MCPServer; name: string; args: any; callId?: string },
+      { serverId, name, args, callId }: { serverId: string; name: string; args: any; callId?: string },
       context?: SpanContext
     ) =>
       tracedInvoke(IpcChannel.Mcp_CallTool, context, {
-        server,
+        serverId,
         name,
         args,
         callId
       }),
-    listPrompts: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
-    getPrompt: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
-      ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
-    listResources: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListResources, server),
-    getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
-      ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
+    listPrompts: (serverId: string) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, serverId),
+    getPrompt: ({ serverId, name, args }: { serverId: string; name: string; args?: Record<string, any> }) =>
+      ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { serverId, name, args }),
+    listResources: (serverId: string) => ipcRenderer.invoke(IpcChannel.Mcp_ListResources, serverId),
+    getResource: ({ serverId, uri }: { serverId: string; uri: string }) =>
+      ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { serverId, uri }),
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
-    checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server),
+    checkMcpConnectivity: (serverId: string) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, serverId),
     uploadDxt: async (file: File) => {
       const buffer = await file.arrayBuffer()
       return ipcRenderer.invoke(IpcChannel.Mcp_UploadDxt, buffer, file.name)
     },
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
-    getServerVersion: (server: MCPServer): Promise<string | null> =>
-      ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, server),
-    getServerLogs: (server: MCPServer): Promise<MCPServerLogEntry[]> =>
-      ipcRenderer.invoke(IpcChannel.Mcp_GetServerLogs, server),
+    getServerVersion: (serverId: string): Promise<string | null> =>
+      ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, serverId),
+    getServerLogs: (serverId: string): Promise<MCPServerLogEntry[]> =>
+      ipcRenderer.invoke(IpcChannel.Mcp_GetServerLogs, serverId),
     onServerLog: (callback: (log: MCPServerLogEntry & { serverId?: string }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, log: MCPServerLogEntry & { serverId?: string }) => {
         callback(log)
@@ -743,10 +742,6 @@ const api = {
       file: FileMetadata
       processorId?: FileProcessorId
     }): Promise<FileProcessingTaskStartResult> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartTask, payload),
-    getTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>
-      ipcRenderer.invoke(IpcChannel.FileProcessing_GetTask, payload),
-    cancelTask: (payload: { taskId: string }): Promise<FileProcessingTaskResult> =>
-      ipcRenderer.invoke(IpcChannel.FileProcessing_CancelTask, payload),
     listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>
       ipcRenderer.invoke(IpcChannel.FileProcessing_ListAvailableProcessors)
   },
@@ -909,6 +904,9 @@ const api = {
         topicId?: string
         anchorId?: string
       }): Promise<{ ok: boolean }> => ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
+    },
+    agent: {
+      runTask: (taskId: string) => ipcRenderer.invoke(IpcChannel.Ai_Agent_RunTask, taskId)
     }
   },
   composerQueue: {
@@ -1030,10 +1028,6 @@ const api = {
   },
   analytics: {
     trackTokenUsage: (data: TokenUsageData) => ipcRenderer.invoke(IpcChannel.Analytics_TrackTokenUsage, data)
-  },
-  agent: {
-    runTask: (agentId: string, taskId: string) => ipcRenderer.invoke(IpcChannel.Agent_RunTask, agentId, taskId),
-    listTools: (request: unknown) => ipcRenderer.invoke(IpcChannel.Agent_ListTools, request)
   }
 }
 

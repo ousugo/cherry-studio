@@ -20,7 +20,7 @@ import type { TemporaryConversation, TemporaryConversationDefaults } from '@rend
 import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -306,7 +306,7 @@ const AgentChat = ({
   )
 }
 
-// ── Inner: session-scoped history; agentId is present only while the session is sendable ──
+// ── Inner: mounted only when agentId + sessionId are resolved ──
 
 interface AgentChatSessionFrameProps {
   className?: string

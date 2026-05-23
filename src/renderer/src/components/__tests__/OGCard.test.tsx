@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { OGCard } from '../OGCard'
+import { OgCard } from '../OgCard'
 
 const mocks = vi.hoisted(() => ({
   OgCard: vi.fn(),
@@ -53,7 +53,7 @@ vi.mock('@renderer/hooks/useMetaDataParser', () => ({
   useMetaDataParser: mocks.useMetaDataParser
 }))
 
-describe('OGCard', () => {
+describe('OgCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.useMetaDataParser.mockReturnValue({
@@ -69,7 +69,7 @@ describe('OGCard', () => {
   })
 
   it('renders metadata with og-crd card', () => {
-    render(<OGCard link="https://example.com/article" show />)
+    render(<OgCard link="https://example.com/article" show />)
 
     expect(screen.getByTestId('og-crd-card')).toHaveAttribute('data-href', 'https://example.com/article')
     expect(screen.getByTestId('og-crd-card')).toHaveAttribute('data-aspect-ratio', String(760 / 420))
@@ -92,7 +92,7 @@ describe('OGCard', () => {
       parseMetadata: mocks.parseMetadata
     })
 
-    render(<OGCard link="https://example.com/article" show />)
+    render(<OgCard link="https://example.com/article" show />)
 
     expect(screen.getByTestId('og-crd-card').querySelector('.bg-accent')).toHaveClass('h-full w-full bg-accent')
     expect(screen.getByTestId('og-crd-title')).toHaveTextContent('example.com')
@@ -106,7 +106,7 @@ describe('OGCard', () => {
       parseMetadata: mocks.parseMetadata
     })
 
-    render(<OGCard link="https://example.com/article" show />)
+    render(<OgCard link="https://example.com/article" show />)
 
     expect(screen.getByTestId('skeleton')).toHaveClass('h-full w-full rounded-none')
     expect(mocks.parseMetadata).toHaveBeenCalledOnce()

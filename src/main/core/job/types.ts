@@ -1,12 +1,6 @@
 import type { LoggerService } from '@main/core/logger/LoggerService'
-import type {
-  CatchUpPolicy,
-  JobError,
-  JobSnapshot,
-  JobStatus,
-  RetryPolicy,
-  Trigger
-} from '@shared/data/api/schemas/jobs'
+import type { JobError, JobSnapshot, JobStatus } from '@shared/data/api/schemas/jobs'
+import type { CatchUpPolicy, RetryPolicy, Trigger } from '@shared/data/api/schemas/jobs'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
 

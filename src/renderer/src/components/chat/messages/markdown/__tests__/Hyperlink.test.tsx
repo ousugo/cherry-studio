@@ -48,9 +48,33 @@ vi.mock('@cherrystudio/ui', () => {
   }
 })
 
-// Mock the OGCard component
-vi.mock('@renderer/components/OGCard', () => ({
-  OGCard: ({ link }: { link: string; show: boolean }) => {
+vi.mock('@cherrystudio/ui', () => {
+  const React = require('react')
+  const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
+
+  return {
+    Popover: ({ children, open = false, onOpenChange, ...props }) =>
+      React.createElement(
+        PopoverContext.Provider,
+        { value: { open, onOpenChange } },
+        React.createElement('div', { ...props, 'data-testid': 'popover' }, children)
+      ),
+    PopoverTrigger: ({ children, asChild, ...props }) => {
+      if (asChild && React.isValidElement(children)) {
+        return React.cloneElement(children, { ...props, 'data-testid': 'popover-trigger' })
+      }
+      return React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children)
+    },
+    PopoverContent: ({ children, sideOffset, ...props }) => {
+      const context = React.use(PopoverContext)
+      return context.open ? React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children) : null
+    }
+  }
+})
+
+// Mock the OgCard component
+vi.mock('@renderer/components/OgCard', () => ({
+  OgCard: ({ link }: { link: string; show: boolean }) => {
     let hostname = ''
     try {
       hostname = new URL(link).hostname

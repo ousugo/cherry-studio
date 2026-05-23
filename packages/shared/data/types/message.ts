@@ -133,6 +133,8 @@ export interface CherryUIMessageMetadata {
   modelSnapshot?: ModelSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
+  /** Trace id for the assistant execution that produced this message. */
+  traceId?: string | null
 
   /** Creation timestamp (ISO). */
   createdAt?: string
@@ -152,8 +154,6 @@ export interface CherryUIMessageMetadata {
   thoughtsTokens?: number
   /** Full persisted stats (tokens + durations) when available. */
   stats?: MessageStats
-  /** Trace span id associated with the persisted message row. */
-  traceId?: string | null
   /** Whether this projected message is the on-path member for its sibling group. */
   isActiveBranch?: boolean
 }

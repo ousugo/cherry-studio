@@ -17,7 +17,7 @@ vi.mock('node:fs/promises', () => ({
   readdir: (...args: unknown[]) => mockReaddir(...args)
 }))
 
-vi.mock('@main/services/agents/skills', () => ({
+vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
     install: mockSkillInstall,
     uninstallByFolderName: mockSkillUninstallByFolderName,

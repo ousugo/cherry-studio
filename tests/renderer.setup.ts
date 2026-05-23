@@ -155,13 +155,27 @@ vi.mock('@cherrystudio/ui', () => {
   const ContextMenuContext = React.createContext({ open: true, onOpenChange: undefined })
   const DropdownMenuContext = React.createContext({ open: false, onOpenChange: undefined })
   return {
-    Button: ({ children, onPress, disabled, isDisabled, loading, startContent, ...props }) =>
-      React.createElement(
-        'button',
-        { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading },
-        startContent,
-        children
-      ),
+    Button: ({ children, onPress, disabled, isDisabled, loading, startContent, asChild, ...props }) => {
+      const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading }
+      if (asChild && React.isValidElement(children)) {
+        const childProps = children.props || {}
+        return React.cloneElement(children, {
+          ...buttonProps,
+          ...childProps,
+          className: [buttonProps.className, childProps.className].filter(Boolean).join(' ') || undefined,
+          style: { ...buttonProps.style, ...childProps.style },
+          onClick: (...args) => {
+            buttonProps.onClick?.(...args)
+            childProps.onClick?.(...args)
+          },
+          onKeyDown: (...args) => {
+            buttonProps.onKeyDown?.(...args)
+            childProps.onKeyDown?.(...args)
+          }
+        })
+      }
+      return React.createElement('button', buttonProps, startContent, children)
+    },
     Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>
       React.createElement('input', {
         ...props,

@@ -7,18 +7,22 @@
  */
 
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import type { AddAgentForm, GetAgentResponse, UpdateAgentForm } from '@renderer/types'
+import type { AddAgentForm, UpdateAgentForm } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { Tool } from '@shared/ai/tool'
+import type { AgentEntity, CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
-import type { AgentEntity } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAgentTools } from './useAgentTools'
 import { parseAgentConfiguration } from './utils'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
+
+export type AgentWithTools = AgentEntity & { tools: Tool[] }
 
 /**
  * Fetch a single agent by id from SQLite via DataApi. Parses `configuration`
@@ -37,18 +41,22 @@ export const useAgent = (id: string | null) => {
       keepPreviousData: false
     }
   })
+  const { tools } = useAgentTools(data)
 
-  // Cast to GetAgentResponse for structural compatibility with settings components
-  // (tools field will be undefined — callers use `?? []` fallbacks).
-  const agent = useMemo((): GetAgentResponse | undefined => {
+  const agent = useMemo((): AgentWithTools | undefined => {
     if (!data) return undefined
     return {
-      ...(data as unknown as GetAgentResponse),
+      ...data,
+      tools: tools ?? [],
       configuration: parseAgentConfiguration(data.configuration, { entityId: data.id, entityType: 'agent' })
     }
-  }, [data])
+  }, [data, tools])
 
-  return { agent, error, isLoading, revalidate: refetch }
+  const revalidate = useCallback(async () => {
+    await refetch()
+  }, [refetch])
+
+  return { agent, error, isLoading, revalidate }
 }
 
 /**
@@ -64,7 +72,7 @@ export const useAgents = () => {
   const addAgent = useCallback(
     async (form: AddAgentForm): Promise<Result<AgentEntity>> => {
       try {
-        const result = await createTrigger({ body: form })
+        const result = await createTrigger({ body: form as unknown as CreateAgentDto })
         window.toast.success(t('common.add_success'))
         return { success: true, data: result as unknown as AgentEntity }
       } catch (error) {
@@ -108,7 +116,7 @@ export const useUpdateAgent = () => {
     async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<AgentEntity | undefined> => {
       try {
         const { id, ...patch } = form
-        const result = await updateTrigger({ params: { agentId: id }, body: patch })
+        const result = await updateTrigger({ params: { agentId: id }, body: patch as unknown as UpdateAgentDto })
         if (options?.showSuccessToast ?? true) {
           window.toast.success({ key: 'update-agent', title: t('common.update_success') })
         }

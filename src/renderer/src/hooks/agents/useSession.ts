@@ -14,12 +14,11 @@
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
-import type { CreateSessionForm, UpdateSessionForm } from '@renderer/types'
-import type { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@renderer/types/agent'
+import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { getErrorMessage } from '@renderer/utils/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity, CreateSessionDto, UpdateSessionDto } from '@shared/data/api/schemas/sessions'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,6 +28,9 @@ type UseSessionsOptions = {
   pageSize?: number
   loadAll?: boolean
 }
+
+export type CreateSessionForm = Omit<CreateSessionDto, 'agentId'>
+export type UpdateSessionForm = UpdateSessionDto & { id: string }
 
 /**
  * Fetch a single session by id. Config (model / instructions / ...) lives on
@@ -132,15 +134,19 @@ export const useSessions = (
   const { trigger: createTrigger } = useMutation('POST', '/sessions', { refresh: ['/sessions', '/workspaces'] })
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
+      if (!agentId) {
+        window.toast.error(t('agent.session.create.error.failed'))
+        return null
+      }
       try {
-        const result = await createTrigger({ body: form })
+        const result = await createTrigger({ body: { ...form, agentId } })
         return result
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
         return null
       }
     },
-    [createTrigger, t]
+    [agentId, createTrigger, t]
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/sessions/:sessionId', { refresh: ['/sessions'] })
@@ -241,7 +247,7 @@ export const useUpdateSession = () => {
     refresh: ({ args }) => ['/sessions', `/sessions/${args!.params.sessionId}`]
   })
 
-  const updateSession: UpdateAgentSessionFunction = useCallback(
+  const updateSession = useCallback(
     async (form: UpdateSessionForm, options?: UpdateAgentBaseOptions): Promise<AgentSessionEntity | undefined> => {
       try {
         const { id, ...patch } = form

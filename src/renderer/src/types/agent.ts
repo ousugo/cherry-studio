@@ -5,17 +5,12 @@
  * `@shared/data/types/agent` — import them from there directly. This file
  * intentionally does not re-export them.
  */
+import type { Tool } from '@shared/ai/tool'
 import { AgentBaseSchema, type AgentConfiguration, AgentEntitySchema } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { AgentBase, AgentEntity, AgentTool, AgentType } from '@shared/data/types/agent'
+import type { AgentBase, AgentEntity, AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import * as z from 'zod'
-
-// v2 callers in `pages/library/editor/agent`, `hooks/agents/useAgentTools`,
-// and `hooks/agents/permissionMode` import `Tool` / `AgentType` from
-// `@renderer/types`. Re-export the canonical shared types here so those call
-// sites resolve without forking a renderer-only `ToolSchema`.
-export type { AgentType, AgentTool as Tool }
 
 // ------------------ Permission mode (renderer-side mirror of the
 //                    `claude-agent-sdk` enum, used by UI cards/forms) ------
@@ -122,7 +117,7 @@ export type UpdateAgentSessionFunction = (
 export type UpdateAgentFunctionUnion = UpdateAgentFunction | UpdateAgentSessionFunction
 
 // ------------------ Renderer-side DTO aliases ----------------------------
-export type GetAgentResponse = AgentEntity & { tools?: AgentTool[] }
+export type GetAgentResponse = AgentEntity & { tools?: Tool[] }
 
 // ------------------ Form-only effort / thinking discriminators -----------
 export type AgentEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'

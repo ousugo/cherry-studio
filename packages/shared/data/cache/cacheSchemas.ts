@@ -247,6 +247,8 @@ export const DefaultUseCache: UseCacheSchema = {
  */
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
+  'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
+  'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'composer.queue.drafts.${scopeId}': ComposerQueueSnapshot | null
   'topic.cache_version': number
@@ -266,6 +268,8 @@ export type SharedCacheSchema = {
 
 export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
+  'mcp.tools.${serverId}': [],
+  'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
   'topic.stream.statuses.${topicId}': null,
   'composer.queue.drafts.${scopeId}': null,
   'topic.cache_version': 0,

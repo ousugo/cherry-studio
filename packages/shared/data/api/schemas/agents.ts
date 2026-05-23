@@ -1,5 +1,9 @@
 /**
  * Agents domain API Schema definitions
+ *
+ * Covers agents and scheduled tasks.
+ * Entity schemas live here (Rule C/D: entity role wins when a type is both
+ * a response payload and an entity). DTOs are derived via .pick().
  */
 
 import { UniqueModelIdSchema } from '@shared/data/types/model'
@@ -7,36 +11,18 @@ import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
+import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
 
 // ============================================================================
 // Field atoms (shared validators reused across entity and DTO schemas)
 // ============================================================================
 
 export const AgentNameAtomSchema = z.string().min(1)
-export const ScheduleTypeAtomSchema = z.enum(['cron', 'interval', 'once'])
-export const ScheduleValueAtomSchema = z.string().min(1)
+export const ModelIdAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
 
-export const SlashCommandSchema = z.strictObject({
-  command: z.string(),
-  description: z.string().optional()
-})
-
-export type SlashCommand = z.infer<typeof SlashCommandSchema>
-
-export const AgentToolSchema = z.strictObject({
-  id: z.string(),
-  name: z.string(),
-  description: z.string().optional(),
-  /** Source of the tool — set on builtin / MCP / user-custom catalog entries.
-   *  API responses currently omit this; settings UIs / claudecode catalog read it. */
-  type: z.enum(['builtin', 'mcp', 'custom']).optional(),
-  /** Requires user approval before invocation (UI-only hint). */
-  requirePermissions: z.boolean().optional()
-})
-export type AgentTool = z.infer<typeof AgentToolSchema>
-
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
+export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
 export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
 export const AgentConfigurationSchema = z
@@ -98,9 +84,11 @@ export function sanitizeAgentConfiguration(raw: unknown): {
   }
 }
 
-/** Core mutable fields on an agent (the cognitive blueprint). Workspace is
- *  intentionally NOT here — that's bound to a session at create time, see
- *  `AgentSessionEntitySchema.workspace`. */
+// ============================================================================
+// Agent entity schemas (Rule C: entity schemas live in packages/shared/data/api/schemas/)
+// ============================================================================
+
+/** Core mutable fields shared between agent and session rows. */
 export const AgentBaseSchema = z.strictObject({
   name: AgentNameAtomSchema,
   description: z.string().optional(),
@@ -130,96 +118,80 @@ export const AGENT_MUTABLE_FIELDS = {
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   type: z.enum(['claude-code']),
-  model: UniqueModelIdSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   /** Persistent ordering key. Read-only; modified only through order endpoints. */
   orderKey: z.string(),
+  model: UniqueModelIdSchema.nullable(),
   /**
    * Human-readable primary model name resolved from `user_model.name` at read
    * time. Edits still go through the `model` UniqueModelId field.
    */
   modelName: z.string().nullable()
 })
-export type AgentEntity = z.infer<typeof AgentEntitySchema>
 
-export const AgentDetailSchema = AgentEntitySchema.extend({
-  tools: z.array(AgentToolSchema).optional()
-})
-export type AgentDetail = z.infer<typeof AgentDetailSchema>
+export type AgentEntity = z.infer<typeof AgentEntitySchema>
 
 export const ScheduledTaskEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string(),
   name: z.string(),
   prompt: z.string(),
-  scheduleType: ScheduleTypeAtomSchema,
-  scheduleValue: z.string(),
+  /** Discriminated union — see TriggerSchema for {cron|interval|once} shape. */
+  trigger: TriggerSchema,
   timeoutMinutes: z.number(),
   channelIds: z.array(z.string()).optional(),
   nextRun: z.string().nullable().optional(),
   lastRun: z.string().nullable().optional(),
-  lastResult: z.string().nullable().optional(),
+  /** Live enable/disable flag — pause/resume flips this. */
+  enabled: z.boolean(),
+  /** Output-only derived label kept for UI continuity (active / paused / completed). */
   status: z.enum(['active', 'paused', 'completed']),
   createdAt: z.string(),
   updatedAt: z.string()
 })
-
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
 
 export const TaskRunLogEntitySchema = z.strictObject({
   id: z.string(),
-  taskId: z.string(),
+  scheduleId: z.string(),
   sessionId: z.string().nullable().optional(),
-  runAt: z.string(),
+  startedAt: z.string(),
   durationMs: z.number(),
-  status: z.enum(['running', 'success', 'error']),
+  /** JobStatus terminal set + 'running' (pending/delayed collapse to 'running' for display). */
+  status: z.enum(['running', 'completed', 'failed', 'cancelled']),
   result: z.string().nullable().optional(),
   error: z.string().nullable().optional()
 })
 export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 
-export const InstalledSkillSchema = z.strictObject({
-  id: z.string(),
-  name: z.string(),
-  description: z.string().nullable(),
-  folderName: z.string(),
-  source: z.string(),
-  sourceUrl: z.string().nullable(),
-  namespace: z.string().nullable(),
-  author: z.string().nullable(),
-  /** Skill metadata tags from SKILL.md. */
-  sourceTags: z.array(z.string()).default([]),
-  contentHash: z.string(),
-  isEnabled: z.boolean(),
-  createdAt: z.string(),
-  updatedAt: z.string()
-})
-export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
+// ============================================================================
+// Agent DTOs (derived via .pick() from AgentEntitySchema — Rule C)
+// ============================================================================
 
-// `model` re-required because the picked entity field is optional (FK SET NULL).
-export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
-  model: UniqueModelIdSchema
-})
-
+export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
 // Update picks directly from the entity (not from Create) to avoid .default([]) bleeding into partial updates.
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial()
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
+// ============================================================================
+// Task DTOs
+// ============================================================================
+
 export const CreateTaskSchema = z.strictObject({
-  name: z.string().min(1),
+  name: JobScheduleNameAtomSchema,
   prompt: z.string().min(1),
-  scheduleType: ScheduleTypeAtomSchema,
-  scheduleValue: ScheduleValueAtomSchema,
+  trigger: TriggerSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
   channelIds: z.array(z.string()).optional()
 })
 export type CreateTaskDto = z.infer<typeof CreateTaskSchema>
 
 export const UpdateTaskSchema = CreateTaskSchema.partial().extend({
-  status: z.enum(['active', 'paused', 'completed']).optional()
+  /** Pause = false, resume = true. Replaces v1 status field. */
+  enabled: z.boolean().optional()
 })
 export type UpdateTaskDto = z.infer<typeof UpdateTaskSchema>
 
@@ -227,16 +199,11 @@ export type UpdateTaskDto = z.infer<typeof UpdateTaskSchema>
 // Common query types
 // ============================================================================
 
-export const LIST_QUERY_DEFAULT_PAGE = 1
-export const LIST_QUERY_DEFAULT_LIMIT = 50
-export const LIST_QUERY_MAX_LIMIT = 500
-
 export const ListQuerySchema = z.strictObject({
-  page: z.number().int().positive().default(LIST_QUERY_DEFAULT_PAGE),
-  limit: z.number().int().positive().max(LIST_QUERY_MAX_LIMIT).default(LIST_QUERY_DEFAULT_LIMIT)
+  page: z.number().int().positive().optional(),
+  limit: z.number().int().positive().max(500).optional()
 })
-/** Wire-side (caller) shape — page/limit optional, defaults applied on parse. */
-export type ListQuery = z.input<typeof ListQuerySchema>
+export type ListQuery = z.infer<typeof ListQuerySchema>
 
 export const AGENTS_DEFAULT_PAGE = 1
 export const AGENTS_DEFAULT_LIMIT = 100
@@ -257,22 +224,6 @@ export const ListAgentsQuerySchema = z.strictObject({
 })
 export type ListAgentsQueryParams = z.input<typeof ListAgentsQuerySchema>
 export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
-
-/**
- * Query parameters for `GET /skills`.
- *
- * Skills keep their historical direct-array response shape (no pagination UI
- * in the resource library yet), but filtering must still happen in the service
- * SQL layer:
- * - `agentId` only controls per-agent `isEnabled` decoration.
- * - `search` LIKEs against `name` OR `description`.
- */
-export const ListSkillsQuerySchema = z.strictObject({
-  agentId: z.string().min(1).optional(),
-  search: z.string().trim().min(1).optional()
-})
-export type ListSkillsQueryParams = z.input<typeof ListSkillsQuerySchema>
-export type ListSkillsQuery = z.output<typeof ListSkillsQuerySchema>
 
 // ============================================================================
 // API Schema definitions
@@ -336,22 +287,6 @@ export type AgentSchemas = {
     DELETE: {
       params: { agentId: string; taskId: string }
       response: void
-    }
-  }
-
-  /** List all installed skills (optionally filtered by agent) */
-  '/skills': {
-    GET: {
-      query?: ListSkillsQueryParams
-      response: InstalledSkill[]
-    }
-  }
-
-  /** Get a specific skill by ID */
-  '/skills/:skillId': {
-    GET: {
-      params: { skillId: string }
-      response: InstalledSkill
     }
   }
 

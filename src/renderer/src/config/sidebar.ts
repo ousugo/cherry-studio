@@ -1,4 +1,4 @@
-import { OpenClawSidebarIcon } from '@renderer/components/Icons/SVGIcon'
+import { OpenClawSidebarIcon } from '@renderer/components/Icons/SvgIcon'
 import type { SidebarMenuItem } from '@renderer/components/Sidebar/types'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'

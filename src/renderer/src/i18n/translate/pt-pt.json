@@ -224,9 +224,11 @@
         "intervalUnit": "minutos",
         "lastRun": "Última execução",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Duração",
           "empty": "Ainda sem histórico de execução.",
-          "error": "Erro",
+          "failed": "[to be translated]:Failed",
           "justNow": "agora mesmo",
           "label": "Histórico de execução",
           "loadError": "Falha ao carregar o histórico de execução",
@@ -235,7 +237,6 @@
           "running": "Correndo...",
           "search": "Pesquisar registros...",
           "status": "Estado",
-          "success": "Sucesso",
           "viewSession": "Ver sessão"
         },
         "name": {
@@ -6148,8 +6149,13 @@
       },
       "disabled": "Mini Aplicativos Ocultos",
       "display_title": "Configurações de Exibição dos Mini Aplicativos",
-      "empty": "Arraste para cá os mini aplicativos que deseja ocultar",
+      "empty": "[to be translated]:Click the hide icon on an app on the left and it will move here",
+      "group": {
+        "display": "[to be translated]:Display management",
+        "preferences": "[to be translated]:Preferences"
+      },
       "open_link_external": {
+        "description": "[to be translated]:When enabled, links that open a new window inside a mini app open in your default browser",
         "title": "Abrir link em nova janela do navegador"
       },
       "region": {
@@ -6201,7 +6207,7 @@
       },
       "disabled": "[to be translated]:Hidden Mini Apps",
       "display_title": "[to be translated]:Mini App Display Settings",
-      "empty": "[to be translated]:Drag mini apps from the left to hide them",
+      "empty": "[to be translated]:Click the hide icon on an app on the left and it will move here",
       "open_link_external": {
         "title": "[to be translated]:Open new-window links in browser"
       },

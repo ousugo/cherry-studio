@@ -29,7 +29,7 @@ each subsystem.
 │    ├─ ipcHandle('Ai_Stream_Abort',  AiStreamManager.abort)            │
 │    └─ ipcHandle('Ai_ToolApproval_Respond', applyApprovalAndContinue)  │
 │                                                                      │
-│  dispatch (src/main/ai/stream-manager/context/dispatch.ts)            │
+│  dispatch (src/main/ai/streamManager/context/dispatch.ts)            │
 │    pick ChatContextProvider → prepareDispatch → manager.send(...)     │
 │                                                                      │
 │  AiStreamManager                                                     │
@@ -49,7 +49,7 @@ each subsystem.
 │    PersistenceListener → MessageService / TemporaryChat / Agent / Translate
 │    WebContentsListener  → wc.send(Ai_StreamDone)                      │
 │    ChannelAdapterListener → adapter.onStreamComplete                  │
-│    SSEListener          → res.write('[DONE]')                         │
+│    SseListener          → res.write('[DONE]')                         │
 └──────────────────────────────────────────────────────────────────────┘
                                  ↓
                         @ai-sdk/* package
@@ -145,12 +145,12 @@ overlay-vs-persist conditional write.
 ```
 src/main/ai/
 ├── AiService.ts                  ← lifecycle owner, IPC entry
-├── agent/                        ← Agent class, loop, observers, params/features
-├── agent-session/                ← agent-session topic host + runtime drivers
+├── runtime/                      ← AI SDK and Claude Code execution backends
+├── agent-session/                ← agent-session topic host
 ├── stream-manager/               ← AiStreamManager, listeners, persistence
 ├── provider/                     ← provider config, endpoint resolution, custom providers
 ├── tools/                        ← unified tool registry
-├── trace/                        ← OTel span adapter
+├── observability/                ← AI trace adapters, local projection, sinks
 ├── messages/                     ← UI part → AI SDK part conversion
 ├── prompts/                      ← static prompt fragments
 ├── types/                        ← AppProviderId, merged types, request types

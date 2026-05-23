@@ -12,6 +12,10 @@ describe('messageMenuBar registry', () => {
     expect(getMessageMenuBarConfig(TopicType.Session).buttonIds).not.toContain('translate')
   })
 
+  it('offers the trace button in the agent (Session) scope', () => {
+    expect(getMessageMenuBarConfig(TopicType.Session).buttonIds).toContain('trace')
+  })
+
   it('still offers the translate button in the chat scope', () => {
     expect(getMessageMenuBarConfig(TopicType.Chat).buttonIds).toContain('translate')
   })

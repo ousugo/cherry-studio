@@ -159,7 +159,7 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@renderer/components/Icons/SVGIcon', () => ({
+vi.mock('@renderer/components/Icons/SvgIcon', () => ({
   OpenClawIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />,
   OpenClawSidebarIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />
 }))
@@ -1155,10 +1155,7 @@ describe('GlobalSearchPanel', () => {
         body: { nodeId: 'message-leaf' }
       })
       expect(mocks.invalidateCache).toHaveBeenCalledWith('/topics/topic-1/messages')
-      expect(mocks.cacheSet).toHaveBeenCalledWith(
-        'topic.active',
-        expect.objectContaining({ activeNodeId: 'message-leaf' })
-      )
+      expect(mocks.cacheSet).toHaveBeenCalledWith('topic.active_id', 'topic-1')
     })
     await waitFor(() => {
       expect(mocks.eventEmit).toHaveBeenCalledWith(

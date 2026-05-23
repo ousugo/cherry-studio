@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { usePartsMap } from '@renderer/components/chat/messages/blocks'
-import { useMCPServerMutations, useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMcpServerMutations, useMcpServers } from '@renderer/hooks/useMcpServer'
 import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -62,11 +62,11 @@ export function useToolApproval(
   const actions = useOptionalMessageListActions()
   const respondToolApproval = actions?.respondToolApproval
   const notifyError = actions?.notifyError
-  const { mcpServers } = useMCPServers()
-  // `useMCPServerMutations` must be called unconditionally per rules-of-hooks.
+  const { mcpServers } = useMcpServers()
+  // `useMcpServerMutations` must be called unconditionally per rules-of-hooks.
   // Pass the resolved serverId (or empty string sentinel) — the trigger is
   // only invoked when `mcpTool` is present and not the `hub` synthetic server.
-  const { updateMCPServer } = useMCPServerMutations(mcpTool?.serverId ?? '')
+  const { updateMcpServer } = useMcpServerMutations(mcpTool?.serverId ?? '')
 
   const toolCallId = target.toolCallId ?? target.id ?? ''
   const match = useMemo(() => findToolPartByCallId(partsMap, toolCallId), [partsMap, toolCallId])
@@ -109,14 +109,14 @@ export function useToolApproval(
     const current = server.disabledAutoApproveTools ?? []
     if (!current.includes(mcpTool.name)) return // already auto-approved server-side
     const next = current.filter((name) => name !== mcpTool.name)
-    void updateMCPServer({ body: { disabledAutoApproveTools: next } }).catch((err) => {
+    void updateMcpServer({ body: { disabledAutoApproveTools: next } }).catch((err) => {
       logger.warn('Failed to persist auto-approve for MCP tool', {
         serverId: mcpTool.serverId,
         toolName: mcpTool.name,
         err
       })
     })
-  }, [mcpTool, mcpServers, updateMCPServer])
+  }, [mcpTool, mcpServers, updateMcpServer])
 
   if (!match?.approvalId) return IDLE
 

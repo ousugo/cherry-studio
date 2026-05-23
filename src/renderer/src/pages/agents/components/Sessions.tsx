@@ -25,7 +25,7 @@ import {
   SessionResourceList
 } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import { FinderIcon } from '@renderer/components/Icons/SVGIcon'
+import { FinderIcon } from '@renderer/components/Icons/SvgIcon'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useCache } from '@renderer/data/hooks/useCache'

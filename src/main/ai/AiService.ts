@@ -6,9 +6,8 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
-import { downloadImageAsBase64 } from '@main/services/agents/services/channels/ChannelAdapter'
-import { toolApprovalRegistry } from '@main/services/agents/services/claudecode/ToolApprovalRegistry'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
+import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import { applyApprovalDecisions } from '@shared/ai/transport'
 import { type Assistant } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
@@ -23,17 +22,17 @@ import {
   type UIMessageChunk
 } from 'ai'
 
-import { Agent } from './agent/Agent'
-import type { AgentLoopHooks } from './agent/loop'
-import { mergeUsage, ZERO_USAGE } from './agent/observers/usage'
-import { buildAgentParams } from './agent/params/buildAgentParams'
-import type { RequestFeature } from './agent/params/feature'
-import { isAgentSessionTopic } from './agent-session/topic'
+import { isAgentSessionTopic } from './agentSession/topic'
 import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import { listModels as listModelsFromProvider } from './provider/listModels'
-import { dispatchStreamRequest } from './stream-manager/context'
-import { WebContentsListener } from './stream-manager/listeners/WebContentsListener'
-import { registerBuiltinTools } from './tools/builtin'
+import { Agent } from './runtime/aiSdk/Agent'
+import type { AgentLoopHooks } from './runtime/aiSdk/loop'
+import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
+import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
+import type { RequestFeature } from './runtime/aiSdk/params/feature'
+import { dispatchStreamRequest } from './streamManager/context'
+import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
+import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
 
@@ -119,17 +118,12 @@ export interface AiEmbedResult {
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['McpService', 'AiStreamManager'])
+@DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager'])
 export class AiService extends BaseService {
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
     this.registerIpcHandlers()
     logger.info('AiService initialized')
-  }
-
-  protected async onStop(): Promise<void> {
-    // Reject any pending `canUseTool` promises so they don't hang.
-    toolApprovalRegistry.clear('ai-service-stop')
   }
 
   private registerIpcHandlers(): void {
@@ -212,7 +206,7 @@ export class AiService extends BaseService {
         }
 
         // Claude-Agent fast-path: live registry entry unblocks `canUseTool`.
-        const dispatched = toolApprovalRegistry.dispatch(payload.approvalId, {
+        const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(payload.approvalId, {
           approved: payload.approved,
           reason: payload.reason,
           updatedInput: payload.updatedInput

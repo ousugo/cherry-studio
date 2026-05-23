@@ -224,9 +224,11 @@
         "intervalUnit": "議事録",
         "lastRun": "前回の実行",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "所要時間",
           "empty": "実行履歴がありません。",
-          "error": "エラー",
+          "failed": "[to be translated]:Failed",
           "justNow": "さっき",
           "label": "実行履歴",
           "loadError": "実行履歴の読み込みに失敗しました",
@@ -235,7 +237,6 @@
           "running": "走っている…",
           "search": "検索ログ...",
           "status": "ステータス",
-          "success": "成功",
           "viewSession": "セッションを表示"
         },
         "name": {
@@ -6148,8 +6149,13 @@
       },
       "disabled": "非表示のミニアプリ",
       "display_title": "ミニアプリ表示設定",
-      "empty": "非表示にするミニアプリを左側からここにドラッグしてください",
+      "empty": "[to be translated]:Click the hide icon on an app on the left and it will move here",
+      "group": {
+        "display": "[to be translated]:Display management",
+        "preferences": "[to be translated]:Preferences"
+      },
       "open_link_external": {
+        "description": "[to be translated]:When enabled, links that open a new window inside a mini app open in your default browser",
         "title": "新視窗のリンクをブラウザで開く"
       },
       "region": {
@@ -6201,7 +6207,7 @@
       },
       "disabled": "[to be translated]:Hidden Mini Apps",
       "display_title": "[to be translated]:Mini App Display Settings",
-      "empty": "[to be translated]:Drag mini apps from the left to hide them",
+      "empty": "[to be translated]:Click the hide icon on an app on the left and it will move here",
       "open_link_external": {
         "title": "[to be translated]:Open new-window links in browser"
       },
