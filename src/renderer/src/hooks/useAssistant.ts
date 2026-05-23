@@ -14,7 +14,7 @@
  * Companion hooks for the entities Assistant references:
  *  - {@link import('./useTopic').useTopicsByAssistant} for topics
  *  - {@link import('./useModel').useModelById} for the model
- *  - {@link import('./useMCPServers').useMCPServer} for MCP servers
+ *  - {@link import('./useMcpServers').useMcpServer} for MCP servers
  *  - {@link import('./useKnowledgeBase').useKnowledgeBases} for KBs
  */
 

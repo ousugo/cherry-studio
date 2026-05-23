@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useToolApprovalRespond } from '@renderer/hooks/ToolApprovalContext'
-import { useMcpServerMutations, useMcpServers } from '@renderer/hooks/useMCPServers'
+import { useMcpServerMutations, useMcpServers } from '@renderer/hooks/useMcpServers'
 import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { useCallback, useMemo, useRef, useState } from 'react'
@@ -61,7 +61,7 @@ export function useToolApproval(
   const partsMap = usePartsMap()
   const respondToolApproval = useToolApprovalRespond()
   const { mcpServers } = useMcpServers()
-  // `useMCPServerMutations` must be called unconditionally per rules-of-hooks.
+  // `useMcpServerMutations` must be called unconditionally per rules-of-hooks.
   // Pass the resolved serverId (or empty string sentinel) — the trigger is
   // only invoked when `mcpTool` is present and not the `hub` synthetic server.
   const { updateMcpServer } = useMcpServerMutations(mcpTool?.serverId ?? '')
