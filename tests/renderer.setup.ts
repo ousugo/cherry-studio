@@ -153,6 +153,7 @@ vi.mock('@cherrystudio/ui', () => {
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: true, onOpenChange: undefined })
+  const DropdownMenuContext = React.createContext({ open: false, onOpenChange: undefined })
   return {
     Button: ({ children, onPress, disabled, isDisabled, loading, startContent, ...props }) =>
       React.createElement(
@@ -233,6 +234,14 @@ vi.mock('@cherrystudio/ui', () => {
         { ...props, type: 'button', onClick: onSelect, 'data-testid': 'context-menu-item' },
         children
       ),
+    ContextMenuItemContent: ({ badge, children, icon, shortcut, ...props }) =>
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('span', { ...props }, icon, children),
+        badge,
+        shortcut ? React.createElement('span', null, shortcut) : null
+      ),
     ContextMenuSeparator: (props) => React.createElement('div', { ...props, 'data-testid': 'context-menu-separator' }),
     ContextMenuSub: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'context-menu-sub' }, children),
@@ -240,6 +249,49 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('button', { ...props, type: 'button', 'data-testid': 'context-menu-sub-trigger' }, children),
     ContextMenuSubContent: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'context-menu-sub-content' }, children),
+    DropdownMenu: ({ children, defaultOpen = false, open: controlledOpen, onOpenChange, ...props }) => {
+      const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
+      const open = controlledOpen ?? uncontrolledOpen
+      const setOpen = (nextOpen: boolean) => {
+        setUncontrolledOpen(nextOpen)
+        onOpenChange?.(nextOpen)
+      }
+      return React.createElement(
+        DropdownMenuContext.Provider,
+        { value: { open, onOpenChange: setOpen } },
+        React.createElement('div', { ...props, 'data-testid': 'dropdown-menu' }, children)
+      )
+    },
+    DropdownMenuTrigger: ({ children, asChild, ...props }) => {
+      const context = React.useContext(DropdownMenuContext)
+      const triggerProps = {
+        ...props,
+        'data-testid': 'dropdown-menu-trigger',
+        onClick: (event: React.MouseEvent) => {
+          props.onClick?.(event)
+          context.onOpenChange?.(!context.open)
+        }
+      }
+      if (asChild && React.isValidElement(children)) {
+        return React.cloneElement(children, {
+          ...children.props,
+          ...triggerProps,
+          onClick: (event: React.MouseEvent) => {
+            children.props.onClick?.(event)
+            triggerProps.onClick(event)
+          }
+        })
+      }
+      return React.createElement('button', { ...triggerProps, type: 'button' }, children)
+    },
+    DropdownMenuContent: ({ children, align, side, sideOffset, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'dropdown-menu-content' }, children),
+    DropdownMenuItem: ({ children, onSelect, ...props }) =>
+      React.createElement(
+        'button',
+        { ...props, type: 'button', onClick: onSelect, 'data-testid': 'dropdown-menu-item' },
+        children
+      ),
     ConfirmDialog: ({
       cancelText = 'Cancel',
       confirmText = 'Confirm',

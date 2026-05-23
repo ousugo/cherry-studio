@@ -28,8 +28,11 @@ const SESSION_GROUP_LABELS = {
     'this-week': 'This week',
     earlier: 'Earlier'
   },
+  agent: {
+    unknown: 'Unknown agent'
+  },
   workdir: {
-    none: 'No workspace'
+    none: 'No project'
   }
 }
 
@@ -128,6 +131,20 @@ describe('SessionList helpers', () => {
   it('allows drag only inside the same non-pinned display group', () => {
     expect(
       canDropSessionItemInDisplayGroup({
+        mode: 'agent',
+        sourceGroupId: 'session:agent:agent-a',
+        targetGroupId: 'session:agent:agent-a'
+      })
+    ).toBe(true)
+    expect(
+      canDropSessionItemInDisplayGroup({
+        mode: 'agent',
+        sourceGroupId: 'session:agent:agent-a',
+        targetGroupId: 'session:agent:agent-b'
+      })
+    ).toBe(false)
+    expect(
+      canDropSessionItemInDisplayGroup({
         mode: 'workdir',
         sourceGroupId: 'session:workspace:ws-a',
         targetGroupId: 'session:workspace:ws-a'
@@ -178,7 +195,21 @@ describe('SessionList helpers', () => {
     })
   })
 
-  it('groups sessions by workdir', () => {
+  it('groups sessions by agent and workdir', () => {
+    const agentGroup = createSessionDisplayGroupResolver({
+      agentById: new Map([['agent-1', { id: 'agent-1', name: 'Alpha agent' }]]),
+      labels: SESSION_GROUP_LABELS,
+      mode: 'agent'
+    })
+    expect(agentGroup(createSession({ agentId: 'agent-1' }))).toEqual({
+      id: 'session:agent:agent-1',
+      label: 'Alpha agent'
+    })
+    expect(agentGroup(createSession({ agentId: 'missing-agent' }))).toEqual({
+      id: 'session:agent:unknown',
+      label: 'Unknown agent'
+    })
+
     const session = createSession({
       workspaceId: 'ws-project-a',
       workspace: makeWorkspace('/Users/jd/project-a/', { id: 'ws-project-a' })
@@ -197,7 +228,7 @@ describe('SessionList helpers', () => {
     })
     expect(workdirGroup(createSession({ workspace: null }))).toEqual({
       id: 'session:workdir:none',
-      label: 'No workspace'
+      label: 'No project'
     })
   })
 
@@ -316,6 +347,13 @@ describe('SessionList helpers', () => {
       sortSessionsForDisplayGroups(sessions, {
         mode: 'time',
         now: new Date(2026, 4, 15, 12)
+      }).map((session) => session.id)
+    ).toEqual(['pinned', 'newer', 'older'])
+
+    expect(
+      sortSessionsForDisplayGroups(sessions, {
+        agentRankById: new Map([['agent-1', 0]]),
+        mode: 'agent'
       }).map((session) => session.id)
     ).toEqual(['pinned', 'newer', 'older'])
 

@@ -101,7 +101,7 @@ const HistoryResultList = ({
                 ? t('history.records.table.title', '标题')
                 : t('history.records.table.session', '会话')
             }
-            sourceLabel={mode === 'assistant' ? t('common.assistant', '助手') : t('common.agent', '智能体')}
+            sourceLabel={mode === 'assistant' ? t('common.assistant') : t('common.agent')}
             timeLabel={t('history.records.table.time', '时间')}
           />
 

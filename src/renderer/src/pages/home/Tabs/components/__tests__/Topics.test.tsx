@@ -254,6 +254,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
       if (key === 'history.records.title') return 'Topic History'
+      if (key === 'history.records.shortTitle') return 'History'
       if (key === 'assistants.reorder.error.failed') return 'Failed to reorder assistants'
       if (key === 'chat.topics.delete.shortcut') return `Hold ${options?.key ?? 'Ctrl'} to delete directly`
       return key
@@ -368,6 +369,16 @@ function renderTopicList({
     rerenderTopicList: (nextRevealRequest = revealRequest) => view.rerender(renderNode(nextRevealRequest)),
     setActiveTopic
   }
+}
+
+function openTopicListOptions() {
+  fireEvent.click(screen.getByLabelText('Display mode'))
+  return screen.getAllByTestId('popover-content').find((element) => element.className.includes('w-32'))
+}
+
+function enterTopicManageMode() {
+  openTopicListOptions()
+  fireEvent.click(screen.getByRole('button', { name: 'Manage topics' }))
 }
 
 function getTopicRow(topicName: string) {
@@ -962,31 +973,40 @@ describe('Topics', () => {
     expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search topics')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByLabelText('Display mode'))
+    expect(screen.queryByLabelText('Manage topics')).not.toBeInTheDocument()
 
-    const displayModeContent = screen
-      .getAllByTestId('popover-content')
-      .find((element) => element.className.includes('w-28'))
-    expect(displayModeContent).toHaveClass('w-28', 'p-1')
+    const displayModeContent = openTopicListOptions()
+    expect(displayModeContent).toHaveClass('w-32', 'p-1')
+    expect(displayModeContent?.querySelector('svg')).toBeNull()
     expect(screen.getByText('Display mode')).toHaveClass('text-[10px]')
     expect(screen.getByRole('button', { name: 'Time' })).toHaveClass('h-6', 'text-[11px]', 'font-normal')
     expect(screen.getByRole('button', { name: 'Time' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manage topics' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Time' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
 
-    fireEvent.click(screen.getByLabelText('Display mode'))
+    openTopicListOptions()
     fireEvent.click(screen.getByRole('button', { name: 'Assistant' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
   })
 
-  it('opens topic history from the trailing header action when provided', () => {
+  it('opens topic history from the list options menu when provided', () => {
     const onOpenHistory = vi.fn()
 
     renderTopicList({ onOpenHistory })
 
-    const historyButton = screen.getByLabelText('Topic History')
+    expect(screen.queryByLabelText('Topic History')).not.toBeInTheDocument()
+
+    openTopicListOptions()
+
+    const optionsContent = screen
+      .getAllByTestId('popover-content')
+      .find((element) => element.className.includes('w-32'))
+    expect(optionsContent?.querySelector('svg')).toBeNull()
+
+    const historyButton = screen.getByRole('button', { name: 'History' })
     vi.spyOn(historyButton, 'getBoundingClientRect').mockReturnValue({
       x: 10,
       y: 20,
@@ -1063,7 +1083,7 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByLabelText('Manage topics'))
+    enterTopicManageMode()
     const manageSearchButton = document.querySelector('[data-title="Search topics"] button')
     expect(manageSearchButton).toBeInTheDocument()
     fireEvent.click(manageSearchButton as HTMLElement)
@@ -1102,7 +1122,7 @@ describe('Topics', () => {
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
   })
 
-  it('renders group create action only on the today group when grouped by time', () => {
+  it('creates topics from each time group using that group latest row', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     const { onNewTopic } = renderTopicList()
 
@@ -1122,18 +1142,75 @@ describe('Topics', () => {
     )
     fireEvent.click(todayCreateButton)
 
-    expect(onNewTopic).toHaveBeenCalledWith(undefined)
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
 
-    const otherGroups = ['Pinned', 'Yesterday', 'This week', 'Earlier'] as const
-    for (const groupName of otherGroups) {
-      const header = screen.getByRole('button', { name: groupName }).closest('div')
-      expect(header).toBeInTheDocument()
-      expect(
-        within(header as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
-      ).not.toBeInTheDocument()
-    }
+    const yesterdayHeader = screen.getByRole('button', { name: 'Yesterday' }).closest('div')
+    expect(yesterdayHeader).toBeInTheDocument()
+    fireEvent.click(within(yesterdayHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
 
-    expect(onNewTopic).toHaveBeenCalledTimes(1)
+    const thisWeekHeader = screen.getByRole('button', { name: 'This week' }).closest('div')
+    expect(thisWeekHeader).toBeInTheDocument()
+    fireEvent.click(within(thisWeekHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
+
+    const earlierHeader = screen.getByRole('button', { name: 'Earlier' }).closest('div')
+    expect(earlierHeader).toBeInTheDocument()
+    fireEvent.click(within(earlierHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
+
+    const pinnedHeader = screen.getByRole('button', { name: 'Pinned' }).closest('div')
+    expect(pinnedHeader).toBeInTheDocument()
+    expect(
+      within(pinnedHeader as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
+    ).not.toBeInTheDocument()
+
+    expect(onNewTopic).toHaveBeenCalledTimes(4)
+  })
+
+  it('creates a topic from the header using the latest unpinned row', () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-a',
+              name: 'Older alpha',
+              assistantId: 'assistant-1',
+              orderKey: 'a',
+              updatedAt: '2026-01-02T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-b',
+              name: 'Pinned newest alpha',
+              assistantId: 'assistant-1',
+              orderKey: 'b',
+              updatedAt: '2026-01-04T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-c',
+              name: 'Latest beta',
+              assistantId: 'assistant-2',
+              orderKey: 'c',
+              updatedAt: '2026-01-03T01:00:00.000Z'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+    const { onNewTopic } = renderTopicList()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'chat.conversation.new' })[0])
+
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
   })
 
   it('does not enable drag reorder in time mode', () => {
@@ -1160,7 +1237,7 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    fireEvent.click(screen.getByLabelText('Manage topics'))
+    enterTopicManageMode()
     const manageSearchButton = document.querySelector('[data-title="Search topics"] button')
     expect(manageSearchButton).toBeInTheDocument()
     fireEvent.click(manageSearchButton as HTMLElement)
@@ -1288,11 +1365,8 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Alpha Assistant' }).querySelector('.lucide-chevron-down')
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')).not.toHaveTextContent('🧪')
-    expect(screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')).not.toHaveTextContent('✍️')
+    expect(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')).toHaveTextContent('🧪')
+    expect(screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')).toHaveTextContent('✍️')
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     expect(assistantHeader).toBeInTheDocument()
@@ -1678,7 +1752,7 @@ describe('Topics', () => {
     renderTopicList()
 
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
-    fireEvent.click(screen.getByLabelText('Manage topics'))
+    enterTopicManageMode()
 
     expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
     expect(patchSpy).not.toHaveBeenCalled()
@@ -1689,7 +1763,7 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    fireEvent.click(screen.getByLabelText('Manage topics'))
+    enterTopicManageMode()
 
     const betaHeader = screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')
     expect(betaHeader).toBeInTheDocument()

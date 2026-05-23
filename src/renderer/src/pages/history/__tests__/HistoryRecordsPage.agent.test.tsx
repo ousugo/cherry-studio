@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hookMocks = vi.hoisted(() => ({
   cacheGet: vi.fn(),
+  cacheGetCasual: vi.fn(),
   cacheGetShared: vi.fn(),
   cacheSet: vi.fn(),
   cacheSubscribe: vi.fn(),
@@ -61,8 +62,8 @@ vi.mock('@cherrystudio/ui', async () => {
         </div>
       ) : null,
     ContextMenu: ({ children }: { children?: ReactNode }) => <div data-testid="context-menu">{children}</div>,
-    ContextMenuContent: ({ children, ...props }: { children?: ReactNode }) => (
-      <div data-testid="context-menu-content" {...props}>
+    ContextMenuContent: ({ children, className, ...props }: { children?: ReactNode; className?: string }) => (
+      <div data-testid="context-menu-content" className={['z-50', className].filter(Boolean).join(' ')} {...props}>
         {children}
       </div>
     ),
@@ -103,6 +104,7 @@ vi.mock('@cherrystudio/ui', async () => {
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     get: hookMocks.cacheGet,
+    getCasual: hookMocks.cacheGetCasual,
     getShared: hookMocks.cacheGetShared,
     set: hookMocks.cacheSet,
     subscribe: hookMocks.cacheSubscribe
@@ -210,8 +212,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: string, options?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
-        'agent.session.display.workdir': 'Workspace',
-        'agent.session.group.no_workdir': 'No workspace',
+        'agent.session.display.workdir': 'Project',
+        'agent.session.group.no_workdir': 'No project',
         'agent.session.delete.content': 'Delete this session?',
         'agent.session.delete.title': 'Delete session',
         'agent.session.edit.title': 'Edit session',
@@ -376,6 +378,8 @@ describe('HistoryRecordsPage agent mode', () => {
     })
     hookMocks.cacheGet.mockReset()
     hookMocks.cacheGet.mockReturnValue(undefined)
+    hookMocks.cacheGetCasual.mockReset()
+    hookMocks.cacheGetCasual.mockReturnValue(undefined)
     hookMocks.cacheGetShared.mockReset()
     hookMocks.cacheGetShared.mockReturnValue(undefined)
     hookMocks.cacheSet.mockReset()
@@ -438,7 +442,7 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(screen.queryByText('消息')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     expect(screen.getByText('Planning notes')).toBeInTheDocument()
-    expect(screen.getByText('Workspace')).toBeInTheDocument()
+    expect(screen.getByText('Project')).toBeInTheDocument()
     expect(screen.getByText('Agent')).toBeInTheDocument()
     expect(screen.getByText('project-a')).toBeInTheDocument()
     expect(screen.getByText('Alpha agent')).toBeInTheDocument()

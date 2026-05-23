@@ -1,28 +1,85 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { AgentEntity } from '@shared/data/types/agent'
 import { describe, expect, it } from 'vitest'
 
-import { resolveCreateSessionAgentId } from '../Sessions'
+import type { SessionListItem } from '../SessionList.helpers'
+import { buildCreateSessionSeed, findLatestCreateSessionSeed } from '../Sessions'
 
-const session = (id: string, agentId: string) => ({ id, agentId }) as AgentSessionEntity
-const agent = (id: string) => ({ id }) as AgentEntity
+const session = (overrides: Partial<SessionListItem> = {}) =>
+  ({
+    id: 'session-1',
+    agentId: 'agent-1',
+    workspaceId: 'workspace-1',
+    workspace: { path: '/Users/jd/project-a' },
+    pinned: false,
+    ...overrides
+  }) as SessionListItem
 
-describe('resolveCreateSessionAgentId', () => {
-  it('prefers the active session agent', () => {
+describe('buildCreateSessionSeed', () => {
+  it('copies the agent and workspace id from the source session', () => {
+    expect(buildCreateSessionSeed(session({ agentId: 'agent-2', workspaceId: 'workspace-2' }))).toEqual({
+      agentId: 'agent-2',
+      workspaceId: 'workspace-2'
+    })
+  })
+
+  it('falls back to the embedded workspace path when the workspace id is missing', () => {
     expect(
-      resolveCreateSessionAgentId([session('session-1', 'agent-1'), session('session-2', 'agent-2')], 'session-2', [
-        agent('agent-3')
+      buildCreateSessionSeed(session({ workspaceId: undefined, workspace: { path: '/Users/jd/project-b' } }))
+    ).toEqual({
+      agentId: 'agent-1',
+      workspacePath: '/Users/jd/project-b'
+    })
+  })
+
+  it('returns null when the source session has no agent', () => {
+    expect(buildCreateSessionSeed(session({ agentId: undefined }))).toBeNull()
+  })
+})
+
+describe('findLatestCreateSessionSeed', () => {
+  it('uses the latest unpinned matching session', () => {
+    expect(
+      findLatestCreateSessionSeed([
+        session({
+          id: 'pinned-session',
+          agentId: 'agent-pinned',
+          pinned: true,
+          updatedAt: '2026-01-04T00:00:00.000Z'
+        }),
+        session({
+          id: 'older-session',
+          agentId: 'agent-older',
+          workspaceId: 'workspace-older',
+          updatedAt: '2026-01-02T00:00:00.000Z'
+        }),
+        session({
+          id: 'newer-session',
+          agentId: 'agent-newer',
+          workspaceId: 'workspace-newer',
+          updatedAt: '2026-01-03T00:00:00.000Z'
+        })
       ])
-    ).toBe('agent-2')
+    ).toEqual({ agentId: 'agent-newer', workspaceId: 'workspace-newer' })
   })
 
-  it('falls back to the first session agent', () => {
-    expect(resolveCreateSessionAgentId([session('session-1', 'agent-1')], 'missing-session', [agent('agent-2')])).toBe(
-      'agent-1'
-    )
-  })
-
-  it('falls back to the first agent when no sessions exist', () => {
-    expect(resolveCreateSessionAgentId([], null, [agent('agent-1')])).toBe('agent-1')
+  it('honors the group predicate before choosing the seed', () => {
+    expect(
+      findLatestCreateSessionSeed(
+        [
+          session({
+            id: 'session-a',
+            agentId: 'agent-a',
+            workspaceId: 'workspace-a',
+            updatedAt: '2026-01-03T00:00:00.000Z'
+          }),
+          session({
+            id: 'session-b',
+            agentId: 'agent-b',
+            workspaceId: 'workspace-b',
+            updatedAt: '2026-01-02T00:00:00.000Z'
+          })
+        ],
+        (candidate) => candidate.id === 'session-b'
+      )
+    ).toEqual({ agentId: 'agent-b', workspaceId: 'workspace-b' })
   })
 })
