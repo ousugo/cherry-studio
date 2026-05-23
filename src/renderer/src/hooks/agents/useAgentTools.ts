@@ -1,5 +1,5 @@
 import { cacheService } from '@renderer/data/CacheService'
-import { useMcpServers } from '@renderer/hooks/useMcpServers'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import type { AgentType } from '@renderer/types'
 import { claudeCodeBuiltinToolDescriptors } from '@shared/ai/claudecode/builtinTools'
 import {

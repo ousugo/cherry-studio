@@ -1,4 +1,4 @@
-import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServers'
+import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
 import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { Flex, Tooltip } from 'antd'
 import {

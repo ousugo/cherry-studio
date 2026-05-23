@@ -36,7 +36,7 @@ export const useMcpServers = (query?: ListMCPServersQuery) => {
     (reorderedList: MCPServer[]) => {
       void mutate(data ? { ...data, items: reorderedList } : undefined, false)
       reorderTrigger({ body: { orderedIds: reorderedList.map((s) => s.id) } }).catch((error) => {
-        loggerService.withContext('useMcpServers').warn('Failed to reorder MCP servers, reverting', error as Error)
+        loggerService.withContext('useMcpServer').warn('Failed to reorder MCP servers, reverting', error as Error)
         void mutate()
       })
     },

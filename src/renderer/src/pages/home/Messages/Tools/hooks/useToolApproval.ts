@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useToolApprovalRespond } from '@renderer/hooks/ToolApprovalContext'
-import { useMcpServerMutations, useMcpServers } from '@renderer/hooks/useMcpServers'
+import { useMcpServerMutations, useMcpServers } from '@renderer/hooks/useMcpServer'
 import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { useCallback, useMemo, useRef, useState } from 'react'
