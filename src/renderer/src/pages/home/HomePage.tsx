@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
+import { type TemporaryConversation, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -126,11 +126,15 @@ const HomePage: FC = () => {
   }, [activeTopic])
 
   const persistTemporaryTopicAndRefresh = useCallback(
-    async (initialName?: string) => {
-      await persistTemporaryConversation(initialName)
+    async (initialName?: string): Promise<TemporaryConversation | null> => {
+      const persisted = await persistTemporaryConversation(initialName)
+      if (persisted?.type !== 'assistant') {
+        throw new Error('Temporary topic handoff failed: no active assistant lease')
+      }
       void refreshTopics().catch((err) => {
         logger.warn('Failed to refresh topics after temporary topic persist', err as Error)
       })
+      return persisted
     },
     [persistTemporaryConversation, refreshTopics]
   )

@@ -29,6 +29,7 @@ const AgentPage = () => {
   const { agents } = useAgents()
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
+  const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const sessionRevealRequestIdRef = useRef(0)
   const initialTemporarySessionEvaluatedRef = useRef(false)
@@ -87,18 +88,54 @@ const AgentPage = () => {
 
   const startTemporarySession = useCallback(
     async (defaults: TemporaryConversationDefaults) => {
-      if (temporaryAgentConversation?.type === 'agent' && defaults.agentId === temporaryAgentConversation.agentId) {
+      const rememberedWorkspaceId = defaults.workspaceId ?? lastUsedWorkspaceId ?? undefined
+      if (
+        temporaryAgentConversation?.type === 'agent' &&
+        defaults.agentId === temporaryAgentConversation.agentId &&
+        (rememberedWorkspaceId ?? null) === (temporaryAgentConversation.session.workspaceId ?? null)
+      ) {
+        if (temporaryAgentConversation.session.workspaceId) {
+          setLastUsedWorkspaceId(temporaryAgentConversation.session.workspaceId)
+        }
         setActiveSessionId(null)
         return
       }
 
-      const started = await startTemporaryConversation({ ...defaults, name: defaults.name ?? t('common.unnamed') })
+      const startDefaults = {
+        ...defaults,
+        ...(rememberedWorkspaceId ? { workspaceId: rememberedWorkspaceId } : {}),
+        name: defaults.name ?? t('common.unnamed')
+      }
+
+      let started: Awaited<ReturnType<typeof startTemporaryConversation>>
+      try {
+        started = await startTemporaryConversation(startDefaults)
+      } catch (err) {
+        if (!rememberedWorkspaceId || defaults.workspaceId) throw err
+
+        logger.warn('Failed to start temporary session with remembered workspace', err as Error, {
+          workspaceId: rememberedWorkspaceId
+        })
+        setLastUsedWorkspaceId(null)
+        started = await startTemporaryConversation({ ...defaults, name: defaults.name ?? t('common.unnamed') })
+      }
       if (started?.type === 'agent') {
         setLastUsedAgentId(started.agentId)
+        if (started.session.workspaceId) {
+          setLastUsedWorkspaceId(started.session.workspaceId)
+        }
       }
       setActiveSessionId(null)
     },
-    [setActiveSessionId, setLastUsedAgentId, startTemporaryConversation, t, temporaryAgentConversation]
+    [
+      lastUsedWorkspaceId,
+      setActiveSessionId,
+      setLastUsedAgentId,
+      setLastUsedWorkspaceId,
+      startTemporaryConversation,
+      t,
+      temporaryAgentConversation
+    ]
   )
 
   useEffect(() => {
@@ -124,6 +161,9 @@ const AgentPage = () => {
       const persisted = await persistTemporaryConversation(initialName)
       if (persisted?.type === 'agent') {
         setLastUsedAgentId(persisted.agentId)
+        if (persisted.session.workspaceId) {
+          setLastUsedWorkspaceId(persisted.session.workspaceId)
+        }
         setActiveSessionId(persisted.sessionId)
         void invalidateCache(['/sessions', '/workspaces', `/sessions/${persisted.sessionId}`]).catch((err) => {
           logger.warn('Failed to refresh session metadata after temporary session persist', err as Error)
@@ -132,7 +172,7 @@ const AgentPage = () => {
       }
       return null
     },
-    [invalidateCache, persistTemporaryConversation, setActiveSessionId, setLastUsedAgentId]
+    [invalidateCache, persistTemporaryConversation, setActiveSessionId, setLastUsedAgentId, setLastUsedWorkspaceId]
   )
   const replaceTemporaryAgent = useCallback(
     async (agentId: string | null) => {
@@ -173,7 +213,11 @@ const AgentPage = () => {
   const replaceTemporaryWorkspace = useCallback(
     async (workspaceId: string) => {
       if (!workspaceId || temporaryAgentConversation?.type !== 'agent') return
-      if (workspaceId === temporaryAgentConversation.session.workspaceId || replacingTemporaryWorkspace) return
+      if (workspaceId === temporaryAgentConversation.session.workspaceId) {
+        setLastUsedWorkspaceId(workspaceId)
+        return
+      }
+      if (replacingTemporaryWorkspace) return
 
       setReplacingTemporaryWorkspace(true)
       try {
@@ -182,6 +226,7 @@ const AgentPage = () => {
           workspaceId,
           name: temporaryAgentConversation.name ?? t('common.unnamed')
         })
+        setLastUsedWorkspaceId(workspaceId)
         setActiveSessionId(null)
       } catch (err) {
         logger.error('Failed to replace temporary workspace', err as Error, { workspaceId })
@@ -190,7 +235,14 @@ const AgentPage = () => {
         setReplacingTemporaryWorkspace(false)
       }
     },
-    [replaceTemporaryConversation, replacingTemporaryWorkspace, setActiveSessionId, t, temporaryAgentConversation]
+    [
+      replaceTemporaryConversation,
+      replacingTemporaryWorkspace,
+      setActiveSessionId,
+      setLastUsedWorkspaceId,
+      t,
+      temporaryAgentConversation
+    ]
   )
   const historyOverlay = (
     <HistoryRecordsPage
@@ -239,6 +291,7 @@ const AgentPage = () => {
           onDraftAgentChange={replaceTemporaryAgent}
           onDraftWorkspaceChange={replaceTemporaryWorkspace}
           onVisibleAgentChange={setLastUsedAgentId}
+          onVisibleWorkspaceChange={setLastUsedWorkspaceId}
           replacingTemporaryAgent={replacingTemporaryAgent}
           replacingTemporaryWorkspace={replacingTemporaryWorkspace}
         />

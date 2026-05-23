@@ -81,14 +81,22 @@ vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
     )
   ),
   ChatHomeComposer: ({
+    onSend,
     onTemporaryAssistantChange
   }: {
+    onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
     onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
-  }) => (
-    <button type="button" data-testid="chat-home-composer" onClick={() => onTemporaryAssistantChange?.('assistant-2')}>
-      home composer
-    </button>
-  )
+  }) => {
+    capturedOnSend = onSend
+    return (
+      <button
+        type="button"
+        data-testid="chat-home-composer"
+        onClick={() => onTemporaryAssistantChange?.('assistant-2')}>
+        home composer
+      </button>
+    )
+  }
 }))
 
 vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => ({
@@ -249,6 +257,65 @@ describe('ChatContent', () => {
     render(<ChatContent topic={topic} mainHeight="100px" onPersistTemporaryTopic={vi.fn()} />)
 
     expect(mockUseTopicMessages).toHaveBeenCalledWith('topic-1', { fetchOnMount: false })
+  })
+
+  it('fails before stream open when temporary topic handoff returns no persisted topic', async () => {
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: null,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    const persistTemporaryTopic = vi.fn().mockResolvedValue(null)
+
+    render(<ChatContent topic={topic} mainHeight="100px" onPersistTemporaryTopic={persistTemporaryTopic} />)
+
+    await act(async () => {
+      await expect(
+        capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+      ).rejects.toThrow('Temporary topic handoff failed before stream open')
+    })
+
+    expect(persistTemporaryTopic).toHaveBeenCalledWith('hello')
+    expect(window.api.ai.streamOpen).not.toHaveBeenCalled()
+  })
+
+  it('uses a local rollback instead of revalidating DataApi when a fresh temporary topic send fails', async () => {
+    const mutate = vi.fn().mockResolvedValue(undefined)
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: null,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate
+    })
+    ;(window.api.ai.streamOpen as any).mockRejectedValueOnce(new Error('open failed'))
+    const persistTemporaryTopic = vi.fn().mockResolvedValue({
+      assistantId: 'assistant-1',
+      id: 'topic-1',
+      topic,
+      topicId: 'topic-1',
+      type: 'assistant'
+    })
+
+    render(<ChatContent topic={topic} mainHeight="100px" onPersistTemporaryTopic={persistTemporaryTopic} />)
+
+    await act(async () => {
+      await expect(
+        capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+      ).rejects.toThrow('open failed')
+    })
+
+    expect(mutate).toHaveBeenCalledWith([{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null }], {
+      revalidate: false
+    })
   })
 
   it('keeps the composer visible while topic history is loading', () => {

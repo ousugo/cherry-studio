@@ -23,6 +23,7 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import type { FileMetadata, Topic } from '@renderer/types'
@@ -68,7 +69,7 @@ interface Props {
    * on the same hook instance. `initialName` seeds a placeholder topic
    * title so the sidebar isn't blank pre-auto-name.
    */
-  onPersistTemporaryTopic?: (initialName?: string) => Promise<void>
+  onPersistTemporaryTopic?: (initialName?: string) => Promise<TemporaryConversation | null>
 }
 
 /**
@@ -260,9 +261,9 @@ const ChatContentInner: FC<InnerProps> = ({
     () => ({
       seedReservedMessages: cache.seedReservedMessages,
       refresh,
-      rollback: cache.rollbackBranch
+      rollback: isFreshTemporaryTopic ? cache.clearBranchCache : cache.rollbackBranch
     }),
-    [cache.rollbackBranch, cache.seedReservedMessages, refresh]
+    [cache.clearBranchCache, cache.rollbackBranch, cache.seedReservedMessages, isFreshTemporaryTopic, refresh]
   )
   const turnController = useConversationTurnController<
     ChatTurnInput,
@@ -273,8 +274,12 @@ const ChatContentInner: FC<InnerProps> = ({
     ensureConversation: async ({ text }) => {
       if (isHistoryLoading) return null
       if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
-        await onPersistTemporaryTopic(text)
+        const persisted = await onPersistTemporaryTopic(text)
+        if (persisted?.type !== 'assistant') {
+          throw new Error('Temporary topic handoff failed before stream open')
+        }
         onTemporaryTopicPersisted()
+        return { topicId: persisted.topicId, parentAnchorId: activeNodeId ?? null }
       }
       return { topicId: topic.id, parentAnchorId: activeNodeId ?? null }
     },

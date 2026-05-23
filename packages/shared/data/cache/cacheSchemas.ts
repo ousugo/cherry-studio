@@ -294,6 +294,7 @@ export type RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.file_tree.width': number
   'ui.chat.last_used_assistant_id': string | null
   'ui.agent.last_used_agent_id': string | null
+  'ui.agent.last_used_workspace_id': string | null
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
@@ -313,6 +314,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.file_tree.width': 160,
   'ui.chat.last_used_assistant_id': null,
   'ui.agent.last_used_agent_id': null,
+  'ui.agent.last_used_workspace_id': null,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,

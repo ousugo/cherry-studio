@@ -6,8 +6,10 @@ const agentPageMocks = vi.hoisted(() => ({
   activeSessionId: 'session-initial' as string | null,
   agents: [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }],
   lastUsedAgentId: null as string | null,
+  lastUsedWorkspaceId: null as string | null,
   setActiveSessionId: vi.fn(),
   setLastUsedAgentId: vi.fn(),
+  setLastUsedWorkspaceId: vi.fn(),
   setShowSidebar: vi.fn()
 }))
 
@@ -59,16 +61,28 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
       return [activeSessionId, setCache]
     },
     usePersistCache: (key: string) => {
-      const [lastUsedAgentId, setLastUsedAgentId] = React.useState(agentPageMocks.lastUsedAgentId)
-      if (key !== 'ui.agent.last_used_agent_id') return [undefined, vi.fn()]
+      const initialValue =
+        key === 'ui.agent.last_used_agent_id'
+          ? agentPageMocks.lastUsedAgentId
+          : key === 'ui.agent.last_used_workspace_id'
+            ? agentPageMocks.lastUsedWorkspaceId
+            : undefined
+      const [value, setValue] = React.useState(initialValue)
+      if (key !== 'ui.agent.last_used_agent_id' && key !== 'ui.agent.last_used_workspace_id')
+        return [undefined, vi.fn()]
 
-      const setCache = vi.fn((nextAgentId: string | null) => {
-        agentPageMocks.lastUsedAgentId = nextAgentId
-        agentPageMocks.setLastUsedAgentId(nextAgentId)
-        setLastUsedAgentId(nextAgentId)
+      const setCache = vi.fn((nextValue: string | null) => {
+        if (key === 'ui.agent.last_used_agent_id') {
+          agentPageMocks.lastUsedAgentId = nextValue
+          agentPageMocks.setLastUsedAgentId(nextValue)
+        } else {
+          agentPageMocks.lastUsedWorkspaceId = nextValue
+          agentPageMocks.setLastUsedWorkspaceId(nextValue)
+        }
+        setValue(nextValue)
       })
 
-      return [lastUsedAgentId, setCache]
+      return [value, setCache]
     }
   }
 })
@@ -129,12 +143,20 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../AgentChat', () => ({
   default: ({
+    onStartTemporarySession,
     onVisibleAgentChange,
+    onVisibleWorkspaceChange,
     onDraftWorkspaceChange,
     pane,
     paneOpen
   }: {
+    onStartTemporarySession?: (defaults: {
+      agentId: string
+      workspaceId?: string
+      name?: string
+    }) => void | Promise<void>
     onVisibleAgentChange?: (agentId: string) => void
+    onVisibleWorkspaceChange?: (workspaceId: string) => void
     onDraftWorkspaceChange?: (workspaceId: string) => void | Promise<void>
     pane?: ReactNode
     paneOpen?: boolean
@@ -144,8 +166,14 @@ vi.mock('../AgentChat', () => ({
       <button type="button" onClick={() => void onDraftWorkspaceChange?.('workspace-next')}>
         Select workspace
       </button>
+      <button type="button" onClick={() => void onStartTemporarySession?.({ agentId: 'agent-a' })}>
+        Start temporary session
+      </button>
       <button type="button" onClick={() => onVisibleAgentChange?.('agent-visible')}>
         Show visible agent
+      </button>
+      <button type="button" onClick={() => onVisibleWorkspaceChange?.('workspace-visible')}>
+        Show visible workspace
       </button>
       {pane}
     </section>
@@ -174,6 +202,7 @@ describe('AgentPage', () => {
     agentPageMocks.activeSessionId = 'session-initial'
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
     agentPageMocks.lastUsedAgentId = null
+    agentPageMocks.lastUsedWorkspaceId = null
     temporaryConversationMocks.conversation = null
     temporaryConversationMocks.start.mockResolvedValue(null)
 
@@ -256,25 +285,71 @@ describe('AgentPage', () => {
       })
     )
     expect(agentPageMocks.setActiveSessionId).toHaveBeenCalledWith(null)
+    expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-next')
   })
 
-  it('starts a first-launch temporary session with the remembered agent', async () => {
+  it('starts a first-launch temporary session with the remembered agent and workspace', async () => {
     agentPageMocks.activeSessionId = null
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
       { id: 'agent-b', model: 'model-b', name: 'Agent B' }
     ]
     agentPageMocks.lastUsedAgentId = 'agent-b'
+    agentPageMocks.lastUsedWorkspaceId = 'workspace-remembered'
 
     render(<AgentPage />)
 
     await waitFor(() =>
       expect(temporaryConversationMocks.start).toHaveBeenCalledWith({
         agentId: 'agent-b',
+        workspaceId: 'workspace-remembered',
         name: 'common.unnamed'
       })
     )
     expect(agentPageMocks.setActiveSessionId).toHaveBeenCalledWith(null)
+  })
+
+  it('restarts a same-agent temporary session when the remembered workspace differs', async () => {
+    agentPageMocks.activeSessionId = null
+    agentPageMocks.lastUsedWorkspaceId = 'workspace-remembered'
+    temporaryConversationMocks.conversation = {
+      type: 'agent',
+      id: 'temporary-session',
+      sessionId: 'temporary-session',
+      topicId: 'agent-session:temporary-session',
+      agentId: 'agent-a',
+      name: 'Draft',
+      session: {
+        id: 'temporary-session',
+        agentId: 'agent-a',
+        name: 'Draft',
+        description: '',
+        workspaceId: null,
+        workspace: null,
+        orderKey: 'a0',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    }
+    temporaryConversationMocks.start.mockResolvedValue({
+      ...temporaryConversationMocks.conversation,
+      session: {
+        ...temporaryConversationMocks.conversation.session,
+        workspaceId: 'workspace-remembered'
+      }
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start temporary session' }))
+
+    await waitFor(() =>
+      expect(temporaryConversationMocks.start).toHaveBeenCalledWith({
+        agentId: 'agent-a',
+        workspaceId: 'workspace-remembered',
+        name: 'common.unnamed'
+      })
+    )
   })
 
   it('records the visible agent reported by the chat body', async () => {
@@ -283,5 +358,13 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show visible agent' }))
 
     await waitFor(() => expect(agentPageMocks.setLastUsedAgentId).toHaveBeenCalledWith('agent-visible'))
+  })
+
+  it('records the visible workspace reported by the chat body', async () => {
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show visible workspace' }))
+
+    await waitFor(() => expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-visible'))
   })
 })

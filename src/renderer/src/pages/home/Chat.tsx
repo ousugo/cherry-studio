@@ -7,6 +7,7 @@ import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
+import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -39,7 +40,7 @@ interface Props {
    * persist trigger. `initialName` becomes a placeholder topic title so
    * the sidebar isn't blank in the gap before auto-naming runs.
    */
-  onPersistTemporaryTopic?: (initialName?: string) => Promise<void>
+  onPersistTemporaryTopic?: (initialName?: string) => Promise<TemporaryConversation | null>
 }
 
 const Chat: FC<Props> = (props) => {

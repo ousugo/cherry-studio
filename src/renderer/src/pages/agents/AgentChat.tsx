@@ -61,6 +61,7 @@ interface AgentChatProps {
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   onDraftWorkspaceChange?: (workspaceId: string) => void | Promise<void>
   onVisibleAgentChange?: (agentId: string) => void
+  onVisibleWorkspaceChange?: (workspaceId: string) => void
   replacingTemporaryAgent?: boolean
   replacingTemporaryWorkspace?: boolean
 }
@@ -76,6 +77,7 @@ const AgentChat = ({
   onDraftAgentChange,
   onDraftWorkspaceChange,
   onVisibleAgentChange,
+  onVisibleWorkspaceChange,
   replacingTemporaryAgent,
   replacingTemporaryWorkspace
 }: AgentChatProps) => {
@@ -94,6 +96,7 @@ const AgentChat = ({
     pendingSession
   })
   const visibleAgentId = visibleSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
+  const visibleWorkspaceId = visibleSession?.workspaceId ?? temporaryAgentConversation?.session.workspaceId ?? null
   const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(
     visibleSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
   )
@@ -101,6 +104,9 @@ const AgentChat = ({
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
   }, [onVisibleAgentChange, visibleAgentId])
+  useEffect(() => {
+    if (visibleWorkspaceId) onVisibleWorkspaceChange?.(visibleWorkspaceId)
+  }, [onVisibleWorkspaceChange, visibleWorkspaceId])
 
   const temporaryHistoryAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
