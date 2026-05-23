@@ -134,6 +134,8 @@ export interface CherryUIMessageMetadata {
   modelSnapshot?: ModelSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
+  /** Trace id for the assistant execution that produced this message. */
+  traceId?: string | null
 
   /** Creation timestamp (ISO). */
   createdAt?: string

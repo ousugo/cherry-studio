@@ -97,6 +97,13 @@ describe('AgentChatContextProvider', () => {
 
     expect(mocks.saveMessages).toHaveBeenCalledOnce()
     expect(mocks.saveMessage).not.toHaveBeenCalled()
+    const savedMessages = mocks.saveMessages.mock.calls[0][0].messages
+    expect(savedMessages[1]).toMatchObject({
+      role: 'assistant',
+      modelId: 'anthropic::claude-sonnet',
+      traceId: expect.any(String)
+    })
+    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(savedMessages[1].traceId, 'agent-session:session-1')
 
     expect(prepared.models).toHaveLength(1)
     expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet')

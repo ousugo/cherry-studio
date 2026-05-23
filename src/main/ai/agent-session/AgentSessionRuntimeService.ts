@@ -4,15 +4,17 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { type Span, trace } from '@opentelemetry/api'
 import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CherryUIMessage, Message } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { PendingMessageQueue } from '../ai-sdk/loop/PendingMessageQueue'
 import { PersistenceListener } from '../stream-manager/listeners/PersistenceListener'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../stream-manager/types'
+import { AdapterTracer, TRACER_NAME } from '../trace'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import {
   type AgentRuntimeConnection,
@@ -23,6 +25,7 @@ import {
 import { type DispatchDecision, toolApprovalRegistry } from './runtime/claude-code/ToolApprovalRegistry'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
+const rawTracer = trace.getTracer(TRACER_NAME)
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
@@ -470,15 +473,23 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     entry.pendingMessages.remove(nextMessage.id)
 
-    const assistantMessage = await agentSessionMessageService.saveMessage({
-      sessionId: entry.sessionId,
-      message: {
-        role: 'assistant',
-        status: 'pending',
-        data: { parts: [] },
-        modelId: entry.modelId
-      }
-    })
+    const { rootSpan, traceId } = this.startRuntimeRootSpan(entry)
+    let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
+    try {
+      assistantMessage = await agentSessionMessageService.saveMessage({
+        sessionId: entry.sessionId,
+        message: {
+          role: 'assistant',
+          status: 'pending',
+          data: { parts: [] },
+          modelId: entry.modelId,
+          traceId
+        }
+      })
+    } catch (error) {
+      rootSpan.end()
+      throw error
+    }
     const assistantMessageId = assistantMessage.id
 
     const turnId = crypto.randomUUID()
@@ -495,6 +506,7 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
       modelId: entry.modelId,
+      rootSpan,
       request: {
         chatId: entry.topicId,
         trigger: 'submit-message',
@@ -508,6 +520,23 @@ export class AgentSessionRuntimeService extends BaseService {
         new AgentSessionRuntimeTerminalListener(this, entry.sessionId)
       ]
     })
+  }
+
+  private startRuntimeRootSpan(entry: AgentSessionRuntimeEntry): { rootSpan: Span; traceId: string } {
+    const adapterTracer = new AdapterTracer(rawTracer, entry.topicId, parseUniqueModelId(entry.modelId).modelId)
+    const rootSpan = adapterTracer.startSpan('chat.turn', {
+      attributes: {
+        'cs.topic_id': entry.topicId,
+        'cs.trigger': 'submit-message',
+        'cs.model_id': entry.modelId,
+        'cs.role': 'assistant',
+        'cs.agent_id': entry.agentId,
+        'cs.session_id': entry.sessionId
+      }
+    })
+    const traceId = rootSpan.spanContext().traceId
+    application.get('SpanCacheService').setTopicId(traceId, entry.topicId)
+    return { rootSpan, traceId }
   }
 
   private createPersistenceListener(entry: AgentSessionRuntimeEntry, userMessage: Message): StreamListener {

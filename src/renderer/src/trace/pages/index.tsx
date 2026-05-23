@@ -94,6 +94,9 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
     const matchedSpans = getRootSpan(datas)
     updatePercentAndStart(matchedSpans)
     setSpans((prev) => mergeTraceModals(prev, matchedSpans))
+    if (matchedSpans.length === 0) {
+      return false
+    }
     const isEnded = !matchedSpans.find((e) => !e.endTime || e.endTime <= 0)
     return isEnded
   }, [topicId, traceId, modelName, updatePercentAndStart, mergeTraceModals])
@@ -110,6 +113,12 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
     setShowList(true)
     setSelectNode(null)
   }
+
+  useEffect(() => {
+    setSpans([])
+    setSelectNode(null)
+    setShowList(true)
+  }, [topicId, traceId, modelName])
 
   useEffect(() => {
     const handleShowTrace = async () => {

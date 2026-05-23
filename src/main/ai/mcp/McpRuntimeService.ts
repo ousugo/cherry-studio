@@ -56,7 +56,7 @@ import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
 
-import { DxtService } from './DxtService'
+import type { DxtService } from './DxtService'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
+  spanCacheSetTopicId: vi.fn(),
   prewarmAgentSession: vi.fn()
 }))
 
@@ -102,6 +103,7 @@ describe('AgentSessionRuntimeService', () => {
           pauseRuntimeTurn: mocks.pauseRuntimeTurn
         }
       }
+      if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
       if (name === 'ClaudeCodeWarmQueryManager') return { prewarmAgentSession: mocks.prewarmAgentSession }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -299,18 +301,22 @@ describe('AgentSessionRuntimeService', () => {
 
     await (service as any).startNextTurn(entry)
 
+    const savedMessage = mocks.saveMessage.mock.calls[0][0].message
     expect(mocks.saveMessage).toHaveBeenCalledWith({
       sessionId: 'session-1',
       message: {
         role: 'assistant',
         status: 'pending',
         data: { parts: [] },
-        modelId: 'claude-code::claude-sonnet-4-5'
+        modelId: 'claude-code::claude-sonnet-4-5',
+        traceId: expect.any(String)
       }
     })
+    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(savedMessage.traceId, 'agent-session:session-1')
     expect(mocks.startRuntimeTurn).toHaveBeenCalledWith({
       topicId: 'agent-session:session-1',
       modelId: 'claude-code::claude-sonnet-4-5',
+      rootSpan: expect.anything(),
       request: {
         chatId: 'agent-session:session-1',
         trigger: 'submit-message',

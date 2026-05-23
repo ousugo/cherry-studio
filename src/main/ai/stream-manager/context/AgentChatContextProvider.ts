@@ -10,6 +10,7 @@ import { sessionService } from '@data/services/SessionService'
 import { application } from '@main/core/application'
 import { trace } from '@opentelemetry/api'
 import type { Message } from '@shared/data/types/message'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { v7 as uuidv7 } from 'uuid'
 
 import { agentRuntimeDriverRegistry } from '../../agent-session/runtime'
@@ -105,7 +106,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const assistantMessageId = uuidv7()
 
     // Root span; AI SDK children inherit its traceId. `AdapterTracer` persists the root.
-    const adapterTracer = new AdapterTracer(rawTracer, req.topicId, uniqueModelId)
+    const adapterTracer = new AdapterTracer(rawTracer, req.topicId, parseUniqueModelId(uniqueModelId).modelId)
     const rootSpan = adapterTracer.startSpan('chat.turn', {
       attributes: {
         'cs.topic_id': req.topicId,
@@ -134,7 +135,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId: uniqueModelId
+          modelId: uniqueModelId,
+          traceId
         }
       ]
     })

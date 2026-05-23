@@ -208,16 +208,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Apply decisions to DB parts and flip status to `pending` so buildHistory sees the approved state.
     const beforeParts = anchor.data.parts ?? []
     const updatedParts = applyApprovalDecisions(beforeParts, req.approvalDecisions)
-    await messageService.update(req.parentAnchorId, {
-      data: { parts: updatedParts },
-      status: 'pending'
-    })
-
     // Continue uses the original assistant's model — switching mid-approval invalidates approval semantics.
     const continueModelId = (anchor.modelId as UniqueModelId | undefined) ?? defaultModelId
     const [model] = await resolveModels([continueModelId], defaultModelId)
 
-    const [{ span: rootSpan }] = startTurnRootSpans(req.topicId, req.trigger, [model])
+    const [{ span: rootSpan, traceId }] = startTurnRootSpans(req.topicId, req.trigger, [model])
+
+    await messageService.update(req.parentAnchorId, {
+      data: { parts: updatedParts },
+      status: 'pending',
+      traceId
+    })
 
     const listeners: StreamListener[] = [
       subscriber,

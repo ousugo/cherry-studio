@@ -24,6 +24,7 @@ function toUIMessage(row: AgentSessionMessageEntity): CherryUIMessage | null {
   if (row.createdAt) metadata.createdAt = row.createdAt
   if (row.modelId) metadata.modelId = row.modelId
   if (row.modelSnapshot) metadata.modelSnapshot = row.modelSnapshot
+  if (row.traceId) metadata.traceId = row.traceId
   if (row.stats) metadata.stats = row.stats
   if (VALID_STATUS.has(row.status)) {
     metadata.status = row.status

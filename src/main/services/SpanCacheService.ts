@@ -1,25 +1,23 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { TraceSpanStore } from '@main/services/trace/TraceSpanStore'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
 import type { TraceCache } from '@mcp-trace/trace-core/core/traceCache'
-import type { Attributes, SpanEntity, TokenUsage } from '@mcp-trace/trace-core/types/config'
+import type { Attributes, AttributeValue, SpanEntity, TokenUsage } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
-import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import fs from 'fs/promises'
-import * as os from 'os'
-import * as path from 'path'
 
 const logger = loggerService.withContext('SpanCacheService')
 
 @Injectable('SpanCacheService')
 @ServicePhase(Phase.WhenReady)
 export class SpanCacheService extends BaseService implements TraceCache, Activatable {
-  private topicMap: Map<string, string> = new Map<string, string>()
-  private fileDir: string = path.join(os.homedir(), HOME_CHERRY_DIR, 'trace')
-  private cache: Map<string, SpanEntity> = new Map<string, SpanEntity>()
+  private readonly store = new TraceSpanStore()
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -40,7 +38,7 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
   }
 
   async onActivate() {
-    await this._checkFolder(this.fileDir)
+    // Keep activation cheap. Trace directories are created lazily on first file write.
   }
 
   /**
@@ -48,8 +46,7 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
    * Runtime deactivation is not supported — developer_mode changes require restart.
    */
   async onDeactivate() {
-    this.cache.clear()
-    this.topicMap.clear()
+    this.store.clear()
   }
 
   private registerIpcHandlers() {
@@ -85,58 +82,53 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
     if (!this.isActivated) return
     const spanEntity = convertSpanToSpanEntity(span)
-    spanEntity.topicId = this.topicMap.get(spanEntity.traceId)
-    this.cache.set(span.spanContext().spanId, spanEntity)
-    this._updateModelName(spanEntity)
+    this.applyTraceMeta(spanEntity)
+    this.store.setSpan(spanEntity)
+    this.updateModelName(spanEntity)
   }
 
   endSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
     if (!this.isActivated) return
     const spanId = span.spanContext().spanId
-    const spanEntity = this.cache.get(spanId)
+    const spanEntity = this.store.getSpan(spanId)
     if (!spanEntity) {
       return
     }
 
-    spanEntity.topicId = this.topicMap.get(spanEntity.traceId)
+    this.applyTraceMeta(spanEntity)
     spanEntity.endTime = span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null
     spanEntity.status = SpanStatusCode[span.status.code]
     spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
     spanEntity.events = span.events
     spanEntity.links = span.links
-    this._updateModelName(spanEntity)
+    this.updateModelName(spanEntity)
+    this.store.setSpan(spanEntity)
   }
 
   clear: () => void = () => {
-    this.cache.clear()
+    this.store.clear()
   }
 
   async cleanTopic(topicId: string, traceId?: string, modelName?: string) {
-    const spans = Array.from(this.cache.values().filter((e) => e.topicId === topicId))
-    spans.map((e) => e.id).forEach((id) => this.cache.delete(id))
+    this.store.clearTopic(topicId, traceId, modelName)
 
-    await this._checkFolder(path.join(this.fileDir, topicId))
-
-    if (modelName) {
-      await this.cleanHistoryTrace(topicId, traceId || '', modelName)
-      await this.saveSpans(topicId)
-    } else if (traceId) {
-      await fs.rm(path.join(this.fileDir, topicId, traceId))
-    } else {
-      const files = await fs.readdir(path.join(this.fileDir, topicId))
-      for (const file of files) {
-        await fs.rm(path.join(this.fileDir, topicId, file))
-      }
+    if (modelName && traceId) {
+      await this.cleanHistoryTrace(topicId, traceId, modelName)
+      return
     }
+
+    if (traceId) {
+      await fs.rm(this.traceFilePath(topicId, traceId), { force: true })
+      return
+    }
+
+    await fs.rm(this.traceTopicDir(topicId), { recursive: true, force: true })
   }
 
   async cleanLocalData() {
-    this.cache.clear()
+    this.store.clear()
     try {
-      const files = await fs.readdir(this.fileDir)
-      for (const topicId of files) {
-        await fs.rm(path.join(this.fileDir, topicId), { recursive: true, force: true })
-      }
+      await fs.rm(this.traceRootDir(), { recursive: true, force: true })
     } catch (err) {
       logger.error('Error cleaning local data:', err as Error)
     }
@@ -144,78 +136,60 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
 
   async saveSpans(topicId: string) {
     if (!this.isActivated) return
-    let traceId: string | undefined
-    for (const [key, value] of this.topicMap.entries()) {
-      if (value === topicId) {
-        traceId = key
-        break
-      }
+
+    const traceIds = this.store.getTraceIdsByTopic(topicId)
+    for (const traceId of traceIds) {
+      await this.flushTrace(topicId, traceId)
     }
-    if (!traceId) {
-      return
-    }
-    const spans = Array.from(this.cache.values().filter((e) => e.traceId === traceId || !e.modelName))
-    await this._saveToFile(spans, traceId, topicId)
-    this.topicMap.delete(traceId)
-    this._cleanCache(traceId)
   }
 
   async getSpans(topicId: string, traceId: string, modelName?: string) {
-    if (this.topicMap.has(traceId)) {
-      const spans: SpanEntity[] = []
-      this.cache
-        .values()
-        .filter((spanEntity) => {
-          return spanEntity.traceId === traceId && spanEntity.modelName
-        })
-        .filter((spanEntity) => {
-          return !modelName || spanEntity.modelName === modelName
-        })
-        .forEach((sp) => spans.push(sp))
-      return spans
-    } else {
-      return this._getHisData(topicId, traceId, modelName)
+    if (this.store.hasTrace(traceId)) {
+      return this.store.getSpans({ topicId, traceId, modelName })
     }
+    return this.getHistoryData(topicId, traceId, modelName)
   }
 
   /**
-   * binding topic id to trace
+   * Binding topic id to trace.
    * @param traceId traceId
    * @param topicId topicId
    */
   setTopicId(traceId: string, topicId: string): void {
     if (!this.isActivated) return
-    this.topicMap.set(traceId, topicId)
+    this.store.registerTraceMeta(traceId, { topicId })
   }
 
   getEntity(spanId: string): SpanEntity | undefined {
-    return this.cache.get(spanId)
+    return this.store.getSpan(spanId)
   }
 
   saveEntity(entity: SpanEntity) {
     if (!this.isActivated) return
-    if (this.cache.has(entity.id)) {
-      this._updateEntity(entity)
+    this.applyTraceMeta(entity)
+    if (this.store.getSpan(entity.id)) {
+      this.updateEntity(entity)
     } else {
-      this._addEntity(entity)
+      this.addEntity(entity)
     }
-    this._updateModelName(entity)
+    this.updateModelName(entity)
   }
 
   updateTokenUsage(spanId: string, usage: TokenUsage) {
     if (!this.isActivated) return
-    const entity = this.cache.get(spanId)
+    const entity = this.store.getSpan(spanId)
     if (entity) {
       entity.usage = { ...usage }
+      this.store.setSpan(entity)
     }
     if (entity?.parentId) {
-      this._updateParentUsage(entity.parentId, usage)
+      this.updateParentUsage(entity.parentId, usage)
     }
   }
 
   addStreamMessage(spanId: string, modelName: string, context: string, message: any) {
     if (!this.isActivated) return
-    const span = this.cache.get(spanId)
+    const span = this.store.getSpan(spanId)
     if (!span) {
       return
     }
@@ -229,119 +203,144 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
       msgArray = [message]
       span.attributes = { ...attributes, outputs: msgArray } as Attributes
     }
-    this._updateParentOutputs(span.parentId, modelName, context)
+    this.store.setSpan(span)
+    this.updateParentOutputs(span.parentId, modelName, context)
   }
 
   setEndMessage(spanId: string, modelName: string, message: string) {
     if (!this.isActivated) return
-    const span = this.cache.get(spanId)
+    const span = this.store.getSpan(spanId)
     if (span && span.attributes) {
       let outputs = span.attributes['outputs']
-      if (!outputs || typeof outputs !== 'object') {
+      if (!outputs || typeof outputs !== 'object' || Array.isArray(outputs)) {
         outputs = {}
       }
       if (!(`${modelName}` in outputs) || !outputs[`${modelName}`]) {
         outputs[`${modelName}`] = message
         span.attributes[`outputs`] = outputs
-        this.cache.set(spanId, span)
+        this.store.setSpan(span)
       }
     }
   }
 
   async cleanHistoryTrace(topicId: string, traceId: string, modelName?: string) {
-    this._cleanCache(traceId, modelName)
+    this.store.clearTrace(traceId, modelName)
 
-    const filePath = path.join(this.fileDir, topicId, traceId)
-    const fileExists = await this._existFile(filePath)
-
-    if (!fileExists) {
+    const filePath = this.traceFilePath(topicId, traceId)
+    if (!(await this.fileExists(filePath))) {
       return
     }
 
     if (!modelName) {
-      await fs.rm(filePath, { recursive: true })
-    } else {
-      const allSpans = await this._getHisData(topicId, traceId)
-      allSpans.forEach((span) => {
-        if (!modelName || modelName !== span.modelName) {
-          this.cache.set(span.id, span)
-        }
-      })
-      try {
-        await fs.rm(filePath, { recursive: true })
-      } catch (error) {
-        logger.error('Error cleaning local data:', error as Error)
-      }
+      await fs.rm(filePath, { force: true })
+      return
+    }
+
+    const allSpans = await this.getHistoryData(topicId, traceId)
+    const remainingSpans = allSpans.filter((span) => span.modelName !== modelName)
+    if (remainingSpans.length === 0) {
+      await fs.rm(filePath, { force: true })
+      return
+    }
+    await this.writeTraceFile(remainingSpans, topicId, traceId)
+  }
+
+  private addEntity(entity: SpanEntity): void {
+    this.applyTraceMeta(entity)
+    this.store.setSpan(entity)
+  }
+
+  private applyTraceMeta(entity: SpanEntity): void {
+    const meta = this.store.getTraceMeta(entity.traceId)
+    const topicId = entity.topicId ?? meta?.topicId ?? this.getStringAttribute(entity, 'trace.topicId')
+    const modelName =
+      entity.modelName ??
+      this.getStringAttribute(entity, 'trace.modelName') ??
+      this.getStringAttribute(entity, 'modelName') ??
+      (entity.parentId ? this.store.getSpan(entity.parentId)?.modelName : undefined) ??
+      meta?.modelName
+
+    entity.topicId = topicId
+    entity.modelName = modelName
+
+    if (entity.traceId && (topicId || modelName)) {
+      this.store.registerTraceMeta(entity.traceId, { topicId, modelName })
     }
   }
 
-  private _addEntity(entity: SpanEntity): void {
-    entity.topicId = this.topicMap.get(entity.traceId)
-    this.cache.set(entity.id, entity)
+  private getStringAttribute(entity: SpanEntity, key: string): string | undefined {
+    const value = entity.attributes?.[key]
+    return value === undefined || value === null ? undefined : value.toString()
   }
 
-  private _updateModelName(entity: SpanEntity) {
+  private updateModelName(entity: SpanEntity) {
     let modelName = entity.modelName || entity.attributes?.modelName?.toString()
     if (!modelName && entity.parentId) {
-      modelName = this.cache.get(entity.parentId)?.modelName
+      modelName = this.store.getSpan(entity.parentId)?.modelName
     }
     entity.modelName = modelName
+    this.applyTraceMeta(entity)
+    this.store.setSpan(entity)
   }
 
-  private _updateEntity(entity: SpanEntity): void {
-    entity.topicId = this.topicMap.get(entity.traceId)
-    const savedEntity = this.cache.get(entity.id)
-    if (savedEntity) {
-      Object.keys(entity).forEach((key) => {
-        const value = entity[key]
-        if (value === undefined) {
-          savedEntity[key] = value
-          return
-        }
-        if (key === 'attributes') {
-          const savedAttrs = savedEntity.attributes || {}
-          Object.keys(value).forEach((attrKey) => {
-            const jsonData =
-              typeof value[attrKey] === 'string' && value[attrKey].startsWith('{')
-                ? JSON.parse(value[attrKey])
-                : value[attrKey]
-            if (
-              savedAttrs[attrKey] !== undefined &&
-              typeof jsonData === 'object' &&
-              typeof savedAttrs[attrKey] === 'object'
-            ) {
-              savedAttrs[attrKey] = { ...savedAttrs[attrKey], ...jsonData }
-            } else {
-              savedAttrs[attrKey] = value[attrKey]
-            }
-          })
-          savedEntity.attributes = savedAttrs
-        } else {
-          savedEntity[key] = value
-        }
-      })
-      this.cache.set(entity.id, savedEntity)
+  private updateEntity(entity: SpanEntity): void {
+    this.applyTraceMeta(entity)
+    const savedEntity = this.store.getSpan(entity.id)
+    if (!savedEntity) return
+
+    const incoming = entity as unknown as Record<string, unknown>
+    const target = savedEntity as unknown as Record<string, unknown>
+
+    Object.keys(incoming).forEach((key) => {
+      const value = incoming[key]
+      if (value === undefined) {
+        target[key] = value
+        return
+      }
+      if (key === 'attributes') {
+        this.mergeAttributes(savedEntity, value)
+      } else {
+        target[key] = value
+      }
+    })
+    this.applyTraceMeta(savedEntity)
+    this.store.setSpan(savedEntity)
+  }
+
+  private mergeAttributes(savedEntity: SpanEntity, value: unknown): void {
+    const savedAttrs = savedEntity.attributes || {}
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      savedEntity.attributes = value as Attributes
+      return
     }
+
+    Object.keys(value).forEach((attrKey) => {
+      const rawValue = (value as Record<string, AttributeValue>)[attrKey]
+      const jsonData = typeof rawValue === 'string' && rawValue.startsWith('{') ? JSON.parse(rawValue) : rawValue
+      if (
+        savedAttrs[attrKey] !== undefined &&
+        typeof jsonData === 'object' &&
+        jsonData !== null &&
+        typeof savedAttrs[attrKey] === 'object' &&
+        savedAttrs[attrKey] !== null
+      ) {
+        savedAttrs[attrKey] = { ...savedAttrs[attrKey], ...jsonData } as AttributeValue
+      } else {
+        savedAttrs[attrKey] = rawValue
+      }
+    })
+    savedEntity.attributes = savedAttrs
   }
 
-  private _cleanCache(traceId: string, modelName?: string) {
-    this.cache
-      .values()
-      .filter((span) => {
-        return span && span.traceId === traceId && (!modelName || span.modelName === modelName)
-      })
-      .forEach((span) => this.cache.delete(span.id))
-  }
-
-  private _updateParentOutputs(spanId: string, modelName: string, context: string) {
-    const span = this.cache.get(spanId)
+  private updateParentOutputs(spanId: string, modelName: string, context: string) {
+    const span = this.store.getSpan(spanId)
     if (!span || !context) {
       return
     }
     const attributes = span.attributes
     if (attributes && span.modelName) {
       const currentValue = attributes['outputs']
-      if (currentValue && typeof currentValue === 'object') {
+      if (currentValue && typeof currentValue === 'object' && !Array.isArray(currentValue)) {
         const allContext = (currentValue['streamText'] || '') + context
         attributes['outputs'] = { ...currentValue, streamText: allContext }
       } else {
@@ -353,12 +352,12 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     } else {
       return
     }
-    this.cache.set(span.id, span)
-    this._updateParentOutputs(span.parentId, modelName, context)
+    this.store.setSpan(span)
+    this.updateParentOutputs(span.parentId, modelName, context)
   }
 
-  private _updateParentUsage(spanId: string, usage: TokenUsage) {
-    const entity = this.cache.get(spanId)
+  private updateParentUsage(spanId: string, usage: TokenUsage) {
+    const entity = this.store.getSpan(spanId)
     if (!entity) {
       return
     }
@@ -369,80 +368,78 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
       entity.usage.completion_tokens = entity.usage.completion_tokens + usage.completion_tokens
       entity.usage.total_tokens = entity.usage.total_tokens + usage.total_tokens
     }
-    this.cache.set(entity.id, entity)
+    this.store.setSpan(entity)
     if (entity?.parentId) {
-      this._updateParentUsage(entity.parentId, usage)
+      this.updateParentUsage(entity.parentId, usage)
     }
   }
 
-  private async _saveToFile(spans: SpanEntity[], traceId: string, topicId: string) {
-    const dirPath = path.join(this.fileDir, topicId)
-    await this._checkFolder(dirPath)
-
-    const filePath = path.join(dirPath, traceId)
-
-    const writeOperations = spans
-      .filter((span) => span.topicId)
-      .map(async (span) => {
-        await fs.appendFile(filePath, JSON.stringify(span) + '\n')
-      })
-
-    await Promise.all(writeOperations)
+  private async flushTrace(topicId: string, traceId: string) {
+    const spans = this.store.getSpans({ topicId, traceId })
+    if (spans.length === 0) return
+    await this.writeTraceFile(spans, topicId, traceId)
+    this.store.clearTrace(traceId)
   }
 
-  private async _getHisData(topicId: string, traceId: string, modelName?: string) {
-    const filePath = path.join(this.fileDir, topicId, traceId)
+  private async writeTraceFile(spans: SpanEntity[], topicId: string, traceId: string) {
+    const dirPath = this.traceTopicDir(topicId)
+    await fs.mkdir(dirPath, { recursive: true })
+    const content = spans
+      .filter((span) => span.topicId)
+      .map((span) => JSON.stringify(span))
+      .join('\n')
+    await fs.writeFile(this.traceFilePath(topicId, traceId), content ? `${content}\n` : '')
+  }
 
-    if (!(await this._existFile(filePath))) {
+  private async getHistoryData(topicId: string, traceId: string, modelName?: string) {
+    const filePath = this.traceFilePath(topicId, traceId)
+
+    if (!(await this.fileExists(filePath))) {
       return []
     }
 
     try {
-      const fileHandle = await fs.open(filePath, 'r')
-      const stream = fileHandle.createReadStream()
-      const chunks: string[] = []
-
-      for await (const chunk of stream) {
-        chunks.push(chunk.toString())
-      }
-      await fileHandle.close()
-
-      const parseLines = function* (text: string) {
-        for (const line of text.split('\n')) {
-          const trimmed = line.trim()
-          if (trimmed) {
-            try {
-              yield JSON.parse(trimmed) as SpanEntity
-            } catch (e) {
-              logger.error(`JSON parse failed: ${trimmed}`, e as Error)
-            }
-          }
-        }
-      }
-
-      return Array.from(parseLines(chunks.join('')))
-        .filter((span) => span.topicId === topicId && span.traceId === traceId && span.modelName)
-        .filter((span) => !modelName || span.modelName === modelName)
+      const text = await fs.readFile(filePath, 'utf8')
+      return this.parseSpanLines(text)
+        .filter((span) => span.topicId === topicId && span.traceId === traceId)
+        .filter((span) => !modelName || span.modelName === modelName || !span.modelName)
     } catch (err) {
       logger.error('Error parsing JSON:', err as Error)
       throw err
     }
   }
 
-  private async _checkFolder(filePath: string) {
-    try {
-      await fs.mkdir(filePath, { recursive: true })
-    } catch (err) {
-      if (typeof err === 'object' && err && 'code' in err && err.code !== 'EEXIST') throw err
+  private parseSpanLines(text: string): SpanEntity[] {
+    const spans: SpanEntity[] = []
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      try {
+        spans.push(JSON.parse(trimmed) as SpanEntity)
+      } catch (e) {
+        logger.error(`JSON parse failed: ${trimmed}`, e as Error)
+      }
     }
+    return spans
   }
 
-  private async _existFile(filePath: string) {
+  private traceRootDir(): string {
+    return application.getPath('feature.trace')
+  }
+
+  private traceTopicDir(topicId: string): string {
+    return path.join(this.traceRootDir(), topicId)
+  }
+
+  private traceFilePath(topicId: string, traceId: string): string {
+    return path.join(this.traceTopicDir(topicId), traceId)
+  }
+
+  private async fileExists(filePath: string) {
     try {
       await fs.access(filePath)
       return true
-    } catch (err) {
-      logger.error('delete trace file error:', err as Error)
+    } catch {
       return false
     }
   }
