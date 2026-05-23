@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   getMessageEnterMotionAttributes,
-  getUserMessageEnterMotionVariant,
+  getMessageEnterMotionVariant,
   useMessageEnterMotionActive
 } from '../../motion/messageEnterMotion'
 import SiblingNavigator from '../list/SiblingNavigator'
@@ -135,7 +135,7 @@ const MessageItem: FC<Props> = ({
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
   const enterMotionActive = useMessageEnterMotionActive(message.id)
-  const enterMotionVariant = getUserMessageEnterMotionVariant({
+  const enterMotionVariant = getMessageEnterMotionVariant({
     active: enterMotionActive,
     role: message.role,
     messageStyle,

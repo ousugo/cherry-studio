@@ -204,7 +204,7 @@ describe('MessageList', () => {
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'user-1')
   })
 
-  it('marks only newly appended user messages for enter motion', () => {
+  it('marks newly appended user and assistant messages for enter motion', () => {
     const view = renderMessageList([createMessage('user-1', 'user')])
 
     expect(screen.getByTestId('message-enter-user-1')).toHaveTextContent('false')
@@ -224,7 +224,7 @@ describe('MessageList', () => {
 
     expect(screen.getByTestId('message-enter-user-1')).toHaveTextContent('false')
     expect(screen.getByTestId('message-enter-user-2')).toHaveTextContent('true')
-    expect(screen.getByTestId('message-enter-assistant-placeholder')).toHaveTextContent('false')
+    expect(screen.getByTestId('message-enter-assistant-placeholder')).toHaveTextContent('true')
   })
 
   it('marks the message list container while multi-select mode is active', () => {

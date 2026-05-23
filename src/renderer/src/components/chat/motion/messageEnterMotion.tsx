@@ -6,9 +6,9 @@ import { createContext, use, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import type { MessageListItem } from '../messages/types'
 
 const EMPTY_MESSAGE_ID_SET = new Set<string>()
-const MESSAGE_ENTER_MOTION_CLEAR_DELAY_MS = 260
+const MESSAGE_ENTER_MOTION_CLEAR_DELAY_MS = 380
 
-export type MessageEnterMotionVariant = 'user-inline' | 'user-bubble'
+export type MessageEnterMotionVariant = 'user-inline' | 'user-bubble' | 'assistant'
 
 interface MessageEnterMotionContextValue {
   state: {
@@ -41,7 +41,7 @@ export function useMessageEnterMotionActive(messageId: string): boolean {
   return use(MessageEnterMotionContext)?.state.enteringMessageIds.has(messageId) ?? false
 }
 
-export function useUserMessageEnterMotionIds({
+export function useMessageEnterMotionIds({
   messages,
   scopeKey
 }: {
@@ -68,7 +68,12 @@ export function useUserMessageEnterMotionIds({
 
     const previousMessageIds = knownMessageIdsRef.current
     const nextEnteringIds = messages
-      .filter((message) => message.role === 'user' && message.type !== 'clear' && !previousMessageIds.has(message.id))
+      .filter(
+        (message) =>
+          (message.role === 'user' || message.role === 'assistant') &&
+          message.type !== 'clear' &&
+          !previousMessageIds.has(message.id)
+      )
       .map((message) => message.id)
 
     knownMessageIdsRef.current = nextKnownMessageIds
@@ -96,7 +101,7 @@ export function useUserMessageEnterMotionIds({
   return enteringMessageIds
 }
 
-export function getUserMessageEnterMotionVariant({
+export function getMessageEnterMotionVariant({
   active,
   role,
   messageStyle,
@@ -107,8 +112,16 @@ export function getUserMessageEnterMotionVariant({
   messageStyle: ChatMessageStyle
   isMultiSelectMode: boolean
 }): MessageEnterMotionVariant | undefined {
-  if (!active || role !== 'user' || isMultiSelectMode) return undefined
-  return messageStyle === 'bubble' ? 'user-bubble' : 'user-inline'
+  if (!active || isMultiSelectMode) return undefined
+  if (role === 'user') return messageStyle === 'bubble' ? 'user-bubble' : 'user-inline'
+  if (role === 'assistant') return 'assistant'
+  return undefined
+}
+
+const MESSAGE_ENTER_MOTION_CLASS: Record<MessageEnterMotionVariant, string> = {
+  'user-inline': 'animation-chat-message-enter-inline',
+  'user-bubble': 'animation-chat-message-enter-bubble',
+  assistant: 'animation-chat-message-enter-assistant'
 }
 
 export function getMessageEnterMotionAttributes(variant: MessageEnterMotionVariant | undefined):
@@ -120,8 +133,7 @@ export function getMessageEnterMotionAttributes(variant: MessageEnterMotionVaria
   if (!variant) return undefined
 
   return {
-    className:
-      variant === 'user-bubble' ? 'animation-chat-message-enter-bubble' : 'animation-chat-message-enter-inline',
+    className: MESSAGE_ENTER_MOTION_CLASS[variant],
     motion: variant
   }
 }

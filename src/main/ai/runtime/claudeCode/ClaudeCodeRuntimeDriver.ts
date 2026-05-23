@@ -292,7 +292,7 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     if (!cwd) {
       throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
     }
-    assertClaudeCodeWorkspaceDirectory(session.id, cwd)
+    void assertClaudeCodeWorkspaceDirectory(session.id, cwd)
   }
 
   async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {

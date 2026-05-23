@@ -14,7 +14,7 @@ import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceT
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
-import { MessageEnterMotionProvider, useUserMessageEnterMotionIds } from '../motion/messageEnterMotion'
+import { MessageEnterMotionProvider, useMessageEnterMotionIds } from '../motion/messageEnterMotion'
 import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
@@ -104,7 +104,7 @@ const MessageList = () => {
     return () => setForceWideLayout(false)
   }, [setForceWideLayout, useWideMessageLayout])
 
-  const enteringMessageIds = useUserMessageEnterMotionIds({
+  const enteringMessageIds = useMessageEnterMotionIds({
     messages,
     scopeKey: data.listKey ?? topic.id
   })
