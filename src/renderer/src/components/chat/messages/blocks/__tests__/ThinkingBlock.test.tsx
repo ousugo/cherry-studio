@@ -211,6 +211,7 @@ describe('ThinkingBlock', () => {
 
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
       expect(getContentContainer()).toHaveAttribute('hidden')
+      expect(getContentContainer()).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
       expect(getThinkingContent()).toBeInTheDocument()
       unmount()
 

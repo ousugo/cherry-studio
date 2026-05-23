@@ -189,7 +189,7 @@ const ToolBlockGroup: React.FC<Props> = ({ items }) => {
         <GroupHeaderContent items={items} allCompleted={allCompleted} />
         <ChevronDown
           size={16}
-          className={`shrink-0 text-foreground-muted opacity-0 transition-all duration-150 group-hover/tool-group:opacity-100 ${isExpanded ? 'rotate-180' : ''}`}
+          className={`shrink-0 text-foreground-muted opacity-70 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
         />
       </button>
       {isExpanded && (

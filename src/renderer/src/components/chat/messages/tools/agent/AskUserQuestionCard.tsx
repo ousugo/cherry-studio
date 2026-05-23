@@ -136,9 +136,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
     ),
     children: content,
     classNames: {
-      header:
-        'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-foreground-secondary [--agent-tool-toggle-left:0px]',
-      body: 'mt-1.5 max-h-96 overflow-auto bg-transparent p-0 text-foreground-900 dark:bg-transparent'
+      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-foreground-secondary'
     }
   }
 

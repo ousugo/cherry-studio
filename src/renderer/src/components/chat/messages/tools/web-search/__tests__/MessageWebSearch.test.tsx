@@ -1,18 +1,23 @@
 import type { NormalToolResponse } from '@renderer/types'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { MessageWebSearchToolTitle } from '../MessageWebSearch'
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, params?: Record<string, number>) => {
-      if (key === 'message.websearch.fetch_empty') return 'No search results found'
-      if (key === 'message.websearch.fetch_complete') return `${params?.count} search results`
-      return key
-    }
-  })
-}))
+vi.mock('react-i18next', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-i18next')>()
+
+  return {
+    ...actual,
+    useTranslation: () => ({
+      t: (key: string, params?: Record<string, number>) => {
+        if (key === 'message.websearch.fetch_empty') return 'No search results found'
+        if (key === 'message.websearch.fetch_complete') return `${params?.count} search results`
+        return key
+      }
+    })
+  }
+})
 
 vi.mock('lucide-react', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
@@ -71,7 +76,7 @@ describe('MessageWebSearchToolTitle', () => {
     expect(screen.getByText('Cherry Studio')).toHaveClass('truncate')
   })
 
-  it('keeps the result count label when results are present', () => {
+  it('wraps result details in the shared disclosure container', async () => {
     render(
       <MessageWebSearchToolTitle
         toolResponse={
@@ -88,5 +93,9 @@ describe('MessageWebSearchToolTitle', () => {
     )
 
     expect(screen.getByText('1 search results')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button'))
+
+    expect(screen.getByTestId('collapse-content-tool-call-1')).toHaveClass('rounded-xl bg-muted px-4 py-3')
+    expect(await screen.findByRole('link', { name: 'Cherry Studio' })).toHaveAttribute('href', 'https://cherry-ai.com')
   })
 })
