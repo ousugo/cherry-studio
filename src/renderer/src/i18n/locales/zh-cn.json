@@ -2973,10 +2973,7 @@
     },
     "skill_detail": {
       "created_at": "创建时间",
-      "delete_description": "移除此技能及其所有配置,此操作不可恢复",
-      "delete_title": "删除技能",
       "description": "描述",
-      "file_preview": "文件预览",
       "installed": "已安装",
       "no_description": "暂无描述",
       "updated_at": "最近更新"
@@ -3015,7 +3012,6 @@
       "prompt": "提示词",
       "skill": "技能"
     },
-    "uninstall_failed": "卸载失败",
     "view": {
       "grid": "网格视图",
       "list": "列表视图"

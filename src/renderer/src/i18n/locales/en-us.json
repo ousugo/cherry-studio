@@ -2973,10 +2973,7 @@
     },
     "skill_detail": {
       "created_at": "Created",
-      "delete_description": "Remove this skill and all of its configuration. This action cannot be undone.",
-      "delete_title": "Delete skill",
       "description": "Description",
-      "file_preview": "File preview",
       "installed": "Installed",
       "no_description": "No description",
       "updated_at": "Recently updated"
@@ -3015,7 +3012,6 @@
       "prompt": "Prompt",
       "skill": "Skill"
     },
-    "uninstall_failed": "Failed to uninstall",
     "view": {
       "grid": "Grid view",
       "list": "List view"
