@@ -23,7 +23,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { withoutTrailingSlash } from '@shared/utils'
 import { isVertexProvider } from '@shared/utils/provider'
 
-import { vertexAIService } from './VertexAIService'
+import { vertexAiService } from './VertexAiService'
 
 const logger = loggerService.withContext('OpenClawService')
 
@@ -918,7 +918,7 @@ export class OpenClawService extends BaseService {
           const privateKey = credentials?.privateKey ?? credentials?.private_key
           const clientEmail = credentials?.clientEmail ?? credentials?.client_email
           if (privateKey && clientEmail) {
-            return await vertexAIService.getAccessToken({
+            return await vertexAiService.getAccessToken({
               projectId: authConfig.project,
               serviceAccount: { privateKey, clientEmail }
             })

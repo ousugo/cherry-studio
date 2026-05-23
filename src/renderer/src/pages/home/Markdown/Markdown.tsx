@@ -5,7 +5,7 @@ import 'remark-github-blockquote-alert/alert.css'
 
 import { usePreference } from '@data/hooks/usePreference'
 import ImageViewer from '@renderer/components/ImageViewer'
-import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
+import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { MessageBlockStatus } from '@renderer/types/newMessage'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
@@ -177,7 +177,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
       svg: MarkdownSvgRenderer
     } as Partial<Components>
     if (hasStyleTag) {
-      map.style = MarkdownShadowDOMRenderer as any
+      map.style = MarkdownShadowDomRenderer as any
     }
     return map
   }, [block.id, hasStyleTag])

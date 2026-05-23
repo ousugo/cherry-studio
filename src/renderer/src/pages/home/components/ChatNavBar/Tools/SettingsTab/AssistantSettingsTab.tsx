@@ -33,7 +33,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import GroqSettingsGroup from './GroqSettingsGroup'
-import OpenAISettingsGroup from './OpenAISettingsGroup'
+import OpenaiSettingsGroup from './OpenaiSettingsGroup'
 
 // Type definition for select items
 type SelectorItem<T extends string = string> = {
@@ -196,7 +196,7 @@ const AssistantSettingsTab: FC<Props> = (props) => {
   return (
     <Container className="settings-tab">
       {showOpenAiSettings && provider && model && (
-        <OpenAISettingsGroup
+        <OpenaiSettingsGroup
           model={model}
           providerId={provider.id}
           SettingGroup={SettingGroup}

@@ -1,6 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import AddButton from '@renderer/components/AddButton'
-import DraggableVirtualList, { type DraggableVirtualListRef } from '@renderer/components/DraggableList/virtual-list'
+import DraggableVirtualList, { type DraggableVirtualListRef } from '@renderer/components/DraggableList/VirtualList'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
