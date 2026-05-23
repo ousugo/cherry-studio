@@ -1,6 +1,10 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import {
+  createRecentSessionEntryFromSession,
+  upsertGlobalSearchRecentEntry
+} from '@renderer/components/global-search/globalSearchGroups'
 import { useCache, usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
@@ -40,7 +44,11 @@ const AgentPage = () => {
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
+  const { session: activeSession } = useSession(activeSessionId)
+  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
+  const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const sessionRevealRequestIdRef = useRef(0)
   const initialTemporarySessionEvaluatedRef = useRef(false)
   const [replacingTemporaryAgent, setReplacingTemporaryAgent] = useState(false)
@@ -68,6 +76,24 @@ const AgentPage = () => {
 
     void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
   })
+
+  useEffect(() => {
+    if (isMessageOnlyView) return
+    if (!activeSession) return
+
+    const signature = `${activeSession.id}:${activeSession.name}:${activeSession.agentId ?? ''}`
+    if (lastRecordedRecentSessionRef.current === signature) return
+
+    const currentRecentItems = recentItems ?? []
+    const nextItems = upsertGlobalSearchRecentEntry(
+      currentRecentItems,
+      createRecentSessionEntryFromSession(activeSession)
+    )
+    lastRecordedRecentSessionRef.current = signature
+    if (nextItems !== currentRecentItems) {
+      setRecentItems(nextItems)
+    }
+  }, [activeSession, isMessageOnlyView, recentItems, setRecentItems])
 
   useEffect(() => {
     void window.api.window.setMinimumSize(
@@ -102,6 +128,25 @@ const AgentPage = () => {
     },
     [discardTemporaryConversation, setActiveSessionId, setShowSidebar]
   )
+
+  useEffect(() => {
+    const unsubscribeSession = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, (sessionId) => {
+      setPendingLocateMessageId(undefined)
+      handleHistorySessionSelect(sessionId as string)
+    })
+    const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, (payload) => {
+      const { messageId, sessionId } = payload as { messageId?: string; sessionId?: string }
+      if (!sessionId || !messageId) return
+
+      setPendingLocateMessageId(messageId)
+      handleHistorySessionSelect(sessionId)
+    })
+
+    return () => {
+      unsubscribeSession()
+      unsubscribeMessage()
+    }
+  }, [handleHistorySessionSelect])
 
   const startTemporarySession = useCallback(
     async (defaults: TemporaryConversationDefaults) => {
@@ -266,6 +311,10 @@ const AgentPage = () => {
       temporaryAgentConversation
     ]
   )
+  const handleLocateMessageHandled = useCallback(() => {
+    setPendingLocateMessageId(undefined)
+  }, [])
+
   const historyOverlay = (
     <HistoryRecordsPage
       mode="agent"
@@ -317,6 +366,8 @@ const AgentPage = () => {
           onDraftWorkspaceChange={isMessageOnlyView ? undefined : replaceTemporaryWorkspace}
           onVisibleAgentChange={isMessageOnlyView ? undefined : setLastUsedAgentId}
           onVisibleWorkspaceChange={isMessageOnlyView ? undefined : setLastUsedWorkspaceId}
+          locateMessageId={pendingLocateMessageId}
+          onLocateMessageHandled={handleLocateMessageHandled}
           replacingTemporaryAgent={replacingTemporaryAgent}
           replacingTemporaryWorkspace={replacingTemporaryWorkspace}
         />

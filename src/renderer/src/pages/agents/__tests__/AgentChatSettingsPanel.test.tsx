@@ -326,8 +326,8 @@ describe('AgentChat settings panel', () => {
 
     render(<AgentChat />)
 
-    expect(screen.getAllByText('CustomTool')).toHaveLength(2)
-    expect(screen.queryByText('agent.toolPermission.confirmation')).not.toBeInTheDocument()
+    expect(screen.getAllByText('CustomTool')).toHaveLength(1)
+    expect(screen.getByText('agent.toolPermission.confirmation')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.toolPermission.button.allow' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.toolPermission.button.deny' })).toBeInTheDocument()
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()

@@ -6,6 +6,7 @@ import {
   useUpdateKnowledgeBase
 } from '@renderer/hooks/useKnowledgeBase'
 import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -127,7 +128,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const selectedBase = useMemo(() => {
     return bases.find((base) => base.id === selectedBaseId)
-  }, [bases, pendingSelectedBaseId, selectedBaseId])
+  }, [bases, selectedBaseId])
 
   useEffect(() => {
     return () => {
@@ -143,7 +144,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
         return
       }
 
-      if (bases === pendingSelectedBaseListRef.current) {
+      if (bases.length === 0 || bases === pendingSelectedBaseListRef.current) {
         return
       }
 
@@ -164,14 +165,34 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       setSelectedBaseId(bases[0].id)
       setSelectedItemId(null)
     }
-  }, [bases, selectedBaseId])
+  }, [bases, pendingSelectedBaseId, selectedBaseId])
 
-  const selectBase = useCallback((baseId: string) => {
-    setPendingSelectedBaseId(null)
-    pendingSelectedBaseListRef.current = null
-    setSelectedBaseId(baseId)
-    setSelectedItemId(null)
-  }, [])
+  const selectBase = useCallback(
+    (baseId: string) => {
+      if (bases.some((base) => base.id === baseId)) {
+        setPendingSelectedBaseId(null)
+        pendingSelectedBaseListRef.current = null
+      } else {
+        setPendingSelectedBaseId(baseId)
+        pendingSelectedBaseListRef.current = bases
+      }
+
+      setSelectedBaseId(baseId)
+      setSelectedItemId(null)
+    },
+    [bases]
+  )
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, (baseId) => {
+      if (typeof baseId !== 'string') return
+      selectBase(baseId)
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [selectBase])
 
   const handleSetActiveTab = useCallback((tab: KnowledgeTabKey) => {
     setActiveTab(tab)

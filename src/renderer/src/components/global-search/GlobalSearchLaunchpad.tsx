@@ -1,76 +1,62 @@
-import { OpenClawIcon } from '@renderer/components/Icons/SVGIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
+import { getSidebarMenuPath, SIDEBAR_ICON_COMPONENTS, SIDEBAR_ICON_ORDER } from '@renderer/config/sidebar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useNavigate } from '@tanstack/react-router'
-import { BookMarked, Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette } from 'lucide-react'
+import { useTabs } from '@renderer/hooks/useTabs'
+import { getSidebarIconLabel } from '@renderer/i18n/label'
+import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const LaunchpadPage: FC = () => {
-  const navigate = useNavigate()
+type GlobalSearchLaunchpadProps = {
+  defaultPaintingProvider?: string
+  onClose?: () => void
+}
+
+const APP_ICON_BACKGROUNDS: Record<SidebarIcon, string> = {
+  assistants: 'linear-gradient(135deg, #111827, #4B5563)',
+  agents: 'linear-gradient(135deg, #2563EB, #38BDF8)',
+  store: 'linear-gradient(135deg, #0EA5E9, #6366F1)',
+  paintings: 'linear-gradient(135deg, #EC4899, #F472B6)',
+  translate: 'linear-gradient(135deg, #06B6D4, #0EA5E9)',
+  mini_app: 'linear-gradient(135deg, #8B5CF6, #A855F7)',
+  knowledge: 'linear-gradient(135deg, #10B981, #34D399)',
+  files: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
+  code_tools: 'linear-gradient(135deg, #1F2937, #374151)',
+  notes: 'linear-gradient(135deg, #F97316, #FB923C)',
+  openclaw: 'linear-gradient(135deg, #EF4444, #B91C1C)'
+}
+
+export const GlobalSearchLaunchpad: FC<GlobalSearchLaunchpadProps> = ({
+  defaultPaintingProvider: defaultPaintingProviderProp,
+  onClose
+}) => {
   const { t } = useTranslation()
   const { defaultPaintingProvider } = useSettings()
+  const { openTab } = useTabs()
   const { pinned, openedKeepAliveMiniApps } = useMiniApps()
+  const paintingProvider = defaultPaintingProviderProp ?? defaultPaintingProvider
+  const openLaunchpadItem = (path: string, title: string) => {
+    openTab(path, { forceNew: true, title })
+    onClose?.()
+  }
 
-  const appMenuItems = [
-    {
-      icon: <LayoutGrid size={32} className="icon" />,
-      text: t('title.apps'),
-      path: '/app/mini-app',
-      bgColor: 'linear-gradient(135deg, #8B5CF6, #A855F7)' // 小程序：紫色，代表多功能和灵活性
-    },
-    {
-      icon: <FileSearch size={32} className="icon" />,
-      text: t('title.knowledge'),
-      path: '/app/knowledge',
-      bgColor: 'linear-gradient(135deg, #10B981, #34D399)' // 知识库：翠绿色，代表生长和知识
-    },
-    {
-      icon: <Palette size={32} className="icon" />,
-      text: t('title.paintings'),
-      path: `/app/paintings/${defaultPaintingProvider}`,
-      bgColor: 'linear-gradient(135deg, #EC4899, #F472B6)' // 绘画：活力粉色，代表创造力和艺术
-    },
-    {
-      icon: <Languages size={32} className="icon" />,
-      text: t('title.translate'),
-      path: '/app/translate',
-      bgColor: 'linear-gradient(135deg, #06B6D4, #0EA5E9)' // 翻译：明亮的青蓝色，代表沟通和流畅
-    },
-    {
-      icon: <Folder size={32} className="icon" />,
-      text: t('title.files'),
-      path: '/app/files',
-      bgColor: 'linear-gradient(135deg, #F59E0B, #FBBF24)' // 文件：金色，代表资源和重要性
-    },
-    {
-      icon: <Code size={32} className="icon" />,
-      text: t('title.code'),
-      path: '/app/code',
-      bgColor: 'linear-gradient(135deg, #1F2937, #374151)' // Code CLI：高级暗黑色，代表专业和技术
-    },
-    {
-      icon: <OpenClawIcon className="icon" />,
-      text: t('title.openclaw'),
-      path: '/app/openclaw',
-      bgColor: 'linear-gradient(135deg, #EF4444, #B91C1C)' // OpenClaw：红色渐变，代表龙虾的颜色
-    },
-    {
-      icon: <NotepadText size={32} className="icon" />,
-      text: t('title.notes'),
-      path: '/app/notes',
-      bgColor: 'linear-gradient(135deg, #F97316, #FB923C)' // 笔记：橙色，代表活力和清晰思路
-    },
-    {
-      icon: <BookMarked size={32} className="icon" />,
-      text: t('library.title'),
-      path: '/app/library',
-      bgColor: 'linear-gradient(135deg, #0EA5E9, #6366F1)' // 资源库：临时入口
-    }
-  ]
+  const appMenuItems = SIDEBAR_ICON_ORDER.flatMap((icon) => {
+    const Icon = SIDEBAR_ICON_COMPONENTS[icon]
+    const path = getSidebarMenuPath(icon, paintingProvider)
+    if (!Icon || !path) return []
+
+    return [
+      {
+        icon: <Icon size={32} className="icon" />,
+        text: getSidebarIconLabel(icon),
+        path,
+        bgColor: APP_ICON_BACKGROUNDS[icon]
+      }
+    ]
+  })
 
   // 合并并排序小程序列表
   const sortedMiniApps = useMemo(() => {
@@ -94,9 +80,9 @@ const LaunchpadPage: FC = () => {
           <SectionTitle>{t('launchpad.apps')}</SectionTitle>
           <Grid>
             {appMenuItems.map((item) => (
-              <AppIcon key={item.path} onClick={() => navigate({ to: item.path })}>
+              <AppIcon key={item.path} onClick={() => openLaunchpadItem(item.path, item.text)}>
                 <IconContainer>
-                  <IconWrapper bgColor={item.bgColor}>{item.icon}</IconWrapper>
+                  <IconWrapper $bgColor={item.bgColor}>{item.icon}</IconWrapper>
                 </IconContainer>
                 <AppName>{item.text}</AppName>
               </AppIcon>
@@ -110,7 +96,7 @@ const LaunchpadPage: FC = () => {
             <Grid>
               {sortedMiniApps.map((app) => (
                 <AppWrapper key={app.appId}>
-                  <App app={app} size={56} />
+                  <App app={app} size={56} onClick={onClose} />
                 </AppWrapper>
               ))}
             </Grid>
@@ -129,11 +115,10 @@ const Container = styled.div`
   align-items: flex-start;
   background-color: var(--color-background);
   overflow-y: auto;
-  padding: 50px 0;
+  padding: 8px 20px 20px;
 `
 
 const Content = styled.div`
-  max-width: 720px;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -149,10 +134,10 @@ const Section = styled.div`
 const SectionTitle = styled.h2`
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--color-foreground);
   opacity: 0.8;
   margin: 0;
-  padding: 0 36px;
+  padding: 0;
 `
 
 const Grid = styled.div`
@@ -190,11 +175,11 @@ const IconContainer = styled.div`
   height: 56px;
 `
 
-const IconWrapper = styled.div<{ bgColor: string }>`
+const IconWrapper = styled.div<{ $bgColor: string }>`
   width: 56px;
   height: 56px;
   border-radius: 16px;
-  background: ${(props) => props.bgColor};
+  background: ${(props) => props.$bgColor};
   display: flex;
   justify-content: center;
   align-items: center;
@@ -209,7 +194,7 @@ const IconWrapper = styled.div<{ bgColor: string }>`
 
 const AppName = styled.div`
   font-size: 12px;
-  color: var(--color-text);
+  color: var(--color-foreground);
   text-align: center;
   width: 100%;
   overflow: hidden;
@@ -231,4 +216,4 @@ const AppWrapper = styled.div`
   }
 `
 
-export default LaunchpadPage
+export default GlobalSearchLaunchpad

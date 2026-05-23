@@ -2,8 +2,6 @@ import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
-import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { t } from 'i18next'
 import { Menu } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -25,10 +23,6 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({
 }) => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
-
-  useShortcut('general.search', () => {
-    void SearchPopup.show()
-  })
 
   return (
     <NavbarHeader className="home-navbar" style={{ height: 'var(--navbar-height)' }}>

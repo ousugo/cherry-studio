@@ -2,6 +2,10 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ChatAppShell, EmptyState, LoadingState } from '@renderer/components/chat'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import {
+  createRecentTopicEntryFromTopic,
+  upsertGlobalSearchRecentEntry
+} from '@renderer/components/global-search/globalSearchGroups'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversation, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
@@ -62,6 +66,9 @@ const HomePage: FC = () => {
   const queuedTemporaryTopicTargetRef = useRef<{ assistantId?: string } | null>(null)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const lastUsedAssistantIdRef = useRef<string | undefined>(lastUsedAssistantId ?? undefined)
+  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
+  const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
 
   const location = useLocation()
@@ -138,6 +145,23 @@ const HomePage: FC = () => {
   useEffect(() => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
   }, [activeTopic])
+
+  useEffect(() => {
+    if (isMessageOnlyView) return
+    if (!activeTopic) return
+    if (temporaryTopicConversation?.type === 'assistant' && activeTopic.id === temporaryTopicConversation.topicId)
+      return
+
+    const signature = `${activeTopic.id}:${activeTopic.name}:${activeTopic.assistantId ?? ''}`
+    if (lastRecordedRecentTopicRef.current === signature) return
+
+    const currentRecentItems = recentItems ?? []
+    const nextItems = upsertGlobalSearchRecentEntry(currentRecentItems, createRecentTopicEntryFromTopic(activeTopic))
+    lastRecordedRecentTopicRef.current = signature
+    if (nextItems !== currentRecentItems) {
+      setRecentItems(nextItems)
+    }
+  }, [activeTopic, isMessageOnlyView, recentItems, setRecentItems, temporaryTopicConversation])
 
   const persistTemporaryTopicAndRefresh = useCallback(
     async (initialName?: string): Promise<TemporaryConversation | null> => {
@@ -311,6 +335,30 @@ const HomePage: FC = () => {
     },
     [setActiveTopicAndDiscardTemporary, setShowSidebar]
   )
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, (topic) => {
+      setPendingLocateMessageId(undefined)
+      handleHistoryTopicSelect(topic as Topic)
+    })
+    const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, (payload) => {
+      const { messageId, topic } = payload as { messageId?: string; topic?: Topic }
+      if (!topic || !messageId) return
+
+      setPendingLocateMessageId(messageId)
+      handleHistoryTopicSelect(topic)
+    })
+
+    return () => {
+      unsubscribe()
+      unsubscribeMessage()
+    }
+  }, [handleHistoryTopicSelect])
+
+  const handleLocateMessageHandled = useCallback(() => {
+    setPendingLocateMessageId(undefined)
+  }, [])
+
   const historyOverlay = (
     <HistoryRecordsPage
       mode="assistant"
@@ -384,6 +432,8 @@ const HomePage: FC = () => {
           // the next send won't accidentally persist an empty lease.
           onPersistTemporaryTopic={isTemporaryTopicActive ? persistTemporaryTopicAndRefresh : undefined}
           onTemporaryAssistantChange={isTemporaryTopicActive ? updateTemporaryTopicAssistant : undefined}
+          locateMessageId={pendingLocateMessageId}
+          onLocateMessageHandled={handleLocateMessageHandled}
         />
       </ContentContainer>
       {historyOverlay}

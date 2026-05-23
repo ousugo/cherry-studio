@@ -139,10 +139,13 @@ vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
-    SHOW_TOPIC_SIDEBAR: 'SHOW_TOPIC_SIDEBAR'
+    SHOW_TOPIC_SIDEBAR: 'SHOW_TOPIC_SIDEBAR',
+    GLOBAL_SEARCH_SELECT_AGENT_SESSION: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION',
+    GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE'
   },
   EventEmitter: {
-    emit: vi.fn()
+    emit: vi.fn(),
+    on: vi.fn(() => vi.fn())
   }
 }))
 

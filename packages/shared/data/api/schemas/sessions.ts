@@ -20,15 +20,45 @@ import { WorkspaceEntitySchema } from './workspaces'
  *  newest-first; an absent `cursor` returns the most recent page, then each
  *  `nextCursor` walks one page older. Limit caps at 200 — the renderer
  *  flattens with `useInfiniteFlatItems` and the virtualizer scrolls older
- *  pages in on demand, so per-page size never has to cover a whole session. */
+ *  pages in on demand, so per-page size never has to cover a whole session.
+ *  `messageId` anchors the first page at a known message for previews; cursor
+ *  takes precedence for subsequent older pages. */
 export const SESSION_MESSAGES_MAX_LIMIT = 200
 export const SESSION_MESSAGES_DEFAULT_LIMIT = 50
 
 export const SessionMessagesListQuerySchema = z.strictObject({
   cursor: z.string().optional(),
+  messageId: z.string().min(1).optional(),
   limit: z.coerce.number().int().positive().max(SESSION_MESSAGES_MAX_LIMIT).optional()
 })
 export type SessionMessagesListQuery = z.infer<typeof SessionMessagesListQuerySchema>
+
+export const SearchSessionMessagesQuerySchema = z.strictObject({
+  q: z.string().trim().min(1),
+  sessionId: z.string().min(1).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().positive().max(1000).optional(),
+  createdAtFrom: z.iso.datetime().optional()
+})
+export type SearchSessionMessagesQueryParams = {
+  q: string
+  sessionId?: string
+  cursor?: string
+  limit?: number
+  createdAtFrom?: string
+}
+
+export interface SessionSearchMessageResult {
+  messageId: string
+  sessionId: string
+  sessionName: string
+  agentId?: string
+  agentName?: string
+  role?: 'user' | 'assistant' | 'tool' | 'system'
+  snippet: string
+  createdAt: string
+}
+export type SearchSessionMessagesResponse = CursorPaginationResponse<SessionSearchMessageResult>
 
 // ============================================================================
 // Entity & DTOs (Rule C: derive DTOs via .pick())
@@ -115,9 +145,11 @@ export type UpdateSessionDto = z.infer<typeof UpdateSessionSchema>
 export const ListSessionsQuerySchema = z.strictObject({
   agentId: z.string().optional(),
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(200).optional()
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  search: z.string().trim().min(1).optional()
 })
-export type ListSessionsQuery = z.infer<typeof ListSessionsQuerySchema>
+export type ListSessionsQueryParams = z.input<typeof ListSessionsQuerySchema>
+export type ListSessionsQuery = z.output<typeof ListSessionsQuerySchema>
 
 // ============================================================================
 // API Schema definitions
@@ -126,7 +158,7 @@ export type ListSessionsQuery = z.infer<typeof ListSessionsQuerySchema>
 export type SessionSchemas = {
   '/sessions': {
     GET: {
-      query?: ListSessionsQuery
+      query?: ListSessionsQueryParams
       response: CursorPaginationResponse<AgentSessionEntity>
     }
     POST: {
@@ -156,6 +188,13 @@ export type SessionSchemas = {
       params: { sessionId: string }
       query?: SessionMessagesListQuery
       response: CursorPaginationResponse<z.infer<typeof AgentSessionMessageEntitySchema>>
+    }
+  }
+
+  '/sessions/messages/search': {
+    GET: {
+      query: SearchSessionMessagesQueryParams
+      response: SearchSessionMessagesResponse
     }
   }
 

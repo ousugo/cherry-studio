@@ -36,6 +36,7 @@ import { useTranslation } from 'react-i18next'
 import AgentChatNavbar from './components/AgentChatNavbar'
 import { AgentRightPane, useAgentRightPaneActions } from './components/AgentRightPane'
 import AgentSessionMessages from './components/AgentSessionMessages'
+import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
@@ -66,6 +67,8 @@ interface AgentChatProps {
   onDraftWorkspaceChange?: (workspaceId: string) => void | Promise<void>
   onVisibleAgentChange?: (agentId: string) => void
   onVisibleWorkspaceChange?: (workspaceId: string) => void
+  locateMessageId?: string
+  onLocateMessageHandled?: () => void
   replacingTemporaryAgent?: boolean
   replacingTemporaryWorkspace?: boolean
 }
@@ -85,6 +88,8 @@ const AgentChat = ({
   onDraftWorkspaceChange,
   onVisibleAgentChange,
   onVisibleWorkspaceChange,
+  locateMessageId,
+  onLocateMessageHandled,
   replacingTemporaryAgent,
   replacingTemporaryWorkspace
 }: AgentChatProps) => {
@@ -297,6 +302,8 @@ const AgentChat = ({
         reservedSessionSeed?.sessionId === visibleSession.id ? reservedSessionSeed.messages : EMPTY_MESSAGES
       }
       onOpenCitationsPanel={handleOpenCitationsPanel}
+      locateMessageId={locateMessageId}
+      onLocateMessageHandled={onLocateMessageHandled}
       onNewSessionDraft={
         sendableAgentId && onStartTemporarySession
           ? () =>
@@ -335,6 +342,8 @@ interface AgentChatSessionFrameProps {
   isMultiSelectMode: boolean
   reservedMessages?: CherryUIMessage[]
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
+  locateMessageId?: string
+  onLocateMessageHandled?: () => void
   onNewSessionDraft?: () => void | Promise<void>
 }
 
@@ -351,9 +360,12 @@ const AgentChatSessionFrame = ({
   isMultiSelectMode,
   reservedMessages = EMPTY_MESSAGES,
   onOpenCitationsPanel,
+  locateMessageId,
+  onLocateMessageHandled,
   onNewSessionDraft
 }: AgentChatSessionFrameProps) => {
   const sessionId = visibleSession.id
+  const locateLoadRequestRef = useRef<string | undefined>(undefined)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const {
     messages: uiMessages,
@@ -419,6 +431,36 @@ const AgentChatSessionFrame = ({
   }, [uiMessages])
 
   const { overlay } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages)
+
+  useEffect(() => {
+    if (!locateMessageId) {
+      locateLoadRequestRef.current = undefined
+      return
+    }
+
+    if (uiMessages.some((message) => message.id === locateMessageId)) {
+      locateLoadRequestRef.current = undefined
+      window.requestAnimationFrame(() => {
+        locateAgentMessageInList(sessionTopicId, locateMessageId, true)
+      })
+      onLocateMessageHandled?.()
+      return
+    }
+
+    if (hasOlder && !isLoading) {
+      const requestKey = `${locateMessageId}:${uiMessages.length}`
+      if (locateLoadRequestRef.current !== requestKey) {
+        locateLoadRequestRef.current = requestKey
+        loadOlder?.()
+      }
+      return
+    }
+
+    if (!hasOlder && !isLoading) {
+      locateLoadRequestRef.current = undefined
+      onLocateMessageHandled?.()
+    }
+  }, [hasOlder, isLoading, loadOlder, locateMessageId, onLocateMessageHandled, sessionTopicId, uiMessages])
 
   const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next = { ...basePartsMap }
