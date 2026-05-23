@@ -3,12 +3,21 @@ import { describe, expect, it } from 'vitest'
 import type { SessionListItem } from '../SessionList.helpers'
 import { buildCreateSessionSeed, findLatestCreateSessionSeed } from '../Sessions'
 
+const workspace = (path: string) => ({
+  id: 'workspace-1',
+  name: 'project',
+  path,
+  orderKey: 'workspace-order-1',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z'
+})
+
 const session = (overrides: Partial<SessionListItem> = {}) =>
   ({
     id: 'session-1',
     agentId: 'agent-1',
     workspaceId: 'workspace-1',
-    workspace: { path: '/Users/jd/project-a' },
+    workspace: workspace('/Users/jd/project-a'),
     pinned: false,
     ...overrides
   }) as SessionListItem
@@ -23,7 +32,7 @@ describe('buildCreateSessionSeed', () => {
 
   it('falls back to the embedded workspace path when the workspace id is missing', () => {
     expect(
-      buildCreateSessionSeed(session({ workspaceId: undefined, workspace: { path: '/Users/jd/project-b' } }))
+      buildCreateSessionSeed(session({ workspaceId: undefined, workspace: workspace('/Users/jd/project-b') }))
     ).toEqual({
       agentId: 'agent-1',
       workspacePath: '/Users/jd/project-b'
