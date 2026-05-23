@@ -40,7 +40,11 @@ import {
   useTopicMutations,
   useTopics
 } from '@renderer/hooks/useTopic'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import {
+  isTopicStreamTurnSeen,
+  type TopicStreamSeenValue,
+  useTopicStreamStatus
+} from '@renderer/hooks/useTopicStreamStatus'
 import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -1195,14 +1199,17 @@ const buildTopicStreamStatusSnapshot = (topicIds: readonly string[]): TopicStrea
 
   for (const topicId of topicIds) {
     const statusEntry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
-    const seen = cacheService.getCasual<boolean>(getTopicStreamSeenCacheKey(topicId)) ?? false
+    const seen = cacheService.getCasual<TopicStreamSeenValue>(getTopicStreamSeenCacheKey(topicId))
     const status = statusEntry?.status
+    const hasSeenTurn = isTopicStreamTurnSeen(seen, statusEntry?.turnId)
     const streamStatus = {
-      isFulfilled: status === 'done' && !seen,
+      isFulfilled: status === 'done' && !hasSeenTurn,
       isPending: status === 'pending' || status === 'streaming'
     }
 
-    signatureParts.push(`${topicId}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`)
+    signatureParts.push(
+      `${topicId}:${statusEntry?.turnId ?? ''}:${hasSeenTurn ? 1 : 0}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`
+    )
 
     if (streamStatus.isPending || streamStatus.isFulfilled) {
       value.set(topicId, streamStatus)
@@ -1520,8 +1527,8 @@ function TopicRow({
 
 const TopicStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
   const dotClassName = cn(
-    'animation-pulse size-[5px] rounded-full',
-    isPending ? 'bg-(--color-status-warning)' : 'bg-(--color-status-success)'
+    'size-[5px] rounded-full',
+    isPending ? 'animation-pulse bg-(--color-status-warning)' : 'bg-(--color-status-success)'
   )
 
   if (isPending) {

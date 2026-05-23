@@ -203,6 +203,14 @@ const topicStreamStatusMocks = vi.hoisted(() => ({
   }))
 }))
 
+const createTopicStreamStatusMock = (overrides: { isFulfilled?: boolean; isPending?: boolean } = {}) => ({
+  activeExecutions: [],
+  isFulfilled: overrides.isFulfilled ?? false,
+  isPending: overrides.isPending ?? false,
+  markSeen: vi.fn(),
+  status: undefined
+})
+
 vi.mock('@renderer/hooks/agents/useSession', () => ({
   useSessions: sessionDataMocks.useSessions,
   useUpdateSession: sessionDataMocks.useUpdateSession
@@ -523,6 +531,7 @@ describe('Sessions', () => {
     })
     cacheMocks.state.activeSessionId = 'session-a'
     setupSessions()
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation(() => createTopicStreamStatusMock())
     pinMocks.usePins.mockReturnValue({
       isLoading: false,
       isRefreshing: false,
@@ -996,6 +1005,27 @@ describe('Sessions', () => {
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-a')
     expect(topicStreamStatusMocks.useTopicStreamStatus).not.toHaveBeenCalledWith('agent-session:session-b')
+  })
+
+  it('keeps fulfilled session stream indicators static while pending indicators pulse', () => {
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { isFulfilled: true } : { isPending: true })
+    )
+
+    const { unmount } = render(<Sessions />)
+
+    const indicator = screen.getByTestId('agent-session-stream-indicator')
+    expect(indicator.firstElementChild).toHaveClass('bg-success')
+    expect(indicator.firstElementChild).not.toHaveClass('animation-pulse')
+
+    topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
+      createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { isPending: true } : {})
+    )
+
+    unmount()
+    render(<Sessions />)
+
+    expect(screen.getByTestId('agent-session-stream-indicator').firstElementChild).toHaveClass('animation-pulse')
   })
 
   it('persists display mode selection from the header menu', () => {

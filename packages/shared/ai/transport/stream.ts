@@ -90,6 +90,8 @@ export interface StreamPendingQueueItem {
  */
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
+  /** Unique per stream lifecycle; lets per-window seen state distinguish repeated turns on the same topic. */
+  turnId?: string
   activeExecutions: ActiveExecution[]
   awaitingApprovalAnchors: ActiveExecution[]
   pendingQueue: StreamPendingQueueItem[]

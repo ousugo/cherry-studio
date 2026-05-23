@@ -11,6 +11,8 @@ import {
 } from '@shared/ai/transport'
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
+export type TopicStreamSeenValue = boolean | string
+
 interface TopicStreamStatusView {
   status: TopicStreamStatus | undefined
   activeExecutions: ActiveExecution[]
@@ -29,20 +31,25 @@ interface TopicStreamStatusView {
 
 const seenKey = (topicId: string) => `topic.stream.seen.${topicId}`
 
-function useTopicSeen(topicId: string): readonly [boolean, () => void] {
+export function isTopicStreamTurnSeen(seen: TopicStreamSeenValue | undefined, turnId?: string): boolean {
+  return turnId ? seen === turnId : seen === true
+}
+
+function useTopicSeen(topicId: string, turnId?: string): readonly [boolean, () => void] {
   const key = seenKey(topicId)
   const subscribe = useCallback((cb: () => void) => cacheService.subscribe(key, cb), [key])
-  const getSnapshot = useCallback(() => cacheService.getCasual<boolean>(key) ?? false, [key])
+  const getSnapshot = useCallback(() => cacheService.getCasual<TopicStreamSeenValue>(key), [key])
   const seen = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-  const mark = useCallback(() => cacheService.setCasual(key, true), [key])
-  return [seen, mark] as const
+  const mark = useCallback(() => cacheService.setCasual<TopicStreamSeenValue>(key, turnId ?? true), [key, turnId])
+  return [isTopicStreamTurnSeen(seen, turnId), mark] as const
 }
 
 export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
-  const [seen, markSeen] = useTopicSeen(topicId)
 
   const status = entry?.status
+  const turnId = entry?.turnId
+  const [seen, markSeen] = useTopicSeen(topicId, turnId)
   const activeExecutions = useMemo(() => entry?.activeExecutions ?? [], [entry])
   const awaitingApprovalAnchors = useMemo(() => entry?.awaitingApprovalAnchors ?? [], [entry])
   const pendingQueue = useMemo(() => entry?.pendingQueue ?? [], [entry])

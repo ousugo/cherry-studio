@@ -872,6 +872,7 @@ describe('AiStreamManager', () => {
           ([, value]) =>
             value as {
               status: string
+              turnId?: string
               activeExecutions: Array<{ executionId: string; anchorMessageId?: string }>
               pendingQueue?: Array<{ id: string }>
             } | null
@@ -909,6 +910,8 @@ describe('AiStreamManager', () => {
 
       await mgr.onExecutionDone('t', 'p::m')
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+      expect(new Set(statusWritesFor('t').map((entry) => entry?.turnId)).size).toBe(1)
+      expect(statusWritesFor('t')[0]?.turnId).toMatch(/^\d+:\d+$/)
 
       // Grace-period cleanup does not write again — the `done` value
       // lingers in SharedCache so renderers can observe the terminal

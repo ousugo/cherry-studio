@@ -133,6 +133,8 @@ vi.mock('@renderer/hooks/useTopic', async () => {
 })
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  isTopicStreamTurnSeen: (seen: boolean | string | undefined, turnId?: string) =>
+    turnId ? seen === turnId : seen === true,
   useTopicStreamStatus: (topicId: string) => {
     const status = topicStreamStatusMocks.statuses.get(topicId)
     return {
@@ -782,8 +784,9 @@ describe('Topics', () => {
     setActiveTopic = view.setActiveTopic
 
     topicRow = getTopicRow('Gamma topic')
-    indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"] .animation-pulse')
+    indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"] span')
     expect(indicator).toHaveClass('bg-(--color-status-success)')
+    expect(indicator).not.toHaveClass('animation-pulse')
     expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
 
     fireEvent.click(topicRow)

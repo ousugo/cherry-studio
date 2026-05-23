@@ -224,6 +224,7 @@ function replayApprovalDecisionsOnSnapshot(
 export class AiStreamManager extends BaseService {
   private readonly activeStreams = new Map<string, ActiveStream>()
   private readonly config: AiStreamManagerConfig
+  private nextStreamTurnSequence = 0
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
   readonly chatLifecycle: StreamLifecycle
 
@@ -337,6 +338,7 @@ export class AiStreamManager extends BaseService {
 
     const stream: ActiveStream = {
       topicId: input.topicId,
+      turnId: `${Date.now()}:${++this.nextStreamTurnSequence}`,
       executions,
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
       // `pending` → `streaming` on first chunk.
