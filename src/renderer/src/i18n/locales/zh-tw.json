@@ -807,7 +807,7 @@
         "deny": "拒絕",
         "run": "執行"
       },
-      "confirmation": "確定要執行此 Claude 工具嗎？",
+      "confirmation": "允許呼叫工具？",
       "defaultDenyMessage": "使用者拒絕了該工具的權限。",
       "defaultDescription": "在您的環境中執行程式碼或系統操作。執行前請確保指令安全。",
       "error": {

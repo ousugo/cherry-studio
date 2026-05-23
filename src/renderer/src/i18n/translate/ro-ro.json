@@ -807,7 +807,7 @@
         "deny": "Deny",
         "run": "Rulează"
       },
-      "confirmation": "Ești sigur că vrei să rulezi acest instrument Claude?",
+      "confirmation": "Permiteți apelul instrumentului?",
       "defaultDenyMessage": "Utilizatorul a refuzat permisiunea pentru acest instrument.",
       "defaultDescription": "Execută cod sau acțiuni de sistem în mediul tău. Asigură-te că comanda pare sigură înainte de a o rula.",
       "error": {

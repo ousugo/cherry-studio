@@ -52,11 +52,14 @@ import {
 import { languageEnglishNameMap } from '@shared/config/languages'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { MCPServer } from '@shared/data/types/mcpServer'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { toCamelCase } from '@shared/mcp'
+import type { MCPTool } from '@types'
 import { app } from 'electron'
 
-import type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './types'
+import type { ClaudeCodeSettings, McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const require_ = createRequire(import.meta.url)
@@ -196,6 +199,7 @@ export async function buildClaudeCodeSessionSettings(
   const soulEnabled = agentConfig?.soul_enabled === true
   const isAssistant = agentConfig?.builtin_role === 'assistant'
   const mcpServers = await buildMcpServers(session, agent, soulEnabled, isAssistant)
+  const mcpToolMetadata = await buildMcpToolMetadata(agent)
 
   // 8. Adjust allowedTools for injected MCP servers
   const finalAllowedTools = adjustAllowedToolsForMcp(allowedTools, soulEnabled, isAssistant)
@@ -217,6 +221,7 @@ export async function buildClaudeCodeSessionSettings(
     hooks,
     approvalEmitter,
     warmQueryKey: session.id,
+    ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
     ...(options?.thinkingOptions?.thinking ? { thinking: options.thinkingOptions.thinking } : {}),
@@ -423,8 +428,7 @@ function buildToolPermissions(
       emit({
         type: 'tool-approval-request',
         approvalId,
-        toolCallId: opts.toolUseID,
-        providerMetadata: { cherry: { transport: 'claude-agent', toolName } }
+        toolCallId: opts.toolUseID
       })
     })
   }
@@ -559,6 +563,59 @@ async function buildMcpServers(
   }
 
   return Object.keys(mcpList).length > 0 ? mcpList : undefined
+}
+
+function addMcpToolMetadataAlias(
+  metadataByName: Record<string, McpToolDisplayMetadata>,
+  key: string | undefined,
+  metadata: McpToolDisplayMetadata
+): void {
+  if (!key) return
+  metadataByName[key] = metadata
+}
+
+function addMcpToolMetadataAliases(
+  metadataByName: Record<string, McpToolDisplayMetadata>,
+  server: MCPServer,
+  tool: MCPTool
+): void {
+  const metadata: McpToolDisplayMetadata = {
+    type: 'mcp',
+    serverId: server.id,
+    serverName: server.name,
+    name: tool.name,
+    description: tool.description
+  }
+
+  addMcpToolMetadataAlias(metadataByName, tool.id, metadata)
+  addMcpToolMetadataAlias(metadataByName, `mcp__${server.id}__${tool.name}`, metadata)
+  addMcpToolMetadataAlias(metadataByName, `mcp__${server.id}__${toCamelCase(tool.name)}`, metadata)
+  addMcpToolMetadataAlias(metadataByName, `mcp__${server.name}__${tool.name}`, metadata)
+  addMcpToolMetadataAlias(metadataByName, `mcp__${toCamelCase(server.name)}__${tool.name}`, metadata)
+}
+
+async function buildMcpToolMetadata(agent: AgentEntity): Promise<Record<string, McpToolDisplayMetadata> | undefined> {
+  const mcpIds = agent.mcps
+  if (!mcpIds?.length) return undefined
+
+  const metadataByName: Record<string, McpToolDisplayMetadata> = {}
+  const mcpService = application.get('McpService')
+
+  for (const mcpId of mcpIds) {
+    try {
+      const server = await mcpServerService.findByIdOrName(mcpId)
+      if (!server) continue
+
+      const tools = await mcpService.listTools(server)
+      for (const tool of tools) {
+        addMcpToolMetadataAliases(metadataByName, server, tool)
+      }
+    } catch (error) {
+      logger.warn('Failed to build MCP tool display metadata', { mcpId, error })
+    }
+  }
+
+  return Object.keys(metadataByName).length > 0 ? metadataByName : undefined
 }
 
 async function resolveSourceChannel(agentId: string, sessionId: string): Promise<string | undefined> {

@@ -807,7 +807,7 @@
         "deny": "Deny",
         "run": "走る"
       },
-      "confirmation": "このClaudeツールを実行してもよろしいですか？",
+      "confirmation": "ツールの呼び出しを許可しますか？",
       "defaultDenyMessage": "ユーザーはこのツールの使用を拒否しました。",
       "defaultDescription": "環境内でコードまたはシステムアクションを実行します。実行前にコマンドが安全であることを確認してください。",
       "error": {

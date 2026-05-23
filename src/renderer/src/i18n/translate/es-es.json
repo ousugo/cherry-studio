@@ -807,7 +807,7 @@
         "deny": "Deny",
         "run": "Correr"
       },
-      "confirmation": "¿Estás seguro de que quieres ejecutar esta herramienta de Claude?",
+      "confirmation": "¿Permitir llamada a herramienta?",
       "defaultDenyMessage": "El usuario denegó el permiso para esta herramienta.",
       "defaultDescription": "Ejecuta código o acciones del sistema en tu entorno. Asegúrate de que el comando parezca seguro antes de ejecutarlo.",
       "error": {

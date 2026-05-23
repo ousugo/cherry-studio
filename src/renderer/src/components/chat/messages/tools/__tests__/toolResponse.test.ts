@@ -14,6 +14,8 @@ describe('toolResponse adapter', () => {
       output: {
         content: 'ok',
         metadata: {
+          description: 'Search project documentation',
+          name: 'search_docs',
           serverName: 'Docs',
           serverId: 'docs-server',
           type: 'mcp'
@@ -27,6 +29,7 @@ describe('toolResponse adapter', () => {
     expect(response.status).toBe('done')
     expect(response.tool.type).toBe('mcp')
     expect(response.tool.name).toBe('search_docs')
+    expect((response.tool as any).description).toBe('Search project documentation')
     expect((response.tool as any).serverId).toBe('docs-server')
     expect((response.tool as any).serverName).toBe('Docs')
     expect(response.response).toBe('ok')
@@ -48,7 +51,7 @@ describe('toolResponse adapter', () => {
     })
   })
 
-  it('maps tool-* streaming part to invoking and keeps toolCallId', () => {
+  it('maps tool-* streaming MCP part to invoking and displays the tool segment', () => {
     const part = {
       type: 'tool-mcp__assistant__read',
       toolCallId: 'call-3',
@@ -59,7 +62,7 @@ describe('toolResponse adapter', () => {
     const response = buildToolResponseFromPart(part)
     expect(response?.status).toBe('invoking')
     expect(response?.toolCallId).toBe('call-3')
-    expect(response?.tool.name).toBe('mcp__assistant__read')
+    expect(response?.tool.name).toBe('read')
   })
 
   it('keeps real Claude Code dynamic tool calls on the provider renderer path', () => {
@@ -100,6 +103,30 @@ describe('toolResponse adapter', () => {
     expect(response?.tool.name).toBe('WebSearch')
   })
 
+  it('parses Claude Code MCP tool ids as MCP tools without display metadata', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'mcp__8171b5f3-c666-4ead-b2ab-bb9ac244af57__resolve-library-id',
+      toolCallId: 'mcp-call',
+      state: 'approval-requested',
+      input: { libraryName: 'React' },
+      approval: { id: 'approval-mcp' },
+      callProviderMetadata: {
+        'claude-code': {
+          parentToolCallId: null
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response).toBeTruthy()
+    if (!response) throw new Error('Expected tool response')
+    expect(response.tool.type).toBe('mcp')
+    expect(response.tool.name).toBe('resolve-library-id')
+    expect((response.tool as any).serverId).toBe('8171b5f3-c666-4ead-b2ab-bb9ac244af57')
+    expect((response.tool as any).serverName).toBe('8171b5f3-c666-4ead-b2ab-bb9ac244af57')
+  })
+
   it('uses migrated cherry tool metadata from callProviderMetadata before name fallbacks', () => {
     const part = {
       type: 'dynamic-tool',
@@ -112,6 +139,8 @@ describe('toolResponse adapter', () => {
         cherry: {
           tool: {
             type: 'mcp',
+            name: 'search_docs',
+            description: 'Search desktop docs',
             serverId: 'search-server',
             serverName: 'Search'
           }
@@ -120,9 +149,13 @@ describe('toolResponse adapter', () => {
     } as unknown as CherryMessagePart
 
     const response = buildToolResponseFromPart(part)
-    expect(response?.tool.type).toBe('mcp')
-    expect((response?.tool as any).serverId).toBe('search-server')
-    expect((response?.tool as any).serverName).toBe('Search')
+    expect(response).toBeTruthy()
+    if (!response) throw new Error('Expected tool response')
+    expect(response.tool.type).toBe('mcp')
+    expect(response.tool.name).toBe('search_docs')
+    expect((response.tool as any).description).toBe('Search desktop docs')
+    expect((response.tool as any).serverId).toBe('search-server')
+    expect((response.tool as any).serverName).toBe('Search')
   })
 
   it('extracts parent tool id from Claude Code provider metadata', () => {

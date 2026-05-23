@@ -807,7 +807,7 @@
         "deny": "Deny",
         "run": "Correr"
       },
-      "confirmation": "Tem certeza de que quer executar esta ferramenta Claude?",
+      "confirmation": "Permitir chamada de ferramenta?",
       "defaultDenyMessage": "Usuário negou permissão para esta ferramenta.",
       "defaultDescription": "Executa código ou ações do sistema no seu ambiente. Certifique-se de que o comando parece seguro antes de executá-lo.",
       "error": {

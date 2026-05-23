@@ -807,7 +807,7 @@
         "deny": "Deny",
         "run": "Run"
       },
-      "confirmation": "Are you sure you want to run this Claude tool?",
+      "confirmation": "Allow tool call?",
       "defaultDenyMessage": "User denied permission for this tool.",
       "defaultDescription": "Executes code or system actions in your environment. Make sure the command looks safe before running it.",
       "error": {

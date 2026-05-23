@@ -807,7 +807,7 @@
         "deny": "Deny",
         "run": "Courir"
       },
-      "confirmation": "Êtes-vous sûr de vouloir exécuter cet outil Claude ?",
+      "confirmation": "Autoriser l'appel d'outil ?",
       "defaultDenyMessage": "L'utilisateur a refusé l'autorisation pour cet outil.",
       "defaultDescription": "Exécute du code ou des actions système dans votre environnement. Assurez-vous que la commande semble sûre avant de l’exécuter.",
       "error": {

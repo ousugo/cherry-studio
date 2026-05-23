@@ -16,7 +16,7 @@ import type {
 } from '../types'
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
 import { ClaudeCodeStreamAdapter } from './streamAdapter'
-import type { ToolApprovalEmitterHolder } from './types'
+import type { McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
   private readonly items: T[] = []
@@ -102,6 +102,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
   private approvalEmitter?: ToolApprovalEmitterHolder
+  private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private pendingInitMessage?: SDKSystemMessage
   private resumeToken?: string
 
@@ -133,6 +134,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
     this.approvalEmitter = request.settings.approvalEmitter
+    this.mcpToolMetadata = request.settings.mcpToolMetadata
     void this.runQueryLoop()
     return this
   }
@@ -203,7 +205,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       sink: {
         enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
       },
-      onSessionId: (resumeToken) => this.updateResumeToken(resumeToken)
+      onSessionId: (resumeToken) => this.updateResumeToken(resumeToken),
+      mcpToolMetadata: this.mcpToolMetadata
     })
   }
 

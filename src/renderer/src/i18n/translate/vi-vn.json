@@ -807,7 +807,7 @@
         "deny": "Deny",
         "run": "Chạy"
       },
-      "confirmation": "Bạn có chắc chắn muốn chạy công cụ Claude này không?",
+      "confirmation": "Cho phép gọi công cụ?",
       "defaultDenyMessage": "Người dùng đã từ chối cấp quyền cho công cụ này.",
       "defaultDescription": "Thực thi mã hoặc các hành động hệ thống trong môi trường của bạn. Hãy đảm bảo lệnh có vẻ an toàn trước khi chạy nó.",
       "error": {

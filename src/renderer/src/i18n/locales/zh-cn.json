@@ -807,7 +807,7 @@
         "deny": "拒绝",
         "run": "运行"
       },
-      "confirmation": "确定要运行此 Claude 工具吗?",
+      "confirmation": "允许调用工具？",
       "defaultDenyMessage": "用户拒绝了该工具的权限。",
       "defaultDescription": "在您的环境中执行代码或系统操作。运行前请确保命令安全。",
       "error": {
