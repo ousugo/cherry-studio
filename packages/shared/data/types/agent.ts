@@ -10,8 +10,10 @@ export type {
   AgentBase,
   AgentConfiguration,
   AgentEntity,
+  CreateTaskDto as CreateTaskRequest,
   ScheduledTaskEntity,
-  TaskRunLogEntity
+  TaskRunLogEntity,
+  UpdateTaskDto as UpdateTaskRequest
 } from '../api/schemas/agents'
 export type { AgentSessionMessageEntity } from '../api/schemas/sessions'
 export type { InstalledSkill } from '../api/schemas/skills'
@@ -21,31 +23,3 @@ export type { InstalledSkill } from '../api/schemas/skills'
 // ============================================================================
 
 export type AgentType = 'claude-code'
-
-export type TaskScheduleType = 'cron' | 'interval' | 'once'
-
-export type TaskStatus = 'active' | 'paused' | 'completed'
-
-// ============================================================================
-// Task DTOs (renderer hooks + main test seeding both consume these)
-// ============================================================================
-
-export interface CreateTaskRequest {
-  name: string
-  prompt: string
-  scheduleType: TaskScheduleType
-  scheduleValue: string
-  timeoutMinutes?: number | null
-  channelIds?: string[]
-}
-
-export interface UpdateTaskRequest {
-  name?: string
-  prompt?: string
-  agentId?: string
-  scheduleType?: TaskScheduleType
-  scheduleValue?: string
-  timeoutMinutes?: number | null
-  channelIds?: string[]
-  status?: TaskStatus
-}
