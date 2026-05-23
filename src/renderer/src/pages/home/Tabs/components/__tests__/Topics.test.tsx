@@ -346,18 +346,20 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
 }
 
 function renderTopicList({
+  activeTopic = createRendererTopic(),
   onNewTopic = vi.fn(),
   onOpenHistory,
   revealRequest
 }: {
+  activeTopic?: Topic
   onNewTopic?: (payload?: { assistantId?: string | null }) => void
   onOpenHistory?: () => void
   revealRequest?: ResourceListRevealRequest
 } = {}) {
   const setActiveTopic = vi.fn()
-  const renderNode = (nextRevealRequest = revealRequest) => (
+  const renderNode = (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) => (
     <Topics
-      activeTopic={createRendererTopic()}
+      activeTopic={nextActiveTopic}
       setActiveTopic={setActiveTopic}
       onNewTopic={onNewTopic}
       onOpenHistory={onOpenHistory}
@@ -368,7 +370,8 @@ function renderTopicList({
   return {
     ...view,
     onNewTopic,
-    rerenderTopicList: (nextRevealRequest = revealRequest) => view.rerender(renderNode(nextRevealRequest)),
+    rerenderTopicList: (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) =>
+      view.rerender(renderNode(nextRevealRequest, nextActiveTopic)),
     setActiveTopic
   }
 }
@@ -1453,6 +1456,42 @@ describe('Topics', () => {
 
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+  })
+
+  it('selects the first topic from an assistant group before toggling that selected group', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    const { rerenderTopicList, setActiveTopic } = renderTopicList()
+
+    const betaGroupButton = screen.getByRole('button', { name: 'Beta Assistant' })
+    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(betaGroupButton)
+
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
+    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never) ?? []).not.toContain(
+      'topic:assistant:assistant-2'
+    )
+
+    rerenderTopicList(
+      undefined,
+      createRendererTopic({ id: 'topic-c', assistantId: 'assistant-2', name: 'Gamma topic' })
+    )
+
+    const selectedBetaGroupButton = screen.getByRole('button', { name: 'Beta Assistant' })
+    expect(selectedBetaGroupButton).toHaveAttribute('aria-current', 'true')
+    expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
+
+    fireEvent.click(selectedBetaGroupButton)
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toContain(
+      'topic:assistant:assistant-2'
+    )
+
+    rerenderTopicList(
+      undefined,
+      createRendererTopic({ id: 'topic-c', assistantId: 'assistant-2', name: 'Gamma topic' })
+    )
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('opens the assistant group more menu from the group header context menu', () => {

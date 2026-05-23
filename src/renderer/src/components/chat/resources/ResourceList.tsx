@@ -33,6 +33,7 @@ import {
   type ResourceListDragCapabilities,
   type ResourceListFilterOption,
   type ResourceListGroup,
+  type ResourceListGroupHeaderClickBehavior,
   type ResourceListItemBase,
   type ResourceListMeta,
   type ResourceListReorderPayload,
@@ -58,6 +59,10 @@ const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = [
 const getDefaultItemId = (item: ResourceListItemBase) => item.id
 const getDefaultItemLabel = (item: ResourceListItemBase) => item.name
 const estimateDefaultItemSize = () => 34
+
+type ResourceListGroupHeaderClickBehaviorResolver =
+  | ResourceListGroupHeaderClickBehavior
+  | ((group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior)
 
 type ScrollbarStage = 'active' | 'fade-1' | 'fade-2' | 'fade-3' | 'idle'
 
@@ -87,6 +92,7 @@ export type {
   ResourceListDragCapabilities,
   ResourceListFilterOption,
   ResourceListGroup,
+  ResourceListGroupHeaderClickBehavior,
   ResourceListItemBase,
   ResourceListMeta,
   ResourceListReorderPayload,
@@ -116,6 +122,9 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getGroupHeaderContextMenu?: ResourceListMeta<T>['getGroupHeaderContextMenu']
   getGroupHeaderLeadingAction?: ResourceListMeta<T>['getGroupHeaderLeadingAction']
   getGroupHeaderIcon?: ResourceListMeta<T>['getGroupHeaderIcon']
+  getGroupHeaderClassName?: ResourceListMeta<T>['getGroupHeaderClassName']
+  getGroupHeaderTooltip?: ResourceListMeta<T>['getGroupHeaderTooltip']
+  groupHeaderClickBehavior?: ResourceListGroupHeaderClickBehaviorResolver
   collapsedGroupIds?: readonly string[]
   revealRequest?: ResourceListRevealRequest
   dragCapabilities?: ResourceListDragCapabilities
@@ -154,6 +163,7 @@ type ResourceListProviderProps<T extends ResourceListItemBase> = {
   estimateItemSize?: (index: number) => number
   onSelectItem?: (id: string) => void
   onRenameItem?: (id: string, name: string) => void
+  onGroupHeaderSelectItem?: (id: string) => void
   onOpenContextMenu?: (id: string) => void
   onReorder?: (payload: ResourceListReorderPayload) => void
   onCollapsedGroupIdsChange?: (groupIds: string[]) => void
@@ -276,6 +286,9 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   getGroupHeaderContextMenu,
   getGroupHeaderLeadingAction,
   getGroupHeaderIcon,
+  getGroupHeaderClassName,
+  getGroupHeaderTooltip,
+  groupHeaderClickBehavior = 'toggle',
   collapsedGroupIds,
   revealRequest,
   dragCapabilities,
@@ -290,6 +303,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   estimateItemSize = estimateDefaultItemSize,
   onSelectItem,
   onRenameItem,
+  onGroupHeaderSelectItem,
   onOpenContextMenu,
   onReorder,
   onCollapsedGroupIdsChange
@@ -313,6 +327,11 @@ function ResourceListProvider<T extends ResourceListItemBase>({
   const sortById = useMemo(() => new Map(sortOptions.map((option) => [option.id, option])), [sortOptions])
   const effectiveCollapsedGroupIds = collapsedGroupIds ?? state.collapsedGroups
   const handledRevealRequestRef = useRef<string | null>(null)
+  const getGroupHeaderClickBehavior = useCallback(
+    (group: ResourceListGroup) =>
+      typeof groupHeaderClickBehavior === 'function' ? groupHeaderClickBehavior(group) : groupHeaderClickBehavior,
+    [groupHeaderClickBehavior]
+  )
 
   useEffect(() => {
     if (!revealRequest) return
@@ -507,6 +526,11 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       },
       cancelRename: () => dispatch({ type: 'cancelRename' }),
       openContextMenu: (id: string) => onOpenContextMenu?.(id),
+      selectGroupHeaderItem: (id: string) => {
+        dispatch({ type: 'selectItem', id })
+        const handleSelect = onGroupHeaderSelectItem ?? onSelectItem
+        handleSelect?.(id)
+      },
       showMoreInGroup: (groupId: string) => dispatch({ type: 'showMoreInGroup', groupId }),
       collapseGroupItems: (groupId: string) =>
         dispatch({ type: 'collapseGroupItems', groupId, defaultCount: defaultGroupVisibleCount }),
@@ -529,6 +553,7 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       effectiveCollapsedGroupIds,
       groupLoadStep,
       onCollapsedGroupIdsChange,
+      onGroupHeaderSelectItem,
       onOpenContextMenu,
       onRenameItem,
       onReorder,
@@ -555,6 +580,9 @@ function ResourceListProvider<T extends ResourceListItemBase>({
         getGroupHeaderContextMenu,
         getGroupHeaderLeadingAction,
         getGroupHeaderIcon,
+        getGroupHeaderClassName,
+        getGroupHeaderTooltip,
+        getGroupHeaderClickBehavior,
         sortOptions,
         filterOptions,
         estimateItemSize,
@@ -595,6 +623,9 @@ function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderContextMenu,
       getGroupHeaderLeadingAction,
       getGroupHeaderIcon,
+      getGroupHeaderClassName,
+      getGroupHeaderTooltip,
+      getGroupHeaderClickBehavior,
       canDragGroup,
       canDragItem,
       canDropGroup,
@@ -764,6 +795,21 @@ function HeaderActionButton({
   )
 }
 
+function GroupHeaderActionButton({ className, ref, size, variant = 'ghost', ...props }: HeaderActionButtonProps) {
+  return (
+    <Button
+      ref={ref}
+      size={size}
+      variant={variant}
+      className={cn(
+        '!text-foreground/70 hover:!text-foreground data-[state=open]:!text-foreground [&_.lucide:not(.lucide-custom)]:!text-current inline-flex h-[30px] min-w-[30px] shrink-0 items-center justify-center rounded-[8px] px-[7px] py-0 leading-none shadow-none hover:bg-muted data-[state=open]:bg-muted [&_svg]:block [&_svg]:size-[18px] [&_svg]:shrink-0',
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
 function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
   const [stage, setStage] = useState<ScrollbarStage>('idle')
   const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([])
@@ -850,15 +896,23 @@ type GroupHeaderProps = ComponentProps<'div'> & {
 }
 
 function GroupHeader({ group, className, ref, style, onContextMenu, ...props }: GroupHeaderProps) {
-  const { actions, meta, view } = useResourceList()
+  const { actions, meta, state, view } = useResourceList()
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
   const collapsed = viewGroup?.collapsed ?? false
+  const groupItems = viewGroup?.allItems ?? []
+  const clickBehavior = meta.getGroupHeaderClickBehavior(group)
+  const selected =
+    clickBehavior === 'select-first-then-toggle' &&
+    state.selectedId !== null &&
+    groupItems.some((item) => meta.getItemId(item) === state.selectedId)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const groupHeaderContext = { collapsed }
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
   const groupHeaderLeadingAction = meta.getGroupHeaderLeadingAction?.(group, groupHeaderContext)
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
+  const groupHeaderClassName = meta.getGroupHeaderClassName?.(group)
+  const groupHeaderTooltip = meta.getGroupHeaderTooltip?.(group)
   const groupHeaderIcon =
     customGroupHeaderIcon === undefined ? (
       <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
@@ -874,43 +928,63 @@ function GroupHeader({ group, className, ref, style, onContextMenu, ...props }: 
     },
     [groupHeaderContextMenu, onContextMenu]
   )
+  const handleClick = useCallback(() => {
+    if (clickBehavior === 'select-first-then-toggle' && !selected) {
+      const firstItem = groupItems[0]
+      if (firstItem) {
+        actions.selectGroupHeaderItem(meta.getItemId(firstItem))
+      }
+      return
+    }
+
+    actions.toggleGroup(group.id)
+  }, [actions, clickBehavior, group.id, groupItems, meta, selected])
 
   if (!group.label) return null
   const header = (
     <div
       ref={ref}
       style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
-      className={cn(
-        'group/resource-list-group flex h-8 w-full items-center gap-1.5 px-1.5 text-sm',
-        GROUP_HEADER_TEXT_CLASS,
-        className
-      )}
+      className={cn('group/resource-list-group h-8 w-full text-sm', GROUP_HEADER_TEXT_CLASS, className)}
+      data-selected={selected || undefined}
       onContextMenu={handleContextMenu}
       {...props}>
-      {groupHeaderLeadingAction && (
-        <div className="flex size-5 shrink-0 items-center justify-center">{groupHeaderLeadingAction}</div>
-      )}
-      <button
-        type="button"
-        aria-expanded={!collapsed}
-        className={cn('flex h-full min-w-0 flex-1 items-center gap-1 text-left outline-none', GROUP_HEADER_TEXT_CLASS)}
-        onClick={() => actions.toggleGroup(group.id)}>
-        {groupHeaderIcon && (
-          <span
-            aria-hidden="true"
-            className="flex size-5 shrink-0 items-center justify-center rounded-lg text-inherit [&_svg]:stroke-current [&_svg]:text-inherit">
-            {groupHeaderIcon}
-          </span>
+      <div
+        title={groupHeaderTooltip}
+        className={cn(
+          'flex w-full items-center gap-1.5 px-1.5',
+          selected ? 'h-[30px] rounded-lg bg-accent text-foreground' : 'h-8',
+          groupHeaderClassName
+        )}>
+        {groupHeaderLeadingAction && (
+          <div className="flex size-5 shrink-0 items-center justify-center">{groupHeaderLeadingAction}</div>
         )}
-        <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-inherit leading-5">
-          {group.label}
-        </span>
-      </button>
-      {groupHeaderAction && (
-        <div className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100">
-          {groupHeaderAction}
-        </div>
-      )}
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          aria-current={selected ? 'true' : undefined}
+          className={cn(
+            'flex h-full min-w-0 flex-1 items-center gap-1 text-left outline-none',
+            GROUP_HEADER_TEXT_CLASS
+          )}
+          onClick={handleClick}>
+          {groupHeaderIcon && (
+            <span
+              aria-hidden="true"
+              className="flex size-5 shrink-0 items-center justify-center rounded-lg text-inherit [&_svg]:stroke-current [&_svg]:text-inherit">
+              {groupHeaderIcon}
+            </span>
+          )}
+          <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-inherit leading-5">
+            {group.label}
+          </span>
+        </button>
+        {groupHeaderAction && (
+          <div className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100">
+            {groupHeaderAction}
+          </div>
+        )}
+      </div>
     </div>
   )
 
@@ -1624,6 +1698,7 @@ const ResourceList = {
   Frame,
   Header,
   HeaderActionButton,
+  GroupHeaderActionButton,
   HeaderItem,
   Search,
   FilterBar,

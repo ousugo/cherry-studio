@@ -324,12 +324,12 @@ function AssistantGroupMoreMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <ResourceList.HeaderActionButton
+        <ResourceList.GroupHeaderActionButton
           type="button"
           aria-label={t('common.more')}
           onClick={(event) => event.stopPropagation()}>
           <MoreHorizontal className="block" />
-        </ResourceList.HeaderActionButton>
+        </ResourceList.GroupHeaderActionButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="bottom">
         <AssistantGroupMoreDropdownMenuContent
@@ -673,6 +673,22 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       findLatestCreateTopicPayload(filteredTopics, (topic) => topicGroupBy(topic)?.id === groupId, assistantById),
     [assistantById, filteredTopics, topicGroupBy]
   )
+  const handleGroupHeaderSelectTopic = useCallback(
+    (topicId: string) => {
+      const topic = filteredTopics.find((candidate) => candidate.id === topicId)
+      if (topic && topic.id !== activeTopic?.id) {
+        setActiveTopic(topic)
+      }
+    },
+    [activeTopic?.id, filteredTopics, setActiveTopic]
+  )
+  const getGroupHeaderClickBehavior = useCallback(
+    (group: { id: string }) =>
+      displayMode === 'assistant' && !isManageMode && group.id !== TOPIC_PINNED_GROUP_ID
+        ? 'select-first-then-toggle'
+        : 'toggle',
+    [displayMode, isManageMode]
+  )
 
   const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)
   const listLoading =
@@ -792,12 +808,12 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
           )}
           {payload && (
             <Tooltip title={t('chat.conversation.new')} delay={500}>
-              <ResourceList.HeaderActionButton
+              <ResourceList.GroupHeaderActionButton
                 type="button"
                 aria-label={t('chat.conversation.new')}
                 onClick={() => void onNewTopic?.(payload)}>
                 <SquarePen className="block" />
-              </ResourceList.HeaderActionButton>
+              </ResourceList.GroupHeaderActionButton>
             </Tooltip>
           )}
         </>
@@ -1091,6 +1107,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}
         getGroupHeaderLeadingAction={getGroupHeaderLeadingAction}
+        groupHeaderClickBehavior={getGroupHeaderClickBehavior}
         dragCapabilities={{
           groups: isAssistantDisplayMode && !isManageMode,
           items: isAssistantDisplayMode && !isManageMode,
@@ -1104,6 +1121,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         groupShowMoreLabel={t('chat.topics.group.show_more')}
         groupCollapseLabel={t('chat.topics.group.collapse')}
         onRenameItem={handleRenameTopic}
+        onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
         onReorder={handleTopicReorder}
         onCollapsedGroupIdsChange={handleCollapsedTopicGroupIdsChange}>
         <ResourceList.Header className="gap-1 px-1.5 pb-0">

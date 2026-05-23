@@ -170,6 +170,10 @@ const cacheMocks = vi.hoisted(() => ({
   setActiveSessionId: vi.fn()
 }))
 
+const tabsContextMocks = vi.hoisted(() => ({
+  openTab: vi.fn()
+}))
+
 const dataApiMocks = vi.hoisted(() => ({
   deleteWorkspace: vi.fn().mockResolvedValue(undefined),
   findOrCreateWorkspace: vi.fn(async ({ body }: { body: { path: string } }) => {
@@ -177,6 +181,8 @@ const dataApiMocks = vi.hoisted(() => ({
     return workspace ?? { id: 'ws-test', name: 'Test Workspace', path: body.path }
   }),
   refetchWorkspaces: vi.fn().mockResolvedValue(undefined),
+  refetchAgents: vi.fn().mockResolvedValue(undefined),
+  reorderAgent: vi.fn().mockResolvedValue(undefined),
   reorderWorkspace: vi.fn().mockResolvedValue(undefined),
   updateWorkspace: vi.fn().mockResolvedValue(undefined),
   mutationOptions: new Map<string, { refresh?: string[] }>(),
@@ -218,6 +224,10 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
 
 vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useAgents: agentDataMocks.useAgents
+}))
+
+vi.mock('@renderer/context/TabsContext', () => ({
+  useOptionalTabsContext: () => tabsContextMocks
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -304,11 +314,13 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
       trigger:
         method === 'PATCH' && path === '/workspaces/:id/order'
           ? dataApiMocks.reorderWorkspace
-          : method === 'PATCH' && path === '/workspaces/:workspaceId'
-            ? dataApiMocks.updateWorkspace
-            : method === 'DELETE' && path === '/workspaces/:workspaceId'
-              ? dataApiMocks.deleteWorkspace
-              : dataApiMocks.findOrCreateWorkspace,
+          : method === 'PATCH' && path === '/agents/:id/order'
+            ? dataApiMocks.reorderAgent
+            : method === 'PATCH' && path === '/workspaces/:workspaceId'
+              ? dataApiMocks.updateWorkspace
+              : method === 'DELETE' && path === '/workspaces/:workspaceId'
+                ? dataApiMocks.deleteWorkspace
+                : dataApiMocks.findOrCreateWorkspace,
       isLoading: false,
       error: undefined
     }
@@ -337,12 +349,14 @@ vi.mock('react-i18next', () => ({
         'agent.session.display.time': 'Time',
         'agent.session.display.title': 'Display mode',
         'agent.session.display.workdir': 'Project',
+        'agent.edit.title': 'Edit Agent',
         'agent.session.edit.title': 'Edit session',
         'agent.session.file_manager.file_explorer': 'File Explorer',
         'agent.session.file_manager.files': 'Files',
         'agent.session.file_manager.finder': 'Finder',
         'agent.session.get.error.failed': 'Failed to get sessions',
         'agent.session.group.collapse': 'Collapse display',
+        'agent.session.group.drag_hint': 'Drag to reorder. Drag sessions to adjust display and hidden groups.',
         'agent.session.group.earlier': 'Earlier',
         'agent.session.group.no_workdir': 'No project',
         'agent.session.group.show_more': 'Expand display',
@@ -512,6 +526,8 @@ describe('Sessions', () => {
     dataApiMocks.workspacesLoading = false
     dataApiMocks.workspacesRefreshing = false
     dataApiMocks.deleteWorkspace.mockResolvedValue(undefined)
+    dataApiMocks.refetchAgents.mockResolvedValue(undefined)
+    dataApiMocks.reorderAgent.mockResolvedValue(undefined)
     dataApiMocks.updateWorkspace.mockResolvedValue(undefined)
     dataApiMocks.mutationOptions.clear()
     sessionDataMocks.deleteSession.mockResolvedValue(true)
@@ -545,9 +561,11 @@ describe('Sessions', () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
       isLoading: false,
-      error: undefined
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
     })
     vi.clearAllMocks()
+    tabsContextMocks.openTab.mockClear()
   })
 
   afterEach(() => {
@@ -630,6 +648,49 @@ describe('Sessions', () => {
     expect(screen.getByText('Beta session')).toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+  })
+
+  it('selects the first session from an agent group before toggling that selected group', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    cacheMocks.state.activeSessionId = 'session-a'
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } },
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    const view = render(<Sessions />)
+
+    const betaGroupButton = screen.getByRole('button', { name: 'Beta agent' })
+    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(betaGroupButton)
+
+    expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith('session-b')
+    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids') ?? []).not.toContain('session:agent:agent-b')
+
+    cacheMocks.state.activeSessionId = 'session-b'
+    view.rerender(<Sessions key="selected-session-b" />)
+
+    const selectedBetaGroupButton = screen.getByRole('button', { name: 'Beta agent' })
+    expect(selectedBetaGroupButton).toHaveAttribute('aria-current', 'true')
+    expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
+
+    fireEvent.click(selectedBetaGroupButton)
+    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids')).toContain('session:agent:agent-b')
+
+    view.rerender(<Sessions key="collapsed-session-b" />)
+    expect(screen.getByRole('button', { name: 'Beta agent' })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('creates sessions from agent group actions', async () => {
@@ -1183,6 +1244,52 @@ describe('Sessions', () => {
     expect(dataApiMocks.refetchWorkspaces).toHaveBeenCalled()
   })
 
+  it('reorders agent groups through the agent order endpoint', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', orderKey: 'a' },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', orderKey: 'b' }
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<Sessions />)
+
+    const alphaGroupId = 'session:agent:agent-a'
+    const betaGroupId = 'session:agent:agent-b'
+    startDraggingGroup(alphaGroupId)
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData(`group:${alphaGroupId}`),
+          id: `group:${alphaGroupId}`
+        },
+        over: {
+          data: sortableData(`group:${betaGroupId}`),
+          id: `group:${betaGroupId}`
+        }
+      })
+    })
+
+    await vi.waitFor(() =>
+      expect(dataApiMocks.reorderAgent).toHaveBeenCalledWith({
+        body: { after: 'agent-b' },
+        params: { id: 'agent-a' }
+      })
+    )
+    expect(dataApiMocks.refetchAgents).toHaveBeenCalled()
+  })
+
   it('opens a workspace group from the more menu without collapsing the group', async () => {
     render(<Sessions />)
 
@@ -1354,5 +1461,85 @@ describe('Sessions', () => {
       })
     )
     expect(dataApiMocks.findOrCreateWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('opens agent group edit and toggles agent pin from the more menu', async () => {
+    const toggleAgentPin = vi.fn().mockResolvedValue(undefined)
+    const refetchPins = vi.fn().mockResolvedValue(undefined)
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    pinMocks.usePins.mockReturnValue({
+      isLoading: false,
+      isRefreshing: false,
+      isMutating: false,
+      error: undefined,
+      pinnedIds: [],
+      refetch: refetchPins,
+      togglePin: toggleAgentPin
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
+    })
+
+    render(<Sessions />)
+
+    expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: true })
+    const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
+    expect(agentGroup).not.toBeNull()
+    expect(agentGroup).toHaveClass('border', 'border-transparent')
+    expect(agentGroup).toHaveAttribute('title', 'Drag to reorder. Drag sessions to adjust display and hidden groups.')
+    expect(within(agentGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })).toBeInTheDocument()
+
+    const moreButton = within(agentGroup as HTMLElement).getByRole('button', { name: 'More' })
+    fireEvent.click(moreButton)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Agent' }))
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/library?resourceType=agent&action=edit&id=agent-a', {
+      forceNew: true
+    })
+
+    fireEvent.click(moreButton)
+    const pinMenuItem = screen
+      .getAllByRole('button', { name: 'Pin' })
+      .find((button) => button.getAttribute('data-slot') === 'menu-item')
+    expect(pinMenuItem).toBeDefined()
+    fireEvent.click(pinMenuItem as HTMLElement)
+
+    await vi.waitFor(() => expect(toggleAgentPin).toHaveBeenCalledWith('agent-a'))
+    await vi.waitFor(() => expect(dataApiMocks.refetchAgents).toHaveBeenCalled())
+  })
+
+  it('disables agent group pin action while agent pins are mutating', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    pinMocks.usePins.mockReturnValue({
+      isLoading: false,
+      isRefreshing: false,
+      isMutating: true,
+      error: undefined,
+      pinnedIds: ['agent-a'],
+      refetch: vi.fn(),
+      togglePin: vi.fn()
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
+    })
+
+    render(<Sessions />)
+
+    const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
+    expect(agentGroup).not.toBeNull()
+    fireEvent.click(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+
+    expect(screen.getByRole('button', { name: 'Unpin' })).toBeDisabled()
   })
 })

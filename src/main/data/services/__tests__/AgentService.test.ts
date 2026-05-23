@@ -121,7 +121,7 @@ describe('AgentService', () => {
       expect(agent.id).toMatch(uuidV4Pattern)
     })
 
-    it('places newly created agents first under default sort (createdAt desc)', async () => {
+    it('places newly created agents by default orderKey sort', async () => {
       await insertAgent({ id: 'agent_existing_a' })
       await insertAgent({ id: 'agent_existing_b' })
 
@@ -132,7 +132,7 @@ describe('AgentService', () => {
       })
 
       const { agents } = await agentService.listAgents()
-      expect(agents[0]?.id).toBe(created.id)
+      expect(agents.at(-1)?.id).toBe(created.id)
     })
   })
 
@@ -187,6 +187,16 @@ describe('AgentService', () => {
 
       const names = agents.map((a) => a.name)
       expect(names).toEqual([...names].sort())
+    })
+
+    it('sorts unpinned agents by orderKey by default', async () => {
+      await insertAgent({ id: 'agent_order_c', name: 'C', orderKey: 'c' })
+      await insertAgent({ id: 'agent_order_a', name: 'A', orderKey: 'a' })
+      await insertAgent({ id: 'agent_order_b', name: 'B', orderKey: 'b' })
+
+      const { agents } = await agentService.listAgents()
+
+      expect(agents.map((agent) => agent.id)).toEqual(['agent_order_a', 'agent_order_b', 'agent_order_c'])
     })
 
     it('does not expose tags in agent rows', async () => {

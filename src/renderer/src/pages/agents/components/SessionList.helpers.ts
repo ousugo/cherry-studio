@@ -403,6 +403,13 @@ export function buildSessionWorkdirGroupDropAnchor(
   return payload.sourceIndex < payload.targetIndex ? { after: overWorkspaceId } : { before: overWorkspaceId }
 }
 
+export function buildSessionAgentGroupDropAnchor(
+  payload: ResourceListGroupReorderPayload,
+  overAgentId: string
+): OrderRequest {
+  return payload.sourceIndex < payload.targetIndex ? { after: overAgentId } : { before: overAgentId }
+}
+
 export function canDropSessionItemInDisplayGroup({
   mode,
   sourceGroupId,
@@ -453,6 +460,27 @@ export function moveSessionWorkdirGroupAfterDrop<T extends { id: string }>(
   const adjustedOverIndex = next.findIndex((workspace) => workspace.id === overWorkspaceId)
   const insertIndex = payload.sourceIndex < payload.targetIndex ? adjustedOverIndex + 1 : adjustedOverIndex
   next.splice(insertIndex, 0, workspaces[activeIndex])
+
+  return next
+}
+
+export function moveSessionAgentGroupAfterDrop(
+  agentIds: readonly string[],
+  activeAgentId: string,
+  overAgentId: string,
+  payload: Pick<ResourceListGroupReorderPayload, 'sourceIndex' | 'targetIndex'>
+): string[] {
+  const activeIndex = agentIds.indexOf(activeAgentId)
+  const overIndex = agentIds.indexOf(overAgentId)
+
+  if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) {
+    return [...agentIds]
+  }
+
+  const next = agentIds.filter((agentId) => agentId !== activeAgentId)
+  const adjustedOverIndex = next.indexOf(overAgentId)
+  const insertIndex = payload.sourceIndex < payload.targetIndex ? adjustedOverIndex + 1 : adjustedOverIndex
+  next.splice(insertIndex, 0, activeAgentId)
 
   return next
 }

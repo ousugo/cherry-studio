@@ -133,6 +133,8 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
   model: UniqueModelIdSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** Persistent ordering key. Read-only; modified only through order endpoints. */
+  orderKey: z.string(),
   /**
    * Human-readable primary model name resolved from `user_model.name` at read
    * time. Edits still go through the `model` UniqueModelId field.

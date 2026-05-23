@@ -27,12 +27,13 @@ import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
+import { usePins } from '@renderer/hooks/usePins'
 import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
-import { Bot, FolderOpen, ListFilter, MoreHorizontal, SquarePen, Trash2 } from 'lucide-react'
+import { Bot, FolderOpen, ListFilter, MoreHorizontal, Pin, PinOff, SquarePen, Trash2 } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -40,6 +41,7 @@ import SessionItem from './SessionItem'
 import {
   type AgentSessionDisplayMode,
   applyOptimisticSessionDisplayMove,
+  buildSessionAgentGroupDropAnchor,
   buildSessionDropAnchor,
   buildSessionWorkdirGroupDropAnchor,
   canDropSessionItemInDisplayGroup,
@@ -47,6 +49,7 @@ import {
   createSessionWorkdirDisplayMaps,
   getAgentIdFromSessionGroupId,
   getWorkdirPathFromSessionGroupId,
+  moveSessionAgentGroupAfterDrop,
   moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
   SESSION_NO_WORKDIR_GROUP_ID,
@@ -127,6 +130,85 @@ function SessionListOptionsMenu({
             }}
           />
         </MenuList>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+type AgentGroupMoreMenuContentProps = {
+  pinDisabled?: boolean
+  pinned: boolean
+  onEdit: () => void
+  onTogglePin: () => void | Promise<void>
+}
+
+function AgentGroupMoreMenuContent({ pinDisabled, pinned, onEdit, onTogglePin }: AgentGroupMoreMenuContentProps) {
+  const { t } = useTranslation()
+
+  return (
+    <MenuList className="gap-0.5">
+      <MenuItem
+        label={t('agent.edit.title')}
+        icon={<SquarePen size={14} />}
+        className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
+        onClick={(event) => {
+          event.stopPropagation()
+          onEdit()
+        }}
+      />
+      <MenuItem
+        label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+        icon={pinned ? <PinOff size={14} /> : <Pin size={14} />}
+        disabled={pinDisabled}
+        className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
+        onClick={(event) => {
+          event.stopPropagation()
+          void onTogglePin()
+        }}
+      />
+    </MenuList>
+  )
+}
+
+function AgentGroupMoreMenu({
+  agentId,
+  pinDisabled,
+  pinned,
+  onEdit,
+  onTogglePin
+}: {
+  agentId: string
+  pinDisabled?: boolean
+  pinned: boolean
+  onEdit: (agentId: string) => void
+  onTogglePin: (agentId: string) => void | Promise<void>
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <ResourceList.GroupHeaderActionButton
+          type="button"
+          aria-label={t('common.more')}
+          onClick={(event) => event.stopPropagation()}>
+          <MoreHorizontal className="block" />
+        </ResourceList.GroupHeaderActionButton>
+      </PopoverTrigger>
+      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-40 rounded-lg border-border p-1 shadow-lg">
+        <AgentGroupMoreMenuContent
+          pinDisabled={pinDisabled}
+          pinned={pinned}
+          onEdit={() => {
+            setOpen(false)
+            onEdit(agentId)
+          }}
+          onTogglePin={() => {
+            setOpen(false)
+            return onTogglePin(agentId)
+          }}
+        />
       </PopoverContent>
     </Popover>
   )
@@ -225,12 +307,12 @@ function WorkdirGroupMoreMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <ResourceList.HeaderActionButton
+        <ResourceList.GroupHeaderActionButton
           type="button"
           aria-label={t('common.more')}
           onClick={(event) => event.stopPropagation()}>
           <MoreHorizontal className="block" />
-        </ResourceList.HeaderActionButton>
+        </ResourceList.GroupHeaderActionButton>
       </PopoverTrigger>
       <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 rounded-lg border-border p-1 shadow-lg">
         <WorkdirGroupMoreMenuContent
@@ -323,9 +405,10 @@ const Sessions = ({
     togglePin
   } = useSessions(undefined, { loadAll: true, pageSize: 200 })
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
-  const { agents, error: agentsError, isLoading: isAgentsLoading } = useAgents()
+  const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
+  const [optimisticAgentOrderIds, setOptimisticAgentOrderIds] = useState<string[] | null>(null)
   const [optimisticWorkspaceOrderIds, setOptimisticWorkspaceOrderIds] = useState<string[] | null>(null)
   const [creatingSession, setCreatingSession] = useState(false)
   const [deletingWorkspaceGroupId, setDeletingWorkspaceGroupId] = useState<string | null>(null)
@@ -347,6 +430,14 @@ const Sessions = ({
     sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent' ? sessionDisplayMode : 'time'
   const isDraggableMode = displayMode !== 'time'
   const dragReady = isDraggableMode && isFullyLoaded && !isLoadingAll && !isLoadingMore && !isValidating && !isLoading
+  const {
+    isLoading: isAgentPinsLoading,
+    isRefreshing: isAgentPinsRefreshing,
+    isMutating: isAgentPinsMutating,
+    pinnedIds: agentPinnedIds,
+    togglePin: toggleAgentPin
+  } = usePins('agent', { enabled: displayMode === 'agent' })
+  const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
 
   const sessionItems = useMemo<SessionListItem[]>(
     () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
@@ -355,8 +446,30 @@ const Sessions = ({
 
   const { updateSession } = useUpdateSession()
 
-  const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
-  const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
+  const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
+  const agentsForDisplay = useMemo(() => {
+    if (!optimisticAgentOrderIds) return agents
+
+    const agentById = new Map(agents.map((agent) => [agent.id, agent]))
+    const orderedAgents = optimisticAgentOrderIds.flatMap((agentId) => {
+      const agent = agentById.get(agentId)
+      return agent ? [agent] : []
+    })
+    const optimisticIds = new Set(optimisticAgentOrderIds)
+
+    for (const agent of agents) {
+      if (!optimisticIds.has(agent.id)) {
+        orderedAgents.push(agent)
+      }
+    }
+
+    return orderedAgents
+  }, [agents, optimisticAgentOrderIds])
+  const agentById = useMemo(() => new Map(agentsForDisplay.map((agent) => [agent.id, agent])), [agentsForDisplay])
+  const agentRankById = useMemo(
+    () => new Map(agentsForDisplay.map((agent, index) => [agent.id, index])),
+    [agentsForDisplay]
+  )
   const {
     data: workspaces,
     error: workspacesError,
@@ -395,6 +508,10 @@ const Sessions = ({
     () => workspaceRows.map((workspace) => `${workspace.id}:${workspace.orderKey}`).join('|'),
     [workspaceRows]
   )
+  const agentOrderSignature = useMemo(
+    () => agents.map((agent) => `${agent.id}:${agent.orderKey ?? ''}`).join('|'),
+    [agents]
+  )
 
   const baseGroupedSessions = useMemo(
     () =>
@@ -429,6 +546,10 @@ const Sessions = ({
   useEffect(() => {
     setOptimisticWorkspaceOrderIds(null)
   }, [workspaceOrderSignature])
+
+  useEffect(() => {
+    setOptimisticAgentOrderIds(null)
+  }, [agentOrderSignature])
 
   const sessionGroupBy = useMemo(
     () =>
@@ -532,6 +653,7 @@ const Sessions = ({
     refresh: ['/sessions', '/workspaces', '/pins', '/channels']
   })
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/workspaces/:id/order')
+  const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
 
   const createSessionFromSeed = useCallback(
     async (seed: CreateSessionSeed | null | undefined) => {
@@ -685,12 +807,32 @@ const Sessions = ({
     [tabs]
   )
 
+  const handleToggleAgentPin = useCallback(
+    async (agentId: string) => {
+      if (isAgentPinActionDisabled) return
+
+      try {
+        await toggleAgentPin(agentId)
+        await refetchAgents()
+      } catch (err) {
+        logger.error('Failed to toggle agent pin from session group', { agentId, err })
+        window.toast.error(t('common.error'))
+      }
+    },
+    [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
+  )
+
   const handleSelectSession = useCallback(
     (id: string | null) => {
       if (id) void onDiscardTemporarySession?.()
       setActiveSessionId(id)
     },
     [onDiscardTemporarySession, setActiveSessionId]
+  )
+  const getGroupHeaderClickBehavior = useCallback(
+    (group: ResourceListGroup) =>
+      displayMode === 'agent' && group.id !== SESSION_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
+    [displayMode]
   )
 
   const canDragSessionItem = useCallback(
@@ -705,23 +847,88 @@ const Sessions = ({
   )
 
   const canDragSessionGroup = useCallback(
-    (group: ResourceListGroup) => workdirDragReady && workdirDisplay.workspaceIdByGroupId.has(group.id),
-    [workdirDragReady, workdirDisplay]
+    (group: ResourceListGroup) => {
+      if (displayMode === 'agent') {
+        const agentId = getAgentIdFromSessionGroupId(group.id)
+        return agentDragReady && !!agentId && agentById.has(agentId)
+      }
+
+      return workdirDragReady && workdirDisplay.workspaceIdByGroupId.has(group.id)
+    },
+    [agentById, agentDragReady, displayMode, workdirDragReady, workdirDisplay]
   )
 
   const canDropSessionGroup = useCallback(
     ({ activeGroupId, overGroupId }: { activeGroupId: string; overGroupId: string }) => {
+      if (displayMode === 'agent') {
+        const activeAgentId = getAgentIdFromSessionGroupId(activeGroupId)
+        const overAgentId = getAgentIdFromSessionGroupId(overGroupId)
+
+        return (
+          agentDragReady &&
+          !!activeAgentId &&
+          !!overAgentId &&
+          activeAgentId !== overAgentId &&
+          agentById.has(activeAgentId) &&
+          agentById.has(overAgentId)
+        )
+      }
+
       const activeWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(activeGroupId)
       const overWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(overGroupId)
 
       return workdirDragReady && !!activeWorkspaceId && !!overWorkspaceId && activeWorkspaceId !== overWorkspaceId
     },
-    [workdirDragReady, workdirDisplay]
+    [agentById, agentDragReady, displayMode, workdirDragReady, workdirDisplay]
   )
 
   const handleSessionReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {
       if (payload.type === 'group') {
+        if (displayMode === 'agent') {
+          if (!agentDragReady) return
+
+          const activeAgentId = getAgentIdFromSessionGroupId(payload.activeGroupId)
+          const overAgentId = getAgentIdFromSessionGroupId(payload.overGroupId)
+
+          if (
+            !activeAgentId ||
+            !overAgentId ||
+            activeAgentId === overAgentId ||
+            !agentById.has(activeAgentId) ||
+            !agentById.has(overAgentId)
+          ) {
+            return
+          }
+
+          const agentIds = agentsForDisplay.map((agent) => agent.id)
+          const nextAgentIds = moveSessionAgentGroupAfterDrop(agentIds, activeAgentId, overAgentId, payload)
+          const anchor = buildSessionAgentGroupDropAnchor(payload, overAgentId)
+
+          setOptimisticAgentOrderIds(nextAgentIds)
+
+          try {
+            await reorderAgent({ params: { id: activeAgentId }, body: anchor })
+            await refetchAgents()
+            setOptimisticAgentOrderIds(null)
+          } catch (err) {
+            setOptimisticAgentOrderIds(null)
+            logger.error('Failed to reorder agent session group', { activeAgentId, err, overAgentId })
+            window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
+
+            try {
+              await refetchAgents()
+            } catch (refreshErr) {
+              logger.error('Failed to refresh agents after group reorder failure', {
+                activeAgentId,
+                refreshErr
+              })
+            }
+          }
+
+          return
+        }
+
         if (!workdirDragReady) return
 
         const activeWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(payload.activeGroupId)
@@ -790,8 +997,13 @@ const Sessions = ({
     },
     [
       displayMode,
+      agentById,
+      agentDragReady,
+      agentsForDisplay,
       itemDragReady,
+      refetchAgents,
       refetchWorkspaces,
+      reorderAgent,
       reorderSession,
       reorderWorkspace,
       sessionItems,
@@ -806,6 +1018,7 @@ const Sessions = ({
     (group: ResourceListGroup) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return null
 
+      const agentGroupId = displayMode === 'agent' ? getAgentIdFromSessionGroupId(group.id) : undefined
       const workspaceId = displayMode === 'workdir' ? workdirDisplay.workspaceIdByGroupId.get(group.id) : undefined
       const workdirPath =
         displayMode === 'workdir'
@@ -813,11 +1026,23 @@ const Sessions = ({
           : undefined
       const createSessionSeed = getCreateSessionSeedForGroup(group.id)
       const canCreateSession = createSessionSeed !== null && agentById.has(createSessionSeed.agentId)
+      const canManageAgentGroup = !!agentGroupId && agentById.has(agentGroupId)
 
-      if (!canCreateSession && !workdirPath) return null
+      if (!canCreateSession && !workdirPath && !canManageAgentGroup) return null
 
       return (
         <>
+          {canManageAgentGroup && agentGroupId && (
+            <Tooltip title={t('common.more')} delay={500}>
+              <AgentGroupMoreMenu
+                agentId={agentGroupId}
+                pinDisabled={isAgentPinActionDisabled}
+                pinned={agentPinnedIdSet.has(agentGroupId)}
+                onEdit={openAgentEditor}
+                onTogglePin={handleToggleAgentPin}
+              />
+            </Tooltip>
+          )}
           {workdirPath && (
             <Tooltip title={t('common.more')} delay={500}>
               <WorkdirGroupMoreMenu
@@ -835,7 +1060,7 @@ const Sessions = ({
           )}
           {canCreateSession && (
             <Tooltip title={t('chat.conversation.new')} delay={500}>
-              <ResourceList.HeaderActionButton
+              <ResourceList.GroupHeaderActionButton
                 type="button"
                 aria-label={t('chat.conversation.new')}
                 disabled={creatingSession}
@@ -843,7 +1068,7 @@ const Sessions = ({
                   void createSessionFromSeed(createSessionSeed)
                 }}>
                 <SquarePen className="block" />
-              </ResourceList.HeaderActionButton>
+              </ResourceList.GroupHeaderActionButton>
             </Tooltip>
           )}
         </>
@@ -851,15 +1076,19 @@ const Sessions = ({
     },
     [
       agentById,
+      agentPinnedIdSet,
       createSessionFromSeed,
       creatingSession,
       deletingWorkspaceGroupId,
       displayMode,
       getCreateSessionSeedForGroup,
+      handleToggleAgentPin,
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,
+      isAgentPinActionDisabled,
       isUpdatingWorkspace,
+      openAgentEditor,
       t,
       workdirDisplay
     ]
@@ -883,6 +1112,30 @@ const Sessions = ({
       return avatar ? <span className="text-[13px] leading-none">{avatar}</span> : <Bot size={13} />
     },
     [agentById, displayMode]
+  )
+
+  const getGroupHeaderClassName = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'agent' || group.id === SESSION_PINNED_GROUP_ID) return undefined
+
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      if (!agentId || !agentById.has(agentId)) return undefined
+
+      return 'rounded-lg border border-transparent'
+    },
+    [agentById, displayMode]
+  )
+
+  const getGroupHeaderTooltip = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'agent' || group.id === SESSION_PINNED_GROUP_ID) return undefined
+
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      if (!agentId || !agentById.has(agentId)) return undefined
+
+      return t('agent.session.group.drag_hint')
+    },
+    [agentById, displayMode, t]
   )
 
   const getGroupHeaderContextMenu = useCallback(
@@ -940,10 +1193,13 @@ const Sessions = ({
       defaultGroupVisibleCount={5}
       groupLoadStep={5}
       getGroupHeaderAction={getGroupHeaderAction}
+      getGroupHeaderClassName={getGroupHeaderClassName}
       getGroupHeaderContextMenu={getGroupHeaderContextMenu}
       getGroupHeaderIcon={getGroupHeaderIcon}
+      getGroupHeaderTooltip={getGroupHeaderTooltip}
+      groupHeaderClickBehavior={getGroupHeaderClickBehavior}
       dragCapabilities={{
-        groups: workdirDragReady,
+        groups: displayMode === 'agent' ? agentDragReady : workdirDragReady,
         items: itemDragReady,
         itemSameGroup: itemDragReady,
         itemCrossGroup: false
@@ -955,6 +1211,7 @@ const Sessions = ({
       groupShowMoreLabel={t('agent.session.group.show_more')}
       groupCollapseLabel={t('agent.session.group.collapse')}
       onRenameItem={handleRenameSession}
+      onGroupHeaderSelectItem={handleSelectSession}
       onReorder={handleSessionReorder}
       onCollapsedGroupIdsChange={handleCollapsedSessionGroupIdsChange}>
       <ResourceList.Header className="gap-1 px-1.5 pb-0">

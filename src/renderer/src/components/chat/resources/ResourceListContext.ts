@@ -25,6 +25,8 @@ export type ResourceListGroupHeaderIconContext = {
   collapsed: boolean
 }
 
+export type ResourceListGroupHeaderClickBehavior = 'toggle' | 'select-first-then-toggle'
+
 export type ResourceListSortOption<T extends ResourceListItemBase> = {
   id: string
   label: string
@@ -96,6 +98,7 @@ export type ResourceListActionMap = {
   commitRename: (id: string, name: string) => void
   cancelRename: () => void
   openContextMenu: (id: string) => void
+  selectGroupHeaderItem: (id: string) => void
   showMoreInGroup: (groupId: string) => void
   collapseGroupItems: (groupId: string) => void
   toggleGroup: (groupId: string) => void
@@ -111,6 +114,9 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderContextMenu?: (group: ResourceListGroup) => ReactNode
   getGroupHeaderLeadingAction?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   getGroupHeaderIcon?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
+  getGroupHeaderClassName?: (group: ResourceListGroup) => string | undefined
+  getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
+  getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]
   estimateItemSize: (index: number) => number

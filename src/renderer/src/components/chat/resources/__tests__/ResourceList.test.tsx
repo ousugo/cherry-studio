@@ -759,6 +759,86 @@ describe('ResourceList', () => {
     expect(sessionCollapseButton).toHaveAttribute('aria-expanded', 'false')
   })
 
+  it('can select the first item in a group before toggling the selected group header', () => {
+    const onGroupHeaderSelectItem = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        groupHeaderClickBehavior="select-first-then-toggle"
+        onGroupHeaderSelectItem={onGroupHeaderSelectItem}>
+        <ResourceList.Frame>
+          <Inspector />
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const sessionGroupButton = screen.getByRole('button', { name: 'session' })
+    const sessionGroupHeader = sessionGroupButton.closest('[data-selected]')
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(sessionGroupHeader).toBeNull()
+
+    fireEvent.click(sessionGroupButton)
+
+    expect(onGroupHeaderSelectItem).toHaveBeenCalledWith('alpha')
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveAttribute('aria-selected', 'true')
+    expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
+    expect(sessionGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
+    expect(sessionGroupButton.closest('[data-selected]')?.firstElementChild?.className).toContain('h-[30px]')
+    expect(screen.getByRole('button', { name: 'topic' })).not.toHaveAttribute('aria-current')
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: [],
+      selectedId: 'alpha'
+    })
+
+    fireEvent.click(sessionGroupButton)
+
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: ['session'],
+      selectedId: 'alpha'
+    })
+  })
+
+  it('keeps group header action buttons on the 30px right-side affordance', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderAction={() => <ResourceList.GroupHeaderActionButton aria-label="Group more" />}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getAllByRole('button', { name: 'Group more' })[0]).toHaveClass(
+      'h-[30px]',
+      'min-w-[30px]',
+      'rounded-[8px]',
+      '[&_svg]:size-[18px]'
+    )
+  })
+
   it('auto-hides the shared list viewport scrollbar after scrolling stops', () => {
     vi.useFakeTimers()
     const Provider = ResourceList.Provider<TestItem>

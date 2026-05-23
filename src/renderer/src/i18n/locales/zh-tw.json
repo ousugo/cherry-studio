@@ -457,6 +457,7 @@
       },
       "group": {
         "collapse": "折疊顯示",
+        "drag_hint": "拖曳可排序，也可拖曳工作階段調整展示/隱藏分組。",
         "earlier": "[to be translated]:Earlier",
         "no_workdir": "無專案",
         "show_more": "展開顯示",

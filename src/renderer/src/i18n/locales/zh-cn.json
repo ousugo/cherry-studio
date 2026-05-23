@@ -457,6 +457,7 @@
       },
       "group": {
         "collapse": "折叠显示",
+        "drag_hint": "拖拽可排序，也可拖拽会话调整展示/隐藏分组。",
         "earlier": "更早",
         "no_workdir": "无项目",
         "show_more": "展开显示",

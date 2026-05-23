@@ -457,6 +457,7 @@
       },
       "group": {
         "collapse": "Collapse display",
+        "drag_hint": "Drag to reorder. Drag sessions to adjust display and hidden groups.",
         "earlier": "Earlier",
         "no_workdir": "No project",
         "show_more": "Expand display",

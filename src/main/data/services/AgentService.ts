@@ -132,25 +132,28 @@ export class AgentService {
 
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(whereClause)
 
-    // Default to `createdAt desc` so the most recently created agent shows up
-    // first; callers can opt into `orderKey` to honour user-defined ordering.
-    const sortBy = options.sortBy ?? 'createdAt'
-    const orderBy = options.orderBy ?? 'desc'
+    const sortBy = options.sortBy ?? 'orderKey'
+    const orderBy = options.orderBy ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
 
     const sortByToColumn: Record<
       string,
-      typeof agentsTable.createdAt | typeof agentsTable.name | typeof agentsTable.updatedAt
+      | typeof agentsTable.createdAt
+      | typeof agentsTable.name
+      | typeof agentsTable.updatedAt
+      | typeof agentsTable.orderKey
     > = {
       createdAt: agentsTable.createdAt,
       updatedAt: agentsTable.updatedAt,
-      name: agentsTable.name
+      name: agentsTable.name,
+      orderKey: agentsTable.orderKey
     }
     const sortField = sortByToColumn[sortBy] ?? agentsTable.createdAt
     const orderFn = orderBy === 'asc' ? asc : desc
 
     // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
     // the top (sorted by pin.orderKey ASC), then unpinned rows by the
-    // caller-specified sortBy/orderBy. Same shape as AssistantService.list.
+    // caller-specified sortBy/orderBy. Default ordering follows agent.orderKey
+    // so resource-list group reorders persist across reloads.
     const baseQuery = database
       .select({ agent: agentsTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
       .from(agentsTable)
