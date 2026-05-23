@@ -1,3 +1,4 @@
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,10 +8,14 @@ const agentPageMocks = vi.hoisted(() => ({
   agents: [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }],
   lastUsedAgentId: null as string | null,
   lastUsedWorkspaceId: null as string | null,
+  routeSearch: {} as Record<string, unknown>,
+  routeSession: undefined as AgentSessionEntity | undefined,
+  routeSessionLoading: false,
   setActiveSessionId: vi.fn(),
   setLastUsedAgentId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
-  setShowSidebar: vi.fn()
+  setShowSidebar: vi.fn(),
+  showSidebar: false
 }))
 
 const temporaryConversationMocks = vi.hoisted(() => ({
@@ -26,9 +31,12 @@ vi.mock('@data/hooks/usePreference', async () => {
 
   return {
     usePreference: (key: string) => {
-      const [value, setValue] = React.useState<unknown>(key === 'topic.tab.show' ? false : undefined)
+      const [value, setValue] = React.useState<unknown>(
+        key === 'topic.tab.show' ? agentPageMocks.showSidebar : undefined
+      )
       const setPreference = vi.fn(async (nextValue: unknown) => {
         if (key === 'topic.tab.show') {
+          agentPageMocks.showSidebar = Boolean(nextValue)
           agentPageMocks.setShowSidebar(nextValue)
         }
         setValue(nextValue)
@@ -93,6 +101,13 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/agents/useSession', () => ({
+  useSession: (sessionId: string | null) => ({
+    session: sessionId ? agentPageMocks.routeSession : undefined,
+    isLoading: agentPageMocks.routeSessionLoading
+  })
+}))
+
 vi.mock('@renderer/hooks/useShortcuts', () => ({
   useShortcut: vi.fn()
 }))
@@ -131,6 +146,10 @@ vi.mock('@renderer/services/EventService', () => ({
   }
 }))
 
+vi.mock('@tanstack/react-router', () => ({
+  useSearch: () => agentPageMocks.routeSearch
+}))
+
 vi.mock('react-i18next', () => ({
   initReactI18next: {
     init: vi.fn(),
@@ -147,8 +166,11 @@ vi.mock('../AgentChat', () => ({
     onVisibleAgentChange,
     onVisibleWorkspaceChange,
     onDraftWorkspaceChange,
+    lockedSession,
+    lockedSessionLoading,
     pane,
-    paneOpen
+    paneOpen,
+    showResourceListControls
   }: {
     onStartTemporarySession?: (defaults: {
       agentId: string
@@ -158,17 +180,27 @@ vi.mock('../AgentChat', () => ({
     onVisibleAgentChange?: (agentId: string) => void
     onVisibleWorkspaceChange?: (workspaceId: string) => void
     onDraftWorkspaceChange?: (workspaceId: string) => void | Promise<void>
+    lockedSession?: AgentSessionEntity | null
+    lockedSessionLoading?: boolean
     pane?: ReactNode
     paneOpen?: boolean
+    showResourceListControls?: boolean
   }) => (
     <section>
+      <output data-testid="locked-session">{lockedSession?.id ?? ''}</output>
+      <output data-testid="locked-session-loading">{String(lockedSessionLoading)}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
-      <button type="button" onClick={() => void onDraftWorkspaceChange?.('workspace-next')}>
-        Select workspace
-      </button>
-      <button type="button" onClick={() => void onStartTemporarySession?.({ agentId: 'agent-a' })}>
-        Start temporary session
-      </button>
+      <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
+      {onDraftWorkspaceChange && (
+        <button type="button" onClick={() => void onDraftWorkspaceChange('workspace-next')}>
+          Select workspace
+        </button>
+      )}
+      {onStartTemporarySession && (
+        <button type="button" onClick={() => void onStartTemporarySession({ agentId: 'agent-a' })}>
+          Start temporary session
+        </button>
+      )}
       <button type="button" onClick={() => onVisibleAgentChange?.('agent-visible')}>
         Show visible agent
       </button>
@@ -203,6 +235,10 @@ describe('AgentPage', () => {
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
     agentPageMocks.lastUsedAgentId = null
     agentPageMocks.lastUsedWorkspaceId = null
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.routeSession = undefined
+    agentPageMocks.routeSessionLoading = false
+    agentPageMocks.showSidebar = false
     temporaryConversationMocks.conversation = null
     temporaryConversationMocks.start.mockResolvedValue(null)
 
@@ -307,6 +343,52 @@ describe('AgentPage', () => {
       })
     )
     expect(agentPageMocks.setActiveSessionId).toHaveBeenCalledWith(null)
+  })
+
+  it('renders a message-only route session without updating global active session', () => {
+    agentPageMocks.activeSessionId = null
+    agentPageMocks.showSidebar = true
+    agentPageMocks.routeSearch = { sessionId: 'session-message', view: 'message' }
+    agentPageMocks.routeSession = {
+      id: 'session-message',
+      agentId: 'agent-a',
+      name: 'Message session',
+      description: '',
+      workspaceId: null,
+      workspace: null,
+      orderKey: 'a',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('locked-session')).toHaveTextContent('session-message')
+    expect(screen.getByTestId('locked-session-loading')).toHaveTextContent('false')
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('false')
+    expect(screen.queryByRole('button', { name: 'Start temporary session' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Select workspace' })).not.toBeInTheDocument()
+    expect(temporaryConversationMocks.start).not.toHaveBeenCalled()
+    expect(agentPageMocks.setActiveSessionId).not.toHaveBeenCalled()
+    expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
+  })
+
+  it('keeps a missing message-only route session locked without starting a temporary session', () => {
+    agentPageMocks.activeSessionId = null
+    agentPageMocks.showSidebar = true
+    agentPageMocks.routeSearch = { sessionId: 'session-missing', view: 'message' }
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('locked-session')).toHaveTextContent('')
+    expect(screen.getByTestId('locked-session-loading')).toHaveTextContent('false')
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('false')
+    expect(screen.queryByRole('button', { name: 'Start temporary session' })).not.toBeInTheDocument()
+    expect(temporaryConversationMocks.start).not.toHaveBeenCalled()
+    expect(agentPageMocks.setActiveSessionId).not.toHaveBeenCalled()
+    expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
   })
 
   it('restarts a same-agent temporary session when the remembered workspace differs', async () => {
