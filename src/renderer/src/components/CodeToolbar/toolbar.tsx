@@ -32,8 +32,8 @@ const CodeToolbar = ({ tools }: { tools: ActionTool[] }) => {
   }
 
   return (
-    <div className="sticky top-7 z-10">
-      <div className="code-toolbar absolute right-2 bottom-[0.3rem] flex h-6 items-center gap-1">
+    <div className="-top-14 sticky z-10">
+      <div className="code-toolbar absolute right-2 bottom-1 flex h-6 items-center gap-1">
         {/* 有多个快捷工具时通过 more 按钮展示 */}
         {quickToolButtons}
         {quickTools.length > 1 && (

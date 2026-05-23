@@ -6,7 +6,7 @@ exports[`CodeToolbar > basic rendering > should match snapshot with mixed tools 
     class="sticky top-7 z-10"
   >
     <div
-      class="code-toolbar absolute right-2 bottom-[0.3rem] flex h-6 items-center gap-1"
+      class="code-toolbar absolute right-2 bottom-1 flex h-6 items-center gap-1"
     >
       <div
         data-testid="tooltip"
@@ -47,7 +47,7 @@ exports[`CodeToolbar > basic rendering > should match snapshot with only core to
     class="sticky top-7 z-10"
   >
     <div
-      class="code-toolbar absolute right-2 bottom-[0.3rem] flex h-6 items-center gap-1"
+      class="code-toolbar absolute right-2 bottom-1 flex h-6 items-center gap-1"
     >
       <div
         data-testid="tool-button-core1"
