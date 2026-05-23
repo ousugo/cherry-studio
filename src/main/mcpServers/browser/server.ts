@@ -44,7 +44,7 @@ export class BrowserServer {
     })
 
     // Clean up browser controller when the MCP server connection closes
-    // (triggered by McpService.onStop() → client.close())
+    // (triggered by McpRuntimeService.onStop() → client.close())
     this.server.onclose = () => {
       void this.controller.reset()
     }

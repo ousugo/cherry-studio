@@ -8,6 +8,9 @@ import { ClaudeCodeWarmupService } from '@main/ai/agent-session/runtime/claude-c
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels/ChannelManager'
+import { DxtService } from '@main/ai/mcp/DxtService'
+import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
+import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
@@ -28,7 +31,6 @@ import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/se
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
-import { McpService } from '@main/services/mcp/McpService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
@@ -107,7 +109,9 @@ export const services = {
   CherryINOAuthService,
   MainWindowService,
   QuickAssistantService,
-  McpService,
+  DxtService,
+  McpRuntimeService,
+  McpCatalogService,
   OpenClawService,
   SearchService,
   AgentSessionRuntimeService,

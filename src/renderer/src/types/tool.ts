@@ -10,9 +10,8 @@ export interface BaseTool {
 }
 
 /**
- * MCP tool descriptor as seen by the renderer after IPC. Main process
- * (`McpService.listToolsImpl`) is the sole producer; this is the
- * structural shape consumers receive.
+ * MCP tool descriptor as seen by the renderer through shared cache. Main
+ * process `McpCatalogService` is the sole producer.
  */
 export interface MCPTool {
   /** Wire-name; `${serverName}__${toolName}` for server tools, synthetic for descriptor-only. */

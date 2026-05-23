@@ -24,6 +24,12 @@ export type CacheMiniAppType = MiniApp
 export type CacheTopic = Topic
 export type CacheMcpTool = MCPTool
 
+export type McpRuntimeStatus = {
+  state: 'disabled' | 'connecting' | 'connected' | 'error'
+  lastCheckedAt: number
+  lastError?: string
+}
+
 /**
  * Tab type for browser-like tabs
  *

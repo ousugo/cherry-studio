@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
+import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMCPServerMutations } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import { formatMcpError } from '@renderer/utils/error'
@@ -28,6 +29,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
   const { updateMCPServer, deleteMCPServer } = useMCPServerMutations(server.id)
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
+  const runtimeStatus = useMcpRuntimeStatus(server.id, server.isActive)
 
   const updateServerBody = useCallback((body: Partial<MCPServer>) => updateMCPServer({ body }), [updateMCPServer])
 
@@ -38,7 +40,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
   const fetchServerVersion = useCallback(async (s: MCPServer) => {
     if (!s.isActive) return
     try {
-      const v = await window.api.mcp.getServerVersion(s)
+      const v = await window.api.mcp.getServerVersion(s.id)
       setVersion(v)
     } catch {
       setVersion(null)
@@ -64,23 +66,31 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
       }
 
       setLoading(true)
-      const oldActiveState = serverForUpdate.isActive
       logger.debug('toggle activate', { serverId: serverForUpdate.id, active })
       try {
         if (active) {
-          await fetchServerVersion({ ...serverForUpdate, isActive: active })
+          await updateMCPServer({ body: { isActive: true } })
+          try {
+            await fetchServerVersion({ ...serverForUpdate, isActive: true })
+            await window.api.mcp.refreshTools(serverForUpdate.id)
+          } catch (error: any) {
+            window.modal.error({
+              title: t('settings.mcp.startError'),
+              content: formatMcpError(error),
+              centered: true
+            })
+          }
         } else {
-          await window.api.mcp.stopServer(serverForUpdate)
+          await updateMCPServer({ body: { isActive: false } })
+          await window.api.mcp.stopServer(serverForUpdate.id)
           setVersion(null)
         }
-        void updateMCPServer({ body: { isActive: active } })
       } catch (error: any) {
         window.modal.error({
-          title: t('settings.mcp.startError'),
+          title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
           content: formatMcpError(error),
           centered: true
         })
-        void updateMCPServer({ body: { isActive: oldActiveState } })
       } finally {
         setLoading(false)
       }
@@ -95,7 +105,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
         content: t('settings.mcp.deleteServerConfirm'),
         centered: true,
         onOk: async () => {
-          await window.api.mcp.removeServer(server)
+          await window.api.mcp.removeServer(server.id)
           await deleteMCPServer({})
           window.toast.success(t('settings.mcp.deleteSuccess'))
         }
@@ -205,7 +215,13 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
     <ErrorBoundary fallbackComponent={Fallback}>
       <CardContainer onClick={handleRowClick} data-slot="mcp-server-row">
         <ServerNameCell>
-          <ActiveDot $active={server.isActive} />
+          {runtimeStatus.state === 'error' && server.isActive ? (
+            <Tooltip content={runtimeStatus.lastError || t('settings.mcp.runtimeStatus.error', 'Error')}>
+              <ActiveDot $state="error" />
+            </Tooltip>
+          ) : (
+            <ActiveDot $state={server.isActive ? runtimeStatus.state : 'disabled'} />
+          )}
           {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
           <ServerNameText title={server.name} className={server.isActive ? 'text-foreground' : 'text-muted-foreground'}>
             {server.name}
@@ -300,11 +316,18 @@ const ToolbarWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<
   <div className={cn('ml-auto flex shrink-0 items-center justify-end gap-2', className)} {...props} />
 )
 
-const ActiveDot = ({ $active, className, ...props }: React.ComponentPropsWithoutRef<'div'> & { $active: boolean }) => (
+const ActiveDot = ({
+  $state,
+  className,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & { $state: 'disabled' | 'connecting' | 'connected' | 'error' }) => (
   <div
     className={cn(
       'size-2 shrink-0 rounded-full',
-      $active ? 'bg-success/85 ring-2 ring-success/15' : 'bg-muted-foreground/30',
+      $state === 'connected' && 'bg-success/85 ring-2 ring-success/15',
+      $state === 'connecting' && 'bg-warning/85 ring-2 ring-warning/15',
+      $state === 'error' && 'bg-destructive/85 ring-2 ring-destructive/15',
+      $state === 'disabled' && 'bg-muted-foreground/30',
       className
     )}
     {...props}

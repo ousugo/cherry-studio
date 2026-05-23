@@ -1,5 +1,8 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { fileStorage } from '@main/services/FileStorage'
+import { IpcChannel } from '@shared/IpcChannel'
 import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
 import * as os from 'os'
@@ -252,31 +255,9 @@ export interface ResolvedMcpConfig {
   env?: Record<string, string>
 }
 
-class DxtService {
-  // TODO(v2): Lazy getter is a workaround, not a fix.
-  //
-  // The real problem is that `DxtService` is instantiated as a
-  // module-local singleton in `ipc.ts`
-  // (`const dxtService = new DxtService()`), which is pulled into the
-  // static import graph of `src/main/index.ts`, BEFORE
-  // `application.bootstrap()` runs and builds the path registry. Field
-  // initializers like `private tempDir = application.getPath(...)`
-  // would throw "PATHS not initialized" at module-load time.
-  //
-  // Lazy getters defer the path lookup until first *access*, by which
-  // point bootstrap has finished — but the class itself is still being
-  // constructed too early. We've merely moved the path lookup out of
-  // construction; we have NOT solved the architectural issue.
-  //
-  // The proper v2 fix is to migrate `DxtService` into the lifecycle
-  // system: extend `BaseService`, add `@Injectable`, register in
-  // `serviceRegistry.ts`, and have callers resolve it via
-  // `application.get('DxtService')` instead of the `ipc.ts` singleton.
-  // Once that's done, the DI container will instantiate it inside
-  // `application.bootstrap()` after the path registry is built, and
-  // these getters can become plain field initializers (or move into
-  // `onInit`). Until then, keep them as getters — do NOT "simplify"
-  // them back to fields.
+@Injectable('DxtService')
+@ServicePhase(Phase.WhenReady)
+export class DxtService extends BaseService {
   private get tempDir(): string {
     return application.getPath('feature.dxt.uploads.temp')
   }
@@ -324,6 +305,30 @@ class DxtService {
         fs.copyFileSync(sourcePath, destPath)
       }
     }
+  }
+
+  protected async onInit(): Promise<void> {
+    this.registerIpcHandlers()
+  }
+
+  protected async onStop(): Promise<void> {
+    this.cleanup()
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
+      try {
+        const tempPath = await fileStorage.createTempFile(event, fileName)
+        await fileStorage.writeFile(event, tempPath, Buffer.from(fileBuffer))
+        return await this.uploadDxt(event, tempPath)
+      } catch (error) {
+        logger.error('DXT upload error:', error as Error)
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to upload DXT file'
+        }
+      }
+    })
   }
 
   public async uploadDxt(_: Electron.IpcMainInvokeEvent, filePath: string): Promise<DxtUploadResult> {

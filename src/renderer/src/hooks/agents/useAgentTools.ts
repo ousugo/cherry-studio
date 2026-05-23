@@ -99,7 +99,7 @@ export const useAgentTools = (source: AgentToolSource | null | undefined) => {
       if (!server?.isActive || requestedRefreshes.current.has(id)) continue
       if ((toolsByServer[id]?.length ?? 0) > 0) continue
       requestedRefreshes.current.add(id)
-      void window.api.mcp.refreshTools(server).catch(() => {
+      void window.api.mcp.refreshTools(server.id).catch(() => {
         requestedRefreshes.current.delete(id)
       })
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ServerLogBuffer } from '../mcp/ServerLogBuffer'
+import { ServerLogBuffer } from '../ServerLogBuffer'
 
 describe('ServerLogBuffer', () => {
   it('keeps a bounded number of entries per server', () => {

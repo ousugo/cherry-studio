@@ -31,9 +31,8 @@ function createMcpTool(mcpTool: MCPTool, server: MCPServer): Tool {
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
       }
-      const mcpService = application.get('McpService')
-      const result: MCPCallToolResponse = await mcpService.callTool({
-        server,
+      const result: MCPCallToolResponse = await application.get('McpRuntimeService').callTool({
+        serverId: server.id,
         name: mcpTool.name,
         args,
         callId: toolCallId
@@ -106,7 +105,6 @@ export async function syncMcpToolsToRegistry(
   reg: ToolRegistry = registry,
   opts: SyncMcpToolsToRegistryOptions = {}
 ): Promise<void> {
-  const mcpService = application.get('McpService')
   const { items: activeServers } = await mcpServerService.list({ isActive: true })
 
   const targetServers = opts.selectedToolIds
@@ -118,7 +116,7 @@ export async function syncMcpToolsToRegistry(
   const freshNames = new Set<string>()
   for (const server of targetServers) {
     try {
-      const enabledTools = await mcpService.listTools(server, { includeDisabled: false })
+      const enabledTools = await application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
       for (const mcpTool of enabledTools) {
         reg.register(toEntry(mcpTool, server))
         freshNames.add(mcpTool.id)

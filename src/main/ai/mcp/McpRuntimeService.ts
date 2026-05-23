@@ -1,6 +1,5 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -24,7 +23,7 @@ import {
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
-import { McpError, type Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
+import { McpError } from '@modelcontextprotocol/sdk/types'
 // Import notification schemas from MCP SDK
 import {
   CancelledNotificationSchema,
@@ -37,12 +36,11 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import type { MCPProgressEvent } from '@shared/config/types'
 import type { MCPServerLogEntry } from '@shared/config/types'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
+import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { buildFunctionCallToolName } from '@shared/mcp'
 import { defaultAppHeaders } from '@shared/utils'
 import { safeSerialize } from '@shared/utils/serialize'
 import {
@@ -52,16 +50,13 @@ import {
   type MCPCallToolResponse,
   type MCPPrompt,
   type MCPResource,
-  type MCPServer,
-  type MCPTool
+  type MCPServer
 } from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
-import * as z from 'zod'
 
-import DxtService from '../DxtService'
-import { fileStorage } from '../FileStorage'
+import { DxtService } from './DxtService'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
@@ -69,41 +64,16 @@ import { ServerLogBuffer } from './ServerLogBuffer'
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
-type CallToolArgs = { server: MCPServer; name: string; args: any; callId?: string }
-type ListToolsOptions = { includeDisabled?: boolean }
+type CallToolArgs = { serverId: string; name: string; args: any; callId?: string }
+type RuntimeCallToolArgs = { server: MCPServer; name: string; args: any; callId?: string }
+type McpRuntimeState = McpRuntimeStatus['state']
 
-const logger = loggerService.withContext('McpService')
-const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
+const logger = loggerService.withContext('McpRuntimeService')
+const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}` as SharedCacheKey
 
 export interface McpToolListChangedEvent {
   serverId: string
 }
-
-/** JSON-Schema validator for MCP tool input/output schemas. `loose()` keeps
- *  any extra fields the protocol may add; the input transform guarantees
- *  `properties`/`required` are populated so renderers can read them without
- *  nullish chaining. Output keeps the raw shape — only forwarded, not read
- *  by current renderers. */
-const MCP_TOOL_INPUT_SCHEMA = z
-  .object({
-    type: z.literal('object'),
-    properties: z.object({}).loose().optional(),
-    required: z.array(z.string()).optional()
-  })
-  .loose()
-  .transform((schema) => {
-    if (!schema.properties) schema.properties = {}
-    if (!schema.required) schema.required = []
-    return schema
-  })
-
-const MCP_TOOL_OUTPUT_SCHEMA = z
-  .object({
-    type: z.literal('object'),
-    properties: z.object({}).loose().optional(),
-    required: z.array(z.string()).optional()
-  })
-  .loose()
 
 // Minimum timeout for the MCP `initialize` request. Connect runs once per activation,
 // so a generous floor avoids false positives on slow SSE/streamableHttp handshakes while
@@ -146,7 +116,7 @@ function getServerLogger(server: MCPServer, extra?: Record<string, any>) {
     baseUrl: server?.baseUrl,
     type: server?.type || (server?.command ? 'stdio' : server?.baseUrl ? 'http' : 'inmemory')
   }
-  return loggerService.withContext('McpService', { ...base, ...extra })
+  return loggerService.withContext('McpRuntimeService', { ...base, ...extra })
 }
 
 /**
@@ -183,62 +153,69 @@ function withCache<T extends unknown[], R>(
   }
 }
 
-@Injectable('McpService')
+@Injectable('McpRuntimeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager'])
-export class McpService extends BaseService {
+@DependsOn(['WindowManager', 'DxtService'])
+export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
-  private dxtService = new DxtService()
   private activeToolCalls: Map<string, AbortController> = new Map()
   private serverLogs = new ServerLogBuffer(200)
+  private stopping = false
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
   readonly onToolListChanged: Event<McpToolListChangedEvent> = this._onToolListChanged.event
 
+  private get dxtService(): DxtService {
+    return application.get('DxtService')
+  }
+
   protected async onInit(): Promise<void> {
+    this.stopping = false
     this.registerIpcHandlers()
   }
 
   protected async onStop(): Promise<void> {
-    for (const [key] of this.clients) {
-      try {
-        await this.closeClient(key)
-      } catch (error: any) {
-        logger.error(`Failed to close client`, error as Error)
-      }
-    }
+    this.stopping = true
+    this.abortActiveToolCalls()
+    await this.waitForPendingClients()
+    await this.closeAllClients()
+    this.pendingClients.clear()
+    this.clients.clear()
+    this.serverLogs.clear()
   }
 
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Mcp_RemoveServer, (_e, server) => this.removeServer(server))
-    this.ipcHandle(IpcChannel.Mcp_RestartServer, (_e, server) => this.restartServer(server))
-    this.ipcHandle(IpcChannel.Mcp_StopServer, (_e, server) => this.stopServer(server))
-    this.ipcHandle(IpcChannel.Mcp_RefreshTools, async (_e, server) => {
-      await this.refreshTools(server)
+    this.ipcHandle(IpcChannel.Mcp_RemoveServer, (_e, serverId: string) => this.removeServer(serverId))
+    this.ipcHandle(IpcChannel.Mcp_RestartServer, (_e, serverId: string) => this.restartServer(serverId))
+    this.ipcHandle(IpcChannel.Mcp_StopServer, (_e, serverId: string) => this.stopServer(serverId))
+    this.ipcHandle(IpcChannel.Mcp_RefreshTools, async (_e, serverId: string) => {
+      await application.get('McpCatalogService').refreshTools(serverId)
     })
     this.ipcHandle(IpcChannel.Mcp_CallTool, (_e, args) => this.callTool(args))
-    this.ipcHandle(IpcChannel.Mcp_ListPrompts, (_e, server) => this.listPrompts(server))
+    this.ipcHandle(IpcChannel.Mcp_ListPrompts, (_e, serverId: string) => this.listPrompts(serverId))
     this.ipcHandle(IpcChannel.Mcp_GetPrompt, (_e, args) => this.getPrompt(args))
-    this.ipcHandle(IpcChannel.Mcp_ListResources, (_e, server) => this.listResources(server))
+    this.ipcHandle(IpcChannel.Mcp_ListResources, (_e, serverId: string) => this.listResources(serverId))
     this.ipcHandle(IpcChannel.Mcp_GetResource, (_e, args) => this.getResource(args))
     this.ipcHandle(IpcChannel.Mcp_GetInstallInfo, () => this.getInstallInfo())
-    this.ipcHandle(IpcChannel.Mcp_CheckConnectivity, (_e, server) => this.checkMcpConnectivity(server))
+    this.ipcHandle(IpcChannel.Mcp_CheckConnectivity, (_e, serverId: string) => this.checkMcpConnectivity(serverId))
     this.ipcHandle(IpcChannel.Mcp_AbortTool, (_e, callId) => this.abortTool(callId))
-    this.ipcHandle(IpcChannel.Mcp_GetServerVersion, (_e, server) => this.getServerVersion(server))
-    this.ipcHandle(IpcChannel.Mcp_GetServerLogs, (_e, server) => this.getServerLogs(server))
-    this.ipcHandle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
-      try {
-        const tempPath = await fileStorage.createTempFile(event, fileName)
-        await fileStorage.writeFile(event, tempPath, Buffer.from(fileBuffer))
-        return await this.dxtService.uploadDxt(event, tempPath)
-      } catch (error) {
-        logger.error('DXT upload error:', error as Error)
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : 'Failed to upload DXT file'
-        }
-      }
-    })
+    this.ipcHandle(IpcChannel.Mcp_GetServerVersion, (_e, serverId: string) => this.getServerVersion(serverId))
+    this.ipcHandle(IpcChannel.Mcp_GetServerLogs, async (_e, serverId: string) => this.getServerLogs(serverId))
+  }
+
+  private async getServerById(serverId: string): Promise<MCPServer> {
+    return await mcpServerService.getById(serverId)
+  }
+
+  public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown): void {
+    const status: McpRuntimeStatus = {
+      state,
+      lastCheckedAt: Date.now(),
+      ...(state === 'error'
+        ? { lastError: error instanceof Error ? error.message : String(error ?? 'Unknown error') }
+        : {})
+    }
+    application.get('CacheService').setShared(mcpStatusCacheKey(serverId), status)
   }
 
   /**
@@ -258,7 +235,7 @@ export class McpService extends BaseService {
 
     logger.debug(`[callToolById] Calling tool ${toolName} on server ${server.name}`)
 
-    return this.callTool({
+    return this.callToolByServer({
       server,
       name: toolName,
       args: params,
@@ -266,7 +243,7 @@ export class McpService extends BaseService {
     })
   }
 
-  private getServerKey(server: MCPServer): string {
+  public getServerKey(server: MCPServer): string {
     return JSON.stringify({
       baseUrl: server.baseUrl,
       command: server.command,
@@ -294,16 +271,36 @@ export class McpService extends BaseService {
       .broadcastToType(WindowType.Main, IpcChannel.Mcp_ServerLog, { ...entry, serverId: server.id })
   }
 
-  public getServerLogs(server: MCPServer): MCPServerLogEntry[] {
+  public async getServerLogs(serverId: string): Promise<MCPServerLogEntry[]> {
+    const server = await this.getServerById(serverId)
     return this.serverLogs.get(this.getServerKey(server))
   }
 
-  async initClient(server: MCPServer): Promise<Client> {
+  public async withClient<T>(
+    serverId: string,
+    operation: (client: Client, server: MCPServer) => Promise<T>
+  ): Promise<T> {
+    const server = await this.getServerById(serverId)
+    const client = await this.getOrCreateClient(server)
+    return operation(client, server)
+  }
+
+  private async getOrCreateClient(server: MCPServer): Promise<Client> {
+    if (this.stopping || this.isStopped || this.isDestroyed) {
+      throw new Error('MCP runtime is stopping')
+    }
+
+    if (!server.isActive) {
+      this.setServerStatus(server.id, 'disabled')
+      throw new Error(`MCP server ${server.name} is disabled`)
+    }
+
     const serverKey = this.getServerKey(server)
 
     // If there's a pending initialization, wait for it
     const pendingClient = this.pendingClients.get(serverKey)
     if (pendingClient) {
+      this.setServerStatus(server.id, 'connecting')
       getServerLogger(server).silly(`Waiting for pending client initialization`)
       return pendingClient
     }
@@ -323,6 +320,7 @@ export class McpService extends BaseService {
         if (!pingResult) {
           this.clients.delete(serverKey)
         } else {
+          this.setServerStatus(server.id, 'connected')
           return existingClient
         }
       } catch (error: any) {
@@ -330,6 +328,8 @@ export class McpService extends BaseService {
         this.clients.delete(serverKey)
       }
     }
+
+    this.setServerStatus(server.id, 'connecting')
 
     const prepareHeaders = () => {
       return {
@@ -670,8 +670,14 @@ export class McpService extends BaseService {
             source: 'client'
           })
 
+          if (this.stopping || this.isStopped || this.isDestroyed) {
+            await client.close()
+            throw new Error('MCP runtime is stopping')
+          }
+
           // Store the new client in the cache
           this.clients.set(serverKey, client)
+          this.setServerStatus(server.id, 'connected')
 
           // Set up notification handlers
           this.setupNotificationHandlers(client, server)
@@ -688,6 +694,7 @@ export class McpService extends BaseService {
           })
           return client
         } catch (error) {
+          this.setServerStatus(server.id, 'error', error)
           getServerLogger(server).error(`Error activating server ${server.name}`, error as Error)
           this.emitServerLog(server, {
             timestamp: Date.now(),
@@ -721,13 +728,7 @@ export class McpService extends BaseService {
       // Set up tools list changed notification handler
       client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
         logger.debug(`Tools list changed for server: ${server.name}`)
-        // Clear tools cache
-        cacheService.delete(`mcp:list_tool:${serverKey}`)
         this._onToolListChanged.fire({ serverId: server.id })
-        void this.refreshTools(server).catch((error) => {
-          getServerLogger(server).warn(`Failed to refresh tools after tool list changed notification`, { error })
-          this.writeToolsCache(server.id, [])
-        })
       })
 
       // Set up resources list changed notification handler
@@ -798,10 +799,6 @@ export class McpService extends BaseService {
     logger.debug(`Cleared all caches for server`, { serverKey })
   }
 
-  private writeToolsCache(serverId: string, tools: MCPTool[]): void {
-    application.get('CacheService').setShared(mcpToolsCacheKey(serverId), tools)
-  }
-
   private async getLatestSourcePolicy(server: MCPServer): Promise<MCPServer> {
     try {
       return await mcpServerService.getById(server.id)
@@ -810,9 +807,28 @@ export class McpService extends BaseService {
     }
   }
 
-  private async filterEnabledTools(server: MCPServer, tools: MCPTool[]): Promise<MCPTool[]> {
-    const sourcePolicy = await this.getLatestSourcePolicy(server)
-    return tools.filter((tool) => !isMcpToolDisabledBySource(sourcePolicy, tool))
+  private abortActiveToolCalls() {
+    for (const [callId, controller] of this.activeToolCalls) {
+      controller.abort()
+      logger.debug(`Aborted active tool call during MCP runtime stop`, { callId })
+    }
+    this.activeToolCalls.clear()
+  }
+
+  private async waitForPendingClients(): Promise<void> {
+    const pending = [...this.pendingClients.values()]
+    if (pending.length === 0) return
+    await Promise.allSettled(pending)
+  }
+
+  private async closeAllClients(): Promise<void> {
+    const serverKeys = [...this.clients.keys()]
+    const results = await Promise.allSettled(serverKeys.map((key) => this.closeClient(key)))
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        logger.error(`Failed to close client`, result.reason as Error)
+      }
+    }
   }
 
   async closeClient(serverKey: string) {
@@ -835,7 +851,8 @@ export class McpService extends BaseService {
     await Promise.all(serverKeys.map((key) => this.closeClient(key)))
   }
 
-  async stopServer(server: MCPServer) {
+  async stopServer(serverId: string) {
+    const server = await this.getServerById(serverId)
     getServerLogger(server).debug(`Stopping server`)
     this.emitServerLog(server, {
       timestamp: Date.now(),
@@ -843,13 +860,22 @@ export class McpService extends BaseService {
       message: 'Stopping server',
       source: 'client'
     })
-    await this.closeClientsForServer(server.id)
-    this.writeToolsCache(server.id, [])
+    try {
+      await this.closeClientsForServer(server.id)
+    } finally {
+      application.get('McpCatalogService').clearSharedToolsCache(server.id)
+      this.setServerStatus(server.id, 'disabled')
+    }
   }
 
-  async removeServer(server: MCPServer) {
-    await this.closeClientsForServer(server.id)
-    this.writeToolsCache(server.id, [])
+  async removeServer(serverId: string) {
+    const server = await this.getServerById(serverId)
+    try {
+      await this.closeClientsForServer(server.id)
+    } finally {
+      application.get('McpCatalogService').clearSharedToolsCache(server.id)
+      this.setServerStatus(server.id, 'disabled')
+    }
 
     // Cleanup OAuth token file for this server, but only if no other server
     // entry still points at the same baseUrl (shared OAuth storage key is
@@ -887,7 +913,8 @@ export class McpService extends BaseService {
     }
   }
 
-  async restartServer(server: MCPServer) {
+  async restartServer(serverId: string) {
+    const server = await this.getServerById(serverId)
     getServerLogger(server).debug(`Restarting server`)
     this.emitServerLog(server, {
       timestamp: Date.now(),
@@ -898,26 +925,27 @@ export class McpService extends BaseService {
     await this.closeClientsForServer(server.id)
     // Clear cache before restarting to ensure fresh data
     this.clearServerCache(server)
-    await this.initClient(server)
-    await this.refreshTools(server)
+    try {
+      await this.getOrCreateClient(server)
+      await application.get('McpCatalogService').refreshTools(server.id)
+    } catch (error) {
+      this.setServerStatus(server.id, 'error', error)
+      throw error
+    }
   }
 
   /**
    * Check connectivity for an MCP server
    */
-  public async checkMcpConnectivity(server: MCPServer): Promise<boolean> {
+  public async checkMcpConnectivity(serverId: string): Promise<boolean> {
+    const server = await this.getServerById(serverId)
     getServerLogger(server).debug(`Checking connectivity`)
     try {
-      getServerLogger(server).debug(`About to call initClient`, { hasInitClient: !!this.initClient })
-
-      if (!this.initClient) {
-        throw new Error('initClient method is not available')
-      }
-
-      const client = await this.initClient(server)
+      const client = await this.getOrCreateClient(server)
       // Attempt to list tools as a way to check connectivity
       await client.listTools()
       getServerLogger(server).debug(`Connectivity check successful`)
+      this.setServerStatus(server.id, 'connected')
       this.emitServerLog(server, {
         timestamp: Date.now(),
         level: 'info',
@@ -937,77 +965,26 @@ export class McpService extends BaseService {
       // Close the client if connectivity check fails to ensure a clean state for the next attempt
       const serverKey = this.getServerKey(server)
       await this.closeClient(serverKey)
+      application.get('McpCatalogService').clearSharedToolsCache(server.id)
+      this.setServerStatus(server.id, 'error', error)
       return false
     }
-  }
-
-  private async listToolsImpl(server: MCPServer): Promise<MCPTool[]> {
-    const client = await this.initClient(server)
-    try {
-      const { tools } = await client.listTools()
-      const serverTools: MCPTool[] = []
-      tools.map((tool: SDKTool) => {
-        const serverTool: MCPTool = {
-          ...tool,
-          inputSchema: MCP_TOOL_INPUT_SCHEMA.parse(tool.inputSchema),
-          outputSchema: tool.outputSchema ? MCP_TOOL_OUTPUT_SCHEMA.parse(tool.outputSchema) : undefined,
-          id: buildFunctionCallToolName(server.name, tool.name),
-          serverId: server.id,
-          serverName: server.name,
-          type: 'mcp'
-        }
-        serverTools.push(serverTool)
-        getServerLogger(server).debug(`Listing tools`, { tool: serverTool })
-      })
-      return serverTools
-    } catch (error: unknown) {
-      getServerLogger(server).error(`Failed to list tools`, error as Error)
-      throw error
-    }
-  }
-
-  async listTools(server: MCPServer, options: ListToolsOptions = {}): Promise<MCPTool[]> {
-    const listFunc = (server: MCPServer) => {
-      const cachedListTools = withCache<[MCPServer], MCPTool[]>(
-        this.listToolsImpl.bind(this),
-        (server) => {
-          const serverKey = this.getServerKey(server)
-          return `mcp:list_tool:${serverKey}`
-        },
-        5 * 60 * 1000, // 5 minutes TTL
-        `[MCP] Tools from ${server.name}`
-      )
-
-      return cachedListTools(server)
-    }
-
-    try {
-      const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
-      this.writeToolsCache(server.id, tools)
-      if (options.includeDisabled === false) {
-        return await this.filterEnabledTools(server, tools)
-      }
-      return tools
-    } catch (error) {
-      this.writeToolsCache(server.id, [])
-      throw error
-    }
-  }
-
-  async refreshTools(server: MCPServer): Promise<void> {
-    application.get('CacheService').delete(`mcp:list_tool:${this.getServerKey(server)}`)
-    await this.listTools(server)
   }
 
   /**
    * Call a tool on an MCP server
    */
-  public async callTool({ server, name, args, callId }: CallToolArgs): Promise<MCPCallToolResponse> {
+  public async callTool({ serverId, name, args, callId }: CallToolArgs): Promise<MCPCallToolResponse> {
+    const server = await this.getServerById(serverId)
+    return this.callToolByServer({ server, name, args, callId })
+  }
+
+  public async callToolByServer({ server, name, args, callId }: RuntimeCallToolArgs): Promise<MCPCallToolResponse> {
     const toolCallId = callId || uuidv4()
     const abortController = new AbortController()
     this.activeToolCalls.set(toolCallId, abortController)
 
-    const callToolFunc = async ({ server, name, args }: CallToolArgs) => {
+    const callToolFunc = async ({ server, name, args }: RuntimeCallToolArgs) => {
       try {
         getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Calling tool`, {
           args: redactSensitive(args)
@@ -1028,7 +1005,7 @@ export class McpService extends BaseService {
         if (isMcpToolDisabledBySource(sourcePolicy, { name })) {
           throw new Error(`MCP tool is disabled: ${name}`)
         }
-        const client = await this.initClient(server)
+        const client = await this.getOrCreateClient(server)
         const result = await client.callTool({ name, arguments: args }, undefined, {
           onprogress: (process) => {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
@@ -1059,7 +1036,7 @@ export class McpService extends BaseService {
   }
 
   public async getInstallInfo() {
-    const dir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    const dir = await getBinaryPath()
     const uvName = await getBinaryName('uv')
     const bunName = await getBinaryName('bun')
     const uvPath = path.join(dir, uvName)
@@ -1071,7 +1048,7 @@ export class McpService extends BaseService {
    * List prompts available on an MCP server
    */
   private async listPromptsImpl(server: MCPServer): Promise<MCPPrompt[]> {
-    const client = await this.initClient(server)
+    const client = await this.getOrCreateClient(server)
     getServerLogger(server).debug(`Listing prompts`)
     try {
       const { prompts } = await client.listPrompts()
@@ -1093,7 +1070,8 @@ export class McpService extends BaseService {
   /**
    * List prompts available on an MCP server with caching
    */
-  public async listPrompts(server: MCPServer): Promise<MCPPrompt[]> {
+  public async listPrompts(serverId: string): Promise<MCPPrompt[]> {
+    const server = await this.getServerById(serverId)
     const cachedListPrompts = withCache<[MCPServer], MCPPrompt[]>(
       this.listPromptsImpl.bind(this),
       (server) => {
@@ -1111,7 +1089,7 @@ export class McpService extends BaseService {
    */
   private async getPromptImpl(server: MCPServer, name: string, args?: Record<string, any>): Promise<GetPromptResult> {
     logger.debug(`Getting prompt ${name} from server: ${server.name}`)
-    const client = await this.initClient(server)
+    const client = await this.getOrCreateClient(server)
     return await client.getPrompt({ name, arguments: args })
   }
 
@@ -1120,14 +1098,15 @@ export class McpService extends BaseService {
    */
   @TraceMethod({ spanName: 'getPrompt', tag: 'mcp' })
   public async getPrompt({
-    server,
+    serverId,
     name,
     args
   }: {
-    server: MCPServer
+    serverId: string
     name: string
     args?: Record<string, any>
   }): Promise<GetPromptResult> {
+    const server = await this.getServerById(serverId)
     const cachedGetPrompt = withCache<[MCPServer, string, Record<string, any> | undefined], GetPromptResult>(
       this.getPromptImpl.bind(this),
       (server, name, args) => {
@@ -1145,7 +1124,7 @@ export class McpService extends BaseService {
    * List resources available on an MCP server (implementation)
    */
   private async listResourcesImpl(server: MCPServer): Promise<MCPResource[]> {
-    const client = await this.initClient(server)
+    const client = await this.getOrCreateClient(server)
     logger.debug(`Listing resources for server: ${server.name}`)
     try {
       const result = await client.listResources()
@@ -1167,7 +1146,8 @@ export class McpService extends BaseService {
   /**
    * List resources available on an MCP server with caching
    */
-  public async listResources(server: MCPServer): Promise<MCPResource[]> {
+  public async listResources(serverId: string): Promise<MCPResource[]> {
+    const server = await this.getServerById(serverId)
     const cachedListResources = withCache<[MCPServer], MCPResource[]>(
       this.listResourcesImpl.bind(this),
       (server) => {
@@ -1185,7 +1165,7 @@ export class McpService extends BaseService {
    */
   private async getResourceImpl(server: MCPServer, uri: string): Promise<GetResourceResponse> {
     getServerLogger(server, { uri }).debug(`Getting resource`)
-    const client = await this.initClient(server)
+    const client = await this.getOrCreateClient(server)
     try {
       const result = await client.readResource({ uri: uri })
       const contents: MCPResource[] = []
@@ -1211,7 +1191,8 @@ export class McpService extends BaseService {
    * Get a specific resource from an MCP server with caching
    */
   @TraceMethod({ spanName: 'getResource', tag: 'mcp' })
-  public async getResource({ server, uri }: { server: MCPServer; uri: string }): Promise<GetResourceResponse> {
+  public async getResource({ serverId, uri }: { serverId: string; uri: string }): Promise<GetResourceResponse> {
+    const server = await this.getServerById(serverId)
     const cachedGetResource = withCache<[MCPServer, string], GetResourceResponse>(
       this.getResourceImpl.bind(this),
       (server, uri) => {
@@ -1241,10 +1222,11 @@ export class McpService extends BaseService {
   /**
    * Get the server version information
    */
-  public async getServerVersion(server: MCPServer): Promise<string | null> {
+  public async getServerVersion(serverId: string): Promise<string | null> {
+    const server = await this.getServerById(serverId)
     try {
       getServerLogger(server).debug(`Getting server version`)
-      const client = await this.initClient(server)
+      const client = await this.getOrCreateClient(server)
 
       // Try to get server information which may include version
       const serverInfo = client.getServerVersion()

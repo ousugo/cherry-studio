@@ -350,7 +350,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
           })
 
           const response = await window.api.mcp.getPrompt({
-            server,
+            serverId: server.id,
             name: prompt.name,
             args: result
           })
@@ -369,7 +369,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
       const handlePromptWithoutArgs = async () => {
         try {
           const response = await window.api.mcp.getPrompt({
-            server,
+            serverId: server.id,
             name: prompt.name
           })
           await handlePromptResponse(response)
@@ -399,7 +399,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     let cancelled = false
 
     const fetchPrompts = async () => {
-      const results = await Promise.all(activedMcpServers.map((server) => window.api.mcp.listPrompts(server)))
+      const results = await Promise.all(activedMcpServers.map((server) => window.api.mcp.listPrompts(server.id)))
       if (!cancelled) {
         setPrompts(results.flat())
       }
@@ -456,7 +456,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
       requestAnimationFrame(async () => {
         try {
           const response = await window.api.mcp.getResource({
-            server,
+            serverId: server.id,
             uri: resource.uri
           })
 
@@ -482,7 +482,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     let cancelled = false
 
     const fetchResources = async () => {
-      const results = await Promise.all(activedMcpServers.map((server) => window.api.mcp.listResources(server)))
+      const results = await Promise.all(activedMcpServers.map((server) => window.api.mcp.listResources(server.id)))
       if (!cancelled) {
         setResources(results.flat())
       }

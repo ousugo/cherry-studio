@@ -118,7 +118,7 @@ export interface AiEmbedResult {
  */
 @Injectable('AiService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['McpService', 'AiStreamManager'])
+@DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager'])
 export class AiService extends BaseService {
   protected async onInit(): Promise<void> {
     registerBuiltinTools()

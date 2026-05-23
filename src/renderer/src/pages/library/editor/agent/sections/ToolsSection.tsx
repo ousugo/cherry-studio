@@ -7,6 +7,7 @@ import {
   normalizeAllowedToolRules,
   normalizePermissionMode
 } from '@renderer/hooks/agents/permissionMode'
+import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { Tool } from '@shared/ai/tool'
 import type { MCPServer } from '@shared/data/types/mcpServer'
@@ -102,26 +103,49 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
   // --- MCP Server --------------------------------------------------------------
   const { data: mcpData, isLoading: mcpLoading } = useQuery('/mcp-servers', {})
   const mcpServers = useMemo<MCPServer[]>(() => mcpData?.items ?? [], [mcpData])
+  const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
   const mcpCatalog = useMemo<CatalogItem[]>(
     () =>
-      mcpServers.map((s) => ({
-        id: s.id,
-        name: s.name,
-        description: s.description || s.baseUrl || s.command,
-        icon: (
-          <McpServerAvatar
-            server={s}
-            size={28}
-            fallbackIcon={Network}
-            fallbackIconClassName="text-blue-500/60"
-            fallbackIconScale={0.5}
-          />
-        ),
-        inactiveBadge: s.isActive ? undefined : t('library.config.tools.inactive_badge'),
-        // Hide inactive servers from the picker — same rule as assistant MCP.
-        pickable: s.isActive
-      })),
-    [mcpServers, t]
+      mcpServers.map((s) => {
+        const status = mcpStatuses[s.id]
+        const state = s.isActive ? (status?.state ?? 'connecting') : 'disabled'
+        const statusBadge =
+          state === 'connected'
+            ? t('settings.mcp.runtimeStatus.connected', 'Connected')
+            : state === 'connecting'
+              ? t('settings.mcp.runtimeStatus.connecting', 'Connecting')
+              : state === 'error'
+                ? t('settings.mcp.runtimeStatus.unavailable', 'Unavailable')
+                : undefined
+        const statusBadgeClassName =
+          state === 'connected'
+            ? 'bg-success/10 text-success'
+            : state === 'connecting'
+              ? 'bg-warning/10 text-warning'
+              : state === 'error'
+                ? 'bg-destructive/10 text-destructive'
+                : undefined
+        return {
+          id: s.id,
+          name: s.name,
+          description: s.description || s.baseUrl || s.command,
+          icon: (
+            <McpServerAvatar
+              server={s}
+              size={28}
+              fallbackIcon={Network}
+              fallbackIconClassName="text-blue-500/60"
+              fallbackIconScale={0.5}
+            />
+          ),
+          inactiveBadge: s.isActive ? undefined : t('library.config.tools.inactive_badge'),
+          statusBadge,
+          statusBadgeClassName,
+          // Keep inactive servers visible for status, but do not allow binding them.
+          pickable: s.isActive
+        }
+      }),
+    [mcpServers, mcpStatuses, t]
   )
   const mcpIds = useMemo(() => new Set(form.mcps), [form.mcps])
   const boundMCP = useMemo(() => mcpCatalog.filter((it) => mcpIds.has(it.id)), [mcpCatalog, mcpIds])

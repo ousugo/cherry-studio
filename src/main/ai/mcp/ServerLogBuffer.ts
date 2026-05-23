@@ -33,4 +33,8 @@ export class ServerLogBuffer {
   remove(serverKey: string) {
     this.logs.delete(serverKey)
   }
+
+  clear() {
+    this.logs.clear()
+  }
 }

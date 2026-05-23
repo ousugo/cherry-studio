@@ -10,7 +10,8 @@ const list = vi.fn()
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    McpService: { listTools, callTool: vi.fn() }
+    McpCatalogService: { listTools },
+    McpRuntimeService: { callTool: vi.fn() }
   } as Record<string, unknown>)
 })
 
@@ -18,7 +19,8 @@ vi.mock('@main/core/application', async () => {
   return {
     application: {
       get: (name: string) => {
-        if (name === 'McpService') return { listTools, callTool: vi.fn() }
+        if (name === 'McpCatalogService') return { listTools }
+        if (name === 'McpRuntimeService') return { callTool: vi.fn() }
         throw new Error(`unexpected service: ${name}`)
       }
     }
@@ -56,8 +58,8 @@ describe('syncMcpToolsToRegistry', () => {
   it('registers tools from every active server', async () => {
     const reg = new ToolRegistry()
     list.mockResolvedValue({ items: [activeServer('s1'), activeServer('s2')] })
-    listTools.mockImplementation(async (server: { id: string }) =>
-      server.id === 's1' ? [mcpTool('s1', 'a'), mcpTool('s1', 'b')] : [mcpTool('s2', 'c')]
+    listTools.mockImplementation(async (serverId: string) =>
+      serverId === 's1' ? [mcpTool('s1', 'a'), mcpTool('s1', 'b')] : [mcpTool('s2', 'c')]
     )
 
     await syncMcpToolsToRegistry(reg)
@@ -126,8 +128,8 @@ describe('syncMcpToolsToRegistry', () => {
   it('continues when a single server throws on listTools', async () => {
     const reg = new ToolRegistry()
     list.mockResolvedValue({ items: [activeServer('broken'), activeServer('ok')] })
-    listTools.mockImplementation(async (server: { id: string }) => {
-      if (server.id === 'broken') throw new Error('connection refused')
+    listTools.mockImplementation(async (serverId: string) => {
+      if (serverId === 'broken') throw new Error('connection refused')
       return [mcpTool('ok', 't')]
     })
 
@@ -153,11 +155,11 @@ describe('syncMcpToolsToRegistry', () => {
     it('only calls listTools on servers whose tool ids appear in the selection', async () => {
       const reg = new ToolRegistry()
       list.mockResolvedValue({ items: [activeServer('gh'), activeServer('jira'), activeServer('slack')] })
-      listTools.mockImplementation(async (server: { id: string }) => [mcpTool(server.id, 't')])
+      listTools.mockImplementation(async (serverId: string) => [mcpTool(serverId, 't')])
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__t']) })
 
-      const calledIds = listTools.mock.calls.map((args) => (args[0] as { id: string }).id)
+      const calledIds = listTools.mock.calls.map((args) => args[0] as string)
       expect(calledIds).toEqual(['gh'])
     })
 
@@ -173,7 +175,7 @@ describe('syncMcpToolsToRegistry', () => {
       } satisfies ToolEntry)
 
       list.mockResolvedValue({ items: [activeServer('gh'), activeServer('jira')] })
-      listTools.mockImplementation(async (server: { id: string }) => [mcpTool(server.id, 'fresh')])
+      listTools.mockImplementation(async (serverId: string) => [mcpTool(serverId, 'fresh')])
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__fresh']) })
 

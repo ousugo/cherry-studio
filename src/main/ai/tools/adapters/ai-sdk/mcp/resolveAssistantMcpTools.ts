@@ -45,10 +45,9 @@ export async function resolveAssistantMcpToolIds(assistantId: string): Promise<s
   const servers = await resolveServersForAssistant(assistant, mode)
   if (servers.length === 0) return []
 
-  const mcpService = application.get('McpService')
   const perServerResults = await Promise.allSettled(
     servers.map(async (server) => {
-      const tools = await mcpService.listTools(server)
+      const tools = await application.get('McpCatalogService').listTools(server.id)
       return tools.filter((tool) => !isToolDisabled(server, tool)).map((tool) => tool.id)
     })
   )
