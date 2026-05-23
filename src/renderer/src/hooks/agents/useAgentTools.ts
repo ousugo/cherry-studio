@@ -1,5 +1,5 @@
 import { cacheService } from '@renderer/data/CacheService'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMcpServers } from '@renderer/hooks/useMCPServers'
 import type { AgentType } from '@renderer/types'
 import { claudeCodeBuiltinToolDescriptors } from '@shared/ai/claudecode/builtinTools'
 import {
@@ -87,7 +87,7 @@ function mcpDescriptors(server: MCPServer, tools: readonly MCPTool[]): ClaudeToo
 }
 
 export const useAgentTools = (source: AgentToolSource | null | undefined) => {
-  const { mcpServers, isLoading } = useMCPServers()
+  const { mcpServers, isLoading } = useMcpServers()
   const mcpIds = source?.mcps ?? []
   const toolsByServer = useMcpToolsCache(mcpIds)
   const requestedRefreshes = useRef(new Set<string>())

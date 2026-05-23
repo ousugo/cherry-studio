@@ -28,7 +28,7 @@ The main-process observability boundary is `src/main/ai/observability`:
 
 ## AdapterTracer
 
-`src/main/ai/observability/adapters/ai-sdk/adapterTracer.ts` wraps the OTel `Tracer` returned
+`src/main/ai/observability/adapters/aiSdk/adapterTracer.ts` wraps the OTel `Tracer` returned
 by the global provider. On every `startSpan` / `startActiveSpan` it:
 
 1. Patches `span.end()` to also call `AiSdkSpanAdapter.convertToSpanEntity(...)`
@@ -43,7 +43,7 @@ by the global provider. On every `startSpan` / `startActiveSpan` it:
 
 ## AiSdkSpanAdapter
 
-`src/main/ai/observability/adapters/ai-sdk/aiSdkSpanAdapter.ts` converts an OTel span into the
+`src/main/ai/observability/adapters/aiSdk/aiSdkSpanAdapter.ts` converts an OTel span into the
 shape the dev-tools UI consumes:
 
 - Reads span name, attributes, events, status, links.
@@ -53,7 +53,7 @@ shape the dev-tools UI consumes:
   `output_tokens` / `reasoning_tokens` / …) across providers.
 
 Claude Code Agent SDK spans do not go through `AiSdkSpanAdapter`; they are
-converted by `src/main/ai/observability/adapters/claude-code/ClaudeCodeOtlpAdapter.ts`.
+converted by `src/main/ai/observability/adapters/claudeCode/ClaudeCodeOtlpAdapter.ts`.
 
 ## Where it shows up in the UI
 

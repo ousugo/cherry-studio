@@ -184,9 +184,9 @@ input queue inside the Claude Code driver.
 
 Focused tests:
 
-- `src/main/ai/stream-manager/context/__tests__/AgentChatContextProvider.test.ts`
-- `src/main/ai/agent-session/__tests__/AgentSessionRuntimeService.test.ts`
-- `src/main/ai/runtime/claude-code/__tests__/ClaudeCodeRuntimeDriver.test.ts`
+- `src/main/ai/streamManager/context/__tests__/AgentChatContextProvider.test.ts`
+- `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`
 - `src/main/ai/__tests__/AiService.test.ts`
-- `src/main/ai/runtime/claude-code/__tests__/streamAdapter.test.ts`
-- `src/main/ai/runtime/claude-code/__tests__/ClaudeCodeWarmQueryManager.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`
+- `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeWarmQueryManager.test.ts`

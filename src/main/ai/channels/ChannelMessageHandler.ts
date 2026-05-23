@@ -6,8 +6,8 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
-import { ChannelAdapterListener, type StreamListener } from '@main/ai/stream-manager'
-import { startAgentSessionRun } from '@main/ai/stream-manager/api/startAgentSessionRun'
+import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
+import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 

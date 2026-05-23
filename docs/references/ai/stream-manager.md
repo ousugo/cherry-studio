@@ -99,7 +99,7 @@ Main. The renderer's only job is rendering chunks.
 │      • AgentSessionMessageBackend (agent-session DB)         │
 │      • TranslationBackend     (translate row)                │
 │    ChannelAdapterListener → adapter.onStreamComplete         │
-│    SSEListener            → res.write('[DONE]')              │
+│    SseListener            → res.write('[DONE]')              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -123,7 +123,7 @@ volume × audience width**.
 |---|---|---|
 | `WebContentsListener` | chunk + terminal | explicit `attach` → `ActiveStream.listeners` |
 | `PersistenceListener` | terminal | built by the provider and added in `send()` |
-| `ChannelAdapterListener` / `SSEListener` | chunk + terminal | caller injects into `send()`'s `listeners` |
+| `ChannelAdapterListener` / `SseListener` | chunk + terminal | caller injects into `send()`'s `listeners` |
 | UI indirect consumers (sidebar indicators, …) | topic status | `useSharedCache('topic.stream.statuses.${topicId}')` |
 
 ### Two channels: targeted listener dispatch vs SharedCache mirror
@@ -179,7 +179,7 @@ src/main/ai/
     └── loop/
         └── PendingMessageQueue.ts     injected-message queue (drain + AsyncIterable consumption)
 
-src/main/ai/stream-manager/
+src/main/ai/streamManager/
 ├── AiStreamManager.ts                 the registry + execution loop + multicast
 ├── pipeStreamLoop.ts                  shared chunk-pipe primitive (used by chat loop AND AiService.runPromptStream)
 ├── buildCompactReplay.ts              attach-time chunk compaction (merge text-delta / reasoning-delta)
@@ -204,7 +204,7 @@ src/main/ai/stream-manager/
 │   ├── WebContentsListener.ts         chunks → renderer windows
 │   ├── PersistenceListener.ts         observer protocol + delegates to PersistenceBackend
 │   ├── ChannelAdapterListener.ts      text → Discord / Slack / Feishu
-│   └── SSEListener.ts                 UIMessageChunk → SSE response (API server)
+│   └── SseListener.ts                 UIMessageChunk → SSE response (API server)
 │
 └── persistence/
     ├── PersistenceBackend.ts          strategy interface + statsFromTerminal projection
@@ -249,7 +249,7 @@ write paths per status.
 | **WebContentsListener** | chunks → renderer window | `wc:${wc.id}:${topicId}` | `!wc.isDestroyed()` |
 | **PersistenceListener** | terminal write via strategy | `persistence:${backendKind}:${topicId}:${modelId}` | always `true` |
 | **ChannelAdapterListener** | text → IM platform | `channel:${channelId}:${chatId}` | `adapter.connected` |
-| **SSEListener** | API-server SSE passthrough | `sse:${uuid}` | `!res.writableEnded` |
+| **SseListener** | API-server SSE passthrough | `sse:${uuid}` | `!res.writableEnded` |
 
 ### Unified liveness policy
 
@@ -767,7 +767,7 @@ The scenario differences are entirely in the listener composition:
 | Renderer user message | `WebContentsListener` + `PersistenceListener` | live UI + persist |
 | Channel bot reply | `ChannelAdapterListener` + agent-session persistence listener | IM send + agents DB |
 | Channel + user both watching | above + `WebContentsListener(B)` | parallel fan-out |
-| API server SSE | `SSEListener` + `PersistenceListener` | SSE push + persist |
+| API server SSE | `SseListener` + `PersistenceListener` | SSE push + persist |
 | Translate | `WebContentsListener` + `PersistenceListener(TranslationBackend)` | live overlay + writes `data-translation` part on success |
 
 ## IPC contract

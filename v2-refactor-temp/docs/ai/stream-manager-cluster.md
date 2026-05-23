@@ -4,10 +4,10 @@
 
 | Subpath | Files | Role |
 |---|---|---|
-| `src/main/ai/stream-manager/` | `AiStreamManager.ts` (1004), `index.ts`, `types.ts` (311), `pipeStreamLoop.ts` (141), `buildCompactReplay.ts` | The broker itself + shared chunk-pipe primitive |
+| `src/main/ai/streamManager/` | `AiStreamManager.ts` (1004), `index.ts`, `types.ts` (311), `pipeStreamLoop.ts` (141), `buildCompactReplay.ts` | The broker itself + shared chunk-pipe primitive |
 | `stream-manager/context/` | `ChatContextProvider.ts`, `PersistentChatContextProvider.ts`, `TemporaryChatContextProvider.ts`, `AgentChatContextProvider.ts`, `dispatch.ts`, `modelResolution.ts` | Per-topic-namespace bundle producers + the single dispatch entry |
 | `stream-manager/lifecycle/` | `StreamLifecycle.ts`, `ChatStreamLifecycle.ts`, `PromptStreamLifecycle.ts` | Strategy for status broadcast, attach gating, grace-period cleanup |
-| `stream-manager/listeners/` | `WebContentsListener.ts`, `PersistenceListener.ts`, `SSEListener.ts`, `ChannelAdapterListener.ts` | Concrete subscribers of the chunk stream |
+| `stream-manager/listeners/` | `WebContentsListener.ts`, `PersistenceListener.ts`, `SseListener.ts`, `ChannelAdapterListener.ts` | Concrete subscribers of the chunk stream |
 | `stream-manager/persistence/` | `PersistenceBackend.ts` + 4 backends (`MessageService`, `TemporaryChat`, `AgentMessage`, `Translation`) | Storage strategy |
 | Tests | `__tests__/AiStreamManager.test.ts` (927), `__tests__/buildCompactReplay.test.ts`, `context/__tests__/`, `listeners/__tests__/`, `persistence/backends/__tests__/` | Per-file coverage |
 

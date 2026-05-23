@@ -25,10 +25,10 @@ import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueMo
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { isQwenMTModel } from '@shared/utils/model'
 
-import { PersistenceListener } from '../../ai/stream-manager/listeners/PersistenceListener'
-import { WebContentsListener } from '../../ai/stream-manager/listeners/WebContentsListener'
-import { TranslationBackend } from '../../ai/stream-manager/persistence/backends/TranslationBackend'
-import type { StreamListener } from '../../ai/stream-manager/types'
+import { PersistenceListener } from '../../ai/streamManager/listeners/PersistenceListener'
+import { WebContentsListener } from '../../ai/streamManager/listeners/WebContentsListener'
+import { TranslationBackend } from '../../ai/streamManager/persistence/backends/TranslationBackend'
+import type { StreamListener } from '../../ai/streamManager/types'
 
 const logger = loggerService.withContext('TranslateService')
 

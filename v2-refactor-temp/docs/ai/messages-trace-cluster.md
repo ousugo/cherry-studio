@@ -6,7 +6,7 @@
 |---|---|---|
 | `src/main/ai/messages/` | `messageConverter.ts` (96), `fileProcessor.ts` (86) | UI `CherryMessagePart[]` → AI SDK `ModelMessage[]` |
 | `src/main/ai/prompts/` | `deferredTools.ts` (38) | Static `<DEFERRED_TOOLS>` system-prompt section + namespace list |
-| `src/main/ai/observability/adapters/ai-sdk/` | `adapterTracer.ts`, `aiSdkSpanAdapter.ts` | AI SDK telemetry adapter feeding AI observability |
+| `src/main/ai/observability/adapters/aiSdk/` | `adapterTracer.ts`, `aiSdkSpanAdapter.ts` | AI SDK telemetry adapter feeding AI observability |
 | `src/main/ai/utils/` | `reasoning.ts` (1092), `options.ts` (445), `modelParameters.ts` (146), `websearch.ts` (142), `provider.ts` (81), `anthropicHeaders.ts` (44), `image.ts` (5) | Shared helpers used across `agent/params/features/` |
 | Tests | `messages/__tests__/messageConverter.test.ts` (122), `observability/**/__tests__/`, `utils/__tests__/` | Per-file coverage |
 

@@ -29,7 +29,7 @@ each subsystem.
 │    ├─ ipcHandle('Ai_Stream_Abort',  AiStreamManager.abort)            │
 │    └─ ipcHandle('Ai_ToolApproval_Respond', applyApprovalAndContinue)  │
 │                                                                      │
-│  dispatch (src/main/ai/stream-manager/context/dispatch.ts)            │
+│  dispatch (src/main/ai/streamManager/context/dispatch.ts)            │
 │    pick ChatContextProvider → prepareDispatch → manager.send(...)     │
 │                                                                      │
 │  AiStreamManager                                                     │
@@ -49,7 +49,7 @@ each subsystem.
 │    PersistenceListener → MessageService / TemporaryChat / Agent / Translate
 │    WebContentsListener  → wc.send(Ai_StreamDone)                      │
 │    ChannelAdapterListener → adapter.onStreamComplete                  │
-│    SSEListener          → res.write('[DONE]')                         │
+│    SseListener          → res.write('[DONE]')                         │
 └──────────────────────────────────────────────────────────────────────┘
                                  ↓
                         @ai-sdk/* package
