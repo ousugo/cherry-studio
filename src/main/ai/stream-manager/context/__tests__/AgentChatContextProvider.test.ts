@@ -70,9 +70,44 @@ describe('AgentChatContextProvider', () => {
     agentRuntimeDriverRegistry.clearForTest()
     agentRuntimeDriverRegistry.register({ type: 'claude-code', connect: vi.fn() })
     mocks.getSession.mockResolvedValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
-    mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'claude-code', model: 'anthropic::claude-sonnet' })
-    mocks.saveMessage.mockResolvedValue(undefined)
-    mocks.saveMessages.mockResolvedValue(undefined)
+    mocks.getAgent.mockResolvedValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet'
+    })
+    mocks.saveMessage.mockImplementation(async ({ sessionId, message }) => ({
+      id: message.id,
+      sessionId,
+      role: message.role,
+      data: message.data,
+      searchableText: '',
+      status: message.status ?? 'success',
+      modelId: message.modelId ?? null,
+      modelSnapshot: message.modelSnapshot ?? null,
+      traceId: message.traceId ?? null,
+      stats: message.stats ?? null,
+      runtimeResumeToken: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }))
+    mocks.saveMessages.mockImplementation(async ({ sessionId, messages }) =>
+      messages.map((message) => ({
+        id: message.id,
+        sessionId,
+        role: message.role,
+        data: message.data,
+        searchableText: '',
+        status: message.status ?? 'success',
+        modelId: message.modelId ?? null,
+        modelSnapshot: message.modelSnapshot ?? null,
+        traceId: message.traceId ?? null,
+        stats: message.stats ?? null,
+        runtimeResumeToken: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }))
+    )
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
       if (name === 'AgentSessionRuntimeService') return { beginTurn: mocks.runtimeBeginTurn }
@@ -106,6 +141,18 @@ describe('AgentChatContextProvider', () => {
       { id: expect.any(String), role: 'assistant', parts: [] }
     ])
     expect(prepared.models[0].request.messageId).toBe(prepared.models[0].request.messages?.[1]?.id)
+    expect(prepared.reservedMessages).toEqual([
+      expect.objectContaining({ id: prepared.models[0].request.messages?.[0]?.id, role: 'user' }),
+      expect.objectContaining({
+        id: prepared.models[0].request.messageId,
+        role: 'assistant',
+        metadata: expect.objectContaining({
+          status: 'pending',
+          modelId: 'anthropic::claude-sonnet',
+          modelSnapshot: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+        })
+      })
+    ])
     expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith({
       sessionId: 'session-1',
       topicId: 'agent-session:session-1',
@@ -132,6 +179,13 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.runtimeBeginTurn).not.toHaveBeenCalled()
     expect(prepared.models).toEqual([])
     expect(prepared.userMessage?.role).toBe('user')
+    expect(prepared.reservedMessages).toEqual([
+      expect.objectContaining({
+        id: prepared.userMessage?.id,
+        role: 'user',
+        parts: [{ type: 'text', text: 'hello' }]
+      })
+    ])
     expect(prepared.listeners).toEqual([subscriber])
   })
 

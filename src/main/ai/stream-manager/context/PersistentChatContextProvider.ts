@@ -11,6 +11,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, trace } from '@opentelemetry/api'
 import { applyApprovalDecisions } from '@shared/ai/transport'
+import type { Message as SharedMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
@@ -51,6 +52,26 @@ function startTurnRootSpans(
     spanCache.setTopicId(traceId, topicId)
     return { model, span, traceId }
   })
+}
+
+function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    parts: message.data.parts ?? [],
+    metadata: {
+      parentId: message.parentId,
+      siblingsGroupId: message.siblingsGroupId || undefined,
+      modelId: message.modelId ?? undefined,
+      modelSnapshot: message.modelSnapshot ?? undefined,
+      status: message.status,
+      createdAt: message.createdAt,
+      traceId: message.traceId ?? undefined,
+      stats: message.stats ?? undefined,
+      isActiveBranch: true,
+      ...(message.stats?.totalTokens ? { totalTokens: message.stats.totalTokens } : {})
+    }
+  } as CherryUIMessage
 }
 
 export class PersistentChatContextProvider implements ChatContextProvider {
@@ -94,6 +115,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         listeners: [subscriber],
         userMessage,
         userMessageId: userMessage.id,
+        reservedMessages: [toReservedUIMessage(userMessage)],
         isMultiModel: false
       }
     }
@@ -207,6 +229,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       models: models_,
       listeners,
       userMessageId: userMessage.id,
+      reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
       siblingsGroupId,
       isMultiModel
     }

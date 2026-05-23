@@ -173,6 +173,7 @@ describe('ChatContent', () => {
   const originalApi = window.api as any
 
   beforeEach(() => {
+    const streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
       siblingsMap: {},
@@ -198,6 +199,7 @@ describe('ChatContent', () => {
       ...originalApi,
       ai: {
         ...originalApi?.ai,
+        streamOpen,
         onStreamDone: vi.fn(() => () => {}),
         onStreamError: vi.fn(() => () => {})
       }
@@ -212,7 +214,7 @@ describe('ChatContent', () => {
     mockRespondToolApproval.mockReset()
   })
 
-  it('sends the active branch node as parentAnchorId', async () => {
+  it('opens a stream against the active branch node', async () => {
     const sendMessage = vi.fn()
     mockUseChatWithHistory.mockReturnValue({
       sendMessage,
@@ -231,16 +233,16 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
-      expect(sendMessage).toHaveBeenCalledWith(
-        { text: 'hello' },
+      expect(window.api.ai.streamOpen).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: expect.objectContaining({
-            parentAnchorId: 'branch-a',
-            userMessageParts: [{ type: 'text', text: 'hello' }]
-          })
+          trigger: 'submit-message',
+          topicId: 'topic-1',
+          parentAnchorId: 'branch-a',
+          userMessageParts: [{ type: 'text', text: 'hello' }]
         })
       )
     })
+    expect(sendMessage).not.toHaveBeenCalled()
   })
 
   it('keeps a message cache key without fetching history for freshly leased temporary topics', () => {

@@ -544,6 +544,7 @@ const ChatComposerInner = ({
     const isInitialSelection = mentionedModelSelectorInitKeyRef.current === null
     mentionedModelSelectorInitKeyRef.current = initializationKey
     initializeMentionedModelSelector(isInitialSelection, runtimeModel)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` must not participate in the dependency key here.
   }, [runtimeModel, runtimeModelPending, selectedAssistantId, topic.id, useMentionedModelSelector])
 
   const placeholderText = enableQuickPanelTriggers
@@ -629,9 +630,16 @@ const ChatComposerInner = ({
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
       setMentionedModelSelectorValue(nextModels)
-      setMentionedModels(mentionedModelMultiSelectModeRef.current ? nextModels : [])
+      if (mentionedModelMultiSelectModeRef.current) {
+        setMentionedModels(nextModels)
+        return
+      }
+
+      setMentionedModels([])
+      const [nextModel] = nextModels
+      if (nextModel) handleModelSelect(nextModel)
     },
-    [setMentionedModels]
+    [handleModelSelect, setMentionedModels]
   )
 
   const handleMentionedModelMultiSelectModeChange = useCallback(
@@ -855,6 +863,7 @@ const ChatComposerInner = ({
       }
 
       if (sendDisabled) return
+      if (runtimeModelPending) return
 
       const payload = buildQueuedPayload(draft)
       if (!payload) return
@@ -875,6 +884,7 @@ const ChatComposerInner = ({
       loading,
       messageQueue,
       runtimeModel,
+      runtimeModelPending,
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,

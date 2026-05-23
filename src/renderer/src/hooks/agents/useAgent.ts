@@ -52,8 +52,7 @@ export const useAgent = (id: string | null) => {
 
 /**
  * List + mutate all agents. Deleting an agent cascades to its sessions at
- * the DB layer (FK ON DELETE cascade); the active-session pointer is
- * normalized by `useAgentSessionInitializer` next render.
+ * the DB layer (FK ON DELETE cascade).
  */
 export const useAgents = () => {
   const { t } = useTranslation()

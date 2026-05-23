@@ -9,7 +9,9 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { sessionService } from '@data/services/SessionService'
 import { application } from '@main/core/application'
 import { trace } from '@opentelemetry/api'
-import type { Message } from '@shared/data/types/message'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/sessions'
+import type { CherryUIMessage, Message } from '@shared/data/types/message'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { v7 as uuidv7 } from 'uuid'
 
 import { agentRuntimeDriverRegistry } from '../../agent-session/runtime'
@@ -21,6 +23,23 @@ import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './C
 import type { MainDispatchRequest } from './dispatch'
 
 const rawTracer = trace.getTracer(TRACER_NAME)
+
+function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessage {
+  return {
+    id: row.id,
+    role: row.role,
+    parts: row.data.parts ?? [],
+    metadata: {
+      status: row.status,
+      createdAt: row.createdAt,
+      modelId: row.modelId ?? undefined,
+      modelSnapshot: row.modelSnapshot ?? undefined,
+      traceId: row.traceId ?? undefined,
+      stats: row.stats ?? undefined,
+      ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
+    }
+  } as CherryUIMessage
+}
 
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
@@ -60,6 +79,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     const uniqueModelId = agent.model
+    const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
+    const modelSnapshot = { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
 
     const userText =
       req.userMessageParts
@@ -87,7 +108,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (ctx.hasLiveStream) {
       // Inject path — placeholder + listener already exist on the in-flight execution.
       // Adding new ones would orphan a pending row and clobber the listener mid-stream.
-      await agentSessionMessageService.saveMessage({
+      const savedUserMessage = await agentSessionMessageService.saveMessage({
         sessionId,
         message: {
           id: userMessageId,
@@ -101,6 +122,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: [],
         userMessage,
+        userMessageId,
+        reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
         listeners: [subscriber],
         isMultiModel: false
       }
@@ -124,7 +147,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     application.get('SpanCacheService').setTopicId(traceId, req.topicId)
 
     // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
-    await agentSessionMessageService.saveMessages({
+    const savedMessages = await agentSessionMessageService.saveMessages({
       sessionId,
       messages: [
         {
@@ -138,7 +161,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId: uniqueModelId
+          modelId: uniqueModelId,
+          modelSnapshot,
+          traceId
         }
       ]
     })
@@ -175,6 +200,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       ],
       userMessage,
+      userMessageId,
+      reservedMessages: savedMessages.map(toReservedAgentUIMessage),
       listeners: [subscriber, ...runtime.listeners],
       isMultiModel: false
     }

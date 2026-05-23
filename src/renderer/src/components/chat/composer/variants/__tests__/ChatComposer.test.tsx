@@ -428,6 +428,15 @@ describe('ChatComposer', () => {
     expect(mocks.setModel).not.toHaveBeenCalled()
   })
 
+  it('updates the assistant model from the home model selector in single-select mode', () => {
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('select model 2'))
+
+    expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
+    expect(mocks.setMentionedModels).toHaveBeenCalledWith([])
+  })
+
   it('syncs the mentioned-model selector when a model token remove event is handled', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
 
@@ -621,7 +630,7 @@ describe('ChatComposer', () => {
     expect(mocks.updateTopic).not.toHaveBeenCalled()
   })
 
-  it('uses the temporary home model selector as a mentioned-model multi-select', async () => {
+  it('uses the temporary home model selector as single-select until multi-select is enabled', async () => {
     const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     const selector = screen.getByTestId('model-selector')
@@ -635,7 +644,7 @@ describe('ChatComposer', () => {
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([])
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model B')
-    expect(mocks.setModel).not.toHaveBeenCalled()
+    expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
 
     mocks.model = undefined
     mocks.modelPending = true

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type * as MotionReact from 'motion/react'
 import type { PropsWithChildren, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,7 +11,9 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal()),
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
   Button: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
-    <button {...props}>{children}</button>
+    <button type="button" {...props}>
+      {children}
+    </button>
   ),
   Tabs: ({ children }: PropsWithChildren) => <div>{children}</div>,
   TabsContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
@@ -207,11 +209,13 @@ const activeSessionMocks = vi.hoisted(() => ({
     activeSessionId: 'session-1',
     session: { id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
     isLoading: false,
+    sessionSource: 'query',
     setActiveSessionId: vi.fn()
   } as {
     activeSessionId: string | null
     session: { id: string; agentId: string | null; workspace: { path: string } | null } | undefined
     isLoading: boolean
+    sessionSource?: 'query' | 'pending' | 'none'
     setActiveSessionId: ReturnType<typeof vi.fn>
   }
 }))
@@ -221,7 +225,19 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/hooks/agents/useSession', () => ({
-  useActiveSession: () => activeSessionMocks.result
+  useActiveSession: (options?: { pendingSession?: { id: string } | null }) => {
+    const result = activeSessionMocks.result
+    if (result.session) return { ...result, sessionSource: result.sessionSource ?? 'query' }
+    if (options?.pendingSession?.id && result.activeSessionId === options.pendingSession.id) {
+      return {
+        ...result,
+        session: options.pendingSession,
+        sessionSource: 'pending',
+        isLoading: false
+      }
+    }
+    return { ...result, sessionSource: result.sessionSource ?? 'none' }
+  }
 }))
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
@@ -231,6 +247,7 @@ vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
     hasOlder: false,
     loadOlder: vi.fn(),
     refresh: vi.fn(),
+    seedReservedMessages: vi.fn(),
     deleteMessage: vi.fn()
   })
 }))
@@ -520,15 +537,9 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
   })
 
-  it('keeps the session pane and content mounted while a selected session reloads', () => {
-    const paneMounts: string[] = []
-
+  it('does not render stale session content while a selected session reloads', () => {
     function SessionPane() {
       const [count, setCount] = useState(0)
-
-      useEffect(() => {
-        paneMounts.push('mounted')
-      }, [])
 
       return (
         <button type="button" onClick={() => setCount((value) => value + 1)}>
@@ -550,10 +561,9 @@ describe('AgentChat artifact pane', () => {
     }
     rerender(<AgentChat pane={<SessionPane />} paneOpen={true} panePosition="left" />)
 
-    expect(screen.getByRole('button', { name: 'pane count 1' })).toBeInTheDocument()
-    expect(screen.getByTestId('agent-messages')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-send-disabled', 'true')
-    expect(paneMounts).toEqual(['mounted'])
+    expect(screen.getByRole('button', { name: /pane count/ })).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
   })
 
   it('shows the persisted temporary session while the active session query catches up', () => {
@@ -572,17 +582,7 @@ describe('AgentChat artifact pane', () => {
         pane={<aside data-testid="session-pane" />}
         paneOpen={true}
         panePosition="left"
-        temporaryConversation={
-          {
-            type: 'agent',
-            id: 'temp-session-1',
-            sessionId: 'temp-session-1',
-            topicId: 'agent-session:temp-session-1',
-            agentId: 'agent-1',
-            name: 'Temp Session',
-            session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/temp-workspace' } }
-          } as any
-        }
+        pendingSession={{ id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/temp-workspace' } } as any}
       />
     )
 

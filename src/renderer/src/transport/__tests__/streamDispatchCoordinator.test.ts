@@ -30,7 +30,38 @@ describe('streamDispatchCoordinator', () => {
     const ack: AiStreamOpenResponse = {
       mode: 'started',
       userMessageId: 'u-1',
-      placeholderIds: ['a-1', 'a-2']
+      reservedMessages: [
+        {
+          id: 'u-1',
+          role: 'user',
+          parts: [{ type: 'text', text: 'hello' }],
+          metadata: { status: 'success', createdAt: '2026-05-23T00:00:00.000Z' }
+        },
+        {
+          id: 'a-1',
+          role: 'assistant',
+          parts: [],
+          metadata: {
+            status: 'pending',
+            createdAt: '2026-05-23T00:00:00.001Z',
+            modelId: 'openai:gpt-4o',
+            modelSnapshot: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
+            traceId: 'trace-a-1'
+          }
+        },
+        {
+          id: 'a-2',
+          role: 'assistant',
+          parts: [],
+          metadata: {
+            status: 'pending',
+            createdAt: '2026-05-23T00:00:00.002Z',
+            modelId: 'anthropic:claude-3-5-sonnet',
+            modelSnapshot: { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'anthropic' },
+            traceId: 'trace-a-2'
+          }
+        }
+      ]
     }
     streamOpen.mockResolvedValue(ack)
     const seen: unknown[] = []
@@ -72,7 +103,30 @@ describe('streamDispatchCoordinator', () => {
   })
 
   it('peek() returns the latest result for late subscribers', async () => {
-    const ack: AiStreamOpenResponse = { mode: 'started', placeholderIds: ['a-1'] }
+    const ack: AiStreamOpenResponse = {
+      mode: 'started',
+      userMessageId: 'u-1',
+      reservedMessages: [
+        {
+          id: 'u-1',
+          role: 'user',
+          parts: [{ type: 'text', text: 'hello' }],
+          metadata: { status: 'success', createdAt: '2026-05-23T00:00:00.000Z' }
+        },
+        {
+          id: 'a-1',
+          role: 'assistant',
+          parts: [],
+          metadata: {
+            status: 'pending',
+            createdAt: '2026-05-23T00:00:00.001Z',
+            modelId: 'openai:gpt-4o',
+            modelSnapshot: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
+            traceId: 'trace-a-1'
+          }
+        }
+      ]
+    }
     streamOpen.mockResolvedValue(ack)
     streamDispatchCoordinator.dispatch(TOPIC, req)
     await flush()

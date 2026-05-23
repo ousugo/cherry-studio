@@ -15,7 +15,7 @@
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
-import { useSharedCache } from '@data/hooks/useCache'
+import { useCache, useSharedCache } from '@data/hooks/useCache'
 import {
   useInfiniteFlatItems,
   useInfiniteQuery,
@@ -357,20 +357,20 @@ export function useActiveTopic(topic?: RendererTopic, options: { autoPickFirst?:
   const { autoPickFirst = true } = options
   const { topics: apiTopics, isLoading } = useTopics({ loadAll: true })
   const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
-  const [activeTopicId, setActiveTopicId] = useState<string | undefined>(
-    () => topic?.id ?? cacheService.get('topic.active')?.id
-  )
+  const [activeTopicId, setActiveTopicId] = useCache('topic.active_id', topic?.id ?? null)
   // Holds the last Topic object passed to setActiveTopic, used as fallback when
   // the newly-added topic is not yet in `topics` (SWR still refetching).
-  const [pendingTopic, setPendingTopic] = useState<RendererTopic | undefined>(
-    () => topic ?? cacheService.get('topic.active') ?? undefined
-  )
+  const [pendingTopic, setPendingTopic] = useState<RendererTopic | undefined>(() => topic ?? undefined)
+  const hasAppliedInitialTopicRef = useRef(false)
 
   useEffect(() => {
     if (!topic) return
-    setActiveTopicId((prev) => prev ?? topic.id)
     setPendingTopic((prev) => prev ?? topic)
-  }, [topic])
+    if (hasAppliedInitialTopicRef.current) return
+
+    hasAppliedInitialTopicRef.current = true
+    if (activeTopicId !== topic.id) setActiveTopicId(topic.id)
+  }, [activeTopicId, setActiveTopicId, topic])
 
   const activeTopic = useMemo<RendererTopic | undefined>(() => {
     if (!activeTopicId) return pendingTopic ?? (autoPickFirst ? topics[0] : undefined)
@@ -380,10 +380,13 @@ export function useActiveTopic(topic?: RendererTopic, options: { autoPickFirst?:
     return undefined
   }, [activeTopicId, topics, pendingTopic, autoPickFirst])
 
-  const setActiveTopic = useCallback((next: RendererTopic) => {
-    setActiveTopicId((prev) => (prev === next.id ? prev : next.id))
-    setPendingTopic(next)
-  }, [])
+  const setActiveTopic = useCallback(
+    (next: RendererTopic) => {
+      setActiveTopicId(next.id)
+      setPendingTopic(next)
+    },
+    [setActiveTopicId]
+  )
 
   // Reconcile activeTopicId against the loaded list in a single effect:
   //   - cold start: no active topic yet → pick first (when autoPickFirst).
@@ -406,17 +409,11 @@ export function useActiveTopic(topic?: RendererTopic, options: { autoPickFirst?:
       setActiveTopicId(topics[0].id)
       setPendingTopic(topics[0])
     }
-  }, [activeTopicId, topics, pendingTopic, autoPickFirst])
+  }, [activeTopicId, topics, pendingTopic, autoPickFirst, setActiveTopicId])
 
   useEffect(() => {
     if (activeTopic) {
       void EventEmitter.emit(EVENT_NAMES.CHANGE_TOPIC, activeTopic)
-    }
-  }, [activeTopic])
-
-  useEffect(() => {
-    if (activeTopic) {
-      cacheService.set('topic.active', activeTopic)
     }
   }, [activeTopic])
 

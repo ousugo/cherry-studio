@@ -79,15 +79,10 @@ export async function dispatchStreamRequest(
     lifecycle: prepared.lifecycle
   })
 
-  // Ids the renderer needs to join its optimistic bubbles.
-  const placeholderIds = prepared.models
-    .map((m) => m.request.messageId)
-    .filter((id): id is string => typeof id === 'string' && id.length > 0)
-
   return {
     mode: result.mode,
     executionIds: prepared.isMultiModel ? result.executionIds : undefined,
     userMessageId: prepared.userMessageId ?? prepared.userMessage?.id,
-    placeholderIds: placeholderIds.length > 0 ? placeholderIds : undefined
+    reservedMessages: prepared.reservedMessages
   }
 }

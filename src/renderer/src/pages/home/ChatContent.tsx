@@ -18,6 +18,10 @@ import type { MessageListActions } from '@renderer/components/chat/messages/type
 import { ChatWriteProvider } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
+import {
+  type ConversationHistoryAdapter,
+  useConversationTurnController
+} from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
@@ -28,12 +32,21 @@ import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
-import { usePendingMessages } from './hooks/usePendingMessages'
 import { useTopicMessagesCache } from './hooks/useTopicMessagesCache'
 import { useHomeMessageListProviderValue } from './messages/homeMessageListAdapter'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('ChatContent')
+
+interface ChatTurnInput {
+  text: string
+  options?: {
+    files?: FileMetadata[]
+    mentionedModels?: UniqueModelId[]
+    knowledgeBaseIds?: string[]
+    userMessageParts?: CherryMessagePart[]
+  }
+}
 
 export interface ChatContentFrameSlots {
   main: ReactNode
@@ -164,17 +177,12 @@ const ChatContentInner: FC<InnerProps> = ({
   hasOlder,
   messagesCacheMutate
 }) => {
-  const { sendMessage, regenerate, stop, status, setMessages, activeExecutions } = useChatWithHistory(
+  const { regenerate, stop, status, setMessages, activeExecutions } = useChatWithHistory(
     topic.id,
     initialMessages,
     refresh
   )
-
-  const { pendingMessages, addPending } = usePendingMessages(topic.id, uiMessages)
-  const messages = useMemo(
-    () => (pendingMessages.length > 0 ? [...uiMessages, ...pendingMessages] : uiMessages),
-    [pendingMessages, uiMessages]
-  )
+  const messages = uiMessages
 
   useEffect(() => {
     if (status === 'streaming' || status === 'submitted') return
@@ -248,6 +256,36 @@ const ChatContentInner: FC<InnerProps> = ({
   )
 
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
+  const historyAdapter = useMemo<ConversationHistoryAdapter>(
+    () => ({
+      seedReservedMessages: cache.seedReservedMessages,
+      refresh,
+      rollback: cache.rollbackBranch
+    }),
+    [cache.rollbackBranch, cache.seedReservedMessages, refresh]
+  )
+  const turnController = useConversationTurnController<
+    ChatTurnInput,
+    { topicId: string; parentAnchorId: string | null }
+  >({
+    scopeKey: topic.id,
+    historyAdapter,
+    ensureConversation: async ({ text }) => {
+      if (isHistoryLoading) return null
+      if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
+        await onPersistTemporaryTopic(text)
+        onTemporaryTopicPersisted()
+      }
+      return { topicId: topic.id, parentAnchorId: activeNodeId ?? null }
+    },
+    buildStreamRequest: ({ text, options }, conversation) => ({
+      trigger: 'submit-message',
+      topicId: conversation.topicId,
+      parentAnchorId: conversation.parentAnchorId ?? undefined,
+      userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
+      mentionedModelIds: options?.mentionedModels
+    })
+  })
 
   const handleExecutionFinish = useCallback(
     (_executionId: string, { message, isError }: ExecutionFinishEvent) => {
@@ -261,12 +299,15 @@ const ChatContentInner: FC<InnerProps> = ({
   )
   finishRef.current = handleExecutionFinish
   const shouldRenderHomeComposer =
-    !isHistoryLoading && isFreshTemporaryTopic && uiMessages.length === 0 && activeExecutions.length === 0
+    !isHistoryLoading &&
+    isFreshTemporaryTopic &&
+    turnController.layout === 'draft' &&
+    uiMessages.length === 0 &&
+    activeExecutions.length === 0
 
   // Chat write-side handlers (delete / edit / regenerate / resend / fork /
-  // setActiveNode / clearTopic). Also exposes `capabilityBody` so the send
-  // path below mirrors the same shape.
-  const { actions: chatWriteActions, capabilityBody } = useChatWriteActions({
+  // setActiveNode / clearTopic).
+  const { actions: chatWriteActions } = useChatWriteActions({
     topic,
     uiMessages: messages,
     regenerate,
@@ -286,59 +327,14 @@ const ChatContentInner: FC<InnerProps> = ({
         userMessageParts?: CherryMessagePart[]
       }
     ) => {
-      if (isHistoryLoading) return
-
-      if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
-        try {
-          // Seed the new topic with the user's first message as a placeholder
-          // name so the sidebar entry isn't blank pre-auto-name.
-          await onPersistTemporaryTopic(text)
-          onTemporaryTopicPersisted()
-        } catch (err) {
-          logger.warn('failed to persist temporary topic', err as Error)
-          await cache.rollbackBranch()
-          throw err
-        }
-      }
-      addPending({
-        text,
-        parentId: activeNodeId ?? null,
-        files: options?.files,
-        parts: options?.userMessageParts,
-        withAssistantPlaceholder: !options?.mentionedModels?.length
-      })
       try {
-        await sendMessage(
-          { text },
-          {
-            body: {
-              parentAnchorId: activeNodeId ?? undefined,
-              files: options?.files,
-              mentionedModels: options?.mentionedModels,
-              userMessageParts: options?.userMessageParts,
-              ...capabilityBody,
-              ...(options?.knowledgeBaseIds?.length && { knowledgeBaseIds: options.knowledgeBaseIds })
-            }
-          }
-        )
+        await turnController.send({ text, options })
       } catch (err) {
-        // IPC reject / Main persistence error: drop the phantom bubble
-        // by forcing a revalidation against the server.
-        await cache.rollbackBranch()
+        logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [
-      isFreshTemporaryTopic,
-      isHistoryLoading,
-      onPersistTemporaryTopic,
-      onTemporaryTopicPersisted,
-      activeNodeId,
-      sendMessage,
-      capabilityBody,
-      cache,
-      addPending
-    ]
+    [turnController]
   )
 
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])

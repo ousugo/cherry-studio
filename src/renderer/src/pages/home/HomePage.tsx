@@ -2,6 +2,7 @@ import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
@@ -21,6 +22,7 @@ import HomeTabs from './Tabs'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
+const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
 
 /**
  * Synthesise a renderer Topic shape from a freshly-leased temporary id.
@@ -55,7 +57,8 @@ const HomePage: FC = () => {
   const startingTemporaryAssistantIdRef = useRef<string | undefined>(undefined)
   const pendingTemporaryTopicRef = useRef<{ topicId: string; assistantId?: string | null } | null>(null)
   const queuedTemporaryTopicTargetRef = useRef<{ assistantId?: string } | null>(null)
-  const lastUsedAssistantIdRef = useRef<string | undefined>(getTopicAssistantId(cacheService.get('topic.active')))
+  const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
+  const lastUsedAssistantIdRef = useRef<string | undefined>(lastUsedAssistantId ?? undefined)
 
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
@@ -107,11 +110,16 @@ const HomePage: FC = () => {
   const visibleTopic = activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined)
 
   useEffect(() => {
+    lastUsedAssistantIdRef.current = lastUsedAssistantId ?? undefined
+  }, [lastUsedAssistantId])
+
+  useEffect(() => {
     const assistantId = getTopicAssistantId(activeTopic)
     if (assistantId) {
       lastUsedAssistantIdRef.current = assistantId
+      setLastUsedAssistantId(assistantId)
     }
-  }, [activeTopic])
+  }, [activeTopic, setLastUsedAssistantId])
 
   useEffect(() => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
@@ -120,7 +128,9 @@ const HomePage: FC = () => {
   const persistTemporaryTopicAndRefresh = useCallback(
     async (initialName?: string) => {
       await persistTemporaryConversation(initialName)
-      await refreshTopics()
+      void refreshTopics().catch((err) => {
+        logger.warn('Failed to refresh topics after temporary topic persist', err as Error)
+      })
     },
     [persistTemporaryConversation, refreshTopics]
   )
@@ -198,7 +208,7 @@ const HomePage: FC = () => {
         startingTemporaryTopicRef.current = true
         startingTemporaryAssistantIdRef.current = targetAssistantId
         const next = await startTemporaryConversation({ assistantId: targetAssistantId })
-        if (next.type !== 'assistant') return
+        if (next?.type !== 'assistant') return
         pendingTemporaryTopicRef.current = { topicId: next.topicId, assistantId: next.assistantId }
         setActiveTopic(buildPendingTemporaryTopic(next.topicId, next.assistantId))
         void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)

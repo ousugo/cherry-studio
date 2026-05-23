@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
@@ -11,43 +10,57 @@ import type { MessageToolApprovalInput } from '@renderer/components/chat/message
 import { useShellState } from '@renderer/components/chat/panes/Shell'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useSession'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
+import {
+  type ConversationHistoryAdapter,
+  useConversationTurnController
+} from '@renderer/hooks/useConversationTurnController'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { TemporaryConversation, TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { isPerExecutionOnly } from '@renderer/transport/IpcChatTransport'
 import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentChatNavbar from './components/AgentChatNavbar'
 import { AgentRightPane, useAgentRightPaneActions } from './components/AgentRightPane'
 import AgentSessionMessages from './components/AgentSessionMessages'
 
-const logger = loggerService.withContext('AgentChat')
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
+
+type AgentSendOptions = { body?: Record<string, unknown> }
+interface AgentTurnInput {
+  text: string
+  options?: AgentSendOptions
+}
+
+function getAgentTurnParts(input: AgentTurnInput): CherryMessagePart[] {
+  const parts = input.options?.body?.userMessageParts as CherryMessagePart[] | undefined
+  return parts ?? (input.text ? [{ type: 'text', text: input.text }] : [])
+}
 
 interface AgentChatProps {
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
+  pendingSession?: AgentSessionEntity | null
   temporaryConversation?: TemporaryConversation | null
   onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
   onPersistTemporarySession?: (initialName?: string) => Promise<TemporaryConversation | null>
-  onTemporarySessionReady?: () => void | Promise<void>
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   onDraftWorkspaceChange?: (workspaceId: string) => void | Promise<void>
+  onVisibleAgentChange?: (agentId: string) => void
   replacingTemporaryAgent?: boolean
   replacingTemporaryWorkspace?: boolean
 }
@@ -56,12 +69,13 @@ const AgentChat = ({
   pane,
   paneOpen,
   panePosition,
+  pendingSession,
   temporaryConversation,
   onStartTemporarySession,
   onPersistTemporarySession,
-  onTemporarySessionReady,
   onDraftAgentChange,
   onDraftWorkspaceChange,
+  onVisibleAgentChange,
   replacingTemporaryAgent,
   replacingTemporaryWorkspace
 }: AgentChatProps) => {
@@ -69,123 +83,68 @@ const AgentChat = ({
   const { messageStyle } = useSettings()
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
-  const [temporaryComposerDocked, setTemporaryComposerDocked] = useState(false)
+  const [reservedSessionSeed, setReservedSessionSeed] = useState<{
+    sessionId: string
+    messages: CherryUIMessage[]
+  } | null>(null)
+  const temporarySeedSessionIdRef = useRef<string | null>(null)
 
   const temporaryAgentConversation = temporaryConversation?.type === 'agent' ? temporaryConversation : null
-  const { session: activeSession, activeSessionId, isLoading: isSessionLoading } = useActiveSession()
-  const lastActiveSessionRef = useRef<NonNullable<typeof activeSession> | null>(null)
-  const selectedSession =
-    activeSession && (!activeSessionId || activeSession.id === activeSessionId) ? activeSession : undefined
-  const pendingPersistedTemporarySession =
-    temporaryAgentConversation && activeSessionId === temporaryAgentConversation.sessionId
-      ? temporaryAgentConversation.session
-      : undefined
-  const canShowPreviousSession =
-    isSessionLoading && Boolean(activeSessionId && temporaryAgentConversation?.sessionId !== activeSessionId)
-  const visibleSession =
-    selectedSession ??
-    pendingPersistedTemporarySession ??
-    (canShowPreviousSession ? lastActiveSessionRef.current : undefined)
-  const isShowingPreviousSession =
-    isSessionLoading && Boolean(activeSessionId && visibleSession && visibleSession.id !== activeSessionId)
-  const invalidateCache = useInvalidateCache()
+  const { session: visibleSession, isLoading: isSessionLoading } = useActiveSession({
+    pendingSession
+  })
+  const visibleAgentId = visibleSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
   const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(
     visibleSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
   )
 
   useEffect(() => {
-    setTemporaryComposerDocked(false)
-  }, [temporaryAgentConversation?.id])
+    if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
+  }, [onVisibleAgentChange, visibleAgentId])
 
-  useEffect(() => {
-    if (!activeSession || !temporaryAgentConversation || activeSession.id !== temporaryAgentConversation.sessionId)
-      return
-    void onTemporarySessionReady?.()
-  }, [activeSession, onTemporarySessionReady, temporaryAgentConversation])
-
-  const refreshPersistedSession = useCallback(
-    async (sessionId: string) => {
-      await invalidateCache(['/sessions', '/workspaces', `/sessions/${sessionId}`, `/sessions/${sessionId}/messages`])
-    },
-    [invalidateCache]
+  const temporaryHistoryAdapter = useMemo<ConversationHistoryAdapter>(
+    () => ({
+      seedReservedMessages: (messages) => {
+        const sessionId = temporarySeedSessionIdRef.current
+        if (!sessionId) return
+        setReservedSessionSeed({ sessionId, messages })
+      },
+      refresh: () => undefined,
+      rollback: () => {
+        setReservedSessionSeed(null)
+      }
+    }),
+    []
   )
 
-  const watchTemporaryStream = useCallback(
-    (topicId: string, sessionId: string) => {
-      let doneUnsub: () => void = () => undefined
-      let errorUnsub: () => void = () => undefined
-      let cleaned = false
-      const cleanup = () => {
-        if (cleaned) return
-        cleaned = true
-        doneUnsub()
-        errorUnsub()
-      }
-      const refreshAndCleanup = () => {
-        cleanup()
-        void refreshPersistedSession(sessionId).catch((err) => {
-          logger.warn('Failed to refresh persisted temporary session', { sessionId, err })
-        })
-      }
-
-      doneUnsub = window.api.ai.onStreamDone((data) => {
-        if (data.topicId !== topicId || isPerExecutionOnly(data)) return
-        refreshAndCleanup()
+  const temporaryTurnController = useConversationTurnController<AgentTurnInput, { topicId: string; sessionId: string }>(
+    {
+      scopeKey: temporaryAgentConversation?.id ?? visibleSession?.id ?? 'none',
+      historyAdapter: temporaryHistoryAdapter,
+      ensureConversation: async ({ text }) => {
+        if (!temporaryAgentConversation || !onPersistTemporarySession) return null
+        const persisted = await onPersistTemporarySession(text)
+        if (persisted?.type !== 'agent') return null
+        temporarySeedSessionIdRef.current = persisted.sessionId
+        return { topicId: persisted.topicId, sessionId: persisted.sessionId }
+      },
+      buildStreamRequest: (input, conversation) => ({
+        trigger: 'submit-message',
+        topicId: conversation.topicId,
+        userMessageParts: getAgentTurnParts(input)
       })
-      errorUnsub = window.api.ai.onStreamError((data) => {
-        if (data.topicId !== topicId) return
-        refreshAndCleanup()
-      })
-
-      return cleanup
-    },
-    [refreshPersistedSession]
+    }
   )
-
   const sendTemporaryMessage = useCallback(
     async (message?: { text: string }, options?: { body?: Record<string, unknown> }) => {
-      if (!temporaryAgentConversation || !onPersistTemporarySession) return
-      setTemporaryComposerDocked(true)
-      let persisted: TemporaryConversation | null
-      try {
-        persisted = await onPersistTemporarySession(message?.text)
-      } catch (err) {
-        setTemporaryComposerDocked(false)
-        throw err
-      }
-      if (persisted?.type !== 'agent') {
-        setTemporaryComposerDocked(false)
-        return
-      }
-
-      const userMessageParts =
-        (options?.body?.userMessageParts as CherryMessagePart[] | undefined) ??
-        (message?.text ? [{ type: 'text', text: message.text }] : [])
-
-      const cleanupStreamWatcher = watchTemporaryStream(persisted.topicId, persisted.sessionId)
-      try {
-        await window.api.ai.streamOpen({
-          trigger: 'submit-message',
-          topicId: persisted.topicId,
-          userMessageParts
-        })
-      } catch (err) {
-        cleanupStreamWatcher()
-        setTemporaryComposerDocked(false)
-        await refreshPersistedSession(persisted.sessionId)
-        throw err
-      }
+      await temporaryTurnController.send({ text: message?.text ?? '', options })
     },
-    [onPersistTemporarySession, refreshPersistedSession, temporaryAgentConversation, watchTemporaryStream]
+    [temporaryTurnController]
   )
 
   const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
     setCitationPanelCitations(citations)
   }, [])
-
-  useEffect(() => {
-    if (selectedSession) lastActiveSessionRef.current = selectedSession
-  }, [selectedSession])
 
   const isInitializing = !visibleSession && (temporaryAgentConversation ? isAgentLoading : isSessionLoading)
   const citationsPanelOpen = citationPanelCitations !== null
@@ -193,7 +152,7 @@ const AgentChat = ({
   if (isInitializing) {
     return (
       <AgentRightPane
-        workspacePath={activeSession?.workspace?.path ?? temporaryAgentConversation?.session.workspace?.path}
+        workspacePath={temporaryAgentConversation?.session.workspace?.path}
         messages={EMPTY_MESSAGES}
         partsByMessageId={EMPTY_PARTS}>
         <AgentChatFrame
@@ -234,7 +193,7 @@ const AgentChat = ({
         workspaceId={temporaryAgentConversation.session.workspaceId}
         onWorkspaceChange={onDraftWorkspaceChange}
         workspaceChanging={replacingTemporaryWorkspace}
-        showWorkspaceSelector={!temporaryComposerDocked}
+        showWorkspaceSelector={temporaryTurnController.layout === 'draft'}
         onNewSessionDraft={() =>
           onStartTemporarySession?.({
             agentId: temporaryAgentConversation.agentId,
@@ -271,10 +230,10 @@ const AgentChat = ({
           }
           main={
             <AgentComposerDock
-              placement={temporaryComposerDocked ? 'docked' : 'home'}
+              placement={temporaryTurnController.layout === 'draft' ? 'home' : 'docked'}
               main={<div className="h-full min-h-0 flex-1" />}
               composer={homeComposer}
-              mainVisible={temporaryComposerDocked}
+              mainVisible={temporaryTurnController.layout !== 'draft'}
             />
           }
           sidePanel={
@@ -303,7 +262,9 @@ const AgentChat = ({
       agentId={sendableAgentId}
       activeAgent={activeAgent}
       isMultiSelectMode={isMultiSelectMode}
-      sendDisabled={isShowingPreviousSession}
+      reservedMessages={
+        reservedSessionSeed?.sessionId === visibleSession.id ? reservedSessionSeed.messages : EMPTY_MESSAGES
+      }
       onOpenCitationsPanel={handleOpenCitationsPanel}
       onNewSessionDraft={
         sendableAgentId
@@ -340,7 +301,7 @@ interface AgentChatSessionFrameProps {
   agentId?: string
   activeAgent: GetAgentResponse | undefined
   isMultiSelectMode: boolean
-  sendDisabled?: boolean
+  reservedMessages?: CherryUIMessage[]
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onNewSessionDraft?: () => void | Promise<void>
 }
@@ -355,7 +316,7 @@ const AgentChatSessionFrame = ({
   agentId,
   activeAgent,
   isMultiSelectMode,
-  sendDisabled = false,
+  reservedMessages = EMPTY_MESSAGES,
   onOpenCitationsPanel,
   onNewSessionDraft
 }: AgentChatSessionFrameProps) => {
@@ -367,9 +328,39 @@ const AgentChatSessionFrame = ({
     hasOlder,
     loadOlder,
     refresh,
+    seedReservedMessages,
     deleteMessage: deleteSessionMessage
   } = useAgentSessionParts(sessionId)
+
+  useLayoutEffect(() => {
+    if (reservedMessages.length === 0) return
+    void seedReservedMessages(reservedMessages)
+  }, [reservedMessages, seedReservedMessages])
   const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const historyAdapter = useMemo<ConversationHistoryAdapter>(
+    () => ({
+      seedReservedMessages,
+      refresh,
+      rollback: refresh
+    }),
+    [refresh, seedReservedMessages]
+  )
+  const turnController = useConversationTurnController<AgentTurnInput, { topicId: string }>({
+    scopeKey: sessionTopicId,
+    historyAdapter,
+    ensureConversation: () => ({ topicId: sessionTopicId }),
+    buildStreamRequest: (input, conversation) => ({
+      trigger: 'submit-message',
+      topicId: conversation.topicId,
+      userMessageParts: getAgentTurnParts(input)
+    })
+  })
+  const sendMessage = useCallback(
+    async (message?: { text: string }, options?: AgentSendOptions) => {
+      await turnController.send({ text: message?.text ?? '', options })
+    },
+    [turnController]
+  )
   const deleteMessage = useCallback(
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
@@ -445,27 +436,16 @@ const AgentChatSessionFrame = ({
             <AgentComposer
               agentId={agentId}
               sessionId={sessionId}
-              sendMessage={chat.sendMessage}
+              sendMessage={sendMessage}
               stop={chat.stop}
               isStreaming={isPending}
-              sendDisabled={sendDisabled}
               onNewSessionDraft={onNewSessionDraft}
             />
           }
         />
       </ComposerContextProvider>
     )
-  }, [
-    agentId,
-    chat.sendMessage,
-    chat.stop,
-    composerContext,
-    isMultiSelectMode,
-    isPending,
-    onNewSessionDraft,
-    sendDisabled,
-    sessionId
-  ])
+  }, [agentId, chat.stop, composerContext, isMultiSelectMode, isPending, onNewSessionDraft, sendMessage, sessionId])
 
   const main = (
     <div className="translate-z-0 relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">

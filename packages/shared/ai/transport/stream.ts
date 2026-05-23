@@ -238,12 +238,11 @@ export type AiStreamOpenResponse =
        */
       userMessageId?: string
       /**
-       * Authoritative DB ids of the assistant placeholder row(s) reserved for
-       * this turn, one per execution (model order matches `executionIds`).
-       * Created atomically with the user message, so the presence of any of
-       * these in `uiMessages` also implies the user row landed.
+       * Authoritative persisted message skeletons reserved before the stream
+       * starts. The renderer seeds these into history immediately, then lets
+       * DB refresh reconcile final content/status.
        */
-      placeholderIds?: string[]
+      reservedMessages?: CherryUIMessage[]
     }
   | {
       mode: 'blocked'

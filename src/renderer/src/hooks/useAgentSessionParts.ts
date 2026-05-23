@@ -11,8 +11,9 @@
  */
 
 import { useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@renderer/data/hooks/useDataApi'
+import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useCallback, useMemo } from 'react'
 
 const PAGE_SIZE = 50
@@ -32,6 +33,30 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
     parts: row.data.parts ?? [],
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined
   } as CherryUIMessage
+}
+
+function reservedUIMessageToAgentSessionMessage(
+  sessionId: string,
+  message: CherryUIMessage
+): AgentSessionMessageEntity {
+  const metadata = message.metadata ?? {}
+  const createdAt = metadata.createdAt ?? new Date().toISOString()
+  return {
+    id: message.id,
+    sessionId,
+    role: message.role,
+    data: { parts: (message.parts ?? []) as CherryMessagePart[] },
+    searchableText: '',
+    status:
+      metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),
+    modelId: metadata.modelId ?? null,
+    modelSnapshot: metadata.modelSnapshot ?? null,
+    traceId: metadata.traceId ?? null,
+    stats: metadata.stats ?? null,
+    runtimeResumeToken: null,
+    createdAt,
+    updatedAt: createdAt
+  }
 }
 
 export function useAgentSessionParts(sessionId: string) {
@@ -66,6 +91,35 @@ export function useAgentSessionParts(sessionId: string) {
     return flat.map(toAgentSessionUIMessage)
   }, [mutate])
 
+  const seedReservedMessages = useCallback(
+    async (messages: CherryUIMessage[]): Promise<void> => {
+      const reservedRows = messages.map((message) => reservedUIMessageToAgentSessionMessage(sessionId, message))
+      if (reservedRows.length === 0) return
+
+      await mutate(
+        (pages?: CursorPaginationResponse<AgentSessionMessageEntity>[]) => {
+          const currentPages = pages?.length ? pages : [{ items: [], nextCursor: undefined }]
+          const existingIds = new Set(currentPages.flatMap((page) => page.items.map((item) => item.id)))
+          const newRows = reservedRows.filter((row) => !existingIds.has(row.id))
+          if (newRows.length === 0) return pages
+
+          const newestFirst = newRows
+            .slice()
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+          const nextPages = currentPages.slice()
+          const firstPage = nextPages[0]
+          nextPages[0] = {
+            ...firstPage,
+            items: [...newestFirst, ...firstPage.items]
+          }
+          return nextPages
+        },
+        { revalidate: false }
+      )
+    },
+    [mutate, sessionId]
+  )
+
   const deleteMessage = useCallback(
     async (messageId: string): Promise<void> => {
       await deleteMessageTrigger({ params: { sessionId, messageId } })
@@ -79,6 +133,7 @@ export function useAgentSessionParts(sessionId: string) {
     hasOlder: hasNext,
     loadOlder: loadNext,
     refresh: refreshMessages,
+    seedReservedMessages,
     deleteMessage
   }
 }

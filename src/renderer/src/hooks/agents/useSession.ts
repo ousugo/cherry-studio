@@ -8,7 +8,6 @@
  *
  * Companion hooks for derived/lifecycle state (not CRUD):
  *  - {@link import('./useCreateDefaultSession').useCreateDefaultSession}
- *  - {@link import('./useAgentSessionInitializer').useAgentSessionInitializer}
  *  - {@link import('./useAgentSessionSync').useAgentSessionSync}
  */
 
@@ -54,14 +53,27 @@ export const useSession = (sessionId: string | null) => {
  * Reads the single active-session pointer and returns the resolved session.
  * Active agent is derived from `session.agentId` — see {@link useActiveAgent}.
  */
-export const useActiveSession = () => {
+export const useActiveSession = (options: { pendingSession?: AgentSessionEntity | null } = {}) => {
   const [activeSessionId, setActiveSessionIdAction] = useCache('agent.active_session_id')
   const setActiveSessionId = useCallback(
     (id: string | null) => setActiveSessionIdAction(id),
     [setActiveSessionIdAction]
   )
   const result = useSession(activeSessionId)
-  return { ...result, activeSessionId, setActiveSessionId }
+  const querySession = activeSessionId && result.session?.id === activeSessionId ? result.session : undefined
+  const pendingSession =
+    activeSessionId && options.pendingSession?.id === activeSessionId ? options.pendingSession : undefined
+  const session = querySession ?? pendingSession
+  const sessionSource = querySession ? 'query' : pendingSession ? 'pending' : 'none'
+
+  return {
+    ...result,
+    session,
+    sessionSource,
+    isLoading: !session && result.isLoading,
+    activeSessionId,
+    setActiveSessionId
+  }
 }
 
 /**

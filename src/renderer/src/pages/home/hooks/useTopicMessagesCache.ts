@@ -17,7 +17,13 @@
  * caller since it holds `setMessages` from `useChatWithHistory`.
  */
 import { useMutation } from '@data/hooks/useDataApi'
-import type { BranchMessage, BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
+import type {
+  BranchMessage,
+  BranchMessagesResponse,
+  CherryMessagePart,
+  CherryUIMessage,
+  Message as SharedMessage
+} from '@shared/data/types/message'
 import { useCallback } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
@@ -28,6 +34,30 @@ function branchWithoutIds(items: BranchMessage[], removedIds: Set<string>): Bran
     .map((item) =>
       item.siblingsGroup ? { ...item, siblingsGroup: item.siblingsGroup.filter((s) => !removedIds.has(s.id)) } : item
     )
+}
+
+function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMessage): BranchMessage {
+  const metadata = message.metadata ?? {}
+  const createdAt = metadata.createdAt ?? new Date().toISOString()
+  return {
+    message: {
+      id: message.id,
+      topicId,
+      parentId: metadata.parentId ?? null,
+      role: message.role,
+      data: { parts: (message.parts ?? []) as CherryMessagePart[] },
+      searchableText: '',
+      status:
+        metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),
+      siblingsGroupId: metadata.siblingsGroupId ?? 0,
+      modelId: metadata.modelId ?? null,
+      modelSnapshot: metadata.modelSnapshot ?? null,
+      traceId: metadata.traceId ?? null,
+      stats: metadata.stats ?? null,
+      createdAt,
+      updatedAt: createdAt
+    }
+  }
 }
 
 export interface UseTopicMessagesCacheParams {
@@ -84,6 +114,42 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     await mutate()
   }, [mutate])
 
+  const seedReservedMessages = useCallback(
+    async (messages: CherryUIMessage[]) => {
+      const reservedItems = messages.map((message) => reservedUIMessageToBranchMessage(topicId, message))
+      if (reservedItems.length === 0) return
+
+      await mutate(
+        (pages) => {
+          const currentPages = pages?.length
+            ? pages
+            : [{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null }]
+          const existingIds = new Set(
+            currentPages.flatMap((page) =>
+              page.items.flatMap((item) => [
+                item.message.id,
+                ...(item.siblingsGroup?.map((sibling) => sibling.id) ?? [])
+              ])
+            )
+          )
+          const newItems = reservedItems.filter((item) => !existingIds.has(item.message.id))
+          if (newItems.length === 0) return pages
+
+          const nextPages = currentPages.slice()
+          const firstPage = nextPages[0]
+          nextPages[0] = {
+            ...firstPage,
+            items: [...firstPage.items, ...newItems],
+            activeNodeId: newItems.at(-1)?.message.id ?? firstPage.activeNodeId
+          }
+          return nextPages
+        },
+        { revalidate: false }
+      )
+    },
+    [mutate, topicId]
+  )
+
   /** Replace the branch cache with a single empty page. */
   const clearBranchCache = useCallback(async () => {
     await mutate([{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null }], { revalidate: false })
@@ -108,6 +174,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   return {
     branchWithoutIds,
     seedOptimisticBranch,
+    seedReservedMessages,
     patchMessageInBranch,
     rollbackBranch,
     clearBranchCache,

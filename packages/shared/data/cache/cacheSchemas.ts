@@ -135,7 +135,7 @@ export type UseCacheSchema = {
   'mini_app.detected_region': MiniAppRegion | null
 
   // Topic management
-  'topic.active': CacheValueTypes.CacheTopic | null
+  'topic.active_id': string | null
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
   'topic.home.first_launch_temp_used': boolean
@@ -209,7 +209,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'mini_app.detected_region': null,
 
   // Topic management
-  'topic.active': null,
+  'topic.active_id': null,
   'topic.renaming': [],
   'topic.newly_renamed': [],
   'topic.home.first_launch_temp_used': false,
@@ -292,6 +292,8 @@ export type RendererPersistCacheSchema = {
   'ui.chat.sidebar.width': number
   'ui.chat.artifact_pane.width': number
   'ui.chat.artifact_pane.file_tree.width': number
+  'ui.chat.last_used_assistant_id': string | null
+  'ui.agent.last_used_agent_id': string | null
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
@@ -309,6 +311,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.sidebar.width': 275,
   'ui.chat.artifact_pane.width': 460,
   'ui.chat.artifact_pane.file_tree.width': 160,
+  'ui.chat.last_used_assistant_id': null,
+  'ui.agent.last_used_agent_id': null,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,

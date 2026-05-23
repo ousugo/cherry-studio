@@ -1,8 +1,10 @@
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useSessions, useUpdateSession } from '../useSession'
+import { useActiveSession, useSessions, useUpdateSession } from '../useSession'
 
 const buildInfiniteReturn = (overrides: Record<string, unknown> = {}) => ({
   pages: [] as Array<{ items: Array<{ id: string; name: string }>; nextCursor?: string }>,
@@ -39,6 +41,71 @@ vi.mock('@data/DataApiService', () => ({
 
 const mockToast = { success: vi.fn(), error: vi.fn() }
 vi.stubGlobal('window', { toast: mockToast })
+
+const createSession = (overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity => ({
+  id: 'session-1',
+  agentId: 'agent-1',
+  name: 'Session',
+  description: undefined,
+  workspaceId: null,
+  workspace: null,
+  orderKey: 'a0',
+  createdAt: '2024-01-01T00:00:00Z',
+  updatedAt: '2024-01-01T00:00:00Z',
+  ...overrides
+})
+
+describe('useActiveSession', () => {
+  beforeEach(() => {
+    MockUseCacheUtils.resetMocks()
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('ignores query data that does not match the active session id', () => {
+    MockUseCacheUtils.setCacheValue('agent.active_session_id', 'session-2')
+    MockUseDataApiUtils.mockQueryResult('/sessions/:sessionId', {
+      data: createSession({ id: 'session-1' }),
+      isLoading: false
+    })
+
+    const { result } = renderHook(() => useActiveSession())
+
+    expect(result.current.activeSessionId).toBe('session-2')
+    expect(result.current.session).toBeUndefined()
+    expect(result.current.sessionSource).toBe('none')
+  })
+
+  it('uses a matching pending session while the query catches up', () => {
+    const pendingSession = createSession({ id: 'temp-session-1' })
+    MockUseCacheUtils.setCacheValue('agent.active_session_id', 'temp-session-1')
+    MockUseDataApiUtils.mockQueryResult('/sessions/:sessionId', {
+      data: undefined,
+      isLoading: true
+    })
+
+    const { result } = renderHook(() => useActiveSession({ pendingSession }))
+
+    expect(result.current.session).toBe(pendingSession)
+    expect(result.current.sessionSource).toBe('pending')
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('prefers matching query data over a pending session', () => {
+    const querySession = createSession({ id: 'session-1' })
+    const pendingSession = createSession({ id: 'session-1', name: 'Pending Session' })
+    MockUseCacheUtils.setCacheValue('agent.active_session_id', 'session-1')
+    MockUseDataApiUtils.mockQueryResult('/sessions/:sessionId', {
+      data: querySession,
+      isLoading: false
+    })
+
+    const { result } = renderHook(() => useActiveSession({ pendingSession }))
+
+    expect(result.current.session).toBe(querySession)
+    expect(result.current.sessionSource).toBe('query')
+  })
+})
 
 describe('useSessions', () => {
   beforeEach(() => {

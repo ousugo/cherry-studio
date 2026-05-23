@@ -1,10 +1,9 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import { useCache } from '@renderer/data/hooks/useCache'
+import { useCache, usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
-import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversationDefaults, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
@@ -29,8 +28,10 @@ const AgentPage = () => {
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { agents } = useAgents()
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
+  const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const sessionRevealRequestIdRef = useRef(0)
+  const initialTemporarySessionEvaluatedRef = useRef(false)
   const [replacingTemporaryAgent, setReplacingTemporaryAgent] = useState(false)
   const [replacingTemporaryWorkspace, setReplacingTemporaryWorkspace] = useState(false)
   const { t } = useTranslation()
@@ -38,14 +39,12 @@ const AgentPage = () => {
   const temporaryConversation = useTemporaryConversation({ type: 'agent' })
   const {
     conversation: temporaryAgentConversation,
+    persistedConversation,
     start: startTemporaryConversation,
     replace: replaceTemporaryConversation,
     persist: persistTemporaryConversation,
     discard: discardTemporaryConversation
   } = temporaryConversation
-
-  // Seed `agent.active_session_id` to the most-recent session when nothing is set.
-  useAgentSessionInitializer()
 
   useShortcut('general.toggle_sidebar', () => {
     toggleShowSidebar()
@@ -93,23 +92,47 @@ const AgentPage = () => {
         return
       }
 
-      await startTemporaryConversation({ ...defaults, name: defaults.name ?? t('common.unnamed') })
+      const started = await startTemporaryConversation({ ...defaults, name: defaults.name ?? t('common.unnamed') })
+      if (started?.type === 'agent') {
+        setLastUsedAgentId(started.agentId)
+      }
       setActiveSessionId(null)
     },
-    [setActiveSessionId, startTemporaryConversation, t, temporaryAgentConversation]
+    [setActiveSessionId, setLastUsedAgentId, startTemporaryConversation, t, temporaryAgentConversation]
   )
+
+  useEffect(() => {
+    if (initialTemporarySessionEvaluatedRef.current) {
+      return
+    }
+
+    if (activeSessionId || temporaryAgentConversation) {
+      initialTemporarySessionEvaluatedRef.current = true
+      return
+    }
+
+    const rememberedAgent = lastUsedAgentId ? agents?.find((agent) => agent.id === lastUsedAgentId) : undefined
+    const defaultAgent = rememberedAgent ?? agents?.[0]
+    if (!defaultAgent) return
+
+    initialTemporarySessionEvaluatedRef.current = true
+    void startTemporarySession({ agentId: defaultAgent.id })
+  }, [activeSessionId, agents, lastUsedAgentId, startTemporarySession, temporaryAgentConversation])
 
   const persistTemporarySession = useCallback(
     async (initialName?: string) => {
       const persisted = await persistTemporaryConversation(initialName)
       if (persisted?.type === 'agent') {
-        await invalidateCache(['/sessions', '/workspaces', `/sessions/${persisted.sessionId}`])
+        setLastUsedAgentId(persisted.agentId)
         setActiveSessionId(persisted.sessionId)
+        void invalidateCache(['/sessions', '/workspaces', `/sessions/${persisted.sessionId}`]).catch((err) => {
+          logger.warn('Failed to refresh session metadata after temporary session persist', err as Error)
+        })
         return persisted
       }
       return null
     },
-    [invalidateCache, persistTemporaryConversation, setActiveSessionId]
+    [invalidateCache, persistTemporaryConversation, setActiveSessionId, setLastUsedAgentId]
   )
   const replaceTemporaryAgent = useCallback(
     async (agentId: string | null) => {
@@ -129,6 +152,7 @@ const AgentPage = () => {
           workspaceId: temporaryAgentConversation.session.workspaceId ?? undefined,
           name: temporaryAgentConversation.name ?? t('common.unnamed')
         })
+        setLastUsedAgentId(agentId)
         setActiveSessionId(null)
       } catch (err) {
         window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
@@ -136,7 +160,15 @@ const AgentPage = () => {
         setReplacingTemporaryAgent(false)
       }
     },
-    [agents, replaceTemporaryConversation, replacingTemporaryAgent, setActiveSessionId, t, temporaryAgentConversation]
+    [
+      agents,
+      replaceTemporaryConversation,
+      replacingTemporaryAgent,
+      setActiveSessionId,
+      setLastUsedAgentId,
+      t,
+      temporaryAgentConversation
+    ]
   )
   const replaceTemporaryWorkspace = useCallback(
     async (workspaceId: string) => {
@@ -181,11 +213,16 @@ const AgentPage = () => {
   }
 
   const panePosition = 'left'
+  const pendingSession =
+    persistedConversation?.type === 'agent' && activeSessionId === persistedConversation.sessionId
+      ? persistedConversation.session
+      : null
 
   return (
     <Container>
       <div className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AgentChat
+          pendingSession={pendingSession}
           pane={
             <AgentSidePanel
               onOpenHistory={openHistory}
@@ -199,9 +236,9 @@ const AgentPage = () => {
           temporaryConversation={temporaryAgentConversation}
           onStartTemporarySession={startTemporarySession}
           onPersistTemporarySession={persistTemporarySession}
-          onTemporarySessionReady={discardTemporaryConversation}
           onDraftAgentChange={replaceTemporaryAgent}
           onDraftWorkspaceChange={replaceTemporaryWorkspace}
+          onVisibleAgentChange={setLastUsedAgentId}
           replacingTemporaryAgent={replacingTemporaryAgent}
           replacingTemporaryWorkspace={replacingTemporaryWorkspace}
         />

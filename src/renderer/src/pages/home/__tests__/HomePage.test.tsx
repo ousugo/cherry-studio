@@ -28,11 +28,13 @@ const historyTopic: Topic = {
 const homeMocks = vi.hoisted(() => ({
   cacheGet: vi.fn(),
   cacheSet: vi.fn(),
+  cacheSetPersist: vi.fn(),
   discardTemporaryConversation: vi.fn(),
   activeTopicLoading: false,
   forceActiveTopicUndefined: false,
   historyTopic: undefined as Topic | undefined,
   locationState: undefined as { topic: Topic } | undefined,
+  persistCacheValues: new Map<string, unknown>(),
   persistTemporaryConversation: vi.fn(),
   preferenceValues: new Map<string, unknown>(),
   refreshTopics: vi.fn(),
@@ -65,6 +67,23 @@ vi.mock('@data/hooks/usePreference', async () => {
       })
 
       return [value, setPreference]
+    }
+  }
+})
+
+vi.mock('@renderer/data/hooks/useCache', async () => {
+  const React = await import('react')
+
+  return {
+    usePersistCache: (key: string) => {
+      const [value, setValue] = React.useState<unknown>(() => homeMocks.persistCacheValues.get(key) ?? null)
+      const setPersistCache = vi.fn((nextValue: unknown) => {
+        homeMocks.persistCacheValues.set(key, nextValue)
+        homeMocks.cacheSetPersist(key, nextValue)
+        setValue(nextValue)
+      })
+
+      return [value, setPersistCache]
     }
   }
 })
@@ -198,6 +217,8 @@ describe('HomePage', () => {
     vi.clearAllMocks()
     homeMocks.historyTopic = historyTopic
     homeMocks.locationState = { topic: initialTopic }
+    homeMocks.cacheGet.mockReturnValue(undefined)
+    homeMocks.persistCacheValues.clear()
     homeMocks.persistTemporaryConversation.mockResolvedValue(null)
     homeMocks.replaceTemporaryConversation.mockResolvedValue({
       id: 'temp-topic',
@@ -283,11 +304,19 @@ describe('HomePage', () => {
     })
   })
 
-  it('seeds the first-launch temporary topic from the cached active topic assistant', async () => {
+  it('remembers the active topic assistant for the next first-launch temporary topic', async () => {
+    render(<HomePage />)
+
+    await waitFor(() => {
+      expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.last_used_assistant_id', 'assistant-1')
+    })
+  })
+
+  it('seeds the first-launch temporary topic from the remembered assistant', async () => {
     homeMocks.locationState = undefined
-    homeMocks.cacheGet.mockImplementation((key: string) => (key === 'topic.active' ? initialTopic : undefined))
+    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
     homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: 'assistant-1',
+      assistantId: 'assistant-2',
       id: 'temp-topic',
       topicId: 'temp-topic',
       type: 'assistant'
@@ -296,7 +325,7 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
     })
   })
 

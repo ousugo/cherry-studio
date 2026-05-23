@@ -113,5 +113,17 @@ describe('PersistentChatContextProvider', () => {
     expect(prepared.listeners).toEqual([subscriber])
     expect(prepared.userMessage?.id).toBe('user-1')
     expect(prepared.userMessageId).toBe('user-1')
+    expect(prepared.reservedMessages).toEqual([
+      expect.objectContaining({
+        id: 'user-1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'queued follow-up' }],
+        metadata: expect.objectContaining({
+          parentId: 'assistant-streaming',
+          status: 'success',
+          modelId: 'openai::gpt-4o'
+        })
+      })
+    ])
   })
 })
