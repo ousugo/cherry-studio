@@ -15,7 +15,8 @@ import {
   type ResourceListSortOption,
   type ResourceListState,
   type ResourceListStatus,
-  type ResourceListVariantContext
+  type ResourceListVariantContext,
+  type ResourceListViewGroup
 } from './ResourceListContext'
 
 const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
@@ -23,10 +24,162 @@ const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = [
 const getDefaultItemId = (item: ResourceListItemBase) => item.id
 const getDefaultItemLabel = (item: ResourceListItemBase) => item.name
 const estimateDefaultItemSize = () => 34
+const UNGROUPED_RESOURCE_GROUP: ResourceListGroup = { id: 'ungrouped', label: '' }
 
 type ResourceListGroupHeaderClickBehaviorResolver =
   | ResourceListGroupHeaderClickBehavior
   | ((group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior)
+
+type DeriveResourceListItemsOptions<T extends ResourceListItemBase> = {
+  filterById: ReadonlyMap<string, ResourceListFilterOption<T>>
+  filters: readonly string[]
+  getItemLabel: (item: T) => string
+  items: readonly T[]
+  query: string
+  sortById: ReadonlyMap<string, ResourceListSortOption<T>>
+  sortId: string | null
+}
+
+type BuildResourceListGroupsOptions<T extends ResourceListItemBase> = {
+  collapsedGroupIds: readonly string[]
+  defaultGroupVisibleCount: number
+  groupBy?: (item: T) => ResourceListGroup | null
+  groupVisibleCounts: Record<string, number>
+  items: readonly T[]
+}
+
+type FindRevealTargetOptions<T extends ResourceListItemBase> = {
+  defaultGroupVisibleCount: number
+  getItemId: (item: T) => string
+  groupBy?: (item: T) => ResourceListGroup | null
+  groupVisibleCounts: Record<string, number>
+  itemId: string
+  items: readonly T[]
+}
+
+function getResourceListGroup<T extends ResourceListItemBase>(
+  item: T,
+  groupBy?: (item: T) => ResourceListGroup | null
+) {
+  return groupBy?.(item) ?? UNGROUPED_RESOURCE_GROUP
+}
+
+function deriveResourceListItems<T extends ResourceListItemBase>({
+  filterById,
+  filters,
+  getItemLabel,
+  items,
+  query,
+  sortById,
+  sortId
+}: DeriveResourceListItemsOptions<T>) {
+  const normalizedQuery = query.trim().toLowerCase()
+  let next = [...items]
+
+  if (normalizedQuery) {
+    next = next.filter((item) => getItemLabel(item).toLowerCase().includes(normalizedQuery))
+  }
+
+  if (filters.length > 0) {
+    next = next.filter((item) => {
+      for (const filterId of filters) {
+        const filter = filterById.get(filterId)
+        if (filter && !filter.predicate(item)) return false
+      }
+      return true
+    })
+  }
+
+  const sort = sortId ? sortById.get(sortId) : null
+  if (sort) {
+    next.sort(sort.comparator)
+  }
+
+  return next
+}
+
+function buildResourceListGroups<T extends ResourceListItemBase>({
+  collapsedGroupIds,
+  defaultGroupVisibleCount,
+  groupBy,
+  groupVisibleCounts,
+  items
+}: BuildResourceListGroupsOptions<T>): ResourceListViewGroup<T>[] {
+  const collapsedGroups = new Set(collapsedGroupIds)
+
+  if (!groupBy) {
+    const group = { id: 'all', label: '' }
+    return [
+      {
+        group,
+        allItems: [...items],
+        items: [...items],
+        totalCount: items.length,
+        visibleCount: items.length,
+        hasMore: false,
+        canCollapseToDefault: false,
+        collapsed: false
+      }
+    ]
+  }
+
+  const groups = new Map<string, { group: ResourceListGroup; items: T[] }>()
+  for (const item of items) {
+    const group = getResourceListGroup(item, groupBy)
+    const existing = groups.get(group.id)
+    if (existing) {
+      existing.items.push(item)
+    } else {
+      groups.set(group.id, { group, items: [item] })
+    }
+  }
+
+  return [...groups.values()].map(({ group, items }) => {
+    const totalCount = items.length
+    const collapsed = collapsedGroups.has(group.id)
+    const configuredVisibleCount = groupVisibleCounts[group.id] ?? defaultGroupVisibleCount
+    const visibleCount = Math.min(configuredVisibleCount, totalCount)
+    const hasMore = !collapsed && visibleCount < totalCount
+    const canCollapseToDefault = !collapsed && totalCount > defaultGroupVisibleCount && visibleCount >= totalCount
+
+    return {
+      group: { ...group, count: group.count ?? totalCount },
+      allItems: items,
+      items: collapsed ? [] : items.slice(0, visibleCount),
+      totalCount,
+      visibleCount: collapsed ? 0 : visibleCount,
+      hasMore,
+      canCollapseToDefault,
+      collapsed
+    }
+  })
+}
+
+function findResourceListRevealTarget<T extends ResourceListItemBase>({
+  defaultGroupVisibleCount,
+  getItemId,
+  groupBy,
+  groupVisibleCounts,
+  itemId,
+  items
+}: FindRevealTargetOptions<T>) {
+  const targetItem = items.find((item) => getItemId(item) === itemId)
+  if (!targetItem) return null
+
+  if (!groupBy) {
+    return { targetGroupId: null, visibleCount: undefined }
+  }
+
+  const targetGroupId = getResourceListGroup(targetItem, groupBy).id
+  const groupItems = items.filter((item) => getResourceListGroup(item, groupBy).id === targetGroupId)
+  const targetIndexInGroup = groupItems.findIndex((item) => getItemId(item) === itemId)
+  const currentVisibleCount = groupVisibleCounts[targetGroupId] ?? defaultGroupVisibleCount
+  const targetVisibleCount = targetIndexInGroup + 1
+  const visibleCount =
+    targetIndexInGroup >= 0 && targetVisibleCount > currentVisibleCount ? targetVisibleCount : undefined
+
+  return { targetGroupId, visibleCount }
+}
 
 export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   items: readonly T[]
@@ -94,6 +247,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
 type ProviderAction =
   | { type: 'setQuery'; query: string }
   | { type: 'setFilters'; filters: string[] }
+  | { type: 'toggleFilter'; filterId: string }
   | { type: 'setSort'; sort: string | null }
   | { type: 'selectItem'; id: string | null }
   | { type: 'hoverItem'; id: string | null }
@@ -122,6 +276,15 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
       return { ...state, query: action.query }
     case 'setFilters':
       return { ...state, filters: action.filters }
+    case 'toggleFilter': {
+      const next = new Set(state.filters)
+      if (next.has(action.filterId)) {
+        next.delete(action.filterId)
+      } else {
+        next.add(action.filterId)
+      }
+      return { ...state, filters: [...next] }
+    }
     case 'setSort':
       return { ...state, sort: action.sort }
     case 'selectItem':
@@ -244,7 +407,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     status
   })
 
-  const activeFilters = useMemo(() => new Set(state.filters), [state.filters])
   const filterById = useMemo(() => new Map(filterOptions.map((option) => [option.id, option])), [filterOptions])
   const sortById = useMemo(() => new Map(sortOptions.map((option) => [option.id, option])), [sortOptions])
   const effectiveCollapsedGroupIds = collapsedGroupIds ?? state.collapsedGroups
@@ -261,46 +423,35 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     const requestKey = `${revealRequest.requestId}:${revealRequest.itemId}`
     if (handledRevealRequestRef.current === requestKey) return
 
-    const query = revealRequest.clearQuery ? '' : state.query.trim().toLowerCase()
+    const query = revealRequest.clearQuery ? '' : state.query
     const filters = revealRequest.clearFilters ? [] : state.filters
-    let revealItems = [...items]
+    const revealItems = deriveResourceListItems({
+      filterById,
+      filters,
+      getItemLabel,
+      items,
+      query,
+      sortById,
+      sortId: state.sort
+    })
+    const revealTarget = findResourceListRevealTarget({
+      defaultGroupVisibleCount,
+      getItemId,
+      groupBy,
+      groupVisibleCounts: state.groupVisibleCounts,
+      itemId: revealRequest.itemId,
+      items: revealItems
+    })
+    if (!revealTarget) return
 
-    if (query) {
-      revealItems = revealItems.filter((item) => getItemLabel(item).toLowerCase().includes(query))
-    }
-
-    if (filters.length > 0) {
-      revealItems = revealItems.filter((item) =>
-        filters.every((filterId) => filterById.get(filterId)?.predicate(item) ?? true)
+    if (
+      collapsedGroupIds &&
+      revealTarget.targetGroupId &&
+      effectiveCollapsedGroupIds.includes(revealTarget.targetGroupId)
+    ) {
+      onCollapsedGroupIdsChange?.(
+        effectiveCollapsedGroupIds.filter((groupId) => groupId !== revealTarget.targetGroupId)
       )
-    }
-
-    const sort = state.sort ? sortById.get(state.sort) : null
-    if (sort) {
-      revealItems.sort(sort.comparator)
-    }
-
-    const targetItem = revealItems.find((item) => getItemId(item) === revealRequest.itemId)
-    if (!targetItem) return
-
-    const targetGroup = groupBy ? (groupBy(targetItem) ?? { id: 'ungrouped', label: '' }) : null
-    const targetGroupId = targetGroup?.id ?? null
-    let visibleCount: number | undefined
-
-    if (targetGroupId && groupBy) {
-      const groupItems = revealItems.filter(
-        (item) => (groupBy(item) ?? { id: 'ungrouped', label: '' }).id === targetGroupId
-      )
-      const targetIndexInGroup = groupItems.findIndex((item) => getItemId(item) === revealRequest.itemId)
-      if (targetIndexInGroup >= 0) {
-        const currentVisibleCount = state.groupVisibleCounts[targetGroupId] ?? defaultGroupVisibleCount
-        const targetVisibleCount = targetIndexInGroup + 1
-        visibleCount = targetVisibleCount > currentVisibleCount ? targetVisibleCount : undefined
-      }
-
-      if (collapsedGroupIds && effectiveCollapsedGroupIds.includes(targetGroupId)) {
-        onCollapsedGroupIdsChange?.(effectiveCollapsedGroupIds.filter((groupId) => groupId !== targetGroupId))
-      }
     }
 
     handledRevealRequestRef.current = requestKey
@@ -308,10 +459,10 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       type: 'revealItem',
       clearFilters: revealRequest.clearFilters,
       clearQuery: revealRequest.clearQuery,
-      groupId: targetGroupId,
+      groupId: revealTarget.targetGroupId,
       itemId: revealRequest.itemId,
       requestId: revealRequest.requestId,
-      visibleCount
+      visibleCount: revealTarget.visibleCount
     })
   }, [
     collapsedGroupIds,
@@ -345,78 +496,24 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   }, [state.revealFocus])
 
   const viewItems = useMemo(() => {
-    const normalizedQuery = state.query.trim().toLowerCase()
-    let next = [...items]
-
-    if (normalizedQuery) {
-      next = next.filter((item) => getItemLabel(item).toLowerCase().includes(normalizedQuery))
-    }
-
-    if (activeFilters.size > 0) {
-      next = next.filter((item) => {
-        for (const filterId of activeFilters) {
-          const filter = filterById.get(filterId)
-          if (filter && !filter.predicate(item)) return false
-        }
-        return true
-      })
-    }
-
-    const sort = state.sort ? sortById.get(state.sort) : null
-    if (sort) {
-      next.sort(sort.comparator)
-    }
-
-    return next
-  }, [activeFilters, filterById, getItemLabel, items, sortById, state.query, state.sort])
+    return deriveResourceListItems({
+      filterById,
+      filters: state.filters,
+      getItemLabel,
+      items,
+      query: state.query,
+      sortById,
+      sortId: state.sort
+    })
+  }, [filterById, getItemLabel, items, sortById, state.filters, state.query, state.sort])
 
   const viewGroups = useMemo(() => {
-    const collapsedGroups = new Set(effectiveCollapsedGroupIds)
-
-    if (!groupBy) {
-      const group = { id: 'all', label: '' }
-      return [
-        {
-          group,
-          allItems: viewItems,
-          items: viewItems,
-          totalCount: viewItems.length,
-          visibleCount: viewItems.length,
-          hasMore: false,
-          canCollapseToDefault: false,
-          collapsed: false
-        }
-      ]
-    }
-
-    const groups = new Map<string, { group: ResourceListGroup; items: T[] }>()
-    for (const item of viewItems) {
-      const group = groupBy(item) ?? { id: 'ungrouped', label: '' }
-      const existing = groups.get(group.id)
-      if (existing) {
-        existing.items.push(item)
-      } else {
-        groups.set(group.id, { group, items: [item] })
-      }
-    }
-    return [...groups.values()].map(({ group, items }) => {
-      const totalCount = items.length
-      const collapsed = collapsedGroups.has(group.id)
-      const configuredVisibleCount = state.groupVisibleCounts[group.id] ?? defaultGroupVisibleCount
-      const visibleCount = Math.min(configuredVisibleCount, totalCount)
-      const hasMore = !collapsed && visibleCount < totalCount
-      const canCollapseToDefault = !collapsed && totalCount > defaultGroupVisibleCount && visibleCount >= totalCount
-
-      return {
-        group: { ...group, count: group.count ?? totalCount },
-        allItems: items,
-        items: collapsed ? [] : items.slice(0, visibleCount),
-        totalCount,
-        visibleCount: collapsed ? 0 : visibleCount,
-        hasMore,
-        canCollapseToDefault,
-        collapsed
-      }
+    return buildResourceListGroups({
+      collapsedGroupIds: effectiveCollapsedGroupIds,
+      defaultGroupVisibleCount,
+      groupBy,
+      groupVisibleCounts: state.groupVisibleCounts,
+      items: viewItems
     })
   }, [defaultGroupVisibleCount, effectiveCollapsedGroupIds, groupBy, state.groupVisibleCounts, viewItems])
 
@@ -426,15 +523,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     () => ({
       setQuery: (query: string) => dispatch({ type: 'setQuery', query }),
       setFilters: (filters: string[]) => dispatch({ type: 'setFilters', filters }),
-      toggleFilter: (filterId: string) => {
-        const next = new Set(state.filters)
-        if (next.has(filterId)) {
-          next.delete(filterId)
-        } else {
-          next.add(filterId)
-        }
-        dispatch({ type: 'setFilters', filters: [...next] })
-      },
+      toggleFilter: (filterId: string) => dispatch({ type: 'toggleFilter', filterId }),
       setSort: (sortId: string | null) => dispatch({ type: 'setSort', sort: sortId }),
       selectItem: (id: string) => {
         dispatch({ type: 'selectItem', id })
@@ -478,8 +567,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       onOpenContextMenu,
       onRenameItem,
       onReorder,
-      onSelectItem,
-      state.filters
+      onSelectItem
     ]
   )
 

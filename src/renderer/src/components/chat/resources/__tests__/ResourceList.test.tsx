@@ -273,6 +273,46 @@ describe('ResourceList', () => {
     expect(ITEMS.map((item) => item.id).join(',')).toBe(originalOrder)
   })
 
+  it('keeps resource actions stable when local filter state changes', () => {
+    const actionRefs: unknown[] = []
+    const Provider = ResourceList.Provider<TestItem>
+
+    function ActionProbe() {
+      const { actions } = useResourceList<TestItem>()
+      actionRefs.push(actions)
+      return (
+        <button type="button" onClick={() => actions.toggleFilter('pinned')}>
+          Toggle pinned
+        </button>
+      )
+    }
+
+    render(
+      <Provider
+        items={ITEMS}
+        filterOptions={[
+          {
+            id: 'pinned',
+            label: 'Pinned',
+            predicate: (item) => item.pinned === true
+          }
+        ]}>
+        <ResourceList.Frame>
+          <ActionProbe />
+          <Inspector />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle pinned' }))
+
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      filters: ['pinned']
+    })
+    expect(actionRefs.length).toBeGreaterThanOrEqual(2)
+    expect(actionRefs.at(-1)).toBe(actionRefs[0])
+  })
+
   it('owns rename UI state and delegates persistence through callbacks', () => {
     const onRenameItem = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
