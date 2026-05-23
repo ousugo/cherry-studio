@@ -4,28 +4,28 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { type Span, trace } from '@opentelemetry/api'
+import type { Span } from '@opentelemetry/api'
 import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CherryUIMessage, Message } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
-import { PendingMessageQueue } from '../ai-sdk/loop/PendingMessageQueue'
-import { PersistenceListener } from '../stream-manager/listeners/PersistenceListener'
-import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../stream-manager/types'
-import { AdapterTracer, TRACER_NAME } from '../trace'
-import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
+import { startAiTurnTrace } from '../observability'
 import {
   type AgentRuntimeConnection,
-  agentRuntimeDriverRegistry,
   type AgentRuntimeEvent,
-  type AgentRuntimePolicyUpdate
-} from './runtime'
-import { type DispatchDecision, toolApprovalRegistry } from './runtime/claude-code/ToolApprovalRegistry'
+  type AgentRuntimePolicyUpdate,
+  type AgentRuntimeTraceContext,
+  runtimeDriverRegistry
+} from '../runtime'
+import { PendingMessageQueue } from '../runtime/ai-sdk/loop/PendingMessageQueue'
+import { type DispatchDecision, toolApprovalRegistry } from '../runtime/claude-code/ToolApprovalRegistry'
+import { PersistenceListener } from '../stream-manager/listeners/PersistenceListener'
+import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../stream-manager/types'
+import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
-const rawTracer = trace.getTracer(TRACER_NAME)
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
@@ -39,6 +39,8 @@ export interface BeginAgentSessionTurnInput {
   modelId: UniqueModelId
   assistantMessageId?: string
   userMessage?: Message
+  traceId?: string
+  rootSpanId?: string
 }
 
 export interface AgentSessionRuntimeHandle {
@@ -75,6 +77,7 @@ type AgentSessionTurn = {
   controller?: ReadableStreamDefaultController<UIMessageChunk>
   activeToolIds: Set<string>
   interruptRequested: boolean
+  trace?: AgentRuntimeTraceContext
 }
 
 type AgentSessionRuntimeEntry = {
@@ -153,7 +156,8 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: input.modelId,
       admitted: false,
       activeToolIds: new Set(),
-      interruptRequested: false
+      interruptRequested: false,
+      trace: this.createTraceContext(input, turnId, input.traceId, input.rootSpanId)
     }
 
     if (existing?.status === 'idle') {
@@ -293,6 +297,10 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.lastTerminalStatus = status
     if (entry.currentTurn) entry.currentTurn.terminalStatus = status
 
+    if (this.shouldCloseConnectionAfterTurn(entry)) {
+      void this.closeConnection(entry)?.close()
+    }
+
     if (entry.pendingMessages.hasPending()) {
       this.scheduleNextTurn(entry)
     } else {
@@ -347,14 +355,15 @@ export class AgentSessionRuntimeService extends BaseService {
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<void> {
     if (entry.connection) return
 
-    const driver = agentRuntimeDriverRegistry.get(entry.agentType)
+    const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
 
     const connection = await driver.connect({
       sessionId: entry.sessionId,
       agentId: entry.agentId,
       modelId: entry.modelId,
-      resumeToken: entry.lastResumeToken
+      resumeToken: entry.lastResumeToken,
+      trace: entry.currentTurn?.trace
     })
     entry.connection = connection
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
@@ -473,7 +482,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     entry.pendingMessages.remove(nextMessage.id)
 
-    const { rootSpan, traceId } = this.startRuntimeRootSpan(entry)
+    const { rootSpan, traceId, rootSpanId } = this.startRuntimeRootSpan(entry)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
       assistantMessage = await agentSessionMessageService.saveMessage({
@@ -500,7 +509,8 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: entry.modelId,
       admitted: false,
       activeToolIds: new Set(),
-      interruptRequested: false
+      interruptRequested: false,
+      trace: this.createTraceContext(entry, turnId, traceId, rootSpanId)
     }
 
     application.get('AiStreamManager').startRuntimeTurn({
@@ -522,21 +532,47 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  private startRuntimeRootSpan(entry: AgentSessionRuntimeEntry): { rootSpan: Span; traceId: string } {
-    const adapterTracer = new AdapterTracer(rawTracer, entry.topicId, parseUniqueModelId(entry.modelId).modelId)
-    const rootSpan = adapterTracer.startSpan('chat.turn', {
-      attributes: {
-        'cs.topic_id': entry.topicId,
-        'cs.trigger': 'submit-message',
-        'cs.model_id': entry.modelId,
-        'cs.role': 'assistant',
-        'cs.agent_id': entry.agentId,
-        'cs.session_id': entry.sessionId
-      }
-    })
-    const traceId = rootSpan.spanContext().traceId
-    application.get('SpanCacheService').setTopicId(traceId, entry.topicId)
-    return { rootSpan, traceId }
+  private startRuntimeRootSpan(entry: AgentSessionRuntimeEntry): {
+    rootSpan: Span
+    traceId: string
+    rootSpanId: string
+  } {
+    const turnTrace = startAiTurnTrace(
+      'chat.turn',
+      {
+        attributes: {
+          'cs.topic_id': entry.topicId,
+          'cs.trigger': 'submit-message',
+          'cs.model_id': entry.modelId,
+          'cs.role': 'assistant',
+          'cs.agent_id': entry.agentId,
+          'cs.session_id': entry.sessionId
+        }
+      },
+      { topicId: entry.topicId, modelName: parseUniqueModelId(entry.modelId).modelId }
+    )
+    return { rootSpan: turnTrace.rootSpan, traceId: turnTrace.traceId, rootSpanId: turnTrace.rootSpanId }
+  }
+
+  private createTraceContext(
+    input: Pick<BeginAgentSessionTurnInput, 'topicId' | 'sessionId' | 'modelId'>,
+    turnId: string,
+    traceId?: string,
+    rootSpanId?: string
+  ): AgentRuntimeTraceContext | undefined {
+    if (!traceId || !rootSpanId) return undefined
+    return {
+      topicId: input.topicId,
+      traceId,
+      rootSpanId,
+      sessionId: input.sessionId,
+      turnId,
+      modelName: parseUniqueModelId(input.modelId).modelId
+    }
+  }
+
+  private shouldCloseConnectionAfterTurn(entry: AgentSessionRuntimeEntry): boolean {
+    return Boolean(entry.currentTurn?.trace && application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled())
   }
 
   private createPersistenceListener(entry: AgentSessionRuntimeEntry, userMessage: Message): StreamListener {
@@ -559,7 +595,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.clearIdleTimer(entry)
     entry.idleTimer = setTimeout(() => {
       this.closeSession(entry.sessionId)
-      if (entry.lastResumeToken) {
+      if (entry.lastResumeToken && !application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()) {
         void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(entry.sessionId)
       }
     }, DEFAULT_IDLE_TTL_MS)
@@ -584,13 +620,18 @@ export class AgentSessionRuntimeService extends BaseService {
     this.closeCurrentTurn(entry, 'paused')
     entry.pendingMessages.close()
 
-    const connection = entry.connection
-    entry.connection = undefined
-    entry.connectionLoop = undefined
+    const connection = this.closeConnection(entry)
     entry.currentTurn = undefined
     entry.startingNextTurn = false
 
     void connection?.close()
+  }
+
+  private closeConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {
+    const connection = entry.connection
+    entry.connection = undefined
+    entry.connectionLoop = undefined
+    return connection
   }
 }
 

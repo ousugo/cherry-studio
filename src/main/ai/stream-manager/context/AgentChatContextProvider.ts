@@ -8,19 +8,16 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { sessionService } from '@data/services/SessionService'
 import { application } from '@main/core/application'
-import { trace } from '@opentelemetry/api'
 import type { Message } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { v7 as uuidv7 } from 'uuid'
 
-import { agentRuntimeDriverRegistry } from '../../agent-session/runtime'
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agent-session/topic'
-import { AdapterTracer, TRACER_NAME } from '../../trace'
+import { startAiTurnTrace } from '../../observability'
+import { runtimeDriverRegistry } from '../../runtime'
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
-
-const rawTracer = trace.getTracer(TRACER_NAME)
 
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
@@ -50,7 +47,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
     if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
 
-    const driver = agentRuntimeDriverRegistry.get(agent.type)
+    const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
     if (!driver) {
       throw new Error(`Unsupported agent runtime type: ${agent.type}`)
     }
@@ -105,20 +102,22 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const assistantMessageId = uuidv7()
 
-    // Root span; AI SDK children inherit its traceId. `AdapterTracer` persists the root.
-    const adapterTracer = new AdapterTracer(rawTracer, req.topicId, parseUniqueModelId(uniqueModelId).modelId)
-    const rootSpan = adapterTracer.startSpan('chat.turn', {
-      attributes: {
-        'cs.topic_id': req.topicId,
-        'cs.trigger': req.trigger,
-        'cs.model_id': uniqueModelId,
-        'cs.role': 'assistant',
-        'cs.agent_id': agentId,
-        'cs.session_id': sessionId
-      }
-    })
-    const traceId = rootSpan.spanContext().traceId
-    application.get('SpanCacheService').setTopicId(traceId, req.topicId)
+    // Application root span. Claude Code child spans join this trace through TRACEPARENT.
+    const turnTrace = startAiTurnTrace(
+      'chat.turn',
+      {
+        attributes: {
+          'cs.topic_id': req.topicId,
+          'cs.trigger': req.trigger,
+          'cs.model_id': uniqueModelId,
+          'cs.role': 'assistant',
+          'cs.agent_id': agentId,
+          'cs.session_id': sessionId
+        }
+      },
+      { topicId: req.topicId, modelName: parseUniqueModelId(uniqueModelId).modelId }
+    )
+    const traceId = turnTrace.traceId
 
     // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
     await agentSessionMessageService.saveMessages({
@@ -148,7 +147,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentType: agent.type,
       modelId: uniqueModelId,
       assistantMessageId,
-      userMessage
+      userMessage,
+      traceId,
+      rootSpanId: turnTrace.rootSpanId
     })
 
     return {
@@ -169,7 +170,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
             runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId },
             pendingMessages: runtime.pendingMessages
           },
-          rootSpan
+          rootSpan: turnTrace.rootSpan
         }
       ],
       userMessage,

@@ -19,7 +19,7 @@ import type { StreamListener } from '../types'
  *
  * Lives alongside `dispatch.ts` because stream-manager already owns the
  * downward dependency on agent-session (`AgentChatContextProvider` imports
- * agent-session/runtime + agent-session/topic). Putting this facade here
+ * ai/runtime + agent-session/topic). Putting this facade here
  * keeps the direction one-way; if it lived in agent-session/ the package
  * graph would loop back through stream-manager/context.
  */

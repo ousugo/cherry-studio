@@ -3,7 +3,7 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { PendingMessageQueue } from '../../ai-sdk/loop/PendingMessageQueue'
+import { PendingMessageQueue } from '../../runtime/ai-sdk/loop/PendingMessageQueue'
 import type { AiStreamRequest } from '../../types/requests'
 import type {
   AiStreamManagerConfig,

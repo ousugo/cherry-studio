@@ -8,7 +8,8 @@ const mocks = vi.hoisted(() => ({
   startRuntimeTurn: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
   spanCacheSetTopicId: vi.fn(),
-  prewarmAgentSession: vi.fn()
+  prewarmAgentSession: vi.fn(),
+  traceModeEnabled: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -24,7 +25,7 @@ vi.mock('@main/core/application', () => ({
 }))
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
-const { agentRuntimeDriverRegistry } = await import('../runtime')
+const { runtimeDriverRegistry } = await import('../../runtime')
 const baseTurnInput = {
   sessionId: 'session-1',
   topicId: 'agent-session:session-1',
@@ -90,7 +91,7 @@ function createAsyncQueue<T>() {
 describe('AgentSessionRuntimeService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
-    agentRuntimeDriverRegistry.clearForTest()
+    runtimeDriverRegistry.clearForTest()
     vi.clearAllMocks()
     mocks.saveMessage.mockImplementation(async ({ message }) => ({
       ...message,
@@ -105,8 +106,10 @@ describe('AgentSessionRuntimeService', () => {
       }
       if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
       if (name === 'ClaudeCodeWarmQueryManager') return { prewarmAgentSession: mocks.prewarmAgentSession }
+      if (name === 'ClaudeCodeTraceBridgeService') return { isTraceModeEnabled: mocks.traceModeEnabled }
       throw new Error(`Unexpected application.get(${name})`)
     })
+    mocks.traceModeEnabled.mockReturnValue(false)
   })
 
   it('creates an active runtime with a session-level pending queue', () => {
@@ -235,8 +238,9 @@ describe('AgentSessionRuntimeService', () => {
       close: vi.fn()
     }
     const connect = vi.fn().mockResolvedValue(connection)
-    agentRuntimeDriverRegistry.register({
+    runtimeDriverRegistry.register({
       type: 'test-runtime',
+      capabilities: ['agent-session'],
       connect,
       validateSession: vi.fn(),
       listAvailableTools: vi.fn().mockResolvedValue([])
@@ -264,6 +268,61 @@ describe('AgentSessionRuntimeService', () => {
 
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })
+  })
+
+  it('passes trace context to the runtime driver and closes the connection after trace turns', async () => {
+    mocks.traceModeEnabled.mockReturnValue(true)
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn()
+    }
+    const connect = vi.fn().mockResolvedValue(connection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      userMessage: userMessage('user-1'),
+      traceId: '0'.repeat(32),
+      rootSpanId: '1'.repeat(16)
+    })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'stream-start' }, done: false })
+    await vi.waitFor(() =>
+      expect(connect).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::claude-sonnet-4-5',
+        resumeToken: undefined,
+        trace: {
+          topicId: 'agent-session:session-1',
+          traceId: '0'.repeat(32),
+          rootSpanId: '1'.repeat(16),
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          modelName: 'claude-sonnet-4-5'
+        }
+      })
+    )
+
+    void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+
+    expect(connection.close).toHaveBeenCalledOnce()
+    expect(getEntry(service).connection).toBeUndefined()
+    await reader.cancel().catch(() => undefined)
   })
 
   it('persists errored assistant turns with the latest resume token', async () => {
@@ -335,5 +394,13 @@ describe('AgentSessionRuntimeService', () => {
     })
     const request = mocks.startRuntimeTurn.mock.calls[0][0].request
     expect(request.messageId).toBe(request.messages[1].id)
+    expect(getEntry(service).currentTurn.trace).toMatchObject({
+      topicId: 'agent-session:session-1',
+      traceId: savedMessage.traceId,
+      rootSpanId: expect.any(String),
+      sessionId: 'session-1',
+      turnId: request.runtime.turnId,
+      modelName: 'claude-sonnet-4-5'
+    })
   })
 })

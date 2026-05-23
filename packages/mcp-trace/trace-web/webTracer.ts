@@ -22,8 +22,7 @@ export class WebTracer {
     }
     // Callers are expected to pass a processor. The dev-only fallback logs
     // spans to the console so that a misconfigured caller doesn't silently
-    // lose data — renderer → main IPC persistence flows through the injected
-    // processor (see WebTraceService.init).
+    // lose data when callers forget to inject a processor.
     this.processor = spanProcessor || new SimpleSpanProcessor(new ConsoleSpanExporter())
     this.provider = new WebTracerProvider({
       spanProcessors: [this.processor]

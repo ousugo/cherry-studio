@@ -38,7 +38,7 @@ vi.mock('@main/core/application', () => ({
 }))
 
 const { AgentChatContextProvider } = await import('../AgentChatContextProvider')
-const { agentRuntimeDriverRegistry } = await import('../../../agent-session/runtime')
+const { runtimeDriverRegistry } = await import('../../../runtime')
 
 function makeSubscriber(id = 'wc:1:agent-session:session-1'): StreamListener {
   return {
@@ -67,9 +67,10 @@ describe('AgentChatContextProvider', () => {
     provider = new AgentChatContextProvider()
 
     vi.clearAllMocks()
-    agentRuntimeDriverRegistry.clearForTest()
-    agentRuntimeDriverRegistry.register({
+    runtimeDriverRegistry.clearForTest()
+    runtimeDriverRegistry.register({
       type: 'claude-code',
+      capabilities: ['agent-session'],
       connect: vi.fn(),
       validateSession: vi.fn(),
       listAvailableTools: vi.fn().mockResolvedValue([])
@@ -125,7 +126,9 @@ describe('AgentChatContextProvider', () => {
       agentType: 'claude-code',
       modelId: 'anthropic::claude-sonnet',
       assistantMessageId: prepared.models[0].request.messageId,
-      userMessage: prepared.userMessage
+      userMessage: prepared.userMessage,
+      traceId: savedMessages[1].traceId,
+      rootSpanId: expect.any(String)
     })
     expect(prepared.listeners).toEqual([
       subscriber,
@@ -148,7 +151,7 @@ describe('AgentChatContextProvider', () => {
   })
 
   it('rejects agent sessions without a registered runtime driver', async () => {
-    agentRuntimeDriverRegistry.clearForTest()
+    runtimeDriverRegistry.clearForTest()
     mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })
 
     await expect(provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })).rejects.toThrow(

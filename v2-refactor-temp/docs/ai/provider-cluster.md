@@ -81,7 +81,7 @@ declares:
 
 Claude Code no longer registers a normal AI SDK provider extension.
 The Claude-specific runtime pieces live under
-`src/main/ai/agent-session/runtime/claude-code/`: the driver owns the
+`src/main/ai/runtime/claude-code/`: the driver owns the
 SDK query, warm query reuse, SDK input queue, and stream adapter that
 converts agent SDK events into UI message chunks. `settingsBuilder.ts`
 builds `ClaudeCodeSettings` from an `AgentSessionEntity` — model

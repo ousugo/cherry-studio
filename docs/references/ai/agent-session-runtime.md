@@ -10,7 +10,7 @@ per turn, or Claude Code's SDK `query`.
 The boundary is:
 
 - `AgentSessionRuntimeService` owns Cherry's UI/session lifecycle.
-- `AgentRuntimeDriver` owns the concrete agent runtime lifecycle.
+- `AgentSessionRuntimeDriver` owns the concrete agent-session runtime lifecycle.
 
 Claude Code is the first driver. Its `query`, warm query, SDK input
 queue, and `resume` handling are driver internals.
@@ -21,7 +21,7 @@ queue, and `resume` handling are driver internals.
 |---|---|
 | `AgentChatContextProvider` | Validates the agent session, persists the user row plus pending assistant row, and starts or injects through the runtime. |
 | `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
-| `AgentRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, optional `interrupt`, `close`, and an event stream. |
+| `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, optional `interrupt`, `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start, live inject, pause current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
 | `ClaudeCodeRuntimeDriver` | Converts Claude SDK messages into generic runtime events and maps opaque resume tokens to Claude SDK `resume`. |
@@ -186,7 +186,7 @@ Focused tests:
 
 - `src/main/ai/stream-manager/context/__tests__/AgentChatContextProvider.test.ts`
 - `src/main/ai/agent-session/__tests__/AgentSessionRuntimeService.test.ts`
-- `src/main/ai/agent-session/runtime/claude-code/__tests__/ClaudeCodeRuntimeDriver.test.ts`
+- `src/main/ai/runtime/claude-code/__tests__/ClaudeCodeRuntimeDriver.test.ts`
 - `src/main/ai/__tests__/AiService.test.ts`
-- `src/main/ai/agent-session/runtime/claude-code/__tests__/streamAdapter.test.ts`
-- `src/main/ai/agent-session/runtime/claude-code/__tests__/ClaudeCodeWarmQueryManager.test.ts`
+- `src/main/ai/runtime/claude-code/__tests__/streamAdapter.test.ts`
+- `src/main/ai/runtime/claude-code/__tests__/ClaudeCodeWarmQueryManager.test.ts`

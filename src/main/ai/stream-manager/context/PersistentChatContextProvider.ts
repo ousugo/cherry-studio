@@ -6,15 +6,14 @@
  */
 
 import { topicService } from '@data/services/TopicService'
-import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { type Span, trace } from '@opentelemetry/api'
+import type { Span } from '@opentelemetry/api'
 import { applyApprovalDecisions } from '@shared/ai/transport'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import { AdapterTracer, TRACER_NAME } from '../../trace'
+import { startAiTurnTrace } from '../../observability'
 import type { AiStreamRequest } from '../../types/requests'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
@@ -22,8 +21,6 @@ import type { CherryUIMessage, StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import type { MainContinueConversationRequest, MainDispatchRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
-
-const rawTracer = trace.getTracer(TRACER_NAME)
 
 /**
  * One OTel root span per execution. Its `traceId` is the source of truth
@@ -35,21 +32,21 @@ function startTurnRootSpans(
   trigger: string,
   models: Model[]
 ): Array<{ model: Model; span: Span; traceId: string }> {
-  const spanCache = application.get('SpanCacheService')
   return models.map((model) => {
     const modelName = model.name ?? model.id
-    const adapterTracer = new AdapterTracer(rawTracer, topicId, modelName)
-    const span = adapterTracer.startSpan('chat.turn', {
-      attributes: {
-        'cs.topic_id': topicId,
-        'cs.trigger': trigger,
-        'cs.model_id': model.id,
-        'cs.role': 'assistant'
-      }
-    })
-    const traceId = span.spanContext().traceId
-    spanCache.setTopicId(traceId, topicId)
-    return { model, span, traceId }
+    const turnTrace = startAiTurnTrace(
+      'chat.turn',
+      {
+        attributes: {
+          'cs.topic_id': topicId,
+          'cs.trigger': trigger,
+          'cs.model_id': model.id,
+          'cs.role': 'assistant'
+        }
+      },
+      { topicId, modelName }
+    )
+    return { model, span: turnTrace.rootSpan, traceId: turnTrace.traceId }
   })
 }
 

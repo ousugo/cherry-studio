@@ -38,15 +38,11 @@ translate, summarisation) and the renderer-side transport that connects to it.
 ```
 src/main/ai/
 ├── AiService.ts                  ← lifecycle owner, IPC handlers, dispatch entry
-├── agent/                        ← Agent class, loop, observers, params/features
-│   ├── Agent.ts
-│   ├── loop/                     ← runAgentLoop, PendingMessageQueue, internal helpers
-│   ├── observers/                ← steering, usage
-│   └── params/                   ← buildAgentParams + feature plugins
-├── agent-session/                ← agent-session topic host + runtime drivers
-│   ├── AgentSessionRuntimeService.ts
-│   └── runtime/                  ← AgentRuntimeDriver registry + concrete drivers
-│       └── claude-code/          ← Claude Code driver, warm query, SDK adapter
+├── runtime/                      ← AI execution backends
+│   ├── ai-sdk/                   ← Agent class, loop, observers, params/features
+│   └── claude-code/              ← Claude Code driver, warm query, SDK adapter
+├── agent-session/                ← agent-session topic host
+│   └── AgentSessionRuntimeService.ts
 ├── stream-manager/               ← AiStreamManager + listeners + persistence backends
 │   ├── AiStreamManager.ts
 │   ├── context/                  ← ChatContextProvider implementations
@@ -67,7 +63,7 @@ src/main/ai/
 │   ├── exposition/               ← shouldDefer + applyDeferExposition
 │   ├── registry.ts
 │   └── repair.ts                 ← invalid tool-call repair
-├── trace/                        ← OpenTelemetry span adapter
+├── observability/                ← AI trace adapters, local projection, sinks
 ├── messages/                     ← UI part → AI SDK part conversion
 ├── prompts/                      ← static prompt fragments
 ├── types/                        ← AppProviderId, merged extension types, request types

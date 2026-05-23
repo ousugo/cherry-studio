@@ -145,12 +145,12 @@ overlay-vs-persist conditional write.
 ```
 src/main/ai/
 ├── AiService.ts                  ← lifecycle owner, IPC entry
-├── agent/                        ← Agent class, loop, observers, params/features
-├── agent-session/                ← agent-session topic host + runtime drivers
+├── runtime/                      ← AI SDK and Claude Code execution backends
+├── agent-session/                ← agent-session topic host
 ├── stream-manager/               ← AiStreamManager, listeners, persistence
 ├── provider/                     ← provider config, endpoint resolution, custom providers
 ├── tools/                        ← unified tool registry
-├── trace/                        ← OTel span adapter
+├── observability/                ← AI trace adapters, local projection, sinks
 ├── messages/                     ← UI part → AI SDK part conversion
 ├── prompts/                      ← static prompt fragments
 ├── types/                        ← AppProviderId, merged types, request types

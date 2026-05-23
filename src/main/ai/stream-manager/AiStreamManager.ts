@@ -19,7 +19,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
 
-import { PendingMessageQueue } from '../ai-sdk/loop/PendingMessageQueue'
+import { PendingMessageQueue } from '../runtime/ai-sdk/loop/PendingMessageQueue'
 import type { AiStreamRequest } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest } from './context'

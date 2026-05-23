@@ -3,13 +3,16 @@ import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
 import { AgentSessionRuntimeService } from '@main/ai/agent-session/AgentSessionRuntimeService'
-import { ClaudeCodeWarmQueryManager } from '@main/ai/agent-session/runtime/claude-code/ClaudeCodeWarmQueryManager'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels/ChannelManager'
 import { DxtService } from '@main/ai/mcp/DxtService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
+import { ClaudeCodeTraceBridgeService } from '@main/ai/observability/adapters/claude-code/ClaudeCodeTraceBridgeService'
+import { SpanCacheService } from '@main/ai/observability/local/SpanCacheService'
+import { NodeTraceService } from '@main/ai/observability/runtime/NodeTraceService'
+import { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claude-code/ClaudeCodeWarmQueryManager'
 import { AiStreamManager } from '@main/ai/stream-manager/AiStreamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
@@ -30,7 +33,6 @@ import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/se
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
-import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
@@ -43,7 +45,6 @@ import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { SettingsWindowService } from '@main/services/SettingsWindowService'
 import { ShortcutService } from '@main/services/ShortcutService'
-import { SpanCacheService } from '@main/services/SpanCacheService'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
@@ -97,6 +98,7 @@ export const services = {
   ThemeService,
   SpanCacheService,
   NodeTraceService,
+  ClaudeCodeTraceBridgeService,
   OcrService,
   OvmsManager,
   ProtocolService,
