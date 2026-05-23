@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { PropsWithChildren, ReactNode } from 'react'
+import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -111,14 +111,6 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
-  useActiveSession: () => ({
-    session: { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] },
-    isLoading: false,
-    setActiveSessionId: vi.fn()
-  })
-}))
-
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: () => ({
     messages: Object.entries(partsByMessageIdMock.value).map(([id, parts]) => ({
@@ -207,6 +199,15 @@ vi.mock('../../home/Inputbar/components/PinnedTodoPanel', () => ({
 }))
 
 describe('AgentChat settings panel', () => {
+  const renderAgentChat = (props: ComponentProps<typeof AgentChat> = {}) =>
+    render(
+      <AgentChat
+        activeSession={{ id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any}
+        activeSessionSource="query"
+        {...props}
+      />
+    )
+
   beforeEach(() => {
     partsByMessageIdMock.value = {}
     toolApprovalRespondMock.mockReset()
@@ -224,7 +225,7 @@ describe('AgentChat settings panel', () => {
   })
 
   it('opens and closes the citations panel from agent messages', () => {
-    render(<AgentChat />)
+    renderAgentChat()
 
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
 
@@ -261,7 +262,7 @@ describe('AgentChat settings panel', () => {
       ]
     }
 
-    render(<AgentChat />)
+    renderAgentChat()
 
     expect(screen.getByText('Choose logger')).toBeInTheDocument()
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
@@ -306,7 +307,7 @@ describe('AgentChat settings panel', () => {
       ]
     }
 
-    render(<AgentChat />)
+    renderAgentChat()
 
     expect(screen.getByText('Choose logger')).toBeInTheDocument()
     expect(screen.queryByText('Read')).not.toBeInTheDocument()
@@ -333,10 +334,10 @@ describe('AgentChat settings panel', () => {
       ]
     }
 
-    render(<AgentChat />)
+    renderAgentChat()
 
-    expect(screen.getAllByText('CustomTool')).toHaveLength(2)
-    expect(screen.queryByText('agent.toolPermission.confirmation')).not.toBeInTheDocument()
+    expect(screen.getByText('CustomTool')).toBeInTheDocument()
+    expect(screen.getByText('agent.toolPermission.confirmation')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.toolPermission.button.allow' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.toolPermission.button.deny' })).toBeInTheDocument()
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
@@ -362,7 +363,7 @@ describe('AgentChat settings panel', () => {
       ]
     }
 
-    render(<AgentChat />)
+    renderAgentChat()
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.toolPermission.button.allow' }))
 

@@ -1,15 +1,40 @@
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import { describe, expect, it, vi } from 'vitest'
+import { renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+const dataApiMocks = vi.hoisted(() => ({
   useInfiniteFlatItems: vi.fn(),
   useInfiniteQuery: vi.fn(),
   useMutation: vi.fn()
 }))
 
-const { toAgentSessionUIMessage } = await import('../useAgentSessionParts')
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInfiniteFlatItems: dataApiMocks.useInfiniteFlatItems,
+  useInfiniteQuery: dataApiMocks.useInfiniteQuery,
+  useMutation: dataApiMocks.useMutation
+}))
+
+const { toAgentSessionUIMessage, useAgentSessionParts } = await import('../useAgentSessionParts')
+
+function mockAgentSessionPartsDataApi(pages: Array<{ items: AgentSessionMessageEntity[]; nextCursor?: string }> = []) {
+  dataApiMocks.useInfiniteQuery.mockReturnValue({
+    pages,
+    isLoading: false,
+    isRefreshing: false,
+    hasNext: false,
+    loadNext: vi.fn(),
+    mutate: vi.fn()
+  })
+  dataApiMocks.useInfiniteFlatItems.mockReturnValue(pages.flatMap((page) => page.items))
+  dataApiMocks.useMutation.mockReturnValue({ trigger: vi.fn() })
+}
 
 describe('toAgentSessionUIMessage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAgentSessionPartsDataApi()
+  })
+
   it('projects the flattened agent session message row from data.parts', () => {
     const row = {
       id: 'message-1',
@@ -40,5 +65,27 @@ describe('toAgentSessionUIMessage', () => {
         stats: { totalTokens: 10 }
       }
     })
+  })
+})
+
+describe('useAgentSessionParts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockAgentSessionPartsDataApi()
+  })
+
+  it('can suppress mount revalidation during a temporary handoff', () => {
+    renderHook(() => useAgentSessionParts('session-1', { enabled: true, fetchOnMount: false }))
+
+    expect(dataApiMocks.useInfiniteQuery).toHaveBeenCalledWith(
+      '/sessions/:sessionId/messages',
+      expect.objectContaining({
+        params: { sessionId: 'session-1' },
+        swrOptions: expect.objectContaining({
+          revalidateIfStale: false,
+          revalidateOnMount: false
+        })
+      })
+    )
   })
 })

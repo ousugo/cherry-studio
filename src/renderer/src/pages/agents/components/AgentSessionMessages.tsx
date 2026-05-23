@@ -102,12 +102,6 @@ const AgentSessionMessages = ({
     }
   }, [sessionId])
 
-  logger.silly('Rendering agent session messages', {
-    sessionId,
-    messageCount: messages.length,
-    hasOlder
-  })
-
   return (
     <MessageListProvider value={messageList}>
       <MessageList />

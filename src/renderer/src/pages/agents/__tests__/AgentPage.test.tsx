@@ -15,10 +15,17 @@ const agentPageMocks = vi.hoisted(() => ({
 
 const temporaryConversationMocks = vi.hoisted(() => ({
   conversation: null as any,
+  persistedConversation: null as any,
   start: vi.fn(),
   replace: vi.fn(),
   persist: vi.fn(),
   discard: vi.fn()
+}))
+
+const activeSessionMocks = vi.hoisted(() => ({
+  session: null as any,
+  isLoading: false,
+  sessionSource: 'none' as 'query' | 'pending' | 'none'
 }))
 
 vi.mock('@data/hooks/usePreference', async () => {
@@ -93,6 +100,18 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/agents/useSession', () => ({
+  useActiveSession: (options?: { pendingSession?: any }) => ({
+    session: activeSessionMocks.session ?? options?.pendingSession ?? undefined,
+    isLoading: activeSessionMocks.isLoading,
+    sessionSource: activeSessionMocks.session
+      ? activeSessionMocks.sessionSource
+      : options?.pendingSession
+        ? 'pending'
+        : 'none'
+  })
+}))
+
 vi.mock('@renderer/hooks/useShortcuts', () => ({
   useShortcut: vi.fn()
 }))
@@ -100,6 +119,7 @@ vi.mock('@renderer/hooks/useShortcuts', () => ({
 vi.mock('@renderer/hooks/useTemporaryConversation', () => ({
   useTemporaryConversation: () => ({
     conversation: temporaryConversationMocks.conversation,
+    persistedConversation: temporaryConversationMocks.persistedConversation,
     start: temporaryConversationMocks.start,
     replace: temporaryConversationMocks.replace,
     persist: temporaryConversationMocks.persist,
@@ -204,7 +224,11 @@ describe('AgentPage', () => {
     agentPageMocks.lastUsedAgentId = null
     agentPageMocks.lastUsedWorkspaceId = null
     temporaryConversationMocks.conversation = null
+    temporaryConversationMocks.persistedConversation = null
     temporaryConversationMocks.start.mockResolvedValue(null)
+    activeSessionMocks.session = null
+    activeSessionMocks.isLoading = false
+    activeSessionMocks.sessionSource = 'none'
 
     Object.defineProperty(window, 'api', {
       configurable: true,

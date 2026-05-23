@@ -59,12 +59,20 @@ function reservedUIMessageToAgentSessionMessage(
   }
 }
 
-export function useAgentSessionParts(sessionId: string, options: { enabled?: boolean } = {}) {
+export function useAgentSessionParts(sessionId: string, options: { enabled?: boolean; fetchOnMount?: boolean } = {}) {
+  const enabled = !!sessionId && options.enabled !== false
+  const fetchOnMount = options.fetchOnMount ?? enabled
   const sessionMessagesCachePath = `/sessions/${sessionId}/messages` as const
   const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/sessions/:sessionId/messages', {
     params: { sessionId },
     limit: PAGE_SIZE,
-    enabled: !!sessionId && options.enabled !== false
+    enabled,
+    swrOptions: {
+      ...(!fetchOnMount && {
+        revalidateIfStale: false,
+        revalidateOnMount: false
+      })
+    }
   })
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/sessions/:sessionId/messages/:messageId', {
     refresh: [sessionMessagesCachePath]
@@ -80,6 +88,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   }, [rows])
 
   const refreshMessages = useCallback(async (): Promise<CherryUIMessage[]> => {
+    if (!enabled) return []
     const refreshedPages = await mutate()
     const flat: AgentSessionMessageEntity[] = []
     if (refreshedPages) {
@@ -89,7 +98,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       }
     }
     return flat.map(toAgentSessionUIMessage)
-  }, [mutate])
+  }, [enabled, mutate])
 
   const seedReservedMessages = useCallback(
     async (messages: CherryUIMessage[]): Promise<void> => {
@@ -129,7 +138,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
 
   return {
     messages,
-    isLoading,
+    isLoading: enabled && isLoading,
     hasOlder: hasNext,
     loadOlder: loadNext,
     refresh: refreshMessages,

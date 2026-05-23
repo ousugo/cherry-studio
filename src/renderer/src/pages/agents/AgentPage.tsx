@@ -4,6 +4,7 @@ import type { ResourceListRevealRequest } from '@renderer/components/chat/resour
 import { useCache, usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
+import { useActiveSession } from '@renderer/hooks/agents/useSession'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversationDefaults, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
@@ -254,6 +255,17 @@ const AgentPage = () => {
       onRecordSelect={handleHistorySessionSelect}
     />
   )
+  const pendingSession =
+    persistedConversation?.type === 'agent' && activeSessionId === persistedConversation.sessionId
+      ? persistedConversation.session
+      : null
+  const {
+    session: activeSession,
+    isLoading: isActiveSessionLoading,
+    sessionSource: activeSessionSource
+  } = useActiveSession({
+    pendingSession
+  })
 
   if (agents && agents.length === 0) {
     return (
@@ -265,16 +277,14 @@ const AgentPage = () => {
   }
 
   const panePosition = 'left'
-  const pendingSession =
-    persistedConversation?.type === 'agent' && activeSessionId === persistedConversation.sessionId
-      ? persistedConversation.session
-      : null
 
   return (
     <Container>
       <div className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AgentChat
-          pendingSession={pendingSession}
+          activeSession={activeSession}
+          activeSessionLoading={isActiveSessionLoading}
+          activeSessionSource={activeSessionSource}
           pane={
             <AgentSidePanel
               onOpenHistory={openHistory}

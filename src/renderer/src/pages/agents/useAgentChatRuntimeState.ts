@@ -48,6 +48,7 @@ interface UseAgentChatRuntimeStateParams {
   session: AgentSessionEntity
   activeAgent: GetAgentResponse | undefined
   sessionMessagesEnabled: boolean
+  sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
 }
 
@@ -55,6 +56,7 @@ export function useAgentChatRuntimeState({
   session,
   activeAgent,
   sessionMessagesEnabled,
+  sessionHistoryFetchOnMount,
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const sessionId = session.id
@@ -67,7 +69,10 @@ export function useAgentChatRuntimeState({
     refresh,
     seedReservedMessages,
     deleteMessage: deleteSessionMessage
-  } = useAgentSessionParts(sessionId, { enabled: sessionMessagesEnabled })
+  } = useAgentSessionParts(sessionId, {
+    enabled: sessionMessagesEnabled,
+    fetchOnMount: sessionHistoryFetchOnMount
+  })
 
   useLayoutEffect(() => {
     if (!sessionMessagesEnabled || reservedMessages.length === 0) return

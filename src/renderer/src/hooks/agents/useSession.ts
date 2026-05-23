@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
+export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
   loadAll?: boolean
@@ -64,7 +65,7 @@ export const useActiveSession = (options: { pendingSession?: AgentSessionEntity 
   const pendingSession =
     activeSessionId && options.pendingSession?.id === activeSessionId ? options.pendingSession : undefined
   const session = querySession ?? pendingSession
-  const sessionSource = querySession ? 'query' : pendingSession ? 'pending' : 'none'
+  const sessionSource: AgentSessionSource = querySession ? 'query' : pendingSession ? 'pending' : 'none'
 
   return {
     ...result,
