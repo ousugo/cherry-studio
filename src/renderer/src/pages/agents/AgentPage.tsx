@@ -1,10 +1,14 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import {
+  createRecentSessionEntryFromSession,
+  upsertGlobalSearchRecentEntry
+} from '@renderer/components/GlobalSearch/globalSearchGroups'
 import { useCache, usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
-import { useActiveSession } from '@renderer/hooks/agents/useSession'
+import { useActiveSession, useSession } from '@renderer/hooks/agents/useSession'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversationDefaults, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
@@ -12,6 +16,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { useSearch } from '@tanstack/react-router'
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
 import { AgentEmpty } from './components/status'
+import { parseAgentRouteSearch } from './routeSearch'
 
 const logger = loggerService.withContext('AgentPage')
 
@@ -26,12 +32,22 @@ const AgentPage = () => {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  const routeSessionId = routeSearch.sessionId
+  const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
+  const effectiveShowSidebar = !isMessageOnlyView && showSidebar
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
+  const { session: routeSession, isLoading: isRouteSessionLoading } = useSession(
+    isMessageOnlyView ? routeSessionId : null
+  )
   const { agents } = useAgents()
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
+  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
+  const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const sessionRevealRequestIdRef = useRef(0)
   const initialTemporarySessionEvaluatedRef = useRef(false)
   const [replacingTemporaryAgent, setReplacingTemporaryAgent] = useState(false)
@@ -47,21 +63,57 @@ const AgentPage = () => {
     persist: persistTemporaryConversation,
     discard: discardTemporaryConversation
   } = temporaryConversation
+  const pendingSession =
+    persistedConversation?.type === 'agent' && activeSessionId === persistedConversation.sessionId
+      ? persistedConversation.session
+      : null
+  const {
+    session: activeSession,
+    isLoading: isActiveSessionLoading,
+    sessionSource: activeSessionSource
+  } = useActiveSession({
+    pendingSession
+  })
 
   useShortcut('general.toggle_sidebar', () => {
+    if (isMessageOnlyView) return
+
     toggleShowSidebar()
   })
 
   useShortcut('topic.toggle_show_topics', () => {
+    if (isMessageOnlyView) return
+
     void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
   })
 
   useEffect(() => {
-    void window.api.window.setMinimumSize(showSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    if (isMessageOnlyView) return
+    if (!activeSession) return
+
+    const signature = `${activeSession.id}:${activeSession.name}:${activeSession.agentId ?? ''}`
+    if (lastRecordedRecentSessionRef.current === signature) return
+
+    const currentRecentItems = recentItems ?? []
+    const nextItems = upsertGlobalSearchRecentEntry(
+      currentRecentItems,
+      createRecentSessionEntryFromSession(activeSession)
+    )
+    lastRecordedRecentSessionRef.current = signature
+    if (nextItems !== currentRecentItems) {
+      setRecentItems(nextItems)
+    }
+  }, [activeSession, isMessageOnlyView, recentItems, setRecentItems])
+
+  useEffect(() => {
+    void window.api.window.setMinimumSize(
+      effectiveShowSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH,
+      MIN_WINDOW_HEIGHT
+    )
     return () => {
       void window.api.window.resetMinimumSize()
     }
-  }, [showSidebar])
+  }, [effectiveShowSidebar])
 
   const openHistory = useCallback((origin?: DOMRectReadOnly) => {
     setHistoryOrigin(origin)
@@ -86,6 +138,25 @@ const AgentPage = () => {
     },
     [discardTemporaryConversation, setActiveSessionId, setShowSidebar]
   )
+
+  useEffect(() => {
+    const unsubscribeSession = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, (sessionId) => {
+      setPendingLocateMessageId(undefined)
+      handleHistorySessionSelect(sessionId as string)
+    })
+    const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, (payload) => {
+      const { messageId, sessionId } = payload as { messageId?: string; sessionId?: string }
+      if (!sessionId || !messageId) return
+
+      setPendingLocateMessageId(messageId)
+      handleHistorySessionSelect(sessionId)
+    })
+
+    return () => {
+      unsubscribeSession()
+      unsubscribeMessage()
+    }
+  }, [handleHistorySessionSelect])
 
   const startTemporarySession = useCallback(
     async (defaults: TemporaryConversationDefaults) => {
@@ -144,6 +215,11 @@ const AgentPage = () => {
       return
     }
 
+    if (isMessageOnlyView) {
+      initialTemporarySessionEvaluatedRef.current = true
+      return
+    }
+
     if (activeSessionId || temporaryAgentConversation) {
       initialTemporarySessionEvaluatedRef.current = true
       return
@@ -155,7 +231,7 @@ const AgentPage = () => {
 
     initialTemporarySessionEvaluatedRef.current = true
     void startTemporarySession({ agentId: defaultAgent.id })
-  }, [activeSessionId, agents, lastUsedAgentId, startTemporarySession, temporaryAgentConversation])
+  }, [activeSessionId, agents, isMessageOnlyView, lastUsedAgentId, startTemporarySession, temporaryAgentConversation])
 
   const persistTemporarySession = useCallback(
     async (initialName?: string) => {
@@ -245,6 +321,10 @@ const AgentPage = () => {
       temporaryAgentConversation
     ]
   )
+  const handleLocateMessageHandled = useCallback(() => {
+    setPendingLocateMessageId(undefined)
+  }, [])
+
   const historyOverlay = (
     <HistoryRecordsPage
       mode="agent"
@@ -255,17 +335,6 @@ const AgentPage = () => {
       onRecordSelect={handleHistorySessionSelect}
     />
   )
-  const pendingSession =
-    persistedConversation?.type === 'agent' && activeSessionId === persistedConversation.sessionId
-      ? persistedConversation.session
-      : null
-  const {
-    session: activeSession,
-    isLoading: isActiveSessionLoading,
-    sessionSource: activeSessionSource
-  } = useActiveSession({
-    pendingSession
-  })
 
   if (agents && agents.length === 0) {
     return (
@@ -293,15 +362,20 @@ const AgentPage = () => {
               onStartTemporarySession={startTemporarySession}
             />
           }
-          paneOpen={showSidebar}
+          lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
+          lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
+          paneOpen={effectiveShowSidebar}
           panePosition={panePosition}
-          temporaryConversation={temporaryAgentConversation}
-          onStartTemporarySession={startTemporarySession}
-          onPersistTemporarySession={persistTemporarySession}
-          onDraftAgentChange={replaceTemporaryAgent}
-          onDraftWorkspaceChange={replaceTemporaryWorkspace}
-          onVisibleAgentChange={setLastUsedAgentId}
-          onVisibleWorkspaceChange={setLastUsedWorkspaceId}
+          showResourceListControls={!isMessageOnlyView}
+          temporaryConversation={isMessageOnlyView ? null : temporaryAgentConversation}
+          onStartTemporarySession={isMessageOnlyView ? undefined : startTemporarySession}
+          onPersistTemporarySession={isMessageOnlyView ? undefined : persistTemporarySession}
+          onDraftAgentChange={isMessageOnlyView ? undefined : replaceTemporaryAgent}
+          onDraftWorkspaceChange={isMessageOnlyView ? undefined : replaceTemporaryWorkspace}
+          onVisibleAgentChange={isMessageOnlyView ? undefined : setLastUsedAgentId}
+          onVisibleWorkspaceChange={isMessageOnlyView ? undefined : setLastUsedWorkspaceId}
+          locateMessageId={pendingLocateMessageId}
+          onLocateMessageHandled={handleLocateMessageHandled}
           replacingTemporaryAgent={replacingTemporaryAgent}
           replacingTemporaryWorkspace={replacingTemporaryWorkspace}
         />

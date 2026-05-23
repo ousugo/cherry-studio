@@ -183,6 +183,12 @@
 }
 
 .composer-tiptap.tiptap .placeholder:before {
+  display: block !important;
+  box-sizing: border-box !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
   font-size: inherit !important;
   line-height: inherit !important;
   font-style: normal !important;

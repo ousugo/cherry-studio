@@ -53,6 +53,7 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
     const cacheService = application.get('CacheService')
     cacheService.setShared(`topic.stream.statuses.${stream.topicId}` as const, {
       status,
+      turnId: stream.turnId,
       activeExecutions,
       awaitingApprovalAnchors,
       pendingQueue: [...pendingById.values()]

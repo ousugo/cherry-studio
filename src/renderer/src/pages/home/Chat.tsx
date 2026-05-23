@@ -31,7 +31,10 @@ interface Props {
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   hideNavbar?: boolean
   onOpenSidePanelDrawer?: () => void | Promise<void>
+  showResourceListControls?: boolean
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
+  locateMessageId?: string
+  onLocateMessageHandled?: () => void
   /**
    * Called by ChatContent before the first message of a freshly-leased
    * temporary topic is sent. HomePage owns the lease so it also owns the
@@ -132,7 +135,11 @@ const Chat: FC<Props> = (props) => {
       panePosition={props.panePosition}
       topBar={
         props.hideNavbar ? undefined : (
-          <ChatNavbar onOpenSidePanelDrawer={props.onOpenSidePanelDrawer} onOpenTopicFlow={handleOpenTopicFlowPanel} />
+          <ChatNavbar
+            onOpenSidePanelDrawer={props.onOpenSidePanelDrawer}
+            onOpenTopicFlow={handleOpenTopicFlowPanel}
+            showSidebarControls={props.showResourceListControls}
+          />
         )
       }
       sidePanel={
@@ -157,6 +164,8 @@ const Chat: FC<Props> = (props) => {
           onOpenCitationsPanel={handleOpenCitationsPanel}
           onNewTopic={props.onNewTopic}
           onTemporaryAssistantChange={props.onTemporaryAssistantChange}
+          locateMessageId={props.locateMessageId}
+          onLocateMessageHandled={props.onLocateMessageHandled}
           onPersistTemporaryTopic={props.onPersistTemporaryTopic}
         />
       }

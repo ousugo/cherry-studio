@@ -505,7 +505,7 @@ describe('AgentToolRenderer', () => {
   })
 
   describe('meta tool rendering', () => {
-    it('renders tool_search with the light tool-row styling', () => {
+    it('renders tool_search with the light tool-row styling', async () => {
       const toolResponse = createToolResponse({
         id: 'meta-tool-search',
         tool: {
@@ -539,7 +539,7 @@ describe('AgentToolRenderer', () => {
       expect(title).toHaveClass('text-foreground-secondary')
 
       fireEvent.click(screen.getByRole('button'))
-      expect(screen.getByText('tavily_search')).toBeInTheDocument()
+      expect(await screen.findByText('tavily_search')).toBeInTheDocument()
     })
   })
 
@@ -581,9 +581,12 @@ describe('AgentToolRenderer', () => {
       fireEvent.click(screen.getByText('Bash').closest('[role="button"]')!)
       expect(openAgentToolFlow).not.toHaveBeenCalled()
       expect(screen.getByTestId('collapse-content-Bash')).toBeVisible()
+      expect(screen.getByTestId('collapse-content-Bash')).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
 
-      fireEvent.click(screen.getByRole('button', { name: 'button.collapse' }))
+      fireEvent.click(screen.getByText('Bash').closest('[role="button"]')!)
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
+      expect(screen.queryByRole('button', { name: 'button.collapse' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()
     })
   })
 

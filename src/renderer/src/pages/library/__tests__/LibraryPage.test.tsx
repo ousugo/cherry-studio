@@ -114,11 +114,32 @@ vi.mock('../list/ImportSkillDialog', () => ({
   ImportSkillDialog: () => null
 }))
 
+vi.mock('../detail/skill/SkillDetailDialog', () => ({
+  default: ({
+    skill,
+    open,
+    onOpenChange
+  }: {
+    skill: { name: string } | null
+    open: boolean
+    onOpenChange: (open: boolean) => void
+  }) =>
+    open && skill ? (
+      <div role="dialog" aria-label="skill-detail-dialog">
+        <span>{skill.name}</span>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          close skill detail
+        </button>
+      </div>
+    ) : null
+}))
+
 vi.mock('../list/ResourceGrid', () => ({
   ResourceGrid: ({
     activeResourceType,
     assistantCatalog,
     onDuplicate,
+    onEdit,
     onSearchChange,
     resources,
     search,
@@ -130,6 +151,7 @@ vi.mock('../list/ResourceGrid', () => ({
       onTabChange: (tabId: string) => void
     }
     onDuplicate: (resource: any) => void
+    onEdit: (resource: any) => void
     onSearchChange: (value: string) => void
     onCreate: (type: 'assistant' | 'agent' | 'skill' | 'prompt') => void
     resources: any[]
@@ -152,6 +174,9 @@ vi.mock('../list/ResourceGrid', () => ({
       </button>
       <button type="button" disabled={!resources[0]} onClick={() => onDuplicate(resources[0])}>
         duplicate first
+      </button>
+      <button type="button" disabled={!resources[0]} onClick={() => onEdit(resources[0])}>
+        open first
       </button>
     </div>
   )
@@ -393,5 +418,29 @@ describe('LibraryPage create flow', () => {
     render(<LibraryPage />)
 
     expect(screen.getByTestId('prompt-edit-page')).toBeInTheDocument()
+  })
+
+  it('opens skill details in a dialog while keeping the library list visible', async () => {
+    const user = userEvent.setup()
+    allResourcesMock.push({
+      id: 'skill-from-grid',
+      type: 'skill',
+      name: 'Grid Skill',
+      description: '',
+      avatar: 'S',
+      tags: [],
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      raw: { id: 'skill-from-grid', name: 'Grid Skill' }
+    })
+    routeSearchMock.mockReturnValue({ resourceType: 'skill' })
+
+    render(<LibraryPage />)
+
+    await user.click(screen.getByRole('button', { name: 'open first' }))
+
+    expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'skill-detail-dialog' })).toBeInTheDocument()
+    expect(screen.getByText('Grid Skill')).toBeInTheDocument()
   })
 })

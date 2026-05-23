@@ -3,8 +3,8 @@ import { Fragment, useMemo, useState } from 'react'
 import {
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuItemContent,
   ContextMenuSeparator,
-  ContextMenuShortcut,
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger
@@ -54,18 +54,13 @@ export function ActionMenu<TContext = unknown>({
 
   const renderAction = (action: ResolvedAction<TContext>) => {
     const disabled = !action.availability.enabled
-    const content = (
-      <>
-        {action.icon}
-        <span>{action.label}</span>
-        {action.shortcut && <ContextMenuShortcut>{action.shortcut}</ContextMenuShortcut>}
-      </>
-    )
 
     if (action.children.length > 0) {
       return (
         <ContextMenuSub key={action.id}>
-          <ContextMenuSubTrigger disabled={disabled}>{content}</ContextMenuSubTrigger>
+          <ContextMenuSubTrigger disabled={disabled}>
+            <ContextMenuItemContent icon={action.icon}>{action.label}</ContextMenuItemContent>
+          </ContextMenuSubTrigger>
           <ContextMenuSubContent>{action.children.map(renderAction)}</ContextMenuSubContent>
         </ContextMenuSub>
       )
@@ -84,7 +79,9 @@ export function ActionMenu<TContext = unknown>({
           }
           void runAction(action)
         }}>
-        {content}
+        <ContextMenuItemContent icon={action.icon} shortcut={action.shortcut}>
+          {action.label}
+        </ContextMenuItemContent>
       </ContextMenuItem>
     )
   }

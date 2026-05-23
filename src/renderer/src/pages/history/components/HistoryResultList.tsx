@@ -1,4 +1,5 @@
 import { EmptyState } from '@cherrystudio/ui'
+import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { ResourceList, useResourceList } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
@@ -256,14 +257,15 @@ const HistoryTopicRow = ({
 
   return (
     <>
-      <ResourceList.ContextMenu
+      <ResourceListActionContextMenu
         item={topic}
         actions={menuActions}
+        className="z-50"
         confirmDialogContentClassName="z-50"
         confirmDialogOverlayClassName="z-40"
         onAction={(action) => menuPreset.onAction(topic, action, menuContextOverride)}>
         {row}
-      </ResourceList.ContextMenu>
+      </ResourceListActionContextMenu>
       <EditNameDialog
         open={renameDialogOpen}
         title={t('chat.topics.edit.title')}
@@ -347,14 +349,15 @@ const HistorySessionRow = ({
 
   return (
     <>
-      <ResourceList.ContextMenu
+      <ResourceListActionContextMenu
         item={session}
         actions={menuActions}
+        className="z-50"
         confirmDialogContentClassName="z-50"
         confirmDialogOverlayClassName="z-40"
         onAction={(action) => menuPreset.onAction(session, action, menuContextOverride)}>
         {row}
-      </ResourceList.ContextMenu>
+      </ResourceListActionContextMenu>
       <EditNameDialog
         open={renameDialogOpen}
         title={t('agent.session.edit.title')}

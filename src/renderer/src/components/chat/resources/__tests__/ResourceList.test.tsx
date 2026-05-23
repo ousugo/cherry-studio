@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const animationStyles = readFileSync(join(process.cwd(), 'src/renderer/src/assets/styles/animation.css'), 'utf8')
@@ -104,8 +104,15 @@ vi.mock('@dnd-kit/utilities', () => ({
 }))
 
 import type { ResolvedAction } from '../../actions/actionTypes'
-import { ResourceList, useResourceList } from '../ResourceList'
-import type { ResourceListItemBase } from '../ResourceListContext'
+import { ResourceListActionContextMenu } from '../../actions/ResourceListActionContextMenu'
+import {
+  ResourceList,
+  useResourceList,
+  useResourceListActions,
+  useResourceListGroupState,
+  useResourceListRowState
+} from '../ResourceList'
+import type { ResourceListContextValue, ResourceListItemBase } from '../ResourceListContext'
 import {
   AgentResourceList,
   AssistantList,
@@ -125,6 +132,14 @@ afterEach(() => {
   virtualMocks.scrollToIndex.mockClear()
   vi.useRealTimers()
 })
+
+async function flushAnimationFrame() {
+  await act(async () => {
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve())
+    })
+  })
+}
 
 type TestItem = ResourceListItemBase & {
   kind: 'session' | 'topic'
@@ -162,6 +177,14 @@ function sortableData(id: string) {
     throw new Error(`Expected sortable data for ${id}`)
   }
   return { current: data }
+}
+
+function lastVirtualizerOptions() {
+  const options = virtualMocks.useVirtualizer.mock.calls.at(-1)?.[0]
+  if (!options) {
+    throw new Error('Expected DynamicVirtualList to initialize a virtualizer')
+  }
+  return options as { estimateSize: (index: number) => number }
 }
 
 function droppableData(id: string) {
@@ -264,6 +287,307 @@ describe('ResourceList', () => {
     expect(ITEMS.map((item) => item.id).join(',')).toBe(originalOrder)
   })
 
+  it('keeps resource actions stable when local filter state changes', () => {
+    const actionRefs: unknown[] = []
+    const Provider = ResourceList.Provider<TestItem>
+
+    function ActionProbe() {
+      const { actions } = useResourceList<TestItem>()
+      actionRefs.push(actions)
+      return (
+        <button type="button" onClick={() => actions.toggleFilter('pinned')}>
+          Toggle pinned
+        </button>
+      )
+    }
+
+    render(
+      <Provider
+        items={ITEMS}
+        filterOptions={[
+          {
+            id: 'pinned',
+            label: 'Pinned',
+            predicate: (item) => item.pinned === true
+          }
+        ]}>
+        <ResourceList.Frame>
+          <ActionProbe />
+          <Inspector />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle pinned' }))
+
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      filters: ['pinned']
+    })
+    expect(actionRefs.length).toBeGreaterThanOrEqual(2)
+    expect(actionRefs.at(-1)).toBe(actionRefs[0])
+  })
+
+  it('updates only affected rows when selection changes locally', () => {
+    const renderCounts = new Map<string, number>()
+    const Provider = ResourceList.Provider<TestItem>
+
+    function Row({ context, item }: { context: ResourceListContextValue<TestItem>; item: TestItem }) {
+      const rowState = useResourceListRowState(item.id)
+      renderCounts.set(item.id, (renderCounts.get(item.id) ?? 0) + 1)
+
+      return (
+        <ResourceList.Item item={item}>
+          <span data-testid={`${item.id}-state`}>{rowState.selected ? 'selected' : 'idle'}</span>
+          <span data-testid={`${item.id}-context-selected`}>{context.state.selectedId ?? 'none'}</span>
+        </ResourceList.Item>
+      )
+    }
+
+    render(
+      <Provider items={ITEMS}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem> renderItem={(item, context) => <Row context={context} item={item} />} />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(Object.fromEntries(renderCounts)).toEqual({
+      alpha: 1,
+      beta: 1,
+      gamma: 1
+    })
+
+    fireEvent.click(screen.getByTestId('alpha-state').closest('[role="option"]') as HTMLElement)
+    expect(screen.getByTestId('alpha-state')).toHaveTextContent('selected')
+    expect(screen.getByTestId('alpha-context-selected')).toHaveTextContent('alpha')
+    expect(Object.fromEntries(renderCounts)).toEqual({
+      alpha: 2,
+      beta: 1,
+      gamma: 1
+    })
+
+    fireEvent.click(screen.getByTestId('beta-state').closest('[role="option"]') as HTMLElement)
+    expect(screen.getByTestId('alpha-state')).toHaveTextContent('idle')
+    expect(screen.getByTestId('beta-state')).toHaveTextContent('selected')
+    expect(screen.getByTestId('alpha-context-selected')).toHaveTextContent('beta')
+    expect(screen.getByTestId('beta-context-selected')).toHaveTextContent('beta')
+    expect(Object.fromEntries(renderCounts)).toEqual({
+      alpha: 3,
+      beta: 2,
+      gamma: 1
+    })
+  })
+
+  it('uses caller item size estimates while keeping group chrome at the shared row height', () => {
+    const estimateItemSize = vi.fn(() => 34)
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        estimateItemSize={estimateItemSize}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const options = lastVirtualizerOptions()
+
+    expect(options.estimateSize(0)).toBe(32)
+    expect(options.estimateSize(1)).toBe(34)
+    expect(estimateItemSize).toHaveBeenCalledWith(0)
+  })
+
+  it('does not optimistically change row selection when selectedId is controlled', () => {
+    const onSelectItem = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    function Row({ item }: { item: TestItem }) {
+      const rowState = useResourceListRowState(item.id)
+
+      return (
+        <ResourceList.Item item={item}>
+          <span data-testid={`${item.id}-controlled-state`}>{rowState.selected ? 'selected' : 'idle'}</span>
+        </ResourceList.Item>
+      )
+    }
+
+    render(
+      <Provider items={ITEMS} selectedId={null} onSelectItem={onSelectItem}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByTestId('alpha-controlled-state').closest('[role="option"]') as HTMLElement)
+
+    expect(onSelectItem).toHaveBeenCalledWith('alpha')
+    expect(screen.getByTestId('alpha-controlled-state')).toHaveTextContent('idle')
+    expect(screen.getByTestId('beta-controlled-state')).toHaveTextContent('idle')
+  })
+
+  it('updates only the renamed row when inline rename starts', () => {
+    const renderCounts = new Map<string, number>()
+    const Provider = ResourceList.Provider<TestItem>
+
+    function RenameProbe() {
+      const actions = useResourceListActions()
+      return (
+        <button type="button" onClick={() => actions.startRename('alpha')}>
+          Rename alpha
+        </button>
+      )
+    }
+
+    function Row({ item }: { item: TestItem }) {
+      const rowState = useResourceListRowState(item.id)
+      renderCounts.set(item.id, (renderCounts.get(item.id) ?? 0) + 1)
+
+      return (
+        <ResourceList.Item item={item}>
+          <ResourceList.RenameField item={item} aria-label={`Rename ${item.name}`} />
+          {!rowState.renaming && <span>{item.name}</span>}
+        </ResourceList.Item>
+      )
+    }
+
+    render(
+      <Provider items={ITEMS}>
+        <ResourceList.Frame>
+          <RenameProbe />
+          <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename alpha' }))
+
+    expect(screen.getByLabelText('Rename Alpha')).toBeInTheDocument()
+    expect(Object.fromEntries(renderCounts)).toEqual({
+      alpha: 2,
+      beta: 1,
+      gamma: 1
+    })
+  })
+
+  it('updates only the revealed row when reveal focus appears and clears', async () => {
+    vi.useFakeTimers()
+    const renderCounts = new Map<string, number>()
+    const Provider = ResourceList.Provider<TestItem>
+
+    function RowProbe({ id }: { id: string }) {
+      const rowState = useResourceListRowState(id)
+      renderCounts.set(id, (renderCounts.get(id) ?? 0) + 1)
+
+      return <span data-testid={`${id}-reveal`}>{rowState.revealFocused ? 'focused' : 'idle'}</span>
+    }
+
+    function RevealHarness() {
+      const [requestId, setRequestId] = useState<number | null>(null)
+      const children = useMemo(
+        () => (
+          <>
+            <button type="button" onClick={() => setRequestId(1)}>
+              Reveal alpha
+            </button>
+            <RowProbe id="alpha" />
+            <RowProbe id="beta" />
+          </>
+        ),
+        []
+      )
+
+      return (
+        <Provider items={ITEMS} revealRequest={requestId ? { itemId: 'alpha', requestId } : undefined}>
+          {children}
+        </Provider>
+      )
+    }
+
+    render(<RevealHarness />)
+
+    expect(Object.fromEntries(renderCounts)).toEqual({
+      alpha: 1,
+      beta: 1
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal alpha' }))
+
+    expect(screen.getByTestId('alpha-reveal')).toHaveTextContent('focused')
+    expect(screen.getByTestId('beta-reveal')).toHaveTextContent('idle')
+    expect(Object.fromEntries(renderCounts)).toEqual({
+      alpha: 2,
+      beta: 1
+    })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+
+    expect(screen.getByTestId('alpha-reveal')).toHaveTextContent('idle')
+    expect(Object.fromEntries(renderCounts)).toEqual({
+      alpha: 3,
+      beta: 1
+    })
+  })
+
+  it('updates only affected group headers when selected item crosses groups', () => {
+    const renderCounts = new Map<string, number>()
+    const Provider = ResourceList.Provider<TestItem>
+
+    function GroupProbe({ groupId }: { groupId: string }) {
+      const groupState = useResourceListGroupState(groupId)
+      renderCounts.set(groupId, (renderCounts.get(groupId) ?? 0) + 1)
+
+      return <span data-testid={`${groupId}-selected`}>{groupState.selected ? 'selected' : 'idle'}</span>
+    }
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderIcon={(group) => <GroupProbe groupId={group.id} />}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const initialSessionCount = renderCounts.get('session') ?? 0
+    const initialTopicCount = renderCounts.get('topic') ?? 0
+
+    fireEvent.click(screen.getByText('Alpha').closest('[role="option"]') as HTMLElement)
+    expect(screen.getByTestId('session-selected')).toHaveTextContent('selected')
+    expect(screen.getByTestId('topic-selected')).toHaveTextContent('idle')
+    expect(Object.fromEntries(renderCounts)).toEqual({
+      session: initialSessionCount + 1,
+      topic: initialTopicCount
+    })
+
+    fireEvent.click(screen.getByText('Gamma').closest('[role="option"]') as HTMLElement)
+    expect(screen.getByTestId('session-selected')).toHaveTextContent('idle')
+    expect(screen.getByTestId('topic-selected')).toHaveTextContent('selected')
+    expect(Object.fromEntries(renderCounts)).toEqual({
+      session: initialSessionCount + 2,
+      topic: initialTopicCount + 1
+    })
+  })
+
   it('owns rename UI state and delegates persistence through callbacks', () => {
     const onRenameItem = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
@@ -301,16 +625,28 @@ describe('ResourceList', () => {
     })
   })
 
-  it('renders context menu actions from resource item composition', () => {
+  it('renders context menu actions from resource item composition', async () => {
     const onRenameItem = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
+    const menuActions: ResolvedAction[] = [
+      {
+        id: 'rename',
+        label: 'Rename',
+        danger: false,
+        availability: { visible: true, enabled: true },
+        children: []
+      }
+    ]
 
     function Row({ item }: { item: TestItem }) {
       const { actions } = useResourceList<TestItem>()
       return (
-        <ResourceList.ContextMenu
+        <ResourceListActionContextMenu
           item={item}
-          content={<ResourceList.ContextMenuRenameAction item={item} label="Rename" />}>
+          actions={menuActions}
+          onAction={(action) => {
+            if (action.id === 'rename') actions.startRename(item.id)
+          }}>
           <ResourceList.Item item={item}>
             <ResourceList.RenameField item={item} aria-label={`Rename ${item.name}`} />
             <span>{item.name}</span>
@@ -318,7 +654,7 @@ describe('ResourceList', () => {
               Rename inline
             </button>
           </ResourceList.Item>
-        </ResourceList.ContextMenu>
+        </ResourceListActionContextMenu>
       )
     }
 
@@ -331,6 +667,7 @@ describe('ResourceList', () => {
     )
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Rename' })[0])
+    await flushAnimationFrame()
     expect(screen.getByLabelText('Rename Alpha')).toBeInTheDocument()
   })
 
@@ -361,11 +698,11 @@ describe('ResourceList', () => {
 
     function Row({ item }: { item: TestItem }) {
       return (
-        <ResourceList.ContextMenu item={item} actions={actions} onAction={onAction}>
+        <ResourceListActionContextMenu item={item} actions={actions} onAction={onAction}>
           <ResourceList.Item item={item}>
             <span>{item.name}</span>
           </ResourceList.Item>
-        </ResourceList.ContextMenu>
+        </ResourceListActionContextMenu>
       )
     }
 
@@ -757,6 +1094,86 @@ describe('ResourceList', () => {
 
     fireEvent.click(sessionCollapseButton)
     expect(sessionCollapseButton).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('can select the first item in a group before toggling the selected group header', () => {
+    const onGroupHeaderSelectItem = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        groupHeaderClickBehavior="select-first-then-toggle"
+        onGroupHeaderSelectItem={onGroupHeaderSelectItem}>
+        <ResourceList.Frame>
+          <Inspector />
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const sessionGroupButton = screen.getByRole('button', { name: 'session' })
+    const sessionGroupHeader = sessionGroupButton.closest('[data-selected]')
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(sessionGroupHeader).toBeNull()
+
+    fireEvent.click(sessionGroupButton)
+
+    expect(onGroupHeaderSelectItem).toHaveBeenCalledWith('alpha')
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveAttribute('aria-selected', 'true')
+    expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
+    expect(sessionGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
+    expect(sessionGroupButton.closest('[data-selected]')?.firstElementChild?.className).toContain('h-[30px]')
+    expect(screen.getByRole('button', { name: 'topic' })).not.toHaveAttribute('aria-current')
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: [],
+      selectedId: 'alpha'
+    })
+
+    fireEvent.click(sessionGroupButton)
+
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: ['session'],
+      selectedId: 'alpha'
+    })
+  })
+
+  it('keeps group header action buttons on the 30px right-side affordance', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderAction={() => <ResourceList.GroupHeaderActionButton aria-label="Group more" />}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getAllByRole('button', { name: 'Group more' })[0]).toHaveClass(
+      'h-[30px]',
+      'min-w-[30px]',
+      'rounded-[8px]',
+      '[&_svg]:size-[18px]'
+    )
   })
 
   it('auto-hides the shared list viewport scrollbar after scrolling stops', () => {
@@ -1243,7 +1660,7 @@ describe('ResourceList', () => {
     expect(handlers.onTogglePin).toHaveBeenCalledWith(item)
   })
 
-  it('renders AssistantList with search, pinned groups, sort, virtualization, and menu callbacks', () => {
+  it('renders AssistantList with search, pinned groups, sort, virtualization, and menu callbacks', async () => {
     const handlers = {
       onSelect: vi.fn(),
       onTogglePin: vi.fn(),
@@ -1271,7 +1688,9 @@ describe('ResourceList', () => {
           pin: 'Pin',
           unpin: 'Unpin',
           edit: 'Edit',
-          delete: 'Delete'
+          delete: 'Delete',
+          groupCollapse: 'Collapse',
+          groupShowMore: 'Show more'
         }}
       />
     )
@@ -1285,6 +1704,7 @@ describe('ResourceList', () => {
     expect(handlers.onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'assistant-c' }))
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Unpin' })[0])
+    await flushAnimationFrame()
     expect(handlers.onTogglePin).toHaveBeenCalledWith(expect.objectContaining({ id: 'assistant-b' }))
 
     fireEvent.change(screen.getByPlaceholderText('Search assistants'), { target: { value: 'gamma' } })

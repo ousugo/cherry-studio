@@ -2,7 +2,7 @@ import type { MessageListProviderValue } from '@renderer/components/chat/message
 import type { Topic } from '@renderer/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { render } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const exportActionsMock = vi.hoisted(() => ({
   saveTextFile: vi.fn(),
@@ -56,6 +56,10 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   openUserProfile: vi.fn()
 }))
 const navigateMock = vi.hoisted(() => vi.fn())
+const eventMocks = vi.hoisted(() => ({
+  emit: vi.fn(),
+  on: vi.fn(() => vi.fn())
+}))
 
 vi.mock('@data/hooks/useCache', () => ({
   useCache: (key: string) => {
@@ -154,9 +158,29 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock
 }))
 
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: {
+    LOCATE_MESSAGE: 'LOCATE_MESSAGE'
+  },
+  EventEmitter: eventMocks
+}))
+
 const { useAgentMessageListProviderValue } = await import('../agentMessageListAdapter')
 
 describe('useAgentMessageListProviderValue', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Object.defineProperty(window, 'toast', {
+      configurable: true,
+      writable: true,
+      value: {
+        error: vi.fn(),
+        success: vi.fn(),
+        warning: vi.fn()
+      }
+    })
+  })
+
   it('adapts CherryUIMessage input and injects supported agent capabilities', () => {
     const topic = {
       id: 'agent-session-topic',
@@ -289,12 +313,53 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))
+    expect(value?.actions.bindRuntime).toEqual(expect.any(Function))
+    expect(value?.actions.bindMessageRuntime).toEqual(expect.any(Function))
+    expect(value?.actions.bindMessageGroupRuntime).toEqual(expect.any(Function))
+    expect(value?.actions.locateMessage).toEqual(expect.any(Function))
 
     value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/settings/provider',
       search: { id: 'provider-1' }
     })
+
+    const locateMessage = vi.fn()
+    const startEditing = vi.fn()
+    const unbindMessageRuntime = value?.actions.bindMessageRuntime?.('assistant-1', { locateMessage, startEditing })
+    expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', locateMessage)
+    unbindMessageRuntime?.()
+
+    const locateMessageGroup = vi.fn()
+    value?.actions.bindMessageGroupRuntime?.(['user-1', 'assistant-1'], { locateMessage: locateMessageGroup })
+    expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:user-1', expect.any(Function))
+    expect(eventMocks.on).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', expect.any(Function))
+
+    const listLocateMessage = vi.fn()
+    const unbindRuntime = value?.actions.bindRuntime?.({
+      scrollToBottom: vi.fn(),
+      locateMessage: listLocateMessage,
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn()
+    })
+
+    vi.useFakeTimers()
+    try {
+      eventMocks.emit.mockClear()
+      value?.actions.locateMessage?.('assistant-1', true)
+      expect(listLocateMessage).toHaveBeenCalledWith('assistant-1')
+      expect(eventMocks.emit).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(100)
+      expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
+    } finally {
+      vi.useRealTimers()
+      unbindRuntime?.()
+    }
+
+    eventMocks.emit.mockClear()
+    value?.actions.locateMessage?.('assistant-1', true)
+    expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
   })
 
   it('does not expose selected delete action without delete capability', () => {
@@ -335,5 +400,52 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.deleteSelectedMessages).toBeUndefined()
     expect(value?.actions.copySelectedMessages).toEqual(expect.any(Function))
     expect(value?.actions.saveSelectedMessages).toEqual(expect.any(Function))
+  })
+
+  it('does not show a toast when selected-message save is canceled', async () => {
+    const topic = {
+      id: 'agent-session-topic',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const messages = [
+      {
+        id: 'user-1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'hello' }],
+        metadata: { createdAt: '2026-01-01T00:00:00.000Z' }
+      }
+    ] as CherryUIMessage[]
+    let value: MessageListProviderValue | undefined
+
+    exportActionsMock.saveTextFile.mockResolvedValue(null)
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId: { 'user-1': messages[0].parts ?? [] },
+        assistantId: 'agent-1',
+        modelFallback: undefined,
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+
+    render(<Probe />)
+    cacheHookMocks.setMultiSelectMode.mockClear()
+    cacheHookMocks.setSelectedMessageIds.mockClear()
+
+    await value?.actions.saveSelectedMessages?.(['user-1'])
+
+    expect(exportActionsMock.saveTextFile).toHaveBeenCalled()
+    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(cacheHookMocks.setMultiSelectMode).not.toHaveBeenCalled()
+    expect(cacheHookMocks.setSelectedMessageIds).not.toHaveBeenCalled()
   })
 })

@@ -120,7 +120,7 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
     <MessageEditingProvider>
       <HistoryMessageListProvider topic={topic} messages={messageItems} partsByMessageId={partsMap}>
         <MessagesContainer {...props} ref={containerRef} onScroll={handleScroll}>
-          <ContainerWrapper className={messageStyle}>
+          <ContainerWrapper className={classNames([messageStyle, 'messages-container'])}>
             {groupedMessages.map(([key, groupMessages]) => {
               const locateMessage = groupMessages[0]
               const wrapperRole = locateMessage?.role

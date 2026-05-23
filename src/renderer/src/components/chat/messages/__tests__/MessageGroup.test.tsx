@@ -48,7 +48,8 @@ const mocks = vi.hoisted(() => ({
   )),
   MessageMenuBar: vi.fn(() => <div className="message-menubar">menubar</div>),
   MessageOutline: vi.fn(() => null),
-  messageListActions: vi.fn()
+  messageListActions: vi.fn(),
+  messageListSelection: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -96,7 +97,7 @@ vi.mock('@renderer/utils', () => {
   }
 
   return {
-    classNames: (value: unknown) => flattenClassNames(value).join(' '),
+    classNames: (...values: unknown[]) => flattenClassNames(values).join(' '),
     cn: (...values: unknown[]) => flattenClassNames(values).join(' '),
     isEmoji: () => false
   }
@@ -191,7 +192,7 @@ vi.mock('../MessageListProvider', () => ({
       multiModelGridPopoverTrigger: settings.gridPopoverTrigger
     }
   },
-  useMessageListSelection: () => undefined,
+  useMessageListSelection: () => mocks.messageListSelection(),
   useMessageListMeta: () => ({
     userProfile: { avatar: '' }
   }),
@@ -261,6 +262,7 @@ describe('MessageGroup', () => {
       regenerateMessage: vi.fn(),
       updateMessageUiState: vi.fn()
     })
+    mocks.messageListSelection.mockReturnValue(undefined)
   })
 
   it('does not apply horizontal padding on the message element itself', () => {
@@ -519,9 +521,13 @@ describe('MessageGroup', () => {
     const { container } = render(<MessageGroup messages={[message]} topic={topic} />)
 
     const contentContainer = container.querySelector('#message-user-bubble-1 .message-content-container') as HTMLElement
+    const contentRow = contentContainer.parentElement?.parentElement as HTMLElement
+    const avatar = container.querySelector('#message-user-bubble-1 .message-avatar') as HTMLElement
     const footer = container.querySelector('#message-user-bubble-1 .MessageFooter') as HTMLElement
 
     expect(container.querySelector('#message-user-bubble-1 .message-body-column')).toBeNull()
+    expect(contentRow).toHaveClass('items-start')
+    expect(avatar).toHaveClass('mt-1.5')
     expect(contentContainer.style.marginLeft).toBe('')
     expect(contentContainer.style.width).toBe('')
     expect(footer.style.marginLeft).toBe('')
@@ -555,6 +561,65 @@ describe('MessageGroup', () => {
 
     expect(messageElement).toHaveAttribute('data-message-enter-motion', 'user-bubble')
     expect(messageElement).toHaveClass('animation-chat-message-enter-bubble')
+  })
+
+  it('renders user messages with the normal card layout in multi-select mode', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+    mocks.messageListSelection.mockReturnValue({
+      enabled: true,
+      isMultiSelectMode: true,
+      selectedMessageIds: []
+    })
+
+    const message = {
+      ...createMessage('user-multi-select-1', 0, 'vertical'),
+      role: 'user'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup messages={[message]} topic={topic} />)
+
+    expect(container.querySelector('#message-user-multi-select-1 .message-body-column')).not.toBeNull()
+    expect(container.querySelector('#message-user-multi-select-1 .MessageFooter')).toBeNull()
+    expect(container.querySelector('#message-user-multi-select-1 .message')).toHaveClass('cursor-pointer')
+  })
+
+  it('selects a message when clicking message content in multi-select mode', () => {
+    const selectMessage = vi.fn()
+    mocks.messageListActions.mockReturnValue({
+      selectMessage,
+      updateMessageUiState: vi.fn()
+    })
+    mocks.messageListSelection.mockReturnValue({
+      enabled: true,
+      isMultiSelectMode: true,
+      selectedMessageIds: []
+    })
+
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(<MessageGroup messages={messages} topic={topic} />)
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+    fireEvent.click(contentContainer)
+
+    expect(selectMessage).toHaveBeenCalledWith('msg-1', true)
+    const multiSelectContainers = Array.from(container.querySelectorAll<HTMLElement>('.multi-select-mode'))
+    const contentEventsContainer = multiSelectContainers.find((element) =>
+      element.className.includes('[&.multi-select-mode_.message-content-container]:pointer-events-none')
+    )
+
+    expect(multiSelectContainers[0]).toHaveClass('multi-select-mode')
+    expect(contentEventsContainer).toHaveClass('[&.multi-select-mode_.message-content-container]:pointer-events-none')
   })
 
   it('shows multi-model group controls even when the provider has no write actions', () => {

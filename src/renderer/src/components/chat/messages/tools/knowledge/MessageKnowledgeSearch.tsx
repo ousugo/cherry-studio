@@ -4,7 +4,9 @@ import type { NormalToolResponse } from '@renderer/types'
 import { kbSearchInputSchema, type KbSearchOutputItem, kbSearchOutputSchema } from '@shared/ai/builtinTools'
 import { FileSearch } from 'lucide-react'
 
-export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse: NormalToolResponse }) {
+import { ToolDisclosure } from '../shared/ToolDisclosure'
+
+function MessageKnowledgeSearchToolLabel({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const inputParse = kbSearchInputSchema.safeParse(toolResponse.arguments)
   const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
   const query = inputParse.success ? inputParse.data.query : ''
@@ -30,16 +32,40 @@ export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse
   )
 }
 
+export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse: NormalToolResponse }) {
+  const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
+  const hasResults = toolResponse.status === 'done' && outputParse.success && outputParse.data.length > 0
+  const label = <MessageKnowledgeSearchToolLabel toolResponse={toolResponse} />
+
+  if (!hasResults) return label
+
+  return (
+    <div className="group/tool my-px first:mt-0 first:pt-0">
+      <ToolDisclosure
+        variant="light"
+        className="message-tools-container border-none"
+        items={[
+          {
+            key: toolResponse.id,
+            label,
+            children: <MessageKnowledgeSearchToolBody toolResponse={toolResponse} />
+          }
+        ]}
+      />
+    </div>
+  )
+}
+
 export function MessageKnowledgeSearchToolBody({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
   if (toolResponse.status !== 'done' || !outputParse.success) return null
 
   return (
-    <ul className="flex flex-col gap-1 p-0 [&>li]:m-0 [&>li]:max-w-[70%] [&>li]:overflow-hidden [&>li]:text-ellipsis [&>li]:whitespace-nowrap [&>li]:p-0">
+    <ul className="flex flex-col gap-1 p-0 text-[13px] leading-5 [&>li]:m-0 [&>li]:min-w-0 [&>li]:p-0">
       {outputParse.data.map((result: KbSearchOutputItem) => (
-        <li key={result.id}>
-          <span>{result.id}</span>
-          <span>{result.content}</span>
+        <li key={result.id} className="flex min-w-0 gap-2">
+          <span className="shrink-0 text-foreground-muted">{result.id}</span>
+          <span className="min-w-0 truncate">{result.content}</span>
         </li>
       ))}
     </ul>

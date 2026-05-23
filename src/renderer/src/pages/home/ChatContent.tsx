@@ -10,10 +10,11 @@ import { ChatWriteProvider } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { FC } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatComposerSlot from './ChatComposerSlot'
@@ -26,6 +27,8 @@ interface Props {
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  locateMessageId?: string
+  onLocateMessageHandled?: () => void
   /**
    * If the active topic is a freshly-leased temporary one, this callback
    * migrates it into SQLite (with the same id) before the first message
@@ -51,6 +54,8 @@ const ChatContent: FC<Props> = ({
   onOpenCitationsPanel,
   onTemporaryAssistantChange,
   onNewTopic,
+  locateMessageId,
+  onLocateMessageHandled,
   onPersistTemporaryTopic
 }) => {
   const [hasPersistedTemporaryTopic, setHasPersistedTemporaryTopic] = useState(false)
@@ -73,6 +78,8 @@ const ChatContent: FC<Props> = ({
       onOpenCitationsPanel={onOpenCitationsPanel}
       onTemporaryAssistantChange={onTemporaryAssistantChange}
       onNewTopic={onNewTopic}
+      locateMessageId={locateMessageId}
+      onLocateMessageHandled={onLocateMessageHandled}
       onPersistTemporaryTopic={onPersistTemporaryTopic}
       isHistoryLoading={isHistoryLoading}
       isFreshTemporaryTopic={isFreshTemporaryTopic}
@@ -114,6 +121,8 @@ const ChatContentInner: FC<InnerProps> = ({
   onOpenCitationsPanel,
   onTemporaryAssistantChange,
   onNewTopic,
+  locateMessageId,
+  onLocateMessageHandled,
   onPersistTemporaryTopic,
   isHistoryLoading,
   isFreshTemporaryTopic,
@@ -128,6 +137,7 @@ const ChatContentInner: FC<InnerProps> = ({
   messagesCacheMutate
 }) => {
   const { t } = useTranslation()
+  const locateLoadRequestRef = useRef<string | undefined>(undefined)
   const runtime = useChatRuntimeState({
     topic,
     isHistoryLoading,
@@ -141,6 +151,36 @@ const ChatContentInner: FC<InnerProps> = ({
     messagesCacheMutate
   })
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
+
+  useEffect(() => {
+    if (!locateMessageId) {
+      locateLoadRequestRef.current = undefined
+      return
+    }
+
+    if (uiMessages.some((message) => message.id === locateMessageId)) {
+      locateLoadRequestRef.current = undefined
+      window.requestAnimationFrame(() => {
+        void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + locateMessageId, true)
+      })
+      onLocateMessageHandled?.()
+      return
+    }
+
+    if (hasOlder && !isHistoryLoading) {
+      const requestKey = `${locateMessageId}:${uiMessages.length}`
+      if (locateLoadRequestRef.current !== requestKey) {
+        locateLoadRequestRef.current = requestKey
+        loadOlder()
+      }
+      return
+    }
+
+    if (!hasOlder && !isHistoryLoading) {
+      locateLoadRequestRef.current = undefined
+      onLocateMessageHandled?.()
+    }
+  }, [hasOlder, isHistoryLoading, loadOlder, locateMessageId, onLocateMessageHandled, uiMessages])
 
   return (
     <ChatWriteProvider value={runtime.chatWriteActions}>

@@ -4,7 +4,9 @@ import { webSearchInputSchema, type WebSearchOutputItem, webSearchOutputSchema }
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
+import { ToolDisclosure } from '../shared/ToolDisclosure'
+
+const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const { t } = useTranslation()
   const inputParse = webSearchInputSchema.safeParse(toolResponse.arguments)
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
@@ -35,12 +37,36 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
   )
 }
 
+export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
+  const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
+  const hasResults = toolResponse.status === 'done' && outputParse.success && outputParse.data.length > 0
+  const label = <MessageWebSearchToolLabel toolResponse={toolResponse} />
+
+  if (!hasResults) return label
+
+  return (
+    <div className="group/tool my-px first:mt-0 first:pt-0">
+      <ToolDisclosure
+        variant="light"
+        className="message-tools-container border-none"
+        items={[
+          {
+            key: toolResponse.id,
+            label,
+            children: <MessageWebSearchToolBody toolResponse={toolResponse} />
+          }
+        ]}
+      />
+    </div>
+  )
+}
+
 export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
   if (toolResponse.status !== 'done' || !outputParse.success) return null
 
   return (
-    <ul className="flex flex-col gap-1 p-0 [&>li]:m-0 [&>li]:max-w-[70%] [&>li]:overflow-hidden [&>li]:text-ellipsis [&>li]:whitespace-nowrap [&>li]:p-0">
+    <ul className="flex flex-col gap-1 p-0 text-[13px] leading-5 [&>li]:m-0 [&>li]:min-w-0 [&>li]:overflow-hidden [&>li]:text-ellipsis [&>li]:whitespace-nowrap [&>li]:p-0">
       {outputParse.data.map((result: WebSearchOutputItem) => (
         <li key={result.id}>
           <a href={result.url} target="_blank" rel="noreferrer">

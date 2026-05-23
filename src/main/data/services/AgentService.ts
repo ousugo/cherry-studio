@@ -20,10 +20,14 @@ import {
 } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { and, asc, count, desc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
+
+type AgentListOptions = ListOptions & {
+  updatedAtFrom?: number
+}
 
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
@@ -115,7 +119,7 @@ export class AgentService {
     return rowToAgent(row.agent, row.modelName || null)
   }
 
-  async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
+  async listAgents(options: AgentListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional search. Search runs LIKE against
@@ -128,40 +132,51 @@ export class AgentService {
       const searchClause = or(nameMatch, descMatch)
       if (searchClause) conditions.push(searchClause)
     }
+    if (options.updatedAtFrom !== undefined) {
+      conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
+    }
     const whereClause = and(...conditions)
 
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(whereClause)
 
-    // Default to `createdAt desc` so the most recently created agent shows up
-    // first; callers can opt into `orderKey` to honour user-defined ordering.
-    const sortBy = options.sortBy ?? 'createdAt'
-    const orderBy = options.orderBy ?? 'desc'
+    const sortBy = options.sortBy ?? 'orderKey'
+    const orderBy = options.orderBy ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
 
     const sortByToColumn: Record<
       string,
-      typeof agentsTable.createdAt | typeof agentsTable.name | typeof agentsTable.updatedAt
+      | typeof agentsTable.createdAt
+      | typeof agentsTable.name
+      | typeof agentsTable.updatedAt
+      | typeof agentsTable.orderKey
     > = {
       createdAt: agentsTable.createdAt,
       updatedAt: agentsTable.updatedAt,
-      name: agentsTable.name
+      name: agentsTable.name,
+      orderKey: agentsTable.orderKey
     }
     const sortField = sortByToColumn[sortBy] ?? agentsTable.createdAt
     const orderFn = orderBy === 'asc' ? asc : desc
+    const orderByClauses =
+      sortBy === 'updatedAt'
+        ? [orderFn(sortField), asc(agentsTable.id)]
+        : [
+            sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+            asc(pinTable.orderKey),
+            orderFn(sortField),
+            asc(agentsTable.id)
+          ]
 
     // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
     // the top (sorted by pin.orderKey ASC), then unpinned rows by the
-    // caller-specified sortBy/orderBy. Same shape as AssistantService.list.
+    // caller-specified sortBy/orderBy. Default ordering follows agent.orderKey
+    // so resource-list group reorders persist across reloads.
     const baseQuery = database
       .select({ agent: agentsTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
       .from(agentsTable)
       .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .leftJoin(pinTable, and(eq(pinTable.entityType, 'agent'), eq(pinTable.entityId, agentsTable.id)))
       .where(whereClause)
-      .orderBy(
-        sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
-        asc(pinTable.orderKey),
-        orderFn(sortField)
-      )
+      .orderBy(...orderByClauses)
 
     const result =
       options.limit !== undefined

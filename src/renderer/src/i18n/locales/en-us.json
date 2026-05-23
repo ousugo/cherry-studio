@@ -452,11 +452,13 @@
       "get": {
         "error": {
           "failed": "Failed to get the session",
+          "not_found": "Session not found",
           "null_id": "Session ID is null"
         }
       },
       "group": {
         "collapse": "Collapse display",
+        "drag_hint": "Drag to reorder. Drag sessions to adjust display and hidden groups.",
         "earlier": "Earlier",
         "no_workdir": "No project",
         "show_more": "Expand display",
@@ -1937,6 +1939,7 @@
     "on": "On",
     "open": "Open",
     "open_in": "Open in {{name}}",
+    "open_in_new_tab": "Open in new tab",
     "paste": "Paste",
     "placeholders": {
       "select": {
@@ -2182,6 +2185,85 @@
     "text": "Text",
     "title": "Files",
     "type": "Type"
+  },
+  "globalSearch": {
+    "clear": "Clear search",
+    "error": "Search failed",
+    "filters": {
+      "agent": "Agent",
+      "all": "All",
+      "assistant": "Assistant",
+      "conversation": "Work",
+      "knowledge": "Knowledge",
+      "label": "Search type",
+      "session": "Work",
+      "topic": "Topic"
+    },
+    "groups": {
+      "agent": "Agent",
+      "assistant": "Assistant",
+      "conversation": "Work",
+      "knowledge-base": "Knowledge",
+      "message": "Messages",
+      "recent": "Recent",
+      "session": "Work",
+      "topic": "Topic"
+    },
+    "keyboard": {
+      "select": "Select"
+    },
+    "messageSearch": {
+      "entry": "Messages",
+      "hint": "Type to search message content",
+      "jumpToMessage": "Jump to message",
+      "more": "Show {{count}} more results",
+      "open": "Search messages",
+      "roles": {
+        "assistant": "Assistant",
+        "system": "System",
+        "tool": "Tool",
+        "user": "User"
+      },
+      "sourceLabel": "Message source",
+      "sources": {
+        "all": "All messages",
+        "session": "Work messages",
+        "topic": "Topic messages"
+      },
+      "viewMore": "View more in Messages"
+    },
+    "no_recent": "No recent routes",
+    "open": "Open global search",
+    "open_failed": "Failed to open search result",
+    "placeholder": "Search topics, work, assistants, agents, and knowledge...",
+    "quickApps": {
+      "hide": "Hide {{name}}",
+      "manage": "Manage",
+      "manager_description": "Drag to reorder, click the eye to hide or show",
+      "manager_title": "Manage quick apps",
+      "reset": "Reset",
+      "save_failed": "Failed to save quick apps",
+      "show": "Show {{name}}",
+      "title": "Quick apps"
+    },
+    "recent_hint": "Type to search work, assistants, agents, and knowledge",
+    "resultTypes": {
+      "agent": "Agent",
+      "assistant": "Assistant",
+      "knowledge-base": "Knowledge",
+      "session": "Work",
+      "topic": "Topic"
+    },
+    "showMore": "Show {{count}} more",
+    "timeFilters": {
+      "any": "Any time",
+      "label": "Updated time",
+      "messageLabel": "Created time",
+      "month": "Last month",
+      "quarter": "Last 3 months",
+      "today": "Today",
+      "week": "Last 7 days"
+    }
   },
   "gpustack": {
     "keep_alive_time": {
@@ -2972,10 +3054,7 @@
     },
     "skill_detail": {
       "created_at": "Created",
-      "delete_description": "Remove this skill and all of its configuration. This action cannot be undone.",
-      "delete_title": "Delete skill",
       "description": "Description",
-      "file_preview": "File preview",
       "installed": "Installed",
       "no_description": "No description",
       "updated_at": "Recently updated"
@@ -3014,7 +3093,6 @@
       "prompt": "Prompt",
       "skill": "Skill"
     },
-    "uninstall_failed": "Failed to uninstall",
     "view": {
       "grid": "Grid view",
       "list": "List view"

@@ -283,6 +283,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
   const { horizontal } = restOptions
+  const measureItemElement = itemContainerStyle?.height === undefined ? virtualizer.measureElement : undefined
 
   return (
     <div
@@ -367,7 +368,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
           }
 
           return (
-            <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement} style={style}>
+            <div key={virtualItem.key} data-index={virtualItem.index} ref={measureItemElement} style={style}>
               {children(list[virtualItem.index], virtualItem.index)}
             </div>
           )

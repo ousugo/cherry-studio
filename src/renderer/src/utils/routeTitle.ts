@@ -8,7 +8,6 @@ const BASE_URL = 'https://www.cherry-ai.com/'
  */
 const routeTitleKeys: Record<string, string> = {
   '/app/chat': 'common.chat',
-  '/app/launchpad': 'title.launchpad',
   '/app/agents': 'agent.sidebar_title',
   '/app/paintings': 'title.paintings',
   '/app/translate': 'title.translate',
@@ -83,6 +82,6 @@ export function getRouteTitleKey(url: string): string | undefined {
  * segments). Used to decide whether a tab title should be auto-localized.
  */
 export function isTopLevelRoute(url: string): boolean {
-  const pathname = new URL(url, BASE_URL).pathname
-  return routeTitleKeys[pathname] !== undefined
+  const parsedUrl = new URL(url, BASE_URL)
+  return !parsedUrl.search && !parsedUrl.hash && routeTitleKeys[parsedUrl.pathname] !== undefined
 }

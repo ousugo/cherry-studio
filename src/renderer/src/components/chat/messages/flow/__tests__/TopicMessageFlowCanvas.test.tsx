@@ -31,6 +31,7 @@ vi.mock('@xyflow/react', async () => {
       children,
       edges,
       fitView,
+      fitViewOptions,
       nodeTypes,
       nodes,
       nodesConnectable,
@@ -41,6 +42,7 @@ vi.mock('@xyflow/react', async () => {
       children: ReactNode
       edges: unknown[]
       fitView?: boolean
+      fitViewOptions?: { maxZoom?: number; padding?: number }
       nodeTypes: Record<string, React.ComponentType<any>>
       nodes: TopicMessageFlowNodeModel[]
       nodesConnectable?: boolean
@@ -53,6 +55,8 @@ vi.mock('@xyflow/react', async () => {
         {
           'data-edges': edges.length,
           'data-fit-view': fitView ? 'true' : 'false',
+          'data-fit-view-max-zoom': fitViewOptions?.maxZoom,
+          'data-fit-view-padding': fitViewOptions?.padding,
           'data-hide-attribution': proOptions?.hideAttribution ? 'true' : 'false',
           'data-nodes-connectable': nodesConnectable ? 'true' : 'false',
           'data-nodes-draggable': nodesDraggable ? 'true' : 'false',
@@ -140,6 +144,8 @@ describe('TopicMessageFlowCanvas', () => {
     render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
 
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-fit-view', 'true')
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-fit-view-max-zoom', '1')
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-fit-view-padding', '0.22')
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-hide-attribution', 'true')
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-nodes-draggable', 'false')
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-nodes-connectable', 'false')

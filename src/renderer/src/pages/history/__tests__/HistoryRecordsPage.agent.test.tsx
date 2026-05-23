@@ -69,6 +69,13 @@ vi.mock('@cherrystudio/ui', async () => {
     ),
     ContextMenuItem: ({ children, onSelect, ...props }: any) =>
       React.createElement('button', itemHandler(onSelect, props), children),
+    ContextMenuItemContent: ({ children, icon, shortcut, ...props }: any) => (
+      <span {...props}>
+        {icon}
+        {children}
+        {shortcut ? <span>{shortcut}</span> : null}
+      </span>
+    ),
     ContextMenuSeparator: (props: any) => <hr data-testid="context-menu-separator" {...props} />,
     ContextMenuShortcut: ({ children, ...props }: { children?: ReactNode }) => <span {...props}>{children}</span>,
     ContextMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,

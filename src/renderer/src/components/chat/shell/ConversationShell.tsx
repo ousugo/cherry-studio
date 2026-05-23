@@ -1,7 +1,8 @@
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils'
-import type { ReactNode, Ref } from 'react'
+import type { PropsWithChildren, ReactNode, Ref } from 'react'
 
+import { useOptionalShellState } from '../panes/Shell'
 import { ChatAppShell } from './ChatAppShell'
 import type { ChatPanePosition } from './types'
 
@@ -12,6 +13,7 @@ export interface ConversationShellProps {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   topBar?: ReactNode
+  topRightTool?: ReactNode
   center: ReactNode
   sidePanel?: ReactNode
   centerOverlay?: ReactNode
@@ -29,6 +31,7 @@ export default function ConversationShell({
   paneOpen,
   panePosition,
   topBar,
+  topRightTool,
   center,
   sidePanel,
   centerOverlay,
@@ -38,11 +41,12 @@ export default function ConversationShell({
   centerRef,
   centerClassName
 }: ConversationShellProps) {
+  const resolvedTopBar = topRightTool ? <ConversationShellTopBar>{topBar}</ConversationShellTopBar> : topBar
   return (
     <div
       id={id}
       className={cn(
-        'flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background',
+        'relative flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background',
         className
       )}>
       <QuickPanelProvider>
@@ -50,7 +54,7 @@ export default function ConversationShell({
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
-          topBar={topBar}
+          topBar={resolvedTopBar}
           centerContent={center}
           sidePanel={sidePanel}
           centerOverlay={centerOverlay}
@@ -60,7 +64,25 @@ export default function ConversationShell({
           centerClassName={centerClassName}
         />
       </QuickPanelProvider>
+      {topRightTool && <ConversationShellTopRightTool>{topRightTool}</ConversationShellTopRightTool>}
       {rightPane}
+    </div>
+  )
+}
+
+const ConversationShellTopBar = ({ children }: PropsWithChildren) => {
+  const shellState = useOptionalShellState()
+  const maximized = shellState?.maximized ?? false
+  return <div className={cn('flex h-fit w-full min-w-0', !maximized && 'pr-11')}>{children}</div>
+}
+
+const ConversationShellTopRightTool = ({ children }: PropsWithChildren) => {
+  const shellState = useOptionalShellState()
+  const maximized = shellState?.maximized ?? false
+  if (maximized) return null
+  return (
+    <div className="absolute top-0 right-2 z-20 flex h-(--navbar-height) w-[30px] items-center justify-center [-webkit-app-region:no-drag]">
+      {children}
     </div>
   )
 }

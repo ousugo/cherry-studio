@@ -1,5 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { ResourceList, useResourceList } from '@renderer/components/chat/resources'
+import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
+import { ResourceList, useResourceListActions, useResourceListRowState } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { isMac } from '@renderer/config/constant'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -19,6 +20,7 @@ interface SessionItemProps {
   channelType?: string
   onDelete: (id: string) => void | Promise<void>
   onEditAgent: (agentId: string) => void
+  onOpenInNewTab?: (session: AgentSessionEntity) => void
   onPress: (id: string) => void
   onSelectItem?: () => void
   onTogglePin?: (id: string) => void | Promise<void>
@@ -32,6 +34,7 @@ const SessionItem = ({
   channelType,
   onDelete,
   onEditAgent,
+  onOpenInNewTab,
   onPress,
   onSelectItem,
   onTogglePin,
@@ -39,7 +42,8 @@ const SessionItem = ({
   session
 }: SessionItemProps) => {
   const { t } = useTranslation()
-  const context = useResourceList<AgentSessionEntity>()
+  const actions = useResourceListActions()
+  const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
@@ -47,7 +51,7 @@ const SessionItem = ({
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const deleteConfirmationTimeoutRef = useRef<number | null>(null)
   const channelIcon = getChannelTypeIcon(channelType)
-  const isActive = context.state.selectedId === session.id
+  const isActive = rowState.selected
   const sessionName = session.name ?? session.id
   const isRenaming = renamingTopics?.includes(topicId) === true
   const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
@@ -55,11 +59,11 @@ const SessionItem = ({
   const hasStreamIndicator = !isActive && (isStreamPending || isStreamFulfilled)
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
 
-  const startInlineEdit = useCallback(() => context.actions.startRename(session.id), [context.actions, session.id])
-  const startMenuEdit = useCallback((_: string) => setRenameDialogOpen(true), [])
+  const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
+  const startMenuEdit = useCallback(() => setRenameDialogOpen(true), [])
   const submitRenameDialog = useCallback(
-    (name: string) => context.actions.commitRename(session.id, name),
-    [context.actions, session.id]
+    (name: string) => actions.commitRename(session.id, name),
+    [actions, session.id]
   )
   const handleDelete = useCallback(() => {
     void onDelete(session.id)
@@ -72,11 +76,15 @@ const SessionItem = ({
       onEditAgent(session.agentId)
     }
   }, [onEditAgent, session.agentId])
+  const handleOpenInNewTab = useCallback(() => {
+    onOpenInNewTab?.(session)
+  }, [onOpenInNewTab, session])
 
   const actionContext = useMemo<SessionActionContext>(
     () => ({
       onDelete: handleDelete,
       onEditAgent: session.agentId ? handleEditAgent : undefined,
+      onOpenInNewTab: onOpenInNewTab ? handleOpenInNewTab : undefined,
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
       pinned,
       sessionName: session.name ?? '',
@@ -86,7 +94,9 @@ const SessionItem = ({
     [
       handleDelete,
       handleEditAgent,
+      handleOpenInNewTab,
       handleTogglePin,
+      onOpenInNewTab,
       onTogglePin,
       pinned,
       session.agentId,
@@ -169,7 +179,7 @@ const SessionItem = ({
         onClick={(event) => event.stopPropagation()}
       />
 
-      {context.state.renamingId !== session.id && (
+      {!rowState.renaming && (
         <>
           {channelIcon && (
             <ResourceList.ItemIcon className="rounded-sm">
@@ -212,9 +222,9 @@ const SessionItem = ({
 
   return (
     <>
-      <ResourceList.ContextMenu item={session} actions={menuActions} onAction={handleMenuAction}>
+      <ResourceListActionContextMenu item={session} actions={menuActions} onAction={handleMenuAction}>
         {row}
-      </ResourceList.ContextMenu>
+      </ResourceListActionContextMenu>
       <EditNameDialog
         open={renameDialogOpen}
         title={t('agent.session.edit.title')}
@@ -227,7 +237,7 @@ const SessionItem = ({
 }
 
 const SessionStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
-  const dotClassName = cn('animation-pulse size-[5px] rounded-full', isPending ? 'bg-warning' : 'bg-success')
+  const dotClassName = cn('size-[5px] rounded-full', isPending ? 'animation-pulse bg-warning' : 'bg-success')
 
   if (!isPending && !isFulfilled) return null
 

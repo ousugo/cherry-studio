@@ -452,11 +452,13 @@
       "get": {
         "error": {
           "failed": "無法取得工作階段",
+          "not_found": "工作階段不存在",
           "null_id": "工作階段 ID 為空"
         }
       },
       "group": {
         "collapse": "折疊顯示",
+        "drag_hint": "拖曳可排序，也可拖曳工作階段調整展示/隱藏分組。",
         "earlier": "[to be translated]:Earlier",
         "no_workdir": "無專案",
         "show_more": "展開顯示",
@@ -1937,6 +1939,7 @@
     "on": "開啟",
     "open": "開啟",
     "open_in": "在 {{name}} 中開啟",
+    "open_in_new_tab": "在新分頁開啟",
     "paste": "貼上",
     "placeholders": {
       "select": {
@@ -2182,6 +2185,85 @@
     "text": "文字",
     "title": "檔案",
     "type": "類型"
+  },
+  "globalSearch": {
+    "clear": "清空搜尋",
+    "error": "搜尋失敗",
+    "filters": {
+      "agent": "智能體",
+      "all": "全部",
+      "assistant": "助手",
+      "conversation": "工作",
+      "knowledge": "知識庫",
+      "label": "搜尋類型",
+      "session": "工作",
+      "topic": "話題"
+    },
+    "groups": {
+      "agent": "智能體",
+      "assistant": "助手",
+      "conversation": "工作",
+      "knowledge-base": "知識庫",
+      "message": "訊息",
+      "recent": "最近",
+      "session": "工作",
+      "topic": "話題"
+    },
+    "keyboard": {
+      "select": "選擇"
+    },
+    "messageSearch": {
+      "entry": "訊息",
+      "hint": "輸入關鍵詞搜尋訊息正文",
+      "jumpToMessage": "跳轉到訊息",
+      "more": "查看更多 {{count}} 條結果",
+      "open": "搜尋訊息",
+      "roles": {
+        "assistant": "助手",
+        "system": "系統",
+        "tool": "工具",
+        "user": "使用者"
+      },
+      "sourceLabel": "訊息來源",
+      "sources": {
+        "all": "全部訊息",
+        "session": "工作訊息",
+        "topic": "話題訊息"
+      },
+      "viewMore": "去訊息查看更多"
+    },
+    "no_recent": "暫無最近訪問",
+    "open": "開啟全域搜尋",
+    "open_failed": "開啟搜尋結果失敗",
+    "placeholder": "開始輸入搜尋...",
+    "quickApps": {
+      "hide": "隱藏 {{name}}",
+      "manage": "管理",
+      "manager_description": "拖曳排序，點擊眼睛隱藏/顯示",
+      "manager_title": "管理快捷應用",
+      "reset": "重置",
+      "save_failed": "儲存快捷應用失敗",
+      "show": "顯示 {{name}}",
+      "title": "快捷應用"
+    },
+    "recent_hint": "輸入關鍵詞搜尋工作、助手、智能體和知識庫",
+    "resultTypes": {
+      "agent": "智能體",
+      "assistant": "助手",
+      "knowledge-base": "知識庫",
+      "session": "工作",
+      "topic": "話題"
+    },
+    "showMore": "查看更多 {{count}} 條",
+    "timeFilters": {
+      "any": "不限時間",
+      "label": "更新時間",
+      "messageLabel": "建立時間",
+      "month": "最近 1 個月",
+      "quarter": "最近 3 個月",
+      "today": "今天",
+      "week": "最近 1 周"
+    }
   },
   "gpustack": {
     "keep_alive_time": {
@@ -2972,10 +3054,7 @@
     },
     "skill_detail": {
       "created_at": "建立時間",
-      "delete_description": "移除此技能及其所有配置,此操作無法復原",
-      "delete_title": "刪除技能",
       "description": "描述",
-      "file_preview": "檔案預覽",
       "installed": "已安裝",
       "no_description": "暫無描述",
       "updated_at": "最近更新"
@@ -3014,7 +3093,6 @@
       "prompt": "[to be translated]:Prompt",
       "skill": "技能"
     },
-    "uninstall_failed": "[to be translated]:Failed to uninstall",
     "view": {
       "grid": "網格檢視",
       "list": "列表檢視"

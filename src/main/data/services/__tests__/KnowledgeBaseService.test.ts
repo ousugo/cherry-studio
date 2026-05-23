@@ -71,6 +71,49 @@ describe('KnowledgeBaseService', () => {
       expect(result.page).toBe(2)
       expect(result.items).toHaveLength(1)
     })
+
+    it('should search knowledge bases by name and keep pagination total scoped to the search', async () => {
+      await seedKnowledgeBase({ id: 'kb-alpha', name: 'Alpha Research' })
+      await seedKnowledgeBase({ id: 'kb-beta', name: 'Beta Research' })
+      await seedKnowledgeBase({ id: 'kb-other', name: 'Operations' })
+
+      const result = await service.list({ page: 1, limit: 1, search: 'Research' })
+
+      expect(result.total).toBe(2)
+      expect(result.page).toBe(1)
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0].name).toContain('Research')
+    })
+
+    it('treats % and _ in knowledge base search as literal characters', async () => {
+      await seedKnowledgeBase({ id: 'kb-literal', name: 'Vector 100%_notes' })
+      await seedKnowledgeBase({ id: 'kb-expanded', name: 'Vector 100xxnotes' })
+
+      const result = await service.list({ page: 1, limit: 10, search: '100%_' })
+
+      expect(result.total).toBe(1)
+      expect(result.items.map((item) => item.id)).toEqual(['kb-literal'])
+    })
+
+    it('filters by updatedAtFrom and can sort by updatedAt descending', async () => {
+      const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
+      await seedKnowledgeBase({ id: 'kb-old', name: 'Research old', updatedAt: cutoff - 1 })
+      await seedKnowledgeBase({ id: 'kb-newer', name: 'Research newer', updatedAt: cutoff + 2000 })
+      await seedKnowledgeBase({ id: 'kb-newest', name: 'Research newest', updatedAt: cutoff + 3000 })
+      await seedKnowledgeBase({ id: 'kb-other', name: 'Other', updatedAt: cutoff + 4000 })
+
+      const result = await service.list({
+        page: 1,
+        limit: 10,
+        search: 'Research',
+        updatedAtFrom: cutoff,
+        sortBy: 'updatedAt',
+        orderBy: 'desc'
+      })
+
+      expect(result.items.map((item) => item.id)).toEqual(['kb-newest', 'kb-newer'])
+      expect(result.total).toBe(2)
+    })
   })
 
   describe('getById', () => {

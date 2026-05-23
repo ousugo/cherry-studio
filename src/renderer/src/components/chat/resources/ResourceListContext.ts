@@ -1,4 +1,10 @@
-import { createContext, type ReactNode, use } from 'react'
+import { createContext, type ReactNode, use, useCallback, useSyncExternalStore } from 'react'
+
+import type {
+  ResourceListGroupStateSnapshot,
+  ResourceListRowStateSnapshot,
+  ResourceListUiStore
+} from './ResourceListUiStore'
 
 export type ResourceListItemBase = {
   id: string
@@ -24,6 +30,8 @@ export type ResourceListGroup = {
 export type ResourceListGroupHeaderIconContext = {
   collapsed: boolean
 }
+
+export type ResourceListGroupHeaderClickBehavior = 'toggle' | 'select-first-then-toggle'
 
 export type ResourceListSortOption<T extends ResourceListItemBase> = {
   id: string
@@ -96,6 +104,7 @@ export type ResourceListActionMap = {
   commitRename: (id: string, name: string) => void
   cancelRename: () => void
   openContextMenu: (id: string) => void
+  selectGroupHeaderItem: (id: string) => void
   showMoreInGroup: (groupId: string) => void
   collapseGroupItems: (groupId: string) => void
   toggleGroup: (groupId: string) => void
@@ -111,6 +120,9 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderContextMenu?: (group: ResourceListGroup) => ReactNode
   getGroupHeaderLeadingAction?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   getGroupHeaderIcon?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
+  getGroupHeaderClassName?: (group: ResourceListGroup) => string | undefined
+  getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
+  getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]
   estimateItemSize: (index: number) => number
@@ -175,7 +187,23 @@ export type ResourceListContextValue<T extends ResourceListItemBase> = {
   view: ResourceListView<T>
 }
 
+export type ResourceListControlsState = Pick<ResourceListState, 'filters' | 'query' | 'sort' | 'status'>
+
+export type ResourceListItemAccessors<T extends ResourceListItemBase> = Pick<
+  ResourceListMeta<T>,
+  'getItemId' | 'getItemLabel'
+>
+
 export const ResourceListContext = createContext<ResourceListContextValue<ResourceListItemBase> | null>(null)
+export const ResourceListActionsContext = createContext<ResourceListActionMap | null>(null)
+export const ResourceListControlsContext = createContext<ResourceListControlsState | null>(null)
+export const ResourceListItemAccessorsContext = createContext<ResourceListItemAccessors<ResourceListItemBase> | null>(
+  null
+)
+export const ResourceListMetaContext = createContext<ResourceListMeta<ResourceListItemBase> | null>(null)
+export const ResourceListSourceItemsContext = createContext<readonly ResourceListItemBase[] | null>(null)
+export const ResourceListUiStoreContext = createContext<ResourceListUiStore | null>(null)
+export const ResourceListViewContext = createContext<ResourceListView<ResourceListItemBase> | null>(null)
 
 export function useResourceList<T extends ResourceListItemBase = ResourceListItemBase>() {
   const context = use(ResourceListContext)
@@ -183,4 +211,74 @@ export function useResourceList<T extends ResourceListItemBase = ResourceListIte
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
   return context as unknown as ResourceListContextValue<T>
+}
+
+export function useResourceListActions() {
+  const actions = use(ResourceListActionsContext)
+  if (!actions) {
+    throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
+  }
+  return actions
+}
+
+export function useResourceListControlsState() {
+  const controls = use(ResourceListControlsContext)
+  if (!controls) {
+    throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
+  }
+  return controls
+}
+
+export function useResourceListItemAccessors<T extends ResourceListItemBase = ResourceListItemBase>() {
+  const accessors = use(ResourceListItemAccessorsContext)
+  if (!accessors) {
+    throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
+  }
+  return accessors as unknown as ResourceListItemAccessors<T>
+}
+
+export function useResourceListMeta<T extends ResourceListItemBase = ResourceListItemBase>() {
+  const meta = use(ResourceListMetaContext)
+  if (!meta) {
+    throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
+  }
+  return meta as unknown as ResourceListMeta<T>
+}
+
+export function useResourceListSourceItems<T extends ResourceListItemBase = ResourceListItemBase>() {
+  const sourceItems = use(ResourceListSourceItemsContext)
+  if (!sourceItems) {
+    throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
+  }
+  return sourceItems as readonly T[]
+}
+
+export function useResourceListUiStore() {
+  const store = use(ResourceListUiStoreContext)
+  if (!store) {
+    throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
+  }
+  return store
+}
+
+export function useResourceListView<T extends ResourceListItemBase = ResourceListItemBase>() {
+  const view = use(ResourceListViewContext)
+  if (!view) {
+    throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
+  }
+  return view as unknown as ResourceListView<T>
+}
+
+export function useResourceListRowState(itemId: string): ResourceListRowStateSnapshot {
+  const store = useResourceListUiStore()
+  const subscribe = useCallback((listener: () => void) => store.subscribeRow(itemId, listener), [itemId, store])
+  const getSnapshot = useCallback(() => store.getRowSnapshot(itemId), [itemId, store])
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+export function useResourceListGroupState(groupId: string): ResourceListGroupStateSnapshot {
+  const store = useResourceListUiStore()
+  const subscribe = useCallback((listener: () => void) => store.subscribeGroup(groupId, listener), [groupId, store])
+  const getSnapshot = useCallback(() => store.getGroupSnapshot(groupId), [groupId, store])
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }

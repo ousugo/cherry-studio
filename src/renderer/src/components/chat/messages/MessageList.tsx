@@ -7,6 +7,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import {
   captureScrollableAsBlob,
   captureScrollableAsDataURL,
+  classNames,
   removeSpecialCharactersForFileName
 } from '@renderer/utils'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
@@ -223,6 +224,7 @@ const MessageList = () => {
   useEffect(() => {
     return bindRuntime?.({
       scrollToBottom,
+      locateMessage: scrollToMessageById,
       copyTopicImage: async () => {
         await captureScrollableAsBlob(scrollContainerRef, async (blob) => {
           if (blob) {
@@ -238,7 +240,7 @@ const MessageList = () => {
         }
       }
     })
-  }, [bindRuntime, copyImage, meta.imageExportFileName, saveImage, scrollToBottom])
+  }, [bindRuntime, copyImage, meta.imageExportFileName, saveImage, scrollToBottom, scrollToMessageById])
 
   if (data.isInitialLoading) {
     return <MessageListInitialLoading />
@@ -259,7 +261,10 @@ const MessageList = () => {
   const scrollerBottomMargin = bottomOverlayInsets?.scrollerBottomMargin ?? 0
 
   return (
-    <MessagesContainer id="messages" className="messages-container" key={data.listKey}>
+    <MessagesContainer
+      id="messages"
+      className={classNames(['messages-container', { 'multi-select-mode': isMultiSelectMode }])}
+      key={data.listKey}>
       {beforeList && (
         <NarrowLayout narrowMode={messageListNarrowMode} withSidePadding className="shrink-0">
           {beforeList}

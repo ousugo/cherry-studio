@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { isTopicStreamTurnSeen, type TopicStreamSeenValue } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { TopicStreamStatus } from '@shared/ai/transport'
 import { useCallback, useRef, useSyncExternalStore } from 'react'
@@ -46,16 +47,17 @@ const buildAgentSessionStreamStatusSnapshot = (sessionIds: readonly string[]): A
 
   for (const sessionId of sessionIds) {
     const statusEntry = cacheService.getShared(getAgentSessionStreamStatusCacheKey(sessionId))
-    const seen = cacheService.getCasual<boolean>(getAgentSessionStreamSeenCacheKey(sessionId)) ?? false
+    const seen = cacheService.getCasual<TopicStreamSeenValue>(getAgentSessionStreamSeenCacheKey(sessionId))
     const status = statusEntry?.status
+    const hasSeenTurn = isTopicStreamTurnSeen(seen, statusEntry?.turnId)
     const streamStatus = {
       status,
-      isFulfilled: status === 'done' && !seen,
+      isFulfilled: status === 'done' && !hasSeenTurn,
       isPending: status === 'pending' || status === 'streaming'
     }
 
     signatureParts.push(
-      `${sessionId}:${status ?? ''}:${seen ? 1 : 0}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`
+      `${sessionId}:${status ?? ''}:${statusEntry?.turnId ?? ''}:${hasSeenTurn ? 1 : 0}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`
     )
 
     if (streamStatus.isPending || streamStatus.isFulfilled || status === 'error') {

@@ -58,7 +58,10 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
           thinkingTimeText={<ThinkingTimeSeconds blockThinkingTime={thinkingMs} isThinking={isThinking} />}
         />
       </button>
-      <div id={contentId} hidden={!isExpanded} className="mt-1">
+      <div
+        id={contentId}
+        hidden={!isExpanded}
+        className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] text-foreground-secondary leading-5">
         <div
           className="relative text-foreground-muted [&_.markdown>p:only-child]:mb-0!"
           style={

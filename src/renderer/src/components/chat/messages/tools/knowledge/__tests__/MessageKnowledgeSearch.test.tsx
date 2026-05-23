@@ -1,5 +1,5 @@
 import type { NormalToolResponse } from '@renderer/types'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { MessageKnowledgeSearchToolTitle } from '../MessageKnowledgeSearch'
@@ -25,7 +25,7 @@ vi.mock('lucide-react', async (importOriginal) => {
 })
 
 describe('MessageKnowledgeSearchToolTitle', () => {
-  it('uses the compact tool-row style for the result label', () => {
+  it('wraps result details in the shared disclosure container', async () => {
     render(
       <MessageKnowledgeSearchToolTitle
         toolResponse={
@@ -46,6 +46,10 @@ describe('MessageKnowledgeSearchToolTitle', () => {
     expect(title).not.toHaveClass('text-sm')
     expect(screen.getByTestId('file-search-icon')).toHaveAttribute('data-size', '14')
     expect(screen.getByTestId('file-search-icon')).toHaveClass('shrink-0 text-foreground-muted')
+
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.getByTestId('collapse-content-tool-call-1')).toHaveClass('rounded-xl bg-muted px-4 py-3')
+    expect(await screen.findByText('Cherry Studio')).toBeInTheDocument()
   })
 
   it('uses compact text while searching', () => {

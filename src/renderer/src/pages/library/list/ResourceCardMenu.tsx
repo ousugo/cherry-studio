@@ -11,7 +11,7 @@ import type { ResourceItem } from '../types'
 
 const logger = loggerService.withContext('ResourceCardMenu')
 
-export function canDuplicateResource(resource: ResourceItem) {
+function canDuplicateResource(resource: ResourceItem) {
   return resource.type === 'assistant'
 }
 
@@ -50,7 +50,11 @@ export function FixedCardMenu({
 
   const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
   const { updateAssistant } = useAssistantMutationsById(resource.id)
+  const canEdit = resource.type !== 'skill'
   const canBindTags = resource.type === 'assistant'
+  const canDuplicate = canDuplicateResource(resource)
+  const canExport = resource.type === 'assistant'
+  const hasActionsBeforeDelete = canEdit || canBindTags || canDuplicate || canExport
 
   // Backend-assigned tag color (random-from-palette at POST time): look up so
   // chip dots render consistently across Row 2, card menu, and BasicSection.
@@ -126,20 +130,22 @@ export function FixedCardMenu({
 
   return (
     <div>
-      <div className="fixed inset-0 z-[500]" onClick={onClose} />
+      <div className="fixed inset-0 z-500" onClick={onClose} />
       <div
-        className="fixed z-[501] min-w-[140px] rounded-xs border border-border/30 bg-popover p-1 shadow-xl"
+        className="fixed z-501 min-w-35 rounded-xs border border-border/30 bg-popover p-1 shadow-xl"
         style={{ left: clampX, top: clampY }}>
-        <MenuItem
-          variant="ghost"
-          size="sm"
-          icon={<Pencil size={10} />}
-          label={t('common.edit')}
-          onClick={() => {
-            onEdit(resource)
-            onClose()
-          }}
-        />
+        {canEdit && (
+          <MenuItem
+            variant="ghost"
+            size="sm"
+            icon={<Pencil size={10} />}
+            label={t('common.edit')}
+            onClick={() => {
+              onEdit(resource)
+              onClose()
+            }}
+          />
+        )}
 
         {canBindTags && (
           <div className="relative">
@@ -162,7 +168,7 @@ export function FixedCardMenu({
             {bindingError && <p className="px-2.5 py-1 text-destructive/80 text-xs">{bindingError}</p>}
             {showTagPicker && (
               <div
-                className={`absolute ${subMenuPos} flex max-h-[260px] min-w-[160px] flex-col rounded-xs border border-border/30 bg-popover p-1 shadow-xl`}>
+                className={`absolute ${subMenuPos} flex max-h-65 min-w-40 flex-col rounded-xs border border-border/30 bg-popover p-1 shadow-xl`}>
                 <div className="mb-0.5 flex items-center gap-1 px-2 py-1">
                   <Input
                     autoFocus
@@ -186,7 +192,7 @@ export function FixedCardMenu({
                   )}
                 </div>
                 <Separator className="mx-1 mb-0.5 bg-border/15" />
-                <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[2px]">
+                <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.5">
                   {allTagNames.length === 0 && !tagInput.trim() && (
                     <p className="px-2.5 py-2 text-center text-muted-foreground/40 text-xs">
                       {t('library.tag_picker.no_tags')}
@@ -197,7 +203,7 @@ export function FixedCardMenu({
                     return (
                       <label
                         key={tag}
-                        className={`flex w-full items-center gap-2 rounded-3xs px-2.5 py-[5px] text-muted-foreground/60 text-xs transition-colors ${
+                        className={`flex w-full items-center gap-2 rounded-3xs px-2.5 py-1.25 text-muted-foreground/60 text-xs transition-colors ${
                           bindingPending
                             ? 'cursor-not-allowed opacity-60'
                             : 'cursor-pointer hover:bg-accent/50 hover:text-foreground'
@@ -223,7 +229,7 @@ export function FixedCardMenu({
           </div>
         )}
 
-        {canDuplicateResource(resource) && (
+        {canDuplicate && (
           <MenuItem
             variant="ghost"
             size="sm"
@@ -235,7 +241,7 @@ export function FixedCardMenu({
             }}
           />
         )}
-        {resource.type === 'assistant' && (
+        {canExport && (
           <MenuItem
             variant="ghost"
             size="sm"
@@ -247,7 +253,7 @@ export function FixedCardMenu({
             }}
           />
         )}
-        <MenuDivider className="mx-1 my-0.5 bg-border/15" />
+        {hasActionsBeforeDelete && <MenuDivider className="mx-1 my-0.5 bg-border-subtle" />}
         <MenuItem
           variant="ghost"
           size="sm"

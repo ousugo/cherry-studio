@@ -36,6 +36,22 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 vi.mock('@renderer/utils', () => ({
   captureScrollableAsBlob: vi.fn(),
   captureScrollableAsDataURL: vi.fn(),
+  classNames: (value: unknown) => {
+    if (Array.isArray(value)) {
+      return value
+        .flatMap((item) => {
+          if (typeof item === 'string') return [item]
+          if (item && typeof item === 'object') {
+            return Object.entries(item as Record<string, boolean>)
+              .filter(([, enabled]) => enabled)
+              .map(([className]) => className)
+          }
+          return []
+        })
+        .join(' ')
+    }
+    return ''
+  },
   removeSpecialCharactersForFileName: (value: string) => value
 }))
 
@@ -124,7 +140,10 @@ const createMessage = (id: string, role: MessageListItem['role']): MessageListIt
   status: 'success'
 })
 
-const createValue = (messages: MessageListItem[]): MessageListProviderValue => ({
+const createValue = (
+  messages: MessageListItem[],
+  overrides?: Partial<MessageListProviderValue['state']>
+): MessageListProviderValue => ({
   state: {
     topic: { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic'],
     messages,
@@ -134,7 +153,8 @@ const createValue = (messages: MessageListItem[]): MessageListProviderValue => (
     overscan: 0,
     loadOlderDelayMs: 0,
     loadingResetDelayMs: 0,
-    renderConfig: defaultMessageRenderConfig
+    renderConfig: defaultMessageRenderConfig,
+    ...overrides
   },
   actions: {},
   meta: { selectionLayer: false }
@@ -205,5 +225,22 @@ describe('MessageList', () => {
     expect(screen.getByTestId('message-enter-user-1')).toHaveTextContent('false')
     expect(screen.getByTestId('message-enter-user-2')).toHaveTextContent('true')
     expect(screen.getByTestId('message-enter-assistant-placeholder')).toHaveTextContent('false')
+  })
+
+  it('marks the message list container while multi-select mode is active', () => {
+    render(
+      <MessageListProvider
+        value={createValue([createMessage('user-1', 'user')], {
+          selection: {
+            enabled: true,
+            isMultiSelectMode: true,
+            selectedMessageIds: []
+          }
+        })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(document.getElementById('messages')).toHaveClass('messages-container', 'multi-select-mode')
   })
 })

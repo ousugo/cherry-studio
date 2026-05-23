@@ -21,7 +21,8 @@ const nodeTypes = {
 } satisfies NodeTypes
 
 const defaultFitViewOptions: ReactFlowProps<TopicMessageFlowNodeModel, TopicMessageFlowEdgeModel>['fitViewOptions'] = {
-  padding: 0.18,
+  padding: 0.22,
+  maxZoom: 1,
   duration: 200
 }
 

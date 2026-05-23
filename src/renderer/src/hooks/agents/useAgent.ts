@@ -10,6 +10,7 @@ import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import type { AddAgentForm, GetAgentResponse, UpdateAgentForm } from '@renderer/types'
 import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
@@ -56,7 +57,7 @@ export const useAgent = (id: string | null) => {
  */
 export const useAgents = () => {
   const { t } = useTranslation()
-  const { data, isLoading, error } = useQuery('/agents')
+  const { data, isLoading, error, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
 
   const { trigger: createTrigger } = useMutation('POST', '/agents', { refresh: ['/agents'] })
@@ -90,7 +91,7 @@ export const useAgents = () => {
     [deleteTrigger, t]
   )
 
-  return { agents, error, isLoading, addAgent, deleteAgent }
+  return { agents, error, isLoading, addAgent, deleteAgent, refetch }
 }
 
 /**

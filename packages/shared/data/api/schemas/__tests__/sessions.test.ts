@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   AgentSessionMessageEntitySchema,
   CreateAgentSessionMessageSchema,
-  CreateAgentSessionMessagesSchema
+  CreateAgentSessionMessagesSchema,
+  ListSessionsQuerySchema,
+  SearchSessionMessagesQuerySchema
 } from '../sessions'
 
 describe('AgentSessionMessage schemas', () => {
@@ -45,5 +47,55 @@ describe('AgentSessionMessage schemas', () => {
     })
 
     expect(parsed.runtimeResumeToken).toBeUndefined()
+  })
+})
+
+describe('ListSessionsQuerySchema', () => {
+  it('trims search while preserving existing cursor pagination fields', () => {
+    expect(
+      ListSessionsQuerySchema.parse({
+        agentId: 'agent-1',
+        cursor: 'cursor-1',
+        limit: '10',
+        search: '  plan  '
+      })
+    ).toEqual({
+      agentId: 'agent-1',
+      cursor: 'cursor-1',
+      limit: 10,
+      search: 'plan'
+    })
+  })
+
+  it('rejects blank search', () => {
+    expect(() => ListSessionsQuerySchema.parse({ search: '   ' })).toThrow()
+  })
+})
+
+describe('SearchSessionMessagesQuerySchema', () => {
+  it('normalizes session message search queries', () => {
+    expect(SearchSessionMessagesQuerySchema.parse({ q: '  deploy  ' })).toEqual({
+      q: 'deploy'
+    })
+  })
+
+  it('accepts session filter and pagination', () => {
+    expect(
+      SearchSessionMessagesQuerySchema.parse({
+        q: 'plan',
+        sessionId: 'session-1',
+        limit: '20',
+        createdAtFrom: '2026-05-01T00:00:00.000Z'
+      })
+    ).toEqual({
+      q: 'plan',
+      sessionId: 'session-1',
+      limit: 20,
+      createdAtFrom: '2026-05-01T00:00:00.000Z'
+    })
+  })
+
+  it('rejects invalid createdAtFrom', () => {
+    expect(() => SearchSessionMessagesQuerySchema.parse({ q: 'plan', createdAtFrom: 'today' })).toThrow()
   })
 })

@@ -1,4 +1,9 @@
-import { type ChatPanePosition, ConversationCenterState, ConversationShell } from '@renderer/components/chat'
+import {
+  type ChatPanePosition,
+  ConversationCenterState,
+  ConversationShell,
+  EmptyState
+} from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { ConversationComposerPlacement } from '@renderer/components/chat/composer'
 import { AgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
@@ -14,6 +19,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import type { TemporaryConversation, TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
@@ -24,6 +30,7 @@ import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import AgentChatNavbar from './components/AgentChatNavbar'
 import { AgentRightPane } from './components/AgentRightPane'
+import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import {
   type AgentSendOptions,
   type AgentTurnInput,
@@ -41,6 +48,11 @@ interface AgentChatProps {
   activeSession?: AgentSessionEntity | null
   activeSessionLoading?: boolean
   activeSessionSource?: AgentSessionSource
+  lockedSession?: AgentSessionEntity | null
+  lockedSessionLoading?: boolean
+  showResourceListControls?: boolean
+  locateMessageId?: string
+  onLocateMessageHandled?: () => void
   temporaryConversation?: TemporaryConversation | null
   onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
   onPersistTemporarySession?: (initialName?: string) => Promise<TemporaryConversation | null>
@@ -59,6 +71,11 @@ const AgentChat = ({
   activeSession,
   activeSessionLoading = false,
   activeSessionSource = 'none',
+  lockedSession,
+  lockedSessionLoading = false,
+  showResourceListControls = true,
+  locateMessageId,
+  onLocateMessageHandled,
   temporaryConversation,
   onStartTemporarySession,
   onPersistTemporarySession,
@@ -82,7 +99,10 @@ const AgentChat = ({
   const lastTemporaryConversationIdRef = useRef<string | null>(null)
 
   const temporaryAgentConversation = temporaryConversation?.type === 'agent' ? temporaryConversation : null
-  const sessionSnapshot = temporaryAgentConversation?.session ?? activeSession ?? null
+  const hasLockedSession = lockedSession !== undefined
+  const sessionSnapshot = hasLockedSession
+    ? (lockedSession ?? null)
+    : (temporaryAgentConversation?.session ?? activeSession ?? null)
   const visibleAgentId = sessionSnapshot?.agentId ?? temporaryAgentConversation?.agentId ?? null
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const { agent: activeAgent } = useAgent(visibleAgentId)
@@ -151,7 +171,7 @@ const AgentChat = ({
     setCitationPanelCitations(citations)
   }, [])
 
-  const isInitializing = !sessionSnapshot && activeSessionLoading
+  const isInitializing = !sessionSnapshot && (hasLockedSession ? lockedSessionLoading : activeSessionLoading)
   const citationsPanelOpen = citationPanelCitations !== null
 
   if (isInitializing) {
@@ -173,6 +193,17 @@ const AgentChat = ({
   }
 
   if (!sessionSnapshot) {
+    if (hasLockedSession) {
+      return (
+        <ConversationShell
+          className={messageStyle}
+          pane={pane}
+          paneOpen={paneOpen}
+          panePosition={panePosition}
+          center={<EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />}
+        />
+      )
+    }
     return (
       <ConversationShell
         className={messageStyle}
@@ -238,6 +269,7 @@ const AgentChat = ({
       pane={pane}
       paneOpen={paneOpen}
       panePosition={panePosition}
+      showResourceListControls={showResourceListControls}
       session={sessionSnapshot}
       placement={isDraftTemporarySession ? 'home' : 'docked'}
       homeComposer={homeComposer}
@@ -251,10 +283,12 @@ const AgentChat = ({
       dockedStreaming={isTemporaryHandoff}
       reservedMessages={reservedMessages}
       onOpenCitationsPanel={handleOpenCitationsPanel}
+      locateMessageId={locateMessageId}
+      onLocateMessageHandled={onLocateMessageHandled}
       onNewSessionDraft={
-        sessionAgentId
+        sessionAgentId && onStartTemporarySession
           ? () =>
-              onStartTemporarySession?.({
+              onStartTemporarySession({
                 agentId: sessionAgentId,
                 workspaceId: sessionSnapshot.workspaceId ?? undefined,
                 name: t('common.unnamed')
@@ -279,6 +313,7 @@ interface AgentChatSessionFrameProps {
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
+  showResourceListControls?: boolean
   sidePanel?: ReactNode
   session: AgentSessionEntity
   placement: ConversationComposerPlacement
@@ -293,6 +328,8 @@ interface AgentChatSessionFrameProps {
   dockedStreaming?: boolean
   reservedMessages?: CherryUIMessage[]
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
+  locateMessageId?: string
+  onLocateMessageHandled?: () => void
   onNewSessionDraft?: () => void | Promise<void>
 }
 
@@ -301,6 +338,7 @@ const AgentChatSessionFrame = ({
   pane,
   paneOpen,
   panePosition,
+  showResourceListControls = true,
   sidePanel,
   session,
   placement,
@@ -315,6 +353,8 @@ const AgentChatSessionFrame = ({
   dockedStreaming = false,
   reservedMessages = EMPTY_MESSAGES,
   onOpenCitationsPanel,
+  locateMessageId,
+  onLocateMessageHandled,
   onNewSessionDraft
 }: AgentChatSessionFrameProps) => {
   const runtime = useAgentChatRuntimeState({
@@ -324,6 +364,47 @@ const AgentChatSessionFrame = ({
     sessionHistoryFetchOnMount,
     reservedMessages
   })
+  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(runtime.sessionId), [runtime.sessionId])
+  const locateLoadRequestRef = useRef<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (!locateMessageId) {
+      locateLoadRequestRef.current = undefined
+      return
+    }
+
+    if (runtime.uiMessages.some((message) => message.id === locateMessageId)) {
+      locateLoadRequestRef.current = undefined
+      window.requestAnimationFrame(() => {
+        locateAgentMessageInList(sessionTopicId, locateMessageId, true)
+      })
+      onLocateMessageHandled?.()
+      return
+    }
+
+    if (runtime.hasOlder && !runtime.isLoading) {
+      const requestKey = `${locateMessageId}:${runtime.uiMessages.length}`
+      if (locateLoadRequestRef.current !== requestKey) {
+        locateLoadRequestRef.current = requestKey
+        runtime.loadOlder?.()
+      }
+      return
+    }
+
+    if (!runtime.hasOlder && !runtime.isLoading) {
+      locateLoadRequestRef.current = undefined
+      onLocateMessageHandled?.()
+    }
+  }, [
+    locateMessageId,
+    onLocateMessageHandled,
+    runtime.hasOlder,
+    runtime.isLoading,
+    runtime.loadOlder,
+    runtime.uiMessages,
+    sessionTopicId
+  ])
+
   const composer = (
     <AgentComposerSlot
       placement={placement}
@@ -376,14 +457,13 @@ const AgentChatSessionFrame = ({
         paneOpen={paneOpen}
         panePosition={panePosition}
         topBar={
-          <div className="flex h-fit w-full min-w-0">
-            <AgentChatNavbar
-              className="min-w-0"
-              activeAgent={activeAgent ?? null}
-              tools={<AgentRightPane.FilesToggle />}
-            />
-          </div>
+          <AgentChatNavbar
+            className="min-w-0"
+            activeAgent={activeAgent ?? null}
+            showSidebarControls={showResourceListControls}
+          />
         }
+        topRightTool={<AgentRightPane.FilesToggle />}
         center={
           <ConversationStageCenter
             placement={placement}

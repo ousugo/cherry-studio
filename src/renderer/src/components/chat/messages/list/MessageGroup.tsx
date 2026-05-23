@@ -419,7 +419,7 @@ const GridContainer = ({
   return (
     <Scrollbar
       className={classNames(
-        '[&.multi-select-mode_.message-content-container]:overflow-y-hidden! grid w-full gap-4 overflow-y-visible [&.fold]:gap-2 [&.grid]:grid-rows-[auto] [&.horizontal]:overflow-x-auto [&.horizontal]:overflow-y-hidden [&.horizontal]:pb-1 [&.multi-select-mode]:gap-2.5 [&.multi-select-mode_.MessageFooter]:hidden [&.multi-select-mode_.grid]:h-auto [&.multi-select-mode_.message-content-container]:max-h-[200px] [&.multi-select-mode_.message]:rounded-[10px] [&.multi-select-mode_.message]:border-[0.5px] [&.multi-select-mode_.message]:border-border [&.multi-select-mode_.message]:p-2.5',
+        '[&.multi-select-mode_.message-content-container]:pointer-events-none [&.multi-select-mode_.message-content-container]:overflow-y-hidden! grid w-full gap-4 overflow-y-visible [&.fold]:gap-2 [&.grid]:grid-rows-[auto] [&.horizontal]:overflow-x-auto [&.horizontal]:overflow-y-hidden [&.horizontal]:pb-1 [&.multi-select-mode]:gap-2.5 [&.multi-select-mode_.MessageFooter]:hidden [&.multi-select-mode_.grid]:h-auto [&.multi-select-mode_.message-content-container]:max-h-[200px] [&.multi-select-mode_.message]:rounded-[10px] [&.multi-select-mode_.message]:border-[0.5px] [&.multi-select-mode_.message]:border-border [&.multi-select-mode_.message]:p-2.5',
         className
       )}
       style={{ gridTemplateColumns, ...overflowStyle, ...style }}
@@ -473,7 +473,7 @@ const GridMessagePopover = ({
       <PopoverContent
         onMouseEnter={isHover ? () => setOpen(true) : undefined}
         onMouseLeave={isHover ? () => setOpen(false) : undefined}
-        className="z-1000 max-h-[60vh] w-auto max-w-[60vw] overflow-y-auto p-0.5"
+        className="z-1000 max-h-[60vh] w-auto max-w-[60vw] overflow-y-auto p-4"
         side="top"
         align="center">
         {content}

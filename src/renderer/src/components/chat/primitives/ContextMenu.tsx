@@ -4,6 +4,7 @@ export {
   ContextMenuContent,
   ContextMenuGroup,
   ContextMenuItem,
+  ContextMenuItemContent,
   ContextMenuLabel,
   ContextMenuPortal,
   ContextMenuRadioGroup,

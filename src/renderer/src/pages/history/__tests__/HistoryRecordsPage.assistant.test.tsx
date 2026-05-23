@@ -80,6 +80,13 @@ vi.mock('@cherrystudio/ui', async () => {
     ),
     ContextMenuItem: ({ children, onSelect, ...props }: any) =>
       React.createElement('button', itemHandler(onSelect, props), children),
+    ContextMenuItemContent: ({ children, icon, shortcut, ...props }: any) => (
+      <span {...props}>
+        {icon}
+        {children}
+        {shortcut ? <span>{shortcut}</span> : null}
+      </span>
+    ),
     ContextMenuSeparator: (props: any) => <hr data-testid="context-menu-separator" {...props} />,
     ContextMenuShortcut: ({ children, ...props }: { children?: ReactNode }) => <span {...props}>{children}</span>,
     ContextMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -326,6 +333,8 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   } as Assistant
 }
 
+const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+
 describe('HistoryRecordsPage assistant mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
@@ -525,6 +534,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
       'Generate topic name',
       'Edit topic name',
+      'assistants.edit.title',
       'Pin Topic',
       'Clear messages',
       '',
@@ -537,7 +547,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     ])
   })
 
-  it('pins a topic from the history row context menu without selecting the row', () => {
+  it('pins a topic from the history row context menu without selecting the row', async () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     const onClose = vi.fn()
@@ -548,6 +558,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Pin Topic' }))
+    await act(async () => {
+      await flushAnimationFrame()
+    })
 
     expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
     expect(onRecordSelect).not.toHaveBeenCalled()
@@ -565,6 +578,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
+    await act(async () => {
+      await flushAnimationFrame()
+    })
 
     expect(hookMocks.promptShow).not.toHaveBeenCalled()
     expect(onRecordSelect).not.toHaveBeenCalled()
@@ -586,7 +602,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     )
   })
 
-  it('does not persist empty or unchanged topic names from history rename dialog', () => {
+  it('does not persist empty or unchanged topic names from history rename dialog', async () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
@@ -595,6 +611,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
+    await act(async () => {
+      await flushAnimationFrame()
+    })
     const emptyDialog = screen.getByRole('dialog')
     const emptyInput = within(emptyDialog).getByLabelText('Name')
     fireEvent.change(emptyInput, { target: { value: '   ' } })
@@ -609,6 +628,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const nextAlphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const nextMenuContent = nextAlphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(nextMenuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
+    await act(async () => {
+      await flushAnimationFrame()
+    })
     const unchangedDialog = screen.getByRole('dialog')
     const unchangedInput = within(unchangedDialog).getByLabelText('Name')
     fireEvent.change(unchangedInput, { target: { value: 'Alpha topic' } })
@@ -638,6 +660,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     await act(async () => {
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await flushAnimationFrame()
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
@@ -668,6 +691,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     await act(async () => {
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await flushAnimationFrame()
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
@@ -699,6 +723,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     await act(async () => {
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await flushAnimationFrame()
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
@@ -731,6 +756,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     await act(async () => {
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await flushAnimationFrame()
     })
 
     expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')

@@ -1,5 +1,10 @@
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   MenuDivider,
   MenuItem,
   MenuList,
@@ -9,14 +14,15 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ActionMenu } from '@renderer/components/chat/actions/ActionMenu'
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
   ResourceList,
   type ResourceListGroup,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
-  SessionResourceList,
-  useResourceList
+  SessionResourceList
 } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { FinderIcon } from '@renderer/components/Icons/SVGIcon'
@@ -27,19 +33,23 @@ import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
+import { usePins } from '@renderer/hooks/usePins'
 import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
-import { Bot, FolderOpen, ListFilter, MoreHorizontal, SquarePen, Trash2 } from 'lucide-react'
-import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { TFunction } from 'i18next'
+import { Bot, FolderOpen, ListFilter, MoreHorizontal, Pin, PinOff, SquarePen, Trash2 } from 'lucide-react'
+import { Fragment, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { buildAgentSessionMessageRouteUrl } from '../routeSearch'
 import SessionItem from './SessionItem'
 import {
   type AgentSessionDisplayMode,
   applyOptimisticSessionDisplayMove,
+  buildSessionAgentGroupDropAnchor,
   buildSessionDropAnchor,
   buildSessionWorkdirGroupDropAnchor,
   canDropSessionItemInDisplayGroup,
@@ -47,6 +57,7 @@ import {
   createSessionWorkdirDisplayMaps,
   getAgentIdFromSessionGroupId,
   getWorkdirPathFromSessionGroupId,
+  moveSessionAgentGroupAfterDrop,
   moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
   SESSION_NO_WORKDIR_GROUP_ID,
@@ -132,70 +143,168 @@ function SessionListOptionsMenu({
   )
 }
 
-type WorkdirGroupMoreMenuContentProps = {
-  canDelete: boolean
-  canRename: boolean
-  deleteDisabled?: boolean
-  onDelete: () => void | Promise<void>
-  onOpen: () => void | Promise<void>
-  onRename: () => void | Promise<void>
-  renameDisabled?: boolean
+type AgentGroupActionId = 'agent-group.edit' | 'agent-group.toggle-pin'
+type AgentGroupAction = ResolvedAction & { id: AgentGroupActionId }
+
+function resolveAgentGroupActions({
+  pinDisabled,
+  pinned,
+  t
+}: {
+  pinDisabled?: boolean
+  pinned: boolean
+  t: TFunction
+}): AgentGroupAction[] {
+  return [
+    {
+      id: 'agent-group.edit' satisfies AgentGroupActionId,
+      label: t('agent.edit.title'),
+      icon: <SquarePen size={14} />,
+      danger: false,
+      availability: { visible: true, enabled: true },
+      children: []
+    },
+    {
+      id: 'agent-group.toggle-pin' satisfies AgentGroupActionId,
+      label: pinned ? t('chat.topics.unpin') : t('chat.topics.pin'),
+      icon: pinned ? <PinOff size={14} /> : <Pin size={14} />,
+      danger: false,
+      availability: { visible: true, enabled: !pinDisabled },
+      children: []
+    }
+  ]
 }
 
-function WorkdirGroupMoreMenuContent({
+function GroupMoreDropdownMenuContent<TAction extends ResolvedAction>({
+  actions,
+  onAction
+}: {
+  actions: readonly TAction[]
+  onAction: (action: TAction) => void
+}) {
+  let previousGroup: string | undefined
+
+  return (
+    <>
+      {actions.map((action, index) => {
+        const separatorBefore = index > 0 && action.group !== previousGroup
+        previousGroup = action.group
+
+        return (
+          <Fragment key={action.id}>
+            {separatorBefore && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              disabled={!action.availability.enabled}
+              variant={action.danger ? 'destructive' : 'default'}
+              onSelect={(event) => {
+                event.stopPropagation()
+                onAction(action)
+              }}>
+              {action.icon}
+              <span>{action.label}</span>
+            </DropdownMenuItem>
+          </Fragment>
+        )
+      })}
+    </>
+  )
+}
+
+function AgentGroupMoreMenu({
+  agentId,
+  pinDisabled,
+  pinned,
+  onEdit,
+  onTogglePin
+}: {
+  agentId: string
+  pinDisabled?: boolean
+  pinned: boolean
+  onEdit: (agentId: string) => void
+  onTogglePin: (agentId: string) => void | Promise<void>
+}) {
+  const { t } = useTranslation()
+  const actions = resolveAgentGroupActions({ pinDisabled, pinned, t })
+  const handleAction = (action: AgentGroupAction) => {
+    if (action.id === 'agent-group.edit') {
+      window.requestAnimationFrame(() => onEdit(agentId))
+      return
+    }
+    if (action.id === 'agent-group.toggle-pin') {
+      void onTogglePin(agentId)
+    }
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <ResourceList.GroupHeaderActionButton
+          type="button"
+          aria-label={t('common.more')}
+          onClick={(event) => event.stopPropagation()}>
+          <MoreHorizontal className="block" />
+        </ResourceList.GroupHeaderActionButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="bottom">
+        <GroupMoreDropdownMenuContent actions={actions} onAction={handleAction} />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+type WorkdirGroupActionId = 'workdir-group.open' | 'workdir-group.rename' | 'workdir-group.delete'
+type WorkdirGroupAction = ResolvedAction & { id: WorkdirGroupActionId; label: string }
+
+function resolveWorkdirGroupActions({
   canDelete,
   canRename,
   deleteDisabled,
-  onDelete,
-  onOpen,
-  onRename,
-  renameDisabled
-}: WorkdirGroupMoreMenuContentProps) {
-  const { t } = useTranslation()
-  const fileManagerName = isMac
-    ? t('agent.session.file_manager.finder')
-    : isWin
-      ? t('agent.session.file_manager.file_explorer')
-      : t('agent.session.file_manager.files')
-  const openLabel = t('common.open_in', { name: fileManagerName })
+  fileManagerName,
+  renameDisabled,
+  t
+}: {
+  canDelete: boolean
+  canRename: boolean
+  deleteDisabled?: boolean
+  fileManagerName: string
+  renameDisabled?: boolean
+  t: TFunction
+}): WorkdirGroupAction[] {
+  const actions: WorkdirGroupAction[] = [
+    {
+      id: 'workdir-group.open' satisfies WorkdirGroupActionId,
+      label: t('common.open_in', { name: fileManagerName }),
+      icon: isMac ? <FinderIcon className="size-3.5" /> : <FolderOpen size={14} />,
+      danger: false,
+      availability: { visible: true, enabled: true },
+      children: []
+    }
+  ]
 
-  return (
-    <MenuList className="gap-0.5">
-      <MenuItem
-        label={openLabel}
-        icon={isMac ? <FinderIcon className="size-3.5" /> : <FolderOpen size={14} />}
-        className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
-        onClick={(event) => {
-          event.stopPropagation()
-          void onOpen()
-        }}
-      />
-      {canRename && (
-        <MenuItem
-          label={t('agent.session.workdir.rename.trigger')}
-          icon={<SquarePen size={14} />}
-          disabled={renameDisabled}
-          className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px]"
-          onClick={(event) => {
-            event.stopPropagation()
-            void onRename()
-          }}
-        />
-      )}
-      {canDelete && (
-        <MenuItem
-          label={t('agent.session.workdir.delete.trigger')}
-          icon={<Trash2 size={14} className="lucide-custom text-destructive" />}
-          disabled={deleteDisabled}
-          className="h-7 gap-2 rounded-lg px-2 py-0 font-normal text-[12px] text-destructive hover:text-destructive"
-          onClick={(event) => {
-            event.stopPropagation()
-            void onDelete()
-          }}
-        />
-      )}
-    </MenuList>
-  )
+  if (canRename) {
+    actions.push({
+      id: 'workdir-group.rename' satisfies WorkdirGroupActionId,
+      label: t('agent.session.workdir.rename.trigger'),
+      icon: <SquarePen size={14} />,
+      danger: false,
+      availability: { visible: true, enabled: !renameDisabled },
+      children: []
+    })
+  }
+
+  if (canDelete) {
+    actions.push({
+      id: 'workdir-group.delete' satisfies WorkdirGroupActionId,
+      label: t('agent.session.workdir.delete.trigger'),
+      icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
+      group: 'danger',
+      danger: true,
+      availability: { visible: true, enabled: !deleteDisabled },
+      children: []
+    })
+  }
+
+  return actions
 }
 
 function WorkdirGroupMoreMenu({
@@ -220,39 +329,47 @@ function WorkdirGroupMoreMenu({
   workdirPath: string
 }) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
+  const fileManagerName = isMac
+    ? t('agent.session.file_manager.finder')
+    : isWin
+      ? t('agent.session.file_manager.file_explorer')
+      : t('agent.session.file_manager.files')
+  const actions = resolveWorkdirGroupActions({
+    canDelete,
+    canRename,
+    deleteDisabled,
+    fileManagerName,
+    renameDisabled,
+    t
+  })
+  const handleAction = (action: WorkdirGroupAction) => {
+    if (action.id === 'workdir-group.open') {
+      void onOpen(workdirPath)
+      return
+    }
+    if (action.id === 'workdir-group.rename') {
+      void onRename(group)
+      return
+    }
+    if (action.id === 'workdir-group.delete') {
+      void onDelete(group)
+    }
+  }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <ResourceList.HeaderActionButton
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <ResourceList.GroupHeaderActionButton
           type="button"
           aria-label={t('common.more')}
           onClick={(event) => event.stopPropagation()}>
           <MoreHorizontal className="block" />
-        </ResourceList.HeaderActionButton>
-      </PopoverTrigger>
-      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 rounded-lg border-border p-1 shadow-lg">
-        <WorkdirGroupMoreMenuContent
-          canDelete={canDelete}
-          canRename={canRename}
-          deleteDisabled={deleteDisabled}
-          renameDisabled={renameDisabled}
-          onDelete={() => {
-            setOpen(false)
-            return onDelete(group)
-          }}
-          onOpen={() => {
-            setOpen(false)
-            return onOpen(workdirPath)
-          }}
-          onRename={() => {
-            setOpen(false)
-            return onRename(group)
-          }}
-        />
-      </PopoverContent>
-    </Popover>
+        </ResourceList.GroupHeaderActionButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="bottom">
+        <GroupMoreDropdownMenuContent actions={actions} onAction={handleAction} />
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -323,9 +440,10 @@ const Sessions = ({
     togglePin
   } = useSessions(undefined, { loadAll: true, pageSize: 200 })
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
-  const { agents, error: agentsError, isLoading: isAgentsLoading } = useAgents()
+  const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
+  const [optimisticAgentOrderIds, setOptimisticAgentOrderIds] = useState<string[] | null>(null)
   const [optimisticWorkspaceOrderIds, setOptimisticWorkspaceOrderIds] = useState<string[] | null>(null)
   const [creatingSession, setCreatingSession] = useState(false)
   const [deletingWorkspaceGroupId, setDeletingWorkspaceGroupId] = useState<string | null>(null)
@@ -347,6 +465,14 @@ const Sessions = ({
     sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent' ? sessionDisplayMode : 'time'
   const isDraggableMode = displayMode !== 'time'
   const dragReady = isDraggableMode && isFullyLoaded && !isLoadingAll && !isLoadingMore && !isValidating && !isLoading
+  const {
+    isLoading: isAgentPinsLoading,
+    isRefreshing: isAgentPinsRefreshing,
+    isMutating: isAgentPinsMutating,
+    pinnedIds: agentPinnedIds,
+    togglePin: toggleAgentPin
+  } = usePins('agent', { enabled: displayMode === 'agent' })
+  const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
 
   const sessionItems = useMemo<SessionListItem[]>(
     () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
@@ -355,8 +481,30 @@ const Sessions = ({
 
   const { updateSession } = useUpdateSession()
 
-  const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
-  const agentRankById = useMemo(() => new Map(agents.map((agent, index) => [agent.id, index])), [agents])
+  const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
+  const agentsForDisplay = useMemo(() => {
+    if (!optimisticAgentOrderIds) return agents
+
+    const agentById = new Map(agents.map((agent) => [agent.id, agent]))
+    const orderedAgents = optimisticAgentOrderIds.flatMap((agentId) => {
+      const agent = agentById.get(agentId)
+      return agent ? [agent] : []
+    })
+    const optimisticIds = new Set(optimisticAgentOrderIds)
+
+    for (const agent of agents) {
+      if (!optimisticIds.has(agent.id)) {
+        orderedAgents.push(agent)
+      }
+    }
+
+    return orderedAgents
+  }, [agents, optimisticAgentOrderIds])
+  const agentById = useMemo(() => new Map(agentsForDisplay.map((agent) => [agent.id, agent])), [agentsForDisplay])
+  const agentRankById = useMemo(
+    () => new Map(agentsForDisplay.map((agent, index) => [agent.id, index])),
+    [agentsForDisplay]
+  )
   const {
     data: workspaces,
     error: workspacesError,
@@ -395,6 +543,10 @@ const Sessions = ({
     () => workspaceRows.map((workspace) => `${workspace.id}:${workspace.orderKey}`).join('|'),
     [workspaceRows]
   )
+  const agentOrderSignature = useMemo(
+    () => agents.map((agent) => `${agent.id}:${agent.orderKey ?? ''}`).join('|'),
+    [agents]
+  )
 
   const baseGroupedSessions = useMemo(
     () =>
@@ -429,6 +581,10 @@ const Sessions = ({
   useEffect(() => {
     setOptimisticWorkspaceOrderIds(null)
   }, [workspaceOrderSignature])
+
+  useEffect(() => {
+    setOptimisticAgentOrderIds(null)
+  }, [agentOrderSignature])
 
   const sessionGroupBy = useMemo(
     () =>
@@ -532,6 +688,7 @@ const Sessions = ({
     refresh: ['/sessions', '/workspaces', '/pins', '/channels']
   })
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/workspaces/:id/order')
+  const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
 
   const createSessionFromSeed = useCallback(
     async (seed: CreateSessionSeed | null | undefined) => {
@@ -684,6 +841,30 @@ const Sessions = ({
     },
     [tabs]
   )
+  const openSessionInNewTab = useCallback(
+    (session: AgentSessionEntity) => {
+      tabs?.openTab(buildAgentSessionMessageRouteUrl(session.id), {
+        forceNew: true,
+        title: session.name || t('common.unnamed')
+      })
+    },
+    [tabs, t]
+  )
+
+  const handleToggleAgentPin = useCallback(
+    async (agentId: string) => {
+      if (isAgentPinActionDisabled) return
+
+      try {
+        await toggleAgentPin(agentId)
+        await refetchAgents()
+      } catch (err) {
+        logger.error('Failed to toggle agent pin from session group', { agentId, err })
+        window.toast.error(t('common.error'))
+      }
+    },
+    [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
+  )
 
   const handleSelectSession = useCallback(
     (id: string | null) => {
@@ -691,6 +872,11 @@ const Sessions = ({
       setActiveSessionId(id)
     },
     [onDiscardTemporarySession, setActiveSessionId]
+  )
+  const getGroupHeaderClickBehavior = useCallback(
+    (group: ResourceListGroup) =>
+      displayMode === 'agent' && group.id !== SESSION_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
+    [displayMode]
   )
 
   const canDragSessionItem = useCallback(
@@ -705,23 +891,88 @@ const Sessions = ({
   )
 
   const canDragSessionGroup = useCallback(
-    (group: ResourceListGroup) => workdirDragReady && workdirDisplay.workspaceIdByGroupId.has(group.id),
-    [workdirDragReady, workdirDisplay]
+    (group: ResourceListGroup) => {
+      if (displayMode === 'agent') {
+        const agentId = getAgentIdFromSessionGroupId(group.id)
+        return agentDragReady && !!agentId && agentById.has(agentId)
+      }
+
+      return workdirDragReady && workdirDisplay.workspaceIdByGroupId.has(group.id)
+    },
+    [agentById, agentDragReady, displayMode, workdirDragReady, workdirDisplay]
   )
 
   const canDropSessionGroup = useCallback(
     ({ activeGroupId, overGroupId }: { activeGroupId: string; overGroupId: string }) => {
+      if (displayMode === 'agent') {
+        const activeAgentId = getAgentIdFromSessionGroupId(activeGroupId)
+        const overAgentId = getAgentIdFromSessionGroupId(overGroupId)
+
+        return (
+          agentDragReady &&
+          !!activeAgentId &&
+          !!overAgentId &&
+          activeAgentId !== overAgentId &&
+          agentById.has(activeAgentId) &&
+          agentById.has(overAgentId)
+        )
+      }
+
       const activeWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(activeGroupId)
       const overWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(overGroupId)
 
       return workdirDragReady && !!activeWorkspaceId && !!overWorkspaceId && activeWorkspaceId !== overWorkspaceId
     },
-    [workdirDragReady, workdirDisplay]
+    [agentById, agentDragReady, displayMode, workdirDragReady, workdirDisplay]
   )
 
   const handleSessionReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {
       if (payload.type === 'group') {
+        if (displayMode === 'agent') {
+          if (!agentDragReady) return
+
+          const activeAgentId = getAgentIdFromSessionGroupId(payload.activeGroupId)
+          const overAgentId = getAgentIdFromSessionGroupId(payload.overGroupId)
+
+          if (
+            !activeAgentId ||
+            !overAgentId ||
+            activeAgentId === overAgentId ||
+            !agentById.has(activeAgentId) ||
+            !agentById.has(overAgentId)
+          ) {
+            return
+          }
+
+          const agentIds = agentsForDisplay.map((agent) => agent.id)
+          const nextAgentIds = moveSessionAgentGroupAfterDrop(agentIds, activeAgentId, overAgentId, payload)
+          const anchor = buildSessionAgentGroupDropAnchor(payload, overAgentId)
+
+          setOptimisticAgentOrderIds(nextAgentIds)
+
+          try {
+            await reorderAgent({ params: { id: activeAgentId }, body: anchor })
+            await refetchAgents()
+            setOptimisticAgentOrderIds(null)
+          } catch (err) {
+            setOptimisticAgentOrderIds(null)
+            logger.error('Failed to reorder agent session group', { activeAgentId, err, overAgentId })
+            window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
+
+            try {
+              await refetchAgents()
+            } catch (refreshErr) {
+              logger.error('Failed to refresh agents after group reorder failure', {
+                activeAgentId,
+                refreshErr
+              })
+            }
+          }
+
+          return
+        }
+
         if (!workdirDragReady) return
 
         const activeWorkspaceId = workdirDisplay.workspaceIdByGroupId.get(payload.activeGroupId)
@@ -790,8 +1041,13 @@ const Sessions = ({
     },
     [
       displayMode,
+      agentById,
+      agentDragReady,
+      agentsForDisplay,
       itemDragReady,
+      refetchAgents,
       refetchWorkspaces,
+      reorderAgent,
       reorderSession,
       reorderWorkspace,
       sessionItems,
@@ -806,6 +1062,7 @@ const Sessions = ({
     (group: ResourceListGroup) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return null
 
+      const agentGroupId = displayMode === 'agent' ? getAgentIdFromSessionGroupId(group.id) : undefined
       const workspaceId = displayMode === 'workdir' ? workdirDisplay.workspaceIdByGroupId.get(group.id) : undefined
       const workdirPath =
         displayMode === 'workdir'
@@ -813,11 +1070,23 @@ const Sessions = ({
           : undefined
       const createSessionSeed = getCreateSessionSeedForGroup(group.id)
       const canCreateSession = createSessionSeed !== null && agentById.has(createSessionSeed.agentId)
+      const canManageAgentGroup = !!agentGroupId && agentById.has(agentGroupId)
 
-      if (!canCreateSession && !workdirPath) return null
+      if (!canCreateSession && !workdirPath && !canManageAgentGroup) return null
 
       return (
         <>
+          {canManageAgentGroup && agentGroupId && (
+            <Tooltip title={t('common.more')} delay={500}>
+              <AgentGroupMoreMenu
+                agentId={agentGroupId}
+                pinDisabled={isAgentPinActionDisabled}
+                pinned={agentPinnedIdSet.has(agentGroupId)}
+                onEdit={openAgentEditor}
+                onTogglePin={handleToggleAgentPin}
+              />
+            </Tooltip>
+          )}
           {workdirPath && (
             <Tooltip title={t('common.more')} delay={500}>
               <WorkdirGroupMoreMenu
@@ -835,7 +1104,7 @@ const Sessions = ({
           )}
           {canCreateSession && (
             <Tooltip title={t('chat.conversation.new')} delay={500}>
-              <ResourceList.HeaderActionButton
+              <ResourceList.GroupHeaderActionButton
                 type="button"
                 aria-label={t('chat.conversation.new')}
                 disabled={creatingSession}
@@ -843,7 +1112,7 @@ const Sessions = ({
                   void createSessionFromSeed(createSessionSeed)
                 }}>
                 <SquarePen className="block" />
-              </ResourceList.HeaderActionButton>
+              </ResourceList.GroupHeaderActionButton>
             </Tooltip>
           )}
         </>
@@ -851,15 +1120,19 @@ const Sessions = ({
     },
     [
       agentById,
+      agentPinnedIdSet,
       createSessionFromSeed,
       creatingSession,
       deletingWorkspaceGroupId,
       displayMode,
       getCreateSessionSeedForGroup,
+      handleToggleAgentPin,
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,
+      isAgentPinActionDisabled,
       isUpdatingWorkspace,
+      openAgentEditor,
       t,
       workdirDisplay
     ]
@@ -885,33 +1158,112 @@ const Sessions = ({
     [agentById, displayMode]
   )
 
+  const getGroupHeaderClassName = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'agent' || group.id === SESSION_PINNED_GROUP_ID) return undefined
+
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      if (!agentId || !agentById.has(agentId)) return undefined
+
+      return 'rounded-lg border border-transparent'
+    },
+    [agentById, displayMode]
+  )
+
+  const getGroupHeaderTooltip = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'agent' || group.id === SESSION_PINNED_GROUP_ID) return undefined
+
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      if (!agentId || !agentById.has(agentId)) return undefined
+
+      return t('agent.session.group.drag_hint')
+    },
+    [agentById, displayMode, t]
+  )
+
   const getGroupHeaderContextMenu = useCallback(
     (group: ResourceListGroup) => {
-      if (displayMode !== 'workdir' || group.id === SESSION_PINNED_GROUP_ID) return null
+      if (group.id === SESSION_PINNED_GROUP_ID) return null
+
+      if (displayMode === 'agent') {
+        const agentId = getAgentIdFromSessionGroupId(group.id)
+        if (!agentId || !agentById.has(agentId)) return null
+
+        const actions = resolveAgentGroupActions({
+          pinDisabled: isAgentPinActionDisabled,
+          pinned: agentPinnedIdSet.has(agentId),
+          t
+        })
+
+        return (
+          <ActionMenu
+            actions={actions}
+            onAction={(action) => {
+              if (action.id === 'agent-group.edit') {
+                openAgentEditor(agentId)
+                return
+              }
+              if (action.id === 'agent-group.toggle-pin') {
+                void handleToggleAgentPin(agentId)
+              }
+            }}
+          />
+        )
+      }
+
+      if (displayMode !== 'workdir') return null
 
       const workspaceId = workdirDisplay.workspaceIdByGroupId.get(group.id)
       const workdirPath = workdirDisplay.pathByGroupId.get(group.id) ?? getWorkdirPathFromSessionGroupId(group.id)
       if (!workdirPath) return null
+      const fileManagerName = isMac
+        ? t('agent.session.file_manager.finder')
+        : isWin
+          ? t('agent.session.file_manager.file_explorer')
+          : t('agent.session.file_manager.files')
+
+      const actions = resolveWorkdirGroupActions({
+        canDelete: !!workspaceId,
+        canRename: !!workspaceId,
+        deleteDisabled: !!deletingWorkspaceGroupId,
+        fileManagerName,
+        renameDisabled: isUpdatingWorkspace,
+        t
+      })
 
       return (
-        <WorkdirGroupMoreMenuContent
-          canDelete={!!workspaceId}
-          canRename={!!workspaceId}
-          deleteDisabled={!!deletingWorkspaceGroupId}
-          renameDisabled={isUpdatingWorkspace}
-          onDelete={() => handleDeleteWorkdirGroup(group)}
-          onOpen={() => handleOpenWorkdirGroup(workdirPath)}
-          onRename={() => handleStartRenameWorkdirGroup(group)}
+        <ActionMenu
+          actions={actions}
+          onAction={(action) => {
+            if (action.id === 'workdir-group.open') {
+              void handleOpenWorkdirGroup(workdirPath)
+              return
+            }
+            if (action.id === 'workdir-group.rename') {
+              handleStartRenameWorkdirGroup(group)
+              return
+            }
+            if (action.id === 'workdir-group.delete') {
+              void handleDeleteWorkdirGroup(group)
+            }
+          }}
         />
       )
     },
     [
+      agentById,
+      agentPinnedIdSet,
       deletingWorkspaceGroupId,
       displayMode,
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,
+      handleToggleAgentPin,
+      isAgentPinActionDisabled,
       isUpdatingWorkspace,
+      openAgentEditor,
+      t,
       workdirDisplay
     ]
   )
@@ -940,10 +1292,13 @@ const Sessions = ({
       defaultGroupVisibleCount={5}
       groupLoadStep={5}
       getGroupHeaderAction={getGroupHeaderAction}
+      getGroupHeaderClassName={getGroupHeaderClassName}
       getGroupHeaderContextMenu={getGroupHeaderContextMenu}
       getGroupHeaderIcon={getGroupHeaderIcon}
+      getGroupHeaderTooltip={getGroupHeaderTooltip}
+      groupHeaderClickBehavior={getGroupHeaderClickBehavior}
       dragCapabilities={{
-        groups: workdirDragReady,
+        groups: displayMode === 'agent' ? agentDragReady : workdirDragReady,
         items: itemDragReady,
         itemSameGroup: itemDragReady,
         itemCrossGroup: false
@@ -955,6 +1310,7 @@ const Sessions = ({
       groupShowMoreLabel={t('agent.session.group.show_more')}
       groupCollapseLabel={t('agent.session.group.collapse')}
       onRenameItem={handleRenameSession}
+      onGroupHeaderSelectItem={handleSelectSession}
       onReorder={handleSessionReorder}
       onCollapsedGroupIdsChange={handleCollapsedSessionGroupIdsChange}>
       <ResourceList.Header className="gap-1 px-1.5 pb-0">
@@ -983,6 +1339,7 @@ const Sessions = ({
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
         onEditAgent={openAgentEditor}
+        onOpenInNewTab={tabs ? openSessionInNewTab : undefined}
         onRetry={handleRetry}
         onSelectItem={onSelectItem}
         onTogglePin={togglePin}
@@ -1012,6 +1369,7 @@ interface SessionListBodyProps {
   listRef: RefObject<HTMLDivElement | null>
   onDeleteSession: (id: string) => Promise<void>
   onEditAgent: (agentId: string) => void
+  onOpenInNewTab?: (session: AgentSessionEntity) => void
   onRetry: () => Promise<unknown>
   onSelectItem?: () => void
   onTogglePin: (id: string) => Promise<void>
@@ -1026,35 +1384,13 @@ function SessionListBody({
   listRef,
   onDeleteSession,
   onEditAgent,
+  onOpenInNewTab,
   onRetry,
   onSelectItem,
   onTogglePin,
   setActiveSessionId
 }: SessionListBodyProps) {
   const { t } = useTranslation()
-  const context = useResourceList<SessionListItem>()
-
-  if (context.state.status === 'loading') {
-    return <ResourceList.LoadingState />
-  }
-
-  if (context.state.status === 'error') {
-    return (
-      <ResourceList.ErrorState>
-        <div className="flex flex-col gap-2">
-          <div className="font-medium text-destructive">{t('agent.session.get.error.failed')}</div>
-          <div className="text-muted-foreground">{formatErrorMessage(error)}</div>
-          <Button size="sm" variant="outline" className="w-fit" onClick={() => void onRetry()} disabled={isValidating}>
-            {t('common.retry')}
-          </Button>
-        </div>
-      </ResourceList.ErrorState>
-    )
-  }
-
-  if (context.view.items.length === 0) {
-    return <ResourceList.EmptyState />
-  }
 
   const renderItem = (session: SessionListItem) => (
     <SessionItem
@@ -1065,16 +1401,36 @@ function SessionListBody({
       onTogglePin={onTogglePin}
       onDelete={onDeleteSession}
       onEditAgent={onEditAgent}
+      onOpenInNewTab={onOpenInNewTab}
       onPress={setActiveSessionId}
       onSelectItem={onSelectItem}
     />
   )
 
-  if (isDraggable) {
-    return <ResourceList.VirtualDraggableItems ref={listRef} className="pt-0 pb-3" renderItem={renderItem} />
-  }
-
-  return <ResourceList.VirtualItems ref={listRef} className="pt-0 pb-3" renderItem={renderItem} />
+  return (
+    <ResourceList.Body<SessionListItem>
+      listRef={listRef}
+      draggable={isDraggable}
+      virtualClassName="pt-0 pb-3"
+      errorFallback={
+        <ResourceList.ErrorState>
+          <div className="flex flex-col gap-2">
+            <div className="font-medium text-destructive">{t('agent.session.get.error.failed')}</div>
+            <div className="text-muted-foreground">{formatErrorMessage(error)}</div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-fit"
+              onClick={() => void onRetry()}
+              disabled={isValidating}>
+              {t('common.retry')}
+            </Button>
+          </div>
+        </ResourceList.ErrorState>
+      }
+      renderItem={renderItem}
+    />
+  )
 }
 
 export default memo(Sessions)

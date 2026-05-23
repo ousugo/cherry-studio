@@ -68,7 +68,7 @@ vi.mock('@cherrystudio/ui', () => ({
     </div>
   ),
   Input: (props: ComponentProps<'input'> & { className?: string }) => <input {...props} />,
-  MenuDivider: () => <div />,
+  MenuDivider: () => <div data-testid="menu-divider" />,
   MenuItem: ({
     icon,
     label,
@@ -312,5 +312,47 @@ describe('FixedCardMenu tag binding', () => {
     )
 
     expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
+  })
+
+  it('does not expose edit for skill resources while keeping uninstall available', () => {
+    render(
+      <FixedCardMenu
+        x={240}
+        y={120}
+        resource={createSkillResource()}
+        onClose={vi.fn()}
+        onEdit={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        onUpdateResourceTags={vi.fn()}
+        allTagNames={[]}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: /common.edit/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /library.action.uninstall/ })).toBeInTheDocument()
+    expect(screen.queryByTestId('menu-divider')).not.toBeInTheDocument()
+  })
+
+  it('keeps the divider when non-skill resources have actions before delete', () => {
+    render(
+      <FixedCardMenu
+        x={240}
+        y={120}
+        resource={createAssistantResource()}
+        onClose={vi.fn()}
+        onEdit={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        onUpdateResourceTags={vi.fn()}
+        allTagNames={[]}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /common.edit/ })).toBeInTheDocument()
+    expect(screen.getByTestId('menu-divider')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /common.delete/ })).toBeInTheDocument()
   })
 })

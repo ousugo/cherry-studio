@@ -121,7 +121,7 @@ describe('AgentService', () => {
       expect(agent.id).toMatch(uuidV4Pattern)
     })
 
-    it('places newly created agents first under default sort (createdAt desc)', async () => {
+    it('places newly created agents by default orderKey sort', async () => {
       await insertAgent({ id: 'agent_existing_a' })
       await insertAgent({ id: 'agent_existing_b' })
 
@@ -132,7 +132,7 @@ describe('AgentService', () => {
       })
 
       const { agents } = await agentService.listAgents()
-      expect(agents[0]?.id).toBe(created.id)
+      expect(agents.at(-1)?.id).toBe(created.id)
     })
   })
 
@@ -189,6 +189,16 @@ describe('AgentService', () => {
       expect(names).toEqual([...names].sort())
     })
 
+    it('sorts unpinned agents by orderKey by default', async () => {
+      await insertAgent({ id: 'agent_order_c', name: 'C', orderKey: 'c' })
+      await insertAgent({ id: 'agent_order_a', name: 'A', orderKey: 'a' })
+      await insertAgent({ id: 'agent_order_b', name: 'B', orderKey: 'b' })
+
+      const { agents } = await agentService.listAgents()
+
+      expect(agents.map((agent) => agent.id)).toEqual(['agent_order_a', 'agent_order_b', 'agent_order_c'])
+    })
+
     it('does not expose tags in agent rows', async () => {
       const { id: taggedId } = await insertAgent({ id: 'agent_tag_test_1', name: 'tagged' })
       const { id: untaggedId } = await insertAgent({ id: 'agent_tag_test_2', name: 'untagged' })
@@ -219,7 +229,7 @@ describe('AgentService', () => {
         name: 'bound',
         model: 'anthropic::claude-sonnet-4-5'
       })
-      const missing = await insertAgent({
+      const unbound = await insertAgent({
         id: 'agent_model_test_2',
         name: 'missing',
         model: deletedModelId
@@ -232,7 +242,7 @@ describe('AgentService', () => {
       const byId = new Map(agents.map((agent) => [agent.id, agent]))
 
       expect(byId.get(bound.id)?.modelName).toBe('Claude Sonnet 4.5')
-      expect(byId.get(missing.id)?.modelName).toBeNull()
+      expect(byId.get(unbound.id)?.modelName).toBeNull()
     })
 
     it('filters by search against name OR description', async () => {
@@ -243,6 +253,25 @@ describe('AgentService', () => {
       const { agents } = await agentService.listAgents({ search: 'research' })
 
       expect(agents.map((agent) => agent.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
+    })
+
+    it('filters by updatedAtFrom while preserving service-owned search and sorting', async () => {
+      const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
+      await insertAgent({ id: 'agent_old', name: 'Research old', updatedAt: cutoff - 1 })
+      await insertAgent({ id: 'agent_newer', name: 'Research newer', updatedAt: cutoff + 2000 })
+      await insertAgent({ id: 'agent_newest', name: 'Research newest', updatedAt: cutoff + 3000 })
+      await insertAgent({ id: 'agent_other', name: 'Other', updatedAt: cutoff + 4000 })
+
+      const { agents, total } = await agentService.listAgents({
+        search: 'research',
+        limit: 10,
+        updatedAtFrom: cutoff,
+        sortBy: 'updatedAt',
+        orderBy: 'desc'
+      })
+
+      expect(agents.map((agent) => agent.id)).toEqual(['agent_newest', 'agent_newer'])
+      expect(total).toBe(2)
     })
   })
 })
