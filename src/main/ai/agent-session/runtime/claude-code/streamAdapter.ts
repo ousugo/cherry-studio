@@ -27,6 +27,9 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages'
 import { loggerService } from '@logger'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
+import { parseFunctionCallToolName } from '@shared/mcp'
+
+import type { McpToolDisplayMetadata } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeStreamAdapter')
 
@@ -54,6 +57,8 @@ type ToolStreamState = {
   serverName?: string
   serverId?: string
   toolType?: 'mcp' | 'provider'
+  displayName?: string
+  description?: string
 }
 
 type StreamSink = {
@@ -85,6 +90,7 @@ export type ClaudeCodeStreamAdapterOptions = {
   streamOptions: Parameters<LanguageModelV3['doStream']>[0]
   sink: StreamSink
   onSessionId?: (sessionId: string) => void
+  mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
 }
 
 export type ClaudeCodeStreamAdapterResult =
@@ -176,10 +182,12 @@ export class ClaudeCodeStreamAdapter {
   private readonly ctx: StreamContext
   private readonly modelId: string
   private readonly onSessionId?: (sessionId: string) => void
+  private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata>
 
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
     this.onSessionId = options.onSessionId
+    this.mcpToolMetadata = options.mcpToolMetadata ?? {}
     this.ctx = {
       sink: options.sink,
       options: options.streamOptions,
@@ -336,6 +344,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.toolStates.set(toolId, state)
     }
     this.mergeToolMetadata(state, toolMetadata)
+    this.mergeToolDisplayMetadata(state)
 
     if (!state.inputStarted) {
       ctx.sink.enqueue({
@@ -550,6 +559,7 @@ export class ClaudeCodeStreamAdapter {
     }
     state.name = tool.name
     this.mergeToolMetadata(state, this.getToolUseMetadata(tool))
+    this.mergeToolDisplayMetadata(state)
 
     if (!state.inputStarted) {
       ctx.sink.enqueue({
@@ -839,7 +849,7 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private getToolUseMetadata(
-    tool: Pick<ClaudeToolUseBlock, 'type'> & { server_name?: string }
+    tool: Pick<ClaudeToolUseBlock, 'name' | 'type'> & { server_name?: string }
   ): Pick<ToolStreamState, 'sdkBlockType' | 'serverName' | 'serverId' | 'toolType'> {
     if (tool.type === 'mcp_tool_use') {
       const serverName = typeof tool.server_name === 'string' ? tool.server_name : undefined
@@ -847,6 +857,15 @@ export class ClaudeCodeStreamAdapter {
         sdkBlockType: tool.type,
         serverName,
         serverId: serverName,
+        toolType: 'mcp'
+      }
+    }
+    const parsed = parseFunctionCallToolName(tool.name)
+    if (parsed) {
+      return {
+        sdkBlockType: tool.type,
+        serverName: parsed.serverPart,
+        serverId: parsed.serverPart,
         toolType: 'mcp'
       }
     }
@@ -866,8 +885,37 @@ export class ClaudeCodeStreamAdapter {
     state.toolType = metadata.toolType ?? state.toolType
   }
 
+  private resolveMcpToolDisplayMetadata(state: ToolStreamState): McpToolDisplayMetadata | undefined {
+    if (state.toolType !== 'mcp' && !parseFunctionCallToolName(state.name)) return undefined
+    return (
+      this.mcpToolMetadata[state.name] ??
+      (state.serverId ? this.mcpToolMetadata[`mcp__${state.serverId}__${state.name}`] : undefined) ??
+      (state.serverName ? this.mcpToolMetadata[`mcp__${state.serverName}__${state.name}`] : undefined)
+    )
+  }
+
+  private mergeToolDisplayMetadata(state: ToolStreamState): void {
+    const parsed = parseFunctionCallToolName(state.name)
+    if (parsed) {
+      state.toolType = 'mcp'
+      state.serverName = state.serverName ?? parsed.serverPart
+      state.serverId = state.serverId ?? parsed.serverPart
+      state.displayName = state.displayName ?? parsed.toolPart
+    }
+
+    const metadata = this.resolveMcpToolDisplayMetadata(state)
+    if (!metadata) return
+
+    state.toolType = 'mcp'
+    state.serverName = metadata.serverName
+    state.serverId = metadata.serverId
+    state.displayName = metadata.name
+    state.description = metadata.description
+  }
+
   private getToolTitle(state: ToolStreamState): string | undefined {
-    return state.toolType === 'mcp' && state.serverName ? `${state.serverName}: ${state.name}` : undefined
+    const toolName = state.displayName ?? state.name
+    return state.toolType === 'mcp' && state.serverName ? `${state.serverName}: ${toolName}` : undefined
   }
 
   private buildParentProviderMetadata(sdkParentToolUseId: SDKParentToolUseId): Record<string, JSONObject> | undefined {
@@ -902,6 +950,8 @@ export class ClaudeCodeStreamAdapter {
         transport: 'claude-agent',
         tool: {
           type: state.toolType ?? 'provider',
+          ...(state.displayName ? { name: state.displayName } : {}),
+          ...(state.description ? { description: state.description } : {}),
           ...(state.serverName ? { serverName: state.serverName } : {}),
           ...(state.serverId ? { serverId: state.serverId } : {})
         }
@@ -915,6 +965,8 @@ export class ClaudeCodeStreamAdapter {
       content: result,
       metadata: {
         type: 'mcp',
+        ...(state.displayName ? { name: state.displayName } : {}),
+        ...(state.description ? { description: state.description } : {}),
         serverName: state.serverName ?? 'MCP',
         serverId: state.serverId ?? state.serverName ?? 'unknown'
       }

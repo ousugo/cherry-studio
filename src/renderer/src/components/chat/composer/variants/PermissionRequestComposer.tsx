@@ -3,8 +3,8 @@ import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
-import { AlertTriangle, ArrowRight, Wrench } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { ArrowRight, Wrench } from 'lucide-react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { isValidAgentToolsType, renderTool } from '../../messages/tools/agent'
@@ -86,7 +86,7 @@ function McpPermissionPreview({ toolResponse }: { toolResponse: MCPToolResponse 
 
   return (
     <div className="px-3 py-2">
-      <PermissionPreviewHeader toolName={toolResponse.tool.name} />
+      <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
       {args ? (
         <ToolArgsTable args={args} title={t('message.tools.sections.input')} />
       ) : (
@@ -104,11 +104,21 @@ function PermissionPreview({ toolResponse }: { toolResponse: ToolResponseLike })
   return <BuiltinPermissionPreview toolResponse={toolResponse} />
 }
 
-function PermissionPreviewHeader({ toolName }: { toolName: string }) {
+function getPermissionRequestSubtitle(request: PermissionRequestComposerRequest): string | null {
+  const title = request.title.trim()
+  const toolName = request.toolResponse.tool.name.trim()
+
+  if (!title || title === toolName) return null
+  return title
+}
+
+function PermissionPreviewHeader({ toolName, description }: { toolName: string; description?: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-2 text-foreground text-sm">
-      <Wrench className="size-4 shrink-0 text-muted-foreground" />
-      <span className="truncate font-medium">{toolName}</span>
+    <div className="min-w-0 text-foreground text-sm">
+      <div className="truncate font-medium">{toolName}</div>
+      {description ? (
+        <div className="mt-0.5 line-clamp-2 text-muted-foreground text-xs leading-4">{description}</div>
+      ) : null}
     </div>
   )
 }
@@ -119,7 +129,6 @@ function PermissionOption({
   ariaLabel,
   destructive,
   disabled,
-  selected,
   onSelect
 }: {
   index: number
@@ -127,7 +136,6 @@ function PermissionOption({
   ariaLabel: string
   destructive?: boolean
   disabled: boolean
-  selected: boolean
   onSelect: () => void
 }) {
   return (
@@ -136,19 +144,15 @@ function PermissionOption({
       variant="ghost"
       className={cn(
         'group h-auto min-h-11 w-full justify-start gap-3 whitespace-normal rounded-[12px] px-3 py-2 text-left shadow-none',
-        'hover:bg-muted focus-visible:bg-muted',
-        selected && 'bg-muted'
+        'hover:bg-muted focus-visible:bg-muted'
       )}
       disabled={disabled}
       aria-label={ariaLabel}
-      aria-pressed={selected}
       onClick={onSelect}>
       <span
         className={cn(
           'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
-          selected
-            ? 'bg-neutral-950 text-white dark:bg-neutral-50 dark:text-neutral-950'
-            : 'bg-muted text-muted-foreground group-hover:bg-neutral-950 group-hover:text-white dark:group-hover:bg-neutral-50 dark:group-hover:text-neutral-950'
+          'bg-muted text-muted-foreground group-hover:bg-neutral-950 group-hover:text-white dark:group-hover:bg-neutral-50 dark:group-hover:text-neutral-950'
         )}>
         {index}
       </span>
@@ -162,10 +166,7 @@ function PermissionOption({
       </span>
 
       <ArrowRight
-        className={cn(
-          'size-4 shrink-0 text-muted-foreground transition-opacity',
-          selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-        )}
+        className={cn('size-4 shrink-0 text-muted-foreground transition-opacity', 'opacity-0 group-hover:opacity-100')}
       />
     </Button>
   )
@@ -174,12 +175,10 @@ function PermissionOption({
 export default function PermissionRequestComposer({ request, onRespond, className }: PermissionRequestComposerProps) {
   const { t } = useTranslation()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [selectedAction, setSelectedAction] = useState<'approve' | 'deny' | null>(null)
-  const title = useMemo(() => request.title || t('agent.toolPermission.confirmation'), [request.title, t])
+  const subtitle = getPermissionRequestSubtitle(request)
 
   const respond = useCallback(
     async (input: MessageToolApprovalInput, action: 'approve' | 'deny') => {
-      setSelectedAction(action)
       setIsSubmitting(true)
       try {
         await onRespond(input)
@@ -189,7 +188,6 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           approvalId: request.approvalId
         })
         window.toast.error(t('agent.toolPermission.error.sendFailed'))
-        setSelectedAction(null)
         setIsSubmitting(false)
       }
     },
@@ -223,10 +221,15 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
     <div className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
       <div className="rounded-[17px] border-[0.5px] border-border bg-(--color-background-opacity) p-2.5 backdrop-blur">
         <div className="flex items-center justify-between gap-3 px-1">
-          <h2 className="line-clamp-1 flex min-w-0 flex-1 items-center gap-2 font-semibold text-foreground text-sm leading-5">
-            <AlertTriangle className="size-4 shrink-0 text-warning" />
-            <span className="truncate">{title}</span>
-          </h2>
+          <div className="min-w-0 flex-1">
+            <h2 className="line-clamp-1 flex min-w-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
+              <Wrench className="size-4 shrink-0 text-muted-foreground" />
+              <span className="truncate">{t('agent.toolPermission.confirmation')}</span>
+            </h2>
+            {subtitle ? (
+              <div className="mt-0.5 line-clamp-1 text-muted-foreground text-xs leading-4">{subtitle}</div>
+            ) : null}
+          </div>
           <div className="rounded-full bg-warning/10 px-2 py-1 font-medium text-[11px] text-warning">
             {t('agent.toolPermission.pending')}
           </div>
@@ -242,7 +245,6 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
             label={t('agent.toolPermission.button.allow')}
             ariaLabel={t('agent.toolPermission.button.allow')}
             disabled={isSubmitting}
-            selected={selectedAction === 'approve'}
             onSelect={() => void approve()}
           />
           <PermissionOption
@@ -251,7 +253,6 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
             ariaLabel={t('agent.toolPermission.button.deny')}
             destructive
             disabled={isSubmitting}
-            selected={selectedAction === 'deny'}
             onSelect={() => void deny()}
           />
         </div>

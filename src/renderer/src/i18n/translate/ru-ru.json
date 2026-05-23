@@ -436,6 +436,7 @@
         "title": "Удалить сеанс"
       },
       "display": {
+        "agent": "[to be translated]:Agent",
         "time": "[to be translated]:Time",
         "title": "[to be translated]:Display mode",
         "workdir": "[to be translated]:Workspace"
@@ -461,6 +462,7 @@
         "show_more": "[to be translated]:Show more sessions",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
         "yesterday": "[to be translated]:Yesterday"
       },
       "label_one": "Сессия",
@@ -807,7 +809,7 @@
         "deny": "Deny",
         "run": "Беги"
       },
-      "confirmation": "Вы уверены, что хотите запустить этот инструмент Claude?",
+      "confirmation": "Разрешить вызов инструмента?",
       "defaultDenyMessage": "Пользователь отказал в разрешении на использование этого инструмента.",
       "defaultDescription": "Выполняет код или системные действия в вашей среде. Убедитесь, что команда выглядит безопасно, прежде чем запускать её.",
       "error": {

@@ -50,7 +50,7 @@ const SCROLLBAR_AUTO_HIDE_DELAY = 1200
 const SCROLLBAR_FADE_STEP = 140
 const ITEM_ROW_GAP_CLASS = 'pb-[2px]'
 const GROUP_HEADER_COLOR_STYLE = {
-  '--resource-list-group-color': 'color-mix(in srgb, var(--color-muted-foreground) 55%, transparent)'
+  '--resource-list-group-color': 'var(--color-foreground)'
 } as CSSProperties
 const GROUP_HEADER_TEXT_CLASS = 'text-[color:var(--resource-list-group-color)]'
 const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
@@ -791,7 +791,7 @@ function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
 
 function getListViewportClassName(stage: ScrollbarStage, className?: string) {
   return cn(
-    'min-h-0 flex-1 overflow-auto px-1 py-1.5 pt-0 [scrollbar-gutter:stable]',
+    'min-h-0 flex-1 overflow-auto px-1.5 py-1.5 pt-0 [scrollbar-gutter:stable]',
     '[&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)]',
     '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-150 [&::-webkit-scrollbar-thumb]:ease-out',
     SCROLLBAR_THUMB_CLASS_BY_STAGE[stage],
@@ -881,14 +881,14 @@ function GroupHeader({ group, className, ref, style, onContextMenu, ...props }: 
       ref={ref}
       style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
       className={cn(
-        'group/resource-list-group flex h-8 w-full items-center gap-1 px-1 text-sm',
+        'group/resource-list-group flex h-8 w-full items-center gap-1.5 px-1.5 text-sm',
         GROUP_HEADER_TEXT_CLASS,
         className
       )}
       onContextMenu={handleContextMenu}
       {...props}>
       {groupHeaderLeadingAction && (
-        <div className="flex size-4.5 shrink-0 items-center justify-center">{groupHeaderLeadingAction}</div>
+        <div className="flex size-5 shrink-0 items-center justify-center">{groupHeaderLeadingAction}</div>
       )}
       <button
         type="button"
@@ -898,11 +898,11 @@ function GroupHeader({ group, className, ref, style, onContextMenu, ...props }: 
         {groupHeaderIcon && (
           <span
             aria-hidden="true"
-            className="flex size-4.5 shrink-0 items-center justify-center rounded-lg text-inherit [&_svg]:stroke-current [&_svg]:text-inherit">
+            className="flex size-5 shrink-0 items-center justify-center rounded-lg text-inherit [&_svg]:stroke-current [&_svg]:text-inherit">
             {groupHeaderIcon}
           </span>
         )}
-        <span className="min-w-0 flex-1 truncate text-left font-medium text-[12px] text-inherit leading-5">
+        <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-inherit leading-5">
           {group.label}
         </span>
       </button>
@@ -997,7 +997,7 @@ function Item<T extends ResourceListItemBase>({
       data-reveal-focus={revealFocused || undefined}
       tabIndex={tabIndex ?? 0}
       className={cn(
-        'group flex min-h-8 w-full cursor-pointer items-center gap-1 rounded-lg px-1 py-1.5 text-[13px] outline-none transition-all duration-150',
+        'group flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] outline-none transition-all duration-150',
         'hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring',
         selected && 'bg-accent text-foreground',
         revealFocused && 'animation-resource-list-reveal-focus',
@@ -1117,7 +1117,7 @@ function ItemIcon({ className, ref, ...props }: ItemIconProps) {
     <span
       ref={ref}
       className={cn(
-        'flex size-4.5 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0',
+        'flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0',
         className
       )}
       {...props}
@@ -1135,7 +1135,7 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       ref={ref}
       type={type}
       className={cn(
-        'flex size-4.5 shrink-0 items-center justify-center rounded-lg text-foreground/70 opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
+        'flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
         'hover:bg-accent hover:text-foreground',
         'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
         'group-hover:opacity-100 data-[deleting=true]:opacity-100',
@@ -1154,7 +1154,7 @@ function ItemLeadingAction({ className, ref, type = 'button', ...props }: ItemLe
       ref={ref}
       type={type}
       className={cn(
-        'flex size-4.5 shrink-0 items-center justify-center rounded-lg text-foreground/70 opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
+        'flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
         'hover:bg-accent hover:text-foreground',
         'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
         'group-hover:opacity-100 data-[active=true]:opacity-100',
@@ -1580,18 +1580,20 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
     <div ref={ref} className={cn('flex flex-col px-1 py-1.5', className)} {...props}>
       {RESOURCE_LIST_LOADING_GROUPS.map((group) => (
         <div key={group.id} data-resource-list-loading-group="true" className="flex flex-col pb-1">
-          <div data-resource-list-loading-group-header="true" className="flex h-7 items-center gap-1 px-1 pt-2 pb-1">
-            <Skeleton data-slot="skeleton" className="size-4.5 shrink-0 rounded-md" />
+          <div
+            data-resource-list-loading-group-header="true"
+            className="flex h-7 items-center gap-1.5 px-1.5 pt-2 pb-1">
+            <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
             <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', group.headerWidth)} />
           </div>
           {group.itemWidths.map((width, index) => (
             <div
               key={`${group.id}-${index}`}
               data-resource-list-loading-item="true"
-              className="mb-[2px] flex min-h-8 w-full items-center gap-1 rounded-lg px-1 py-1.5 last:mb-0">
-              <Skeleton data-slot="skeleton" className="size-4.5 shrink-0 rounded-md" />
+              className="mb-[2px] flex min-h-8 w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 last:mb-0">
+              <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
               <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', width)} />
-              <Skeleton data-slot="skeleton" className="ml-auto size-4.5 shrink-0 rounded-md opacity-60" />
+              <Skeleton data-slot="skeleton" className="ml-auto size-5 shrink-0 rounded-md opacity-60" />
             </div>
           ))}
         </div>

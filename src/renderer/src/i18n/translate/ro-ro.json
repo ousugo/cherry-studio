@@ -436,6 +436,7 @@
         "title": "Șterge sesiunea"
       },
       "display": {
+        "agent": "[to be translated]:Agent",
         "time": "[to be translated]:Time",
         "title": "[to be translated]:Display mode",
         "workdir": "[to be translated]:Workspace"
@@ -461,6 +462,7 @@
         "show_more": "[to be translated]:Show more sessions",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
         "yesterday": "[to be translated]:Yesterday"
       },
       "label_one": "Sesiune",
@@ -807,7 +809,7 @@
         "deny": "Deny",
         "run": "Rulează"
       },
-      "confirmation": "Ești sigur că vrei să rulezi acest instrument Claude?",
+      "confirmation": "Permiteți apelul instrumentului?",
       "defaultDenyMessage": "Utilizatorul a refuzat permisiunea pentru acest instrument.",
       "defaultDescription": "Execută cod sau acțiuni de sistem în mediul tău. Asigură-te că comanda pare sigură înainte de a o rula.",
       "error": {

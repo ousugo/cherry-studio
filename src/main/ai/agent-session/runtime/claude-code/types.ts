@@ -1,6 +1,14 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 
+export type McpToolDisplayMetadata = {
+  type: 'mcp'
+  serverId: string
+  serverName: string
+  name: string
+  description?: string
+}
+
 export type {
   AgentMcpServerSpec,
   CanUseTool,
@@ -37,6 +45,8 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
    * normal query options.
    */
   warmQueryInitializeTimeoutMs?: number
+  /** Display-only metadata for Claude Code MCP tool names. Not passed to the SDK. */
+  mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
 }
 
 export type ToolApprovalEmitterHolder = {

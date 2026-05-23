@@ -325,9 +325,10 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
         'agent.session.add.title': 'Add session',
+        'agent.session.display.agent': 'Agent',
         'agent.session.display.time': 'Time',
         'agent.session.display.title': 'Display mode',
-        'agent.session.display.workdir': 'Workspace',
+        'agent.session.display.workdir': 'Project',
         'agent.session.edit.title': 'Edit session',
         'agent.session.file_manager.file_explorer': 'File Explorer',
         'agent.session.file_manager.files': 'Files',
@@ -335,23 +336,24 @@ vi.mock('react-i18next', () => ({
         'agent.session.get.error.failed': 'Failed to get sessions',
         'agent.session.group.collapse': 'Collapse display',
         'agent.session.group.earlier': 'Earlier',
-        'agent.session.group.no_workdir': 'No workspace',
+        'agent.session.group.no_workdir': 'No project',
         'agent.session.group.show_more': 'Expand display',
         'agent.session.group.this_week': 'This week',
         'agent.session.group.today': 'Today',
+        'agent.session.group.unknown_agent': 'Unknown agent',
         'agent.session.group.yesterday': 'Yesterday',
         'agent.session.list.title': 'Sessions',
         'agent.session.reorder.error.failed': 'Failed to reorder sessions',
         'agent.session.search.placeholder': 'Search sessions',
         'agent.session.update.error.failed': 'Failed to update session',
         'agent.session.workdir.delete.content':
-          'Deleting this workspace also deletes sessions under it. The actual folder is not deleted.',
-        'agent.session.workdir.delete.error.failed': 'Failed to delete workspace',
-        'agent.session.workdir.delete.title': 'Delete workspace',
-        'agent.session.workdir.delete.trigger': 'Delete workspace',
-        'agent.session.workdir.rename.error.failed': 'Failed to rename workspace',
-        'agent.session.workdir.rename.title': 'Rename workspace',
-        'agent.session.workdir.rename.trigger': 'Rename workspace',
+          'Deleting this project also deletes sessions under it. The actual folder is not deleted.',
+        'agent.session.workdir.delete.error.failed': 'Failed to delete project',
+        'agent.session.workdir.delete.title': 'Delete project',
+        'agent.session.workdir.delete.trigger': 'Delete project',
+        'agent.session.workdir.rename.error.failed': 'Failed to rename project',
+        'agent.session.workdir.rename.title': 'Rename project',
+        'agent.session.workdir.rename.trigger': 'Rename project',
         'chat.topics.delete.shortcut': 'Hold Ctrl to delete directly',
         'chat.topics.pin': 'Pin',
         'chat.topics.unpin': 'Unpin',
@@ -371,6 +373,7 @@ vi.mock('react-i18next', () => ({
         'common.unnamed': 'Untitled',
         'error.model.not_exists': 'Model does not exist',
         'history.records.agentTitle': 'Agent History',
+        'history.records.shortTitle': 'History',
         'selector.agent.create_new': 'Create agent',
         'selector.agent.empty_text': 'No agents',
         'selector.agent.search_placeholder': 'Search agents',
@@ -457,6 +460,10 @@ function expectSessionBlocked(name: string) {
 
 function expectGroupBlocked(name: string) {
   expect(screen.getByRole('button', { name }).closest('[data-drop-blocked="true"]')).toBeInTheDocument()
+}
+
+function openSessionListOptions() {
+  fireEvent.click(screen.getByLabelText('Display mode'))
 }
 
 function setupSessions(overrides: Record<string, unknown> = {}) {
@@ -549,6 +556,9 @@ describe('Sessions', () => {
     expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'project-a' })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Project A Workspace' }).querySelector('.lucide-folder-open')
+    ).toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toHaveClass('font-normal', 'text-sidebar-foreground/70')
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
   })
@@ -582,6 +592,92 @@ describe('Sessions', () => {
     const projectB = screen.getByRole('button', { name: 'DB Project B' })
     const projectA = screen.getByRole('button', { name: 'DB Project A' })
     expect(projectB.compareDocumentPosition(projectA) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('renders agent groups in agent display mode', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } },
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<Sessions />)
+
+    const betaGroup = screen.getByRole('button', { name: 'Beta agent' })
+    const alphaGroup = screen.getByRole('button', { name: 'Alpha agent' })
+    expect(betaGroup.compareDocumentPosition(alphaGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(betaGroup).toHaveTextContent('B')
+    expect(alphaGroup).toHaveTextContent('A')
+    expect(screen.getByText('Beta session')).toBeInTheDocument()
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+  })
+
+  it('creates sessions from agent group actions', async () => {
+    const onStartTemporarySession = vi.fn()
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          agentId: 'agent-a',
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
+          orderKey: 'a'
+        }),
+        createSession({
+          id: 'session-b',
+          name: 'Beta session',
+          agentId: 'agent-b',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' }),
+          orderKey: 'b',
+          updatedAt: '2026-01-02T00:00:00.000Z'
+        }),
+        createSession({
+          id: 'session-c',
+          name: 'Beta newest session',
+          agentId: 'agent-b',
+          workspaceId: 'ws-c',
+          workspace: makeWorkspace('/Users/jd/project-c', { id: 'ws-c' }),
+          orderKey: 'c',
+          updatedAt: '2026-01-03T00:00:00.000Z'
+        })
+      ]
+    })
+
+    render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
+
+    const betaGroup = screen.getByRole('button', { name: 'Beta agent' }).closest('div')
+    expect(betaGroup).not.toBeNull()
+    fireEvent.click(within(betaGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+
+    await vi.waitFor(() =>
+      expect(onStartTemporarySession).toHaveBeenCalledWith({
+        agentId: 'agent-b',
+        name: 'Untitled',
+        workspaceId: 'ws-c'
+      })
+    )
   })
 
   it('renders load errors inside the shared ResourceList shell', () => {
@@ -677,6 +773,10 @@ describe('Sessions', () => {
 
   it('starts a temporary session from the header without creating inline', async () => {
     const onStartTemporarySession = vi.fn()
+    dataApiMocks.workspaces = [
+      makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Project B Workspace', orderKey: 'a' }),
+      makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'b' })
+    ]
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
         { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
@@ -685,19 +785,67 @@ describe('Sessions', () => {
       isLoading: false,
       error: undefined
     })
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          agentId: 'agent-a',
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
+          updatedAt: '2026-01-02T00:00:00.000Z'
+        }),
+        createSession({
+          id: 'session-b',
+          name: 'Beta session',
+          agentId: 'agent-b',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' }),
+          updatedAt: '2026-01-03T00:00:00.000Z'
+        })
+      ]
+    })
 
     render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 
     fireEvent.click(screen.getAllByRole('button', { name: 'chat.conversation.new' })[0])
 
     expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
-    expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-a', name: 'Untitled', workspaceId: 'ws-a' })
+    expect(onStartTemporarySession).toHaveBeenCalledWith({ agentId: 'agent-b', name: 'Untitled', workspaceId: 'ws-b' })
     await vi.waitFor(() => expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null))
   })
 
   it('creates sessions from the time group action', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
     const onStartTemporarySession = vi.fn()
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          agentId: 'agent-a',
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
+          updatedAt: new Date(Date.now() - 1000).toISOString()
+        }),
+        createSession({
+          id: 'session-b',
+          name: 'Beta session',
+          agentId: 'agent-b',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' }),
+          updatedAt: new Date(Date.now() + 1000).toISOString()
+        })
+      ]
+    })
     render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 
     const todayGroup = screen.getByRole('button', { name: 'Today' }).closest('div')
@@ -706,27 +854,32 @@ describe('Sessions', () => {
 
     await vi.waitFor(() =>
       expect(onStartTemporarySession).toHaveBeenCalledWith({
-        agentId: 'agent-a',
+        agentId: 'agent-b',
         name: 'Untitled',
-        workspaceId: 'ws-a'
+        workspaceId: 'ws-b'
       })
     )
   })
 
-  it('toggles the agent sidebar from the header action', () => {
+  it('toggles the agent sidebar from the list options menu', () => {
     render(<Sessions />)
 
-    fireEvent.click(screen.getByLabelText('Toggle sidebar'))
+    openSessionListOptions()
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle sidebar' }))
 
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.show', false)
   })
 
-  it('opens agent history from the trailing header action when provided', () => {
+  it('opens agent history from the list options menu when provided', () => {
     const onOpenHistory = vi.fn()
 
     render(<Sessions onOpenHistory={onOpenHistory} />)
 
-    const historyButton = screen.getByLabelText('Agent History')
+    expect(screen.queryByLabelText('Agent History')).not.toBeInTheDocument()
+
+    openSessionListOptions()
+
+    const historyButton = screen.getByRole('button', { name: 'History' })
     vi.spyOn(historyButton, 'getBoundingClientRect').mockReturnValue({
       x: 14,
       y: 24,
@@ -848,8 +1001,8 @@ describe('Sessions', () => {
   it('persists display mode selection from the header menu', () => {
     render(<Sessions />)
 
-    fireEvent.click(screen.getByLabelText('Display mode'))
-    fireEvent.click(screen.getByRole('button', { name: 'Workspace' }))
+    openSessionListOptions()
+    fireEvent.click(screen.getByRole('button', { name: 'Project' }))
 
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
   })
@@ -891,6 +1044,48 @@ describe('Sessions', () => {
     expectGroupBlocked('Pinned')
     expectSessionBlocked('Gamma session')
     expect(screen.getByRole('button', { name: 'Project A Workspace' }).closest('[data-drop-blocked="true"]')).toBeNull()
+    expect(screen.getByText('Beta session').closest('[data-drop-blocked="true"]')).toBeNull()
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:session-a'),
+          id: 'item:session-a',
+          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+        },
+        over: { data: sortableData('item:session-b'), id: 'item:session-b', rect: { top: 10, height: 20 } }
+      })
+    })
+
+    await vi.waitFor(() =>
+      expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-a', { after: 'session-b' })
+    )
+  })
+
+  it('blocks cross-agent groups while preserving same-agent reorder', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-a', orderKey: 'b' }),
+        createSession({ id: 'session-c', name: 'Gamma session', agentId: 'agent-b', orderKey: 'c' })
+      ]
+    })
+
+    render(<Sessions />)
+
+    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+    startDraggingSession('session-a')
+
+    expectSessionBlocked('Gamma session')
     expect(screen.getByText('Beta session').closest('[data-drop-blocked="true"]')).toBeNull()
 
     act(() => {
@@ -965,7 +1160,7 @@ describe('Sessions', () => {
     const workdirGroup = workdirGroupButton.closest('div')
     expect(workdirGroup).not.toBeNull()
     expect(
-      within(workdirGroup as HTMLElement).queryByRole('button', { name: 'Delete workspace' })
+      within(workdirGroup as HTMLElement).queryByRole('button', { name: 'Delete project' })
     ).not.toBeInTheDocument()
 
     fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
@@ -994,10 +1189,10 @@ describe('Sessions', () => {
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
     fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Rename workspace' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Rename project' }))
 
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent('Rename workspace')
+    expect(dialog).toHaveTextContent('Rename project')
     const input = within(dialog).getByLabelText('Name')
     expect(input).toHaveValue('Project A Workspace')
 
@@ -1062,7 +1257,7 @@ describe('Sessions', () => {
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
     fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    const deleteWorkspaceButton = screen.getByRole('button', { name: 'Delete workspace' })
+    const deleteWorkspaceButton = screen.getByRole('button', { name: 'Delete project' })
     expect(deleteWorkspaceButton.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
     fireEvent.click(deleteWorkspaceButton)
 
@@ -1073,7 +1268,7 @@ describe('Sessions', () => {
     )
     expect(window.modal.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: 'Deleting this workspace also deletes sessions under it. The actual folder is not deleted.'
+        content: 'Deleting this project also deletes sessions under it. The actual folder is not deleted.'
       })
     )
     expect(dataApiMocks.mutationOptions.get('DELETE /workspaces/:workspaceId')?.refresh).toEqual([
@@ -1092,6 +1287,29 @@ describe('Sessions', () => {
   it('creates sessions from workspace group actions', async () => {
     const onStartTemporarySession = vi.fn()
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    cacheMocks.state.activeSessionId = 'session-b'
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a',
+          name: 'Alpha session',
+          agentId: 'agent-a',
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
+          orderKey: 'b',
+          updatedAt: '2026-01-03T00:00:00.000Z'
+        }),
+        createSession({
+          id: 'session-b',
+          name: 'Beta session',
+          agentId: 'agent-b',
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
+          orderKey: 'a',
+          updatedAt: '2026-01-02T00:00:00.000Z'
+        })
+      ]
+    })
     render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
 
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')

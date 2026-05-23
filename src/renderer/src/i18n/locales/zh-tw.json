@@ -436,9 +436,10 @@
         "title": "刪除工作階段"
       },
       "display": {
+        "agent": "[to be translated]:Agent",
         "time": "[to be translated]:Time",
         "title": "[to be translated]:Display mode",
-        "workdir": "[to be translated]:Workspace"
+        "workdir": "專案"
       },
       "edit": {
         "title": "編輯工作階段"
@@ -457,10 +458,11 @@
       "group": {
         "collapse": "折疊顯示",
         "earlier": "[to be translated]:Earlier",
-        "no_workdir": "[to be translated]:No workspace",
+        "no_workdir": "無專案",
         "show_more": "展開顯示",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
         "yesterday": "[to be translated]:Yesterday"
       },
       "label_one": "工作階段",
@@ -483,33 +485,33 @@
       },
       "workdir": {
         "delete": {
-          "content": "刪除此工作目錄也會刪除此工作目錄下的所有工作階段；只會刪除資料庫記錄，不會刪除磁碟上的實際目錄。",
+          "content": "刪除此專案也會刪除此專案下的所有工作階段；只會刪除資料庫記錄，不會刪除磁碟上的實際目錄。",
           "error": {
-            "failed": "無法刪除工作目錄"
+            "failed": "無法刪除專案"
           },
-          "title": "刪除工作目錄",
-          "trigger": "刪除工作目錄"
+          "title": "刪除專案",
+          "trigger": "刪除專案"
         },
         "rename": {
           "error": {
-            "failed": "無法重新命名工作目錄"
+            "failed": "無法重新命名專案"
           },
-          "title": "重新命名工作目錄",
-          "trigger": "重新命名工作目錄"
+          "title": "重新命名專案",
+          "trigger": "重新命名專案"
         }
       },
       "workspace_selector": {
         "create_failed": "[to be translated]:Failed to add project.",
         "create_new": "[to be translated]:Add new project",
         "empty_text": "[to be translated]:No projects",
-        "placeholder": "[to be translated]:Select workspace",
+        "placeholder": "選擇專案",
         "search_placeholder": "[to be translated]:Search projects",
         "select_failed": "[to be translated]:Failed to select folder."
       },
       "workspace_status": {
-        "inaccessible": "工作區路徑無法存取：{{path}}",
-        "missing": "工作區路徑不存在：{{path}}",
-        "not_directory": "工作區路徑不是目錄：{{path}}"
+        "inaccessible": "專案路徑無法存取：{{path}}",
+        "missing": "專案路徑不存在：{{path}}",
+        "not_directory": "專案路徑不是目錄：{{path}}"
       }
     },
     "settings": {
@@ -807,7 +809,7 @@
         "deny": "拒絕",
         "run": "執行"
       },
-      "confirmation": "確定要執行此 Claude 工具嗎？",
+      "confirmation": "允許呼叫工具？",
       "defaultDenyMessage": "使用者拒絕了該工具的權限。",
       "defaultDescription": "在您的環境中執行程式碼或系統操作。執行前請確保指令安全。",
       "error": {

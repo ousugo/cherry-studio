@@ -436,9 +436,10 @@
         "title": "Delete session"
       },
       "display": {
+        "agent": "Agent",
         "time": "Time",
         "title": "Display mode",
-        "workdir": "Workspace"
+        "workdir": "Project"
       },
       "edit": {
         "title": "Edit session"
@@ -457,10 +458,11 @@
       "group": {
         "collapse": "Collapse display",
         "earlier": "Earlier",
-        "no_workdir": "No workspace",
+        "no_workdir": "No project",
         "show_more": "Expand display",
         "this_week": "This week",
         "today": "Today",
+        "unknown_agent": "Unknown agent",
         "yesterday": "Yesterday"
       },
       "label_one": "Session",
@@ -483,33 +485,33 @@
       },
       "workdir": {
         "delete": {
-          "content": "Deleting this workspace will also delete all sessions under it. Only database records are removed; the actual folder on disk will not be deleted.",
+          "content": "Deleting this project will also delete all sessions under it. Only database records are removed; the actual folder on disk will not be deleted.",
           "error": {
-            "failed": "Failed to delete the workspace"
+            "failed": "Failed to delete the project"
           },
-          "title": "Delete workspace",
-          "trigger": "Delete workspace"
+          "title": "Delete project",
+          "trigger": "Delete project"
         },
         "rename": {
           "error": {
-            "failed": "Failed to rename the workspace"
+            "failed": "Failed to rename the project"
           },
-          "title": "Rename workspace",
-          "trigger": "Rename workspace"
+          "title": "Rename project",
+          "trigger": "Rename project"
         }
       },
       "workspace_selector": {
         "create_failed": "Failed to add project.",
         "create_new": "Add new project",
         "empty_text": "No projects",
-        "placeholder": "Select workspace",
+        "placeholder": "Select project",
         "search_placeholder": "Search projects",
         "select_failed": "Failed to select folder."
       },
       "workspace_status": {
-        "inaccessible": "Workspace path is not accessible: {{path}}",
-        "missing": "Workspace path does not exist: {{path}}",
-        "not_directory": "Workspace path is not a directory: {{path}}"
+        "inaccessible": "Project path is not accessible: {{path}}",
+        "missing": "Project path does not exist: {{path}}",
+        "not_directory": "Project path is not a directory: {{path}}"
       }
     },
     "settings": {
@@ -807,7 +809,7 @@
         "deny": "Deny",
         "run": "Run"
       },
-      "confirmation": "Are you sure you want to run this Claude tool?",
+      "confirmation": "Allow tool call?",
       "defaultDenyMessage": "User denied permission for this tool.",
       "defaultDescription": "Executes code or system actions in your environment. Make sure the command looks safe before running it.",
       "error": {

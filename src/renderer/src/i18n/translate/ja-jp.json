@@ -436,6 +436,7 @@
         "title": "セッションを削除"
       },
       "display": {
+        "agent": "[to be translated]:Agent",
         "time": "[to be translated]:Time",
         "title": "[to be translated]:Display mode",
         "workdir": "[to be translated]:Workspace"
@@ -461,6 +462,7 @@
         "show_more": "[to be translated]:Show more sessions",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
         "yesterday": "[to be translated]:Yesterday"
       },
       "label_one": "セッション",
@@ -807,7 +809,7 @@
         "deny": "Deny",
         "run": "走る"
       },
-      "confirmation": "このClaudeツールを実行してもよろしいですか？",
+      "confirmation": "ツールの呼び出しを許可しますか？",
       "defaultDenyMessage": "ユーザーはこのツールの使用を拒否しました。",
       "defaultDescription": "環境内でコードまたはシステムアクションを実行します。実行前にコマンドが安全であることを確認してください。",
       "error": {

@@ -484,7 +484,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
   const streamStatusBySessionId = useAgentSessionStreamStatuses(sessionIds)
 
   const agentById = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents])
-  const noWorkdirLabel = t('agent.session.group.no_workdir', '无工作目录')
+  const noWorkdirLabel = t('agent.session.group.no_workdir')
   const statusItems = useMemo(
     () => buildAgentStatusItems(sessions, streamStatusBySessionId, t),
     [sessions, streamStatusBySessionId, t]

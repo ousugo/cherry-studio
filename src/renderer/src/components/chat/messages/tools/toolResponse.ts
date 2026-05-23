@@ -1,5 +1,6 @@
 import type { BaseTool, MCPTool, MCPToolResponse, MCPToolResponseStatus, NormalToolResponse } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { parseFunctionCallToolName } from '@shared/mcp'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
@@ -15,6 +16,8 @@ const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
 type ToolType = 'mcp' | 'builtin' | 'provider'
 
 type ToolMetadata = {
+  description?: string
+  name?: string
   serverId?: string
   serverName?: string
   type?: ToolType
@@ -71,6 +74,8 @@ function extractOutputMetadata(part: ToolResponsePart): { response: unknown; met
   if ('content' in output || metadata) {
     const normalizedMeta: ToolMetadata | undefined = metadata
       ? {
+          description: typeof metadata.description === 'string' ? metadata.description : undefined,
+          name: typeof metadata.name === 'string' ? metadata.name : undefined,
           serverId: typeof metadata.serverId === 'string' ? metadata.serverId : undefined,
           serverName: typeof metadata.serverName === 'string' ? metadata.serverName : undefined,
           type: isToolType(metadata.type) ? metadata.type : undefined
@@ -96,6 +101,8 @@ function extractCherryToolMetadataFrom(metadata: ProviderMetadata | undefined): 
   const tool = cherry && isRecord(cherry.tool) ? cherry.tool : undefined
   if (!tool) return undefined
   return {
+    description: typeof tool.description === 'string' ? tool.description : undefined,
+    name: typeof tool.name === 'string' ? tool.name : undefined,
     serverId: typeof tool.serverId === 'string' ? tool.serverId : undefined,
     serverName: typeof tool.serverName === 'string' ? tool.serverName : undefined,
     type: isToolType(tool.type) ? tool.type : undefined
@@ -132,6 +139,7 @@ function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
 
 function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {
   if (metadata?.type) return metadata.type
+  if (parseFunctionCallToolName(toolName)) return 'mcp'
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'
   if (hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (part.type === 'dynamic-tool' && isLegacyAgentToolName(toolName)) return 'provider'
@@ -141,11 +149,14 @@ function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: To
 }
 
 function buildMcpToolDescriptor(toolName: string, metadata?: ToolMetadata): MCPTool {
-  const serverId = metadata?.serverId ?? 'unknown'
-  const serverName = metadata?.serverName ?? 'MCP'
+  const parsed = parseFunctionCallToolName(toolName)
+  const serverId = metadata?.serverId ?? parsed?.serverPart ?? 'unknown'
+  const serverName = metadata?.serverName ?? parsed?.serverPart ?? 'MCP'
+  const displayName = metadata?.name ?? parsed?.toolPart ?? toolName
   return {
     id: `${serverId}__${toolName}`,
-    name: toolName,
+    name: displayName,
+    description: metadata?.description,
     type: 'mcp',
     serverId,
     serverName,

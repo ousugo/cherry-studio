@@ -436,6 +436,7 @@
         "title": "Xóa phiên"
       },
       "display": {
+        "agent": "[to be translated]:Agent",
         "time": "[to be translated]:Time",
         "title": "[to be translated]:Display mode",
         "workdir": "[to be translated]:Workspace"
@@ -461,6 +462,7 @@
         "show_more": "[to be translated]:Show more sessions",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
         "yesterday": "[to be translated]:Yesterday"
       },
       "label_one": "Phiên",
@@ -807,7 +809,7 @@
         "deny": "Deny",
         "run": "Chạy"
       },
-      "confirmation": "Bạn có chắc chắn muốn chạy công cụ Claude này không?",
+      "confirmation": "Cho phép gọi công cụ?",
       "defaultDenyMessage": "Người dùng đã từ chối cấp quyền cho công cụ này.",
       "defaultDescription": "Thực thi mã hoặc các hành động hệ thống trong môi trường của bạn. Hãy đảm bảo lệnh có vẻ an toàn trước khi chạy nó.",
       "error": {

@@ -421,7 +421,7 @@ describe('ArtifactPane', () => {
     fireEvent.mouseMove(document, { clientX: 500 })
 
     expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(1, 150)
-    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(2, 120)
+    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(2, 80)
     expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(3, 320)
 
     fireEvent.mouseUp(document)
@@ -455,8 +455,62 @@ describe('ArtifactPane', () => {
     fireEvent.mouseMove(document, { clientX: 600 })
     fireEvent.mouseUp(document)
 
-    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(1, 160)
+    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(1, 80)
     expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(2, 360)
+  })
+
+  it('keeps a non-zero minimum file tree width for narrow artifact panes', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
+
+    const root = container.firstElementChild
+    const pane = container.querySelector('[data-artifact-file-tree-pane]')
+    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
+
+    if (!root || !pane || !handle) {
+      throw new Error('Expected artifact root, file tree pane, and resize handle')
+    }
+
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 360, 500))
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, ARTIFACT_FILE_TREE_DEFAULT_WIDTH, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 260 })
+    fireEvent.mouseMove(document, { clientX: 50 })
+    fireEvent.mouseUp(document)
+
+    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(1, 80)
+  })
+
+  it('caps the minimum file tree width for large artifact panes', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
+
+    const root = container.firstElementChild
+    const pane = container.querySelector('[data-artifact-file-tree-pane]')
+    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
+
+    if (!root || !pane || !handle) {
+      throw new Error('Expected artifact root, file tree pane, and resize handle')
+    }
+
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 720, 500))
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, ARTIFACT_FILE_TREE_DEFAULT_WIDTH, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 260 })
+    fireEvent.mouseMove(document, { clientX: 50 })
+    fireEvent.mouseMove(document, { clientX: 800 })
+    fireEvent.mouseUp(document)
+
+    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(1, 80)
+    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(2, 580)
   })
 
   it('disables HTML iframe pointer events while resizing the file tree', async () => {

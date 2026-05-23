@@ -172,7 +172,7 @@ const SessionItem = ({
       {context.state.renamingId !== session.id && (
         <>
           {channelIcon && (
-            <ResourceList.ItemIcon className="size-4 rounded-sm">
+            <ResourceList.ItemIcon className="rounded-sm">
               <img src={channelIcon} alt="" className="size-3.5 rounded-[2px] object-contain" />
             </ResourceList.ItemIcon>
           )}

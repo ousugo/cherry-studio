@@ -296,6 +296,95 @@ describe('ClaudeCodeStreamAdapter', () => {
     })
   })
 
+  it('uses MCP display metadata for Claude Code MCP tool ids', () => {
+    const { adapter, parts } = createAdapter({
+      mcpToolMetadata: {
+        'mcp__8171b5f3-c666-4ead-b2ab-bb9ac244af57__resolve-library-id': {
+          type: 'mcp',
+          serverId: '8171b5f3-c666-4ead-b2ab-bb9ac244af57',
+          serverName: 'Context7',
+          name: 'resolve-library-id',
+          description: 'Resolve a package name into a Context7 library ID.'
+        }
+      }
+    })
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'tool_use',
+          id: 'mcp-approval-1',
+          name: 'mcp__8171b5f3-c666-4ead-b2ab-bb9ac244af57__resolve-library-id',
+          input: {}
+        }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+    expect(parts[0]).toMatchObject({
+      type: 'tool-input-start',
+      toolName: 'mcp__8171b5f3-c666-4ead-b2ab-bb9ac244af57__resolve-library-id',
+      title: 'Context7: resolve-library-id',
+      providerMetadata: {
+        cherry: {
+          tool: {
+            type: 'mcp',
+            serverId: '8171b5f3-c666-4ead-b2ab-bb9ac244af57',
+            serverName: 'Context7',
+            name: 'resolve-library-id',
+            description: 'Resolve a package name into a Context7 library ID.'
+          }
+        }
+      }
+    })
+    expect(parts[1]).toMatchObject({
+      type: 'tool-input-available',
+      providerMetadata: {
+        cherry: {
+          tool: {
+            name: 'resolve-library-id',
+            description: 'Resolve a package name into a Context7 library ID.'
+          }
+        }
+      }
+    })
+  })
+
+  it('falls back to parsed MCP tool names when display metadata is unavailable', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'tool_use',
+          id: 'mcp-approval-1',
+          name: 'mcp__context7__resolve-library-id',
+          input: {}
+        }
+      })
+    )
+
+    expect(parts[0]).toMatchObject({
+      type: 'tool-input-start',
+      toolName: 'mcp__context7__resolve-library-id',
+      title: 'context7: resolve-library-id',
+      providerMetadata: {
+        cherry: {
+          tool: {
+            type: 'mcp',
+            serverId: 'context7',
+            serverName: 'context7',
+            name: 'resolve-library-id'
+          }
+        }
+      }
+    })
+  })
+
   it('maps assistant server tool use and server tool result blocks', () => {
     const { adapter, parts } = createAdapter()
 

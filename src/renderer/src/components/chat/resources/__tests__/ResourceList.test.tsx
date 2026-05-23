@@ -184,11 +184,11 @@ describe('ResourceList', () => {
     expect(groupHeaders).toHaveLength(2)
     expect(items).toHaveLength(5)
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(19)
-    expect(groupHeaders[0]).toHaveClass('h-7', 'px-1', 'pt-2', 'pb-1', 'gap-1')
-    expect(groupHeaders[0].querySelector('[data-slot="skeleton"]')).toHaveClass('size-4.5')
-    expect(items[0]).toHaveClass('mb-[2px]', 'min-h-8', 'rounded-lg', 'px-1', 'py-1.5', 'gap-1')
-    expect(items[0].querySelector('[data-slot="skeleton"]')).toHaveClass('size-4.5')
-    expect(items[0].querySelectorAll('[data-slot="skeleton"]')[2]).toHaveClass('size-4.5')
+    expect(groupHeaders[0]).toHaveClass('h-7', 'px-1.5', 'pt-2', 'pb-1', 'gap-1.5')
+    expect(groupHeaders[0].querySelector('[data-slot="skeleton"]')).toHaveClass('size-5')
+    expect(items[0]).toHaveClass('mb-[2px]', 'min-h-8', 'rounded-lg', 'px-1.5', 'py-1.5', 'gap-1.5')
+    expect(items[0].querySelector('[data-slot="skeleton"]')).toHaveClass('size-5')
+    expect(items[0].querySelectorAll('[data-slot="skeleton"]')[2]).toHaveClass('size-5')
   })
 
   it('uses a border-only reveal focus animation without changing row background', () => {
@@ -826,6 +826,7 @@ describe('ResourceList', () => {
     expect(screen.getByText('Item 5')).toBeInTheDocument()
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     const showMoreButton = screen.getByRole('button', { name: 'Show more' })
+    expect(showMoreButton.parentElement).toHaveClass('pl-8')
     expect(showMoreButton).toHaveClass('text-[color:var(--resource-list-group-color)]')
     expect(showMoreButton).not.toHaveClass('opacity-[0.65]')
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 7 }))
@@ -1107,10 +1108,10 @@ describe('ResourceList', () => {
       'data-[state=open]:!text-foreground',
       '[&_.lucide:not(.lucide-custom)]:!text-current'
     )
-    expect(screen.getByRole('listbox')).toHaveClass('px-1')
-    expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass('gap-1', 'px-1')
-    expect(screen.getByTestId('alpha-icon')).toHaveClass('size-4.5')
-    expect(screen.getByRole('button', { name: 'Action Alpha' })).toHaveClass('size-4.5')
+    expect(screen.getByRole('listbox')).toHaveClass('px-1.5')
+    expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass('gap-1.5', 'px-1.5')
+    expect(screen.getByTestId('alpha-icon')).toHaveClass('size-5')
+    expect(screen.getByRole('button', { name: 'Action Alpha' })).toHaveClass('size-5')
   })
 
   it('does not reveal item actions just because a row is selected', () => {

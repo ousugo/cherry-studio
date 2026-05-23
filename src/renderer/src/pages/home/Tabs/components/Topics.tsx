@@ -3,6 +3,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  MenuDivider,
   MenuItem,
   MenuList,
   Popover,
@@ -49,11 +50,9 @@ import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
-  Check,
+  Bot,
   CheckSquare,
-  Clock3,
   Edit3,
-  ListChecks,
   ListFilter,
   MoreHorizontal,
   PinIcon,
@@ -82,7 +81,6 @@ import {
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
   TOPIC_PINNED_GROUP_ID,
-  TOPIC_TODAY_GROUP_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
   type TopicDisplayMode
 } from './Topics.helpers'
@@ -99,6 +97,38 @@ interface Props {
 }
 
 const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
+
+function buildCreateTopicPayload(
+  topic: Topic | null | undefined,
+  assistantById?: ReadonlyMap<string, unknown>
+): AddNewTopicPayload | undefined {
+  if (!topic) return undefined
+
+  const assistantId = topic.assistantId
+  return { assistantId: assistantId && assistantById?.has(assistantId) ? assistantId : null }
+}
+
+function findLatestCreateTopicPayload(
+  topics: readonly Topic[],
+  predicate: (topic: Topic) => boolean = () => true,
+  assistantById?: ReadonlyMap<string, unknown>
+): AddNewTopicPayload | undefined {
+  let latestTopic: Topic | null = null
+  let latestUpdatedAtMs = Number.NEGATIVE_INFINITY
+
+  for (const topic of topics) {
+    if (topic.pinned || !predicate(topic)) continue
+
+    const parsedUpdatedAtMs = Date.parse(topic.updatedAt)
+    const updatedAtMs = Number.isFinite(parsedUpdatedAtMs) ? parsedUpdatedAtMs : Number.NEGATIVE_INFINITY
+    if (!latestTopic || updatedAtMs > latestUpdatedAtMs) {
+      latestTopic = topic
+      latestUpdatedAtMs = updatedAtMs
+    }
+  }
+
+  return buildCreateTopicPayload(latestTopic, assistantById)
+}
 
 type AssistantGroupMoreMenuContentProps = {
   disabled?: boolean
@@ -183,7 +213,7 @@ function AssistantGroupMoreDropdownMenuContent({
           event.stopPropagation()
           void onDeleteAllTopics()
         }}>
-        <Trash2 size={14} />
+        <Trash2 size={14} className="lucide-custom text-destructive" />
         <span>{t('assistants.clear.menu_title')}</span>
       </DropdownMenuItem>
     </>
@@ -202,12 +232,18 @@ function resolveAssistantIdForTopicGroup(
   return assistantId
 }
 
-function TopicDisplayModeMenu({
+function TopicListOptionsMenu({
   mode,
-  onChange
+  onChange,
+  isManageMode,
+  onToggleManageMode,
+  onOpenHistory
 }: {
   mode: TopicDisplayMode
   onChange: (mode: TopicDisplayMode) => void
+  isManageMode: boolean
+  onToggleManageMode: () => void
+  onOpenHistory?: (origin?: DOMRectReadOnly) => void
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -219,7 +255,7 @@ function TopicDisplayModeMenu({
           <ListFilter className="block" />
         </ResourceList.HeaderActionButton>
       </PopoverTrigger>
-      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-28 rounded-lg border-border p-1 shadow-lg">
+      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-32 rounded-lg border-border p-1 shadow-lg">
         <MenuList className="gap-0.5">
           <div className="px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground/60">
             {t('chat.topics.display.title')}
@@ -229,14 +265,35 @@ function TopicDisplayModeMenu({
               key={option}
               label={t(`chat.topics.display.${option}`)}
               active={mode === option}
-              suffix={mode === option ? <Check size={11} /> : null}
-              className="h-6 gap-1.5 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground data-[active=true]:bg-accent data-[active=true]:text-foreground [&_svg]:size-3"
+              className="h-6 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground data-[active=true]:bg-accent data-[active=true]:text-foreground"
               onClick={() => {
                 onChange(option)
                 setOpen(false)
               }}
             />
           ))}
+          <MenuDivider className="my-0.5" />
+          <MenuItem
+            label={t('chat.topics.manage.title')}
+            active={isManageMode}
+            className="h-6 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground data-[active=true]:bg-accent data-[active=true]:text-foreground"
+            onClick={() => {
+              onToggleManageMode()
+              setOpen(false)
+            }}
+          />
+          {onOpenHistory && (
+            <>
+              <MenuItem
+                label={t('history.records.shortTitle')}
+                className="h-6 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground"
+                onClick={(event) => {
+                  onOpenHistory(event.currentTarget.getBoundingClientRect())
+                  setOpen(false)
+                }}
+              />
+            </>
+          )}
         </MenuList>
       </PopoverContent>
     </Popover>
@@ -289,7 +346,6 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   const [groupNow] = useState(() => dayjs())
   const { notesPath } = useNotesSettings()
   const { updateTopic: patchTopic, deleteTopic: deleteTopicById, refreshTopics } = useTopicMutations()
-  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [collapsedTopicGroupIds, setCollapsedTopicGroupIds] = usePreference('topic.tab.collapsed_group_ids')
   const [renamingTopics] = useCache('topic.renaming')
@@ -604,6 +660,15 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     () => filterTopicsForManageMode(groupedTopics, deferredSearchText, isManageMode),
     [deferredSearchText, groupedTopics, isManageMode]
   )
+  const headerCreateTopicPayload = useMemo(
+    () => findLatestCreateTopicPayload(filteredTopics, undefined, assistantById),
+    [assistantById, filteredTopics]
+  )
+  const getCreateTopicPayloadForGroup = useCallback(
+    (groupId: string) =>
+      findLatestCreateTopicPayload(filteredTopics, (topic) => topicGroupBy(topic)?.id === groupId, assistantById),
+    [assistantById, filteredTopics, topicGroupBy]
+  )
 
   const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)
   const listLoading =
@@ -691,18 +756,21 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
 
   const getGroupHeaderAction = useCallback(
     (group: { id: string }) => {
-      let payload: { assistantId: string | null } | undefined
       let assistantGroupId: string | undefined
 
-      if (displayMode === 'time') {
-        if (group.id !== TOPIC_TODAY_GROUP_ID) return null
-      } else {
-        const assistantId = getAssistantIdFromTopicGroupId(group.id)
-        if (!assistantId || !assistantById.has(assistantId)) return null
+      if (group.id === TOPIC_PINNED_GROUP_ID) return null
 
-        payload = { assistantId }
-        assistantGroupId = assistantId
+      if (displayMode !== 'time') {
+        const assistantId = getAssistantIdFromTopicGroupId(group.id)
+        if (assistantId && assistantById.has(assistantId)) {
+          assistantGroupId = assistantId
+        }
+
+        if (!assistantGroupId) return null
       }
+
+      const payload = getCreateTopicPayloadForGroup(group.id)
+      if (!payload && !assistantGroupId) return null
 
       return (
         <>
@@ -718,14 +786,16 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
               />
             </Tooltip>
           )}
-          <Tooltip title={t('chat.conversation.new')} delay={500}>
-            <ResourceList.HeaderActionButton
-              type="button"
-              aria-label={t('chat.conversation.new')}
-              onClick={() => void onNewTopic?.(payload)}>
-              <SquarePen className="block" />
-            </ResourceList.HeaderActionButton>
-          </Tooltip>
+          {payload && (
+            <Tooltip title={t('chat.conversation.new')} delay={500}>
+              <ResourceList.HeaderActionButton
+                type="button"
+                aria-label={t('chat.conversation.new')}
+                onClick={() => void onNewTopic?.(payload)}>
+                <SquarePen className="block" />
+              </ResourceList.HeaderActionButton>
+            </Tooltip>
+          )}
         </>
       )
     },
@@ -733,6 +803,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       assistantById,
       assistantPinnedIdSet,
       displayMode,
+      getCreateTopicPayloadForGroup,
       handleDeleteAssistantTopics,
       handleToggleAssistantPin,
       isAssistantPinActionDisabled,
@@ -768,6 +839,20 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       isAssistantPinActionDisabled,
       openAssistantEditor
     ]
+  )
+
+  const getGroupHeaderIcon = useCallback(
+    (group: { id: string }) => {
+      if (!isAssistantDisplayMode || group.id === TOPIC_PINNED_GROUP_ID) return undefined
+      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return null
+
+      const assistantId = getAssistantIdFromTopicGroupId(group.id)
+      const assistant = assistantId ? assistantById.get(assistantId) : undefined
+      if (!assistant) return undefined
+
+      return assistant.emoji ? <span className="text-[13px] leading-none">{assistant.emoji}</span> : <Bot size={13} />
+    },
+    [assistantById, isAssistantDisplayMode]
   )
 
   const getSelectableTopicIdsInGroup = useCallback(
@@ -818,7 +903,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
           aria-pressed={allSelected}
           disabled={topicIds.length === 0}
           className={cn(
-            'flex size-4.5 shrink-0 items-center justify-center rounded-lg text-foreground/70 outline-none transition-colors [&_svg]:size-3.5 [&_svg]:shrink-0',
+            'flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 outline-none transition-colors [&_svg]:size-3.5 [&_svg]:shrink-0',
             'hover:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:cursor-not-allowed disabled:opacity-50',
             (allSelected || partiallySelected) && 'text-(--color-primary)'
           )}
@@ -837,18 +922,6 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     (nextGroupIds: string[]) => void setCollapsedTopicGroupIds(nextGroupIds),
     [setCollapsedTopicGroupIds]
   )
-  const handleOpenHistoryOrToggleSidebar = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => {
-      if (onOpenHistory) {
-        onOpenHistory(event.currentTarget.getBoundingClientRect())
-        return
-      }
-
-      void setShowSidebar(!showSidebar)
-    },
-    [onOpenHistory, setShowSidebar, showSidebar]
-  )
-
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !isManageMode && !item.pinned,
     [isAssistantDisplayMode, isManageMode]
@@ -1012,6 +1085,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         groupLoadStep={5}
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
+        getGroupHeaderIcon={getGroupHeaderIcon}
         getGroupHeaderLeadingAction={getGroupHeaderLeadingAction}
         dragCapabilities={{
           groups: isAssistantDisplayMode && !isManageMode,
@@ -1034,29 +1108,18 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
             aria-label={t('chat.conversation.new')}
             icon={<SquarePen />}
             label={t('chat.conversation.new')}
-            onClick={() => void onNewTopic?.()}
+            onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
             actions={
               <>
-                <TopicDisplayModeMenu mode={displayMode} onChange={(nextMode) => void setTopicDisplayMode(nextMode)} />
-                <Tooltip title={t('chat.topics.manage.title')} delay={500}>
-                  <ResourceList.HeaderActionButton
-                    type="button"
-                    aria-label={t('chat.topics.manage.title')}
-                    aria-pressed={isManageMode}
-                    className={cn(isManageMode && '!text-foreground')}
-                    onClick={isManageMode ? exitManageMode : enterManageMode}>
-                    <ListChecks className="block" />
-                  </ResourceList.HeaderActionButton>
-                </Tooltip>
+                <TopicListOptionsMenu
+                  mode={displayMode}
+                  onChange={(nextMode) => void setTopicDisplayMode(nextMode)}
+                  isManageMode={isManageMode}
+                  onToggleManageMode={isManageMode ? exitManageMode : enterManageMode}
+                  onOpenHistory={onOpenHistory}
+                />
               </>
             }
-          />
-          <ResourceList.HeaderItem
-            type="button"
-            aria-label={onOpenHistory ? t('history.records.title') : t('shortcut.general.toggle_sidebar')}
-            icon={<Clock3 />}
-            label={t('history.records.shortTitle')}
-            onClick={handleOpenHistoryOrToggleSidebar}
           />
         </ResourceList.Header>
 
@@ -1367,7 +1430,7 @@ function TopicRow({
         onSwitchTopic(topic)
       }}>
       {isManageMode && (
-        <ResourceList.ItemIcon className={cn('mr-0.5', !canSelect && 'opacity-50')}>
+        <ResourceList.ItemIcon className={cn(!canSelect && 'opacity-50')}>
           {isSelected ? (
             <CheckSquare size={16} className="text-(--color-primary)" />
           ) : (

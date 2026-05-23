@@ -32,7 +32,7 @@ const logger = loggerService.withContext('ArtifactPane')
 export const ARTIFACT_PANE_WIDTH = 460
 export const ARTIFACT_FILE_TREE_DEFAULT_WIDTH = 160
 export const ARTIFACT_FILE_TREE_CACHE_KEY = 'ui.chat.artifact_pane.file_tree.width'
-const ARTIFACT_FILE_TREE_MIN_WIDTH_OFFSET = 340
+const ARTIFACT_FILE_TREE_MIN_WIDTH = 80
 const ARTIFACT_FILE_TREE_MAX_WIDTH_OFFSET = 140
 
 export interface ArtifactPaneProps {
@@ -239,7 +239,7 @@ interface HtmlPreviewPanelProps {
 }
 
 function getArtifactFileTreeWidthBounds(artifactPaneWidth: number) {
-  const minWidth = Math.max(0, Math.round(artifactPaneWidth - ARTIFACT_FILE_TREE_MIN_WIDTH_OFFSET))
+  const minWidth = ARTIFACT_FILE_TREE_MIN_WIDTH
   const maxWidth = Math.max(minWidth, Math.round(artifactPaneWidth - ARTIFACT_FILE_TREE_MAX_WIDTH_OFFSET))
   return { minWidth, maxWidth }
 }

@@ -2,7 +2,7 @@ import type { NormalToolResponse } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import PermissionRequestComposer, { type PermissionRequestComposerRequest } from '../PermissionRequestComposer'
 
@@ -13,7 +13,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
       ({
         'agent.toolPermission.defaultDenyMessage': 'User denied permission for this tool.',
         'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
-        'agent.toolPermission.confirmation': 'Are you sure you want to run this Claude tool?',
+        'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
         'agent.toolPermission.pending': 'Waiting for approval',
         'agent.toolPermission.button.allow': 'Allow',
@@ -53,7 +53,7 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
     messageId: 'message-1',
     toolCallId: 'call-1',
     approvalId: 'approval-1',
-    title: 'Allow CustomTool to run focused tests?',
+    title: 'CustomTool',
     toolResponse,
     match: {
       part,
@@ -68,10 +68,20 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
+  beforeEach(() => {
+    window.toast = { error: vi.fn() } as any
+  })
+
   it('submits an approval decision', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
-    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+    render(
+      <PermissionRequestComposer
+        request={makeRequest({ title: 'Allow CustomTool to run focused tests?' })}
+        onRespond={onRespond}
+      />
+    )
 
+    expect(screen.getByText('Allow tool call?')).toBeInTheDocument()
     expect(screen.getByText('Allow CustomTool to run focused tests?')).toBeInTheDocument()
     expect(screen.queryByText('Tool input preview')).not.toBeInTheDocument()
 
@@ -102,6 +112,7 @@ describe('PermissionRequestComposer', () => {
     render(
       <PermissionRequestComposer
         request={makeRequest({
+          title: 'lookup_docs',
           toolResponse: {
             id: 'mcp-call-1',
             toolCallId: 'mcp-call-1',
@@ -110,6 +121,7 @@ describe('PermissionRequestComposer', () => {
             tool: {
               id: 'docs-server__lookup_docs',
               name: 'lookup_docs',
+              description: 'Search project documentation.',
               type: 'mcp',
               serverId: 'docs-server',
               serverName: 'Docs',
@@ -122,9 +134,17 @@ describe('PermissionRequestComposer', () => {
     )
 
     expect(screen.getByText('lookup_docs')).toBeInTheDocument()
+    expect(screen.getByText('Search project documentation.')).toBeInTheDocument()
     expect(screen.queryByText('Docs : lookup_docs')).not.toBeInTheDocument()
     expect(screen.getByText('query')).toBeInTheDocument()
     expect(screen.getByText('composer')).toBeInTheDocument()
+  })
+
+  it('hides the request title when it only repeats the tool name', () => {
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.getByText('Allow tool call?')).toBeInTheDocument()
+    expect(screen.getAllByText('CustomTool')).toHaveLength(1)
   })
 
   it('disables actions while a response is submitting', async () => {
@@ -136,5 +156,19 @@ describe('PermissionRequestComposer', () => {
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
     expect(screen.getByRole('button', { name: 'Allow' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Deny' })).toBeDisabled()
+  })
+
+  it('re-enables the request when submitting the response fails', async () => {
+    const onRespond = vi.fn().mockRejectedValue(new Error('failed'))
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(window.toast.error).toHaveBeenCalledWith('Failed to send your decision. Please try again.')
+    )
+    expect(screen.getByRole('button', { name: 'Allow' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Deny' })).not.toBeDisabled()
   })
 })

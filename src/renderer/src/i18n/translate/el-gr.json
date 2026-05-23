@@ -436,6 +436,7 @@
         "title": "Διαγραφή συνεδρίας"
       },
       "display": {
+        "agent": "[to be translated]:Agent",
         "time": "[to be translated]:Time",
         "title": "[to be translated]:Display mode",
         "workdir": "[to be translated]:Workspace"
@@ -461,6 +462,7 @@
         "show_more": "[to be translated]:Show more sessions",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
         "yesterday": "[to be translated]:Yesterday"
       },
       "label_one": "Συνεδρία",
@@ -807,7 +809,7 @@
         "deny": "Deny",
         "run": "Τρέξε"
       },
-      "confirmation": "Είσαι σίγουρος ότι θέλεις να εκτελέσεις αυτό το εργαλείο Claude;",
+      "confirmation": "Να επιτραπεί η κλήση εργαλείου;",
       "defaultDenyMessage": "Ο χρήστης αρνήθηκε την άδεια για αυτό το εργαλείο.",
       "defaultDescription": "Εκτελεί κώδικα ή ενέργειες συστήματος στο περιβάλλον σας. Βεβαιωθείτε ότι η εντολή φαίνεται ασφαλής πριν την εκτελέσετε.",
       "error": {

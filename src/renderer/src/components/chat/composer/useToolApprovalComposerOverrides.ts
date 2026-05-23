@@ -1,5 +1,5 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import type { MessageToolApprovalInput } from '../messages/types'
 import type { ComposerOverride } from './ComposerContext'
@@ -19,11 +19,33 @@ export function useToolApprovalComposerOverrides({
   partsByMessageId,
   onRespond
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
+  const [dismissedApprovalIds, setDismissedApprovalIds] = useState<ReadonlySet<string>>(() => new Set())
   const askUserQuestionRequest = useMemo(
     () => findLatestPendingAskUserQuestionRequest(partsByMessageId),
     [partsByMessageId]
   )
   const permissionRequest = useMemo(() => findLatestPendingPermissionRequest(partsByMessageId), [partsByMessageId])
+  const visiblePermissionRequest =
+    permissionRequest && !dismissedApprovalIds.has(permissionRequest.approvalId) ? permissionRequest : null
+
+  const optimisticallyRespond = useCallback(
+    async (input: MessageToolApprovalInput) => {
+      const approvalId = input.match.approvalId
+      setDismissedApprovalIds((current) => new Set(current).add(approvalId))
+
+      try {
+        await onRespond(input)
+      } catch (error) {
+        setDismissedApprovalIds((current) => {
+          const next = new Set(current)
+          next.delete(approvalId)
+          return next
+        })
+        throw error
+      }
+    },
+    [onRespond]
+  )
 
   return useMemo(() => {
     const overrides: ComposerOverride[] = []
@@ -37,15 +59,15 @@ export function useToolApprovalComposerOverrides({
       )
     }
 
-    if (permissionRequest) {
+    if (visiblePermissionRequest) {
       overrides.push(
         createPermissionRequestComposerOverride({
-          request: permissionRequest,
-          onRespond
+          request: visiblePermissionRequest,
+          onRespond: optimisticallyRespond
         })
       )
     }
 
     return overrides
-  }, [askUserQuestionRequest, onRespond, permissionRequest])
+  }, [askUserQuestionRequest, onRespond, optimisticallyRespond, visiblePermissionRequest])
 }

@@ -436,6 +436,7 @@
         "title": "Sitzung löschen"
       },
       "display": {
+        "agent": "[to be translated]:Agent",
         "time": "[to be translated]:Time",
         "title": "[to be translated]:Display mode",
         "workdir": "[to be translated]:Workspace"
@@ -461,6 +462,7 @@
         "show_more": "[to be translated]:Show more sessions",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
         "yesterday": "[to be translated]:Yesterday"
       },
       "label_one": "Sitzung",
@@ -807,7 +809,7 @@
         "deny": "Deny",
         "run": "Laufen"
       },
-      "confirmation": "Bist du sicher, dass du dieses Claude-Tool ausführen möchtest?",
+      "confirmation": "Tool-Aufruf erlauben?",
       "defaultDenyMessage": "Der Benutzer hat die Berechtigung für dieses Tool verweigert.",
       "defaultDescription": "Führt Code oder Systemaktionen in Ihrer Umgebung aus. Vergewissern Sie sich, dass der Befehl sicher aussieht, bevor Sie ihn ausführen.",
       "error": {

@@ -436,9 +436,10 @@
         "title": "删除会话"
       },
       "display": {
+        "agent": "智能体",
         "time": "时间",
         "title": "展示方式",
-        "workdir": "工作目录"
+        "workdir": "项目"
       },
       "edit": {
         "title": "编辑会话"
@@ -457,10 +458,11 @@
       "group": {
         "collapse": "折叠显示",
         "earlier": "更早",
-        "no_workdir": "无工作目录",
+        "no_workdir": "无项目",
         "show_more": "展开显示",
         "this_week": "本周",
         "today": "今天",
+        "unknown_agent": "未知智能体",
         "yesterday": "昨天"
       },
       "label_one": "会话",
@@ -483,33 +485,33 @@
       },
       "workdir": {
         "delete": {
-          "content": "删除该工作目录会同时删除该工作目录下的所有会话；只会删除数据库记录，不会删除磁盘上的真实目录。",
+          "content": "删除该项目会同时删除该项目下的所有会话；只会删除数据库记录，不会删除磁盘上的真实目录。",
           "error": {
-            "failed": "删除工作目录失败"
+            "failed": "删除项目失败"
           },
-          "title": "删除工作目录",
-          "trigger": "删除工作目录"
+          "title": "删除项目",
+          "trigger": "删除项目"
         },
         "rename": {
           "error": {
-            "failed": "重命名工作目录失败"
+            "failed": "重命名项目失败"
           },
-          "title": "重命名工作目录",
-          "trigger": "重命名工作目录"
+          "title": "重命名项目",
+          "trigger": "重命名项目"
         }
       },
       "workspace_selector": {
         "create_failed": "添加项目失败。",
         "create_new": "添加新项目",
         "empty_text": "暂无项目",
-        "placeholder": "选择工作目录",
+        "placeholder": "选择项目",
         "search_placeholder": "搜索项目",
         "select_failed": "选择文件夹失败。"
       },
       "workspace_status": {
-        "inaccessible": "工作区路径不可访问：{{path}}",
-        "missing": "工作区路径不存在：{{path}}",
-        "not_directory": "工作区路径不是目录：{{path}}"
+        "inaccessible": "项目路径不可访问：{{path}}",
+        "missing": "项目路径不存在：{{path}}",
+        "not_directory": "项目路径不是目录：{{path}}"
       }
     },
     "settings": {
@@ -807,7 +809,7 @@
         "deny": "拒绝",
         "run": "运行"
       },
-      "confirmation": "确定要运行此 Claude 工具吗?",
+      "confirmation": "允许调用工具？",
       "defaultDenyMessage": "用户拒绝了该工具的权限。",
       "defaultDescription": "在您的环境中执行代码或系统操作。运行前请确保命令安全。",
       "error": {

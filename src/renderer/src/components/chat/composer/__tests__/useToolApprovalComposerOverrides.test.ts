@@ -1,5 +1,6 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { useToolApprovalComposerOverrides } from '../useToolApprovalComposerOverrides'
@@ -73,5 +74,54 @@ describe('useToolApprovalComposerOverrides', () => {
     )
 
     expect(result.current).toEqual([])
+  })
+
+  it('optimistically removes permission overrides while a response is pending', async () => {
+    const onRespond = vi.fn(() => new Promise<void>(() => undefined))
+    const { result } = renderHook(() =>
+      useToolApprovalComposerOverrides({
+        partsByMessageId: {
+          'message-1': [makePermissionPart()]
+        },
+        onRespond
+      })
+    )
+
+    const override = result.current.find((override) => override.id === 'tool-permission:approval-read')
+    const element = override?.render({}) as ReactElement<{ onRespond: (input: any) => Promise<void> }> | undefined
+
+    await act(async () => {
+      void element?.props.onRespond({
+        match: { approvalId: 'approval-read' }
+      })
+      await Promise.resolve()
+    })
+
+    expect(result.current.map((override) => override.id)).not.toContain('tool-permission:approval-read')
+  })
+
+  it('restores permission overrides when an optimistic response fails', async () => {
+    const onRespond = vi.fn().mockRejectedValue(new Error('failed'))
+    const { result } = renderHook(() =>
+      useToolApprovalComposerOverrides({
+        partsByMessageId: {
+          'message-1': [makePermissionPart()]
+        },
+        onRespond
+      })
+    )
+
+    const override = result.current.find((override) => override.id === 'tool-permission:approval-read')
+    const element = override?.render({}) as ReactElement<{ onRespond: (input: any) => Promise<void> }> | undefined
+
+    await act(async () => {
+      await expect(
+        element?.props.onRespond({
+          match: { approvalId: 'approval-read' }
+        })
+      ).rejects.toThrow('failed')
+    })
+
+    expect(result.current.map((override) => override.id)).toContain('tool-permission:approval-read')
   })
 })

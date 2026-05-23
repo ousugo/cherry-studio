@@ -16,15 +16,24 @@ import type { AgentSessionDisplayMode as PreferenceAgentSessionDisplayMode } fro
 
 export type AgentSessionDisplayMode = PreferenceAgentSessionDisplayMode
 
+export type SessionDisplayAgent = {
+  id: string
+  name: string
+}
+
 export type SessionDisplayGroupLabels = {
   pinned: string
   time: Record<ResourceListTimeBucket, string>
+  agent: {
+    unknown: string
+  }
   workdir: {
     none: string
   }
 }
 
 export type SessionDisplayGroupOptions = {
+  agentById?: ReadonlyMap<string, SessionDisplayAgent>
   labels: SessionDisplayGroupLabels
   mode: AgentSessionDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
@@ -32,6 +41,7 @@ export type SessionDisplayGroupOptions = {
 }
 
 export type SessionDisplaySortOptions = {
+  agentRankById?: ReadonlyMap<string, number>
   mode: AgentSessionDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
   workdirDisplay?: Pick<SessionWorkdirDisplayMaps, 'groupIdByPath' | 'groupIdByWorkspaceId' | 'rankByGroupId'>
@@ -61,8 +71,10 @@ const SESSION_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
 }
 
 export const SESSION_PINNED_GROUP_ID = 'session:pinned'
+export const SESSION_UNKNOWN_AGENT_GROUP_ID = 'session:agent:unknown'
 export const SESSION_NO_WORKDIR_GROUP_ID = 'session:workdir:none'
 
+const SESSION_AGENT_GROUP_ID_PREFIX = 'session:agent:'
 const SESSION_WORKSPACE_GROUP_ID_PREFIX = 'session:workspace:'
 const SESSION_WORKDIR_GROUP_ID_PREFIX = 'session:workdir:'
 const UNKNOWN_GROUP_RANK = Number.MAX_SAFE_INTEGER
@@ -73,6 +85,15 @@ function withSessionGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): Re
     if (!group) return null
     return { ...group, id: `session:${group.id}` }
   }
+}
+
+export function getSessionAgentGroupId(agentId: string) {
+  return `${SESSION_AGENT_GROUP_ID_PREFIX}${agentId}`
+}
+
+export function getAgentIdFromSessionGroupId(groupId: string): string | undefined {
+  if (groupId === SESSION_UNKNOWN_AGENT_GROUP_ID || !groupId.startsWith(SESSION_AGENT_GROUP_ID_PREFIX)) return undefined
+  return groupId.slice(SESSION_AGENT_GROUP_ID_PREFIX.length)
 }
 
 export function getWorkdirPathFromSessionGroupId(groupId: string): string | undefined {
@@ -231,6 +252,7 @@ export function createSessionWorkdirRankMap(
 }
 
 export function createSessionDisplayGroupResolver<T extends SessionListItem>({
+  agentById,
   labels,
   mode,
   now,
@@ -252,6 +274,25 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
         })
       )
     )
+  }
+
+  if (mode === 'agent') {
+    const pinnedResolver = createPinnedGroupResolver<T>({
+      isPinned: (session) => session.pinned === true,
+      group: { id: SESSION_PINNED_GROUP_ID, label: labels.pinned } satisfies ResourceListGroup
+    })
+
+    return composeResourceListGroupResolvers(pinnedResolver, (session) => {
+      const agentId = session.agentId
+      if (!agentId) {
+        return { id: SESSION_UNKNOWN_AGENT_GROUP_ID, label: labels.agent.unknown }
+      }
+
+      const agent = agentById?.get(agentId)
+      return agent
+        ? { id: getSessionAgentGroupId(agent.id), label: agent.name }
+        : { id: SESSION_UNKNOWN_AGENT_GROUP_ID, label: labels.agent.unknown }
+    })
   }
 
   const pinnedResolver = createPinnedGroupResolver<T>({
@@ -291,6 +332,11 @@ function getWorkdirGroupRank(
   return workdirDisplay?.rankByGroupId.get(groupId) ?? UNKNOWN_GROUP_RANK
 }
 
+function getAgentGroupRank(session: Pick<AgentSessionEntity, 'agentId'>, agentRankById?: ReadonlyMap<string, number>) {
+  if (!session.agentId) return UNKNOWN_GROUP_RANK
+  return agentRankById?.get(session.agentId) ?? UNKNOWN_GROUP_RANK
+}
+
 export function sortSessionsForDisplayGroups<T extends SessionListItem>(
   sessions: readonly T[],
   options: SessionDisplaySortOptions
@@ -318,7 +364,10 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
 
   return sessions
     .map((session, index) => {
-      const displayRank = getWorkdirGroupRank(session, options.workdirDisplay)
+      const displayRank =
+        options.mode === 'agent'
+          ? getAgentGroupRank(session, options.agentRankById)
+          : getWorkdirGroupRank(session, options.workdirDisplay)
 
       return {
         session,
@@ -363,7 +412,7 @@ export function canDropSessionItemInDisplayGroup({
   sourceGroupId: string
   targetGroupId: string
 }) {
-  return mode === 'workdir' && sourceGroupId === targetGroupId && targetGroupId !== SESSION_PINNED_GROUP_ID
+  return mode !== 'time' && sourceGroupId === targetGroupId && targetGroupId !== SESSION_PINNED_GROUP_ID
 }
 
 export function applyOptimisticSessionDisplayMove<T extends SessionListItem>(
