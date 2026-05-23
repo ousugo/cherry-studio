@@ -26,8 +26,6 @@ const historyTopic: Topic = {
 }
 
 const homeMocks = vi.hoisted(() => ({
-  cacheGet: vi.fn(),
-  cacheSet: vi.fn(),
   cacheSetPersist: vi.fn(),
   discardTemporaryConversation: vi.fn(),
   activeTopicLoading: false,
@@ -43,13 +41,6 @@ const homeMocks = vi.hoisted(() => ({
   startTemporaryConversation: vi.fn(),
   temporaryConversation: null as any,
   updateTemporaryAssistant: vi.fn()
-}))
-
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    get: homeMocks.cacheGet,
-    set: homeMocks.cacheSet
-  }
 }))
 
 vi.mock('@data/hooks/usePreference', async () => {
@@ -217,7 +208,6 @@ describe('HomePage', () => {
     vi.clearAllMocks()
     homeMocks.historyTopic = historyTopic
     homeMocks.locationState = { topic: initialTopic }
-    homeMocks.cacheGet.mockReturnValue(undefined)
     homeMocks.persistCacheValues.clear()
     homeMocks.persistTemporaryConversation.mockResolvedValue(null)
     homeMocks.replaceTemporaryConversation.mockResolvedValue({
@@ -330,7 +320,6 @@ describe('HomePage', () => {
   })
 
   it('does not lease another temporary topic while the active temporary topic is still empty', async () => {
-    homeMocks.cacheGet.mockReturnValue(true)
     homeMocks.locationState = undefined
     homeMocks.temporaryConversation = {
       assistantId: 'assistant-1',
@@ -353,7 +342,6 @@ describe('HomePage', () => {
   })
 
   it('updates the active temporary topic assistant without changing the topic id', async () => {
-    homeMocks.cacheGet.mockReturnValue(true)
     homeMocks.locationState = undefined
     homeMocks.temporaryConversation = {
       assistantId: 'assistant-1',

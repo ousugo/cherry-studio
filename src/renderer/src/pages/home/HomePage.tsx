@@ -1,4 +1,3 @@
-import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
@@ -63,12 +62,7 @@ const HomePage: FC = () => {
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
 
-  const [shouldUseTemporary] = useState(() => {
-    if (state?.topic) return false
-    if (cacheService.get('topic.home.first_launch_temp_used')) return false
-    cacheService.set('topic.home.first_launch_temp_used', true)
-    return true
-  })
+  const shouldUseTemporary = !state?.topic
 
   const temporaryConversation = useTemporaryConversation({ type: 'assistant' })
   const {

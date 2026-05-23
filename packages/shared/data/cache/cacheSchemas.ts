@@ -138,7 +138,6 @@ export type UseCacheSchema = {
   'topic.active_id': string | null
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
-  'topic.home.first_launch_temp_used': boolean
 
   // Agent management — sessions are the user-facing primary; active agent is
   // derived from the active session's `agentId`, so a single pointer is enough.
@@ -212,7 +211,6 @@ export const DefaultUseCache: UseCacheSchema = {
   'topic.active_id': null,
   'topic.renaming': [],
   'topic.newly_renamed': [],
-  'topic.home.first_launch_temp_used': false,
 
   // Agent management
   'agent.active_session_id': null,
