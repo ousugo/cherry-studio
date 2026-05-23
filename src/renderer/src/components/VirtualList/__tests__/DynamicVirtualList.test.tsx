@@ -118,6 +118,12 @@ describe('DynamicVirtualList', () => {
       expect(firstItem).toHaveStyle('margin: 5px')
     })
 
+    it('should skip item measurement when callers provide a fixed item height', () => {
+      render(<DynamicVirtualList {...defaultProps} itemContainerStyle={{ height: 32 }} />)
+
+      expect(mocks.virtualizer.measureElement).not.toHaveBeenCalled()
+    })
+
     it('should expose the scroll element and allow overriding the container role', () => {
       const onScrollElementReady = vi.fn()
 

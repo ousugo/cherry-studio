@@ -1,23 +1,34 @@
 import type { ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from 'react'
 
 import {
+  ResourceListActionsContext,
   ResourceListContext,
   type ResourceListContextValue,
+  ResourceListControlsContext,
+  type ResourceListControlsState,
   type ResourceListDragCapabilities,
   type ResourceListFilterOption,
   type ResourceListGroup,
   type ResourceListGroupHeaderClickBehavior,
+  type ResourceListItemAccessors,
+  ResourceListItemAccessorsContext,
   type ResourceListItemBase,
   type ResourceListMeta,
+  ResourceListMetaContext,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSortOption,
+  ResourceListSourceItemsContext,
   type ResourceListState,
   type ResourceListStatus,
+  ResourceListUiStoreContext,
   type ResourceListVariantContext,
+  type ResourceListView,
+  ResourceListViewContext,
   type ResourceListViewGroup
 } from './ResourceListContext'
+import { ResourceListUiStore } from './ResourceListUiStore'
 
 const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
 const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = []
@@ -410,7 +421,20 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const filterById = useMemo(() => new Map(filterOptions.map((option) => [option.id, option])), [filterOptions])
   const sortById = useMemo(() => new Map(sortOptions.map((option) => [option.id, option])), [sortOptions])
   const effectiveCollapsedGroupIds = collapsedGroupIds ?? state.collapsedGroups
+  const effectiveSelectedId = selectedIdProp !== undefined ? selectedIdProp : state.selectedId
+  const isSelectedControlled = selectedIdProp !== undefined
   const handledRevealRequestRef = useRef<string | null>(null)
+  const uiStoreRef = useRef<ResourceListUiStore | null>(null)
+  if (!uiStoreRef.current) {
+    uiStoreRef.current = new ResourceListUiStore({
+      draggingId: state.draggingId,
+      hoveredId: state.hoveredId,
+      renamingId: state.renamingId,
+      revealFocus: state.revealFocus,
+      selectedId: effectiveSelectedId
+    })
+  }
+  const uiStore = uiStoreRef.current
   const getGroupHeaderClickBehavior = useCallback(
     (group: ResourceListGroup) =>
       typeof groupHeaderClickBehavior === 'function' ? groupHeaderClickBehavior(group) : groupHeaderClickBehavior,
@@ -519,6 +543,30 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
 
   const visibleItems = useMemo(() => viewGroups.flatMap((group) => group.items), [viewGroups])
 
+  useLayoutEffect(() => {
+    uiStore.setSelectedId(effectiveSelectedId)
+  }, [effectiveSelectedId, uiStore])
+
+  useLayoutEffect(() => {
+    uiStore.setHoveredId(state.hoveredId)
+  }, [state.hoveredId, uiStore])
+
+  useLayoutEffect(() => {
+    uiStore.setRenamingId(state.renamingId)
+  }, [state.renamingId, uiStore])
+
+  useLayoutEffect(() => {
+    uiStore.setRevealFocus(state.revealFocus)
+  }, [state.revealFocus, uiStore])
+
+  useLayoutEffect(() => {
+    uiStore.setDraggingId(state.draggingId)
+  }, [state.draggingId, uiStore])
+
+  useLayoutEffect(() => {
+    uiStore.setViewGroups(viewGroups, getItemId)
+  }, [getItemId, uiStore, viewGroups])
+
   const actions = useMemo(
     () => ({
       setQuery: (query: string) => dispatch({ type: 'setQuery', query }),
@@ -526,19 +574,35 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       toggleFilter: (filterId: string) => dispatch({ type: 'toggleFilter', filterId }),
       setSort: (sortId: string | null) => dispatch({ type: 'setSort', sort: sortId }),
       selectItem: (id: string) => {
-        dispatch({ type: 'selectItem', id })
+        if (!isSelectedControlled) {
+          uiStore.setSelectedId(id)
+          dispatch({ type: 'selectItem', id })
+        }
         onSelectItem?.(id)
       },
-      hoverItem: (id: string | null) => dispatch({ type: 'hoverItem', id }),
-      startRename: (id: string) => dispatch({ type: 'startRename', id }),
+      hoverItem: (id: string | null) => {
+        uiStore.setHoveredId(id)
+        dispatch({ type: 'hoverItem', id })
+      },
+      startRename: (id: string) => {
+        uiStore.setRenamingId(id)
+        dispatch({ type: 'startRename', id })
+      },
       commitRename: (id: string, name: string) => {
         onRenameItem?.(id, name)
+        uiStore.setRenamingId(null)
         dispatch({ type: 'cancelRename' })
       },
-      cancelRename: () => dispatch({ type: 'cancelRename' }),
+      cancelRename: () => {
+        uiStore.setRenamingId(null)
+        dispatch({ type: 'cancelRename' })
+      },
       openContextMenu: (id: string) => onOpenContextMenu?.(id),
       selectGroupHeaderItem: (id: string) => {
-        dispatch({ type: 'selectItem', id })
+        if (!isSelectedControlled) {
+          uiStore.setSelectedId(id)
+          dispatch({ type: 'selectItem', id })
+        }
         const handleSelect = onGroupHeaderSelectItem ?? onSelectItem
         handleSelect?.(id)
       },
@@ -562,72 +626,41 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       collapsedGroupIds,
       defaultGroupVisibleCount,
       effectiveCollapsedGroupIds,
+      isSelectedControlled,
       onCollapsedGroupIdsChange,
       onGroupHeaderSelectItem,
       onOpenContextMenu,
       onRenameItem,
       onReorder,
-      onSelectItem
+      onSelectItem,
+      uiStore
     ]
   )
 
-  const context = useMemo<ResourceListContextValue<T>>(
+  const controlsState = useMemo<ResourceListControlsState>(
     () => ({
-      state: {
-        ...state,
-        collapsedGroups: [...effectiveCollapsedGroupIds],
-        selectedId: selectedIdProp !== undefined ? selectedIdProp : state.selectedId,
-        status
-      },
-      actions,
-      meta: {
-        variant,
-        getItemId,
-        getItemLabel,
-        groups: viewGroups.map((group) => group.group),
-        getGroupHeaderAction,
-        getGroupHeaderContextMenu,
-        getGroupHeaderLeadingAction,
-        getGroupHeaderIcon,
-        getGroupHeaderClassName,
-        getGroupHeaderTooltip,
-        getGroupHeaderClickBehavior,
-        sortOptions,
-        filterOptions,
-        estimateItemSize,
-        defaultGroupVisibleCount,
-        groupLoadStep,
-        groupShowMoreLabel,
-        groupCollapseLabel,
-        revealRequest,
-        dragCapabilities: {
-          groups: false,
-          items: true,
-          itemSameGroup: true,
-          itemCrossGroup: false,
-          ...dragCapabilities
-        },
-        canDragGroup,
-        canDragItem,
-        canDropGroup,
-        canDropItem
-      },
-      sourceItems: items,
-      view: {
-        items: viewItems,
-        visibleItems,
-        groups: viewGroups
-      }
+      filters: state.filters,
+      query: state.query,
+      sort: state.sort,
+      status
     }),
-    [
-      actions,
-      defaultGroupVisibleCount,
-      dragCapabilities,
-      effectiveCollapsedGroupIds,
-      estimateItemSize,
-      filterOptions,
+    [state.filters, state.query, state.sort, status]
+  )
+
+  const itemAccessors = useMemo<ResourceListItemAccessors<T>>(
+    () => ({
+      getItemId,
+      getItemLabel
+    }),
+    [getItemId, getItemLabel]
+  )
+
+  const meta = useMemo<ResourceListMeta<T>>(
+    () => ({
+      variant,
       getItemId,
       getItemLabel,
+      groups: viewGroups.map((group) => group.group),
       getGroupHeaderAction,
       getGroupHeaderContextMenu,
       getGroupHeaderLeadingAction,
@@ -635,29 +668,102 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderClassName,
       getGroupHeaderTooltip,
       getGroupHeaderClickBehavior,
+      sortOptions,
+      filterOptions,
+      estimateItemSize,
+      defaultGroupVisibleCount,
+      groupLoadStep,
+      groupShowMoreLabel,
+      groupCollapseLabel,
+      revealRequest,
+      dragCapabilities: {
+        groups: false,
+        items: true,
+        itemSameGroup: true,
+        itemCrossGroup: false,
+        ...dragCapabilities
+      },
+      canDragGroup,
+      canDragItem,
+      canDropGroup,
+      canDropItem
+    }),
+    [
       canDragGroup,
       canDragItem,
       canDropGroup,
       canDropItem,
-      groupLoadStep,
+      defaultGroupVisibleCount,
+      dragCapabilities,
+      estimateItemSize,
+      filterOptions,
+      getGroupHeaderAction,
+      getGroupHeaderClassName,
+      getGroupHeaderClickBehavior,
+      getGroupHeaderContextMenu,
+      getGroupHeaderIcon,
+      getGroupHeaderLeadingAction,
+      getGroupHeaderTooltip,
+      getItemId,
+      getItemLabel,
       groupCollapseLabel,
+      groupLoadStep,
       groupShowMoreLabel,
       revealRequest,
-      items,
-      selectedIdProp,
       sortOptions,
-      state,
-      status,
       variant,
-      visibleItems,
-      viewGroups,
-      viewItems
+      viewGroups
     ]
   )
 
+  const view = useMemo<ResourceListView<T>>(
+    () => ({
+      items: viewItems,
+      visibleItems,
+      groups: viewGroups
+    }),
+    [viewGroups, viewItems, visibleItems]
+  )
+
+  const legacyState = useMemo<ResourceListState>(
+    () => ({
+      ...state,
+      collapsedGroups: [...effectiveCollapsedGroupIds],
+      selectedId: effectiveSelectedId,
+      status
+    }),
+    [effectiveCollapsedGroupIds, effectiveSelectedId, state, status]
+  )
+
+  const context = useMemo<ResourceListContextValue<T>>(
+    () => ({
+      state: legacyState,
+      actions,
+      meta,
+      sourceItems: items,
+      view
+    }),
+    [actions, items, legacyState, meta, view]
+  )
+
   return (
-    <ResourceListContext value={context as unknown as ResourceListContextValue<ResourceListItemBase>}>
-      {children}
-    </ResourceListContext>
+    <ResourceListUiStoreContext value={uiStore}>
+      <ResourceListActionsContext value={actions}>
+        <ResourceListItemAccessorsContext
+          value={itemAccessors as unknown as ResourceListItemAccessors<ResourceListItemBase>}>
+          <ResourceListMetaContext value={meta as unknown as ResourceListMeta<ResourceListItemBase>}>
+            <ResourceListSourceItemsContext value={items}>
+              <ResourceListViewContext value={view as unknown as ResourceListView<ResourceListItemBase>}>
+                <ResourceListControlsContext value={controlsState}>
+                  <ResourceListContext value={context as unknown as ResourceListContextValue<ResourceListItemBase>}>
+                    {children}
+                  </ResourceListContext>
+                </ResourceListControlsContext>
+              </ResourceListViewContext>
+            </ResourceListSourceItemsContext>
+          </ResourceListMetaContext>
+        </ResourceListItemAccessorsContext>
+      </ResourceListActionsContext>
+    </ResourceListUiStoreContext>
   )
 }

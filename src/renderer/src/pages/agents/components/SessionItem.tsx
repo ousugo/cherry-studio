@@ -1,6 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
-import { ResourceList, useResourceList } from '@renderer/components/chat/resources'
+import { ResourceList, useResourceListActions, useResourceListRowState } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { isMac } from '@renderer/config/constant'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -42,7 +42,8 @@ const SessionItem = ({
   session
 }: SessionItemProps) => {
   const { t } = useTranslation()
-  const context = useResourceList<AgentSessionEntity>()
+  const actions = useResourceListActions()
+  const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
@@ -50,7 +51,7 @@ const SessionItem = ({
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const deleteConfirmationTimeoutRef = useRef<number | null>(null)
   const channelIcon = getChannelTypeIcon(channelType)
-  const isActive = context.state.selectedId === session.id
+  const isActive = rowState.selected
   const sessionName = session.name ?? session.id
   const isRenaming = renamingTopics?.includes(topicId) === true
   const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
@@ -58,11 +59,11 @@ const SessionItem = ({
   const hasStreamIndicator = !isActive && (isStreamPending || isStreamFulfilled)
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
 
-  const startInlineEdit = useCallback(() => context.actions.startRename(session.id), [context.actions, session.id])
+  const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
   const startMenuEdit = useCallback(() => setRenameDialogOpen(true), [])
   const submitRenameDialog = useCallback(
-    (name: string) => context.actions.commitRename(session.id, name),
-    [context.actions, session.id]
+    (name: string) => actions.commitRename(session.id, name),
+    [actions, session.id]
   )
   const handleDelete = useCallback(() => {
     void onDelete(session.id)
@@ -178,7 +179,7 @@ const SessionItem = ({
         onClick={(event) => event.stopPropagation()}
       />
 
-      {context.state.renamingId !== session.id && (
+      {!rowState.renaming && (
         <>
           {channelIcon && (
             <ResourceList.ItemIcon className="rounded-sm">

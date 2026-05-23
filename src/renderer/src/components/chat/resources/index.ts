@@ -5,6 +5,7 @@ export type {
   ResourceListFilterOption,
   ResourceListGroup,
   ResourceListGroupReorderPayload,
+  ResourceListItemAccessors,
   ResourceListItemBase,
   ResourceListItemReorderPayload,
   ResourceListMeta,
@@ -17,7 +18,17 @@ export type {
   ResourceListView,
   ResourceListViewGroup
 } from './ResourceList'
-export { ResourceList, useResourceList } from './ResourceList'
+export {
+  ResourceList,
+  useResourceList,
+  useResourceListActions,
+  useResourceListControlsState,
+  useResourceListGroupState,
+  useResourceListItemAccessors,
+  useResourceListMeta,
+  useResourceListRowState,
+  useResourceListView
+} from './ResourceList'
 export type { ResourceListGroupResolver, ResourceListTimeBucket } from './resourceListGrouping'
 export {
   composeResourceListGroupResolvers,

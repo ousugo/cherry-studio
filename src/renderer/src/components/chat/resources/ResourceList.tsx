@@ -4,7 +4,18 @@ import { SearchIcon } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 
-import { type ResourceListContextValue, type ResourceListItemBase, useResourceList } from './ResourceListContext'
+import {
+  type ResourceListContextValue,
+  type ResourceListItemBase,
+  useResourceList,
+  useResourceListActions,
+  useResourceListControlsState,
+  useResourceListGroupState,
+  useResourceListItemAccessors,
+  useResourceListMeta,
+  useResourceListRowState,
+  useResourceListView
+} from './ResourceListContext'
 import { ResourceListContextMenu } from './ResourceListContextMenu'
 import { GroupHeader, GroupShowMore } from './ResourceListGroups'
 import { ResourceListProvider } from './ResourceListProvider'
@@ -17,6 +28,7 @@ export type {
   ResourceListFilterOption,
   ResourceListGroup,
   ResourceListGroupHeaderClickBehavior,
+  ResourceListItemAccessors,
   ResourceListItemBase,
   ResourceListMeta,
   ResourceListReorderPayload,
@@ -35,7 +47,7 @@ type FrameProps = ComponentProps<'div'> & {
 }
 
 function Frame({ className, ref, ...props }: FrameProps) {
-  const { meta } = useResourceList()
+  const meta = useResourceListMeta()
   return (
     <div
       ref={ref}
@@ -56,7 +68,8 @@ type SearchProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> & {
 }
 
 function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProps) {
-  const { actions, state } = useResourceList()
+  const actions = useResourceListActions()
+  const state = useResourceListControlsState()
   const searchIcon = icon === undefined ? <SearchIcon size={12} /> : icon
   return (
     <div className={cn('relative', wrapperClassName)}>
@@ -192,7 +205,9 @@ type FilterBarProps = ComponentProps<'div'> & {
 }
 
 function FilterBar({ className, ref, ...props }: FilterBarProps) {
-  const { actions, meta, state } = useResourceList()
+  const actions = useResourceListActions()
+  const meta = useResourceListMeta()
+  const state = useResourceListControlsState()
 
   if (meta.filterOptions.length === 0 && meta.sortOptions.length === 0) {
     return null
@@ -248,26 +263,26 @@ function Item<T extends ResourceListItemBase>({
   tabIndex,
   ...props
 }: ItemProps<T>) {
-  const { actions, meta, state } = useResourceList<T>()
-  const id = meta.getItemId(item)
-  const selected = state.selectedId === id
-  const hovered = state.hoveredId === id
-  const revealFocused = state.revealFocus?.itemId === id
+  const actions = useResourceListActions()
+  const { getItemId } = useResourceListItemAccessors<T>()
+  const id = getItemId(item)
+  const rowState = useResourceListRowState(id)
 
   return (
     <div
       ref={ref}
       role="option"
-      aria-selected={selected}
-      data-selected={selected || undefined}
-      data-hovered={hovered || undefined}
-      data-reveal-focus={revealFocused || undefined}
+      aria-selected={rowState.selected}
+      data-selected={rowState.selected || undefined}
+      data-hovered={rowState.hovered || undefined}
+      data-reveal-focus={rowState.revealFocused || undefined}
+      data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? 0}
       className={cn(
         'group flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] outline-none transition-all duration-150',
         'hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring',
-        selected && 'bg-accent text-foreground',
-        revealFocused && 'animation-resource-list-reveal-focus',
+        rowState.selected && 'bg-accent text-foreground',
+        rowState.revealFocused && 'animation-resource-list-reveal-focus',
         className
       )}
       onClick={(event) => {
@@ -303,8 +318,10 @@ type RenameFieldProps<T extends ResourceListItemBase> = Omit<
 }
 
 function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...props }: RenameFieldProps<T>) {
-  const { actions, meta, state } = useResourceList<T>()
-  const id = meta.getItemId(item)
+  const actions = useResourceListActions()
+  const { getItemId, getItemLabel } = useResourceListItemAccessors<T>()
+  const id = getItemId(item)
+  const rowState = useResourceListRowState(id)
   const didCommitRef = useRef(false)
   const setInputRef = useCallback(
     (node: HTMLInputElement | null) => {
@@ -318,10 +335,10 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
   )
 
   useEffect(() => {
-    if (state.renamingId !== id) {
+    if (!rowState.renaming) {
       didCommitRef.current = false
     }
-  }, [state.renamingId, id])
+  }, [rowState.renaming])
 
   const commitRename = (name: string) => {
     if (didCommitRef.current) return
@@ -329,12 +346,12 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
     actions.commitRename(id, name)
   }
 
-  if (state.renamingId !== id) return null
+  if (!rowState.renaming) return null
 
   return (
     <Input
       ref={setInputRef}
-      defaultValue={meta.getItemLabel(item)}
+      defaultValue={getItemLabel(item)}
       className={cn(
         'h-6 flex-1 border-none bg-transparent px-0 text-[13px] text-sidebar-foreground/70 shadow-none focus-visible:ring-0',
         className
@@ -449,17 +466,18 @@ function Body<T extends ResourceListItemBase>({
   renderItem,
   virtualClassName
 }: BodyProps<T>) {
-  const context = useResourceList<T>()
+  const state = useResourceListControlsState()
+  const view = useResourceListView<T>()
 
-  if (context.state.status === 'loading') {
+  if (state.status === 'loading') {
     return <LoadingState />
   }
 
-  if (context.state.status === 'error') {
+  if (state.status === 'error') {
     return errorFallback ?? <ErrorState />
   }
 
-  if (context.view.items.length === 0) {
+  if (view.items.length === 0) {
     return emptyFallback ?? <EmptyState />
   }
 
@@ -555,4 +573,14 @@ const ResourceList = {
   ErrorState
 }
 
-export { ResourceList, useResourceList }
+export {
+  ResourceList,
+  useResourceList,
+  useResourceListActions,
+  useResourceListControlsState,
+  useResourceListGroupState,
+  useResourceListItemAccessors,
+  useResourceListMeta,
+  useResourceListRowState,
+  useResourceListView
+}

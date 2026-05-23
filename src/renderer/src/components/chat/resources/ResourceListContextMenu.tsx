@@ -2,7 +2,7 @@ import { ContextMenu as UiContextMenu, ContextMenuTrigger } from '@cherrystudio/
 import type { ReactNode } from 'react'
 import { useCallback } from 'react'
 
-import { type ResourceListItemBase, useResourceList } from './ResourceListContext'
+import { type ResourceListItemBase, useResourceListActions, useResourceListItemAccessors } from './ResourceListContext'
 
 type ResourceListContextMenuProps<T extends ResourceListItemBase> = {
   item: T
@@ -15,12 +15,13 @@ export function ResourceListContextMenu<T extends ResourceListItemBase>({
   children,
   content
 }: ResourceListContextMenuProps<T>) {
-  const { actions, meta } = useResourceList<T>()
+  const actions = useResourceListActions()
+  const { getItemId } = useResourceListItemAccessors<T>()
   const handleOpenChange = useCallback(
     (open: boolean) => {
-      if (open) actions.openContextMenu(meta.getItemId(item))
+      if (open) actions.openContextMenu(getItemId(item))
     },
-    [actions, item, meta]
+    [actions, getItemId, item]
   )
 
   return (

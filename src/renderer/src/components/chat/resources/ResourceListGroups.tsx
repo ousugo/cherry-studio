@@ -4,7 +4,14 @@ import { ChevronDown } from 'lucide-react'
 import type { ComponentProps, CSSProperties, MouseEvent, Ref } from 'react'
 import { useCallback, useState } from 'react'
 
-import { type ResourceListGroup, type ResourceListItemBase, useResourceList } from './ResourceListContext'
+import {
+  type ResourceListGroup,
+  type ResourceListItemBase,
+  useResourceListActions,
+  useResourceListGroupState,
+  useResourceListMeta,
+  useResourceListView
+} from './ResourceListContext'
 
 const GROUP_HEADER_COLOR_STYLE = {
   '--resource-list-group-color': 'var(--color-foreground)'
@@ -18,15 +25,15 @@ type GroupHeaderProps = ComponentProps<'div'> & {
 }
 
 export function GroupHeader({ group, className, ref, style, onContextMenu, ...props }: GroupHeaderProps) {
-  const { actions, meta, state, view } = useResourceList()
+  const actions = useResourceListActions()
+  const meta = useResourceListMeta()
+  const view = useResourceListView()
+  const groupState = useResourceListGroupState(group.id)
   const viewGroup = view.groups.find((candidate) => candidate.group.id === group.id)
-  const collapsed = viewGroup?.collapsed ?? false
+  const collapsed = groupState.collapsed
   const groupItems = viewGroup?.allItems ?? EMPTY_GROUP_HEADER_ITEMS
   const clickBehavior = meta.getGroupHeaderClickBehavior(group)
-  const selected =
-    clickBehavior === 'select-first-then-toggle' &&
-    state.selectedId !== null &&
-    groupItems.some((item) => meta.getItemId(item) === state.selectedId)
+  const selected = clickBehavior === 'select-first-then-toggle' && groupState.selected
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const groupHeaderContext = { collapsed }
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
@@ -128,9 +135,10 @@ type GroupShowMoreProps = ComponentProps<'div'> & {
 }
 
 export function GroupShowMore({ groupId, className, ref, style, ...props }: GroupShowMoreProps) {
-  const { actions, meta, view } = useResourceList()
-  const viewGroup = view.groups.find((candidate) => candidate.group.id === groupId)
-  const canCollapseToDefault = viewGroup?.canCollapseToDefault === true
+  const actions = useResourceListActions()
+  const meta = useResourceListMeta()
+  const groupState = useResourceListGroupState(groupId)
+  const canCollapseToDefault = groupState.canCollapseToDefault
   const label = canCollapseToDefault ? meta.groupCollapseLabel : meta.groupShowMoreLabel
 
   if (!label) return null
@@ -139,7 +147,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
     <div
       ref={ref}
       style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
-      className={cn('flex justify-start py-1 pr-1.5 pl-8', className)}
+      className={cn('flex h-8 items-center justify-start pr-1.5 pl-8', className)}
       {...props}>
       <button
         type="button"

@@ -25,8 +25,9 @@ import {
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   TopicResourceList,
-  useResourceList,
-  useResourceListPinnedState
+  useResourceListActions,
+  useResourceListPinnedState,
+  useResourceListRowState
 } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { isMac } from '@renderer/config/constant'
@@ -1205,7 +1206,7 @@ type TopicStreamState = {
 
 type TopicStreamStatusSnapshot = {
   signature: string
-  value: ReadonlyMap<string, TopicStreamState>
+  value: TopicStreamState
 }
 
 const EMPTY_TOPIC_STREAM_STATE: TopicStreamState = Object.freeze({
@@ -1213,59 +1214,31 @@ const EMPTY_TOPIC_STREAM_STATE: TopicStreamState = Object.freeze({
   isPending: false
 })
 
-const EMPTY_TOPIC_STREAM_STATUS_MAP: ReadonlyMap<string, TopicStreamState> = new Map()
-
 const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as const
 
 const getTopicStreamSeenCacheKey = (topicId: string) => `topic.stream.seen.${topicId}` as const
 
-const buildTopicStreamStatusSnapshot = (topicIds: readonly string[]): TopicStreamStatusSnapshot => {
-  if (topicIds.length === 0) {
-    return {
-      signature: '',
-      value: EMPTY_TOPIC_STREAM_STATUS_MAP
-    }
-  }
-
-  const value = new Map<string, TopicStreamState>()
-  const signatureParts: string[] = []
-
-  for (const topicId of topicIds) {
-    const statusEntry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
-    const seen = cacheService.getCasual<TopicStreamSeenValue>(getTopicStreamSeenCacheKey(topicId))
-    const status = statusEntry?.status
-    const hasSeenTurn = isTopicStreamTurnSeen(seen, statusEntry?.turnId)
-    const streamStatus = {
-      isFulfilled: status === 'done' && !hasSeenTurn,
-      isPending: status === 'pending' || status === 'streaming'
-    }
-
-    signatureParts.push(
-      `${topicId}:${statusEntry?.turnId ?? ''}:${hasSeenTurn ? 1 : 0}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`
-    )
-
-    if (streamStatus.isPending || streamStatus.isFulfilled) {
-      value.set(topicId, streamStatus)
-    }
+const buildTopicStreamStatusSnapshot = (topicId: string): TopicStreamStatusSnapshot => {
+  const statusEntry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
+  const seen = cacheService.getCasual<TopicStreamSeenValue>(getTopicStreamSeenCacheKey(topicId))
+  const status = statusEntry?.status
+  const hasSeenTurn = isTopicStreamTurnSeen(seen, statusEntry?.turnId)
+  const streamStatus = {
+    isFulfilled: status === 'done' && !hasSeenTurn,
+    isPending: status === 'pending' || status === 'streaming'
   }
 
   return {
-    signature: signatureParts.join('|'),
-    value: value.size > 0 ? value : EMPTY_TOPIC_STREAM_STATUS_MAP
+    signature: `${topicId}:${statusEntry?.turnId ?? ''}:${hasSeenTurn ? 1 : 0}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`,
+    value: streamStatus.isPending || streamStatus.isFulfilled ? streamStatus : EMPTY_TOPIC_STREAM_STATE
   }
 }
 
-const subscribeTopicStreamStatuses = (topicIds: readonly string[], onStoreChange: () => void): (() => void) => {
-  if (topicIds.length === 0) {
-    return () => undefined
-  }
-
-  const unsubscribes: Array<() => void> = []
-
-  for (const topicId of new Set(topicIds)) {
-    unsubscribes.push(cacheService.subscribe(getTopicStreamStatusCacheKey(topicId), onStoreChange))
-    unsubscribes.push(cacheService.subscribe(getTopicStreamSeenCacheKey(topicId), onStoreChange))
-  }
+const subscribeTopicStreamStatus = (topicId: string, onStoreChange: () => void): (() => void) => {
+  const unsubscribes = [
+    cacheService.subscribe(getTopicStreamStatusCacheKey(topicId), onStoreChange),
+    cacheService.subscribe(getTopicStreamSeenCacheKey(topicId), onStoreChange)
+  ]
 
   return () => {
     for (const unsubscribe of unsubscribes) {
@@ -1274,14 +1247,14 @@ const subscribeTopicStreamStatuses = (topicIds: readonly string[], onStoreChange
   }
 }
 
-const useTopicListStreamStatuses = (topicIds: readonly string[]): ReadonlyMap<string, TopicStreamState> => {
+const useTopicListStreamStatus = (topicId: string): TopicStreamState => {
   const snapshotRef = useRef<TopicStreamStatusSnapshot>({
     signature: '',
-    value: EMPTY_TOPIC_STREAM_STATUS_MAP
+    value: EMPTY_TOPIC_STREAM_STATE
   })
 
   const getSnapshot = useCallback(() => {
-    const nextSnapshot = buildTopicStreamStatusSnapshot(topicIds)
+    const nextSnapshot = buildTopicStreamStatusSnapshot(topicId)
 
     if (snapshotRef.current.signature === nextSnapshot.signature) {
       return snapshotRef.current.value
@@ -1289,11 +1262,11 @@ const useTopicListStreamStatuses = (topicIds: readonly string[]): ReadonlyMap<st
 
     snapshotRef.current = nextSnapshot
     return nextSnapshot.value
-  }, [topicIds])
+  }, [topicId])
 
   const subscribe = useCallback(
-    (onStoreChange: () => void) => subscribeTopicStreamStatuses(topicIds, onStoreChange),
-    [topicIds]
+    (onStoreChange: () => void) => subscribeTopicStreamStatus(topicId, onStoreChange),
+    [topicId]
   )
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
@@ -1325,11 +1298,7 @@ interface TopicListBodyProps {
 
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
-  const context = useResourceList<Topic>()
   const { listRef, rowLayout, variant, ...rowProps } = props
-  const visibleItems = context.view.visibleItems
-  const visibleTopicIds = useMemo(() => visibleItems.map((topic) => topic.id), [visibleItems])
-  const streamStatusByTopicId = useTopicListStreamStatuses(visibleTopicIds)
 
   const renderItem = (topic: Topic) => (
     <TopicRow
@@ -1338,7 +1307,6 @@ function TopicListBody(props: TopicListBodyProps) {
       {...rowProps}
       layout={rowLayout}
       mode={variant === 'manage' ? 'manage' : 'default'}
-      streamStatus={streamStatusByTopicId.get(topic.id) ?? EMPTY_TOPIC_STREAM_STATE}
     />
   )
 
@@ -1362,9 +1330,7 @@ interface TopicRowWithStatusProps extends TopicRowSharedProps {
   topic: Topic
 }
 
-interface TopicRowProps extends TopicRowWithStatusProps {
-  streamStatus: TopicStreamState
-}
+type TopicRowProps = TopicRowWithStatusProps
 
 function TopicRow({
   activeTopic,
@@ -1385,13 +1351,14 @@ function TopicRow({
   onPinTopic,
   onSwitchTopic,
   selectedIds,
-  streamStatus,
   toggleSelectTopic,
   topic,
   topicsLength
 }: TopicRowProps) {
   const { t } = useTranslation()
-  const context = useResourceList<Topic>()
+  const actions = useResourceListActions()
+  const rowState = useResourceListRowState(topic.id)
+  const streamStatus = useTopicListStreamStatus(topic.id)
   const isManageMode = mode === 'manage'
   const isActive = topic.id === activeTopic?.id
   const isSelected = selectedIds.has(topic.id)
@@ -1405,12 +1372,9 @@ function TopicRow({
   const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
   const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
-  const startInlineRename = useCallback(() => context.actions.startRename(topic.id), [context.actions, topic.id])
+  const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
-  const submitRenameDialog = useCallback(
-    (name: string) => context.actions.commitRename(topic.id, name),
-    [context.actions, topic.id]
-  )
+  const submitRenameDialog = useCallback((name: string) => actions.commitRename(topic.id, name), [actions, topic.id])
   const { menuActions, handleMenuAction } = useTopicMenuActions({
     exportMenuOptions,
     isRenaming: isRenaming(topic.id),
@@ -1488,7 +1452,7 @@ function TopicRow({
         autoFocus
         onClick={(event) => event.stopPropagation()}
       />
-      {context.state.renamingId !== topic.id && (
+      {!rowState.renaming && (
         <ResourceList.ItemTitle
           title={topicName}
           className={nameAnimationClassName}
