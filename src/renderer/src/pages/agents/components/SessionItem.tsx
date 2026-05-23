@@ -1,4 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { ResourceList, useResourceList } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { isMac } from '@renderer/config/constant'
@@ -212,9 +213,9 @@ const SessionItem = ({
 
   return (
     <>
-      <ResourceList.ContextMenu item={session} actions={menuActions} onAction={handleMenuAction}>
+      <ResourceListActionContextMenu item={session} actions={menuActions} onAction={handleMenuAction}>
         {row}
-      </ResourceList.ContextMenu>
+      </ResourceListActionContextMenu>
       <EditNameDialog
         open={renameDialogOpen}
         title={t('agent.session.edit.title')}

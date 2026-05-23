@@ -16,6 +16,9 @@ import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ActionMenu } from '@renderer/components/chat/actions/ActionMenu'
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
   ResourceList,
   type ResourceListItemReorderPayload,
@@ -134,92 +137,69 @@ function findLatestCreateTopicPayload(
   return buildCreateTopicPayload(latestTopic, assistantById)
 }
 
-type AssistantGroupMoreMenuContentProps = {
-  disabled?: boolean
-  onDeleteAllTopics: () => void | Promise<void>
-  onEdit: () => void
-  onTogglePin: () => void | Promise<void>
-  pinned: boolean
-}
+type AssistantGroupActionId = 'assistant-group.edit' | 'assistant-group.toggle-pin' | 'assistant-group.delete-topics'
+type AssistantGroupAction = ResolvedAction & { id: AssistantGroupActionId; label: string }
 
-function AssistantGroupMoreContextMenuContent({
+function resolveAssistantGroupActions({
   disabled,
-  onDeleteAllTopics,
-  onEdit,
-  onTogglePin,
-  pinned
-}: AssistantGroupMoreMenuContentProps) {
-  const { t } = useTranslation()
-
-  return (
-    <>
-      <ResourceList.ContextMenuAction
-        icon={<Edit3 size={14} />}
-        onSelect={(event) => {
-          event.stopPropagation()
-          onEdit()
-        }}>
-        {t('assistants.edit.title')}
-      </ResourceList.ContextMenuAction>
-      <ResourceList.ContextMenuAction
-        icon={pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />}
-        disabled={disabled}
-        onSelect={(event) => {
-          event.stopPropagation()
-          void onTogglePin()
-        }}>
-        {pinned ? t('assistants.unpin.title') : t('assistants.pin.title')}
-      </ResourceList.ContextMenuAction>
-      <ResourceList.ContextMenuAction
-        icon={<Trash2 size={14} />}
-        variant="destructive"
-        onSelect={(event) => {
-          event.stopPropagation()
-          void onDeleteAllTopics()
-        }}>
-        {t('assistants.clear.menu_title')}
-      </ResourceList.ContextMenuAction>
-    </>
-  )
+  pinned,
+  t
+}: {
+  disabled?: boolean
+  pinned: boolean
+  t: ReturnType<typeof useTranslation>['t']
+}): AssistantGroupAction[] {
+  return [
+    {
+      id: 'assistant-group.edit' satisfies AssistantGroupActionId,
+      label: t('assistants.edit.title'),
+      icon: <Edit3 size={14} />,
+      danger: false,
+      availability: { visible: true, enabled: true },
+      children: []
+    },
+    {
+      id: 'assistant-group.toggle-pin' satisfies AssistantGroupActionId,
+      label: pinned ? t('assistants.unpin.title') : t('assistants.pin.title'),
+      icon: pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
+      danger: false,
+      availability: { visible: true, enabled: !disabled },
+      children: []
+    },
+    {
+      id: 'assistant-group.delete-topics' satisfies AssistantGroupActionId,
+      label: t('assistants.clear.menu_title'),
+      icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
+      group: 'danger',
+      danger: true,
+      availability: { visible: true, enabled: true },
+      children: []
+    }
+  ]
 }
 
 function AssistantGroupMoreDropdownMenuContent({
-  disabled,
-  onDeleteAllTopics,
-  onEdit,
-  onTogglePin,
-  pinned
-}: AssistantGroupMoreMenuContentProps) {
-  const { t } = useTranslation()
-
+  actions,
+  onAction
+}: {
+  actions: readonly AssistantGroupAction[]
+  onAction: (action: AssistantGroupAction) => void
+}) {
   return (
     <>
-      <DropdownMenuItem
-        onSelect={(event) => {
-          event.stopPropagation()
-          onEdit()
-        }}>
-        <Edit3 size={14} />
-        <span>{t('assistants.edit.title')}</span>
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        disabled={disabled}
-        onSelect={(event) => {
-          event.stopPropagation()
-          void onTogglePin()
-        }}>
-        {pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />}
-        <span>{pinned ? t('assistants.unpin.title') : t('assistants.pin.title')}</span>
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        variant="destructive"
-        onSelect={(event) => {
-          event.stopPropagation()
-          void onDeleteAllTopics()
-        }}>
-        <Trash2 size={14} className="lucide-custom text-destructive" />
-        <span>{t('assistants.clear.menu_title')}</span>
-      </DropdownMenuItem>
+      {actions.map((action) => (
+        <DropdownMenuItem
+          key={action.id}
+          disabled={!action.availability.enabled}
+          variant={action.danger ? 'destructive' : 'default'}
+          onSelect={(event) => {
+            event.stopPropagation()
+            onAction(action)
+          }}>
+          {action.icon}
+          <span>{action.label}</span>
+        </DropdownMenuItem>
+      ))}
     </>
   )
 }
@@ -320,6 +300,20 @@ function AssistantGroupMoreMenu({
   onTogglePin: (assistantId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+  const actions = resolveAssistantGroupActions({ disabled, pinned, t })
+  const handleAction = (action: AssistantGroupAction) => {
+    if (action.id === 'assistant-group.edit') {
+      window.requestAnimationFrame(() => onEdit(assistantId))
+      return
+    }
+    if (action.id === 'assistant-group.toggle-pin') {
+      void onTogglePin(assistantId)
+      return
+    }
+    if (action.id === 'assistant-group.delete-topics') {
+      void onDeleteAllTopics(assistantId)
+    }
+  }
 
   return (
     <DropdownMenu>
@@ -332,13 +326,7 @@ function AssistantGroupMoreMenu({
         </ResourceList.GroupHeaderActionButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="bottom">
-        <AssistantGroupMoreDropdownMenuContent
-          disabled={disabled}
-          pinned={pinned}
-          onDeleteAllTopics={() => onDeleteAllTopics(assistantId)}
-          onEdit={() => window.requestAnimationFrame(() => onEdit(assistantId))}
-          onTogglePin={() => onTogglePin(assistantId)}
-        />
+        <AssistantGroupMoreDropdownMenuContent actions={actions} onAction={handleAction} />
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -840,13 +828,28 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       if (!assistantId || !assistantById.has(assistantId)) return null
 
+      const actions = resolveAssistantGroupActions({
+        disabled: isAssistantPinActionDisabled,
+        pinned: assistantPinnedIdSet.has(assistantId),
+        t
+      })
+
       return (
-        <AssistantGroupMoreContextMenuContent
-          disabled={isAssistantPinActionDisabled}
-          pinned={assistantPinnedIdSet.has(assistantId)}
-          onDeleteAllTopics={() => handleDeleteAssistantTopics(assistantId)}
-          onEdit={() => openAssistantEditor(assistantId)}
-          onTogglePin={() => handleToggleAssistantPin(assistantId)}
+        <ActionMenu
+          actions={actions}
+          onAction={(action) => {
+            if (action.id === 'assistant-group.edit') {
+              openAssistantEditor(assistantId)
+              return
+            }
+            if (action.id === 'assistant-group.toggle-pin') {
+              void handleToggleAssistantPin(assistantId)
+              return
+            }
+            if (action.id === 'assistant-group.delete-topics') {
+              void handleDeleteAssistantTopics(assistantId)
+            }
+          }}
         />
       )
     },
@@ -857,7 +860,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       handleDeleteAssistantTopics,
       handleToggleAssistantPin,
       isAssistantPinActionDisabled,
-      openAssistantEditor
+      openAssistantEditor,
+      t
     ]
   )
 
@@ -1315,18 +1319,6 @@ function TopicListBody(props: TopicListBodyProps) {
   const visibleTopicIds = useMemo(() => visibleItems.map((topic) => topic.id), [visibleItems])
   const streamStatusByTopicId = useTopicListStreamStatuses(visibleTopicIds)
 
-  if (context.state.status === 'loading') {
-    return <ResourceList.LoadingState />
-  }
-
-  if (context.state.status === 'error') {
-    return <ResourceList.ErrorState message={t('error.boundary.default.message')} />
-  }
-
-  if (context.view.items.length === 0) {
-    return <ResourceList.EmptyState />
-  }
-
   const renderItem = (topic: Topic) => (
     <TopicRow
       key={topic.id}
@@ -1338,15 +1330,15 @@ function TopicListBody(props: TopicListBodyProps) {
     />
   )
 
-  if (variant === 'manage') {
-    return <ResourceList.VirtualItems ref={listRef} className="pb-[76px]" renderItem={renderItem} />
-  }
-
-  if (variant === 'draggable') {
-    return <ResourceList.VirtualDraggableItems ref={listRef} className="pt-0 pb-3" renderItem={renderItem} />
-  }
-
-  return <ResourceList.VirtualItems ref={listRef} className="pt-0 pb-3" renderItem={renderItem} />
+  return (
+    <ResourceList.Body<Topic>
+      listRef={listRef}
+      draggable={variant === 'draggable'}
+      virtualClassName={variant === 'manage' ? 'pb-[76px]' : 'pt-0 pb-3'}
+      errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
+      renderItem={renderItem}
+    />
+  )
 }
 
 type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'rowLayout' | 'variant'> & {
@@ -1528,9 +1520,9 @@ function TopicRow({
 
   return (
     <>
-      <ResourceList.ContextMenu item={topic} actions={menuActions} onAction={handleMenuAction}>
+      <ResourceListActionContextMenu item={topic} actions={menuActions} onAction={handleMenuAction}>
         {row}
-      </ResourceList.ContextMenu>
+      </ResourceListActionContextMenu>
       <EditNameDialog
         open={renameDialogOpen}
         title={t('chat.topics.edit.title')}

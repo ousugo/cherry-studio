@@ -1,5 +1,4 @@
-import { ContextMenuItem } from '@cherrystudio/ui'
-
+import { ResourceListActionContextMenu } from '../../actions/ResourceListActionContextMenu'
 import { ResourceList } from '../ResourceList'
 import type { ResourceListContextValue, ResourceListItemBase } from '../ResourceListContext'
 import { type AssistantListActionHandlers, createAssistantListActionRegistry } from './assistantListActions'
@@ -22,6 +21,8 @@ export interface AssistantListLabels {
   edit: string
   delete: string
   empty?: string
+  groupCollapse: string
+  groupShowMore: string
 }
 
 export interface AssistantListProps<T extends AssistantListItem> {
@@ -67,6 +68,8 @@ export function AssistantList<T extends AssistantListItem>({
       groupBy={(item) =>
         item.pinned ? { id: 'pinned', label: labels.pinnedGroup } : { id: 'assistants', label: labels.assistantsGroup }
       }
+      groupCollapseLabel={labels.groupCollapse}
+      groupShowMoreLabel={labels.groupShowMore}
       onSelectItem={(id) => {
         const item = items.find((candidate) => candidate.id === id)
         if (item) void handlers.onSelect?.(item)
@@ -87,22 +90,18 @@ export function AssistantList<T extends AssistantListItem>({
                 <span className="min-w-0 flex-1 truncate">{item.name}</span>
               </ResourceList.Item>
             )
+            const actionContext = createActionContext(item)
+            const actions = registry.resolve(actionContext, 'menu')
 
             return (
-              <ResourceList.ContextMenu
+              <ResourceListActionContextMenu
                 item={item}
-                content={registry.resolve(createActionContext(item), 'menu').map((action) => (
-                  <ContextMenuItem
-                    key={action.id}
-                    disabled={!action.availability.enabled}
-                    variant={action.danger ? 'destructive' : 'default'}
-                    onSelect={() => void registry.execute(action.id, createActionContext(item))}>
-                    {action.icon}
-                    <span>{action.label}</span>
-                  </ContextMenuItem>
-                ))}>
+                actions={actions}
+                onAction={(action) => {
+                  void registry.execute(action.id, actionContext)
+                }}>
                 {row}
-              </ResourceList.ContextMenu>
+              </ResourceListActionContextMenu>
             )
           }}
         />

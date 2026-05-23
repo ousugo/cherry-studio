@@ -24,6 +24,13 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {children}
       </div>
     ),
+    ContextMenuItemContent: ({ children, hasSubmenu, icon, shortcut, ...props }: any) => (
+      <span data-has-submenu={hasSubmenu ? 'true' : undefined} {...props}>
+        {icon}
+        <span>{children}</span>
+        {shortcut ? <span>{shortcut}</span> : null}
+      </span>
+    ),
     ContextMenuItem: ({ children, onSelect, ...props }: any) =>
       React.createElement('button', itemHandler(onSelect, props), children),
     ContextMenuSeparator: (props: any) => <hr data-testid="context-menu-separator" {...props} />,
@@ -34,7 +41,30 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {children}
       </button>
     ),
-    ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>
+    ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
+    DropdownMenu: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    DropdownMenuContent: ({ children, ...props }: { children?: ReactNode }) => (
+      <div data-slot="dropdown-menu-content" {...props}>
+        {children}
+      </div>
+    ),
+    DropdownMenuItem: ({ children, disabled, onSelect, variant, ...props }: any) => (
+      <button
+        data-disabled={disabled ? '' : undefined}
+        data-slot="dropdown-menu-item"
+        disabled={disabled || undefined}
+        role="menuitem"
+        type="button"
+        variant={variant}
+        onClick={(event) => {
+          if (!disabled) onSelect?.(event)
+        }}
+        {...props}>
+        {children}
+      </button>
+    ),
+    DropdownMenuSeparator: (props: any) => <hr data-testid="dropdown-menu-separator" {...props} />,
+    DropdownMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>
   }
 })
 
@@ -1300,9 +1330,9 @@ describe('Sessions', () => {
       within(workdirGroup as HTMLElement).queryByRole('button', { name: 'Delete project' })
     ).not.toBeInTheDocument()
 
-    fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.pointerDown(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
     expect(workdirGroupButton).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.click(screen.getByRole('button', { name: /Open in/ }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Open in/ }))
 
     await vi.waitFor(() => expect(window.api.file.openPath).toHaveBeenCalledWith('/Users/jd/project-a'))
   })
@@ -1316,7 +1346,11 @@ describe('Sessions', () => {
 
     fireEvent.contextMenu(workdirGroup as HTMLElement, { clientX: 123, clientY: 456 })
 
-    expect(screen.getByRole('button', { name: /Open in/ })).toBeInTheDocument()
+    expect(
+      screen
+        .getAllByRole('menuitem', { name: /Open in/ })
+        .some((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
+    ).toBe(true)
     expect(workdirGroupButton).toHaveAttribute('aria-expanded', 'true')
   })
 
@@ -1325,8 +1359,8 @@ describe('Sessions', () => {
 
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
-    fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Rename project' }))
+    fireEvent.pointerDown(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename project' }))
 
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveTextContent('Rename project')
@@ -1393,8 +1427,8 @@ describe('Sessions', () => {
 
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
-    fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    const deleteWorkspaceButton = screen.getByRole('button', { name: 'Delete project' })
+    fireEvent.pointerDown(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    const deleteWorkspaceButton = within(workdirGroup as HTMLElement).getByRole('menuitem', { name: 'Delete project' })
     expect(deleteWorkspaceButton.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
     fireEvent.click(deleteWorkspaceButton)
 
@@ -1496,16 +1530,22 @@ describe('Sessions', () => {
     expect(within(agentGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })).toBeInTheDocument()
 
     const moreButton = within(agentGroup as HTMLElement).getByRole('button', { name: 'More' })
-    fireEvent.click(moreButton)
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Agent' }))
-    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/library?resourceType=agent&action=edit&id=agent-a', {
-      forceNew: true
-    })
+    fireEvent.pointerDown(moreButton)
+    const editMenuItem = (await screen.findAllByRole('menuitem', { name: 'Edit Agent' })).find(
+      (button) => button.getAttribute('data-slot') === 'dropdown-menu-item'
+    )
+    expect(editMenuItem).toBeDefined()
+    fireEvent.click(editMenuItem as HTMLElement)
+    await vi.waitFor(() =>
+      expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/library?resourceType=agent&action=edit&id=agent-a', {
+        forceNew: true
+      })
+    )
 
-    fireEvent.click(moreButton)
+    fireEvent.pointerDown(moreButton)
     const pinMenuItem = screen
-      .getAllByRole('button', { name: 'Pin' })
-      .find((button) => button.getAttribute('data-slot') === 'menu-item')
+      .getAllByRole('menuitem', { name: 'Pin' })
+      .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     expect(pinMenuItem).toBeDefined()
     fireEvent.click(pinMenuItem as HTMLElement)
 
@@ -1513,7 +1553,51 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(dataApiMocks.refetchAgents).toHaveBeenCalled())
   })
 
-  it('disables agent group pin action while agent pins are mutating', () => {
+  it('opens the agent group more menu from the group header context menu', async () => {
+    const toggleAgentPin = vi.fn().mockResolvedValue(undefined)
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    pinMocks.usePins.mockReturnValue({
+      isLoading: false,
+      isRefreshing: false,
+      isMutating: false,
+      error: undefined,
+      pinnedIds: [],
+      refetch: vi.fn(),
+      togglePin: toggleAgentPin
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
+    })
+
+    render(<Sessions />)
+
+    const agentGroupButton = screen.getByRole('button', { name: 'Alpha agent' })
+    const agentGroup = agentGroupButton.closest('div')
+    expect(agentGroup).not.toBeNull()
+
+    fireEvent.contextMenu(agentGroup as HTMLElement, { clientX: 123, clientY: 456 })
+
+    const contextEditItem = screen
+      .getAllByRole('menuitem', { name: 'Edit Agent' })
+      .find((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
+    expect(contextEditItem).toBeDefined()
+    const contextPinItem = screen
+      .getAllByRole('menuitem', { name: 'Pin' })
+      .find((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
+    expect(contextPinItem).toBeDefined()
+    fireEvent.click(contextPinItem as HTMLElement)
+
+    await vi.waitFor(() => expect(toggleAgentPin).toHaveBeenCalledWith('agent-a'))
+    expect(agentGroupButton).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('disables agent group pin action while agent pins are mutating', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     pinMocks.usePins.mockReturnValue({
       isLoading: false,
@@ -1538,8 +1622,8 @@ describe('Sessions', () => {
 
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
     expect(agentGroup).not.toBeNull()
-    fireEvent.click(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
 
-    expect(screen.getByRole('button', { name: 'Unpin' })).toBeDisabled()
+    expect(await screen.findByRole('menuitem', { name: 'Unpin' })).toHaveAttribute('data-disabled')
   })
 })

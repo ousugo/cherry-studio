@@ -31,6 +31,14 @@ vi.mock('@cherrystudio/ui', async () => {
         : null,
     ContextMenu: ({ children }: any) => React.createElement('div', null, children),
     ContextMenuContent: ({ children, ...props }: any) => React.createElement('div', props, children),
+    ContextMenuItemContent: ({ children, hasSubmenu, icon, shortcut, ...props }: any) =>
+      React.createElement(
+        'span',
+        { ...props, 'data-has-submenu': hasSubmenu ? 'true' : undefined },
+        icon,
+        React.createElement('span', null, children),
+        shortcut ? React.createElement('span', null, shortcut) : null
+      ),
     ContextMenuItem: ({ children, onSelect, ...props }: any) =>
       React.createElement('button', itemHandler(onSelect, props), children),
     ContextMenuSeparator: (props: any) => React.createElement('hr', props),
@@ -64,6 +72,7 @@ describe('ActionMenu', () => {
     renderMenu([
       {
         id: 'copy',
+        icon: <span data-testid="copy-icon" />,
         label: 'Copy',
         shortcut: '⌘C',
         danger: false,
@@ -86,6 +95,7 @@ describe('ActionMenu', () => {
       },
       {
         id: 'more',
+        icon: <span data-testid="more-icon" />,
         label: 'More',
         danger: false,
         availability: enabled,
@@ -102,10 +112,12 @@ describe('ActionMenu', () => {
     ])
 
     expect(screen.getByText('Copy')).toBeInTheDocument()
+    expect(screen.getByTestId('copy-icon')).toBeInTheDocument()
     expect(screen.getByText('⌘C')).toBeInTheDocument()
     expect(screen.getByText('Delete')).toBeInTheDocument()
     expect(screen.getByText('Disabled').closest('[data-disabled]')).not.toBeNull()
     expect(screen.getByText('More')).toBeInTheDocument()
+    expect(screen.getByText('More').closest('[data-has-submenu="true"]')).toBeNull()
   })
 
   it('does not inject menu visual classes by default', () => {

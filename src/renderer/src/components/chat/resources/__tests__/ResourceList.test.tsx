@@ -104,6 +104,7 @@ vi.mock('@dnd-kit/utilities', () => ({
 }))
 
 import type { ResolvedAction } from '../../actions/actionTypes'
+import { ResourceListActionContextMenu } from '../../actions/ResourceListActionContextMenu'
 import { ResourceList, useResourceList } from '../ResourceList'
 import type { ResourceListItemBase } from '../ResourceListContext'
 import {
@@ -125,6 +126,14 @@ afterEach(() => {
   virtualMocks.scrollToIndex.mockClear()
   vi.useRealTimers()
 })
+
+async function flushAnimationFrame() {
+  await act(async () => {
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve())
+    })
+  })
+}
 
 type TestItem = ResourceListItemBase & {
   kind: 'session' | 'topic'
@@ -301,16 +310,28 @@ describe('ResourceList', () => {
     })
   })
 
-  it('renders context menu actions from resource item composition', () => {
+  it('renders context menu actions from resource item composition', async () => {
     const onRenameItem = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
+    const menuActions: ResolvedAction[] = [
+      {
+        id: 'rename',
+        label: 'Rename',
+        danger: false,
+        availability: { visible: true, enabled: true },
+        children: []
+      }
+    ]
 
     function Row({ item }: { item: TestItem }) {
       const { actions } = useResourceList<TestItem>()
       return (
-        <ResourceList.ContextMenu
+        <ResourceListActionContextMenu
           item={item}
-          content={<ResourceList.ContextMenuRenameAction item={item} label="Rename" />}>
+          actions={menuActions}
+          onAction={(action) => {
+            if (action.id === 'rename') actions.startRename(item.id)
+          }}>
           <ResourceList.Item item={item}>
             <ResourceList.RenameField item={item} aria-label={`Rename ${item.name}`} />
             <span>{item.name}</span>
@@ -318,7 +339,7 @@ describe('ResourceList', () => {
               Rename inline
             </button>
           </ResourceList.Item>
-        </ResourceList.ContextMenu>
+        </ResourceListActionContextMenu>
       )
     }
 
@@ -331,6 +352,7 @@ describe('ResourceList', () => {
     )
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Rename' })[0])
+    await flushAnimationFrame()
     expect(screen.getByLabelText('Rename Alpha')).toBeInTheDocument()
   })
 
@@ -361,11 +383,11 @@ describe('ResourceList', () => {
 
     function Row({ item }: { item: TestItem }) {
       return (
-        <ResourceList.ContextMenu item={item} actions={actions} onAction={onAction}>
+        <ResourceListActionContextMenu item={item} actions={actions} onAction={onAction}>
           <ResourceList.Item item={item}>
             <span>{item.name}</span>
           </ResourceList.Item>
-        </ResourceList.ContextMenu>
+        </ResourceListActionContextMenu>
       )
     }
 
@@ -1323,7 +1345,7 @@ describe('ResourceList', () => {
     expect(handlers.onTogglePin).toHaveBeenCalledWith(item)
   })
 
-  it('renders AssistantList with search, pinned groups, sort, virtualization, and menu callbacks', () => {
+  it('renders AssistantList with search, pinned groups, sort, virtualization, and menu callbacks', async () => {
     const handlers = {
       onSelect: vi.fn(),
       onTogglePin: vi.fn(),
@@ -1351,7 +1373,9 @@ describe('ResourceList', () => {
           pin: 'Pin',
           unpin: 'Unpin',
           edit: 'Edit',
-          delete: 'Delete'
+          delete: 'Delete',
+          groupCollapse: 'Collapse',
+          groupShowMore: 'Show more'
         }}
       />
     )
@@ -1365,6 +1389,7 @@ describe('ResourceList', () => {
     expect(handlers.onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'assistant-c' }))
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Unpin' })[0])
+    await flushAnimationFrame()
     expect(handlers.onTogglePin).toHaveBeenCalledWith(expect.objectContaining({ id: 'assistant-b' }))
 
     fireEvent.change(screen.getByPlaceholderText('Search assistants'), { target: { value: 'gamma' } })
