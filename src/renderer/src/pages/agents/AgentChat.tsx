@@ -254,15 +254,13 @@ const AgentChat = ({
           paneOpen={paneOpen}
           panePosition={panePosition}
           topBar={
-            <div className="flex h-fit w-full min-w-0">
-              <AgentChatNavbar
-                className="min-w-0"
-                activeAgent={activeAgent ?? null}
-                tools={<AgentRightPane.FilesToggle />}
-                showSidebarControls={showResourceListControls}
-              />
-            </div>
+            <AgentChatNavbar
+              className="min-w-0"
+              activeAgent={activeAgent ?? null}
+              showSidebarControls={showResourceListControls}
+            />
           }
+          topRightTool={<AgentRightPane.FilesToggle />}
           main={
             <AgentComposerDock
               placement={temporaryTurnController.layout === 'draft' ? 'home' : 'docked'}
@@ -560,15 +558,13 @@ const AgentChatSessionFrame = ({
         paneOpen={paneOpen}
         panePosition={panePosition}
         topBar={
-          <div className="flex h-fit w-full min-w-0">
-            <AgentChatNavbar
-              className="min-w-0"
-              activeAgent={activeAgent ?? null}
-              tools={<AgentRightPane.FilesToggle />}
-              showSidebarControls={showResourceListControls}
-            />
-          </div>
+          <AgentChatNavbar
+            className="min-w-0"
+            activeAgent={activeAgent ?? null}
+            showSidebarControls={showResourceListControls}
+          />
         }
+        topRightTool={<AgentRightPane.FilesToggle />}
         centerContent={<AgentComposerDock placement="docked" main={main} composer={bottomComposer} mainVisible />}
         sidePanel={sidePanel}
         centerOverlay={<AgentRightPane.MaximizedOverlay />}
@@ -594,6 +590,7 @@ interface AgentChatFrameBaseProps {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   topBar?: ReactNode
+  topRightTool?: ReactNode
   sidePanel?: ReactNode
   overlay?: ReactNode
   centerOverlay?: ReactNode
@@ -620,6 +617,7 @@ const AgentChatFrame = ({
   paneOpen,
   panePosition,
   topBar,
+  topRightTool,
   main,
   centerContent,
   bottomComposer,
@@ -629,13 +627,14 @@ const AgentChatFrame = ({
   rightPane,
   className
 }: AgentChatFrameProps) => {
+  const resolvedTopBar = topRightTool ? <AgentChatFrameTopBar>{topBar}</AgentChatFrameTopBar> : topBar
   const shell =
     centerContent !== undefined ? (
       <ChatAppShell
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
-        topBar={topBar}
+        topBar={resolvedTopBar}
         centerContent={centerContent}
         sidePanel={sidePanel}
         centerOverlay={centerOverlay}
@@ -646,7 +645,7 @@ const AgentChatFrame = ({
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
-        topBar={topBar}
+        topBar={resolvedTopBar}
         main={main ?? null}
         bottomComposer={bottomComposer}
         sidePanel={sidePanel}
@@ -658,8 +657,27 @@ const AgentChatFrame = ({
   return (
     <Container className={className}>
       <QuickPanelProvider>{shell}</QuickPanelProvider>
+      {topRightTool && <AgentChatFrameTopRightTool>{topRightTool}</AgentChatFrameTopRightTool>}
       {rightPane}
     </Container>
+  )
+}
+
+const AgentChatFrameTopBar = ({ children }: PropsWithChildren) => {
+  const { maximized } = useShellState()
+
+  return <div className={cn('flex h-fit w-full min-w-0', !maximized && 'pr-11')}>{children}</div>
+}
+
+const AgentChatFrameTopRightTool = ({ children }: PropsWithChildren) => {
+  const { maximized } = useShellState()
+
+  if (maximized) return null
+
+  return (
+    <div className="absolute top-0 right-2 z-20 flex h-(--navbar-height) w-[30px] items-center justify-center [-webkit-app-region:no-drag]">
+      {children}
+    </div>
   )
 }
 
@@ -667,7 +685,7 @@ const Container = ({ children, className }: PropsWithChildren<{ className?: stri
   return (
     <div
       className={cn(
-        'flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background',
+        'relative flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background',
         className
       )}>
       {children}

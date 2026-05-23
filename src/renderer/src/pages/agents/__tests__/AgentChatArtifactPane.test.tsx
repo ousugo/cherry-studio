@@ -396,6 +396,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
 
     const toggle = screen.getByRole('button', { name: 'agent.right_pane.files_toggle' })
+    expect(screen.getByTestId('agent-top-bar')).not.toContainElement(toggle)
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
 
     fireEvent.click(toggle)
@@ -442,6 +443,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('agent-top-bar')).toBeInTheDocument()
     expect(screen.getByTestId('chat-center-overlay')).toContainElement(screen.getByTestId('artifact-pane'))
     expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.files_toggle' })).not.toBeInTheDocument()
     expect(screen.getByTestId('agent-composer')).toBeInTheDocument()
   })
 

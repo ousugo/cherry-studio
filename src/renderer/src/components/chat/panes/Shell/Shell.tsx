@@ -171,6 +171,7 @@ function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
 function ShellToggle({ tab, label }: { tab: string; label: string }) {
   const { state, actions } = useShell()
   const pressed = state.open && state.activeTab === tab
+  const ToggleIcon = pressed ? RightSidebarCollapseIcon : RightSidebarExpandIcon
 
   return (
     <Tooltip content={label} delay={800}>
@@ -179,7 +180,7 @@ function ShellToggle({ tab, label }: { tab: string; label: string }) {
         aria-pressed={pressed}
         aria-label={label}
         data-state={pressed ? 'open' : 'closed'}>
-        {pressed ? <RightSidebarCollapseIcon /> : <RightSidebarExpandIcon />}
+        <ToggleIcon />
       </NavbarIcon>
     </Tooltip>
   )
@@ -205,7 +206,12 @@ function ShellTabList({ children }: { children: ReactNode }) {
   const maximizeLabel = t(state.maximized ? 'common.minimize' : 'common.maximize')
   const MaximizeIcon = state.maximized ? Minimize2 : Maximize2
   return (
-    <div className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-3">
+    <div
+      data-testid="shell-tab-list"
+      className={cn(
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b',
+        state.maximized ? 'px-3' : 'py-0 pr-11 pl-3'
+      )}>
       <TabsList className="min-w-0 flex-1 justify-start gap-1 overflow-x-auto">{children}</TabsList>
       <Tooltip content={maximizeLabel} delay={800}>
         <Button
