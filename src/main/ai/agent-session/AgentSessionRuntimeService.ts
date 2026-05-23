@@ -531,7 +531,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.idleTimer = setTimeout(() => {
       this.closeSession(entry.sessionId)
       if (entry.lastResumeToken) {
-        void application.get('ClaudeCodeWarmupService').prewarmAgentSession(entry.sessionId)
+        void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(entry.sessionId)
       }
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()

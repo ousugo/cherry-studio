@@ -102,7 +102,7 @@ describe('AgentSessionRuntimeService', () => {
           pauseRuntimeTurn: mocks.pauseRuntimeTurn
         }
       }
-      if (name === 'ClaudeCodeWarmupService') return { prewarmAgentSession: mocks.prewarmAgentSession }
+      if (name === 'ClaudeCodeWarmQueryManager') return { prewarmAgentSession: mocks.prewarmAgentSession }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })

@@ -2,6 +2,10 @@ import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { AiAgentSessionWarmCloseRequest, AiAgentSessionWarmRequest } from '@shared/ai/transport'
+import { IpcChannel } from '@shared/IpcChannel'
+
+import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -55,6 +59,38 @@ export function createClaudeCodeWarmQuerySignature(options: Options): string {
 @ServicePhase(Phase.WhenReady)
 export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly entries = new Map<string, WarmQueryEntry>()
+
+  protected onInit(): void {
+    this.registerIpcHandlers()
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.Ai_AgentSession_Prewarm, async (_, req: AiAgentSessionWarmRequest) => {
+      await this.prewarmAgentSession(req.sessionId)
+    })
+
+    this.ipcHandle(IpcChannel.Ai_AgentSession_CloseWarm, (_, req: AiAgentSessionWarmCloseRequest) => {
+      this.closeAgentSessionWarm(req.sessionId)
+    })
+  }
+
+  async prewarmAgentSession(sessionId: string): Promise<void> {
+    try {
+      const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
+      if (!warmRequest) return
+      this.prewarm(warmRequest)
+    } catch (error) {
+      logger.warn('Failed to prewarm agent session', { sessionId, error })
+    }
+  }
+
+  closeAgentSessionWarm(sessionId: string): void {
+    try {
+      this.close(sessionId)
+    } catch (error) {
+      logger.debug('Failed to close agent session warm query', { sessionId, error })
+    }
+  }
 
   prewarm(request: WarmQueryRequest): void {
     const warmOptions = stripWarmQueryOptions(request.options)

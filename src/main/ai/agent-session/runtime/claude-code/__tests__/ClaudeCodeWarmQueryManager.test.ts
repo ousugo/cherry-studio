@@ -1,10 +1,17 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const startupMock = vi.hoisted(() => vi.fn())
+const { startupMock, buildWarmRequestMock } = vi.hoisted(() => ({
+  startupMock: vi.fn(),
+  buildWarmRequestMock: vi.fn()
+}))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   startup: startupMock
+}))
+
+vi.mock('../agentSessionWarmup', () => ({
+  buildClaudeCodeWarmQueryRequestForAgentSession: buildWarmRequestMock
 }))
 
 vi.mock('@logger', () => ({
@@ -91,5 +98,22 @@ describe('ClaudeCodeWarmQueryManager', () => {
     await Promise.resolve()
 
     expect(warm.close).toHaveBeenCalledOnce()
+  })
+
+  it('prewarms an agent session from the session request builder', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    buildWarmRequestMock.mockResolvedValueOnce({
+      key: 'session-1',
+      options: { model: 'sonnet', resume: 'sdk-1' },
+      initializeTimeoutMs: 100
+    })
+    startupMock.mockResolvedValueOnce(warm)
+
+    await manager.prewarmAgentSession('session-1')
+    const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
+
+    expect(buildWarmRequestMock).toHaveBeenCalledWith('session-1')
+    expect(consumed).toBe(warm)
   })
 })
