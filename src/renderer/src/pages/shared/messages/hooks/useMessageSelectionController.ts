@@ -136,7 +136,9 @@ export function useMessageSelectionController({
 
       const fileName = `chat_export_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.md`
       try {
-        await saveTextFile(fileName, contentToSave)
+        const savedPath = await saveTextFile(fileName, contentToSave)
+        if (savedPath === null) return
+
         window.toast.success(t('message.save.success.title'))
         toggleMultiSelectMode(false)
       } catch (error) {

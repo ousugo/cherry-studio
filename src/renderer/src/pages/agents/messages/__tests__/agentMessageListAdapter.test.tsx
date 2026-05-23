@@ -2,7 +2,7 @@ import type { MessageListProviderValue } from '@renderer/components/chat/message
 import type { Topic } from '@renderer/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { render } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const exportActionsMock = vi.hoisted(() => ({
   saveTextFile: vi.fn(),
@@ -157,6 +157,19 @@ vi.mock('@tanstack/react-router', () => ({
 const { useAgentMessageListProviderValue } = await import('../agentMessageListAdapter')
 
 describe('useAgentMessageListProviderValue', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Object.defineProperty(window, 'toast', {
+      configurable: true,
+      writable: true,
+      value: {
+        error: vi.fn(),
+        success: vi.fn(),
+        warning: vi.fn()
+      }
+    })
+  })
+
   it('adapts CherryUIMessage input and injects supported agent capabilities', () => {
     const topic = {
       id: 'agent-session-topic',
@@ -335,5 +348,52 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.deleteSelectedMessages).toBeUndefined()
     expect(value?.actions.copySelectedMessages).toEqual(expect.any(Function))
     expect(value?.actions.saveSelectedMessages).toEqual(expect.any(Function))
+  })
+
+  it('does not show a toast when selected-message save is canceled', async () => {
+    const topic = {
+      id: 'agent-session-topic',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const messages = [
+      {
+        id: 'user-1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'hello' }],
+        metadata: { createdAt: '2026-01-01T00:00:00.000Z' }
+      }
+    ] as CherryUIMessage[]
+    let value: MessageListProviderValue | undefined
+
+    exportActionsMock.saveTextFile.mockResolvedValue(null)
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId: { 'user-1': messages[0].parts ?? [] },
+        assistantId: 'agent-1',
+        modelFallback: undefined,
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+
+    render(<Probe />)
+    cacheHookMocks.setMultiSelectMode.mockClear()
+    cacheHookMocks.setSelectedMessageIds.mockClear()
+
+    await value?.actions.saveSelectedMessages?.(['user-1'])
+
+    expect(exportActionsMock.saveTextFile).toHaveBeenCalled()
+    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(cacheHookMocks.setMultiSelectMode).not.toHaveBeenCalled()
+    expect(cacheHookMocks.setSelectedMessageIds).not.toHaveBeenCalled()
   })
 })

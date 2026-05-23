@@ -306,7 +306,7 @@ export interface MessageListActions {
   locateMessage?: (messageId: string, highlight?: boolean) => void
   startNewContext?: () => void
   saveCodeBlock?: (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => void | Promise<void>
-  saveTextFile?: (fileName: string, content: string) => void | Promise<void>
+  saveTextFile?: (fileName: string, content: string) => string | null | void | Promise<string | null | void>
   saveImage?: (fileName: string, dataUrl: string) => boolean | Promise<boolean>
   saveToKnowledge?: (message: MessageExportView) => void | Promise<void>
   exportMessageAsMarkdown?: (message: MessageExportView, includeReasoning?: boolean) => void | Promise<void>

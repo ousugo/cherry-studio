@@ -47,16 +47,6 @@ interface Props {
   isLatestAssistantMessage?: boolean
 }
 
-const WrapperContainer = ({
-  isMultiSelectMode,
-  children
-}: {
-  isMultiSelectMode: boolean
-  children: React.ReactNode
-}) => {
-  return isMultiSelectMode ? <label style={{ cursor: 'pointer' }}>{children}</label> : children
-}
-
 const MessageItem: FC<Props> = ({
   message,
   topic,
@@ -75,6 +65,7 @@ const MessageItem: FC<Props> = ({
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
+  const isSelected = selection?.selectedMessageIds?.includes(message.id) ?? false
   // Use the message-embedded snapshot rather than re-resolving the live model
   // config: the snapshot is what the message was actually generated with.
   const model = getMessageListItemModel(message)
@@ -184,6 +175,18 @@ const MessageItem: FC<Props> = ({
     actions.startNewContext?.()
   }, [actions, isMultiSelectMode])
 
+  const handleMessageSelectClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!isMultiSelectMode) return
+      if ((event.target as HTMLElement | null)?.closest('[role="checkbox"]')) return
+
+      event.preventDefault()
+      event.stopPropagation()
+      actions.selectMessage?.(message.id, !isSelected)
+    },
+    [actions, isMultiSelectMode, isSelected, message.id]
+  )
+
   if (message.type === 'clear') {
     return (
       <div
@@ -265,44 +268,44 @@ const MessageItem: FC<Props> = ({
   ) : undefined
 
   return (
-    <WrapperContainer isMultiSelectMode={isMultiSelectMode}>
-      <div
-        key={message.id}
-        className={classNames({
-          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
-          'message-assistant': isAssistantMessage,
-          'message-user': !isAssistantMessage
-        })}
-        ref={messageContainerRef}>
-        {isUserBubbleMessage ? (
-          isEditing ? (
-            messageEditor
-          ) : (
-            <UserBubbleMessage
-              message={message}
-              topic={topic}
-              isLastMessage={isLastMessage}
-              isGrouped={isGrouped}
-              isProcessing={isProcessing}
-              messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-              onStartEditing={handleStartEditing}
-              onUpdateUseful={onUpdateUseful}
-              messageFont={messageFont}
-              fontSize={fontSize}
-            />
-          )
+    <div
+      key={message.id}
+      className={classNames({
+        'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
+        'message-assistant': isAssistantMessage,
+        'message-user': !isAssistantMessage,
+        'cursor-pointer': isMultiSelectMode
+      })}
+      ref={messageContainerRef}
+      onClickCapture={handleMessageSelectClick}>
+      {isUserBubbleMessage ? (
+        isEditing ? (
+          messageEditor
         ) : (
-          <MessageHeader
+          <UserBubbleMessage
             message={message}
-            model={model}
-            key={model ? createUniqueModelId(model.provider, model.id) : ''}
-            isGroupContextMessage={isGroupContextMessage}
-            contentSlot={plainMessageContent}
-            footerSlot={userFooter ?? assistantFooter}
+            topic={topic}
+            isLastMessage={isLastMessage}
+            isGrouped={isGrouped}
+            isProcessing={isProcessing}
+            messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+            onStartEditing={handleStartEditing}
+            onUpdateUseful={onUpdateUseful}
+            messageFont={messageFont}
+            fontSize={fontSize}
           />
-        )}
-      </div>
-    </WrapperContainer>
+        )
+      ) : (
+        <MessageHeader
+          message={message}
+          model={model}
+          key={model ? createUniqueModelId(model.provider, model.id) : ''}
+          isGroupContextMessage={isGroupContextMessage}
+          contentSlot={plainMessageContent}
+          footerSlot={userFooter ?? assistantFooter}
+        />
+      )}
+    </div>
   )
 }
 
