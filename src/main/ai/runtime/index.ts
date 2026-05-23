@@ -1,4 +1,4 @@
-import './claude-code/register'
+import './claudeCode/register'
 
 export { runtimeDriverRegistry } from './registry'
 export type {
