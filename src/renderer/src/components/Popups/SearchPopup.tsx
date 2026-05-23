@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import { GlobalSearchPanel } from '@renderer/components/global-search/GlobalSearchPanel'
+import { GlobalSearchPanel } from '@renderer/components/GlobalSearch/GlobalSearchPanel'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

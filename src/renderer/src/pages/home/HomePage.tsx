@@ -5,7 +5,7 @@ import type { ResourceListRevealRequest } from '@renderer/components/chat/resour
 import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
-} from '@renderer/components/global-search/globalSearchGroups'
+} from '@renderer/components/GlobalSearch/globalSearchGroups'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversation, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'

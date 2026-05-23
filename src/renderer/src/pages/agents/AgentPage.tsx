@@ -4,7 +4,7 @@ import type { ResourceListRevealRequest } from '@renderer/components/chat/resour
 import {
   createRecentSessionEntryFromSession,
   upsertGlobalSearchRecentEntry
-} from '@renderer/components/global-search/globalSearchGroups'
+} from '@renderer/components/GlobalSearch/globalSearchGroups'
 import { useCache, usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agents/useAgent'

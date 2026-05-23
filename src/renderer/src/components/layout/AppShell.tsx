@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo } from 'react'
 
 import { useTabs } from '../../hooks/useTabs'
 import Sidebar from '../app/Sidebar'
-import { createRecentRouteEntryFromTab, upsertGlobalSearchRecentEntry } from '../global-search/globalSearchGroups'
+import { createRecentRouteEntryFromTab, upsertGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import SearchPopup from '../Popups/SearchPopup'
 import { AppShellTabBar } from './AppShellTabBar'

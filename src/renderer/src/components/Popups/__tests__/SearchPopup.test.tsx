@@ -17,7 +17,7 @@ vi.mock('../../TopView', () => ({
   }
 }))
 
-vi.mock('@renderer/components/global-search/GlobalSearchPanel', () => ({
+vi.mock('@renderer/components/GlobalSearch/GlobalSearchPanel', () => ({
   GlobalSearchPanel: () => <input aria-label="Search input" />
 }))
 
