@@ -68,6 +68,7 @@ function createContext(overrides: Partial<MessageMenuBarActionContext> = {}): Me
     copied: false,
     setCopied: vi.fn(),
     isAssistantMessage: true,
+    isLastMessage: false,
     isProcessing: false,
     isTranslating: false,
     hasTranslationBlocks: false,
@@ -215,6 +216,25 @@ describe('messageMenuBarActions', () => {
     expect(menuActions.map((action) => action.id)).toEqual(['new-branch', 'multi-select', 'save', 'export'])
     expect(menuActions[2]?.children.map((action) => action.id)).toEqual(['save.file'])
     expect(menuActions[3]?.children.map((action) => action.id)).toEqual(['export.markdown'])
+  })
+
+  it('hides new branch from the latest message menu', () => {
+    const menuActions = resolveMessageMenuBarMenuActions(
+      createContext({
+        actions: {
+          startMessageBranch: vi.fn(),
+          toggleMultiSelectMode: vi.fn()
+        } as MessageListActions,
+        isLastMessage: true,
+        selection: {
+          enabled: true,
+          isMultiSelectMode: false,
+          selectedMessageIds: []
+        }
+      })
+    )
+
+    expect(menuActions.map((action) => action.id)).toEqual(['multi-select'])
   })
 
   it('disables streaming-unsafe toolbar actions while keeping copy enabled', () => {

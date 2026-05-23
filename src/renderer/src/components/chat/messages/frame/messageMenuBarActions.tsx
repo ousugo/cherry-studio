@@ -61,6 +61,7 @@ export interface MessageMenuBarActionContext {
   setCopied: (value: boolean) => void
   isAssistantMessage: boolean
   isGrouped?: boolean
+  isLastMessage: boolean
   isProcessing: boolean
   isTranslating: boolean
   hasTranslationBlocks: boolean
@@ -436,7 +437,7 @@ registerAction({
   group: 'write',
   order: 20,
   surface: 'menu',
-  availability: ({ actions }) => !!actions.startMessageBranch
+  availability: ({ actions, isLastMessage }) => !!actions.startMessageBranch && !isLastMessage
 })
 
 registerAction({
