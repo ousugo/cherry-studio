@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "64fc9a2e-18f9-466b-846a-20a787cc68dc",
+  "id": "3a10a447-0eb9-49df-9c49-849ae844ecc9",
   "prevId": "3693bd3e-7915-4bdd-bfe0-7cb58b5984d4",
   "tables": {
     "agent": {
@@ -3488,9 +3488,7 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {
-      "\"agent_session_message\".\"agent_session_id\"": "\"agent_session_message\".\"runtime_resume_token\""
-    }
+    "columns": {}
   },
   "internal": {
     "indexes": {
