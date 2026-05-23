@@ -1,54 +1,38 @@
-import { ChatAppShell, type ChatPanePosition } from '@renderer/components/chat'
+import { type ChatPanePosition, ConversationCenterState, ConversationShell } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import { ComposerContextProvider } from '@renderer/components/chat/composer/ComposerContext'
-import ComposerCore from '@renderer/components/chat/composer/ComposerCore'
-import ComposerDockTransitionFrame from '@renderer/components/chat/composer/ComposerDockTransitionFrame'
-import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
-import AgentComposer, { AgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
-import { MessageListInitialLoading } from '@renderer/components/chat/messages/layout/MessageListLoading'
-import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import { useShellState } from '@renderer/components/chat/panes/Shell'
-import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import type { ConversationComposerPlacement } from '@renderer/components/chat/composer'
+import { AgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
+import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useSession'
-import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
-import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
   type ConversationHistoryAdapter,
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
-import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { TemporaryConversation, TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import AgentChatMain from './AgentChatMain'
+import AgentComposerSlot from './AgentComposerSlot'
 import AgentChatNavbar from './components/AgentChatNavbar'
-import { AgentRightPane, useAgentRightPaneActions } from './components/AgentRightPane'
-import AgentSessionMessages from './components/AgentSessionMessages'
+import { AgentRightPane } from './components/AgentRightPane'
+import {
+  type AgentSendOptions,
+  type AgentTurnInput,
+  getAgentTurnParts,
+  useAgentChatRuntimeState
+} from './useAgentChatRuntimeState'
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
-
-type AgentSendOptions = { body?: Record<string, unknown> }
-interface AgentTurnInput {
-  text: string
-  options?: AgentSendOptions
-}
-
-function getAgentTurnParts(input: AgentTurnInput): CherryMessagePart[] {
-  const parts = input.options?.body?.userMessageParts as CherryMessagePart[] | undefined
-  return parts ?? (input.text ? [{ type: 'text', text: input.text }] : [])
-}
 
 interface AgentChatProps {
   pane?: ReactNode
@@ -95,11 +79,10 @@ const AgentChat = ({
   const { session: visibleSession, isLoading: isSessionLoading } = useActiveSession({
     pendingSession
   })
-  const visibleAgentId = visibleSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
-  const visibleWorkspaceId = visibleSession?.workspaceId ?? temporaryAgentConversation?.session.workspaceId ?? null
-  const { agent: activeAgent, isLoading: isAgentLoading } = useAgent(
-    visibleSession?.agentId ?? temporaryAgentConversation?.agentId ?? null
-  )
+  const sessionSnapshot = visibleSession ?? temporaryAgentConversation?.session ?? null
+  const visibleAgentId = sessionSnapshot?.agentId ?? temporaryAgentConversation?.agentId ?? null
+  const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
+  const { agent: activeAgent } = useAgent(visibleAgentId)
 
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
@@ -142,7 +125,7 @@ const AgentChat = ({
     }
   )
   const sendTemporaryMessage = useCallback(
-    async (message?: { text: string }, options?: { body?: Record<string, unknown> }) => {
+    async (message?: { text: string }, options?: AgentSendOptions) => {
       await temporaryTurnController.send({ text: message?.text ?? '', options })
     },
     [temporaryTurnController]
@@ -152,7 +135,7 @@ const AgentChat = ({
     setCitationPanelCitations(citations)
   }, [])
 
-  const isInitializing = !visibleSession && (temporaryAgentConversation ? isAgentLoading : isSessionLoading)
+  const isInitializing = !sessionSnapshot && isSessionLoading
   const citationsPanelOpen = citationPanelCitations !== null
 
   if (isInitializing) {
@@ -161,32 +144,38 @@ const AgentChat = ({
         workspacePath={temporaryAgentConversation?.session.workspace?.path}
         messages={EMPTY_MESSAGES}
         partsByMessageId={EMPTY_PARTS}>
-        <AgentChatFrame
+        <ConversationShell
           className={messageStyle}
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
-          main={<MessageListInitialLoading />}
+          center={<ConversationCenterState state="loading" />}
           rightPane={<AgentRightPane.Host />}
         />
       </AgentRightPane>
     )
   }
 
-  if (!visibleSession) {
-    if (!temporaryAgentConversation) {
-      return (
-        <AgentChatFrame
-          className={messageStyle}
-          pane={pane}
-          paneOpen={paneOpen}
-          panePosition={panePosition}
-          main={<div />}
-        />
-      )
-    }
+  if (!sessionSnapshot) {
+    return (
+      <ConversationShell
+        className={messageStyle}
+        pane={pane}
+        paneOpen={paneOpen}
+        panePosition={panePosition}
+        center={<ConversationCenterState state="empty" />}
+      />
+    )
+  }
 
-    const homeComposer = !isMultiSelectMode ? (
+  const sessionAgentId = sessionSnapshot.agentId ?? temporaryAgentConversation?.agentId ?? null
+  const sendableAgentId = activeAgent && sessionAgentId ? sessionAgentId : undefined
+  const isDraftTemporarySession =
+    !!temporaryAgentConversation && !visibleSession && temporaryTurnController.layout === 'draft'
+  const isTemporaryHandoff = !!temporaryAgentConversation && !visibleSession && !isDraftTemporarySession
+  const sessionMessagesEnabled = !!visibleSession || reservedSessionSeed?.sessionId === sessionSnapshot.id
+  const homeComposer =
+    isDraftTemporarySession && !isMultiSelectMode && temporaryAgentConversation ? (
       <AgentHomeComposer
         agentId={temporaryAgentConversation.agentId}
         sessionId={temporaryAgentConversation.sessionId}
@@ -199,7 +188,7 @@ const AgentChat = ({
         workspaceId={temporaryAgentConversation.session.workspaceId}
         onWorkspaceChange={onDraftWorkspaceChange}
         workspaceChanging={replacingTemporaryWorkspace}
-        showWorkspaceSelector={temporaryTurnController.layout === 'draft'}
+        showWorkspaceSelector
         onNewSessionDraft={() =>
           onStartTemporarySession?.({
             agentId: temporaryAgentConversation.agentId,
@@ -208,55 +197,7 @@ const AgentChat = ({
           })
         }
       />
-    ) : null
-
-    return (
-      <AgentRightPane
-        workspacePath={temporaryAgentConversation.session.workspace?.path}
-        messages={EMPTY_MESSAGES}
-        partsByMessageId={EMPTY_PARTS}
-        sessionId={temporaryAgentConversation.sessionId}
-        sessionName={temporaryAgentConversation.session.name}
-        agentId={temporaryAgentConversation.agentId}
-        agentName={activeAgent?.name}
-        agentAvatar={activeAgent?.configuration?.avatar}>
-        <AgentChatFrame
-          className={messageStyle}
-          pane={pane}
-          paneOpen={paneOpen}
-          panePosition={panePosition}
-          topBar={
-            <div className="flex h-fit w-full min-w-0">
-              <AgentChatNavbar
-                className="min-w-0"
-                activeAgent={activeAgent ?? null}
-                tools={<AgentRightPane.FilesToggle />}
-              />
-            </div>
-          }
-          main={
-            <AgentComposerDock
-              placement={temporaryTurnController.layout === 'draft' ? 'home' : 'docked'}
-              main={<div className="h-full min-h-0 flex-1" />}
-              composer={homeComposer}
-              mainVisible={temporaryTurnController.layout !== 'draft'}
-            />
-          }
-          sidePanel={
-            <CitationsPanel
-              open={citationsPanelOpen}
-              onClose={() => setCitationPanelCitations(null)}
-              citations={citationPanelCitations ?? []}
-            />
-          }
-          centerOverlay={<AgentRightPane.MaximizedOverlay />}
-          rightPane={<AgentRightPane.Host />}
-        />
-      </AgentRightPane>
-    )
-  }
-
-  const sendableAgentId = activeAgent ? (visibleSession.agentId ?? undefined) : undefined
+    ) : undefined
 
   return (
     <AgentChatSessionFrame
@@ -264,20 +205,26 @@ const AgentChat = ({
       pane={pane}
       paneOpen={paneOpen}
       panePosition={panePosition}
-      visibleSession={visibleSession}
+      session={sessionSnapshot}
+      placement={isDraftTemporarySession ? 'home' : 'docked'}
+      homeComposer={homeComposer}
+      homeWelcomeText={t('agent.home.welcome_title')}
       agentId={sendableAgentId}
       activeAgent={activeAgent}
       isMultiSelectMode={isMultiSelectMode}
+      sessionMessagesEnabled={sessionMessagesEnabled}
+      dockedSendDisabled={isTemporaryHandoff}
+      dockedStreaming={isTemporaryHandoff}
       reservedMessages={
-        reservedSessionSeed?.sessionId === visibleSession.id ? reservedSessionSeed.messages : EMPTY_MESSAGES
+        reservedSessionSeed?.sessionId === sessionSnapshot.id ? reservedSessionSeed.messages : EMPTY_MESSAGES
       }
       onOpenCitationsPanel={handleOpenCitationsPanel}
       onNewSessionDraft={
-        sendableAgentId
+        sessionAgentId
           ? () =>
               onStartTemporarySession?.({
-                agentId: sendableAgentId,
-                workspaceId: visibleSession.workspaceId ?? undefined,
+                agentId: sessionAgentId,
+                workspaceId: sessionSnapshot.workspaceId ?? undefined,
                 name: t('common.unnamed')
               })
           : undefined
@@ -295,18 +242,22 @@ const AgentChat = ({
 
 // ── Inner: session-scoped history; agentId is present only while the session is sendable ──
 
-type VisibleAgentSession = NonNullable<ReturnType<typeof useActiveSession>['session']>
-
 interface AgentChatSessionFrameProps {
   className?: string
   pane?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   sidePanel?: ReactNode
-  visibleSession: VisibleAgentSession
+  session: AgentSessionEntity
+  placement: ConversationComposerPlacement
+  homeComposer?: ReactNode
+  homeWelcomeText?: string
   agentId?: string
   activeAgent: GetAgentResponse | undefined
   isMultiSelectMode: boolean
+  sessionMessagesEnabled: boolean
+  dockedSendDisabled?: boolean
+  dockedStreaming?: boolean
   reservedMessages?: CherryUIMessage[]
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onNewSessionDraft?: () => void | Promise<void>
@@ -318,174 +269,73 @@ const AgentChatSessionFrame = ({
   paneOpen,
   panePosition,
   sidePanel,
-  visibleSession,
+  session,
+  placement,
+  homeComposer,
+  homeWelcomeText,
   agentId,
   activeAgent,
   isMultiSelectMode,
+  sessionMessagesEnabled,
+  dockedSendDisabled = false,
+  dockedStreaming = false,
   reservedMessages = EMPTY_MESSAGES,
   onOpenCitationsPanel,
   onNewSessionDraft
 }: AgentChatSessionFrameProps) => {
-  const sessionId = visibleSession.id
-  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const {
-    messages: uiMessages,
-    isLoading,
-    hasOlder,
-    loadOlder,
-    refresh,
-    seedReservedMessages,
-    deleteMessage: deleteSessionMessage
-  } = useAgentSessionParts(sessionId)
-
-  useLayoutEffect(() => {
-    if (reservedMessages.length === 0) return
-    void seedReservedMessages(reservedMessages)
-  }, [reservedMessages, seedReservedMessages])
-  const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
-  const historyAdapter = useMemo<ConversationHistoryAdapter>(
-    () => ({
-      seedReservedMessages,
-      refresh,
-      rollback: refresh
-    }),
-    [refresh, seedReservedMessages]
-  )
-  const turnController = useConversationTurnController<AgentTurnInput, { topicId: string }>({
-    scopeKey: sessionTopicId,
-    historyAdapter,
-    ensureConversation: () => ({ topicId: sessionTopicId }),
-    buildStreamRequest: (input, conversation) => ({
-      trigger: 'submit-message',
-      topicId: conversation.topicId,
-      userMessageParts: getAgentTurnParts(input)
-    })
+  const runtime = useAgentChatRuntimeState({
+    session,
+    activeAgent,
+    sessionMessagesEnabled,
+    reservedMessages
   })
-  const sendMessage = useCallback(
-    async (message?: { text: string }, options?: AgentSendOptions) => {
-      await turnController.send({ text: message?.text ?? '', options })
-    },
-    [turnController]
+  const composer = (
+    <AgentComposerSlot
+      placement={placement}
+      homeComposer={homeComposer}
+      agentId={agentId}
+      isMultiSelectMode={isMultiSelectMode}
+      session={session}
+      sessionId={runtime.sessionId}
+      sendMessage={runtime.sendMessage}
+      stop={runtime.stop}
+      isStreaming={dockedStreaming || runtime.isPending}
+      sendDisabled={dockedSendDisabled}
+      onNewSessionDraft={onNewSessionDraft}
+      composerContext={runtime.composerContext}
+    />
   )
-  const deleteMessage = useCallback(
-    async (messageId: string) => {
-      await deleteSessionMessage(messageId)
-      chat.setMessages((current) => current.filter((message) => message.id !== messageId))
-    },
-    [chat, deleteSessionMessage]
-  )
-
-  const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
-    const modelString = activeAgent?.model
-    if (!isUniqueModelId(modelString)) return undefined
-    const { providerId, modelId } = parseUniqueModelId(modelString)
-    if (!providerId || !modelId) return undefined
-    return { id: modelId, name: activeAgent?.modelName ?? modelId, provider: providerId }
-  }, [activeAgent?.model, activeAgent?.modelName])
-
-  const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const next: Record<string, CherryMessagePart[]> = {}
-    for (const message of uiMessages) {
-      next[message.id] = (message.parts ?? []) as CherryMessagePart[]
-    }
-    return next
-  }, [uiMessages])
-
-  const { overlay } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages)
-
-  const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const next = { ...basePartsMap }
-    for (const [messageId, parts] of Object.entries(overlay)) {
-      if (parts.length) next[messageId] = parts
-    }
-    return next
-  }, [basePartsMap, overlay])
-
-  const handleToolApprovalRespond = useCallback(
-    async ({ match, approved, reason, updatedInput }: MessageToolApprovalInput) => {
-      const approvalId = match.approvalId
-
-      const result = await window.api.ai.toolApproval.respond({
-        approvalId,
-        approved,
-        reason,
-        updatedInput,
-        topicId: sessionTopicId,
-        anchorId: match.messageId
-      })
-
-      if (!result.ok) throw new Error('Tool approval response was not accepted')
-      await refresh()
-    },
-    [refresh, sessionTopicId]
-  )
-  const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
-    partsByMessageId,
-    onRespond: handleToolApprovalRespond
-  })
-  const { isPending } = useTopicStreamStatus(sessionTopicId)
-
-  const composerContext = useMemo(
-    () => ({
-      overrides: toolApprovalComposerOverrides
-    }),
-    [toolApprovalComposerOverrides]
-  )
-
-  const bottomComposer = useMemo(() => {
-    if (isMultiSelectMode || !agentId) return undefined
-
-    return (
-      <ComposerContextProvider value={composerContext}>
-        <ComposerCore
-          fallback={
-            <AgentComposer
-              agentId={agentId}
-              sessionId={sessionId}
-              sendMessage={sendMessage}
-              stop={chat.stop}
-              isStreaming={isPending}
-              onNewSessionDraft={onNewSessionDraft}
-            />
-          }
-        />
-      </ComposerContextProvider>
-    )
-  }, [agentId, chat.stop, composerContext, isMultiSelectMode, isPending, onNewSessionDraft, sendMessage, sessionId])
-
   const main = (
-    <div className="translate-z-0 relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1">
-        <AgentSessionMessagesWithAgentRightPaneAction
-          agentId={agentId}
-          sessionId={sessionId}
-          messages={uiMessages}
-          activeAgent={activeAgent}
-          partsByMessageId={partsByMessageId}
-          modelFallback={fallbackSnapshot}
-          isLoading={isLoading}
-          hasOlder={hasOlder}
-          loadOlder={loadOlder}
-          onOpenCitationsPanel={onOpenCitationsPanel}
-          deleteMessage={agentId ? deleteMessage : undefined}
-          respondToolApproval={agentId ? handleToolApprovalRespond : undefined}
-        />
-      </div>
-    </div>
+    <AgentChatMain
+      placement={placement}
+      sessionMessagesEnabled={sessionMessagesEnabled}
+      agentId={agentId}
+      sessionId={runtime.sessionId}
+      messages={runtime.uiMessages}
+      activeAgent={activeAgent}
+      partsByMessageId={runtime.partsByMessageId}
+      modelFallback={runtime.fallbackSnapshot}
+      isLoading={runtime.isLoading}
+      hasOlder={runtime.hasOlder}
+      loadOlder={runtime.loadOlder}
+      onOpenCitationsPanel={onOpenCitationsPanel}
+      deleteMessage={runtime.deleteMessage}
+      respondToolApproval={runtime.respondToolApproval}
+    />
   )
 
   return (
     <AgentRightPane
-      workspacePath={visibleSession.workspace?.path}
-      messages={uiMessages}
-      partsByMessageId={partsByMessageId}
-      sessionId={sessionId}
-      sessionName={visibleSession.name}
-      agentId={agentId ?? visibleSession.agentId ?? undefined}
+      workspacePath={session.workspace?.path}
+      messages={runtime.uiMessages}
+      partsByMessageId={runtime.partsByMessageId}
+      sessionId={runtime.sessionId}
+      sessionName={session.name}
+      agentId={agentId ?? session.agentId ?? undefined}
       agentName={activeAgent?.name}
       agentAvatar={activeAgent?.configuration?.avatar}
-      modelFallback={fallbackSnapshot}>
-      <AgentChatFrame
+      modelFallback={runtime.fallbackSnapshot}>
+      <ConversationShell
         className={className}
         pane={pane}
         paneOpen={paneOpen}
@@ -499,109 +349,19 @@ const AgentChatSessionFrame = ({
             />
           </div>
         }
-        centerContent={<AgentComposerDock placement="docked" main={main} composer={bottomComposer} mainVisible />}
+        center={
+          <ConversationStageCenter
+            placement={placement}
+            main={main}
+            composer={composer}
+            homeWelcomeText={homeWelcomeText}
+          />
+        }
         sidePanel={sidePanel}
         centerOverlay={<AgentRightPane.MaximizedOverlay />}
         rightPane={<AgentRightPane.Host />}
       />
     </AgentRightPane>
-  )
-}
-
-const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<typeof AgentSessionMessages>) => {
-  const { openAgentToolFlow } = useAgentRightPaneActions()
-  return <AgentSessionMessages {...props} openAgentToolFlow={openAgentToolFlow} />
-}
-
-// Lifts the composer above the maximized right-pane overlay so it stays usable while maximized.
-const AgentComposerDock = (props: ComponentProps<typeof ComposerDockTransitionFrame>) => {
-  const { maximized } = useShellState()
-  return <ComposerDockTransitionFrame {...props} composerElevated={maximized} />
-}
-
-interface AgentChatFrameBaseProps {
-  pane?: ReactNode
-  paneOpen?: boolean
-  panePosition?: ChatPanePosition
-  topBar?: ReactNode
-  sidePanel?: ReactNode
-  overlay?: ReactNode
-  centerOverlay?: ReactNode
-  rightPane?: ReactNode
-  className?: string
-}
-
-type AgentChatFrameMainProps = AgentChatFrameBaseProps & {
-  main: ReactNode
-  bottomComposer?: ReactNode
-  centerContent?: never
-}
-
-type AgentChatFrameCenterContentProps = AgentChatFrameBaseProps & {
-  centerContent: ReactNode
-  main?: never
-  bottomComposer?: never
-}
-
-type AgentChatFrameProps = AgentChatFrameMainProps | AgentChatFrameCenterContentProps
-
-const AgentChatFrame = ({
-  pane,
-  paneOpen,
-  panePosition,
-  topBar,
-  main,
-  centerContent,
-  bottomComposer,
-  sidePanel,
-  overlay,
-  centerOverlay,
-  rightPane,
-  className
-}: AgentChatFrameProps) => {
-  const shell =
-    centerContent !== undefined ? (
-      <ChatAppShell
-        pane={pane}
-        paneOpen={paneOpen}
-        panePosition={panePosition}
-        topBar={topBar}
-        centerContent={centerContent}
-        sidePanel={sidePanel}
-        centerOverlay={centerOverlay}
-        overlay={overlay}
-      />
-    ) : (
-      <ChatAppShell
-        pane={pane}
-        paneOpen={paneOpen}
-        panePosition={panePosition}
-        topBar={topBar}
-        main={main ?? null}
-        bottomComposer={bottomComposer}
-        sidePanel={sidePanel}
-        centerOverlay={centerOverlay}
-        overlay={overlay}
-      />
-    )
-
-  return (
-    <Container className={className}>
-      <QuickPanelProvider>{shell}</QuickPanelProvider>
-      {rightPane}
-    </Container>
-  )
-}
-
-const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
-  return (
-    <div
-      className={cn(
-        'flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background',
-        className
-      )}>
-      {children}
-    </div>
   )
 }
 

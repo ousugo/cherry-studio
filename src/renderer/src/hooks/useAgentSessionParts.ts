@@ -59,12 +59,12 @@ function reservedUIMessageToAgentSessionMessage(
   }
 }
 
-export function useAgentSessionParts(sessionId: string) {
+export function useAgentSessionParts(sessionId: string, options: { enabled?: boolean } = {}) {
   const sessionMessagesCachePath = `/sessions/${sessionId}/messages` as const
   const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/sessions/:sessionId/messages', {
     params: { sessionId },
     limit: PAGE_SIZE,
-    enabled: !!sessionId
+    enabled: !!sessionId && options.enabled !== false
   })
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/sessions/:sessionId/messages/:messageId', {
     refresh: [sessionMessagesCachePath]

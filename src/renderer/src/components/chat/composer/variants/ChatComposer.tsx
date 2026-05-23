@@ -1,7 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import AnimatedRevealText from '@renderer/components/AnimatedRevealText'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerMessageQueuePanel from '@renderer/components/chat/composer/ComposerMessageQueuePanel'
 import ComposerSurface, {
@@ -312,7 +311,6 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
 
 type ChatComposerRootProps = ChatComposerProps & {
   renderControls: ChatComposerControlsRenderer
-  topContent?: React.ReactNode
   cacheMentionedModels?: boolean
 }
 
@@ -323,7 +321,6 @@ const ChatComposerRoot = ({
   useMentionedModelSelector,
   onTemporaryAssistantChange,
   onNewTopic,
-  topContent,
   renderControls,
   cacheMentionedModels = true
 }: ChatComposerRootProps) => {
@@ -362,7 +359,6 @@ const ChatComposerRoot = ({
         useMentionedModelSelector={useMentionedModelSelector}
         onTemporaryAssistantChange={onTemporaryAssistantChange}
         onNewTopic={onNewTopic}
-        topContent={topContent}
         renderControls={renderControls}
         cacheMentionedModels={cacheMentionedModels}
       />
@@ -372,7 +368,6 @@ const ChatComposerRoot = ({
 
 interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'setActiveTopic'> {
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
-  topContent?: React.ReactNode
   renderControls: ChatComposerControlsRenderer
   cacheMentionedModels: boolean
 }
@@ -385,7 +380,6 @@ const ChatComposerInner = ({
   useMentionedModelSelector,
   onTemporaryAssistantChange,
   onNewTopic,
-  topContent,
   renderControls,
   cacheMentionedModels
 }: ChatComposerInnerProps) => {
@@ -1088,7 +1082,6 @@ const ChatComposerInner = ({
         onTokenRemoveRequest={handleTokenRemoveRequest}
         getToolLaunchers={() => getLaunchers('root-panel')}
         suggestionSources={suggestionSources}
-        topContent={topContent}
         queueContent={
           <ComposerMessageQueuePanel
             draftItems={messageQueue.draftItems}
@@ -1121,13 +1114,11 @@ const ChatComposer = (props: ChatComposerProps) => {
 }
 
 export const ChatHomeComposer = (props: ChatComposerProps) => {
-  const { t } = useTranslation()
   return (
     <ChatComposerRoot
       {...props}
       useMentionedModelSelector
       cacheMentionedModels={false}
-      topContent={<AnimatedRevealText text={t('chat.home.welcome_title')} />}
       renderControls={renderChatHomeControls}
     />
   )

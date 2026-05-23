@@ -71,7 +71,6 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
       mocks.surfaceProps = props
       return (
         <div>
-          <div data-testid="composer-top-content">{props.topContent}</div>
           <div data-testid="composer-left-controls">{props.renderLeftControls?.(undefined)}</div>
           <div data-testid="composer-below-controls">{props.renderBelowControls?.(undefined)}</div>
           {props.tokens.map((token) => (
@@ -391,7 +390,6 @@ describe('ChatComposer', () => {
   it('renders the tool menu before assistant and model selectors', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
-    expect(mocks.surfaceProps?.topContent).toBeUndefined()
     expect(screen.getByText('tool menu')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
     expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
@@ -589,8 +587,6 @@ describe('ChatComposer', () => {
   it('renders selectors below the surface in temporary home mode', () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
-    expect(screen.getByTestId('composer-top-content')).toHaveTextContent('chat.home.welcome_title')
-    expect(mocks.surfaceProps?.topContent).toBeDefined()
     expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('tool menu')
     expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Assistant 1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Assistant 1')

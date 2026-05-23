@@ -1,1 +1,1 @@
-export { Shell, useShellActions, useShellState } from './Shell'
+export { Shell, useOptionalShellState, useShellActions, useShellState } from './Shell'

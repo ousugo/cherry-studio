@@ -4,6 +4,7 @@ import { act, createEvent, fireEvent, render, waitFor } from '@testing-library/r
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { MessageEnterMotionProvider } from '../../motion/messageEnterMotion'
 import type { MessageListItem } from '../types'
 
 const mocks = vi.hoisted(() => ({
@@ -469,6 +470,35 @@ describe('MessageGroup', () => {
     expect(actions).toHaveClass('opacity-0', 'group-hover/message:opacity-100')
   })
 
+  it('applies inline enter motion to newly inserted non-bubble user messages', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+
+    const message = {
+      ...createMessage('user-inline-1', 0, 'vertical'),
+      role: 'user'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(
+      <MessageEnterMotionProvider enteringMessageIds={new Set(['user-inline-1'])}>
+        <MessageGroup messages={[message]} topic={topic} />
+      </MessageEnterMotionProvider>
+    )
+
+    const messageElement = container.querySelector('#message-user-inline-1 .message')
+
+    expect(messageElement).toHaveAttribute('data-message-enter-motion', 'user-inline')
+    expect(messageElement).toHaveClass('animation-chat-message-enter-inline')
+  })
+
   it('keeps user bubble content and footer out of the assistant title-column offset', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'vertical',
@@ -496,6 +526,35 @@ describe('MessageGroup', () => {
     expect(contentContainer.style.width).toBe('')
     expect(footer.style.marginLeft).toBe('')
     expect(footer).toHaveClass('w-[calc(100%-30px)]')
+  })
+
+  it('applies bubble enter motion to newly inserted bubble user messages', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+
+    const message = {
+      ...createMessage('user-bubble-1', 0, 'vertical'),
+      role: 'user'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    const topic = { id: 'topic-1' } as Topic
+
+    const { container } = render(
+      <MessageEnterMotionProvider enteringMessageIds={new Set(['user-bubble-1'])}>
+        <MessageGroup messages={[message]} topic={topic} />
+      </MessageEnterMotionProvider>
+    )
+
+    const messageElement = container.querySelector('#message-user-bubble-1 .message')
+
+    expect(messageElement).toHaveAttribute('data-message-enter-motion', 'user-bubble')
+    expect(messageElement).toHaveClass('animation-chat-message-enter-bubble')
   })
 
   it('shows multi-model group controls even when the provider has no write actions', () => {

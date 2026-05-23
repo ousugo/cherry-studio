@@ -58,12 +58,26 @@ vi.mock('../list/MessageAnchorLine', () => ({
   default: () => null
 }))
 
-vi.mock('../list/MessageGroup', () => ({
-  __esModule: true,
-  default: ({ messages }: { messages: MessageListItem[] }) => (
-    <div data-testid="message-group">{messages.map((message) => message.id).join(',')}</div>
-  )
-}))
+vi.mock('../list/MessageGroup', async () => {
+  const { useMessageEnterMotionActive } = await import('../../motion/messageEnterMotion')
+
+  const MessageEnterProbe = ({ messageId }: { messageId: string }) => {
+    const active = useMessageEnterMotionActive(messageId)
+    return <span data-testid={`message-enter-${messageId}`}>{String(active)}</span>
+  }
+
+  return {
+    __esModule: true,
+    default: ({ messages }: { messages: MessageListItem[] }) => (
+      <div data-testid="message-group">
+        {messages.map((message) => (
+          <MessageEnterProbe key={message.id} messageId={message.id} />
+        ))}
+        {messages.map((message) => message.id).join(',')}
+      </div>
+    )
+  }
+})
 
 vi.mock('../list/MessageNavigation', () => ({
   __esModule: true,
@@ -168,5 +182,28 @@ describe('MessageList', () => {
     })
 
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'user-1')
+  })
+
+  it('marks only newly appended user messages for enter motion', () => {
+    const view = renderMessageList([createMessage('user-1', 'user')])
+
+    expect(screen.getByTestId('message-enter-user-1')).toHaveTextContent('false')
+
+    act(() => {
+      view.rerender(
+        <MessageListProvider
+          value={createValue([
+            createMessage('user-1', 'user'),
+            createMessage('user-2', 'user'),
+            createMessage('assistant-placeholder', 'assistant')
+          ])}>
+          <MessageList />
+        </MessageListProvider>
+      )
+    })
+
+    expect(screen.getByTestId('message-enter-user-1')).toHaveTextContent('false')
+    expect(screen.getByTestId('message-enter-user-2')).toHaveTextContent('true')
+    expect(screen.getByTestId('message-enter-assistant-placeholder')).toHaveTextContent('false')
   })
 })

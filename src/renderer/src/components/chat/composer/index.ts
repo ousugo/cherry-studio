@@ -12,6 +12,8 @@ export {
   ComposerTokenNode,
   type ComposerTokenRenderer
 } from './ComposerTokenNode'
+export { default as ConversationComposerSlot, type ConversationComposerSlotProps } from './ConversationComposerSlot'
+export { type ConversationComposerPlacement, default as ConversationComposerStage } from './ConversationComposerStage'
 export type {
   ComposerDraftToken,
   ComposerDraftTokenKind,

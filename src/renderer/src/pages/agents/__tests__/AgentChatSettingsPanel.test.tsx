@@ -16,30 +16,43 @@ vi.mock('@renderer/components/chat', () => ({
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 540,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
-  ChatAppShell: ({
+  ConversationCenterState: ({ state }: { state: string }) => (
+    <div data-testid="conversation-center-state" data-state={state} />
+  ),
+  ConversationShell: ({
     topBar,
     sidePanel,
-    main,
-    centerContent,
-    bottomComposer,
+    center,
+    rightPane,
     overlay
   }: {
     topBar?: ReactNode
     sidePanel?: ReactNode
-    main?: ReactNode
-    centerContent?: ReactNode
-    bottomComposer?: ReactNode
+    center?: ReactNode
+    rightPane?: ReactNode
     overlay?: ReactNode
   }) => (
     <div>
       <div data-testid="agent-top-bar">{topBar}</div>
       <div data-testid="agent-side-panel">{sidePanel}</div>
-      <div>{centerContent ?? main}</div>
-      <div>{bottomComposer}</div>
+      <div>{center}</div>
       <div>{overlay}</div>
+      {rightPane}
     </div>
   ),
   LoadingState: () => <div data-testid="loading-state" />,
+  RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
+    <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
+      {open ? children : null}
+    </div>
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
+  ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
+  ARTIFACT_RIGHT_PANE_MAX_WIDTH: 540,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
   RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
     <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
       {open ? children : null}
@@ -51,19 +64,23 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => ({
+vi.mock('@renderer/components/chat/composer/ConversationComposerStage', () => ({
   default: ({
     placement,
     main,
     composer,
-    mainVisible
+    homeWelcomeText
   }: {
     placement: string
     main: ReactNode
     composer: ReactNode
-    mainVisible?: boolean
+    homeWelcomeText?: string
   }) => (
-    <div data-testid="composer-dock-frame" data-placement={placement} data-main-visible={String(Boolean(mainVisible))}>
+    <div
+      data-testid="composer-dock-frame"
+      data-placement={placement}
+      data-main-visible={String(placement === 'docked')}>
+      <div data-testid="composer-dock-home-header">{placement === 'home' ? homeWelcomeText : null}</div>
       {main}
       {composer}
     </div>
@@ -71,7 +88,8 @@ vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => 
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [false]
+  useCache: () => [false],
+  usePersistCache: () => [undefined, vi.fn()]
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({

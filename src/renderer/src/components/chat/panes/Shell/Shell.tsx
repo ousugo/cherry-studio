@@ -1,11 +1,4 @@
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
-import {
-  ARTIFACT_RIGHT_PANE_CACHE_KEY,
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  RightPaneHost
-} from '@renderer/components/chat'
 import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { cn } from '@renderer/utils'
@@ -15,11 +8,19 @@ import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  ARTIFACT_RIGHT_PANE_CACHE_KEY,
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
+  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
+  RightPaneHost
+} from '../../shell/RightPaneHost'
+
 // ── Generic tabbed side-pane shell ──────────────────────────────────────────
 // Knows only about open/maximized/inset/activeTab. Tabs and their content are
 // composed in by the consumer via <Shell.Tab> / <Shell.Panel>.
 
-interface ShellState {
+export interface ShellState {
   open: boolean
   maximized: boolean
   activeTab: string
@@ -50,6 +51,10 @@ export function useShellActions(): ShellActions {
 
 export function useShellState(): ShellState {
   return useShell().state
+}
+
+export function useOptionalShellState(): ShellState | undefined {
+  return use(ShellContext)?.state
 }
 
 function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultTab: string }) {

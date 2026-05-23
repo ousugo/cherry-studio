@@ -79,7 +79,6 @@ export interface ComposerSurfaceProps {
   onTokenRemoveRequest?: (request: ComposerTokenRemoveRequest) => void
   getToolLaunchers?: () => ComposerToolLauncher[]
   suggestionSources?: readonly ComposerSuggestionSource[]
-  topContent?: React.ReactNode
   queueContent?: React.ReactNode
   onToolLauncherSelect?: (
     launcher: ComposerToolLauncher,
@@ -404,7 +403,6 @@ export default function ComposerSurface({
   onTokenRemoveRequest,
   getToolLaunchers,
   suggestionSources = [],
-  topContent,
   queueContent,
   onToolLauncherSelect,
   renderLeftControls,
@@ -801,7 +799,6 @@ export default function ComposerSurface({
   return (
     <NarrowLayout narrowMode={narrowMode && !forceWideLayout} withSidePadding style={{ width: '100%' }}>
       <div className="w-full">
-        {topContent ? <div className="mb-6 flex justify-center">{topContent}</div> : null}
         <div
           className="inputbar relative z-2 flex flex-col pt-0"
           onDragEnter={handleDragEnter}

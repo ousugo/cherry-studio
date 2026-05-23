@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as MotionReact from 'motion/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { useState } from 'react'
@@ -31,37 +31,38 @@ vi.mock('@renderer/components/chat', () => ({
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
-  ChatAppShell: ({
+  ConversationCenterState: ({ state }: { state: string }) => (
+    <div data-testid="conversation-center-state" data-state={state} />
+  ),
+  ConversationShell: ({
     pane,
     paneOpen,
     panePosition,
     topBar,
     sidePanel,
-    main,
-    centerContent,
-    bottomComposer,
+    center,
     overlay,
-    centerOverlay
+    centerOverlay,
+    rightPane
   }: {
     pane?: ReactNode
     paneOpen?: boolean
     panePosition?: string
     topBar?: ReactNode
     sidePanel?: ReactNode
-    main?: ReactNode
-    centerContent?: ReactNode
-    bottomComposer?: ReactNode
+    center?: ReactNode
     overlay?: ReactNode
     centerOverlay?: ReactNode
+    rightPane?: ReactNode
   }) => (
     <div data-testid="chat-app-shell" data-pane-open={String(Boolean(paneOpen))} data-pane-position={panePosition}>
       <div data-testid="agent-top-bar">{topBar}</div>
       <div data-testid="shell-pane">{pane}</div>
       <div data-testid="agent-side-panel">{sidePanel}</div>
-      <div>{centerContent ?? main}</div>
-      <div>{bottomComposer}</div>
+      <div>{center}</div>
       <div data-testid="chat-center-overlay">{centerOverlay}</div>
       <div>{overlay}</div>
+      {rightPane}
     </div>
   ),
   EmptyState: ({ title, description }: { title?: string; description?: string }) => (
@@ -71,6 +72,46 @@ vi.mock('@renderer/components/chat', () => ({
     </div>
   ),
   LoadingState: () => <div data-testid="loading-state" />,
+  RightPaneHost: ({
+    children,
+    open,
+    width,
+    resizable,
+    minWidth,
+    defaultWidth,
+    maxWidth,
+    cacheKey,
+    className
+  }: PropsWithChildren<{
+    open?: boolean
+    width?: string | number
+    resizable?: boolean
+    minWidth?: number
+    defaultWidth?: number
+    maxWidth?: number
+    cacheKey?: string
+    className?: string
+  }>) => (
+    <section
+      data-testid="artifact-right-pane"
+      data-open={String(Boolean(open))}
+      data-width={String(width)}
+      data-resizable={String(Boolean(resizable))}
+      data-min-width={String(minWidth)}
+      data-default-width={String(defaultWidth)}
+      data-max-width={String(maxWidth)}
+      data-cache-key={cacheKey}
+      data-class-name={className ?? ''}>
+      {open ? children : null}
+    </section>
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
+  ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
+  ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
   RightPaneHost: ({
     children,
     open,
@@ -137,25 +178,26 @@ vi.mock('@renderer/components/chat/composer/useToolApprovalComposerOverrides', (
   useToolApprovalComposerOverrides: () => ({})
 }))
 
-vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => ({
+vi.mock('@renderer/components/chat/composer/ConversationComposerStage', () => ({
   default: ({
     placement,
     main,
     composer,
-    mainVisible,
+    homeWelcomeText,
     composerElevated
   }: {
     placement: string
     main: ReactNode
     composer: ReactNode
-    mainVisible?: boolean
+    homeWelcomeText?: string
     composerElevated?: boolean
   }) => (
     <div
       data-testid="composer-dock-frame"
       data-placement={placement}
-      data-main-visible={String(Boolean(mainVisible))}
+      data-main-visible={String(placement === 'docked')}
       data-composer-elevated={String(Boolean(composerElevated))}>
+      <div data-testid="composer-dock-home-header">{placement === 'home' ? homeWelcomeText : null}</div>
       {main}
       {composer}
     </div>
@@ -183,7 +225,8 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [false]
+  useCache: () => [false],
+  usePersistCache: () => [undefined, vi.fn()]
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -295,10 +338,14 @@ vi.mock('../components/AgentChatNavbar', () => ({
 }))
 
 vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
-  default: ({ sendDisabled }: { sendDisabled?: boolean }) => (
-    <div data-testid="agent-composer" data-send-disabled={String(Boolean(sendDisabled))} />
+  default: ({ sendDisabled, sessionId }: { sendDisabled?: boolean; sessionId?: string }) => (
+    <div data-testid="agent-composer" data-send-disabled={String(Boolean(sendDisabled))} data-session-id={sessionId} />
   ),
-  AgentHomeComposer: () => <div data-testid="agent-home-composer" />
+  AgentHomeComposer: ({ sendMessage }: { sendMessage?: (message: { text: string }) => Promise<void> | void }) => (
+    <button type="button" data-testid="agent-home-composer" onClick={() => void sendMessage?.({ text: 'hello' })}>
+      send temporary message
+    </button>
+  )
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
@@ -502,7 +549,48 @@ describe('AgentChat artifact pane', () => {
 
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'false')
+    expect(screen.getByTestId('composer-dock-home-header')).toHaveTextContent('agent.home.welcome_title')
     expect(screen.getByTestId('agent-home-composer')).toBeInTheDocument()
+  })
+
+  it('reuses the docked composer frame during temporary session handoff', async () => {
+    activeSessionMocks.result = {
+      activeSessionId: null,
+      session: undefined,
+      isLoading: false,
+      setActiveSessionId: vi.fn()
+    }
+    const onPersistTemporarySession = vi.fn(() => new Promise<never>(() => undefined))
+
+    render(
+      <AgentChat
+        temporaryConversation={
+          {
+            type: 'agent',
+            id: 'temp-session-1',
+            sessionId: 'temp-session-1',
+            topicId: 'agent-session:temp-session-1',
+            agentId: 'agent-1',
+            workspace: { path: '/tmp/workspace' },
+            name: 'Temp Session',
+            session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } }
+          } as any
+        }
+        onPersistTemporarySession={onPersistTemporarySession}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'send temporary message' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
+    })
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
+    expect(screen.getByTestId('composer-dock-home-header')).toBeEmptyDOMElement()
+    expect(screen.queryByTestId('agent-home-composer')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-send-disabled', 'true')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-session-id', 'temp-session-1')
+    expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
   })
 
   it('opens one right-pane tab per selected subagent flow', () => {

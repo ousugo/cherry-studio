@@ -99,19 +99,23 @@ vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => ({
+vi.mock('@renderer/components/chat/composer/ConversationComposerStage', () => ({
   default: ({
     placement,
     main,
     composer,
-    mainVisible
+    homeWelcomeText
   }: {
     placement: string
     main: ReactNode
     composer: ReactNode
-    mainVisible?: boolean
+    homeWelcomeText?: string
   }) => (
-    <div data-testid="composer-dock-frame" data-placement={placement} data-main-visible={String(Boolean(mainVisible))}>
+    <div
+      data-testid="composer-dock-frame"
+      data-placement={placement}
+      data-main-visible={String(placement === 'docked')}>
+      <div data-testid="composer-dock-home-header">{placement === 'home' ? homeWelcomeText : null}</div>
       <div data-testid="composer-dock-main">{main}</div>
       <div data-testid="composer-dock-composer">{composer}</div>
     </div>
@@ -233,7 +237,7 @@ describe('ChatContent', () => {
       activeExecutions: []
     })
 
-    render(<ChatContent topic={topic} mainHeight="100px" />)
+    render(<ChatContent topic={topic} />)
 
     await act(async () => {
       await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
@@ -254,7 +258,7 @@ describe('ChatContent', () => {
   })
 
   it('keeps a message cache key without fetching history for freshly leased temporary topics', () => {
-    render(<ChatContent topic={topic} mainHeight="100px" onPersistTemporaryTopic={vi.fn()} />)
+    render(<ChatContent topic={topic} onPersistTemporaryTopic={vi.fn()} />)
 
     expect(mockUseTopicMessages).toHaveBeenCalledWith('topic-1', { fetchOnMount: false })
   })
@@ -272,7 +276,7 @@ describe('ChatContent', () => {
     })
     const persistTemporaryTopic = vi.fn().mockResolvedValue(null)
 
-    render(<ChatContent topic={topic} mainHeight="100px" onPersistTemporaryTopic={persistTemporaryTopic} />)
+    render(<ChatContent topic={topic} onPersistTemporaryTopic={persistTemporaryTopic} />)
 
     await act(async () => {
       await expect(
@@ -305,7 +309,7 @@ describe('ChatContent', () => {
       type: 'assistant'
     })
 
-    render(<ChatContent topic={topic} mainHeight="100px" onPersistTemporaryTopic={persistTemporaryTopic} />)
+    render(<ChatContent topic={topic} onPersistTemporaryTopic={persistTemporaryTopic} />)
 
     await act(async () => {
       await expect(
@@ -330,7 +334,7 @@ describe('ChatContent', () => {
       mutate: vi.fn().mockResolvedValue(undefined)
     })
 
-    render(<ChatContent topic={topic} mainHeight="100px" />)
+    render(<ChatContent topic={topic} />)
 
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.getByTestId('message-list-loading')).toBeInTheDocument()
@@ -364,22 +368,15 @@ describe('ChatContent', () => {
     render(
       <ChatContent
         topic={topic}
-        mainHeight="100px"
         onPersistTemporaryTopic={vi.fn()}
         onTemporaryAssistantChange={onTemporaryAssistantChange}
-        renderFrame={({ main, bottomComposer }) => (
-          <>
-            <div data-testid="frame-main">{main}</div>
-            <div data-testid="frame-bottom">{bottomComposer}</div>
-          </>
-        )}
       />
     )
 
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'false')
-    expect(screen.getByTestId('frame-main')).toHaveTextContent('home composer')
-    expect(screen.getByTestId('frame-bottom')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('composer-dock-home-header')).not.toBeEmptyDOMElement()
+    expect(screen.getByTestId('composer-dock-composer')).toHaveTextContent('home composer')
 
     fireEvent.click(screen.getByTestId('chat-home-composer'))
 
@@ -415,7 +412,7 @@ describe('ChatContent', () => {
       activeExecutions: [{ executionId: 'pending-placeholder', anchorMessageId: 'pending-placeholder' }] as never
     })
 
-    render(<ChatContent topic={topic} mainHeight="100px" />)
+    render(<ChatContent topic={topic} />)
 
     // List reflects uiMessages exactly — no extra `live-*` entry appended.
     await waitFor(() => {
@@ -450,7 +447,7 @@ describe('ChatContent', () => {
       activeExecutions: [{ executionId: 'gemini-new-pending', anchorMessageId: 'gemini-new-pending' }] as never
     })
 
-    render(<ChatContent topic={topic} mainHeight="100px" />)
+    render(<ChatContent topic={topic} />)
 
     await waitFor(() => {
       expect(screen.getByTestId('messages')).toHaveTextContent('u-1,gemini-old,kimi,claude,gemini-new-pending')
@@ -493,7 +490,7 @@ describe('ChatContent', () => {
       mutate: vi.fn().mockResolvedValue(undefined)
     })
 
-    render(<ChatContent topic={topic} mainHeight="100px" />)
+    render(<ChatContent topic={topic} />)
 
     expect(screen.queryByRole('button', { name: 'send' })).not.toBeInTheDocument()
 

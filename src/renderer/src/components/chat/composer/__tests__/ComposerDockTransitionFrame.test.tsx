@@ -118,4 +118,36 @@ describe('ComposerDockTransitionFrame', () => {
     rerender(<ComposerDockTransitionFrame {...baseProps} composerElevated />)
     expect(container.querySelector('[data-composer-dock-layer]')).toHaveClass('z-50')
   })
+
+  it('marks the composer surface when moving from home to docked placement', () => {
+    const baseProps = {
+      main: <InsetProbe />,
+      composer: <div data-composer-inputbar="" />,
+      mainVisible: true
+    }
+    const { container, rerender } = render(<ComposerDockTransitionFrame {...baseProps} placement="home" />)
+
+    expect(container.querySelector('[data-composer-dock-surface]')).not.toHaveAttribute('data-composer-dock-motion')
+
+    rerender(<ComposerDockTransitionFrame {...baseProps} placement="docked" />)
+
+    const surface = container.querySelector('[data-composer-dock-surface]')
+    expect(surface).toHaveAttribute('data-composer-dock-motion', 'home-to-docked')
+    expect(surface).toHaveClass('animation-chat-composer-dock-down')
+  })
+
+  it('renders the home header outside the animated composer surface', () => {
+    const { container } = render(
+      <ComposerDockTransitionFrame
+        placement="home"
+        main={<InsetProbe />}
+        composer={<div data-composer-inputbar="">composer</div>}
+        homeHeader={<div data-testid="home-header">welcome</div>}
+      />
+    )
+
+    const surface = container.querySelector('[data-composer-dock-surface]')
+    expect(screen.getByTestId('home-header')).toBeInTheDocument()
+    expect(surface).not.toContainElement(screen.getByTestId('home-header'))
+  })
 })

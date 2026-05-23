@@ -12,6 +12,11 @@ import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  getMessageEnterMotionAttributes,
+  getUserMessageEnterMotionVariant,
+  useMessageEnterMotionActive
+} from '../../motion/messageEnterMotion'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,
@@ -138,6 +143,14 @@ const MessageItem: FC<Props> = ({
   const isApprovalAnchor = activityState?.isApprovalAnchor ?? false
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
+  const enterMotionActive = useMessageEnterMotionActive(message.id)
+  const enterMotionVariant = getUserMessageEnterMotionVariant({
+    active: enterMotionActive,
+    role: message.role,
+    messageStyle,
+    isMultiSelectMode
+  })
+  const enterMotionAttributes = getMessageEnterMotionAttributes(enterMotionVariant)
   const showAssistantFooterActions = showMenuBar && isAssistantMessage
   const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
   const assistantFooterVisibilityClass = isLatestAssistantMessage
@@ -268,11 +281,15 @@ const MessageItem: FC<Props> = ({
     <WrapperContainer isMultiSelectMode={isMultiSelectMode}>
       <div
         key={message.id}
-        className={classNames({
-          'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
-          'message-assistant': isAssistantMessage,
-          'message-user': !isAssistantMessage
-        })}
+        data-message-enter-motion={enterMotionAttributes?.motion}
+        className={cn(
+          classNames({
+            'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
+            'message-assistant': isAssistantMessage,
+            'message-user': !isAssistantMessage
+          }),
+          enterMotionAttributes?.className
+        )}
         ref={messageContainerRef}>
         {isUserBubbleMessage ? (
           isEditing ? (

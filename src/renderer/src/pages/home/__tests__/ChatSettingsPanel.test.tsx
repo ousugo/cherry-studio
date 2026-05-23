@@ -26,27 +26,24 @@ vi.mock('@logger', () => ({
 
 vi.mock('@renderer/components/chat', () => ({
   OverlayHost: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  ChatAppShell: ({
+  ConversationShell: ({
     topBar,
     sidePanel,
-    centerContent,
-    main,
-    bottomComposer,
+    center,
+    centerOverlay,
     overlay
   }: {
     topBar?: ReactNode
     sidePanel?: ReactNode
-    centerContent?: ReactNode
-    main: ReactNode
-    bottomComposer?: ReactNode
+    center: ReactNode
+    centerOverlay?: ReactNode
     overlay?: ReactNode
   }) => (
     <div>
       <div data-testid="chat-top-bar">{topBar}</div>
       <div data-testid="chat-side-panel">{sidePanel}</div>
-      <div>{centerContent}</div>
-      <div>{main}</div>
-      <div>{bottomComposer}</div>
+      <div>{center}</div>
+      <div>{centerOverlay}</div>
       <div>{overlay}</div>
     </div>
   )
@@ -94,23 +91,17 @@ vi.mock('../components/ChatNavBar', () => ({
   default: () => <div data-testid="chat-navbar" />
 }))
 
+vi.mock('../components/TopicMessageFlowPanel', () => ({
+  default: ({ open }: { open: boolean }) => <div data-testid="topic-flow-panel" data-open={String(open)} />
+}))
+
 vi.mock('../ChatContent', () => ({
-  default: ({
-    onOpenCitationsPanel,
-    renderFrame
-  }: {
-    onOpenCitationsPanel: (payload: { citations: unknown[] }) => void
-    renderFrame: (frame: { main: ReactNode; bottomComposer: ReactNode; overlay: ReactNode }) => ReactNode
-  }) => (
+  default: ({ onOpenCitationsPanel }: { onOpenCitationsPanel: (payload: { citations: unknown[] }) => void }) => (
     <>
       <button type="button" onClick={() => onOpenCitationsPanel({ citations: [{ number: 1 }] })}>
         open citations
       </button>
-      {renderFrame({
-        main: <div data-testid="chat-main" />,
-        bottomComposer: <div data-testid="chat-composer" />,
-        overlay: <div data-testid="chat-overlay" />
-      })}
+      <div data-testid="chat-main" />
     </>
   )
 }))

@@ -1,7 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import AnimatedRevealText from '@renderer/components/AnimatedRevealText'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerMessageQueuePanel from '@renderer/components/chat/composer/ComposerMessageQueuePanel'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
@@ -168,7 +167,6 @@ type Props = {
 
 type AgentComposerRootProps = Props & {
   renderControls: AgentComposerControlsRenderer
-  topContent?: React.ReactNode
 }
 
 type ProviderActionHandlers = ComposerSurfaceActions & {
@@ -198,7 +196,6 @@ const AgentComposerRoot = ({
   workspaceChanging,
   isStreaming,
   sendDisabled = false,
-  topContent,
   renderControls
 }: AgentComposerRootProps) => {
   const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
@@ -259,7 +256,6 @@ const AgentComposerRoot = ({
         workspaceChanging={workspaceChanging}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
-        topContent={topContent}
         renderControls={renderControls}
       />
     </ComposerToolRuntimeProvider>
@@ -283,7 +279,6 @@ interface InnerProps {
   workspaceChanging?: boolean
   isStreaming: boolean
   sendDisabled: boolean
-  topContent?: React.ReactNode
   renderControls: AgentComposerControlsRenderer
 }
 
@@ -491,7 +486,6 @@ const AgentComposerInner = ({
   workspaceChanging,
   isStreaming,
   sendDisabled,
-  topContent,
   renderControls
 }: InnerProps) => {
   const { agent: agentBase } = useAgent(agentId)
@@ -956,7 +950,6 @@ const AgentComposerInner = ({
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers('root-panel')}
         suggestionSources={suggestionSources}
-        topContent={topContent}
         queueContent={
           <ComposerMessageQueuePanel
             draftItems={messageQueue.draftItems}
@@ -983,14 +976,7 @@ const AgentComposer = (props: Props) => {
 }
 
 export const AgentHomeComposer = (props: Props) => {
-  const { t } = useTranslation()
-  return (
-    <AgentComposerRoot
-      {...props}
-      topContent={<AnimatedRevealText text={t('agent.home.welcome_title')} />}
-      renderControls={renderAgentHomeControls}
-    />
-  )
+  return <AgentComposerRoot {...props} renderControls={renderAgentHomeControls} />
 }
 
 export default AgentComposer

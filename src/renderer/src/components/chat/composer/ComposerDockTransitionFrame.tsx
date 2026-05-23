@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
 
 import { ChatBottomOverlayInsetProvider, type ChatBottomOverlayInsets } from '../layout/ChatViewportInsetContext'
+import { getComposerDockMotionAttributes, useComposerDockMotionTransition } from '../motion/composerDockMotion'
 
 const COMPOSER_MESSAGE_GAP_PX = 16
 
@@ -12,6 +13,7 @@ interface ComposerDockTransitionFrameProps {
   placement: ComposerDockPlacement
   main: ReactNode
   composer: ReactNode
+  homeHeader?: ReactNode
   mainVisible?: boolean
   /** Lift the composer above a full-area overlay (e.g. a maximized side pane). */
   composerElevated?: boolean
@@ -27,6 +29,7 @@ export default function ComposerDockTransitionFrame({
   placement,
   main,
   composer,
+  homeHeader,
   mainVisible = placement === 'docked',
   composerElevated = false,
   overlay
@@ -36,6 +39,8 @@ export default function ComposerDockTransitionFrame({
   const [bottomOverlayInsets, setBottomOverlayInsets] = useState<ChatBottomOverlayInsets | null>(null)
   const [composerInlineInsets, setComposerInlineInsets] = useState<ComposerInlineInsets>({ left: 0, right: 0 })
   const isDocked = placement === 'docked'
+  const dockMotionTransition = useComposerDockMotionTransition(placement)
+  const dockMotionAttributes = getComposerDockMotionAttributes(dockMotionTransition)
 
   useLayoutEffect(() => {
     const node = composerRef.current
@@ -109,7 +114,12 @@ export default function ComposerDockTransitionFrame({
           isDocked ? 'bottom-0' : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh]'
         )}>
         <div className="pointer-events-auto w-full">
-          <div ref={composerRef} data-composer-dock-surface="" className="w-full">
+          {!isDocked && homeHeader ? <div className="mb-6 flex justify-center">{homeHeader}</div> : null}
+          <div
+            ref={composerRef}
+            data-composer-dock-surface=""
+            data-composer-dock-motion={dockMotionAttributes?.motion}
+            className={cn('w-full', dockMotionAttributes?.className)}>
             {composer}
           </div>
         </div>

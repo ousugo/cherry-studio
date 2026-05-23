@@ -1,18 +1,16 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ChatAppShell, type ChatPanePosition, OverlayHost } from '@renderer/components/chat'
+import { type ChatPanePosition, ConversationShell, OverlayHost } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Citation, Topic } from '@renderer/types'
-import { classNames } from '@renderer/utils'
 import type { FC, ReactNode } from 'react'
 import React, { useCallback, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
@@ -113,7 +111,6 @@ const Chat: FC<Props> = (props) => {
     })
   }
 
-  const mainHeight = 'calc(100vh - var(--navbar-height) - 6px)'
   const citationsPanelOpen = citationPanelCitations !== null
 
   const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
@@ -127,73 +124,57 @@ const Chat: FC<Props> = (props) => {
   }, [])
 
   return (
-    <div
+    <ConversationShell
       id="chat"
-      className={classNames([
-        messageStyle,
-        'flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 flex-col overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-(--color-background)'
-      ])}>
-      <QuickPanelProvider>
-        <ChatAppShell
-          pane={props.pane}
-          paneOpen={props.paneOpen}
-          panePosition={props.panePosition}
-          topBar={
-            props.hideNavbar ? undefined : (
-              <ChatNavbar
-                onOpenSidePanelDrawer={props.onOpenSidePanelDrawer}
-                onOpenTopicFlow={handleOpenTopicFlowPanel}
-              />
-            )
-          }
-          sidePanel={
-            <>
-              <CitationsPanel
-                open={citationsPanelOpen}
-                onClose={() => setCitationPanelCitations(null)}
-                citations={citationPanelCitations ?? []}
-              />
-              <TopicMessageFlowPanel
-                open={topicFlowPanelOpen}
-                onClose={() => setTopicFlowPanelOpen(false)}
-                topicId={props.activeTopic.id}
-                topicName={props.activeTopic.name}
-              />
-            </>
-          }
-          centerContent={
-            <ChatContent
-              key={props.activeTopic.id}
-              topic={props.activeTopic}
-              mainHeight={mainHeight}
-              onOpenCitationsPanel={handleOpenCitationsPanel}
-              onNewTopic={props.onNewTopic}
-              onTemporaryAssistantChange={props.onTemporaryAssistantChange}
-              onPersistTemporaryTopic={props.onPersistTemporaryTopic}
-              renderFrame={({ main, bottomComposer, overlay }) => (
-                <>
-                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
-                  {bottomComposer}
-                  <OverlayHost>
-                    {overlay}
-                    <ContentSearch
-                      ref={contentSearchRef}
-                      searchTarget={mainRef as React.RefObject<HTMLElement>}
-                      filter={contentSearchFilter}
-                      includeUser={filterIncludeUser}
-                      onIncludeUserChange={userOutlinedItemClickHandler}
-                    />
-                  </OverlayHost>
-                </>
-              )}
-            />
-          }
-          centerId="chat-main"
-          centerRef={mainRef}
-          centerClassName="transform-[translateZ(0)] relative justify-between"
+      className={messageStyle}
+      pane={props.pane}
+      paneOpen={props.paneOpen}
+      panePosition={props.panePosition}
+      topBar={
+        props.hideNavbar ? undefined : (
+          <ChatNavbar onOpenSidePanelDrawer={props.onOpenSidePanelDrawer} onOpenTopicFlow={handleOpenTopicFlowPanel} />
+        )
+      }
+      sidePanel={
+        <>
+          <CitationsPanel
+            open={citationsPanelOpen}
+            onClose={() => setCitationPanelCitations(null)}
+            citations={citationPanelCitations ?? []}
+          />
+          <TopicMessageFlowPanel
+            open={topicFlowPanelOpen}
+            onClose={() => setTopicFlowPanelOpen(false)}
+            topicId={props.activeTopic.id}
+            topicName={props.activeTopic.name}
+          />
+        </>
+      }
+      center={
+        <ChatContent
+          key={props.activeTopic.id}
+          topic={props.activeTopic}
+          onOpenCitationsPanel={handleOpenCitationsPanel}
+          onNewTopic={props.onNewTopic}
+          onTemporaryAssistantChange={props.onTemporaryAssistantChange}
+          onPersistTemporaryTopic={props.onPersistTemporaryTopic}
         />
-      </QuickPanelProvider>
-    </div>
+      }
+      centerOverlay={
+        <OverlayHost>
+          <ContentSearch
+            ref={contentSearchRef}
+            searchTarget={mainRef as React.RefObject<HTMLElement>}
+            filter={contentSearchFilter}
+            includeUser={filterIncludeUser}
+            onIncludeUserChange={userOutlinedItemClickHandler}
+          />
+        </OverlayHost>
+      }
+      centerId="chat-main"
+      centerRef={mainRef}
+      centerClassName="transform-[translateZ(0)] relative justify-between"
+    />
   )
 }
 
