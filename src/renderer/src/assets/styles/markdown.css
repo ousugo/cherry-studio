@@ -64,7 +64,7 @@
   margin-bottom: 5px;
 }
 
-.markdown > p:only-child {
+.markdown p:only-child {
   margin-bottom: 0;
 }
 

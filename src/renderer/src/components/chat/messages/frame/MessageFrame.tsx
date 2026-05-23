@@ -341,7 +341,7 @@ const UserBubbleMessage = ({
 
   return (
     <div className="flex w-full flex-col items-end">
-      <div className="flex max-w-full items-center justify-end gap-2.5">
+      <div className="flex max-w-full items-start justify-end gap-2.5">
         <div className="flex min-w-0 flex-1 flex-col items-end">
           <Scrollbar
             className="message-content-container mt-0 max-w-full overflow-y-auto rounded-[10px] bg-muted px-4 py-2.5 [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
@@ -355,7 +355,7 @@ const UserBubbleMessage = ({
             </MessageErrorBoundary>
           </Scrollbar>
         </div>
-        <MessageAvatar avatar={avatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
+        <MessageAvatar avatar={avatar} className="mt-1.5" onClick={canOpenUserProfile ? openUserProfile : undefined} />
       </div>
       <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-muted text-xs leading-none">
         <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>

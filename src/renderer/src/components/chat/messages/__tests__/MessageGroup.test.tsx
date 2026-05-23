@@ -489,9 +489,13 @@ describe('MessageGroup', () => {
     const { container } = render(<MessageGroup messages={[message]} topic={topic} />)
 
     const contentContainer = container.querySelector('#message-user-bubble-1 .message-content-container') as HTMLElement
+    const contentRow = contentContainer.parentElement?.parentElement as HTMLElement
+    const avatar = container.querySelector('#message-user-bubble-1 .message-avatar') as HTMLElement
     const footer = container.querySelector('#message-user-bubble-1 .MessageFooter') as HTMLElement
 
     expect(container.querySelector('#message-user-bubble-1 .message-body-column')).toBeNull()
+    expect(contentRow).toHaveClass('items-start')
+    expect(avatar).toHaveClass('mt-1.5')
     expect(contentContainer.style.marginLeft).toBe('')
     expect(contentContainer.style.width).toBe('')
     expect(footer.style.marginLeft).toBe('')
