@@ -374,6 +374,7 @@ vi.mock('react-i18next', () => ({
           'common.no_results': 'No results',
           'common.open': 'Open',
           'common.close': 'Close',
+          'common.status.done': 'Done',
           'common.back': 'Back',
           'common.unnamed': 'Unnamed'
         }[key] ?? key
@@ -493,6 +494,7 @@ describe('GlobalSearchPanel', () => {
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
+    expect(screen.getByRole('button', { name: 'Manage' })).toBeInTheDocument()
     expect(screen.queryByText('Topic recent')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Search type: Topic' })).not.toBeInTheDocument()
     expect(screen.queryByText('Select')).not.toBeInTheDocument()
@@ -532,19 +534,84 @@ describe('GlobalSearchPanel', () => {
     expect(screen.getByRole('button', { name: 'Search type: Topic' })).toBeInTheDocument()
   })
 
-  it('keeps sidebar quick app management out of the default panel', async () => {
+  it('lets users manage quick app visibility before searching', async () => {
     const user = userEvent.setup()
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
+    expect(screen.getByText('Chat')).toBeInTheDocument()
+    expect(screen.getByText('Agent')).toBeInTheDocument()
+    expect(screen.getByText('Translate')).toBeInTheDocument()
+    expect(screen.getByText('Knowledge')).toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: 'Messages' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Manage' }))
+
+    expect(screen.getByText('Manage quick apps')).toBeInTheDocument()
+    expect(screen.getByText('Drag to reorder, click the eye to hide or show')).toBeInTheDocument()
+    expect(screen.getByTestId('quick-app-manager-list')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Mini Apps' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide Chat' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Hide Agent' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show Knowledge' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Hide Agent' }))
+
+    await waitFor(() => {
+      expect(mocks.setPreferences).toHaveBeenLastCalledWith({
+        visible: ['assistants', 'translate'],
+        invisible: ['agents', 'knowledge', 'store', 'paintings', 'mini_app', 'files', 'code_tools', 'notes', 'openclaw']
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Show Knowledge' }))
+
+    await waitFor(() => {
+      expect(mocks.setPreferences).toHaveBeenLastCalledWith({
+        visible: ['assistants', 'agents', 'translate', 'knowledge'],
+        invisible: ['store', 'paintings', 'mini_app', 'files', 'code_tools', 'notes', 'openclaw']
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Reset' }))
+
+    await waitFor(() => {
+      expect(mocks.setPreferences).toHaveBeenLastCalledWith({
+        visible: [
+          'assistants',
+          'agents',
+          'store',
+          'paintings',
+          'translate',
+          'mini_app',
+          'knowledge',
+          'files',
+          'code_tools',
+          'notes'
+        ],
+        invisible: []
+      })
+    })
+
+    mocks.sortableOnSortEnd?.({ oldIndex: 2, newIndex: 0 })
+
+    await waitFor(() => {
+      expect(mocks.setPreferences).toHaveBeenLastCalledWith({
+        visible: ['translate', 'assistants', 'agents'],
+        invisible: expect.arrayContaining(['knowledge'])
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(screen.getByRole('heading', { name: 'Apps' })).toBeInTheDocument()
+    expect(screen.queryByText('Manage quick apps')).not.toBeInTheDocument()
 
     await user.type(screen.getByLabelText('Search topics, work, assistants, agents, and knowledge...'), 'query')
 
-    expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Translate' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Chat')).not.toBeInTheDocument()
+    expect(screen.queryByText('Translate')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Messages' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Search type: All' })).not.toBeInTheDocument()
@@ -842,7 +909,11 @@ describe('GlobalSearchPanel', () => {
 
     expect(await screen.findByRole('option', { name: /needle first page/ })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Show 50 more' }))
+    const loadMoreButton = screen.getByRole('button', { name: 'Show 50 more' })
+
+    expect(screen.getByRole('listbox')).toContainElement(loadMoreButton)
+
+    await user.click(loadMoreButton)
 
     expect(mocks.messageLoadNext).toHaveBeenCalledTimes(1)
     expect(mocks.sessionMessageLoadNext).not.toHaveBeenCalled()

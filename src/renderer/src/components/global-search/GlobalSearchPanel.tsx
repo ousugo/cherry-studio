@@ -24,7 +24,7 @@ import { cn } from '@renderer/utils'
 import type { GlobalSearchItem } from '@shared/data/api/schemas/globalSearch'
 import type { Message as DbMessage } from '@shared/data/types/message'
 import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
-import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -230,6 +230,18 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     })
   const shouldShowRecentHint =
     !hasQuery && !isLoading && !error && selectableItems.length > 0 && selectableItems.length < 3
+  const messageVirtualGroupsWithLoadMore = useMemo(() => {
+    if (!hasMoreMessageResults || messageVirtualGroups.length === 0) {
+      return messageVirtualGroups
+    }
+
+    const lastGroupIndex = messageVirtualGroups.length - 1
+
+    return messageVirtualGroups.map((entry, index) =>
+      index === lastGroupIndex ? { ...entry, footer: true as const } : entry
+    )
+  }, [hasMoreMessageResults, messageVirtualGroups])
+
   useEffect(() => {
     setExpandedSearchGroupIds(new Set())
     setExpandedMessageParentIds(new Set())
@@ -545,14 +557,29 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         <div className="min-h-0 flex-1">
           <GroupedVirtualList
             role="listbox"
-            groups={messageVirtualGroups}
+            groups={messageVirtualGroupsWithLoadMore}
             estimateGroupHeaderSize={() => 32}
             estimateItemSize={(item) => {
               if (item.kind === 'more') return 36
               return 44
             }}
+            estimateGroupFooterSize={() => 48}
             className="pt-2 pb-2"
             renderGroupHeader={(group) => <GlobalMessageSearchGroupHeader group={group} />}
+            renderGroupFooter={() => (
+              <div className="h-12 px-5 pt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={isLoadingMoreMessageResults}
+                  onClick={loadMoreMessageResults}
+                  className="h-8 w-full rounded-[8px] font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground">
+                  {isLoadingMoreMessageResults
+                    ? t('common.loading')
+                    : t('globalSearch.showMore', { count: messageLoadMoreCount })}
+                </Button>
+              </div>
+            )}
             renderItem={(item) => (
               <GlobalMessageSearchRow
                 item={item}
@@ -567,20 +594,6 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
             )}
           />
         </div>
-        {hasMoreMessageResults && (
-          <div className="shrink-0 border-border-subtle border-t bg-background/95 px-5 py-2">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={isLoadingMoreMessageResults}
-              onClick={loadMoreMessageResults}
-              className="h-8 w-full rounded-[8px] font-medium text-muted-foreground text-xs hover:bg-muted/50 hover:text-foreground">
-              {isLoadingMoreMessageResults
-                ? t('common.loading')
-                : t('globalSearch.showMore', { count: messageLoadMoreCount })}
-            </Button>
-          </div>
-        )}
       </div>
     )
 
