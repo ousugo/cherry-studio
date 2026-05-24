@@ -16,6 +16,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
+import { useStablePartsByMessageId } from './hooks/useStablePartsByMessageId'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatRuntimeState')
@@ -94,32 +95,7 @@ export function useChatRuntimeState({
     onFinish: (executionId, event) => finishRef.current?.(executionId, event)
   })
 
-  const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const next: Record<string, CherryMessagePart[]> = {}
-    for (const message of messages) {
-      next[message.id] = (message.parts ?? []) as CherryMessagePart[]
-    }
-    for (const [messageId, parts] of Object.entries(overlay)) {
-      if (messageId in next && parts.length) next[messageId] = parts
-    }
-    for (const [messageId, entry] of Object.entries(translationOverlay)) {
-      const existing = next[messageId]
-      if (!existing) continue
-      const baseParts = existing.filter((part) => part.type !== 'data-translation')
-      next[messageId] = [
-        ...baseParts,
-        {
-          type: 'data-translation',
-          data: {
-            content: entry.content,
-            targetLanguage: entry.targetLanguage,
-            ...(entry.sourceLanguage && { sourceLanguage: entry.sourceLanguage })
-          }
-        } as CherryMessagePart
-      ]
-    }
-    return next
-  }, [messages, overlay, translationOverlay])
+  const partsByMessageId = useStablePartsByMessageId(messages, overlay, translationOverlay)
 
   const respondToolApproval = useToolApprovalBridge(topic.id)
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({

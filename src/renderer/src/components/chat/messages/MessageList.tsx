@@ -36,8 +36,9 @@ import {
   useMessageRenderConfig
 } from './MessageListProvider'
 import { defaultMessageRenderConfig } from './types'
-import { getLatestAssistantGroupKey, groupMessageListItems } from './utils/messageGroupKey'
+import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
+import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils/stableGroupedMessages'
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
@@ -72,7 +73,8 @@ const MessageList = () => {
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const [groupLayoutOverrides, setGroupLayoutOverrides] = useState<Record<string, MultiModelMessageStyle>>({})
 
-  const groupedMessages = useMemo(() => Object.entries(groupMessageListItems(messages)), [messages])
+  const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
+  const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
   const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messages), [messages])
   const { bindRuntime, copyImage, saveImage } = actions
   const getMessageUiState = useCallback(

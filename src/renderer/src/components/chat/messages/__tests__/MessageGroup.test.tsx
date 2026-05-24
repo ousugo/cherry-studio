@@ -196,7 +196,9 @@ vi.mock('../MessageListProvider', () => ({
   useMessageListMeta: () => ({
     userProfile: { avatar: '' }
   }),
-  useMessageListUi: () => ({})
+  useMessageListUi: () => ({}),
+  useMessageListUiSelectors: () => ({}),
+  useMessageListUiStatic: () => ({})
 }))
 
 vi.mock('../frame/MessageHeader', () => ({

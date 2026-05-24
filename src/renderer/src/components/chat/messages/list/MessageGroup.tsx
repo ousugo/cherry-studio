@@ -13,7 +13,7 @@ import MessageItem from '../frame/MessageFrame'
 import {
   useMessageListActions,
   useMessageListSelection,
-  useMessageListUi,
+  useMessageListUiSelectors,
   useMessageRenderConfig
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageUiState } from '../types'
@@ -54,7 +54,7 @@ const MessageGroup = ({
   const actions = useMessageListActions()
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const selection = useMessageListSelection()
-  const messageUi = useMessageListUi()
+  const messageUi = useMessageListUiSelectors()
   const multiModelMessageStyleSetting = renderConfig.multiModelMessageStyle
   const gridColumns = renderConfig.multiModelGridColumns
   const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
@@ -482,4 +482,29 @@ const GridMessagePopover = ({
   )
 }
 
-export default memo(MessageGroup)
+function messageArrayShallowEqual(a: MessageListItem[], b: MessageListItem[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+// Custom comparator: bail out only when topic / latest flag / per-message refs
+// are all identical. Inline callback props (onMultiModelMessageStyleChange,
+// registerMessageElement) are intentionally ignored — they close over
+// per-key state in the parent and behave identically across renders for the
+// same key, so treating them as equal lets the memo actually do its job in
+// production (where the parent's inline arrow would otherwise bust it every
+// render). Per-message ref equality is the right granularity because the
+// upstream `stableGroupedMessages` helper preserves refs when contents are
+// unchanged, while truly changed messages (e.g. `isActiveBranch` flipped)
+// arrive as new objects.
+export default memo(MessageGroup, (prev, next) => {
+  return (
+    prev.topic === next.topic &&
+    prev.isLatestAssistantGroup === next.isLatestAssistantGroup &&
+    messageArrayShallowEqual(prev.messages, next.messages)
+  )
+})

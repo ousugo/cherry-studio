@@ -22,7 +22,7 @@ import {
   useMessageListActions,
   useMessageListMeta,
   useMessageListSelection,
-  useMessageListUi,
+  useMessageListUiSelectors,
   useMessageRenderConfig
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
@@ -68,7 +68,7 @@ const MessageItem: FC<Props> = ({
   const actions = useMessageListActions()
   const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
   const selection = useMessageListSelection()
-  const messageUi = useMessageListUi()
+  const messageUi = useMessageListUiSelectors()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const isSelected = selection?.selectedMessageIds?.includes(message.id) ?? false
   // Use the message-embedded snapshot rather than re-resolving the live model
