@@ -1,8 +1,8 @@
+import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
 import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { MarkdownSource } from '../markdown/Markdown'
-import Markdown from '../markdown/Markdown'
+import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -72,7 +72,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs }
               fontSize
             } as CSSProperties
           }>
-          <Markdown block={block} />
+          <ChatMarkdown block={block} />
         </div>
       </div>
     </div>

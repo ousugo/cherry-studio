@@ -60,7 +60,7 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
-vi.mock('../Markdown', () => ({
+vi.mock('@cherrystudio/ui/composites/markdown', () => ({
   useMarkdownBlockContext: () => mocks.markdownContext
 }))
 

@@ -1,12 +1,12 @@
 import { Divider } from '@cherrystudio/ui'
+import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
 import { Languages } from 'lucide-react'
 import type { FC } from 'react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
 
-import type { MarkdownSource } from '../markdown/Markdown'
-import Markdown from '../markdown/Markdown'
+import ChatMarkdown from '../markdown/ChatMarkdown'
 
 interface Props {
   block: MarkdownSource & { content: string }
@@ -37,7 +37,7 @@ const MessageTranslate: FC<Props> = ({ block }) => {
           <BeatLoader color="var(--color-foreground)" size={8} speedMultiplier={0.8} />
         </div>
       )}
-      <Markdown block={block} />
+      <ChatMarkdown block={block} />
     </Fragment>
   )
 }

@@ -52,7 +52,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 // Leaf component mocks — render data-testid with key props for assertions
-vi.mock('@renderer/components/chat/messages/markdown/Markdown', () => ({
+vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
   __esModule: true,
   default: ({ block, postProcess }: any) => (
     <div data-testid="mock-markdown">{postProcess ? postProcess(block.content) : block.content}</div>

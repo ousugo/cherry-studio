@@ -1,4 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { useMarkdownBlockContext } from '@cherrystudio/ui/composites/markdown'
 import { loggerService } from '@logger'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
@@ -9,7 +10,6 @@ import { useTranslation } from 'react-i18next'
 import type { Node } from 'unist'
 
 import { useOptionalMessageListActions } from '../MessageListProvider'
-import { useMarkdownBlockContext } from './Markdown'
 
 const logger = loggerService.withContext('Table')
 

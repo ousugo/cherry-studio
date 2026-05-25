@@ -3,7 +3,7 @@ import rehypeStringify from 'rehype-stringify'
 import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 
-import rehypeScalableSvg from '../rehypeScalableSvg'
+import rehypeScalableSvg from '../../plugins/rehype-scalable-svg'
 
 const processHtml = (html: string): string => {
   return unified()

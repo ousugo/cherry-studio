@@ -1,4 +1,5 @@
 import { Scrollbar } from '@cherrystudio/ui'
+import { createSlugger, extractTextFromNode } from '@cherrystudio/ui/composites/markdown'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
@@ -8,7 +9,6 @@ import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
 import { useMessageParts } from '../blocks'
-import { createSlugger, extractTextFromNode } from '../markdown/plugins/rehypeHeadingIds'
 import type { MessageListItem } from '../types'
 
 interface MessageOutlineProps {

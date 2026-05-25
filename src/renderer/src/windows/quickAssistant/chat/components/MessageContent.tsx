@@ -1,4 +1,5 @@
-import Markdown, { type MarkdownSource } from '@renderer/components/chat/messages/markdown/Markdown'
+import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
+import ChatMarkdown from '@renderer/components/chat/messages/markdown/ChatMarkdown'
 import type { MainTextMessageBlock } from '@renderer/types/newMessage'
 import React from 'react'
 
@@ -18,7 +19,7 @@ const MessageContent: React.FC<Props> = ({ block }) => {
       {/* <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
         {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
       </Flex> */}
-      <Markdown block={markdownSource} />
+      <ChatMarkdown block={markdownSource} />
     </>
   )
 }

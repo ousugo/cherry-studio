@@ -4,7 +4,7 @@ import { defaultRehypePlugins } from 'streamdown'
 import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
 
-import { createMarkdownSanitizeSchema, rehypePrefixSvgReferences } from '../Markdown'
+import { createMarkdownSanitizeSchema, rehypePrefixSvgReferences } from '../..'
 
 describe('Markdown sanitize schema', () => {
   it('preserves common SVG content required for gradients and clipping', async () => {

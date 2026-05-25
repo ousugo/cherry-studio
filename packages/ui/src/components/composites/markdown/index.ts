@@ -1,15 +1,23 @@
 /**
  * Public barrel for the generic markdown composites.
  *
- * Phase 1 (PR 1): types, context, utility helpers, and rehype plugins.
- * Phase 2 (PR 4): `<Markdown>` and `<StreamingMarkdown>` components.
+ * - `<Markdown>` — paste-once content (settings descriptions, release notes).
+ * - `<StreamingMarkdown>` — token-by-token output with AST-stable per-id
+ *   animation that does NOT re-fade already-rendered text on mid-stream
+ *   structural changes.
+ * - `withChatPlugins()` etc — opt-in Streamdown plugin presets.
+ * - `withCitationTags()` etc — provider-agnostic citation mark normalization.
+ * - rehype plugins + sanitize schema — used by chat to ship its own
+ *   pre-processing layer on top.
  *
- * Consumers in the chat layer continue importing through legacy paths
- * (`@renderer/utils/markdown`, `@renderer/utils/formats`, the inline helpers
- * in `Markdown.tsx`); those paths are re-export shims that delegate here.
+ * Side-effect styles: `import '@cherrystudio/ui/composites/markdown/styles'`
+ * once at app entry to pick up Streamdown / KaTeX / remark-alert CSS.
  */
 
 export { MarkdownBlockContext, type MarkdownBlockContextValue, useMarkdownBlockContext } from './context'
+export { Markdown, type MarkdownProps } from './markdown'
 export * from './plugins'
+export { defaultMarkdownPlugins, withChatPlugins, withMath, withMermaid } from './presets'
+export { StreamingMarkdown, type StreamingMarkdownProps } from './streaming-markdown'
 export type { MarkdownSource, MarkdownStatus } from './types'
 export * from './utils'

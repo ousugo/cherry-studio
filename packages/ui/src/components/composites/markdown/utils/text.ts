@@ -172,3 +172,17 @@ export function removeSvgEmptyLines(text: string): string {
       .join('\n')
   })
 }
+
+/** HTML entity encoder used by the citation tag generator. */
+export const encodeHTML = (str: string): string => {
+  return str.replace(/[&<>"']/g, (match) => {
+    const entities: { [key: string]: string } = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&apos;'
+    }
+    return entities[match]
+  })
+}

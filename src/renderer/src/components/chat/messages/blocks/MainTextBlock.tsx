@@ -1,6 +1,8 @@
 import { Flex } from '@cherrystudio/ui'
+import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
+import { type CitationLike, determineCitationSource, withCitationTags } from '@cherrystudio/ui/composites/markdown'
 import type { Citation, Model } from '@renderer/types'
-import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
+import { cleanMarkdownContent } from '@renderer/utils/formats'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -8,8 +10,7 @@ import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data
 import { Bot, Boxes, Code2, FileText, Globe2, Monitor, Wrench } from 'lucide-react'
 import React, { useCallback } from 'react'
 
-import type { MarkdownSource } from '../markdown/Markdown'
-import Markdown from '../markdown/Markdown'
+import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import CitationsList from './CitationsList'
 
@@ -102,7 +103,13 @@ const MainTextBlock: React.FC<Props> = ({
       // 确定最适合的 source
       const sourceType = determineCitationSource(citationReferences)
 
-      return withCitationTags(rawText, citations, sourceType)
+      // The package-level `withCitationTags` no longer cleans citation.content
+      // internally (that's UI presentation logic for the tooltip preview); we
+      // pre-clean here at the call site so the chat tooltip shows tidy text.
+      const cleanedCitations = citations.map((citation) =>
+        citation.content ? { ...citation, content: cleanMarkdownContent(citation.content) } : citation
+      )
+      return withCitationTags(rawText, cleanedCitations as CitationLike[], sourceType)
     },
     [citationReferences, citations]
   )
@@ -124,7 +131,7 @@ const MainTextBlock: React.FC<Props> = ({
           {composer?.tokens.length ? renderComposerMessageContent(content, composer) : content}
         </p>
       ) : (
-        <Markdown block={block} postProcess={processContent} />
+        <ChatMarkdown block={block} postProcess={processContent} />
       )}
       {/* Parts data stores citation refs per text part, so the list is scoped to the text segment that produced it. */}
       {citations.length > 0 && <CitationsList citations={citations} />}

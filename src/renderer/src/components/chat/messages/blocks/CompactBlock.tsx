@@ -1,10 +1,10 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
+import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
 import { ChevronDown } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { MarkdownSource } from '../markdown/Markdown'
-import Markdown from '../markdown/Markdown'
+import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useScrollAnchor } from './useScrollAnchor'
 
 interface Props {
@@ -41,7 +41,7 @@ const CompactBlock: React.FC<Props> = ({ id, content, compactedContent }) => {
           </AccordionTrigger>
           <AccordionContent>
             <div className="py-2 text-foreground-secondary text-sm leading-relaxed">
-              <Markdown block={markdownSource} />
+              <ChatMarkdown block={markdownSource} />
             </div>
           </AccordionContent>
         </AccordionItem>

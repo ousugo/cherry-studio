@@ -1,5 +1,5 @@
+import { findCitationInChildren } from '@cherrystudio/ui/composites/markdown'
 import { parseJSON } from '@renderer/utils/json'
-import { findCitationInChildren } from '@renderer/utils/markdown'
 import { isEmpty, omit } from 'lodash'
 import React, { useMemo } from 'react'
 import type { Node } from 'unist'

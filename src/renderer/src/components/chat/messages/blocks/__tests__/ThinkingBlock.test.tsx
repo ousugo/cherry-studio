@@ -26,7 +26,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 // Mock Markdown component
-vi.mock('@renderer/components/chat/messages/markdown/Markdown', () => ({
+vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
   __esModule: true,
   default: ({ block }: any) => (
     <div data-testid="mock-markdown" data-block-id={block.id}>
