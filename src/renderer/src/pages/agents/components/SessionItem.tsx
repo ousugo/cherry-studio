@@ -163,14 +163,7 @@ const SessionItem = ({
       style={{ cursor: 'pointer' }}
       onClick={handlePress}
       title={sessionName}>
-      <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
-        <ResourceList.ItemLeadingAction
-          aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-          className={cn(pinned && 'text-foreground/70 hover:text-foreground')}
-          onClick={handleTogglePinClick}>
-          {pinned ? <PinIcon size={13} className="-rotate-45" /> : <PinIcon size={13} />}
-        </ResourceList.ItemLeadingAction>
-      </Tooltip>
+      <span aria-hidden="true" className="size-6 shrink-0" />
 
       <ResourceList.RenameField
         item={session}
@@ -197,6 +190,15 @@ const SessionItem = ({
           </ResourceList.ItemTitle>
         </>
       )}
+
+      <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
+        <ResourceList.ItemAction
+          aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+          className={cn(pinned && 'text-foreground/70 hover:text-foreground')}
+          onClick={handleTogglePinClick}>
+          {pinned ? <PinIcon size={13} className="-rotate-45" /> : <PinIcon size={13} />}
+        </ResourceList.ItemAction>
+      </Tooltip>
 
       {hasStreamIndicator ? (
         <SessionStreamIndicator isFulfilled={isStreamFulfilled} isPending={isStreamPending} />

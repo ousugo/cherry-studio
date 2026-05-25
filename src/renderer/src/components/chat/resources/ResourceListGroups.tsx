@@ -122,8 +122,8 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       <div
         title={groupHeaderTooltip}
         className={cn(
-          'flex w-full items-center gap-1.5 px-1.5',
-          selected ? 'h-9 rounded-lg bg-accent text-foreground' : 'h-9',
+          'flex h-9 w-full items-center gap-1.5 rounded-(--list-item-border-radius) px-1.5 transition-colors duration-150 hover:bg-accent/60 hover:text-foreground',
+          selected && 'bg-accent text-foreground shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
           groupHeaderClassName
         )}>
         {groupHeaderLeadingAction && (
@@ -134,14 +134,14 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           aria-expanded={!collapsed}
           aria-current={selected ? 'true' : undefined}
           className={cn(
-            'flex h-full min-w-0 flex-1 items-center gap-1 text-left outline-none',
+            'flex h-full min-w-0 flex-1 items-center gap-1.5 text-left outline-none',
             GROUP_HEADER_TEXT_CLASS
           )}
           onClick={handleClick}>
           {groupHeaderIcon && (
             <span
               aria-hidden="true"
-              className="flex size-5 shrink-0 items-center justify-center rounded-lg text-inherit [&_svg]:stroke-current [&_svg]:text-inherit">
+              className="flex size-6 shrink-0 items-center justify-center rounded-lg text-inherit [&_svg]:size-4 [&_svg]:stroke-current [&_svg]:text-inherit">
               {groupHeaderIcon}
             </span>
           )}
@@ -188,7 +188,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
     <div
       ref={ref}
       style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
-      className={cn('flex h-[38px] items-center justify-start pr-1.5 pl-8', className)}
+      className={cn('flex h-[38px] items-center justify-start pr-1.5 pl-9', className)}
       {...props}>
       <button
         type="button"

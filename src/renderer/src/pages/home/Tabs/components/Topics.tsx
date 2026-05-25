@@ -31,6 +31,7 @@ import {
   useResourceListRowState
 } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import { isMac } from '@renderer/config/constant'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
@@ -902,7 +903,11 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       const assistant = assistantId ? assistantById.get(assistantId) : undefined
       if (!assistant) return undefined
 
-      return assistant.emoji ? <span className="text-[13px] leading-none">{assistant.emoji}</span> : <Bot size={13} />
+      return assistant.emoji ? (
+        <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
+      ) : (
+        <Bot size={14} />
+      )
     },
     [assistantById, isAssistantDisplayMode]
   )
@@ -1423,9 +1428,7 @@ function TopicRow({
       data-testid="topic-list-row"
       className={cn(
         'relative',
-        isManageMode &&
-          isSelected &&
-          'bg-accent text-foreground shadow-[inset_0_0_0_1px_var(--color-sidebar-active-border)]',
+        isManageMode && isSelected && 'bg-accent text-foreground shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
         isManageMode && !canSelect && 'cursor-not-allowed opacity-50',
         layout === 'grouped' && !isManageMode && isActive && 'bg-accent text-foreground',
         layout === 'single' && !isManageMode && isActive && 'bg-accent text-foreground shadow-none'
@@ -1455,19 +1458,7 @@ function TopicRow({
           )}
         </ResourceList.ItemIcon>
       )}
-      {!isManageMode && (
-        <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
-          <ResourceList.ItemLeadingAction
-            aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-            className={cn(topic.pinned && 'text-foreground/70 hover:text-foreground')}
-            onClick={(event) => {
-              event.stopPropagation()
-              void onPinTopic(topic)
-            }}>
-            <PinIcon size={13} className={cn(topic.pinned && '-rotate-45')} />
-          </ResourceList.ItemLeadingAction>
-        </Tooltip>
-      )}
+      {!isManageMode && <span aria-hidden="true" className="size-6 shrink-0" />}
       <ResourceList.RenameField
         item={topic}
         aria-label={t('chat.topics.edit.title')}
@@ -1485,6 +1476,19 @@ function TopicRow({
           }}>
           {topicName}
         </ResourceList.ItemTitle>
+      )}
+      {!isManageMode && (
+        <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
+          <ResourceList.ItemAction
+            aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+            className={cn(topic.pinned && 'text-foreground/70 hover:text-foreground')}
+            onClick={(event) => {
+              event.stopPropagation()
+              void onPinTopic(topic)
+            }}>
+            <PinIcon size={13} className={cn(topic.pinned && '-rotate-45')} />
+          </ResourceList.ItemAction>
+        </Tooltip>
       )}
       {hasTopicStreamIndicator ? (
         <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />

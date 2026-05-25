@@ -395,6 +395,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.unknown_agent': 'Unknown agent',
         'agent.session.group.yesterday': 'Yesterday',
         'agent.session.list.title': 'Sessions',
+        'agent.pin.title': 'Pin Agent',
         'agent.session.reorder.error.failed': 'Failed to reorder sessions',
         'agent.session.search.placeholder': 'Search sessions',
         'agent.session.update.error.failed': 'Failed to update session',
@@ -406,6 +407,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.workdir.rename.error.failed': 'Failed to rename project',
         'agent.session.workdir.rename.title': 'Rename project',
         'agent.session.workdir.rename.trigger': 'Rename project',
+        'agent.unpin.title': 'Unpin Agent',
         'chat.topics.delete.shortcut': 'Hold Ctrl to delete directly',
         'chat.topics.pin': 'Pin',
         'chat.topics.unpin': 'Unpin',
@@ -1573,7 +1575,7 @@ describe('Sessions', () => {
 
     fireEvent.pointerDown(moreButton)
     const pinMenuItem = screen
-      .getAllByRole('menuitem', { name: 'Pin' })
+      .getAllByRole('menuitem', { name: 'Pin Agent' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     expect(pinMenuItem).toBeDefined()
     fireEvent.click(pinMenuItem as HTMLElement)
@@ -1617,7 +1619,7 @@ describe('Sessions', () => {
       .find((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
     expect(contextEditItem).toBeDefined()
     const contextPinItem = screen
-      .getAllByRole('menuitem', { name: 'Pin' })
+      .getAllByRole('menuitem', { name: 'Pin Agent' })
       .find((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
     expect(contextPinItem).toBeDefined()
     fireEvent.click(contextPinItem as HTMLElement)
@@ -1653,6 +1655,6 @@ describe('Sessions', () => {
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
 
-    expect(await screen.findByRole('menuitem', { name: 'Unpin' })).toHaveAttribute('data-disabled')
+    expect(await screen.findByRole('menuitem', { name: 'Unpin Agent' })).toHaveAttribute('data-disabled')
   })
 })

@@ -341,6 +341,9 @@
         "failed": "無法列出 Agent。"
       }
     },
+    "pin": {
+      "title": "置頂智能體"
+    },
     "preview_pane": {
       "close": "關閉預覽",
       "code": "程式碼",
@@ -884,6 +887,9 @@
     "type": {
       "label": "Agent 類型",
       "unknown": "未知類型"
+    },
+    "unpin": {
+      "title": "取消置頂智能體"
     },
     "update": {
       "error": {

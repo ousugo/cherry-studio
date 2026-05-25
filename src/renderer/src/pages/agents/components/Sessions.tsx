@@ -26,6 +26,7 @@ import {
   SessionResourceList
 } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import { FinderIcon } from '@renderer/components/Icons/SvgIcon'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
@@ -171,7 +172,7 @@ function resolveAgentGroupActions({
     },
     {
       id: 'agent-group.toggle-pin' satisfies AgentGroupActionId,
-      label: pinned ? t('chat.topics.unpin') : t('chat.topics.pin'),
+      label: pinned ? t('agent.unpin.title') : t('agent.pin.title'),
       icon: pinned ? <PinOff size={14} /> : <Pin size={14} />,
       danger: false,
       availability: { visible: true, enabled: !pinDisabled },
@@ -1176,7 +1177,7 @@ const Sessions = ({
       const agentId = getAgentIdFromSessionGroupId(group.id)
       const agent = agentId ? agentById.get(agentId) : undefined
       const avatar = agent?.configuration?.avatar?.trim()
-      return avatar ? <span className="text-[13px] leading-none">{avatar}</span> : <Bot size={13} />
+      return avatar ? <EmojiIcon emoji={avatar} size={24} fontSize={14} className="mr-0" /> : <Bot size={14} />
     },
     [agentById, displayMode]
   )

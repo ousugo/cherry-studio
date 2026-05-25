@@ -341,6 +341,9 @@
         "failed": "获取智能体列表失败"
       }
     },
+    "pin": {
+      "title": "置顶智能体"
+    },
     "preview_pane": {
       "close": "关闭预览",
       "code": "代码",
@@ -884,6 +887,9 @@
     "type": {
       "label": "智能体类型",
       "unknown": "未知类型"
+    },
+    "unpin": {
+      "title": "取消置顶智能体"
     },
     "update": {
       "error": {

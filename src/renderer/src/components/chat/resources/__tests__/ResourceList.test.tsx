@@ -1250,7 +1250,7 @@ describe('ResourceList', () => {
     expect(screen.getByText('Item 5')).toBeInTheDocument()
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     const showMoreButton = screen.getByRole('button', { name: 'Show more' })
-    expect(showMoreButton.parentElement).toHaveClass('pl-8')
+    expect(showMoreButton.parentElement).toHaveClass('pl-9')
     expect(showMoreButton).toHaveClass('text-[color:var(--resource-list-group-color)]')
     expect(showMoreButton).not.toHaveClass('opacity-[0.65]')
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 7 }))
@@ -1605,7 +1605,7 @@ describe('ResourceList', () => {
     )
     expect(screen.getByRole('listbox')).toHaveClass('px-1.5')
     expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass('gap-1.5', 'px-1.5')
-    expect(screen.getByTestId('alpha-icon')).toHaveClass('size-5')
+    expect(screen.getByTestId('alpha-icon')).toHaveClass('size-6')
     expect(screen.getByRole('button', { name: 'Action Alpha' })).toHaveClass('size-5')
   })
 

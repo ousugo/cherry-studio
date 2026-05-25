@@ -341,6 +341,9 @@
         "failed": "Failed to list agents."
       }
     },
+    "pin": {
+      "title": "Pin Agent"
+    },
     "preview_pane": {
       "close": "Close preview",
       "code": "Code",
@@ -884,6 +887,9 @@
     "type": {
       "label": "Agent Type",
       "unknown": "Unknown Type"
+    },
+    "unpin": {
+      "title": "Unpin Agent"
     },
     "update": {
       "error": {

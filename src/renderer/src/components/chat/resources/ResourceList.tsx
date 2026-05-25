@@ -148,12 +148,12 @@ function HeaderItem({ actions, className, icon, label, ref, variant = 'ghost', .
         ref={ref}
         variant={variant}
         className={cn(
-          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1.5 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-3.5 [&_svg]:shrink-0',
+          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-(--list-item-border-radius) px-1.5 py-1.5 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
           className
         )}
         {...props}>
         {icon && (
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground">
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground">
             {icon}
           </span>
         )}
@@ -281,9 +281,9 @@ function Item<T extends ResourceListItemBase>({
       data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? 0}
       className={cn(
-        'group flex min-h-9 w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] outline-none transition-all duration-150',
-        'hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring',
-        rowState.selected && 'bg-accent text-foreground',
+        'group flex min-h-9 w-full cursor-pointer items-center gap-1.5 rounded-(--list-item-border-radius) px-1.5 py-1.5 text-[13px] text-sidebar-foreground/80 outline-none transition-all duration-150',
+        'hover:bg-accent/60 hover:text-foreground focus-visible:bg-accent/60 focus-visible:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring',
+        rowState.selected && 'bg-accent text-foreground shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
         rowState.revealFocused && 'animation-resource-list-reveal-focus',
         className
       )}
@@ -403,7 +403,7 @@ function ItemIcon({ className, ref, ...props }: ItemIconProps) {
     <span
       ref={ref}
       className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0',
+        'flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0',
         className
       )}
       {...props}
