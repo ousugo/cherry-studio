@@ -91,7 +91,7 @@ function TopicRightPaneSurface({ topicId, topicName }: TopicRightPaneSurfaceProp
   const { t } = useTranslation()
   const shellState = useShellState()
   const branchLiveState = useTopicBranchLiveState(topicId)
-  const canvasFocusKey = `${shellState.maximized ? 'maximized' : 'docked'}:${shellState.pdfLayoutRefreshKey}`
+  const canvasFocusKey = `${topicId}:${shellState.maximized ? 'maximized' : 'docked'}:${shellState.pdfLayoutRefreshKey}`
   const canvasLayoutReady = shellState.maximized || !shellState.pdfLayoutPending
 
   return (

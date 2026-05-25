@@ -229,6 +229,72 @@ describe('TopicMessageFlowCanvas', () => {
       />
     )
 
+    await screen.findByText('Streaming preview changed.')
+    await new Promise((resolve) => window.requestAnimationFrame(resolve))
+
+    expect(setViewportMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the current viewport when the graph changes under the same pane focus key', async () => {
+    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} focusKey="docked:0" />)
+
+    await waitFor(() => expect(setViewportMock).toHaveBeenCalledTimes(1))
+    setViewportMock.mockClear()
+
+    rerender(
+      <TopicMessageFlowCanvas
+        graph={{
+          ...graph,
+          edges: [
+            ...graph.edges,
+            {
+              id: 'assistant-1-user-2',
+              source: 'assistant-1',
+              target: 'user-2',
+              data: {
+                isActivePath: true,
+                isInactiveBranch: false,
+                isSiblingBranch: false
+              }
+            }
+          ],
+          nodes: [
+            {
+              ...graph.nodes[0],
+              position: { x: 96, y: 0 }
+            },
+            ...graph.nodes.slice(1),
+            {
+              id: 'user-2',
+              type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
+              position: { x: 96, y: 240 },
+              data: {
+                createdAt: '2026-01-01T00:02:00.000Z',
+                isActive: true,
+                isInactiveBranch: false,
+                isOnActivePath: true,
+                messageId: 'user-2',
+                preview: 'Continue from here.',
+                role: 'user',
+                status: 'success'
+              }
+            }
+          ],
+          activeNodeId: 'user-2',
+          stats: {
+            activePathLength: 3,
+            branchCount: 1,
+            nodeCount: 3
+          }
+        }}
+        onNodeSelect={vi.fn()}
+        focusKey="docked:0"
+      />
+    )
+
+    await screen.findByText('Continue from here.')
+    await new Promise((resolve) => window.requestAnimationFrame(resolve))
+
     expect(setViewportMock).not.toHaveBeenCalled()
   })
 
