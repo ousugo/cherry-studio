@@ -476,9 +476,14 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Agent')
-    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Workspace 1')
-    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Agent')
-    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Claude Sonnet 4.5 | Anthropic')
+    const belowControls = screen.getByTestId('composer-below-controls')
+    expect(belowControls).toHaveTextContent('Workspace 1')
+    expect(belowControls).toHaveTextContent('Agent')
+    expect(belowControls).toHaveTextContent('Claude Sonnet 4.5 | Anthropic')
+
+    const belowText = belowControls.textContent ?? ''
+    expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5 | Anthropic'))
+    expect(belowText.indexOf('Claude Sonnet 4.5 | Anthropic')).toBeLessThan(belowText.indexOf('Workspace 1'))
   })
 
   it('does not render the workspace selector in docked composer mode', () => {

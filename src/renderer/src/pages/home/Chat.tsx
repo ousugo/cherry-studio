@@ -29,7 +29,6 @@ interface Props {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
-  hideNavbar?: boolean
   onOpenSidePanelDrawer?: () => void | Promise<void>
   showResourceListControls?: boolean
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
@@ -131,6 +130,7 @@ const ChatInner: FC<Props> = (props) => {
     },
     [props.activeTopic.id, setTopicBranchLiveState]
   )
+  const branchPaneDisabled = !!props.onPersistTemporaryTopic
 
   return (
     <ConversationShell
@@ -140,14 +140,12 @@ const ChatInner: FC<Props> = (props) => {
       paneOpen={props.paneOpen}
       panePosition={props.panePosition}
       topBar={
-        props.hideNavbar ? undefined : (
-          <ChatNavbar
-            onOpenSidePanelDrawer={props.onOpenSidePanelDrawer}
-            showSidebarControls={props.showResourceListControls}
-          />
-        )
+        <ChatNavbar
+          onOpenSidePanelDrawer={props.onOpenSidePanelDrawer}
+          showSidebarControls={props.showResourceListControls}
+        />
       }
-      topRightTool={props.hideNavbar ? undefined : <TopicRightPane.Toggle />}
+      topRightTool={<TopicRightPane.Toggle disabled={branchPaneDisabled} />}
       sidePanel={
         <CitationsPanel
           open={citationsPanelOpen}
@@ -179,10 +177,16 @@ const ChatInner: FC<Props> = (props) => {
               onIncludeUserChange={userOutlinedItemClickHandler}
             />
           </OverlayHost>
-          <TopicRightPane.MaximizedOverlay topicId={props.activeTopic.id} topicName={props.activeTopic.name} />
+          {!branchPaneDisabled && (
+            <TopicRightPane.MaximizedOverlay topicId={props.activeTopic.id} topicName={props.activeTopic.name} />
+          )}
         </>
       }
-      rightPane={<TopicRightPane.Host topicId={props.activeTopic.id} topicName={props.activeTopic.name} />}
+      rightPane={
+        branchPaneDisabled ? undefined : (
+          <TopicRightPane.Host topicId={props.activeTopic.id} topicName={props.activeTopic.name} />
+        )
+      }
       centerId="chat-main"
       centerRef={mainRef}
       centerClassName="transform-[translateZ(0)] relative justify-between"

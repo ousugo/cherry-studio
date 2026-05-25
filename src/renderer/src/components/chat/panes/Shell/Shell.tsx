@@ -173,7 +173,7 @@ function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
 }
 
 // Navbar button that opens the pane to a given tab (or collapses it).
-function ShellToggle({ tab, label }: { tab: string; label: string }) {
+function ShellToggle({ tab, label, disabled = false }: { tab: string; label: string; disabled?: boolean }) {
   const { state, actions } = useShell()
   const pressed = state.open && state.activeTab === tab
   const ToggleIcon = pressed ? RightSidebarCollapseIcon : RightSidebarExpandIcon
@@ -181,6 +181,7 @@ function ShellToggle({ tab, label }: { tab: string; label: string }) {
   return (
     <Tooltip content={label} delay={800}>
       <NavbarIcon
+        disabled={disabled}
         onClick={() => actions.toggleTab(tab)}
         aria-pressed={pressed}
         aria-label={label}

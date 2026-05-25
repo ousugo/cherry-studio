@@ -31,6 +31,7 @@ const homeMocks = vi.hoisted(() => ({
   cacheSetPersist: vi.fn(),
   discardTemporaryConversation: vi.fn(),
   activeTopicLoading: false,
+  activeTopicOverride: undefined as Topic | undefined,
   forceActiveTopicUndefined: false,
   historyTopic: undefined as Topic | undefined,
   locationState: undefined as { topic: Topic } | undefined,
@@ -119,7 +120,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
       homeMocks.activeTopicOptions = options
       const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(topic)
       return {
-        activeTopic: homeMocks.forceActiveTopicUndefined ? undefined : activeTopic,
+        activeTopic: homeMocks.forceActiveTopicUndefined ? undefined : (homeMocks.activeTopicOverride ?? activeTopic),
         setActiveTopic,
         isLoading: homeMocks.activeTopicLoading
       }
@@ -155,7 +156,6 @@ vi.mock('../Chat', () => ({
   default: ({
     activeTopic,
     pane,
-    hideNavbar,
     paneOpen,
     showResourceListControls,
     locateMessageId,
@@ -165,7 +165,6 @@ vi.mock('../Chat', () => ({
   }: {
     activeTopic: Topic
     pane?: ReactNode
-    hideNavbar?: boolean
     paneOpen?: boolean
     showResourceListControls?: boolean
     locateMessageId?: string
@@ -176,7 +175,6 @@ vi.mock('../Chat', () => ({
     <section>
       <output data-testid="active-topic">{activeTopic.id}</output>
       <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
-      <output data-testid="hide-navbar">{String(hideNavbar)}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
       <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
@@ -280,6 +278,7 @@ describe('HomePage', () => {
     })
     homeMocks.temporaryConversation = null
     homeMocks.activeTopicLoading = false
+    homeMocks.activeTopicOverride = undefined
     homeMocks.forceActiveTopicUndefined = false
     homeMocks.preferenceValues.clear()
     homeMocks.preferenceValues.set('topic.tab.show', false)
@@ -299,7 +298,6 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
-    expect(screen.getByTestId('hide-navbar')).toHaveTextContent('false')
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history' }))
@@ -347,6 +345,25 @@ describe('HomePage', () => {
     rerender(<HomePage />)
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
+  })
+
+  it('waits for a cached active topic before starting a first-launch temporary topic', () => {
+    homeMocks.locationState = undefined
+    homeMocks.activeTopicLoading = true
+    homeMocks.forceActiveTopicUndefined = true
+
+    const { rerender } = render(<HomePage />)
+
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+
+    homeMocks.activeTopicLoading = false
+    homeMocks.forceActiveTopicUndefined = false
+    homeMocks.activeTopicOverride = initialTopic
+    rerender(<HomePage />)
+
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
+    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
   })
 
   it('renders a message-only route topic without updating global chat state', () => {
@@ -431,6 +448,48 @@ describe('HomePage', () => {
     await waitFor(() => {
       expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
     })
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic'))
+    expect(screen.getByRole('button', { name: 'Switch temporary assistant' })).toBeInTheDocument()
+  })
+
+  it('prefers a leased temporary topic over a stale active topic while rendering home mode', () => {
+    homeMocks.locationState = undefined
+    homeMocks.activeTopicOverride = initialTopic
+    homeMocks.temporaryConversation = {
+      assistantId: 'assistant-2',
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    }
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
+    expect(screen.getByRole('button', { name: 'Switch temporary assistant' })).toBeInTheDocument()
+    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+  })
+
+  it('selects a persisted topic after an assistant temporary topic is active', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.temporaryConversation = {
+      assistantId: 'assistant-1',
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    }
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
+    expect(screen.getByRole('button', { name: 'Switch temporary assistant' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select history topic' }))
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-history'))
+    expect(screen.queryByRole('button', { name: 'Switch temporary assistant' })).not.toBeInTheDocument()
+    expect(homeMocks.discardTemporaryConversation).toHaveBeenCalled()
   })
 
   it('remembers the active topic assistant for the next first-launch temporary topic', async () => {
@@ -472,7 +531,7 @@ describe('HomePage', () => {
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-1')
-    expect(screen.getByTestId('hide-navbar')).toHaveTextContent('true')
+    expect(screen.getByRole('button', { name: 'Switch temporary assistant' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
 

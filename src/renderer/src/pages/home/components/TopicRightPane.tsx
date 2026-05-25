@@ -131,9 +131,9 @@ function TopicRightPaneMaximizedOverlay(props: TopicRightPaneSurfaceProps) {
   )
 }
 
-function TopicRightPaneToggle() {
+function TopicRightPaneToggle({ disabled }: { disabled?: boolean }) {
   const { t } = useTranslation()
-  return <Shell.Toggle tab="branch" label={t('chat.message.flow.title')} />
+  return <Shell.Toggle tab="branch" label={t('chat.message.flow.title')} disabled={disabled} />
 }
 
 export const TopicRightPane = Object.assign(TopicRightPaneProvider, {

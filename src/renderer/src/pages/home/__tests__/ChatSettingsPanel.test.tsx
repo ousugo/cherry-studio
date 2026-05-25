@@ -108,7 +108,11 @@ vi.mock('../components/ChatNavBar', () => ({
 
 vi.mock('../components/TopicRightPane', () => {
   const TopicRightPane = Object.assign(({ children }: PropsWithChildren) => <div>{children}</div>, {
-    Toggle: () => <button type="button">branch toggle</button>,
+    Toggle: ({ disabled }: { disabled?: boolean }) => (
+      <button type="button" disabled={disabled}>
+        branch toggle
+      </button>
+    ),
     Host: ({ topicId }: { topicId: string }) => <div data-testid="topic-right-pane-host" data-topic-id={topicId} />,
     MaximizedOverlay: ({ topicId }: { topicId: string }) => (
       <div data-testid="topic-right-pane-overlay" data-topic-id={topicId} />
@@ -184,6 +188,7 @@ describe('Chat panels', () => {
     render(<Chat activeTopic={activeTopic} />)
 
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'branch toggle' })).toBeInTheDocument()
     expect(screen.getByTestId('topic-right-pane-host')).toHaveAttribute('data-topic-id', 'topic-1')
     expect(screen.getByTestId('topic-right-pane-overlay')).toHaveAttribute('data-topic-id', 'topic-1')
@@ -194,6 +199,17 @@ describe('Chat panels', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('keeps navbar actions visible for a fresh temporary topic', () => {
+    const temporaryTopic = { ...activeTopic, id: 'temporary-topic', name: '' }
+
+    render(<Chat activeTopic={temporaryTopic} onPersistTemporaryTopic={vi.fn()} onTemporaryAssistantChange={vi.fn()} />)
+
+    expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'branch toggle' })).toBeDisabled()
+    expect(screen.queryByTestId('topic-right-pane-host')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('topic-right-pane-overlay')).not.toBeInTheDocument()
   })
 
   it('does not re-render the chat shell when branch live state changes', () => {
