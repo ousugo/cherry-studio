@@ -274,7 +274,6 @@ const AgentChat = ({
 
   return (
     <AgentChatSessionFrame
-      key={sessionSnapshot.id}
       className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}
       pane={pane}
       paneOpen={paneOpen}

@@ -39,6 +39,7 @@ vi.mock('@renderer/components/chat', () => ({
     paneOpen,
     panePosition,
     topBar,
+    topRightTool,
     sidePanel,
     center,
     overlay,
@@ -49,6 +50,7 @@ vi.mock('@renderer/components/chat', () => ({
     paneOpen?: boolean
     panePosition?: string
     topBar?: ReactNode
+    topRightTool?: ReactNode
     sidePanel?: ReactNode
     center?: ReactNode
     overlay?: ReactNode
@@ -57,6 +59,7 @@ vi.mock('@renderer/components/chat', () => ({
   }) => (
     <div data-testid="chat-app-shell" data-pane-open={String(Boolean(paneOpen))} data-pane-position={panePosition}>
       <div data-testid="agent-top-bar">{topBar}</div>
+      <div data-testid="agent-top-right-tool">{topRightTool}</div>
       <div data-testid="shell-pane">{pane}</div>
       <div data-testid="agent-side-panel">{sidePanel}</div>
       <div>{center}</div>
@@ -656,6 +659,48 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByRole('button', { name: /pane count/ })).toBeInTheDocument()
     expect(screen.queryByTestId('agent-messages')).not.toBeInTheDocument()
     expect(screen.queryByTestId('agent-composer')).not.toBeInTheDocument()
+  })
+
+  it('keeps expanded session pane state when switching sessions', () => {
+    const onSelectSession = vi.fn((sessionId: string) => {
+      activeSessionMocks.result = {
+        activeSessionId: sessionId,
+        session: { id: sessionId, agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
+        isLoading: false,
+        setActiveSessionId: vi.fn()
+      }
+    })
+
+    function SessionPane() {
+      const [expanded, setExpanded] = useState(false)
+      const sessionIds = expanded ? ['session-1', 'session-2', 'session-3', 'session-4', 'session-5', 'session-6'] : []
+
+      return (
+        <aside>
+          <button type="button" onClick={() => setExpanded(true)}>
+            Expand display
+          </button>
+          {sessionIds.map((sessionId) => (
+            <button type="button" key={sessionId} onClick={() => onSelectSession(sessionId)}>
+              {sessionId}
+            </button>
+          ))}
+        </aside>
+      )
+    }
+
+    const { rerender } = renderAgentChat({ pane: <SessionPane />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand display' }))
+    expect(screen.getByRole('button', { name: 'session-6' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'session-6' }))
+
+    expect(onSelectSession).toHaveBeenCalledWith('session-6')
+    rerenderAgentChat(rerender, { pane: <SessionPane />, paneOpen: true, panePosition: 'left' })
+
+    expect(screen.getByRole('button', { name: 'session-6' })).toBeInTheDocument()
+    expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'session-6')
   })
 
   it('shows the persisted temporary session while the active session query catches up', () => {

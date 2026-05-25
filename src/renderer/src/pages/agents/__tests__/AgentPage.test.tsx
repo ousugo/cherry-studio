@@ -178,6 +178,8 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../AgentChat', () => ({
   default: ({
+    activeSession,
+    activeSessionLoading,
     onStartTemporarySession,
     onVisibleAgentChange,
     onVisibleWorkspaceChange,
@@ -185,6 +187,8 @@ vi.mock('../AgentChat', () => ({
     pane,
     paneOpen
   }: {
+    activeSession?: { id: string } | null
+    activeSessionLoading?: boolean
     onStartTemporarySession?: (defaults: {
       agentId: string
       workspaceId?: string
@@ -198,6 +202,8 @@ vi.mock('../AgentChat', () => ({
     paneOpen?: boolean
   }) => (
     <section>
+      <output data-testid="active-session">{activeSession?.id ?? ''}</output>
+      <output data-testid="active-session-loading">{String(Boolean(activeSessionLoading))}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
       <button type="button" onClick={() => void onDraftWorkspaceChange?.('workspace-next')}>
         Select workspace
@@ -278,6 +284,41 @@ describe('AgentPage', () => {
       itemId: 'session-history',
       requestId: 1
     })
+  })
+
+  it('keeps the previous visible session while the selected session is loading', () => {
+    activeSessionMocks.session = {
+      id: 'session-1',
+      agentId: 'agent-a',
+      name: 'Session 1',
+      workspaceId: null,
+      workspace: null
+    }
+    activeSessionMocks.sessionSource = 'query'
+
+    const { rerender } = render(<AgentPage />)
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-1')
+
+    activeSessionMocks.session = null
+    activeSessionMocks.isLoading = true
+    rerender(<AgentPage />)
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-1')
+    expect(screen.getByTestId('active-session-loading')).toHaveTextContent('true')
+
+    activeSessionMocks.session = {
+      id: 'session-2',
+      agentId: 'agent-a',
+      name: 'Session 2',
+      workspaceId: null,
+      workspace: null
+    }
+    activeSessionMocks.isLoading = false
+    rerender(<AgentPage />)
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-2')
+    expect(screen.getByTestId('active-session-loading')).toHaveTextContent('false')
   })
 
   it('replaces the temporary agent conversation when the draft workspace changes', async () => {

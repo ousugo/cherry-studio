@@ -33,7 +33,6 @@ import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { isMac } from '@renderer/config/constant'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
-import { prefetch } from '@renderer/data/hooks/useDataApi'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
@@ -1388,11 +1387,6 @@ function TopicRow({
         layout === 'single' && !isManageMode && isActive && 'bg-accent text-foreground shadow-none'
       )}
       style={{ cursor: isManageMode && !canSelect ? 'not-allowed' : 'pointer' }}
-      onMouseEnter={() =>
-        prefetch(`/topics/${topic.id}/messages`, {
-          query: { limit: 999, includeSiblings: true }
-        })
-      }
       onClick={() => {
         if (isManageMode) {
           if (canSelect) {

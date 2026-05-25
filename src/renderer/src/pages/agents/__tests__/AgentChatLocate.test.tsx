@@ -1,5 +1,5 @@
 import { render, waitFor } from '@testing-library/react'
-import type { PropsWithChildren, ReactNode } from 'react'
+import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -59,6 +59,43 @@ vi.mock('@renderer/components/chat', () => ({
       <div>{centerOverlay}</div>
       <div>{overlay}</div>
     </div>
+  ),
+  ConversationShell: ({
+    pane,
+    paneOpen,
+    panePosition,
+    topBar,
+    topRightTool,
+    sidePanel,
+    center,
+    overlay,
+    centerOverlay,
+    rightPane
+  }: {
+    pane?: ReactNode
+    paneOpen?: boolean
+    panePosition?: string
+    topBar?: ReactNode
+    topRightTool?: ReactNode
+    sidePanel?: ReactNode
+    center?: ReactNode
+    overlay?: ReactNode
+    centerOverlay?: ReactNode
+    rightPane?: ReactNode
+  }) => (
+    <div data-testid="chat-app-shell" data-pane-open={String(Boolean(paneOpen))} data-pane-position={panePosition}>
+      <div>{topBar}</div>
+      <div>{topRightTool}</div>
+      <div>{pane}</div>
+      <div>{sidePanel}</div>
+      <div>{center}</div>
+      <div>{centerOverlay}</div>
+      <div>{overlay}</div>
+      {rightPane}
+    </div>
+  ),
+  ConversationCenterState: ({ state }: { state: string }) => (
+    <div data-testid="conversation-center-state" data-state={state} />
   ),
   EmptyState: ({ title, description }: { title?: string; description?: string }) => (
     <div>
@@ -122,7 +159,8 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [false]
+  useCache: () => [false],
+  usePersistCache: () => [undefined, vi.fn()]
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -238,6 +276,12 @@ vi.mock('../../home/Inputbar/components/PinnedTodoPanel', () => ({
 }))
 
 describe('AgentChat locate pending message', () => {
+  const activeSessionProps = () => ({
+    activeSession: activeSessionMocks.result.session as ComponentProps<typeof AgentChat>['activeSession'],
+    activeSessionLoading: activeSessionMocks.result.isLoading,
+    activeSessionSource: activeSessionMocks.result.session ? 'query' : 'none'
+  })
+
   beforeEach(() => {
     activeSessionMocks.result = {
       activeSessionId: 'session-1',
@@ -279,6 +323,7 @@ describe('AgentChat locate pending message', () => {
 
     render(
       <AgentChat
+        {...activeSessionProps()}
         pane={<aside data-testid="session-pane" />}
         paneOpen={true}
         panePosition="left"
@@ -304,6 +349,7 @@ describe('AgentChat locate pending message', () => {
 
     const { rerender } = render(
       <AgentChat
+        {...activeSessionProps()}
         pane={<aside data-testid="session-pane" />}
         paneOpen={true}
         panePosition="left"
@@ -327,6 +373,7 @@ describe('AgentChat locate pending message', () => {
     }
     rerender(
       <AgentChat
+        {...activeSessionProps()}
         pane={<aside data-testid="session-pane" />}
         paneOpen={true}
         panePosition="left"

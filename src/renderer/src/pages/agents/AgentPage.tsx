@@ -88,6 +88,10 @@ const AgentPage = () => {
   } = useActiveSession({
     pendingSession
   })
+  const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
+  const visibleSession = isMessageOnlyView
+    ? routeSession
+    : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
 
   useShortcut('general.toggle_sidebar', () => {
     if (isMessageOnlyView) return
@@ -118,6 +122,10 @@ const AgentPage = () => {
       setRecentItems(nextItems)
     }
   }, [activeSession, isMessageOnlyView, recentItems, setRecentItems])
+
+  useEffect(() => {
+    if (activeSession) lastVisibleSessionRef.current = activeSession
+  }, [activeSession])
 
   useEffect(() => {
     void window.api.window.setMinimumSize(
@@ -374,7 +382,7 @@ const AgentPage = () => {
     <Container>
       <div className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AgentChat
-          activeSession={activeSession}
+          activeSession={visibleSession}
           activeSessionLoading={isActiveSessionLoading}
           activeSessionSource={activeSessionSource}
           pane={
