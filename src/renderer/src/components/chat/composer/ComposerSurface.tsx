@@ -26,6 +26,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { serializeComposerDocument } from './composerDraft'
+import { getComposerPlainTextPasteOverride } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import type { ComposerSuggestionItem, ComposerSuggestionSource } from './ComposerSuggestion'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
@@ -466,6 +467,18 @@ export default function ComposerSurface({
       }
     },
     handlePaste: (_view, event) => {
+      const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
+      const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, {
+        pasteLongTextAsFile,
+        pasteLongTextThreshold
+      })
+
+      if (plainTextOverride !== null) {
+        event.preventDefault()
+        editorRef.current?.chain().focus().insertContent(plainTextOverride).run()
+        return true
+      }
+
       void handlePaste(event)
       return false
     },
