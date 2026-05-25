@@ -17,7 +17,7 @@ vi.mock('../../MessageListProvider', () => ({
 }))
 
 // Mock citation utilities
-vi.mock('@cherrystudio/ui/composites/markdown', () => ({
+vi.mock('@renderer/utils/citation', () => ({
   withCitationTags: vi.fn((content: string, citations: any[]) => {
     if (citations.length > 0) {
       return `${content} [processed-citations]`
@@ -53,7 +53,7 @@ describe('MainTextBlock', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
 
-    const { withCitationTags, determineCitationSource } = await import('@cherrystudio/ui/composites/markdown')
+    const { withCitationTags, determineCitationSource } = await import('@renderer/utils/citation')
     mockWithCitationTags = withCitationTags as any
     mockDetermineCitationSource = determineCitationSource as any
 

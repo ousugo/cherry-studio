@@ -1,8 +1,7 @@
 import { Flex } from '@cherrystudio/ui'
 import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
-import { type CitationLike, determineCitationSource, withCitationTags } from '@cherrystudio/ui/composites/markdown'
 import type { Citation, Model } from '@renderer/types'
-import { cleanMarkdownContent } from '@renderer/utils/formats'
+import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -93,23 +92,11 @@ const MainTextBlock: React.FC<Props> = ({
 
   const block: MarkdownSource = { id, content, status: isStreaming ? 'streaming' : 'success' }
 
-  // 创建引用处理函数，传递给 Markdown 组件在流式渲染中使用
   const processContent = useCallback(
     (rawText: string) => {
-      if (!citationReferences?.length || citations.length === 0) {
-        return rawText
-      }
-
-      // 确定最适合的 source
+      if (!citationReferences?.length || citations.length === 0) return rawText
       const sourceType = determineCitationSource(citationReferences)
-
-      // The package-level `withCitationTags` no longer cleans citation.content
-      // internally (that's UI presentation logic for the tooltip preview); we
-      // pre-clean here at the call site so the chat tooltip shows tidy text.
-      const cleanedCitations = citations.map((citation) =>
-        citation.content ? { ...citation, content: cleanMarkdownContent(citation.content) } : citation
-      )
-      return withCitationTags(rawText, cleanedCitations as CitationLike[], sourceType)
+      return withCitationTags(rawText, citations, sourceType)
     },
     [citationReferences, citations]
   )

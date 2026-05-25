@@ -3,50 +3,30 @@
  * markdown content into a uniform `[<sup data-citation='…'>N</sup>](url)`
  * tagged shape that the chat layer's `<a>` renderer can detect.
  *
- * Moved from `src/renderer/src/utils/citation.ts` as part of the markdown
- * package extraction. The chat layer's `Citation` and `WebSearchSource` types
- * are decoupled via structural local types so this module does not depend on
- * `@renderer/types` or `@google/genai`. Callers' chat-layer types are
- * structurally compatible and pass through unchanged.
+ * This module lives in the renderer because it encodes business knowledge:
+ * the LLM provider enumeration, each provider's wire format for citation
+ * markers, and how to project our chat `Citation` shape into the rendered
+ * `<sup data-citation>` JSON the tooltip reads. The markdown package
+ * upstream is intentionally provider-agnostic.
  */
 
-import { encodeHTML } from './text'
+import type { GroundingSupport } from '@google/genai'
+import type { Citation } from '@renderer/types'
+import { cleanMarkdownContent, encodeHTML } from '@renderer/utils/formats'
 
-/**
- * Minimal structural type for a citation. Mirrors the chat layer's
- * `Citation` shape; chat-layer values pass through structurally.
- */
-export interface CitationLike {
-  number: number
-  url?: string
-  title?: string
-  hostname?: string
-  content?: string
-  /** Provider-specific grounding metadata (e.g. Gemini groundingChunks). */
-  metadata?: GroundingSupportLike[]
-}
-
-/**
- * Minimal subset of `@google/genai`'s `GroundingSupport` used by the Gemini
- * citation normalizer. Defined locally so the package does not pull the
- * Google AI SDK runtime.
- */
-export interface GroundingSupportLike {
-  groundingChunkIndices?: number[]
-  segment?: {
-    /** Byte offset of the segment end in the original Gemini response. */
-    endIndex?: number
-    /** Other segment fields (startIndex, text) the provider may include
-     *  but the normalizer does not read. */
-    [k: string]: unknown
-  }
-}
-
-/**
- * Web-search source identifier. Stringly typed to accept any provider value
- * the caller passes; the normalizer switches on the canonical names below.
- */
-export type WebSearchSource = string
+export type WebSearchSource =
+  | 'websearch'
+  | 'openai'
+  | 'openai-response'
+  | 'openrouter'
+  | 'anthropic'
+  | 'gemini'
+  | 'perplexity'
+  | 'qwen'
+  | 'hunyuan'
+  | 'zhipu'
+  | 'grok'
+  | 'ai-sdk'
 
 export const WEB_SEARCH_SOURCE = {
   WEBSEARCH: 'websearch',
@@ -61,11 +41,9 @@ export const WEB_SEARCH_SOURCE = {
   ZHIPU: 'zhipu',
   GROK: 'grok',
   AISDK: 'ai-sdk'
-} as const
+} as const satisfies Record<string, WebSearchSource>
 
-/**
- * Pick the first valid source identifier out of a citation-reference list.
- */
+/** Pick the first valid source identifier out of a citation-reference list. */
 export function determineCitationSource(
   citationReferences: Array<{ citationBlockId?: string; citationBlockSource?: WebSearchSource }> | undefined
 ): WebSearchSource | undefined {
@@ -81,14 +59,14 @@ export function determineCitationSource(
  * `[<sup data-citation='JSON'>N</sup>](url)` tags. Pipeline:
  *   1. Normalize source-specific marks (e.g. `[<sup>N</sup>](url)` → `[cite:N]`)
  *   2. Map `[cite:N]` → rendered tag via `generateCitationTag`
+ *
+ * Pre-cleans each citation's `content` field with `cleanMarkdownContent` so
+ * the tooltip preview shows tidy plain text instead of raw markdown.
  */
-export function withCitationTags(content: string, citations: CitationLike[], sourceType?: WebSearchSource): string {
+export function withCitationTags(content: string, citations: Citation[], sourceType?: WebSearchSource): string {
   if (!content || citations.length === 0) return content
-  // Note: callers are responsible for any presentation-layer cleanup of
-  // `citation.content` (e.g. stripping markdown for the tooltip excerpt)
-  // before passing the list in. That keeps this package free of UX
-  // concerns like which characters look good inside a hover card.
-  const citationMap = new Map(citations.map((c) => [c.number, c]))
+  const cleaned = citations.map((c) => (c.content ? { ...c, content: cleanMarkdownContent(c.content) } : c))
+  const citationMap = new Map(cleaned.map((c) => [c.number, c]))
   const normalizedContent = normalizeCitationMarks(content, citationMap, sourceType)
   return mapCitationMarksToTags(normalizedContent, citationMap)
 }
@@ -99,7 +77,7 @@ export function withCitationTags(content: string, citations: CitationLike[], sou
  */
 export function normalizeCitationMarks(
   content: string,
-  citationMap: Map<number, CitationLike>,
+  citationMap: Map<number, Citation>,
   sourceType?: WebSearchSource
 ): string {
   const codeBlockRegex = /```[\s\S]*?```|`[^`\n]*`/gm
@@ -147,7 +125,8 @@ export function normalizeCitationMarks(
     }
     case WEB_SEARCH_SOURCE.GEMINI: {
       const firstCitation = Array.from(citationMap.values())[0]
-      if (firstCitation?.metadata) {
+      const metadata = firstCitation?.metadata as GroundingSupport[] | undefined
+      if (metadata?.length) {
         const encoder = new TextEncoder()
         const contentBytes = encoder.encode(content)
 
@@ -157,7 +136,7 @@ export function normalizeCitationMarks(
         }
 
         const insertions: Array<{ position: number; tag: string }> = []
-        firstCitation.metadata.forEach((support) => {
+        metadata.forEach((support) => {
           if (!support.groundingChunkIndices || !support.segment) return
           const { endIndex } = support.segment
           if (endIndex == null) return
@@ -203,7 +182,7 @@ export function normalizeCitationMarks(
 }
 
 /** Map every `[cite:N]` mark to a rendered `[<sup>…</sup>](url)` tag. */
-export function mapCitationMarksToTags(content: string, citationMap: Map<number, CitationLike>): string {
+export function mapCitationMarksToTags(content: string, citationMap: Map<number, Citation>): string {
   return content.replace(/\[cite:(\d+)\]/g, (match, num) => {
     const citationNum = parseInt(num, 10)
     const citation = citationMap.get(citationNum)
@@ -212,7 +191,7 @@ export function mapCitationMarksToTags(content: string, citationMap: Map<number,
 }
 
 /** Build the rendered tag for a single citation. */
-export function generateCitationTag(citation: CitationLike): string {
+export function generateCitationTag(citation: Citation): string {
   const supData = {
     id: citation.number,
     url: citation.url,
@@ -224,7 +203,6 @@ export function generateCitationTag(citation: CitationLike): string {
   const citationJson = encodeHTML(JSON.stringify(supData)).replace(/\|/g, '&#124;')
 
   const isLink = citation.url && citation.url.startsWith('http')
-  // Escape | in URL to avoid breaking GFM table cell parsing
   const safeUrl = isLink && citation.url ? citation.url.replace(/\|/g, '%7C') : ''
 
   return `[<sup data-citation='${citationJson}'>${citation.number}</sup>]` + (isLink ? `(${safeUrl})` : '()')

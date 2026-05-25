@@ -1,15 +1,15 @@
+import type { GroundingSupport } from '@google/genai'
+import type { Citation } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { GroundingSupportLike as GroundingSupport } from '../../utils/citation'
-import type { CitationLike as Citation } from '../../utils/citation'
-import { WEB_SEARCH_SOURCE } from '../../utils/citation'
+import { WEB_SEARCH_SOURCE } from '../citation'
 import {
   determineCitationSource,
   generateCitationTag,
   mapCitationMarksToTags,
   normalizeCitationMarks,
   withCitationTags
-} from '../../utils/citation'
+} from '../citation'
 import { buildContent, groundingChunks, groundingSupports } from './fixtures/geminiCitation8880'
 
 // Mock dependencies

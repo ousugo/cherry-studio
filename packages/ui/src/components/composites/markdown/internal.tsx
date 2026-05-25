@@ -2,11 +2,10 @@
  * Shared rendering body for `<Markdown>` and `<StreamingMarkdown>`. Builds
  * the rehype pipeline (defaultRehypePlugins → conditional SVG scaling →
  * extended sanitize schema → SVG ID prefixing → harden → heading IDs →
- * optional animate plugin from the streaming wrapper), normalizes the input
- * content (LaTeX bracket conversion + SVG empty-line cleanup), and hands
- * everything to Streamdown. Wraps the result in `MarkdownBlockContext` so
- * sub-renderers (e.g. a chat-side table component with "copy as markdown")
- * can read the raw source.
+ * optional animate plugin from the streaming wrapper) and hands `children`
+ * to Streamdown verbatim. Any pre-processing (LaTeX bracket conversion,
+ * SVG cleanup, citation tag injection) is the caller's responsibility —
+ * the package stays provider-agnostic.
  */
 
 import { useCallback, useMemo } from 'react'
@@ -24,13 +23,7 @@ import type { Pluggable } from 'unified'
 import { MarkdownBlockContext } from './context'
 import { rehypeHeadingIds, rehypePrefixSvgReferences } from './plugins'
 import rehypeScalableSvg from './plugins/rehype-scalable-svg'
-import {
-  createMarkdownSanitizeSchema,
-  DISALLOWED_ELEMENTS,
-  processLatexBrackets,
-  removeSvgEmptyLines,
-  SVG_ELEMENT_REGEX
-} from './utils'
+import { createMarkdownSanitizeSchema, DISALLOWED_ELEMENTS, SVG_ELEMENT_REGEX } from './utils'
 
 const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.values(defaultRemarkPlugins)
 
@@ -70,9 +63,7 @@ export function MarkdownCore({
   disallowedElements = DISALLOWED_ELEMENTS,
   footnoteLabel = 'Footnotes'
 }: MarkdownCoreProps) {
-  const messageContent = useMemo(() => removeSvgEmptyLines(processLatexBrackets(children)), [children])
-
-  const hasSvgElement = SVG_ELEMENT_REGEX.test(messageContent)
+  const hasSvgElement = SVG_ELEMENT_REGEX.test(children)
 
   const remarkPlugins = useMemo(() => {
     const list: Pluggable[] = [...STREAMDOWN_DEFAULT_REMARK_PLUGINS, remarkAlert as Pluggable]
@@ -129,7 +120,7 @@ export function MarkdownCore({
           parseIncompleteMarkdown={parseIncompleteMarkdown}
           normalizeHtmlIndentation
           remarkRehypeOptions={remarkRehypeOptions}>
-          {messageContent}
+          {children}
         </Streamdown>
       </div>
     </MarkdownBlockContext>

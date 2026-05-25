@@ -5,10 +5,128 @@ import { unified } from 'unified'
 import type { Point } from 'unist'
 import { visit } from 'unist-util-visit'
 
-// findCitationInChildren and processLatexBrackets moved to
-// @cherrystudio/ui/composites/markdown (PR 1). Re-exported here so existing
-// callers using `@renderer/utils/markdown` keep compiling.
-export { findCitationInChildren, processLatexBrackets } from '@cherrystudio/ui/composites/markdown'
+/**
+ * 更彻底的查找方法，递归搜索所有子元素
+ * @param {any} children 子元素
+ * @returns {string} 找到的 citation 或 ''
+ */
+export const findCitationInChildren = (children: any): string => {
+  if (!children) return ''
+
+  for (const child of Array.isArray(children) ? children : [children]) {
+    if (typeof child === 'object' && child?.props?.['data-citation']) {
+      return child.props['data-citation']
+    }
+
+    if (typeof child === 'object' && child?.props?.children) {
+      const found = findCitationInChildren(child.props.children)
+      if (found) return found
+    }
+  }
+
+  return ''
+}
+
+const containsLatexRegex = /\\\(.*?\\\)|\\\[.*?\\\]/s
+
+/**
+ * 转换 LaTeX 公式括号 `\[\]` 和 `\(\)` 为 Markdown 格式 `$$...$$` 和 `$...$`
+ *
+ * remark-math 本身不支持 LaTeX 原生语法，作为替代的一些插件效果也不理想。
+ *
+ * 目前的实现：
+ * - 保护代码块和链接，避免被 remark-math 处理
+ * - 支持嵌套括号的平衡匹配
+ * - 转义括号 `\\(\\)` 或 `\\[\\]` 不会被处理
+ *
+ * @see https://github.com/remarkjs/remark-math/issues/39
+ */
+export const processLatexBrackets = (text: string) => {
+  if (!containsLatexRegex.test(text)) return text
+
+  const protectedItems: string[] = []
+  let processedContent = text
+
+  processedContent = processedContent
+    .replace(/(```[\s\S]*?```|`[^`]*`)/g, (match) => {
+      const index = protectedItems.length
+      protectedItems.push(match)
+      return `__CHERRY_STUDIO_PROTECTED_${index}__`
+    })
+    .replace(/\[([^[\]]*(?:\[[^\]]*\][^[\]]*)*)\]\([^)]*?\)/g, (match) => {
+      const index = protectedItems.length
+      protectedItems.push(match)
+      return `__CHERRY_STUDIO_PROTECTED_${index}__`
+    })
+
+  const processMath = (content: string, openDelim: string, closeDelim: string, wrapper: string): string => {
+    let result = ''
+    let remaining = content
+
+    while (remaining.length > 0) {
+      const match = findLatexMatch(remaining, openDelim, closeDelim)
+      if (!match) {
+        result += remaining
+        break
+      }
+      result += match.pre
+      result += `${wrapper}${match.body}${wrapper}`
+      remaining = match.post
+    }
+
+    return result
+  }
+
+  let result = processMath(processedContent, '\\[', '\\]', '$$')
+  result = processMath(result, '\\(', '\\)', '$')
+
+  result = result.replace(/__CHERRY_STUDIO_PROTECTED_(\d+)__/g, (match, indexStr) => {
+    const index = parseInt(indexStr, 10)
+    if (index >= 0 && index < protectedItems.length) {
+      return protectedItems[index]
+    }
+    return match
+  })
+
+  return result
+}
+
+/**
+ * 查找 LaTeX 数学公式的匹配括号对。使用平衡括号算法处理嵌套结构，正确识别转义字符。
+ */
+const findLatexMatch = (text: string, openDelim: string, closeDelim: string) => {
+  const escaped = (i: number) => {
+    let count = 0
+    while (--i >= 0 && text[i] === '\\') count++
+    return count & 1
+  }
+
+  for (let i = 0, n = text.length; i <= n - openDelim.length; i++) {
+    if (!text.startsWith(openDelim, i) || escaped(i)) continue
+
+    for (let j = i + openDelim.length, depth = 1; j <= n - closeDelim.length && depth; j++) {
+      const delta =
+        text.startsWith(openDelim, j) && !escaped(j) ? 1 : text.startsWith(closeDelim, j) && !escaped(j) ? -1 : 0
+
+      if (delta) {
+        depth += delta
+
+        if (!depth)
+          return {
+            start: i,
+            end: j + closeDelim.length,
+            pre: text.slice(0, i),
+            body: text.slice(i + openDelim.length, j),
+            post: text.slice(j + closeDelim.length)
+          }
+
+        j += (delta > 0 ? openDelim : closeDelim).length - 1
+      }
+    }
+  }
+
+  return null
+}
 
 /**
  * 转换数学公式格式：

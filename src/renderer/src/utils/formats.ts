@@ -64,9 +64,18 @@ export function getFileNameFromHtmlTitle(title: string): string {
   return title.replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, '-')
 }
 
-// removeSvgEmptyLines moved to @cherrystudio/ui/composites/markdown (PR 1).
-// Re-exported so existing callers of `@renderer/utils/formats` keep compiling.
-export { removeSvgEmptyLines } from '@cherrystudio/ui/composites/markdown'
+export function removeSvgEmptyLines(text: string): string {
+  // 用正则表达式匹配 <svg> 标签内的内容
+  const svgPattern = /(<svg[\s\S]*?<\/svg>)/g
+
+  return text.replace(svgPattern, (svgMatch) => {
+    // 将 SVG 内容按行分割,过滤掉空行,然后重新组合
+    return svgMatch
+      .split('\n')
+      .filter((line) => line.trim() !== '')
+      .join('\n')
+  })
+}
 
 export function formatQuotedText(text: string) {
   return '<blockquote>\n\n' + text + '\n</blockquote>\n'

@@ -16,6 +16,8 @@
 
 import { Markdown, type MarkdownSource, StreamingMarkdown, withChatPlugins } from '@cherrystudio/ui/composites/markdown'
 import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
+import { removeSvgEmptyLines } from '@renderer/utils/formats'
+import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
 import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,14 +39,13 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess }) => {
 
   const plugins = useMemo(() => withChatPlugins({ singleDollarMath: mathEnableSingleDollar }), [mathEnableSingleDollar])
 
-  // Preserve the chat-specific "paused with empty content" placeholder. The
-  // generic Markdown components don't know about i18n; we resolve the
-  // localized string here and short-circuit to it.
   const content = useMemo(() => {
     if (block.status === 'paused' && isEmpty(block.content)) {
       return t('message.chat.completion.paused')
     }
-    return postProcess ? postProcess(block.content) : block.content
+    let text = removeSvgEmptyLines(processLatexBrackets(block.content))
+    if (postProcess) text = postProcess(text)
+    return text
   }, [block.status, block.content, postProcess, t])
 
   const hasStyleElement = STYLE_ELEMENT_REGEX.test(content)

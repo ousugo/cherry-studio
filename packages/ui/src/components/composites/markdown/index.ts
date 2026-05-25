@@ -6,10 +6,8 @@
  *   animation that does NOT re-fade already-rendered text on mid-stream
  *   structural changes.
  * - `withChatPlugins()` etc — opt-in Streamdown plugin presets.
- * - `withCitationTags()` etc — provider-agnostic citation mark normalization.
  * - rehype plugins + sanitize schema — used by chat to ship its own
  *   pre-processing layer on top.
- *
  * Side-effect styles: `import '@cherrystudio/ui/composites/markdown/styles'`
  * once at app entry to pick up Streamdown / KaTeX / remark-alert CSS.
  */
