@@ -11,12 +11,14 @@ export type {
   ResourceListMeta,
   ResourceListReorderPayload,
   ResourceListRevealRequest,
+  ResourceListSection,
   ResourceListSortOption,
   ResourceListState,
   ResourceListStatus,
   ResourceListVariantContext,
   ResourceListView,
-  ResourceListViewGroup
+  ResourceListViewGroup,
+  ResourceListViewSection
 } from './ResourceList'
 export {
   ResourceList,

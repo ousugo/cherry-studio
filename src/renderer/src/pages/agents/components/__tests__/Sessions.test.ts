@@ -7,6 +7,7 @@ const workspace = (path: string) => ({
   id: `workspace-${path}`,
   name: path,
   path,
+  type: 'user' as const,
   orderKey: path,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z'
@@ -41,6 +42,24 @@ describe('buildCreateSessionSeed', () => {
 
   it('returns null when the source session has no agent', () => {
     expect(buildCreateSessionSeed(session({ agentId: undefined }))).toBeNull()
+  })
+
+  it('preserves no-project mode instead of reusing a system workspace id', () => {
+    expect(
+      buildCreateSessionSeed(
+        session({
+          workspaceId: 'system-workspace',
+          workspace: {
+            ...workspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session'),
+            id: 'system-workspace',
+            type: 'system'
+          }
+        })
+      )
+    ).toEqual({
+      agentId: 'agent-1',
+      workspaceMode: 'system'
+    })
   })
 })
 

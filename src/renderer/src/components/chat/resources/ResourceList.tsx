@@ -33,12 +33,14 @@ export type {
   ResourceListMeta,
   ResourceListReorderPayload,
   ResourceListRevealRequest,
+  ResourceListSection,
   ResourceListSortOption,
   ResourceListState,
   ResourceListStatus,
   ResourceListVariantContext,
   ResourceListView,
-  ResourceListViewGroup
+  ResourceListViewGroup,
+  ResourceListViewSection
 } from './ResourceListContext'
 export type { ResourceListGroupReorderPayload, ResourceListItemReorderPayload } from './ResourceListContext'
 
@@ -146,12 +148,12 @@ function HeaderItem({ actions, className, icon, label, ref, variant = 'ghost', .
         ref={ref}
         variant={variant}
         className={cn(
-          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1.5 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-3.5 [&_svg]:shrink-0',
+          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-(--list-item-border-radius) px-1.5 py-1.5 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
           className
         )}
         {...props}>
         {icon && (
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground">
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground">
             {icon}
           </span>
         )}
@@ -279,9 +281,9 @@ function Item<T extends ResourceListItemBase>({
       data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? 0}
       className={cn(
-        'group flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] outline-none transition-all duration-150',
-        'hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring',
-        rowState.selected && 'bg-accent text-foreground',
+        'group relative flex min-h-9 w-full cursor-pointer items-center gap-1.5 rounded-(--list-item-border-radius) px-1.5 py-1.5 text-[13px] text-sidebar-foreground/80 outline-none transition-all duration-150',
+        'hover:bg-accent/60 hover:text-foreground focus-visible:bg-accent/60 focus-visible:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring',
+        rowState.selected && 'bg-accent text-foreground shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
         rowState.revealFocused && 'animation-resource-list-reveal-focus',
         className
       )}
@@ -401,7 +403,7 @@ function ItemIcon({ className, ref, ...props }: ItemIconProps) {
     <span
       ref={ref}
       className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0',
+        'flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0',
         className
       )}
       {...props}
@@ -419,10 +421,31 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       ref={ref}
       type={type}
       className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
+        'pointer-events-none flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
         'hover:bg-accent hover:text-foreground',
-        'focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
-        'group-hover:opacity-100 data-[deleting=true]:opacity-100',
+        'focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
+        'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100',
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+type ItemActionsProps = ComponentProps<'div'> & {
+  active?: boolean
+  ref?: Ref<HTMLDivElement>
+}
+
+function ItemActions({ active, className, ref, ...props }: ItemActionsProps) {
+  return (
+    <div
+      ref={ref}
+      data-active={active || undefined}
+      data-resource-list-item-actions="true"
+      className={cn(
+        '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center gap-0 opacity-0 transition-opacity duration-150',
+        'focus-within:pointer-events-auto focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:opacity-100',
         className
       )}
       {...props}
@@ -510,7 +533,7 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
         <div key={group.id} data-resource-list-loading-group="true" className="flex flex-col pb-1">
           <div
             data-resource-list-loading-group-header="true"
-            className="flex h-7 items-center gap-1.5 px-1.5 pt-2 pb-1">
+            className="flex h-[38px] items-center gap-1.5 px-1.5 pt-2 pb-1">
             <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
             <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', group.headerWidth)} />
           </div>
@@ -518,7 +541,7 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
             <div
               key={`${group.id}-${index}`}
               data-resource-list-loading-item="true"
-              className="mb-[2px] flex min-h-8 w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 last:mb-0">
+              className="mb-[2px] flex min-h-9 w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 last:mb-0">
               <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
               <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', width)} />
               <Skeleton data-slot="skeleton" className="ml-auto size-5 shrink-0 rounded-md opacity-60" />
@@ -563,6 +586,7 @@ const ResourceList = {
   VirtualDraggableItems,
   Item,
   ItemAction,
+  ItemActions,
   ItemIcon,
   ItemLeadingAction,
   ItemTitle,

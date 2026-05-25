@@ -42,7 +42,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { getFileTypeByExt } from '@shared/file/types'
 import type { PathStatus } from '@shared/file/types/ipc'
 import type { TFunction } from 'i18next'
-import { ChevronDown, Folder, TriangleAlert } from 'lucide-react'
+import { ChevronDown, CircleSlash, Folder, TriangleAlert } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -159,7 +159,7 @@ type Props = {
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
   workspaceId?: string | null
-  onWorkspaceChange?: (workspaceId: string) => void | Promise<void>
+  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   showWorkspaceSelector?: boolean
   workspaceChanging?: boolean
   isStreaming: boolean
@@ -303,7 +303,7 @@ interface AgentComposerWorkspaceControlProps {
   workspaceWarning?: string
   selectWorkspaceLabel: string
   side: 'top' | 'bottom'
-  onWorkspaceChange?: (workspaceId: string) => void | Promise<void>
+  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
 }
 
 const AgentComposerContextControls = ({
@@ -379,10 +379,16 @@ const AgentComposerWorkspaceControl = ({
   side,
   onWorkspaceChange
 }: AgentComposerWorkspaceControlProps) => {
+  const { t } = useTranslation()
   const hasWarning = Boolean(workspaceWarning)
+  const isSystemWorkspace = workspace?.type === 'system'
+  const selectorValue = isSystemWorkspace ? null : workspaceId
+  const workspaceLabel = isSystemWorkspace
+    ? t('agent.session.workspace_selector.no_project')
+    : (workspace?.name ?? selectWorkspaceLabel)
   const selector = (
     <WorkspaceSelector
-      value={workspaceId}
+      value={selectorValue}
       onChange={onWorkspaceChange ?? (() => undefined)}
       side={side}
       align="start"
@@ -397,10 +403,12 @@ const AgentComposerWorkspaceControl = ({
           aria-label={workspaceWarning}>
           {hasWarning ? (
             <TriangleAlert size={14} aria-hidden />
+          ) : isSystemWorkspace ? (
+            <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
           ) : (
             <Folder size={14} aria-hidden className="text-muted-foreground" />
           )}
-          <span className="max-w-40 truncate">{workspace?.name ?? selectWorkspaceLabel}</span>
+          <span className="max-w-40 truncate">{workspaceLabel}</span>
           <ChevronDown size={14} aria-hidden className="text-muted-foreground" />
         </Button>
       }
@@ -440,7 +448,7 @@ type AgentComposerControlProps = Omit<AgentComposerToolbarControlsProps, 'inputA
   workspaceWarning?: string
   showWorkspaceSelector?: boolean
   selectWorkspaceLabel: string
-  onWorkspaceChange?: (workspaceId: string) => void | Promise<void>
+  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
 }
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>

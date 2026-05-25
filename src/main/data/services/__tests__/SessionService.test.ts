@@ -7,7 +7,7 @@ import { workspaceService } from '@data/services/WorkspaceService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { mkdtemp } from 'fs/promises'
+import { mkdtemp, stat } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,6 +24,8 @@ describe('SessionService', () => {
       }
       return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
+    const dbService = application.get('DbService') as any
+    dbService.withWriteTx.mockImplementation((fn: never) => dbh.db.transaction(fn))
     await dbh.db.insert(agentTable).values({
       id: 'agent-session-test',
       type: 'claude-code',
@@ -35,6 +37,8 @@ describe('SessionService', () => {
   })
 
   afterEach(() => {
+    const dbService = application.get('DbService') as any
+    dbService.withWriteTx.mockImplementation((fn: (tx: unknown) => Promise<unknown>) => fn(dbService.getDb()))
     vi.restoreAllMocks()
   })
 
@@ -94,6 +98,49 @@ describe('SessionService', () => {
     const rows = await dbh.db.select().from(workspaceTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe(session.workspaceId)
+  })
+
+  it('creates and binds a system workspace for explicit no-project sessions', async () => {
+    const session = await sessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'No project',
+      workspaceMode: 'system'
+    })
+
+    expect(session.workspaceId).toBeTruthy()
+    expect(session.workspace).toMatchObject({ type: 'system' })
+    expect(session.workspace?.path).toContain(path.join('Agents', 'system'))
+    await expect(stat(session.workspace!.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
+    await expect(workspaceService.list()).resolves.toEqual([])
+  })
+
+  it('rejects system workspace mode combined with an explicit workspace id', async () => {
+    const workspace = await workspaceService.findOrCreateByPath(path.join(root, 'explicit'))
+
+    await expect(
+      sessionService.createSession({
+        agentId: 'agent-session-test',
+        name: 'Invalid',
+        workspaceId: workspace.id,
+        workspaceMode: 'system'
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+  })
+
+  it('does not inherit a system workspace when legacy callers omit workspace options', async () => {
+    const systemSession = await sessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'No project',
+      workspaceMode: 'system'
+    })
+
+    const inherited = await sessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'Legacy default'
+    })
+
+    expect(inherited.workspaceId).not.toBe(systemSession.workspaceId)
+    expect(inherited.workspace).toMatchObject({ type: 'user' })
   })
 
   it('returns migrated sessions without a workspace binding', async () => {
@@ -160,6 +207,39 @@ describe('SessionService', () => {
     await expect(sessionService.getById(session.id)).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
+  })
+
+  it('deletes the system workspace directory when deleting a no-project session', async () => {
+    const session = await sessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'Delete system workspace',
+      workspaceMode: 'system'
+    })
+    const workspacePath = session.workspace!.path
+
+    await sessionService.delete(session.id)
+
+    await expect(sessionService.getById(session.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(stat(workspacePath)).rejects.toThrow()
+  })
+
+  it('keeps the session delete result consistent when post-commit system directory cleanup fails', async () => {
+    const session = await sessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'Cleanup failure',
+      workspaceMode: 'system'
+    })
+    const workspacePath = session.workspace!.path
+    vi.spyOn(workspaceService, 'deleteSystemWorkspaceDirectory').mockImplementation(() => {
+      throw new Error('rm failed')
+    })
+
+    await expect(sessionService.delete(session.id)).resolves.toBeUndefined()
+
+    await expect(sessionService.getById(session.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    const rows = await dbh.db.select().from(workspaceTable)
+    expect(rows).toHaveLength(0)
+    await expect(stat(workspacePath)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
   })
 
   it('reorders sessions with single and batch moves', async () => {

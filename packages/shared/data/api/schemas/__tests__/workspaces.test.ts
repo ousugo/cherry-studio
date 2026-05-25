@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { AgentSessionEntitySchema, CreateSessionSchema, UpdateSessionSchema } from '../sessions'
+import { CreateTemporarySessionSchema } from '../temporaryChats'
 import { UpdateWorkspaceSchema, WorkspaceEntitySchema } from '../workspaces'
 
 describe('WorkspaceEntitySchema', () => {
@@ -8,6 +9,7 @@ describe('WorkspaceEntitySchema', () => {
     id: '550e8400-e29b-41d4-a716-446655440000',
     name: 'workspace',
     path: '/tmp/workspace',
+    type: 'user',
     orderKey: 'a0',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
@@ -60,5 +62,33 @@ describe('WorkspaceEntitySchema', () => {
       CreateSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceId: workspace.id }).workspaceId
     ).toBe(workspace.id)
     expect(UpdateSessionSchema.parse({ workspaceId: workspace.id }).workspaceId).toBe(workspace.id)
+  })
+
+  it('allows explicit system workspace mode on session create', () => {
+    expect(CreateSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceMode: 'system' })).toMatchObject({
+      workspaceMode: 'system'
+    })
+    expect(
+      CreateSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: 'Session',
+        workspaceId: workspace.id,
+        workspaceMode: 'system'
+      }).success
+    ).toBe(false)
+  })
+
+  it('validates temporary session no-project mode with the same workspace constraints', () => {
+    expect(CreateTemporarySessionSchema.parse({ agentId: 'agent-1', workspaceMode: 'system' })).toMatchObject({
+      workspaceMode: 'system'
+    })
+    expect(
+      CreateTemporarySessionSchema.safeParse({
+        agentId: 'agent-1',
+        workspaceId: workspace.id,
+        workspaceMode: 'system'
+      }).success
+    ).toBe(false)
+    expect(CreateTemporarySessionSchema.safeParse({ agentId: 'agent-1', workspaceMode: 'invalid' }).success).toBe(false)
   })
 })

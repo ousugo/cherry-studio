@@ -17,19 +17,20 @@ import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionMenu } from '@renderer/components/chat/actions/ActionMenu'
-import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
   ResourceList,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
+  type ResourceListSection,
   TopicResourceList,
   useResourceListActions,
   useResourceListPinnedState,
   useResourceListRowState
 } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
+import EmojiIcon from '@renderer/components/EmojiIcon'
 import { isMac } from '@renderer/config/constant'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
@@ -60,11 +61,9 @@ import { findIndex } from 'lodash'
 import {
   Bot,
   CheckSquare,
-  Edit3,
   ListFilter,
   MoreHorizontal,
   PinIcon,
-  PinOffIcon,
   Square,
   SquareMinus,
   SquarePen,
@@ -77,6 +76,12 @@ import { useTranslation } from 'react-i18next'
 
 import { buildChatMessageRouteUrl } from '../../routeSearch'
 import type { AddNewTopicPayload } from '../../types'
+import {
+  type AssistantGroupAction,
+  type AssistantGroupActionContext,
+  executeAssistantGroupAction,
+  resolveAssistantGroupActions
+} from './assistantGroupActions'
 import type { TopicExportMenuOptions } from './topicContextMenuActions'
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 import {
@@ -87,9 +92,12 @@ import {
   filterTopicsForManageMode,
   getAssistantIdFromTopicGroupId,
   moveAssistantGroupAfterDrop,
+  normalizeTopicCollapsedGroupIds,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
+  TOPIC_ASSISTANT_SECTION_ID,
   TOPIC_PINNED_GROUP_ID,
+  TOPIC_PINNED_SECTION_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
   type TopicDisplayMode
 } from './Topics.helpers'
@@ -137,47 +145,6 @@ function findLatestCreateTopicPayload(
   }
 
   return buildCreateTopicPayload(latestTopic, assistantById)
-}
-
-type AssistantGroupActionId = 'assistant-group.edit' | 'assistant-group.toggle-pin' | 'assistant-group.delete-topics'
-type AssistantGroupAction = ResolvedAction & { id: AssistantGroupActionId; label: string }
-
-function resolveAssistantGroupActions({
-  disabled,
-  pinned,
-  t
-}: {
-  disabled?: boolean
-  pinned: boolean
-  t: ReturnType<typeof useTranslation>['t']
-}): AssistantGroupAction[] {
-  return [
-    {
-      id: 'assistant-group.edit' satisfies AssistantGroupActionId,
-      label: t('assistants.edit.title'),
-      icon: <Edit3 size={14} />,
-      danger: false,
-      availability: { visible: true, enabled: true },
-      children: []
-    },
-    {
-      id: 'assistant-group.toggle-pin' satisfies AssistantGroupActionId,
-      label: pinned ? t('assistants.unpin.title') : t('assistants.pin.title'),
-      icon: pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
-      danger: false,
-      availability: { visible: true, enabled: !disabled },
-      children: []
-    },
-    {
-      id: 'assistant-group.delete-topics' satisfies AssistantGroupActionId,
-      label: t('assistants.clear.menu_title'),
-      icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
-      group: 'danger',
-      danger: true,
-      availability: { visible: true, enabled: true },
-      children: []
-    }
-  ]
 }
 
 function AssistantGroupMoreDropdownMenuContent({
@@ -302,19 +269,18 @@ function AssistantGroupMoreMenu({
   onTogglePin: (assistantId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
-  const actions = resolveAssistantGroupActions({ disabled, pinned, t })
+  const actionContext: AssistantGroupActionContext = {
+    assistantId,
+    disabled,
+    onDeleteAllTopics,
+    onEdit,
+    onTogglePin,
+    pinned,
+    t
+  }
+  const actions = resolveAssistantGroupActions(actionContext)
   const handleAction = (action: AssistantGroupAction) => {
-    if (action.id === 'assistant-group.edit') {
-      window.requestAnimationFrame(() => onEdit(assistantId))
-      return
-    }
-    if (action.id === 'assistant-group.toggle-pin') {
-      void onTogglePin(assistantId)
-      return
-    }
-    if (action.id === 'assistant-group.delete-topics') {
-      void onDeleteAllTopics(assistantId)
-    }
+    void executeAssistantGroupAction(action, actionContext)
   }
 
   return (
@@ -622,10 +588,23 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
             unlinked: t('chat.topics.group.unknown_assistant')
           }
         },
-        now: groupNow
+        now: groupNow,
+        pinnedAsSection: isAssistantDisplayMode
       }),
-    [assistantById, displayMode, groupNow, t]
+    [assistantById, displayMode, groupNow, isAssistantDisplayMode, t]
   )
+
+  const topicSectionBy = useMemo(() => {
+    if (!isAssistantDisplayMode) return undefined
+
+    return (topic: Topic): ResourceListSection => {
+      if (topic.pinned) {
+        return { id: TOPIC_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
+      }
+
+      return { id: TOPIC_ASSISTANT_SECTION_ID, label: t('chat.topics.display.assistant') }
+    }
+  }, [isAssistantDisplayMode, t])
 
   const baseGroupedTopics = useMemo(
     () =>
@@ -839,30 +818,18 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       if (!assistantId || !assistantById.has(assistantId)) return null
 
-      const actions = resolveAssistantGroupActions({
+      const actionContext: AssistantGroupActionContext = {
+        assistantId,
         disabled: isAssistantPinActionDisabled,
+        onDeleteAllTopics: handleDeleteAssistantTopics,
+        onEdit: openAssistantEditor,
+        onTogglePin: handleToggleAssistantPin,
         pinned: assistantPinnedIdSet.has(assistantId),
         t
-      })
+      }
+      const actions = resolveAssistantGroupActions(actionContext)
 
-      return (
-        <ActionMenu
-          actions={actions}
-          onAction={(action) => {
-            if (action.id === 'assistant-group.edit') {
-              openAssistantEditor(assistantId)
-              return
-            }
-            if (action.id === 'assistant-group.toggle-pin') {
-              void handleToggleAssistantPin(assistantId)
-              return
-            }
-            if (action.id === 'assistant-group.delete-topics') {
-              void handleDeleteAssistantTopics(assistantId)
-            }
-          }}
-        />
-      )
+      return <ActionMenu actions={actions} onAction={(action) => executeAssistantGroupAction(action, actionContext)} />
     },
     [
       assistantById,
@@ -885,7 +852,11 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       const assistant = assistantId ? assistantById.get(assistantId) : undefined
       if (!assistant) return undefined
 
-      return assistant.emoji ? <span className="text-[13px] leading-none">{assistant.emoji}</span> : <Bot size={13} />
+      return assistant.emoji ? (
+        <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
+      ) : (
+        <Bot size={14} />
+      )
     },
     [assistantById, isAssistantDisplayMode]
   )
@@ -956,6 +927,10 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   const handleCollapsedTopicGroupIdsChange = useCallback(
     (nextGroupIds: string[]) => void setCollapsedTopicGroupIds(nextGroupIds),
     [setCollapsedTopicGroupIds]
+  )
+  const effectiveCollapsedTopicGroupIds = useMemo(
+    () => normalizeTopicCollapsedGroupIds(collapsedTopicGroupIds, displayMode),
+    [collapsedTopicGroupIds, displayMode]
   )
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !isManageMode && !item.pinned,
@@ -1112,9 +1087,10 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         items={visibleFilteredTopics}
         status={listStatus}
         selectedId={isManageMode ? null : activeTopic?.id}
-        estimateItemSize={() => 34}
+        estimateItemSize={() => 38}
         groupBy={topicGroupBy}
-        collapsedGroupIds={collapsedTopicGroupIds}
+        sectionBy={topicSectionBy}
+        collapsedGroupIds={effectiveCollapsedTopicGroupIds}
         revealRequest={revealRequest}
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
@@ -1371,6 +1347,11 @@ function TopicRow({
       : ''
   const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
   const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
+  const hasTopicTrailingActions = !topic.pinned || !isManageMode || hasTopicStreamIndicator
+  const topicTrailingActionPaddingClassName =
+    !isManageMode && (hasTopicStreamIndicator || !topic.pinned)
+      ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
+      : 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
@@ -1401,9 +1382,7 @@ function TopicRow({
       data-testid="topic-list-row"
       className={cn(
         'relative',
-        isManageMode &&
-          isSelected &&
-          'bg-accent text-foreground shadow-[inset_0_0_0_1px_var(--color-sidebar-active-border)]',
+        isManageMode && isSelected && 'bg-accent text-foreground shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
         isManageMode && !canSelect && 'cursor-not-allowed opacity-50',
         layout === 'grouped' && !isManageMode && isActive && 'bg-accent text-foreground',
         layout === 'single' && !isManageMode && isActive && 'bg-accent text-foreground shadow-none'
@@ -1433,19 +1412,7 @@ function TopicRow({
           )}
         </ResourceList.ItemIcon>
       )}
-      {!isManageMode && (
-        <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
-          <ResourceList.ItemLeadingAction
-            aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-            className={cn(topic.pinned && 'text-foreground/70 hover:text-foreground')}
-            onClick={(event) => {
-              event.stopPropagation()
-              void onPinTopic(topic)
-            }}>
-            <PinIcon size={13} className={cn(topic.pinned && '-rotate-45')} />
-          </ResourceList.ItemLeadingAction>
-        </Tooltip>
-      )}
+      {!isManageMode && <span aria-hidden="true" className="size-6 shrink-0" />}
       <ResourceList.RenameField
         item={topic}
         aria-label={t('chat.topics.edit.title')}
@@ -1455,7 +1422,11 @@ function TopicRow({
       {!rowState.renaming && (
         <ResourceList.ItemTitle
           title={topicName}
-          className={nameAnimationClassName}
+          className={cn(
+            nameAnimationClassName,
+            hasTopicTrailingActions && 'transition-[padding]',
+            hasTopicTrailingActions && topicTrailingActionPaddingClassName
+          )}
           onDoubleClick={(event) => {
             if (isManageMode) return
             event.stopPropagation()
@@ -1464,31 +1435,52 @@ function TopicRow({
           {topicName}
         </ResourceList.ItemTitle>
       )}
-      {hasTopicStreamIndicator ? (
-        <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
-      ) : !topic.pinned ? (
-        <Tooltip
-          placement="bottom"
-          delay={700}
-          title={
-            <span className="text-xs italic opacity-80">
-              {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-            </span>
-          }>
-          <ResourceList.ItemAction
-            aria-label={t('common.delete')}
-            data-deleting={deletingTopicId === topic.id}
-            onClick={(event) => {
-              if (event.ctrlKey || event.metaKey || deletingTopicId === topic.id) {
-                void onConfirmDelete(topic, event)
-                return
-              }
-              onDeleteClick(topic.id, event)
-            }}>
-            {deletingTopicId === topic.id ? <Trash2 size={14} className="text-(--color-error)" /> : <XIcon size={14} />}
-          </ResourceList.ItemAction>
-        </Tooltip>
-      ) : null}
+      {hasTopicTrailingActions && (
+        <ResourceList.ItemActions active={hasTopicStreamIndicator || deletingTopicId === topic.id}>
+          {!isManageMode && (
+            <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
+              <ResourceList.ItemAction
+                aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+                className={cn(topic.pinned && 'text-foreground/70 hover:text-foreground')}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void onPinTopic(topic)
+                }}>
+                <PinIcon size={13} className={cn(topic.pinned && '-rotate-45')} />
+              </ResourceList.ItemAction>
+            </Tooltip>
+          )}
+          {hasTopicStreamIndicator ? (
+            <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
+          ) : !topic.pinned ? (
+            <Tooltip
+              placement="bottom"
+              delay={700}
+              title={
+                <span className="text-xs italic opacity-80">
+                  {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+                </span>
+              }>
+              <ResourceList.ItemAction
+                aria-label={t('common.delete')}
+                data-deleting={deletingTopicId === topic.id}
+                onClick={(event) => {
+                  if (event.ctrlKey || event.metaKey || deletingTopicId === topic.id) {
+                    void onConfirmDelete(topic, event)
+                    return
+                  }
+                  onDeleteClick(topic.id, event)
+                }}>
+                {deletingTopicId === topic.id ? (
+                  <Trash2 size={14} className="text-(--color-error)" />
+                ) : (
+                  <XIcon size={14} />
+                )}
+              </ResourceList.ItemAction>
+            </Tooltip>
+          ) : null}
+        </ResourceList.ItemActions>
+      )}
     </ResourceList.Item>
   )
 

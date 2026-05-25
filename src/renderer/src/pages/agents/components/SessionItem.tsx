@@ -57,6 +57,10 @@ const SessionItem = ({
   const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
   const hasStreamIndicator = !isActive && (isStreamPending || isStreamFulfilled)
+  const sessionTrailingActionPaddingClassName =
+    pinned && !hasStreamIndicator
+      ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
+      : 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
 
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
@@ -163,14 +167,7 @@ const SessionItem = ({
       style={{ cursor: 'pointer' }}
       onClick={handlePress}
       title={sessionName}>
-      <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
-        <ResourceList.ItemLeadingAction
-          aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-          className={cn(pinned && 'text-foreground/70 hover:text-foreground')}
-          onClick={handleTogglePinClick}>
-          {pinned ? <PinIcon size={13} className="-rotate-45" /> : <PinIcon size={13} />}
-        </ResourceList.ItemLeadingAction>
-      </Tooltip>
+      <span aria-hidden="true" className="size-6 shrink-0" />
 
       <ResourceList.RenameField
         item={session}
@@ -188,7 +185,7 @@ const SessionItem = ({
           )}
           <ResourceList.ItemTitle
             title={sessionName}
-            className={nameAnimationClassName}
+            className={cn(nameAnimationClassName, 'transition-[padding]', sessionTrailingActionPaddingClassName)}
             onDoubleClick={(event) => {
               event.stopPropagation()
               startInlineEdit()
@@ -198,25 +195,36 @@ const SessionItem = ({
         </>
       )}
 
-      {hasStreamIndicator ? (
-        <SessionStreamIndicator isFulfilled={isStreamFulfilled} isPending={isStreamPending} />
-      ) : (
-        <Tooltip
-          placement="bottom"
-          delay={700}
-          title={
-            <span className="text-xs italic opacity-80">
-              {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-            </span>
-          }>
+      <ResourceList.ItemActions active={hasStreamIndicator || (!pinned && isConfirmingDeletion)}>
+        <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
           <ResourceList.ItemAction
-            aria-label={t('common.delete')}
-            data-deleting={isConfirmingDeletion}
-            onClick={handleDeleteClick}>
-            {isConfirmingDeletion ? <Trash2 size={14} className="text-destructive" /> : <XIcon size={14} />}
+            aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+            className={cn(pinned && 'text-foreground/70 hover:text-foreground')}
+            onClick={handleTogglePinClick}>
+            {pinned ? <PinIcon size={13} className="-rotate-45" /> : <PinIcon size={13} />}
           </ResourceList.ItemAction>
         </Tooltip>
-      )}
+
+        {hasStreamIndicator ? (
+          <SessionStreamIndicator isFulfilled={isStreamFulfilled} isPending={isStreamPending} />
+        ) : !pinned ? (
+          <Tooltip
+            placement="bottom"
+            delay={700}
+            title={
+              <span className="text-xs italic opacity-80">
+                {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+              </span>
+            }>
+            <ResourceList.ItemAction
+              aria-label={t('common.delete')}
+              data-deleting={isConfirmingDeletion}
+              onClick={handleDeleteClick}>
+              {isConfirmingDeletion ? <Trash2 size={14} className="text-destructive" /> : <XIcon size={14} />}
+            </ResourceList.ItemAction>
+          </Tooltip>
+        ) : null}
+      </ResourceList.ItemActions>
     </ResourceList.Item>
   )
 

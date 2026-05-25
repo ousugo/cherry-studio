@@ -1,3 +1,4 @@
+import { ErrorCode } from '@shared/data/api'
 import type { Message, MessageData } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -200,11 +201,9 @@ describe('temporaryChatHandlers', () => {
       persistSessionMock.mockResolvedValue(session)
 
       await expect(
-        temporaryChatHandlers['/temporary/sessions'].POST(
-          reqEnvelope({ body: { agentId: 'agent-a', accessiblePaths: ['/tmp/project'] } })
-        )
+        temporaryChatHandlers['/temporary/sessions'].POST(reqEnvelope({ body: { agentId: 'agent-a' } }))
       ).resolves.toBe(session)
-      expect(createSessionMock).toHaveBeenCalledWith({ agentId: 'agent-a', accessiblePaths: ['/tmp/project'] })
+      expect(createSessionMock).toHaveBeenCalledWith({ agentId: 'agent-a' })
 
       await expect(
         temporaryChatHandlers['/temporary/sessions/:id'].DELETE(reqEnvelope({ params: { id: 'sid-123' } }))
@@ -215,6 +214,22 @@ describe('temporaryChatHandlers', () => {
         temporaryChatHandlers['/temporary/sessions/:id/persist'].POST(reqEnvelope({ params: { id: 'sid-123' } }))
       ).resolves.toBe(session)
       expect(persistSessionMock).toHaveBeenCalledWith('sid-123')
+    })
+
+    it('validates temporary session create bodies before calling the service', async () => {
+      await expect(
+        temporaryChatHandlers['/temporary/sessions'].POST(
+          reqEnvelope({ body: { agentId: 'agent-a', workspaceMode: 'invalid' } })
+        )
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+      expect(createSessionMock).not.toHaveBeenCalled()
+
+      await expect(
+        temporaryChatHandlers['/temporary/sessions'].POST(
+          reqEnvelope({ body: { agentId: 'agent-a', workspaceId: 'ws-a', workspaceMode: 'system' } })
+        )
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+      expect(createSessionMock).not.toHaveBeenCalled()
     })
   })
 })

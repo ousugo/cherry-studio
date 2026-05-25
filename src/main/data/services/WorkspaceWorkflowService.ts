@@ -4,12 +4,20 @@ import { workspaceService } from '@data/services/WorkspaceService'
 
 export class WorkspaceWorkflowService {
   async deleteWorkspace(id: string): Promise<void> {
-    const db = application.get('DbService').getDb()
-    await db.transaction(async (tx) => {
-      await workspaceService.getRowByIdTx(tx, id)
+    let systemWorkspacePath: string | null = null
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx(async (tx) => {
+      const workspace = await workspaceService.getRowByIdTx(tx, id, { includeSystem: true })
+      if (workspace.type === 'system') {
+        workspaceService.assertSystemWorkspacePath(workspace.path)
+        systemWorkspacePath = workspace.path
+      }
       await sessionService.deleteByWorkspaceTx(tx, id)
       await workspaceService.deleteByIdTx(tx, id)
     })
+    if (systemWorkspacePath) {
+      workspaceService.deleteSystemWorkspaceDirectoryAfterCommit(systemWorkspacePath)
+    }
   }
 }
 

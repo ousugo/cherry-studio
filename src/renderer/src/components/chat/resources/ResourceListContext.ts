@@ -27,6 +27,12 @@ export type ResourceListGroup = {
   count?: number
 }
 
+export type ResourceListSection = {
+  id: string
+  label: string
+  count?: number
+}
+
 export type ResourceListGroupHeaderIconContext = {
   collapsed: boolean
 }
@@ -116,6 +122,8 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getItemId: (item: T) => string
   getItemLabel: (item: T) => string
   groups: ResourceListGroup[]
+  sections: ResourceListSection[]
+  getSectionHeaderAction?: (section: ResourceListSection) => ReactNode
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
   getGroupHeaderContextMenu?: (group: ResourceListGroup) => ReactNode
   getGroupHeaderLeadingAction?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
@@ -173,10 +181,19 @@ export type ResourceListViewGroup<T extends ResourceListItemBase> = {
   collapsed: boolean
 }
 
+export type ResourceListViewSection<T extends ResourceListItemBase> = {
+  section: ResourceListSection
+  groups: ResourceListViewGroup<T>[]
+  allItems: T[]
+  totalCount: number
+  collapsed: boolean
+}
+
 export type ResourceListView<T extends ResourceListItemBase> = {
   items: T[]
   visibleItems: T[]
   groups: ResourceListViewGroup<T>[]
+  sections: ResourceListViewSection<T>[]
 }
 
 export type ResourceListContextValue<T extends ResourceListItemBase> = {

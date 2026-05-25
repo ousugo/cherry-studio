@@ -101,6 +101,10 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/agents/useSession', () => ({
+  useSession: () => ({
+    session: undefined,
+    isLoading: false
+  }),
   useActiveSession: (options?: { pendingSession?: any }) => ({
     session: activeSessionMocks.session ?? options?.pendingSession ?? undefined,
     isLoading: activeSessionMocks.isLoading,
@@ -112,8 +116,16 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
   })
 }))
 
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => vi.fn().mockResolvedValue(undefined)
+}))
+
 vi.mock('@renderer/hooks/useShortcuts', () => ({
   useShortcut: vi.fn()
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useSearch: () => ({})
 }))
 
 vi.mock('@renderer/hooks/useTemporaryConversation', () => ({
@@ -143,11 +155,14 @@ vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
+    GLOBAL_SEARCH_SELECT_AGENT_SESSION: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION',
+    GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE',
     SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
     SHOW_TOPIC_SIDEBAR: 'SHOW_TOPIC_SIDEBAR'
   },
   EventEmitter: {
-    emit: vi.fn()
+    emit: vi.fn(),
+    on: vi.fn(() => vi.fn())
   }
 }))
 
@@ -173,11 +188,12 @@ vi.mock('../AgentChat', () => ({
     onStartTemporarySession?: (defaults: {
       agentId: string
       workspaceId?: string
+      workspaceMode?: 'user' | 'system'
       name?: string
     }) => void | Promise<void>
     onVisibleAgentChange?: (agentId: string) => void
     onVisibleWorkspaceChange?: (workspaceId: string) => void
-    onDraftWorkspaceChange?: (workspaceId: string) => void | Promise<void>
+    onDraftWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
     pane?: ReactNode
     paneOpen?: boolean
   }) => (
@@ -185,6 +201,9 @@ vi.mock('../AgentChat', () => ({
       <output data-testid="pane-open">{String(paneOpen)}</output>
       <button type="button" onClick={() => void onDraftWorkspaceChange?.('workspace-next')}>
         Select workspace
+      </button>
+      <button type="button" onClick={() => void onDraftWorkspaceChange?.(null)}>
+        Select no project
       </button>
       <button type="button" onClick={() => void onStartTemporarySession?.({ agentId: 'agent-a' })}>
         Start temporary session
@@ -280,6 +299,7 @@ describe('AgentPage', () => {
           id: 'workspace-current',
           name: 'Current Workspace',
           path: '/workspace/current',
+          type: 'user',
           orderKey: 'a0',
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-01T00:00:00.000Z'
@@ -310,6 +330,67 @@ describe('AgentPage', () => {
     )
     expect(agentPageMocks.setActiveSessionId).toHaveBeenCalledWith(null)
     expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-next')
+  })
+
+  it('replaces the temporary agent conversation with no-project mode', async () => {
+    agentPageMocks.activeSessionId = null
+    temporaryConversationMocks.conversation = {
+      type: 'agent',
+      id: 'temporary-session',
+      sessionId: 'temporary-session',
+      topicId: 'agent-session:temporary-session',
+      agentId: 'agent-a',
+      name: 'Draft',
+      session: {
+        id: 'temporary-session',
+        agentId: 'agent-a',
+        name: 'Draft',
+        description: '',
+        workspaceId: 'workspace-current',
+        workspace: {
+          id: 'workspace-current',
+          name: 'Current Workspace',
+          path: '/workspace/current',
+          type: 'user',
+          orderKey: 'a0',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z'
+        },
+        orderKey: 'a0',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    }
+    temporaryConversationMocks.replace.mockResolvedValue({
+      ...temporaryConversationMocks.conversation,
+      session: {
+        ...temporaryConversationMocks.conversation.session,
+        workspaceId: 'system-workspace',
+        workspace: {
+          id: 'system-workspace',
+          name: 'No project',
+          path: '/workspace/system',
+          type: 'system',
+          orderKey: 'a0',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z'
+        }
+      }
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select no project' }))
+
+    await waitFor(() =>
+      expect(temporaryConversationMocks.replace).toHaveBeenCalledWith({
+        agentId: 'agent-a',
+        workspaceMode: 'system',
+        name: 'Draft'
+      })
+    )
+    expect(agentPageMocks.setActiveSessionId).toHaveBeenCalledWith(null)
+    expect(agentPageMocks.setLastUsedWorkspaceId).not.toHaveBeenCalled()
   })
 
   it('starts a first-launch temporary session with the remembered agent and workspace', async () => {

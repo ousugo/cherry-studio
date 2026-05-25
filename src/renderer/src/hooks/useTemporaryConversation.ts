@@ -2,7 +2,7 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/sessions'
 import type { Topic } from '@shared/data/types/topic'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -15,6 +15,7 @@ export type TemporaryConversationDefaults = {
   assistantId?: string | null
   agentId?: string | null
   workspaceId?: string
+  workspaceMode?: WorkspaceMode
   name?: string
 }
 
@@ -96,7 +97,8 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
           body: {
             agentId: merged.agentId,
             name: merged.name,
-            workspaceId: merged.workspaceId
+            workspaceId: merged.workspaceId,
+            workspaceMode: merged.workspaceMode
           }
         })
         next = {

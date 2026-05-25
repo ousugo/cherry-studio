@@ -35,7 +35,8 @@ describe('WorkspaceService', () => {
     expect(second.id).toBe(first.id)
     expect(first).toMatchObject({
       name: 'project',
-      path: normalizedPath
+      path: normalizedPath,
+      type: 'user'
     })
     const stats = await stat(normalizedPath)
     expect(stats.isDirectory()).toBe(true)
@@ -52,6 +53,46 @@ describe('WorkspaceService', () => {
     const workspaces = await workspaceService.list()
 
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id])
+  })
+
+  it('hides system workspaces from the default list and get APIs', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-system-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.workspaces') {
+        return filename ? path.join(root, filename) : root
+      }
+      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
+    })
+    const userWorkspace = await workspaceService.findOrCreateByPath(path.join(root, 'user-project'))
+    const systemWorkspace = await workspaceService.createSystemWorkspaceForSession(
+      '12345678-1234-4000-8000-123456789abc',
+      new Date(2026, 4, 25, 14, 30, 12)
+    )
+
+    await expect(workspaceService.getById(systemWorkspace.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(workspaceService.getById(systemWorkspace.id, { includeSystem: true })).resolves.toMatchObject({
+      id: systemWorkspace.id,
+      type: 'system'
+    })
+    expect((await workspaceService.list()).map((workspace) => workspace.id)).toEqual([userWorkspace.id])
+  })
+
+  it('does not return a system workspace from findOrCreateByPath', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-system-path-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.workspaces') {
+        return filename ? path.join(root, filename) : root
+      }
+      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
+    })
+    const systemWorkspace = await workspaceService.createSystemWorkspaceForSession(
+      '12345678-1234-4000-8000-123456789abc',
+      new Date(2026, 4, 25, 14, 30, 12)
+    )
+
+    await expect(workspaceService.findOrCreateByPath(systemWorkspace.path)).rejects.toMatchObject({
+      code: ErrorCode.CONFLICT
+    })
   })
 
   it('rejects relative workspace paths', async () => {
@@ -214,6 +255,29 @@ describe('WorkspaceService', () => {
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id, third.id])
   })
 
+  it('does not reorder hidden system workspaces as user workspace targets or anchors', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-reorder-system-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.workspaces') {
+        return filename ? path.join(root, filename) : root
+      }
+      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
+    })
+    const first = await workspaceService.findOrCreateByPath(path.join(root, 'first'))
+    const second = await workspaceService.findOrCreateByPath(path.join(root, 'second'))
+    const systemWorkspace = await workspaceService.createSystemWorkspaceForSession('system-anchor-session')
+
+    await expect(workspaceService.reorder(first.id, { before: systemWorkspace.id })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(
+      workspaceService.reorderBatch([{ id: systemWorkspace.id, anchor: { before: first.id } }])
+    ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+    const workspaces = await workspaceService.list()
+    expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id])
+  })
+
   it('creates default workspaces under the agents workspace root', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-default-'))
     vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
@@ -228,5 +292,66 @@ describe('WorkspaceService', () => {
     expect(workspace.path.startsWith(root)).toBe(true)
     const stats = await stat(workspace.path)
     expect(stats.isDirectory()).toBe(true)
+  })
+
+  it('creates system workspaces under the isolated system subtree', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-system-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.workspaces') {
+        return filename ? path.join(root, filename) : root
+      }
+      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
+    })
+
+    const workspace = await workspaceService.createSystemWorkspaceForSession(
+      '12345678-1234-4000-8000-123456789abc',
+      new Date(2026, 4, 25, 14, 30, 12)
+    )
+
+    expect(workspace).toMatchObject({
+      name: 'No project 2026-05-25 14:30:12',
+      path: path.join(root, 'system', '2026-05-25', '143012-12345678'),
+      type: 'system'
+    })
+    await expect(stat(workspace.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
+  })
+
+  it('deletes the backing directory for system workspaces only', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-system-delete-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.workspaces') {
+        return filename ? path.join(root, filename) : root
+      }
+      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
+    })
+    const workspace = await workspaceService.createSystemWorkspaceForSession(
+      '12345678-1234-4000-8000-123456789abc',
+      new Date(2026, 4, 25, 14, 30, 12)
+    )
+
+    await workspaceWorkflowService.deleteWorkspace(workspace.id)
+
+    await expect(stat(workspace.path)).rejects.toThrow()
+  })
+
+  it('keeps the DataApi delete result consistent when post-commit system directory cleanup fails', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-system-delete-fail-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.workspaces') {
+        return filename ? path.join(root, filename) : root
+      }
+      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
+    })
+    const workspace = await workspaceService.createSystemWorkspaceForSession('cleanup-failure-session')
+    vi.spyOn(workspaceService, 'deleteSystemWorkspaceDirectory').mockImplementation(() => {
+      throw new Error('rm failed')
+    })
+
+    await expect(workspaceWorkflowService.deleteWorkspace(workspace.id)).resolves.toBeUndefined()
+
+    await expect(workspaceService.getById(workspace.id, { includeSystem: true })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(stat(workspace.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
   })
 })

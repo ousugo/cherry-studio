@@ -341,6 +341,9 @@
         "failed": "获取智能体列表失败"
       }
     },
+    "pin": {
+      "title": "置顶智能体"
+    },
     "preview_pane": {
       "close": "关闭预览",
       "code": "代码",
@@ -459,6 +462,7 @@
       },
       "group": {
         "collapse": "折叠显示",
+        "conversation": "对话",
         "drag_hint": "拖拽可排序，也可拖拽会话调整展示/隐藏分组。",
         "earlier": "更早",
         "no_workdir": "无项目",
@@ -507,6 +511,7 @@
         "create_failed": "添加项目失败。",
         "create_new": "添加新项目",
         "empty_text": "暂无项目",
+        "no_project": "不使用项目",
         "placeholder": "选择项目",
         "search_placeholder": "搜索项目",
         "select_failed": "选择文件夹失败。"
@@ -884,6 +889,9 @@
     "type": {
       "label": "智能体类型",
       "unknown": "未知类型"
+    },
+    "unpin": {
+      "title": "取消置顶智能体"
     },
     "update": {
       "error": {

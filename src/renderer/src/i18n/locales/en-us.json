@@ -341,6 +341,9 @@
         "failed": "Failed to list agents."
       }
     },
+    "pin": {
+      "title": "Pin Agent"
+    },
     "preview_pane": {
       "close": "Close preview",
       "code": "Code",
@@ -459,6 +462,7 @@
       },
       "group": {
         "collapse": "Collapse display",
+        "conversation": "Chats",
         "drag_hint": "Drag to reorder. Drag sessions to adjust display and hidden groups.",
         "earlier": "Earlier",
         "no_workdir": "No project",
@@ -507,6 +511,7 @@
         "create_failed": "Failed to add project.",
         "create_new": "Add new project",
         "empty_text": "No projects",
+        "no_project": "No project",
         "placeholder": "Select project",
         "search_placeholder": "Search projects",
         "select_failed": "Failed to select folder."
@@ -884,6 +889,9 @@
     "type": {
       "label": "Agent Type",
       "unknown": "Unknown Type"
+    },
+    "unpin": {
+      "title": "Unpin Agent"
     },
     "update": {
       "error": {

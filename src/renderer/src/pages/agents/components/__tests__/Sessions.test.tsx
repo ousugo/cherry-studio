@@ -386,6 +386,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.file_manager.finder': 'Finder',
         'agent.session.get.error.failed': 'Failed to get sessions',
         'agent.session.group.collapse': 'Collapse display',
+        'agent.session.group.conversation': 'Chats',
         'agent.session.group.drag_hint': 'Drag to reorder. Drag sessions to adjust display and hidden groups.',
         'agent.session.group.earlier': 'Earlier',
         'agent.session.group.no_workdir': 'No project',
@@ -395,6 +396,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.unknown_agent': 'Unknown agent',
         'agent.session.group.yesterday': 'Yesterday',
         'agent.session.list.title': 'Sessions',
+        'agent.pin.title': 'Pin Agent',
         'agent.session.reorder.error.failed': 'Failed to reorder sessions',
         'agent.session.search.placeholder': 'Search sessions',
         'agent.session.update.error.failed': 'Failed to update session',
@@ -406,6 +408,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.workdir.rename.error.failed': 'Failed to rename project',
         'agent.session.workdir.rename.title': 'Rename project',
         'agent.session.workdir.rename.trigger': 'Rename project',
+        'agent.unpin.title': 'Unpin Agent',
         'chat.topics.delete.shortcut': 'Hold Ctrl to delete directly',
         'chat.topics.pin': 'Pin',
         'chat.topics.unpin': 'Unpin',
@@ -453,6 +456,7 @@ function makeWorkspace(path: string, overrides: Partial<WorkspaceEntity> = {}): 
     id: `ws-${path}`,
     name: path.split('/').at(-1) ?? path,
     path,
+    type: 'user',
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -517,6 +521,8 @@ function expectGroupBlocked(name: string) {
 
 function openSessionListOptions() {
   fireEvent.click(screen.getByLabelText('Display mode'))
+  const title = screen.getByText('Display mode')
+  return (title.closest('[data-radix-popper-content-wrapper]') ?? title.parentElement) as HTMLElement | null
 }
 
 function setupSessions(overrides: Record<string, unknown> = {}) {
@@ -619,6 +625,52 @@ describe('Sessions', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toHaveClass('font-normal', 'text-sidebar-foreground/70')
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+  })
+
+  it('renders no-project sessions in a bottom chats section', () => {
+    const onStartTemporarySession = vi.fn()
+    const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
+      id: 'system-ws',
+      name: 'System Workspace',
+      type: 'system'
+    })
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-system',
+          name: 'System session',
+          orderKey: '0',
+          workspaceId: systemWorkspace.id,
+          workspace: systemWorkspace
+        }),
+        createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
+        createSession({
+          id: 'session-b',
+          name: 'Beta session',
+          orderKey: 'b',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' })
+        })
+      ]
+    })
+
+    render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
+
+    const projectSection = screen.getByRole('button', { name: 'Project' })
+    const chatsSection = screen.getByRole('button', { name: 'Chats' })
+    expect(projectSection.compareDocumentPosition(chatsSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText('System session')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'No project' })).not.toBeInTheDocument()
+
+    const chatsSectionHeader = chatsSection.closest('[class*="group/resource-list-section"]')
+    expect(chatsSectionHeader).not.toBeNull()
+    fireEvent.click(within(chatsSectionHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+
+    expect(onStartTemporarySession).toHaveBeenCalledWith({
+      agentId: 'agent-a',
+      name: 'Untitled',
+      workspaceMode: 'system'
+    })
   })
 
   it('orders workspace groups by workspace DataApi order', () => {
@@ -1113,6 +1165,23 @@ describe('Sessions', () => {
     clearTimeoutSpy.mockRestore()
   })
 
+  it('hides the inline delete action for pinned sessions', () => {
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
+        createSession({ id: 'session-pinned', name: 'Pinned session', orderKey: 'b' })
+      ],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<Sessions />)
+
+    const pinnedRow = screen.getByText('Pinned session').closest('[role="option"]')
+    expect(pinnedRow).not.toBeNull()
+    expect(within(pinnedRow as HTMLElement).getByLabelText('Unpin')).toBeInTheDocument()
+    expect(within(pinnedRow as HTMLElement).queryByLabelText('Delete')).not.toBeInTheDocument()
+  })
+
   it('subscribes stream status only for visible session rows', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     preferenceMocks.values.set('agent.session.collapsed_group_ids', ['session:workdir:%2FUsers%2Fjd%2Fproject-a'])
@@ -1149,8 +1218,8 @@ describe('Sessions', () => {
   it('persists display mode selection from the header menu', () => {
     render(<Sessions />)
 
-    openSessionListOptions()
-    fireEvent.click(screen.getByRole('button', { name: 'Project' }))
+    const displayModeContent = openSessionListOptions()
+    fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Project' }))
 
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
   })
@@ -1571,7 +1640,7 @@ describe('Sessions', () => {
 
     fireEvent.pointerDown(moreButton)
     const pinMenuItem = screen
-      .getAllByRole('menuitem', { name: 'Pin' })
+      .getAllByRole('menuitem', { name: 'Pin Agent' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     expect(pinMenuItem).toBeDefined()
     fireEvent.click(pinMenuItem as HTMLElement)
@@ -1615,7 +1684,7 @@ describe('Sessions', () => {
       .find((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
     expect(contextEditItem).toBeDefined()
     const contextPinItem = screen
-      .getAllByRole('menuitem', { name: 'Pin' })
+      .getAllByRole('menuitem', { name: 'Pin Agent' })
       .find((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
     expect(contextPinItem).toBeDefined()
     fireEvent.click(contextPinItem as HTMLElement)
@@ -1651,6 +1720,6 @@ describe('Sessions', () => {
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
 
-    expect(await screen.findByRole('menuitem', { name: 'Unpin' })).toHaveAttribute('data-disabled')
+    expect(await screen.findByRole('menuitem', { name: 'Unpin Agent' })).toHaveAttribute('data-disabled')
   })
 })

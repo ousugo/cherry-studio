@@ -37,6 +37,7 @@ export type TopicDisplayGroupOptions = {
   labels: TopicDisplayGroupLabels
   mode: TopicDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
+  pinnedAsSection?: boolean
 }
 
 export type TopicDisplaySortOptions = {
@@ -58,6 +59,8 @@ const TOPIC_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
 }
 
 export const TOPIC_PINNED_GROUP_ID = 'topic:pinned'
+export const TOPIC_PINNED_SECTION_ID = 'topic:section:pinned'
+export const TOPIC_ASSISTANT_SECTION_ID = 'topic:section:assistant'
 export const TOPIC_TODAY_GROUP_ID = 'topic:time:today'
 export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 
@@ -171,6 +174,15 @@ export function normalizeTopicDropPayload(payload: ResourceListItemReorderPayloa
   return payload
 }
 
+export function normalizeTopicCollapsedGroupIds(groupIds: readonly string[], mode: TopicDisplayMode): string[] {
+  const pinnedCollapseId = mode === 'time' ? TOPIC_PINNED_GROUP_ID : TOPIC_PINNED_SECTION_ID
+  const normalizedGroupIds = groupIds.map((groupId) =>
+    groupId === TOPIC_PINNED_GROUP_ID || groupId === TOPIC_PINNED_SECTION_ID ? pinnedCollapseId : groupId
+  )
+
+  return Array.from(new Set(normalizedGroupIds))
+}
+
 export function filterTopicsForManageMode<T extends TopicListItem>(
   topics: readonly T[],
   searchText: string,
@@ -227,11 +239,12 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
   assistantById,
   labels,
   mode,
-  now
+  now,
+  pinnedAsSection = false
 }: TopicDisplayGroupOptions): ResourceListGroupResolver<T> {
   const pinnedResolver = createPinnedGroupResolver<T>({
     isPinned: (topic) => topic.pinned === true,
-    group: { id: 'pinned', label: labels.pinned } satisfies ResourceListGroup
+    group: { id: 'pinned', label: mode === 'time' || !pinnedAsSection ? labels.pinned : '' } satisfies ResourceListGroup
   })
 
   if (mode === 'time') {

@@ -13,9 +13,11 @@
 
 import type { Message } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
+import * as z from 'zod'
 
+import { AgentNameAtomSchema } from './agents'
 import type { CreateMessageDto } from './messages'
-import type { AgentSessionEntity } from './sessions'
+import { type AgentSessionEntity, WorkspaceModeSchema } from './sessions'
 import type { CreateTopicDto } from './topics'
 
 // ============================================================================
@@ -32,12 +34,19 @@ export interface PersistTemporaryChatResponse {
   messageCount: number
 }
 
-export interface CreateTemporarySessionDto {
-  agentId: string
-  name?: string
-  description?: string
-  workspaceId?: string
-}
+export const CreateTemporarySessionSchema = z
+  .strictObject({
+    agentId: z.string().min(1),
+    name: AgentNameAtomSchema.optional(),
+    description: z.string().optional(),
+    workspaceId: z.string().min(1).optional(),
+    workspaceMode: WorkspaceModeSchema.optional()
+  })
+  .refine((dto) => !(dto.workspaceMode === 'system' && dto.workspaceId), {
+    path: ['workspaceId'],
+    message: 'workspaceId must be omitted when workspaceMode is system'
+  })
+export type CreateTemporarySessionDto = z.infer<typeof CreateTemporarySessionSchema>
 
 export interface UpdateTemporaryTopicDto {
   assistantId?: string | null

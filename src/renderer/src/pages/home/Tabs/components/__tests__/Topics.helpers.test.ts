@@ -15,8 +15,11 @@ import {
   groupTopicByPinned,
   moveAssistantGroupAfterDrop,
   moveTopicAfterDrop,
+  normalizeTopicCollapsedGroupIds,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
+  TOPIC_PINNED_GROUP_ID,
+  TOPIC_PINNED_SECTION_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '../Topics.helpers'
 
@@ -131,6 +134,16 @@ describe('Topics helpers', () => {
       targetGroupId: 'topic:assistant:assistant-2'
     }
     expect(normalizeTopicDropPayload(crossGroupPayload)).toBe(crossGroupPayload)
+  })
+
+  it('normalizes pinned collapsed ids to the current topic display hierarchy', () => {
+    expect(normalizeTopicCollapsedGroupIds([TOPIC_PINNED_GROUP_ID, 'topic:time:today'], 'assistant')).toEqual([
+      TOPIC_PINNED_SECTION_ID,
+      'topic:time:today'
+    ])
+    expect(
+      normalizeTopicCollapsedGroupIds([TOPIC_PINNED_SECTION_ID, TOPIC_PINNED_GROUP_ID, 'topic:time:today'], 'time')
+    ).toEqual([TOPIC_PINNED_GROUP_ID, 'topic:time:today'])
   })
 
   it('projects ResourceList drag payload into the dropped topic order', () => {
