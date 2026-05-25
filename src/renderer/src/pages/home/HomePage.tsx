@@ -64,6 +64,7 @@ const HomePage: FC = () => {
   const startingTemporaryAssistantIdRef = useRef<string | undefined>(undefined)
   const pendingTemporaryTopicRef = useRef<{ topicId: string; assistantId?: string | null } | null>(null)
   const queuedTemporaryTopicTargetRef = useRef<{ assistantId?: string } | null>(null)
+  const [ignoredTemporaryTopicId, setIgnoredTemporaryTopicId] = useState<string | null>(null)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const lastUsedAssistantIdRef = useRef<string | undefined>(lastUsedAssistantId ?? undefined)
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
@@ -99,20 +100,45 @@ const HomePage: FC = () => {
   const { refreshTopics } = useTopicMutations()
 
   useEffect(() => {
-    pendingTemporaryTopicRef.current =
-      temporaryTopicConversation?.type === 'assistant'
-        ? { topicId: temporaryTopicConversation.topicId, assistantId: temporaryTopicConversation.assistantId }
-        : null
-  }, [temporaryTopicConversation])
+    if (temporaryTopicConversation?.type !== 'assistant') {
+      pendingTemporaryTopicRef.current = null
+      setIgnoredTemporaryTopicId(null)
+      return
+    }
+
+    if (ignoredTemporaryTopicId === temporaryTopicConversation.topicId) {
+      pendingTemporaryTopicRef.current = null
+      return
+    }
+
+    pendingTemporaryTopicRef.current = {
+      topicId: temporaryTopicConversation.topicId,
+      assistantId: temporaryTopicConversation.assistantId
+    }
+  }, [ignoredTemporaryTopicId, temporaryTopicConversation])
+
+  const temporaryTopic = useMemo<Topic | undefined>(() => {
+    if (isMessageOnlyView || state?.topic) return undefined
+    if (
+      temporaryTopicConversation?.type === 'assistant' &&
+      temporaryTopicConversation.topicId !== ignoredTemporaryTopicId
+    ) {
+      return buildPendingTemporaryTopic(temporaryTopicConversation.topicId, temporaryTopicConversation.assistantId)
+    }
+    return undefined
+  }, [ignoredTemporaryTopicId, isMessageOnlyView, state?.topic, temporaryTopicConversation])
+  const pendingTemporaryTopic = pendingTemporaryTopicRef.current
+  const pendingTemporaryTopicSnapshot = useMemo<Topic | undefined>(() => {
+    if (isMessageOnlyView || !pendingTemporaryTopic) return undefined
+    if (pendingTemporaryTopic.topicId === ignoredTemporaryTopicId) return undefined
+    return buildPendingTemporaryTopic(pendingTemporaryTopic.topicId, pendingTemporaryTopic.assistantId)
+  }, [ignoredTemporaryTopicId, isMessageOnlyView, pendingTemporaryTopic])
 
   const initialTopic = useMemo<Topic | undefined>(() => {
     if (isMessageOnlyView) return undefined
     if (state?.topic) return state.topic
-    if (temporaryTopicConversation?.type === 'assistant') {
-      return buildPendingTemporaryTopic(temporaryTopicConversation.topicId, temporaryTopicConversation.assistantId)
-    }
-    return undefined
-  }, [isMessageOnlyView, state?.topic, temporaryTopicConversation])
+    return temporaryTopic ?? pendingTemporaryTopicSnapshot
+  }, [isMessageOnlyView, pendingTemporaryTopicSnapshot, state?.topic, temporaryTopic])
 
   const {
     activeTopic,
@@ -126,9 +152,15 @@ const HomePage: FC = () => {
     syncActiveCache: !isMessageOnlyView
   })
   const lastVisibleTopicRef = useRef<Topic | null>(null)
+  const temporaryTopicSnapshot = useMemo<Topic | undefined>(() => {
+    if (temporaryTopic) return temporaryTopic
+    if (!pendingTemporaryTopicSnapshot) return undefined
+    if (state?.topic && activeTopic?.id !== pendingTemporaryTopicSnapshot.id) return undefined
+    return pendingTemporaryTopicSnapshot
+  }, [activeTopic?.id, pendingTemporaryTopicSnapshot, state?.topic, temporaryTopic])
   const visibleTopic = isMessageOnlyView
     ? routeTopic
-    : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined))
+    : (temporaryTopicSnapshot ?? activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined))
 
   useEffect(() => {
     lastUsedAssistantIdRef.current = lastUsedAssistantId ?? undefined
@@ -226,6 +258,7 @@ const HomePage: FC = () => {
         if (temporaryTopicConversation?.type === 'assistant') {
           const currentAssistantId = temporaryTopicConversation.assistantId ?? undefined
           if (!hasExplicitAssistantTarget || currentAssistantId === targetAssistantId) {
+            setIgnoredTemporaryTopicId(null)
             setActiveTopic(buildPendingTemporaryTopic(temporaryTopicConversation.topicId, currentAssistantId))
             void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
             return
@@ -236,6 +269,7 @@ const HomePage: FC = () => {
           const pending = pendingTemporaryTopicRef.current
           const pendingAssistantId = pending.assistantId ?? undefined
           if (!hasExplicitAssistantTarget || pendingAssistantId === targetAssistantId) {
+            setIgnoredTemporaryTopicId(null)
             setActiveTopic(buildPendingTemporaryTopic(pending.topicId, pendingAssistantId))
             void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
             return
@@ -254,6 +288,7 @@ const HomePage: FC = () => {
         startingTemporaryAssistantIdRef.current = targetAssistantId
         const next = await startTemporaryConversation({ assistantId: targetAssistantId })
         if (next?.type !== 'assistant') return
+        setIgnoredTemporaryTopicId(null)
         pendingTemporaryTopicRef.current = { topicId: next.topicId, assistantId: next.assistantId }
         setActiveTopic(buildPendingTemporaryTopic(next.topicId, next.assistantId))
         void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
@@ -280,6 +315,7 @@ const HomePage: FC = () => {
       try {
         const next = await updateTemporaryAssistant(assistantId)
         if (!next || next.type !== 'assistant') return
+        setIgnoredTemporaryTopicId(null)
         setActiveTopic(buildPendingTemporaryTopic(next.topicId, next.assistantId))
       } catch (err) {
         logger.error('Failed to update temporary topic assistant', err as Error)
@@ -291,18 +327,27 @@ const HomePage: FC = () => {
   const firstTemporaryStartedRef = useRef(false)
   useEffect(() => {
     if (!shouldUseTemporary || firstTemporaryStartedRef.current || state?.topic) return
+    if (temporaryTopicSnapshot || activeTopic || isActiveTopicLoading) return
+
     firstTemporaryStartedRef.current = true
     void startTemporaryTopic()
-  }, [shouldUseTemporary, startTemporaryTopic, state?.topic])
+  }, [activeTopic, isActiveTopicLoading, shouldUseTemporary, startTemporaryTopic, state?.topic, temporaryTopicSnapshot])
 
   const setActiveTopicAndDiscardTemporary = useCallback(
     (topic: Topic) => {
-      if (temporaryTopicConversation?.id && topic.id !== temporaryTopicConversation.id) {
+      const currentTemporaryTopicId =
+        temporaryTopicConversation?.type === 'assistant'
+          ? temporaryTopicConversation.topicId
+          : pendingTemporaryTopicRef.current?.topicId
+
+      if (currentTemporaryTopicId && topic.id !== currentTemporaryTopicId) {
+        pendingTemporaryTopicRef.current = null
+        setIgnoredTemporaryTopicId(currentTemporaryTopicId)
         void discardTemporaryConversation()
       }
       setActiveTopic(topic)
     },
-    [discardTemporaryConversation, setActiveTopic, temporaryTopicConversation?.id]
+    [discardTemporaryConversation, setActiveTopic, temporaryTopicConversation]
   )
 
   useEffect(() => {
@@ -402,9 +447,7 @@ const HomePage: FC = () => {
 
   const panePosition = 'left'
   const isTemporaryTopicActive =
-    !isMessageOnlyView &&
-    temporaryTopicConversation?.type === 'assistant' &&
-    visibleTopic.id === temporaryTopicConversation.topicId
+    !isMessageOnlyView && !!temporaryTopicSnapshot && visibleTopic.id === temporaryTopicSnapshot.id
 
   return (
     <Container id="home-page">
@@ -423,7 +466,6 @@ const HomePage: FC = () => {
           paneOpen={effectiveShowSidebar}
           panePosition={panePosition}
           onNewTopic={isMessageOnlyView ? undefined : startTemporaryTopic}
-          hideNavbar={isTemporaryTopicActive}
           onOpenSidePanelDrawer={isMessageOnlyView ? undefined : openSidePanelDrawer}
           showResourceListControls={!isMessageOnlyView}
           // Wire the persist callback only while the temp lease is the

@@ -13,6 +13,12 @@ const mocks = vi.hoisted(() => ({
   fsReadText: vi.fn(),
   createObjectURL: vi.fn(),
   revokeObjectURL: vi.fn(),
+  pdfPreviewPanelProps: [] as Array<{
+    fileName: string
+    filePath: string
+    refreshKey: number
+  }>,
+  pdfPreviewPanelModuleLoadCount: 0,
   artifactFileTreeWidth: null as number | null,
   setArtifactFileTreeWidth: vi.fn((width: number) => {
     mocks.artifactFileTreeWidth = width
@@ -161,6 +167,25 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   )
 }))
 
+vi.mock('../PdfPreviewPanel', () => {
+  mocks.pdfPreviewPanelModuleLoadCount += 1
+
+  return {
+    default: (props: { fileName: string; filePath: string; refreshKey: number }) => {
+      mocks.pdfPreviewPanelProps.push(props)
+
+      return (
+        <div
+          data-testid="pdf-preview-panel"
+          data-file-name={props.fileName}
+          data-file-path={props.filePath}
+          data-refresh-key={props.refreshKey}
+        />
+      )
+    }
+  }
+})
+
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: (key: string) =>
     key === 'ui.chat.artifact_pane.file_tree.width'
@@ -196,6 +221,7 @@ describe('ArtifactPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.artifactFileTreeWidth = null
+    mocks.pdfPreviewPanelProps.length = 0
     mocks.listDirectory.mockResolvedValue([])
     mocks.createObjectURL.mockReturnValue('blob:fake-url')
     Object.defineProperty(window, 'api', {
@@ -225,6 +251,21 @@ describe('ArtifactPane', () => {
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     vi.restoreAllMocks()
+  })
+
+  it('does not load the PDF preview panel module for non-PDF selections', async () => {
+    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+    mocks.fsReadText.mockResolvedValue('# Hello')
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+
+    await waitFor(() => expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Hello'))
+    expect(mocks.pdfPreviewPanelModuleLoadCount).toBe(0)
   })
 
   it('shows the ready empty state when no workspace path is available', () => {
@@ -547,7 +588,7 @@ describe('ArtifactPane', () => {
     expect(rightPane).not.toHaveClass('pointer-events-none')
   })
 
-  it('disables PDF iframe pointer events while resizing the file tree', async () => {
+  it('disables PDF preview panel pointer events while resizing the file tree', async () => {
     mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -556,7 +597,7 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
-    await waitFor(() => expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull())
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
 
     const pane = container.querySelector('[data-artifact-file-tree-pane]')
     const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
@@ -665,10 +706,10 @@ describe('ArtifactPane', () => {
       )
     }
 
-    const { container } = render(<ControlledArtifactPane />)
+    render(<ControlledArtifactPane />)
 
     await waitFor(() => expect(onViewModeChange).toHaveBeenCalledWith('preview'))
-    await waitFor(() => expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull())
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'agent.preview_pane.preview' })).toBeDisabled()
   })
 
@@ -794,50 +835,57 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/Users/me/dev/src/index.ts'))
   })
 
-  it('renders PDF files with an iframe viewer pointing at the local file URL', async () => {
+  it('renders PDF files with PdfPreviewPanel using the selected file path', async () => {
     mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
 
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
 
-    await waitFor(() => expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull())
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
+    expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-file-path', '/tmp/workspace/paper.pdf')
+    expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-file-name', 'paper.pdf')
+    expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-refresh-key', '0')
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.createObjectURL).not.toHaveBeenCalled()
-    expect(container.querySelector('iframe')?.getAttribute('src')).toBe('file:///tmp/workspace/paper.pdf#toolbar=0')
-    expect(container.querySelector('iframe')).not.toHaveAttribute('sandbox')
+    expect(mocks.pdfPreviewPanelProps.at(-1)).toEqual({
+      filePath: '/tmp/workspace/paper.pdf',
+      fileName: 'paper.pdf',
+      refreshKey: 0
+    })
   })
 
-  it('recreates the selected PDF iframe when the PDF layout refresh key changes', async () => {
+  it('passes the PDF layout refresh key to PdfPreviewPanel', async () => {
     mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
 
-    const { container, rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutRefreshKey={0} />)
+    const { rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutRefreshKey={0} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
 
-    await waitFor(() => expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull())
-    const firstIframe = container.querySelector('iframe[title="paper.pdf"]')
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-refresh-key', '0'))
 
     rerender(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutRefreshKey={1} />)
 
-    const refreshedIframe = container.querySelector('iframe[title="paper.pdf"]')
-    expect(refreshedIframe).not.toBe(firstIframe)
-    expect(refreshedIframe?.getAttribute('src')).toBe('file:///tmp/workspace/paper.pdf#toolbar=0')
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-refresh-key', '1'))
+    expect(mocks.pdfPreviewPanelProps.at(-1)).toEqual({
+      filePath: '/tmp/workspace/paper.pdf',
+      fileName: 'paper.pdf',
+      refreshKey: 1
+    })
     expect(mocks.createObjectURL).not.toHaveBeenCalled()
-    expect(refreshedIframe).not.toHaveAttribute('sandbox')
   })
 
   it('shows loading instead of mounting the selected PDF while PDF layout is pending', async () => {
     mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
 
-    const { container, rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutPending />)
+    const { rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutPending />)
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
@@ -845,25 +893,26 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
 
     expect(screen.getByTestId('loading-state')).toBeInTheDocument()
-    expect(container.querySelector('iframe[title="paper.pdf"]')).toBeNull()
+    expect(screen.queryByTestId('pdf-preview-panel')).not.toBeInTheDocument()
 
     rerender(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutRefreshKey={1} />)
 
-    await waitFor(() => expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull())
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
+    expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-refresh-key', '1')
     expect(screen.queryByTestId('loading-state')).not.toBeInTheDocument()
   })
 
   it('disables source mode switching for PDF files', async () => {
     mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
 
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
 
-    await waitFor(() => expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull())
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
     const modeButton = screen.getByRole('button', { name: 'agent.preview_pane.preview' })
     expect(modeButton).toBeDisabled()
 
@@ -871,7 +920,7 @@ describe('ArtifactPane', () => {
 
     expect(screen.queryByRole('button', { name: 'agent.preview_pane.code' })).not.toBeInTheDocument()
     expect(screen.queryByText('agent.preview_pane.code_unavailable')).not.toBeInTheDocument()
-    expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull()
+    expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument()
   })
 
   it('does not read obvious binary files and disables source mode switching', async () => {
@@ -928,7 +977,7 @@ describe('ArtifactPane', () => {
     mocks.listDirectory.mockResolvedValueOnce(['README.md', 'paper.pdf'])
     mocks.fsReadText.mockResolvedValue('# Hello')
 
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
@@ -944,7 +993,7 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'agent.preview_pane.preview' })).toBeDisabled())
     expect(screen.queryByRole('button', { name: 'agent.preview_pane.code' })).not.toBeInTheDocument()
     expect(screen.queryByText('agent.preview_pane.code_unavailable')).not.toBeInTheDocument()
-    expect(container.querySelector('iframe[title="paper.pdf"]')).not.toBeNull()
+    expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument()
   })
 
   it('refreshes the workspace tree and selected text file content when refresh is clicked', async () => {
@@ -986,26 +1035,24 @@ describe('ArtifactPane', () => {
     expect(screen.queryByTestId('rich-editor')).not.toBeInTheDocument()
   })
 
-  it('refreshes the selected PDF viewer without creating blob URLs', async () => {
+  it('refreshes the workspace tree without directly reloading the selected PDF preview', async () => {
     mocks.listDirectory.mockResolvedValueOnce(['paper.pdf']).mockResolvedValueOnce(['paper.pdf'])
 
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
-    await waitFor(() =>
-      expect(container.querySelector('iframe')?.getAttribute('src')).toBe('file:///tmp/workspace/paper.pdf#toolbar=0')
-    )
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
 
     await waitFor(() => expect(mocks.listDirectory).toHaveBeenCalledTimes(2))
     expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.createObjectURL).not.toHaveBeenCalled()
     expect(mocks.revokeObjectURL).not.toHaveBeenCalled()
-    expect(container.querySelector('iframe')?.getAttribute('src')).toBe('file:///tmp/workspace/paper.pdf#toolbar=0')
-    expect(container.querySelector('iframe')).not.toHaveAttribute('sandbox')
+    expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-refresh-key', '0')
   })
 })

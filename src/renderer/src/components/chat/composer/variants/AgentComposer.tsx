@@ -458,9 +458,13 @@ const AgentComposerBelowControls = (contextProps: AgentComposerControlProps) => 
   const { showWorkspaceSelector = true, ...controlProps } = contextProps
 
   return (
-    <div className={COMPOSER_TOOLBAR_CLASS}>
-      {showWorkspaceSelector ? <AgentComposerWorkspaceControl {...controlProps} side="bottom" /> : null}
+    <div className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
       <AgentComposerContextControls {...controlProps} side="bottom" />
+      {showWorkspaceSelector ? (
+        <div className="ml-auto flex shrink-0">
+          <AgentComposerWorkspaceControl {...controlProps} side="bottom" />
+        </div>
+      ) : null}
     </div>
   )
 }

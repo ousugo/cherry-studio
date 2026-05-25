@@ -12,13 +12,13 @@ import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Citation, Topic } from '@renderer/types'
 import type { FC, ReactNode } from 'react'
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavBar'
-import TopicMessageFlowPanel from './components/TopicMessageFlowPanel'
+import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('Chat')
@@ -29,7 +29,6 @@ interface Props {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
-  hideNavbar?: boolean
   onOpenSidePanelDrawer?: () => void | Promise<void>
   showResourceListControls?: boolean
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
@@ -44,17 +43,22 @@ interface Props {
   onPersistTemporaryTopic?: (initialName?: string) => Promise<TemporaryConversation | null>
 }
 
-const Chat: FC<Props> = (props) => {
+const ChatInner: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
-  const [topicFlowPanelOpen, setTopicFlowPanelOpen] = useState(false)
+  const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = useRef<ContentSearchRef>(null)
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
   const { setTimeoutTimer } = useTimer()
+
+  useEffect(() => {
+    setTopicBranchLiveState(props.activeTopic.id, null)
+    return () => setTopicBranchLiveState(props.activeTopic.id, null)
+  }, [props.activeTopic.id, setTopicBranchLiveState])
 
   useHotkeys('esc', () => {
     contentSearchRef.current?.disable()
@@ -117,14 +121,16 @@ const Chat: FC<Props> = (props) => {
   const citationsPanelOpen = citationPanelCitations !== null
 
   const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
-    setTopicFlowPanelOpen(false)
     setCitationPanelCitations(citations)
   }, [])
 
-  const handleOpenTopicFlowPanel = useCallback(() => {
-    setCitationPanelCitations(null)
-    setTopicFlowPanelOpen(true)
-  }, [])
+  const handleBranchLiveStateChange = useCallback(
+    (state: Parameters<typeof setTopicBranchLiveState>[1]) => {
+      setTopicBranchLiveState(state?.topicId ?? props.activeTopic.id, state)
+    },
+    [props.activeTopic.id, setTopicBranchLiveState]
+  )
+  const branchPaneDisabled = !!props.onPersistTemporaryTopic
 
   return (
     <ConversationShell
@@ -134,28 +140,18 @@ const Chat: FC<Props> = (props) => {
       paneOpen={props.paneOpen}
       panePosition={props.panePosition}
       topBar={
-        props.hideNavbar ? undefined : (
-          <ChatNavbar
-            onOpenSidePanelDrawer={props.onOpenSidePanelDrawer}
-            onOpenTopicFlow={handleOpenTopicFlowPanel}
-            showSidebarControls={props.showResourceListControls}
-          />
-        )
+        <ChatNavbar
+          onOpenSidePanelDrawer={props.onOpenSidePanelDrawer}
+          showSidebarControls={props.showResourceListControls}
+        />
       }
+      topRightTool={<TopicRightPane.Toggle disabled={branchPaneDisabled} />}
       sidePanel={
-        <>
-          <CitationsPanel
-            open={citationsPanelOpen}
-            onClose={() => setCitationPanelCitations(null)}
-            citations={citationPanelCitations ?? []}
-          />
-          <TopicMessageFlowPanel
-            open={topicFlowPanelOpen}
-            onClose={() => setTopicFlowPanelOpen(false)}
-            topicId={props.activeTopic.id}
-            topicName={props.activeTopic.name}
-          />
-        </>
+        <CitationsPanel
+          open={citationsPanelOpen}
+          onClose={() => setCitationPanelCitations(null)}
+          citations={citationPanelCitations ?? []}
+        />
       }
       center={
         <ChatContent
@@ -166,19 +162,30 @@ const Chat: FC<Props> = (props) => {
           onTemporaryAssistantChange={props.onTemporaryAssistantChange}
           locateMessageId={props.locateMessageId}
           onLocateMessageHandled={props.onLocateMessageHandled}
+          onBranchLiveStateChange={handleBranchLiveStateChange}
           onPersistTemporaryTopic={props.onPersistTemporaryTopic}
         />
       }
       centerOverlay={
-        <OverlayHost>
-          <ContentSearch
-            ref={contentSearchRef}
-            searchTarget={mainRef as React.RefObject<HTMLElement>}
-            filter={contentSearchFilter}
-            includeUser={filterIncludeUser}
-            onIncludeUserChange={userOutlinedItemClickHandler}
-          />
-        </OverlayHost>
+        <>
+          <OverlayHost>
+            <ContentSearch
+              ref={contentSearchRef}
+              searchTarget={mainRef as React.RefObject<HTMLElement>}
+              filter={contentSearchFilter}
+              includeUser={filterIncludeUser}
+              onIncludeUserChange={userOutlinedItemClickHandler}
+            />
+          </OverlayHost>
+          {!branchPaneDisabled && (
+            <TopicRightPane.MaximizedOverlay topicId={props.activeTopic.id} topicName={props.activeTopic.name} />
+          )}
+        </>
+      }
+      rightPane={
+        branchPaneDisabled ? undefined : (
+          <TopicRightPane.Host topicId={props.activeTopic.id} topicName={props.activeTopic.name} />
+        )
       }
       centerId="chat-main"
       centerRef={mainRef}
@@ -186,5 +193,11 @@ const Chat: FC<Props> = (props) => {
     />
   )
 }
+
+const Chat: FC<Props> = (props) => (
+  <TopicRightPane>
+    <ChatInner {...props} />
+  </TopicRightPane>
+)
 
 export default Chat

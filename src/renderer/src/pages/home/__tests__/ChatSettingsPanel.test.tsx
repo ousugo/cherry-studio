@@ -2,9 +2,15 @@ import type { Topic } from '@renderer/types'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Chat from '../Chat'
+
+const renderCounters = vi.hoisted(() => ({
+  chatContent: 0,
+  navbar: 0,
+  setBranchLiveState: vi.fn()
+}))
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
@@ -28,23 +34,29 @@ vi.mock('@renderer/components/chat', () => ({
   OverlayHost: ({ children }: PropsWithChildren) => <div>{children}</div>,
   ConversationShell: ({
     topBar,
+    topRightTool,
     sidePanel,
     center,
     centerOverlay,
-    overlay
+    overlay,
+    rightPane
   }: {
     topBar?: ReactNode
+    topRightTool?: ReactNode
     sidePanel?: ReactNode
     center: ReactNode
     centerOverlay?: ReactNode
     overlay?: ReactNode
+    rightPane?: ReactNode
   }) => (
     <div>
       <div data-testid="chat-top-bar">{topBar}</div>
+      <div data-testid="chat-top-right-tool">{topRightTool}</div>
       <div data-testid="chat-side-panel">{sidePanel}</div>
       <div>{center}</div>
       <div>{centerOverlay}</div>
       <div>{overlay}</div>
+      <div data-testid="chat-right-pane">{rightPane}</div>
     </div>
   )
 }))
@@ -88,22 +100,60 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/ChatNavBar', () => ({
-  default: () => <div data-testid="chat-navbar" />
+  default: () => {
+    renderCounters.navbar += 1
+    return <div data-testid="chat-navbar" />
+  }
 }))
 
-vi.mock('../components/TopicMessageFlowPanel', () => ({
-  default: ({ open }: { open: boolean }) => <div data-testid="topic-flow-panel" data-open={String(open)} />
-}))
+vi.mock('../components/TopicRightPane', () => {
+  const TopicRightPane = Object.assign(({ children }: PropsWithChildren) => <div>{children}</div>, {
+    Toggle: ({ disabled }: { disabled?: boolean }) => (
+      <button type="button" disabled={disabled}>
+        branch toggle
+      </button>
+    ),
+    Host: ({ topicId }: { topicId: string }) => <div data-testid="topic-right-pane-host" data-topic-id={topicId} />,
+    MaximizedOverlay: ({ topicId }: { topicId: string }) => (
+      <div data-testid="topic-right-pane-overlay" data-topic-id={topicId} />
+    )
+  })
+
+  return {
+    TopicRightPane,
+    useTopicBranchLiveStateSetter: () => renderCounters.setBranchLiveState
+  }
+})
 
 vi.mock('../ChatContent', () => ({
-  default: ({ onOpenCitationsPanel }: { onOpenCitationsPanel: (payload: { citations: unknown[] }) => void }) => (
-    <>
-      <button type="button" onClick={() => onOpenCitationsPanel({ citations: [{ number: 1 }] })}>
-        open citations
-      </button>
-      <div data-testid="chat-main" />
-    </>
-  )
+  default: ({
+    onBranchLiveStateChange,
+    onOpenCitationsPanel
+  }: {
+    onBranchLiveStateChange?: (state: unknown) => void
+    onOpenCitationsPanel: (payload: { citations: unknown[] }) => void
+  }) => {
+    renderCounters.chatContent += 1
+    return (
+      <>
+        <button type="button" onClick={() => onOpenCitationsPanel({ citations: [{ number: 1 }] })}>
+          open citations
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onBranchLiveStateChange?.({
+              activeNodeId: 'assistant-live',
+              nodes: [],
+              topicId: 'topic-1'
+            })
+          }>
+          push live branch state
+        </button>
+        <div data-testid="chat-main" />
+      </>
+    )
+  }
 }))
 
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
@@ -119,19 +169,29 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
 }))
 
 describe('Chat panels', () => {
-  it('opens and closes the citations panel from chat content', () => {
-    const activeTopic: Topic = {
-      id: 'topic-1',
-      name: 'Topic',
-      assistantId: 'assistant-1',
-      createdAt: '2026-05-14T00:00:00.000Z',
-      updatedAt: '2026-05-14T00:00:00.000Z',
-      messages: []
-    }
+  const activeTopic: Topic = {
+    id: 'topic-1',
+    name: 'Topic',
+    assistantId: 'assistant-1',
+    createdAt: '2026-05-14T00:00:00.000Z',
+    updatedAt: '2026-05-14T00:00:00.000Z',
+    messages: []
+  }
 
+  beforeEach(() => {
+    renderCounters.chatContent = 0
+    renderCounters.navbar = 0
+    renderCounters.setBranchLiveState.mockReset()
+  })
+
+  it('opens and closes the citations panel from chat content', () => {
     render(<Chat activeTopic={activeTopic} />)
 
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'branch toggle' })).toBeInTheDocument()
+    expect(screen.getByTestId('topic-right-pane-host')).toHaveAttribute('data-topic-id', 'topic-1')
+    expect(screen.getByTestId('topic-right-pane-overlay')).toHaveAttribute('data-topic-id', 'topic-1')
 
     fireEvent.click(screen.getByRole('button', { name: 'open citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
@@ -139,5 +199,33 @@ describe('Chat panels', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('keeps navbar actions visible for a fresh temporary topic', () => {
+    const temporaryTopic = { ...activeTopic, id: 'temporary-topic', name: '' }
+
+    render(<Chat activeTopic={temporaryTopic} onPersistTemporaryTopic={vi.fn()} onTemporaryAssistantChange={vi.fn()} />)
+
+    expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'branch toggle' })).toBeDisabled()
+    expect(screen.queryByTestId('topic-right-pane-host')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('topic-right-pane-overlay')).not.toBeInTheDocument()
+  })
+
+  it('does not re-render the chat shell when branch live state changes', () => {
+    render(<Chat activeTopic={activeTopic} />)
+
+    const initialNavbarRenders = renderCounters.navbar
+    const initialChatContentRenders = renderCounters.chatContent
+
+    fireEvent.click(screen.getByRole('button', { name: 'push live branch state' }))
+
+    expect(renderCounters.navbar).toBe(initialNavbarRenders)
+    expect(renderCounters.chatContent).toBe(initialChatContentRenders)
+    expect(renderCounters.setBranchLiveState).toHaveBeenCalledWith('topic-1', {
+      activeNodeId: 'assistant-live',
+      nodes: [],
+      topicId: 'topic-1'
+    })
   })
 })

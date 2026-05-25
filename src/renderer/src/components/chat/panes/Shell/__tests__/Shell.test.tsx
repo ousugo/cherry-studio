@@ -81,6 +81,21 @@ describe('Shell.Toggle', () => {
     expect(toggle).toHaveAttribute('data-state', 'open')
     expect(screen.getByTestId('collapse-icon')).toBeInTheDocument()
   })
+
+  it('does not open the pane when disabled', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" label="Files" disabled />
+      </Shell>
+    )
+
+    const toggle = screen.getByRole('button', { name: 'Files' })
+
+    expect(toggle).toBeDisabled()
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('data-state', 'closed')
+    expect(screen.getByTestId('expand-icon')).toBeInTheDocument()
+  })
 })
 
 describe('Shell.TabList', () => {

@@ -6,8 +6,6 @@ import { EmptyState, LoadingState } from '@renderer/components/chat'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import RichEditor from '@renderer/components/RichEditor'
-import type { FilePath } from '@shared/file/types'
-import { toFileUrl } from '@shared/file/urlUtil'
 import {
   AlertCircle,
   CodeXml,
@@ -21,7 +19,16 @@ import {
   Sparkles
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { memo, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ComponentType,
+  memo,
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CHAT_SHELL_TRANSITION } from '../shell/types'
@@ -240,6 +247,19 @@ interface HtmlPreviewPanelProps {
   title: string
 }
 
+type PdfPreviewPanelComponent = ComponentType<{
+  filePath: string
+  fileName: string
+  refreshKey: number
+}>
+
+let pdfPreviewPanelPromise: Promise<PdfPreviewPanelComponent> | null = null
+
+const loadPdfPreviewPanel = () => {
+  pdfPreviewPanelPromise ??= import('./PdfPreviewPanel').then((module) => module.default)
+  return pdfPreviewPanelPromise
+}
+
 function getArtifactFileTreeWidthBounds(artifactPaneWidth: number) {
   const minWidth = ARTIFACT_FILE_TREE_MIN_WIDTH
   const maxWidth = Math.max(minWidth, Math.round(artifactPaneWidth - ARTIFACT_FILE_TREE_MAX_WIDTH_OFFSET))
@@ -430,6 +450,7 @@ const ArtifactPane = ({
   const [internalSelectedFile, setInternalSelectedFile] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileContent, setFileContent] = useState<string | null>(null)
+  const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
   const previousWorkspacePathRef = useRef(workspacePath)
@@ -488,7 +509,7 @@ const ArtifactPane = ({
     setLoadingContent(false)
   }, [hasLoaded, nodeById, selectedFile, setSelectedFile])
 
-  // Load the selected text file. PDFs are rendered directly from a file:// URL.
+  // Load the selected text file. PDFs are rendered by PdfPreviewPanel from the file path.
   useEffect(() => {
     if (!selectedFile || !workspacePath) {
       setFileContent(null)
@@ -559,6 +580,27 @@ const ArtifactPane = ({
   }, [selectedFile, setViewMode, sourceViewAvailable, viewMode])
 
   const isSelectedHtmlPreview = viewMode === 'preview' && selectedFile ? isHtmlFile(selectedFile) : false
+  const isSelectedPdfPreview = viewMode === 'preview' && selectedFile ? isPdfFile(selectedFile) : false
+
+  useEffect(() => {
+    if (!isSelectedPdfPreview || pdfLayoutPending || PdfPreviewPanel) return
+
+    let cancelled = false
+
+    loadPdfPreviewPanel()
+      .then((component) => {
+        if (!cancelled) setPdfPreviewPanel(() => component)
+      })
+      .catch((err: unknown) => {
+        const normalized = err instanceof Error ? err : new Error(String(err))
+        logger.error('Failed to load PDF preview panel', normalized)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [PdfPreviewPanel, isSelectedPdfPreview, pdfLayoutPending])
+
   const viewModeLabel = t(viewMode === 'preview' ? 'agent.preview_pane.preview' : 'agent.preview_pane.code')
   const maximizeLabel = t(maximized ? 'agent.preview_pane.minimize' : 'agent.preview_pane.maximize')
   const FileTreeIcon = treeOpen ? FolderOpen : Folder
@@ -616,15 +658,20 @@ const ArtifactPane = ({
         )
       }
 
-      const pdfUrl = `${toFileUrl(joinPath(workspacePath, name) as FilePath)}#toolbar=0`
+      if (!PdfPreviewPanel) {
+        return (
+          <div className="flex h-full w-full items-center justify-center">
+            <LoadingState label={t('common.loading')} />
+          </div>
+        )
+      }
+
       return (
-        // Chromium's PDF viewer needs an unsandboxed iframe for local file rendering.
-        // eslint-disable-next-line @eslint-react/dom/no-missing-iframe-sandbox
-        <iframe
-          key={`pdf-${name}-${contentRefreshToken}-${pdfLayoutRefreshKey}`}
-          src={pdfUrl}
-          title={name}
-          className="h-full w-full border-0"
+        <PdfPreviewPanel
+          key={`pdf-${name}-${pdfLayoutRefreshKey}`}
+          filePath={joinPath(workspacePath, name)}
+          fileName={name}
+          refreshKey={pdfLayoutRefreshKey}
         />
       )
     }
@@ -787,7 +834,7 @@ const ArtifactPane = ({
             data-artifact-right-pane
             className={cn(
               'min-h-0 min-w-0 flex-1',
-              isSelectedHtmlPreview ? 'overflow-hidden' : 'overflow-auto',
+              isSelectedHtmlPreview || isSelectedPdfPreview ? 'overflow-hidden' : 'overflow-auto',
               isFileTreeResizing && 'pointer-events-none'
             )}>
             {renderRight()}
