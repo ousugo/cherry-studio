@@ -22,6 +22,16 @@ vi.mock('../agentSessionWarmup', () => ({
 }))
 
 vi.mock('../streamAdapter', () => ({
+  convertClaudeCodeUsage: (usage: any) => ({
+    inputTokens: {
+      total:
+        (usage?.input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0) + (usage?.cache_read_input_tokens ?? 0),
+      noCache: usage?.input_tokens ?? 0,
+      cacheRead: usage?.cache_read_input_tokens ?? 0,
+      cacheWrite: usage?.cache_creation_input_tokens ?? 0
+    },
+    outputTokens: { total: usage?.output_tokens ?? 0, text: undefined, reasoning: undefined }
+  }),
   ClaudeCodeStreamAdapter: class {
     readonly finalizeOpenParts = vi.fn()
 
@@ -170,12 +180,31 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: { type: 'chunk', chunk: { type: 'text-delta', delta: 'hello' } }
     })
 
-    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-result' })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-result',
+      usage: {
+        input_tokens: 10,
+        output_tokens: 5,
+        cache_creation_input_tokens: 3,
+        cache_read_input_tokens: 2
+      }
+    })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'resume-token', token: 'resume-result' }
     })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'chunk', chunk: { type: 'finish' } }
+    })
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'chunk',
+        chunk: {
+          type: 'message-metadata',
+          messageMetadata: { totalTokens: 20, promptTokens: 15, completionTokens: 5 }
+        }
+      }
     })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'turn-complete' }
