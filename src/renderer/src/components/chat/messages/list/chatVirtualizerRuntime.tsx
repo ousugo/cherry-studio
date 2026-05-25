@@ -124,19 +124,19 @@ export function useChatVirtualizerRuntime<T>({
   }, [])
 
   const readMetrics = useCallback(() => {
-    const handle = vlistHandleRef.current
-    if (!handle) return null
+    const el = scrollerRef.current
+    if (!el) return null
     return {
-      offset: handle.scrollOffset,
-      scrollSize: handle.scrollSize,
-      viewportSize: handle.viewportSize
+      offset: el.scrollTop,
+      scrollSize: el.scrollHeight,
+      viewportSize: el.clientHeight
     }
   }, [])
 
   const targetBottomOffset = useCallback((): number => {
-    const handle = vlistHandleRef.current
-    if (!handle) return 0
-    return Math.max(0, handle.scrollSize - handle.viewportSize)
+    const el = scrollerRef.current
+    if (!el) return 0
+    return Math.max(0, el.scrollHeight - el.clientHeight)
   }, [])
 
   const stickToBottom = useCallback(
@@ -144,7 +144,15 @@ export function useChatVirtualizerRuntime<T>({
       const el = scrollerRef.current
       if (!el) return
       if (smooth) {
-        smoothScroll.scrollTo(targetBottomOffset)
+        // The in-flight smooth animation already resamples targetBottomOffset
+        // every frame, so it naturally follows a growing scroll size. If we
+        // restart on every chunk, the RAF gets cancelled before any frame
+        // can fire (chunks arrive faster than 16 ms), and scrollTop never
+        // actually advances — the scrollbar reflects the new scrollSize but
+        // the position stays put: a visual "flash" instead of smooth motion.
+        if (!smoothScroll.isAnimating()) {
+          smoothScroll.scrollTo(targetBottomOffset)
+        }
       } else {
         smoothScroll.cancel()
         el.scrollTop = targetBottomOffset()
