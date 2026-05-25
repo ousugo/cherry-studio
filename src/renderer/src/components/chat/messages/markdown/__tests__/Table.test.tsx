@@ -154,11 +154,17 @@ describe('Table', () => {
       const { container } = render(<Table {...defaultProps} />)
 
       const wrapper = container.querySelector('.table-wrapper')
+      const scrollViewport = container.querySelector('.table-scroll-viewport')
       const table = screen.getByRole('table')
       const toolbar = container.querySelector('.table-toolbar')
       const copyButton = getCopyButton()
 
-      expect(wrapper).toHaveClass('my-2', 'max-w-full', 'overflow-x-auto')
+      expect(wrapper).toHaveClass('my-2', 'w-full', 'min-w-0', 'max-w-full', 'relative')
+      expect(wrapper).not.toHaveClass('overflow-x-auto')
+      expect(scrollViewport).toHaveClass('w-full', 'min-w-0', 'max-w-full', 'overflow-x-auto')
+      expect(toolbar?.parentElement).toBe(wrapper)
+      expect(toolbar).toHaveClass('absolute', 'top-2', 'right-2')
+      expect(toolbar).not.toHaveClass('sticky')
       expect(table.className).toContain('[&&]:text-[var(--font-size-body-md)]')
       expect(table.className).toContain('[&&]:rounded-none')
       expect(table.className).toContain('[&&]:overflow-visible')
@@ -308,7 +314,7 @@ Line 4`
     })
 
     it('should show error toast when extractTableMarkdown returns empty string', async () => {
-      mocks.markdownBlockContext.content = ''
+      mocks.markdownContext.content = ''
 
       render(<Table {...defaultProps} />)
 
@@ -388,7 +394,7 @@ Line 4`
     })
 
     it('should show error toast when extractTableMarkdown returns empty string', async () => {
-      mocks.markdownBlockContext.content = ''
+      mocks.markdownContext.content = ''
 
       render(<Table {...defaultProps} />)
 
