@@ -37,7 +37,6 @@
     "src/renderer/src/**/*",
     "src/main/integration/cherryai/index.js",
     "src/preload/*.d.ts",
-    "src/preload/invokeWithAbort.ts",
     "tests/__mocks__/**/*",
     "packages/aiCore/src/**/*",
     "packages/ai-sdk-provider/**/*",
