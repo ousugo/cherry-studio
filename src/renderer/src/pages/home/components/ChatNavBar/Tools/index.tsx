@@ -1,8 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useOverlayTriggerTooltip } from '@renderer/hooks/useOverlayTriggerTooltip'
-import { GitBranch, Search } from 'lucide-react'
+import { GitBranch } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface ToolsProps {
@@ -28,11 +27,6 @@ const Tools = ({ onOpenTopicFlow }: ToolsProps) => {
           </NavbarIcon>
         </Tooltip>
       )}
-      <Tooltip content={t('chat.assistant.search.placeholder')} delay={800}>
-        <NavbarIcon aria-label={t('chat.assistant.search.placeholder')} onClick={() => SearchPopup.show()}>
-          <Search size={18} />
-        </NavbarIcon>
-      </Tooltip>
     </div>
   )
 }

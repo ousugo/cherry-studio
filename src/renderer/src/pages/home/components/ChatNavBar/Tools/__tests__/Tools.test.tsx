@@ -4,10 +4,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 import Tools from '../index'
 
-const mocks = vi.hoisted(() => ({
-  showSearchPopup: vi.fn()
-}))
-
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({
     children,
@@ -43,12 +39,6 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
-vi.mock('@renderer/components/Popups/SearchPopup', () => ({
-  default: {
-    show: mocks.showSearchPopup
-  }
-}))
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key
@@ -56,15 +46,14 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('ChatNavBar Tools', () => {
-  it('renders the topic flow entry before search and calls its opener', () => {
+  it('renders the topic flow entry and calls its opener', () => {
     const onOpenTopicFlow = vi.fn()
 
     render(<Tools onOpenTopicFlow={onOpenTopicFlow} />)
 
     const topicFlowButton = screen.getByLabelText('chat.message.new.branch.label')
-    const searchButton = screen.getByLabelText('chat.assistant.search.placeholder')
 
-    expect(topicFlowButton.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByLabelText('chat.assistant.search.placeholder')).not.toBeInTheDocument()
 
     fireEvent.click(topicFlowButton)
     expect(onOpenTopicFlow).toHaveBeenCalledTimes(1)
@@ -90,13 +79,5 @@ describe('ChatNavBar Tools', () => {
     fireEvent.pointerLeave(topicFlowButton)
     fireEvent.mouseEnter(topicFlowTooltip)
     expect(topicFlowTooltip).toHaveAttribute('data-open', 'true')
-  })
-
-  it('keeps the existing search entry', () => {
-    render(<Tools />)
-
-    fireEvent.click(screen.getByLabelText('chat.assistant.search.placeholder'))
-
-    expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 })
