@@ -84,11 +84,24 @@ export interface ChatVirtualizerRuntime<T> {
    * re-implementing list traversal.
    */
   findItemIndex(key: string): number
+  /**
+   * Extra bottom-padding the caller should apply so the scroll-pin anchor
+   * (user message at viewport top) is reachable even when natural content
+   * is shorter than `anchorOffset + viewportHeight`. Decays to 0 as the
+   * assistant response grows into it.
+   */
+  anchorBottomPaddingPx: number
   /** Live items reference (echoed for convenience). */
   items: T[]
 }
 
 const SCROLL_WHEEL_DEBOUNCE_MS = 100
+/**
+ * How far (in pixels) the user must scroll away from the pinned anchor
+ * before we release the pin. Below this we treat tiny shifts (browser
+ * layout reflow, sub-pixel rounding) as noise and re-pin instead.
+ */
+const PIN_RELEASE_TOLERANCE_PX = 16
 
 export function useChatVirtualizerRuntime<T>({
   items,
@@ -108,6 +121,17 @@ export function useChatVirtualizerRuntime<T>({
   const lastWheelDirRef = useRef<'up' | 'down' | 'none'>('none')
   const lastScrollOffsetRef = useRef(0)
   const lastScrollSizeRef = useRef(0)
+
+  // Scroll anchor: when the user sends a message, we "pin" that message's
+  // top to the viewport top. `anchorOffsetRef` is the absolute scrollTop
+  // we want maintained; `anchorBottomPaddingPx` is the extra empty space
+  // appended after the virtualizer so the anchor offset is reachable when
+  // natural content is shorter than the viewport. Pin releases on user
+  // scroll past `PIN_RELEASE_TOLERANCE_PX`; padding then decays as new
+  // content grows into it.
+  const anchorOffsetRef = useRef<number | null>(null)
+  const [anchorBottomPaddingPx, setAnchorBottomPaddingPx] = useState(0)
+  const pendingScrollTargetRef = useRef<number | null>(null)
 
   const itemsRef = useRef(items)
   itemsRef.current = items
@@ -143,6 +167,10 @@ export function useChatVirtualizerRuntime<T>({
     (smooth: boolean) => {
       const el = scrollerRef.current
       if (!el) return
+      // Explicit scroll-to-bottom releases any scroll-to-top pin — caller
+      // is asking to land at the bottom, not stay at the user-message
+      // anchor.
+      anchorOffsetRef.current = null
       if (smooth) {
         // The in-flight smooth animation already resamples targetBottomOffset
         // every frame, so it naturally follows a growing scroll size. If we
@@ -168,21 +196,36 @@ export function useChatVirtualizerRuntime<T>({
     (key: string, smooth: boolean) => {
       const idx = findItemIndex(key)
       const handle = vlistHandleRef.current
-      if (idx < 0 || !handle) return
-      // Compute the target offset manually so we can route through the same
-      // RAF smooth-scroll as auto-stick, instead of relying on virtua's
-      // native (non-cancellable) `smooth: true`.
-      const itemOffset = handle.getItemOffset(idx)
-      if (smooth) {
-        smoothScroll.scrollTo(() => itemOffset)
+      const el = scrollerRef.current
+      if (idx < 0 || !handle || !el) return
+      const idealOffset = handle.getItemOffset(idx)
+      anchorOffsetRef.current = idealOffset
+      // Compute extra padding needed so the anchor offset becomes reachable
+      // (scrollTop max = scrollHeight - viewportHeight).
+      const naturalScroll = el.scrollHeight - anchorBottomPaddingPx
+      const needed = Math.max(0, idealOffset + el.clientHeight - naturalScroll)
+      if (needed > anchorBottomPaddingPx) {
+        // Padding has to apply first; defer the scroll until the layout
+        // effect tied to anchorBottomPaddingPx fires.
+        pendingScrollTargetRef.current = idealOffset
+        setAnchorBottomPaddingPx(needed)
+      } else if (smooth) {
+        smoothScroll.scrollTo(() => idealOffset)
       } else {
         smoothScroll.cancel()
-        const el = scrollerRef.current
-        if (el) el.scrollTop = itemOffset
+        el.scrollTop = idealOffset
       }
     },
-    [findItemIndex, smoothScroll]
+    [anchorBottomPaddingPx, findItemIndex, smoothScroll]
   )
+
+  // Fire deferred scroll once the bottom-padding state has been laid out.
+  useLayoutEffect(() => {
+    const target = pendingScrollTargetRef.current
+    if (target == null) return
+    pendingScrollTargetRef.current = null
+    smoothScroll.scrollTo(() => target)
+  }, [anchorBottomPaddingPx, smoothScroll])
 
   // ---- size-change autoscroll -----------------------------------------
 
@@ -197,6 +240,38 @@ export function useChatVirtualizerRuntime<T>({
     if (!m) return
     const prevSize = lastScrollSizeRef.current
     if (m.scrollSize === prevSize) return
+    lastScrollSizeRef.current = m.scrollSize
+
+    const anchorOffset = anchorOffsetRef.current
+    if (anchorOffset != null) {
+      // Anchor is pinned: maintain the invariant `scrollHeight >=
+      // anchorOffset + viewportHeight` by adjusting bottom padding. As
+      // natural content (assistant streaming) grows, the needed padding
+      // shrinks 1:1 so the user's visual position never drifts.
+      const naturalScroll = m.scrollSize - anchorBottomPaddingPx
+      const needed = Math.max(0, anchorOffset + m.viewportSize - naturalScroll)
+      if (needed !== anchorBottomPaddingPx) {
+        setAnchorBottomPaddingPx(needed)
+      }
+      // Browser may shift scrollTop a bit during padding/layout reflow;
+      // re-pin if it drifted but not enough to count as user input.
+      const el = scrollerRef.current
+      if (el && Math.abs(m.offset - anchorOffset) > 0 && Math.abs(m.offset - anchorOffset) < PIN_RELEASE_TOLERANCE_PX) {
+        el.scrollTop = anchorOffset
+      }
+      return
+    }
+
+    // Anchor released: decay any leftover anchor padding as content fills,
+    // so the scroller's max-scroll converges back to natural content size.
+    if (anchorBottomPaddingPx > 0) {
+      const grewBy = m.scrollSize - prevSize
+      if (grewBy > 0) {
+        setAnchorBottomPaddingPx(Math.max(0, anchorBottomPaddingPx - grewBy))
+      }
+    }
+
+    // Standard auto-stick: if user was at bottom and content grew, follow.
     const wasAtBottom = atBottomStateRef.current.atBottom
     atBottomStateRef.current = reduceAtBottom(atBottomStateRef.current, {
       type: 'size-change',
@@ -205,11 +280,10 @@ export function useChatVirtualizerRuntime<T>({
       viewportSize: m.viewportSize,
       prevScrollSize: prevSize
     })
-    lastScrollSizeRef.current = m.scrollSize
     if (wasAtBottom && m.scrollSize > prevSize) {
       stickToBottom(true)
     }
-  }, [readMetrics, stickToBottom])
+  }, [anchorBottomPaddingPx, readMetrics, stickToBottom])
 
   useLayoutEffect(() => {
     const target = contentRef.current
@@ -287,6 +361,14 @@ export function useChatVirtualizerRuntime<T>({
     if (smoothScroll.isAnimating()) return
     const m = readMetrics()
     if (!m) return
+    // Release the pin if the user has scrolled meaningfully away from the
+    // anchor — this is the "user wants free scroll" signal. We keep the
+    // anchor's bottom padding in place; it will decay naturally as content
+    // grows into it (see handleSizeChange).
+    const anchorOffset = anchorOffsetRef.current
+    if (anchorOffset != null && Math.abs(m.offset - anchorOffset) > PIN_RELEASE_TOLERANCE_PX) {
+      anchorOffsetRef.current = null
+    }
     // Infer direction from offset delta so keyboard / scrollbar drag /
     // touchpad pan (which don't fire wheel events) still register as user
     // intent. The wheel ref still wins when fresh — it's the most reliable
@@ -397,6 +479,7 @@ export function useChatVirtualizerRuntime<T>({
     keepMounted,
     scrollerProps: { onWheel, onScroll, onScrollEnd },
     findItemIndex,
+    anchorBottomPaddingPx,
     items
   }
 }
