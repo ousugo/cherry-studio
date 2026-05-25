@@ -128,7 +128,7 @@ function createEmptyUsage(): LanguageModelV3Usage {
   }
 }
 
-function convertClaudeCodeUsage(usage: BetaUsage): LanguageModelV3Usage {
+export function convertClaudeCodeUsage(usage: BetaUsage): LanguageModelV3Usage {
   const inputTokens = usage.input_tokens ?? 0
   const outputTokens = usage.output_tokens ?? 0
   const cacheWrite = usage.cache_creation_input_tokens ?? 0

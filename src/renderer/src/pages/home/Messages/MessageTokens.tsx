@@ -68,11 +68,14 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
     let hasMetrics = false
     if (message?.metrics?.completion_tokens && message?.metrics?.time_completion_millsec) {
       hasMetrics = true
+      // Exclude TTFT from the denominator so the tooltip reports generation
+      // throughput, not wall-clock throughput.
+      const totalMs = message.metrics.time_completion_millsec
+      const ttftMs = message.metrics.time_first_token_millsec
+      const generationMs = ttftMs !== undefined && ttftMs < totalMs ? totalMs - ttftMs : totalMs
       metrixs = t('settings.messages.metrics', {
-        time_first_token_millsec: message?.metrics?.time_first_token_millsec,
-        token_speed: (message?.metrics?.completion_tokens / (message?.metrics?.time_completion_millsec / 1000)).toFixed(
-          0
-        )
+        time_first_token_millsec: ttftMs,
+        token_speed: (message.metrics.completion_tokens / (generationMs / 1000)).toFixed(0)
       })
     }
 

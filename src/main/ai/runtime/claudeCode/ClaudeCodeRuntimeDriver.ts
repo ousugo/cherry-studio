@@ -5,6 +5,7 @@ import {
   type SDKSystemMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
+import type { BetaUsage } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
   buildClaudeToolPolicy,
@@ -27,7 +28,7 @@ import type {
 } from '../types'
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
 import { AgentSessionWorkspaceError, assertClaudeCodeWorkspaceDirectory } from './settingsBuilder'
-import { ClaudeCodeStreamAdapter } from './streamAdapter'
+import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage } from './streamAdapter'
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
   private readonly items: T[] = []
@@ -218,6 +219,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         const result = this.adapter.handleMessage(message)
         if (result.type === 'result') {
           this.updateResumeToken(result.sessionId)
+          // `readUIMessageStream` only reads token counts from `message-metadata`
+          // chunks. The streamAdapter's V3-shaped `finish.usage` is ignored, so
+          // we project the SDK BetaUsage onto a UIMessageChunk here — keeping
+          // the chunk shape identical to `attachUsageObserver` (AI SDK runtime).
+          this.emitUsageMetadata(result.message.usage)
           this.adapter = undefined
           this.eventQueue.push({ type: 'turn-complete' })
         }
@@ -247,6 +253,26 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (resumeToken === this.resumeToken) return
     this.resumeToken = resumeToken
     this.eventQueue.push({ type: 'resume-token', token: resumeToken })
+  }
+
+  private emitUsageMetadata(usage: BetaUsage | undefined): void {
+    if (!usage) return
+    const v3Usage = convertClaudeCodeUsage(usage)
+    const promptTokens = v3Usage.inputTokens.total ?? 0
+    const completionTokens = v3Usage.outputTokens.total ?? 0
+    const reasoningTokens = v3Usage.outputTokens.reasoning
+    this.eventQueue.push({
+      type: 'chunk',
+      chunk: {
+        type: 'message-metadata',
+        messageMetadata: {
+          totalTokens: promptTokens + completionTokens,
+          promptTokens,
+          completionTokens,
+          ...(reasoningTokens !== undefined ? { thoughtsTokens: reasoningTokens } : {})
+        }
+      }
+    })
   }
 }
 
