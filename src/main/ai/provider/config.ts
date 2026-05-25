@@ -137,6 +137,7 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
     providerSettings: {
       ...ctx.baseConfig,
       name: ctx.actualProvider.id,
+      includeUsage: ctx.actualProvider.apiFeatures.streamOptions,
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
         const signature = generateSignature({
@@ -348,7 +349,12 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
   return {
     providerId: 'openai-compatible',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, ...commonOptions, name: ctx.actualProvider.id }
+    providerSettings: {
+      ...ctx.baseConfig,
+      ...commonOptions,
+      name: ctx.actualProvider.id,
+      includeUsage: ctx.actualProvider.apiFeatures.streamOptions
+    }
   }
 }
 
