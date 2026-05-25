@@ -9,6 +9,10 @@ import {
   type TopicMessageFlowNodeModel
 } from '../index'
 
+const { setViewportMock } = vi.hoisted(() => ({
+  setViewportMock: vi.fn()
+}))
+
 vi.mock('@xyflow/react', async () => {
   const React = await import('react')
 
@@ -29,37 +33,55 @@ vi.mock('@xyflow/react', async () => {
     },
     ReactFlow: ({
       children,
+      defaultViewport,
       edges,
       fitView,
       fitViewOptions,
+      maxZoom,
+      minZoom,
       nodeTypes,
       nodes,
       nodesConnectable,
       nodesDraggable,
+      onInit,
       onNodeClick,
+      onlyRenderVisibleElements,
       proOptions
     }: {
       children: ReactNode
+      defaultViewport?: { x: number; y: number; zoom: number }
       edges: unknown[]
       fitView?: boolean
       fitViewOptions?: { maxZoom?: number; padding?: number }
+      maxZoom?: number
+      minZoom?: number
       nodeTypes: Record<string, React.ComponentType<any>>
       nodes: TopicMessageFlowNodeModel[]
       nodesConnectable?: boolean
       nodesDraggable?: boolean
+      onInit?: (instance: { setViewport: typeof setViewportMock }) => void
       onNodeClick?: (event: React.MouseEvent, node: TopicMessageFlowNodeModel) => void
+      onlyRenderVisibleElements?: boolean
       proOptions?: { hideAttribution?: boolean }
-    }) =>
-      React.createElement(
+    }) => {
+      React.useEffect(() => {
+        onInit?.({ setViewport: setViewportMock })
+      }, [onInit])
+
+      return React.createElement(
         'div',
         {
           'data-edges': edges.length,
+          'data-default-zoom': defaultViewport?.zoom,
           'data-fit-view': fitView ? 'true' : 'false',
           'data-fit-view-max-zoom': fitViewOptions?.maxZoom,
           'data-fit-view-padding': fitViewOptions?.padding,
           'data-hide-attribution': proOptions?.hideAttribution ? 'true' : 'false',
+          'data-max-zoom': maxZoom,
+          'data-min-zoom': minZoom,
           'data-nodes-connectable': nodesConnectable ? 'true' : 'false',
           'data-nodes-draggable': nodesDraggable ? 'true' : 'false',
+          'data-only-render-visible-elements': onlyRenderVisibleElements ? 'true' : 'false',
           'data-testid': 'react-flow'
         },
         nodes.map((node) => {
@@ -81,6 +103,7 @@ vi.mock('@xyflow/react', async () => {
         }),
         children
       )
+    }
   }
 })
 
@@ -143,9 +166,11 @@ describe('TopicMessageFlowCanvas', () => {
   it('renders the read-only React Flow surface with custom nodes and overlays', () => {
     render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
 
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-fit-view', 'true')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-fit-view-max-zoom', '1')
-    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-fit-view-padding', '0.22')
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-fit-view', 'false')
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-default-zoom', '0.85')
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-min-zoom', '0.08')
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-max-zoom', '1.4')
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-only-render-visible-elements', 'true')
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-hide-attribution', 'true')
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-nodes-draggable', 'false')
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-nodes-connectable', 'false')
@@ -157,6 +182,17 @@ describe('TopicMessageFlowCanvas', () => {
     expect(screen.getByText('Plan the topic branch')).toBeInTheDocument()
     expect(screen.getByText('gpt-5-codex')).toBeInTheDocument()
     expect(screen.queryByText('#2')).not.toBeInTheDocument()
+  })
+
+  it('starts with the root node centered horizontally near the top', () => {
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800)
+    setViewportMock.mockClear()
+
+    render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
+
+    expect(setViewportMock).toHaveBeenCalledWith({ x: 306.5, y: 64, zoom: 0.85 }, { duration: 0 })
+
+    clientWidthSpy.mockRestore()
   })
 
   it('calls onNodeSelect with the clicked message id', () => {

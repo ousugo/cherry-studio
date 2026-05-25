@@ -1,10 +1,20 @@
 import '@xyflow/react/dist/style.css'
 
 import { cn } from '@renderer/utils'
-import { Controls, MiniMap, type NodeMouseHandler, type NodeTypes, ReactFlow, type ReactFlowProps } from '@xyflow/react'
-import { useCallback, useMemo } from 'react'
+import {
+  Controls,
+  MiniMap,
+  type NodeMouseHandler,
+  type NodeTypes,
+  ReactFlow,
+  type ReactFlowInstance,
+  type ReactFlowProps,
+  type Viewport
+} from '@xyflow/react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { TOPIC_MESSAGE_FLOW_NODE_SIZE } from './topicMessageFlowLayout'
 import TopicMessageFlowLegend from './TopicMessageFlowLegend'
 import TopicMessageFlowNode from './TopicMessageFlowNode'
 import type { TopicMessageFlowEdgeModel, TopicMessageFlowLayout, TopicMessageFlowNodeModel } from './types'
@@ -20,11 +30,12 @@ const nodeTypes = {
   [TOPIC_MESSAGE_FLOW_NODE_TYPE]: TopicMessageFlowNode
 } satisfies NodeTypes
 
-const defaultFitViewOptions: ReactFlowProps<TopicMessageFlowNodeModel, TopicMessageFlowEdgeModel>['fitViewOptions'] = {
-  padding: 0.22,
-  maxZoom: 1,
-  duration: 200
-}
+const rootFocusViewport: Viewport = { x: 0, y: 0, zoom: 0.85 }
+const ROOT_TOP_OFFSET = 64
+
+const rootFocusOptions = {
+  duration: 0
+} satisfies Parameters<ReactFlowInstance<TopicMessageFlowNodeModel, TopicMessageFlowEdgeModel>['setViewport']>[1]
 
 const proOptions: ReactFlowProps<TopicMessageFlowNodeModel, TopicMessageFlowEdgeModel>['proOptions'] = {
   hideAttribution: true
@@ -53,9 +64,33 @@ function getEdgeStyle(edge: TopicMessageFlowEdgeModel): TopicMessageFlowEdgeMode
   }
 }
 
+function getRootFocusNode(nodes: TopicMessageFlowNodeModel[]) {
+  return nodes.reduce<TopicMessageFlowNodeModel | null>((rootNode, node) => {
+    if (!rootNode) return node
+    if (node.position.y !== rootNode.position.y) return node.position.y < rootNode.position.y ? node : rootNode
+    if (node.data.isOnActivePath !== rootNode.data.isOnActivePath) return node.data.isOnActivePath ? node : rootNode
+    return node.position.x < rootNode.position.x ? node : rootNode
+  }, null)
+}
+
+function getNodeCenter(node: TopicMessageFlowNodeModel) {
+  const width = node.width ?? node.measured?.width ?? TOPIC_MESSAGE_FLOW_NODE_SIZE.width
+  const height = node.height ?? node.measured?.height ?? TOPIC_MESSAGE_FLOW_NODE_SIZE.height
+
+  return {
+    x: node.position.x + width / 2,
+    y: node.position.y + height / 2
+  }
+}
+
 const TopicMessageFlowCanvas = ({ className, graph, onNodeSelect }: TopicMessageFlowCanvasProps) => {
   const { t } = useTranslation()
+  const containerRef = useRef<HTMLDivElement>(null)
   const hasNodes = graph.nodes.length > 0
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<
+    TopicMessageFlowNodeModel,
+    TopicMessageFlowEdgeModel
+  > | null>(null)
 
   const nodes = useMemo(
     (): TopicMessageFlowNodeModel[] =>
@@ -88,6 +123,30 @@ const TopicMessageFlowCanvas = ({ className, graph, onNodeSelect }: TopicMessage
     [onNodeSelect]
   )
 
+  const rootCenter = useMemo(() => {
+    const rootNode = getRootFocusNode(nodes)
+    return rootNode ? getNodeCenter(rootNode) : null
+  }, [nodes])
+
+  useEffect(() => {
+    if (!reactFlowInstance || !rootCenter) return
+
+    const rootNode = getRootFocusNode(nodes)
+    const containerWidth = containerRef.current?.clientWidth ?? 0
+    const zoom = rootFocusViewport.zoom
+
+    if (!rootNode || containerWidth <= 0) return
+
+    void reactFlowInstance.setViewport(
+      {
+        x: containerWidth / 2 - rootCenter.x * zoom,
+        y: ROOT_TOP_OFFSET - rootNode.position.y * zoom,
+        zoom
+      },
+      rootFocusOptions
+    )
+  }, [nodes, reactFlowInstance, rootCenter])
+
   if (!hasNodes) {
     return (
       <div
@@ -103,27 +162,29 @@ const TopicMessageFlowCanvas = ({ className, graph, onNodeSelect }: TopicMessage
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         'relative h-full min-h-[320px] overflow-hidden rounded-md border border-border bg-background',
         className
       )}>
       <ReactFlow<TopicMessageFlowNodeModel, TopicMessageFlowEdgeModel>
         colorMode="system"
+        defaultViewport={rootFocusViewport}
         deleteKeyCode={null}
         edges={edges}
         edgesFocusable={false}
         elementsSelectable
-        fitView
-        fitViewOptions={defaultFitViewOptions}
-        maxZoom={1.8}
-        minZoom={0.2}
+        maxZoom={1.4}
+        minZoom={0.08}
         multiSelectionKeyCode={null}
         nodes={nodes}
         nodesConnectable={false}
         nodesDraggable={false}
         nodesFocusable
         nodeTypes={nodeTypes}
+        onInit={setReactFlowInstance}
         onNodeClick={handleNodeClick}
+        onlyRenderVisibleElements
         panOnDrag
         proOptions={proOptions}
         selectionKeyCode={null}
