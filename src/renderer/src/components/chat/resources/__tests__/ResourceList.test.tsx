@@ -171,7 +171,8 @@ function Inspector() {
         renamingId: state.renamingId,
         names: view.items.map((item) => item.name),
         visibleNames: view.visibleItems.map((item) => item.name),
-        groups: view.groups.map((group) => group.group.id)
+        groups: view.groups.map((group) => group.group.id),
+        sections: view.sections.map((section) => section.section.id)
       })}
     </output>
   )
@@ -213,9 +214,9 @@ describe('ResourceList', () => {
     expect(groupHeaders).toHaveLength(2)
     expect(items).toHaveLength(5)
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(19)
-    expect(groupHeaders[0]).toHaveClass('h-7', 'px-1.5', 'pt-2', 'pb-1', 'gap-1.5')
+    expect(groupHeaders[0]).toHaveClass('h-[38px]', 'px-1.5', 'pt-2', 'pb-1', 'gap-1.5')
     expect(groupHeaders[0].querySelector('[data-slot="skeleton"]')).toHaveClass('size-5')
-    expect(items[0]).toHaveClass('mb-[2px]', 'min-h-8', 'rounded-lg', 'px-1.5', 'py-1.5', 'gap-1.5')
+    expect(items[0]).toHaveClass('mb-[2px]', 'min-h-9', 'rounded-lg', 'px-1.5', 'py-1.5', 'gap-1.5')
     expect(items[0].querySelector('[data-slot="skeleton"]')).toHaveClass('size-5')
     expect(items[0].querySelectorAll('[data-slot="skeleton"]')[2]).toHaveClass('size-5')
   })
@@ -385,7 +386,7 @@ describe('ResourceList', () => {
   })
 
   it('uses caller item size estimates while keeping group chrome at the shared row height', () => {
-    const estimateItemSize = vi.fn(() => 34)
+    const estimateItemSize = vi.fn(() => 38)
     const Provider = ResourceList.Provider<TestItem>
 
     render(
@@ -407,8 +408,8 @@ describe('ResourceList', () => {
 
     const options = lastVirtualizerOptions()
 
-    expect(options.estimateSize(0)).toBe(32)
-    expect(options.estimateSize(1)).toBe(34)
+    expect(options.estimateSize(0)).toBe(38)
+    expect(options.estimateSize(1)).toBe(38)
     expect(estimateItemSize).toHaveBeenCalledWith(0)
   })
 
@@ -1137,7 +1138,7 @@ describe('ResourceList', () => {
     expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveAttribute('aria-selected', 'true')
     expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
     expect(sessionGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
-    expect(sessionGroupButton.closest('[data-selected]')?.firstElementChild?.className).toContain('h-[30px]')
+    expect(sessionGroupButton.closest('[data-selected]')?.firstElementChild?.className).toContain('h-9')
     expect(screen.getByRole('button', { name: 'topic' })).not.toHaveAttribute('aria-current')
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       collapsedGroups: [],
@@ -1361,6 +1362,77 @@ describe('ResourceList', () => {
 
     expect(screen.getByRole('button', { name: 'Topics' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Topic 1')).toBeInTheDocument()
+  })
+
+  it('renders optional section headers above groups and expands both section and group for reveal requests', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items: TestItem[] = [
+      { id: 'alpha', name: 'Alpha', kind: 'session', pinned: true, updatedAt: 1 },
+      { id: 'beta', name: 'Beta', kind: 'session', updatedAt: 2 },
+      { id: 'gamma', name: 'Gamma', kind: 'topic', updatedAt: 3 }
+    ]
+
+    function SectionHarness({ requestId }: { requestId?: number }) {
+      const [collapsedIds, setCollapsedIds] = useState(['pinned', 'section:assistants', 'topic'])
+
+      return (
+        <Provider
+          items={items}
+          collapsedGroupIds={collapsedIds}
+          groupBy={(item) => (item.pinned ? { id: 'pinned', label: '' } : { id: item.kind, label: item.kind })}
+          onCollapsedGroupIdsChange={setCollapsedIds}
+          revealRequest={requestId ? { itemId: 'gamma', requestId } : undefined}
+          sectionBy={(item) =>
+            item.pinned ? { id: 'section:pinned', label: 'Pinned' } : { id: 'section:assistants', label: 'Assistants' }
+          }>
+          <ResourceList.Frame>
+            <Inspector />
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    const view = render(<SectionHarness />)
+
+    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'false')
+    expect(
+      screen.getByRole('button', { name: 'Pinned' }).closest('[class*="group/resource-list-section"]')
+    ).not.toHaveClass('pl-4')
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(
+      screen.getByText('Alpha').closest('[data-resource-list-item-row="true"]')?.firstElementChild
+    ).not.toHaveClass('pl-4')
+    expect(screen.queryByText('Beta')).not.toBeInTheDocument()
+    expect(screen.queryByText('gamma')).not.toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: ['pinned', 'section:assistants', 'topic'],
+      sections: ['section:pinned', 'section:assistants']
+    })
+
+    view.rerender(<SectionHarness requestId={1} />)
+
+    expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'topic' })).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      screen.getByRole('button', { name: 'topic' }).closest('[class*="group/resource-list-group"]')
+    ).not.toHaveClass('pl-4')
+    expect(
+      screen.getByText('Gamma').closest('[data-resource-list-item-row="true"]')?.firstElementChild
+    ).not.toHaveClass('pl-4')
+    expect(screen.getByText('Gamma').closest('[role="option"]')).toHaveAttribute('data-reveal-focus', 'true')
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: ['pinned'],
+      sections: ['section:pinned', 'section:assistants'],
+      visibleNames: expect.arrayContaining(['Gamma'])
+    })
   })
 
   it('reveals a requested item by clearing local filters, expanding its group, loading enough rows, and scrolling', async () => {

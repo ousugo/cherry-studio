@@ -15,8 +15,11 @@ import {
   createSessionWorkdirLabelMap,
   getPrimarySessionWorkdir,
   moveSessionWorkdirGroupAfterDrop,
+  normalizeSessionCollapsedGroupIds,
   normalizeSessionDropPayload,
   normalizeSessionWorkdirPath,
+  SESSION_PINNED_GROUP_ID,
+  SESSION_PINNED_SECTION_ID,
   sortSessionsForDisplayGroups
 } from '../SessionList.helpers'
 
@@ -126,6 +129,19 @@ describe('SessionList helpers', () => {
       targetGroupId: 'session:workdir:%2FUsers%2Fjd%2Fproject-b'
     }
     expect(normalizeSessionDropPayload(crossGroupPayload)).toBe(crossGroupPayload)
+  })
+
+  it('normalizes pinned collapsed ids to the current session display hierarchy', () => {
+    expect(normalizeSessionCollapsedGroupIds([SESSION_PINNED_GROUP_ID, 'session:agent:agent-a'], 'agent')).toEqual([
+      SESSION_PINNED_SECTION_ID,
+      'session:agent:agent-a'
+    ])
+    expect(
+      normalizeSessionCollapsedGroupIds(
+        [SESSION_PINNED_SECTION_ID, SESSION_PINNED_GROUP_ID, 'session:workspace:ws-a'],
+        'time'
+      )
+    ).toEqual([SESSION_PINNED_GROUP_ID, 'session:workspace:ws-a'])
   })
 
   it('allows drag only inside the same non-pinned display group', () => {

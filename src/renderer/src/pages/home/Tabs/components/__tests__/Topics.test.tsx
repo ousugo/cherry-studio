@@ -1013,16 +1013,20 @@ describe('Topics', () => {
     expect(displayModeContent).toHaveClass('w-32', 'p-1')
     expect(displayModeContent?.querySelector('svg')).toBeNull()
     expect(screen.getByText('Display mode')).toHaveClass('text-[10px]')
-    expect(screen.getByRole('button', { name: 'Time' })).toHaveClass('h-6', 'text-[11px]', 'font-normal')
-    expect(screen.getByRole('button', { name: 'Time' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Manage topics' })).toBeInTheDocument()
+    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).toHaveClass(
+      'h-6',
+      'text-[11px]',
+      'font-normal'
+    )
+    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).toBeInTheDocument()
+    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
+    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Manage topics' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Time' }))
+    fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
 
-    openTopicListOptions()
-    fireEvent.click(screen.getByRole('button', { name: 'Assistant' }))
+    const nextDisplayModeContent = openTopicListOptions()
+    fireEvent.click(within(nextDisplayModeContent as HTMLElement).getByRole('button', { name: 'Assistant' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
   })
 
@@ -1791,7 +1795,14 @@ describe('Topics', () => {
 
     renderTopicList()
 
+    expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
+    expect(
+      screen
+        .getAllByRole('button', { name: 'Assistant' })
+        .some((button) => button.getAttribute('aria-expanded') === 'true')
+    ).toBe(true)
     expect(dndMocks.sortableData.has('group:topic:pinned')).toBe(false)
+    expect(dndMocks.sortableData.has('group:topic:section:pinned')).toBe(false)
     expect(dndMocks.sortableData.has('group:topic:assistant:unknown')).toBe(false)
 
     dndMocks.onDragEnd?.({
@@ -1799,7 +1810,7 @@ describe('Topics', () => {
         data: sortableData('group:topic:assistant:assistant-1'),
         id: 'group:topic:assistant:assistant-1'
       },
-      over: { data: droppableData('group:topic:pinned'), id: 'group:topic:pinned' }
+      over: { data: droppableData('group:topic:section:pinned'), id: 'group:topic:section:pinned' }
     })
     dndMocks.onDragEnd?.({
       active: {
@@ -1854,7 +1865,9 @@ describe('Topics', () => {
     expect(getTopicRow('Delta archive')).not.toHaveClass('bg-accent')
 
     const pinnedHeader = screen.getByRole('button', { name: 'Pinned' }).closest('div')
-    expect(within(pinnedHeader as HTMLElement).getByRole('button', { name: 'Select All Pinned' })).toBeDisabled()
+    expect(
+      within(pinnedHeader as HTMLElement).queryByRole('button', { name: 'Select All Pinned' })
+    ).not.toBeInTheDocument()
   })
 
   it('moves only the active topic in the optimistic display overlay without rewriting order keys', () => {

@@ -517,6 +517,8 @@ function expectGroupBlocked(name: string) {
 
 function openSessionListOptions() {
   fireEvent.click(screen.getByLabelText('Display mode'))
+  const title = screen.getByText('Display mode')
+  return (title.closest('[data-radix-popper-content-wrapper]') ?? title.parentElement) as HTMLElement | null
 }
 
 function setupSessions(overrides: Record<string, unknown> = {}) {
@@ -1149,8 +1151,8 @@ describe('Sessions', () => {
   it('persists display mode selection from the header menu', () => {
     render(<Sessions />)
 
-    openSessionListOptions()
-    fireEvent.click(screen.getByRole('button', { name: 'Project' }))
+    const displayModeContent = openSessionListOptions()
+    fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Project' }))
 
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
   })

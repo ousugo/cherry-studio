@@ -33,12 +33,14 @@ export type {
   ResourceListMeta,
   ResourceListReorderPayload,
   ResourceListRevealRequest,
+  ResourceListSection,
   ResourceListSortOption,
   ResourceListState,
   ResourceListStatus,
   ResourceListVariantContext,
   ResourceListView,
-  ResourceListViewGroup
+  ResourceListViewGroup,
+  ResourceListViewSection
 } from './ResourceListContext'
 export type { ResourceListGroupReorderPayload, ResourceListItemReorderPayload } from './ResourceListContext'
 
@@ -279,7 +281,7 @@ function Item<T extends ResourceListItemBase>({
       data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? 0}
       className={cn(
-        'group flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] outline-none transition-all duration-150',
+        'group flex min-h-9 w-full cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-[13px] outline-none transition-all duration-150',
         'hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring',
         rowState.selected && 'bg-accent text-foreground',
         rowState.revealFocused && 'animation-resource-list-reveal-focus',
@@ -510,7 +512,7 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
         <div key={group.id} data-resource-list-loading-group="true" className="flex flex-col pb-1">
           <div
             data-resource-list-loading-group-header="true"
-            className="flex h-7 items-center gap-1.5 px-1.5 pt-2 pb-1">
+            className="flex h-[38px] items-center gap-1.5 px-1.5 pt-2 pb-1">
             <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
             <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', group.headerWidth)} />
           </div>
@@ -518,7 +520,7 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
             <div
               key={`${group.id}-${index}`}
               data-resource-list-loading-item="true"
-              className="mb-[2px] flex min-h-8 w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 last:mb-0">
+              className="mb-[2px] flex min-h-9 w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 last:mb-0">
               <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
               <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', width)} />
               <Skeleton data-slot="skeleton" className="ml-auto size-5 shrink-0 rounded-md opacity-60" />

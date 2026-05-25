@@ -24,6 +24,7 @@ import {
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
+  type ResourceListSection,
   TopicResourceList,
   useResourceListActions,
   useResourceListPinnedState,
@@ -87,9 +88,12 @@ import {
   filterTopicsForManageMode,
   getAssistantIdFromTopicGroupId,
   moveAssistantGroupAfterDrop,
+  normalizeTopicCollapsedGroupIds,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
+  TOPIC_ASSISTANT_SECTION_ID,
   TOPIC_PINNED_GROUP_ID,
+  TOPIC_PINNED_SECTION_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
   type TopicDisplayMode
 } from './Topics.helpers'
@@ -622,10 +626,23 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
             unlinked: t('chat.topics.group.unknown_assistant')
           }
         },
-        now: groupNow
+        now: groupNow,
+        pinnedAsSection: isAssistantDisplayMode
       }),
-    [assistantById, displayMode, groupNow, t]
+    [assistantById, displayMode, groupNow, isAssistantDisplayMode, t]
   )
+
+  const topicSectionBy = useMemo(() => {
+    if (!isAssistantDisplayMode) return undefined
+
+    return (topic: Topic): ResourceListSection => {
+      if (topic.pinned) {
+        return { id: TOPIC_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
+      }
+
+      return { id: TOPIC_ASSISTANT_SECTION_ID, label: t('chat.topics.display.assistant') }
+    }
+  }, [isAssistantDisplayMode, t])
 
   const baseGroupedTopics = useMemo(
     () =>
@@ -957,6 +974,10 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     (nextGroupIds: string[]) => void setCollapsedTopicGroupIds(nextGroupIds),
     [setCollapsedTopicGroupIds]
   )
+  const effectiveCollapsedTopicGroupIds = useMemo(
+    () => normalizeTopicCollapsedGroupIds(collapsedTopicGroupIds, displayMode),
+    [collapsedTopicGroupIds, displayMode]
+  )
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !isManageMode && !item.pinned,
     [isAssistantDisplayMode, isManageMode]
@@ -1112,9 +1133,10 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         items={visibleFilteredTopics}
         status={listStatus}
         selectedId={isManageMode ? null : activeTopic?.id}
-        estimateItemSize={() => 34}
+        estimateItemSize={() => 38}
         groupBy={topicGroupBy}
-        collapsedGroupIds={collapsedTopicGroupIds}
+        sectionBy={topicSectionBy}
+        collapsedGroupIds={effectiveCollapsedTopicGroupIds}
         revealRequest={revealRequest}
         defaultGroupVisibleCount={5}
         groupLoadStep={5}

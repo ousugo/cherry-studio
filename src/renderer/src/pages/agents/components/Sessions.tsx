@@ -22,6 +22,7 @@ import {
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
+  type ResourceListSection,
   SessionResourceList
 } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
@@ -59,10 +60,14 @@ import {
   getWorkdirPathFromSessionGroupId,
   moveSessionAgentGroupAfterDrop,
   moveSessionWorkdirGroupAfterDrop,
+  normalizeSessionCollapsedGroupIds,
   normalizeSessionDropPayload,
+  SESSION_AGENT_SECTION_ID,
   SESSION_NO_WORKDIR_GROUP_ID,
   SESSION_PINNED_GROUP_ID,
+  SESSION_PINNED_SECTION_ID,
   SESSION_UNKNOWN_AGENT_GROUP_ID,
+  SESSION_WORKDIR_SECTION_ID,
   type SessionListItem,
   sortSessionsForDisplayGroups
 } from './SessionList.helpers'
@@ -607,17 +612,35 @@ const Sessions = ({
         },
         mode: displayMode,
         now: groupNow,
+        pinnedAsSection: displayMode !== 'time',
         workdirDisplay
       }),
     [agentById, displayMode, groupNow, t, workdirDisplay]
   )
 
+  const sessionSectionBy = useMemo(() => {
+    if (displayMode === 'time') return undefined
+
+    return (session: SessionListItem): ResourceListSection => {
+      if (session.pinned) {
+        return { id: SESSION_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
+      }
+
+      return {
+        id: displayMode === 'agent' ? SESSION_AGENT_SECTION_ID : SESSION_WORKDIR_SECTION_ID,
+        label: t(SESSION_DISPLAY_LABEL_KEYS[displayMode])
+      }
+    }
+  }, [displayMode, t])
+
   const effectiveCollapsedSessionGroupIds = useMemo(() => {
-    if (displayMode !== 'workdir') return collapsedSessionGroupIds
+    const normalizedCollapsedGroupIds = normalizeSessionCollapsedGroupIds(collapsedSessionGroupIds, displayMode)
+
+    if (displayMode !== 'workdir') return normalizedCollapsedGroupIds
 
     return Array.from(
       new Set(
-        collapsedSessionGroupIds.map((groupId) => {
+        normalizedCollapsedGroupIds.map((groupId) => {
           const path = getWorkdirPathFromSessionGroupId(groupId)
           return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
         })
@@ -1285,8 +1308,9 @@ const Sessions = ({
       items={visibleGroupedSessions}
       status={listStatus}
       selectedId={activeSessionId}
-      estimateItemSize={() => 34}
+      estimateItemSize={() => 38}
       groupBy={sessionGroupBy}
+      sectionBy={sessionSectionBy}
       collapsedGroupIds={effectiveCollapsedSessionGroupIds}
       revealRequest={revealRequest}
       defaultGroupVisibleCount={5}

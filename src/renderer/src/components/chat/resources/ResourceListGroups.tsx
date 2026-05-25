@@ -7,6 +7,7 @@ import { useCallback, useState } from 'react'
 import {
   type ResourceListGroup,
   type ResourceListItemBase,
+  type ResourceListSection,
   useResourceListActions,
   useResourceListGroupState,
   useResourceListMeta,
@@ -22,6 +23,46 @@ const EMPTY_GROUP_HEADER_ITEMS: ResourceListItemBase[] = []
 type GroupHeaderProps = ComponentProps<'div'> & {
   group: ResourceListGroup
   ref?: Ref<HTMLDivElement>
+}
+
+type SectionHeaderProps = ComponentProps<'div'> & {
+  section: ResourceListSection
+  ref?: Ref<HTMLDivElement>
+}
+
+export function SectionHeader({ section, className, ref, style, ...props }: SectionHeaderProps) {
+  const actions = useResourceListActions()
+  const sectionState = useResourceListGroupState(section.id)
+  const collapsed = sectionState.collapsed
+
+  if (!section.label) return null
+
+  return (
+    <div
+      ref={ref}
+      style={style}
+      className={cn('group/resource-list-section flex h-[38px] w-full items-end px-0.5 pb-[2px]', className)}
+      {...props}>
+      <div className="flex h-9 w-full items-center gap-1 px-1.5 text-muted-foreground">
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          className={cn(
+            'flex h-full min-w-0 max-w-full items-center gap-1 text-left outline-none focus-visible:text-foreground'
+          )}
+          onClick={() => actions.toggleGroup(section.id)}>
+          <span className="min-w-0 truncate text-left font-semibold text-[13px] text-inherit leading-5">
+            {section.label}
+          </span>
+          <span
+            aria-hidden="true"
+            className="flex size-4 shrink-0 items-center justify-center rounded text-inherit opacity-0 transition-opacity duration-150 group-hover/resource-list-section:opacity-100 [&_svg]:stroke-current [&_svg]:text-inherit">
+            <ChevronDown size={12} className={cn('transition-transform', collapsed && '-rotate-90')} />
+          </span>
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export function GroupHeader({ group, className, ref, style, onContextMenu, ...props }: GroupHeaderProps) {
@@ -74,7 +115,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     <div
       ref={ref}
       style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
-      className={cn('group/resource-list-group h-8 w-full text-sm', GROUP_HEADER_TEXT_CLASS, className)}
+      className={cn('group/resource-list-group h-[38px] w-full text-sm', GROUP_HEADER_TEXT_CLASS, className)}
       data-selected={selected || undefined}
       onContextMenu={handleContextMenu}
       {...props}>
@@ -82,7 +123,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         title={groupHeaderTooltip}
         className={cn(
           'flex w-full items-center gap-1.5 px-1.5',
-          selected ? 'h-[30px] rounded-lg bg-accent text-foreground' : 'h-8',
+          selected ? 'h-9 rounded-lg bg-accent text-foreground' : 'h-9',
           groupHeaderClassName
         )}>
         {groupHeaderLeadingAction && (
@@ -147,7 +188,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
     <div
       ref={ref}
       style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
-      className={cn('flex h-8 items-center justify-start pr-1.5 pl-8', className)}
+      className={cn('flex h-[38px] items-center justify-start pr-1.5 pl-8', className)}
       {...props}>
       <button
         type="button"

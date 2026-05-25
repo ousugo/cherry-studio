@@ -18,6 +18,7 @@ import {
   ResourceListMetaContext,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
+  type ResourceListSection,
   type ResourceListSortOption,
   ResourceListSourceItemsContext,
   type ResourceListState,
@@ -26,7 +27,8 @@ import {
   type ResourceListVariantContext,
   type ResourceListView,
   ResourceListViewContext,
-  type ResourceListViewGroup
+  type ResourceListViewGroup,
+  type ResourceListViewSection
 } from './ResourceListContext'
 import { ResourceListUiStore } from './ResourceListUiStore'
 
@@ -34,8 +36,9 @@ const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
 const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = []
 const getDefaultItemId = (item: ResourceListItemBase) => item.id
 const getDefaultItemLabel = (item: ResourceListItemBase) => item.name
-const estimateDefaultItemSize = () => 34
+const estimateDefaultItemSize = () => 38
 const UNGROUPED_RESOURCE_GROUP: ResourceListGroup = { id: 'ungrouped', label: '' }
+const UNSECTIONED_RESOURCE_SECTION: ResourceListSection = { id: 'resource-list:section:unsectioned', label: '' }
 
 type ResourceListGroupHeaderClickBehaviorResolver =
   | ResourceListGroupHeaderClickBehavior
@@ -59,6 +62,10 @@ type BuildResourceListGroupsOptions<T extends ResourceListItemBase> = {
   items: readonly T[]
 }
 
+type BuildResourceListSectionsOptions<T extends ResourceListItemBase> = BuildResourceListGroupsOptions<T> & {
+  sectionBy?: (item: T) => ResourceListSection | null
+}
+
 type FindRevealTargetOptions<T extends ResourceListItemBase> = {
   defaultGroupVisibleCount: number
   getItemId: (item: T) => string
@@ -66,6 +73,7 @@ type FindRevealTargetOptions<T extends ResourceListItemBase> = {
   groupVisibleCounts: Record<string, number>
   itemId: string
   items: readonly T[]
+  sectionBy?: (item: T) => ResourceListSection | null
 }
 
 function getResourceListGroup<T extends ResourceListItemBase>(
@@ -147,7 +155,7 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
 
   return [...groups.values()].map(({ group, items }) => {
     const totalCount = items.length
-    const collapsed = collapsedGroups.has(group.id)
+    const collapsed = Boolean(group.label) && collapsedGroups.has(group.id)
     const configuredVisibleCount = groupVisibleCounts[group.id] ?? defaultGroupVisibleCount
     const visibleCount = Math.min(configuredVisibleCount, totalCount)
     const hasMore = !collapsed && visibleCount < totalCount
@@ -166,19 +174,89 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
   })
 }
 
+function buildResourceListSections<T extends ResourceListItemBase>({
+  collapsedGroupIds,
+  defaultGroupVisibleCount,
+  groupBy,
+  groupVisibleCounts,
+  items,
+  sectionBy
+}: BuildResourceListSectionsOptions<T>): ResourceListViewSection<T>[] {
+  if (!sectionBy) return []
+
+  const collapsedGroups = new Set(collapsedGroupIds)
+  const sections = new Map<string, { section: ResourceListSection; items: T[] }>()
+
+  for (const item of items) {
+    const section = sectionBy(item) ?? UNSECTIONED_RESOURCE_SECTION
+
+    const existing = sections.get(section.id)
+    if (existing) {
+      existing.items.push(item)
+    } else {
+      sections.set(section.id, { section, items: [item] })
+    }
+  }
+
+  return [...sections.values()].map(({ section, items }) => {
+    const collapsed = collapsedGroups.has(section.id)
+    const groups = buildResourceListGroups({
+      collapsedGroupIds,
+      defaultGroupVisibleCount,
+      groupBy,
+      groupVisibleCounts,
+      items
+    })
+    const visibleGroups = collapsed
+      ? groups.map((group) => ({
+          ...group,
+          items: [],
+          visibleCount: 0,
+          hasMore: false,
+          canCollapseToDefault: false
+        }))
+      : groups
+
+    return {
+      section: { ...section, count: section.count ?? items.length },
+      groups: visibleGroups,
+      allItems: items,
+      totalCount: items.length,
+      collapsed
+    }
+  })
+}
+
+function buildSectionStateGroups<T extends ResourceListItemBase>(
+  sections: readonly ResourceListViewSection<T>[]
+): ResourceListViewGroup<T>[] {
+  return sections.map((section) => ({
+    group: section.section,
+    allItems: section.allItems,
+    items: section.collapsed ? [] : section.groups.flatMap((group) => group.items),
+    totalCount: section.totalCount,
+    visibleCount: section.collapsed ? 0 : section.groups.reduce((count, group) => count + group.visibleCount, 0),
+    hasMore: false,
+    canCollapseToDefault: false,
+    collapsed: section.collapsed
+  }))
+}
+
 function findResourceListRevealTarget<T extends ResourceListItemBase>({
   defaultGroupVisibleCount,
   getItemId,
   groupBy,
   groupVisibleCounts,
   itemId,
-  items
+  items,
+  sectionBy
 }: FindRevealTargetOptions<T>) {
   const targetItem = items.find((item) => getItemId(item) === itemId)
   if (!targetItem) return null
+  const targetSectionId = sectionBy ? (sectionBy(targetItem)?.id ?? UNSECTIONED_RESOURCE_SECTION.id) : null
 
   if (!groupBy) {
-    return { targetGroupId: null, visibleCount: undefined }
+    return { targetGroupId: null, targetSectionId, visibleCount: undefined }
   }
 
   const targetGroupId = getResourceListGroup(targetItem, groupBy).id
@@ -189,7 +267,7 @@ function findResourceListRevealTarget<T extends ResourceListItemBase>({
   const visibleCount =
     targetIndexInGroup >= 0 && targetVisibleCount > currentVisibleCount ? targetVisibleCount : undefined
 
-  return { targetGroupId, visibleCount }
+  return { targetGroupId, targetSectionId, visibleCount }
 }
 
 export type ResourceListProviderProps<T extends ResourceListItemBase> = {
@@ -202,6 +280,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   sortOptions?: ResourceListSortOption<T>[]
   filterOptions?: ResourceListFilterOption<T>[]
   groupBy?: (item: T) => ResourceListGroup | null
+  sectionBy?: (item: T) => ResourceListSection | null
   getItemId?: (item: T) => string
   getItemLabel?: (item: T) => string
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
@@ -271,7 +350,7 @@ type ProviderAction =
       type: 'revealItem'
       clearFilters?: boolean
       clearQuery?: boolean
-      groupId: string | null
+      groupIds: string[]
       itemId: string
       requestId: number
       visibleCount?: number
@@ -332,9 +411,10 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
     case 'revealItem': {
       const nextGroupVisibleCounts = { ...state.groupVisibleCounts }
 
-      if (action.groupId && action.visibleCount !== undefined) {
-        nextGroupVisibleCounts[action.groupId] = Math.max(
-          nextGroupVisibleCounts[action.groupId] ?? 0,
+      const targetGroupId = action.groupIds[0]
+      if (targetGroupId && action.visibleCount !== undefined) {
+        nextGroupVisibleCounts[targetGroupId] = Math.max(
+          nextGroupVisibleCounts[targetGroupId] ?? 0,
           action.visibleCount
         )
       }
@@ -343,9 +423,10 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
         ...state,
         query: action.clearQuery ? '' : state.query,
         filters: action.clearFilters ? [] : state.filters,
-        collapsedGroups: action.groupId
-          ? state.collapsedGroups.filter((groupId) => groupId !== action.groupId)
-          : state.collapsedGroups,
+        collapsedGroups:
+          action.groupIds.length > 0
+            ? state.collapsedGroups.filter((groupId) => !action.groupIds.includes(groupId))
+            : state.collapsedGroups,
         groupVisibleCounts: nextGroupVisibleCounts,
         revealFocus: { itemId: action.itemId, requestId: action.requestId }
       }
@@ -376,6 +457,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   sortOptions = EMPTY_SORT_OPTIONS as ResourceListSortOption<T>[],
   filterOptions = EMPTY_FILTER_OPTIONS as ResourceListFilterOption<T>[],
   groupBy,
+  sectionBy,
   getItemId = getDefaultItemId as (item: T) => string,
   getItemLabel = getDefaultItemLabel as (item: T) => string,
   getGroupHeaderAction,
@@ -464,18 +546,16 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       groupBy,
       groupVisibleCounts: state.groupVisibleCounts,
       itemId: revealRequest.itemId,
-      items: revealItems
+      items: revealItems,
+      sectionBy
     })
     if (!revealTarget) return
+    const revealGroupIds = [revealTarget.targetGroupId, revealTarget.targetSectionId].filter(
+      (groupId): groupId is string => typeof groupId === 'string'
+    )
 
-    if (
-      collapsedGroupIds &&
-      revealTarget.targetGroupId &&
-      effectiveCollapsedGroupIds.includes(revealTarget.targetGroupId)
-    ) {
-      onCollapsedGroupIdsChange?.(
-        effectiveCollapsedGroupIds.filter((groupId) => groupId !== revealTarget.targetGroupId)
-      )
+    if (collapsedGroupIds && revealGroupIds.some((groupId) => effectiveCollapsedGroupIds.includes(groupId))) {
+      onCollapsedGroupIdsChange?.(effectiveCollapsedGroupIds.filter((groupId) => !revealGroupIds.includes(groupId)))
     }
 
     handledRevealRequestRef.current = requestKey
@@ -483,7 +563,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       type: 'revealItem',
       clearFilters: revealRequest.clearFilters,
       clearQuery: revealRequest.clearQuery,
-      groupId: revealTarget.targetGroupId,
+      groupIds: revealGroupIds,
       itemId: revealRequest.itemId,
       requestId: revealRequest.requestId,
       visibleCount: revealTarget.visibleCount
@@ -499,6 +579,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     items,
     onCollapsedGroupIdsChange,
     revealRequest,
+    sectionBy,
     sortById,
     state.filters,
     state.groupVisibleCounts,
@@ -531,7 +612,20 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     })
   }, [filterById, getItemLabel, items, sortById, state.filters, state.query, state.sort])
 
+  const viewSections = useMemo(() => {
+    return buildResourceListSections({
+      collapsedGroupIds: effectiveCollapsedGroupIds,
+      defaultGroupVisibleCount,
+      groupBy,
+      groupVisibleCounts: state.groupVisibleCounts,
+      items: viewItems,
+      sectionBy
+    })
+  }, [defaultGroupVisibleCount, effectiveCollapsedGroupIds, groupBy, sectionBy, state.groupVisibleCounts, viewItems])
+
   const viewGroups = useMemo(() => {
+    if (sectionBy) return viewSections.flatMap((section) => section.groups)
+
     return buildResourceListGroups({
       collapsedGroupIds: effectiveCollapsedGroupIds,
       defaultGroupVisibleCount,
@@ -539,9 +633,21 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       groupVisibleCounts: state.groupVisibleCounts,
       items: viewItems
     })
-  }, [defaultGroupVisibleCount, effectiveCollapsedGroupIds, groupBy, state.groupVisibleCounts, viewItems])
+  }, [
+    defaultGroupVisibleCount,
+    effectiveCollapsedGroupIds,
+    groupBy,
+    sectionBy,
+    state.groupVisibleCounts,
+    viewItems,
+    viewSections
+  ])
 
   const visibleItems = useMemo(() => viewGroups.flatMap((group) => group.items), [viewGroups])
+  const stateGroups = useMemo(
+    () => (sectionBy ? [...buildSectionStateGroups(viewSections), ...viewGroups] : viewGroups),
+    [sectionBy, viewGroups, viewSections]
+  )
 
   useLayoutEffect(() => {
     uiStore.setSelectedId(effectiveSelectedId)
@@ -564,8 +670,8 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   }, [state.draggingId, uiStore])
 
   useLayoutEffect(() => {
-    uiStore.setViewGroups(viewGroups, getItemId)
-  }, [getItemId, uiStore, viewGroups])
+    uiStore.setViewGroups(stateGroups, getItemId)
+  }, [getItemId, stateGroups, uiStore])
 
   const actions = useMemo(
     () => ({
@@ -661,6 +767,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getItemId,
       getItemLabel,
       groups: viewGroups.map((group) => group.group),
+      sections: viewSections.map((section) => section.section),
       getGroupHeaderAction,
       getGroupHeaderContextMenu,
       getGroupHeaderLeadingAction,
@@ -712,7 +819,8 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       revealRequest,
       sortOptions,
       variant,
-      viewGroups
+      viewGroups,
+      viewSections
     ]
   )
 
@@ -720,9 +828,10 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     () => ({
       items: viewItems,
       visibleItems,
-      groups: viewGroups
+      groups: viewGroups,
+      sections: viewSections
     }),
-    [viewGroups, viewItems, visibleItems]
+    [viewGroups, viewItems, viewSections, visibleItems]
   )
 
   const legacyState = useMemo<ResourceListState>(

@@ -37,6 +37,7 @@ export type SessionDisplayGroupOptions = {
   labels: SessionDisplayGroupLabels
   mode: AgentSessionDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
+  pinnedAsSection?: boolean
   workdirDisplay?: SessionWorkdirDisplayMaps
 }
 
@@ -71,6 +72,9 @@ const SESSION_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
 }
 
 export const SESSION_PINNED_GROUP_ID = 'session:pinned'
+export const SESSION_PINNED_SECTION_ID = 'session:section:pinned'
+export const SESSION_AGENT_SECTION_ID = 'session:section:agent'
+export const SESSION_WORKDIR_SECTION_ID = 'session:section:workdir'
 export const SESSION_UNKNOWN_AGENT_GROUP_ID = 'session:agent:unknown'
 export const SESSION_NO_WORKDIR_GROUP_ID = 'session:workdir:none'
 
@@ -256,12 +260,15 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
   labels,
   mode,
   now,
+  pinnedAsSection = false,
   workdirDisplay
 }: SessionDisplayGroupOptions): ResourceListGroupResolver<T> {
+  const pinnedGroupLabel = mode === 'time' || !pinnedAsSection ? labels.pinned : ''
+
   if (mode === 'time') {
     const pinnedResolver = createPinnedGroupResolver<T>({
       isPinned: (session) => session.pinned === true,
-      group: { id: 'pinned', label: labels.pinned } satisfies ResourceListGroup
+      group: { id: 'pinned', label: pinnedGroupLabel } satisfies ResourceListGroup
     })
 
     return withSessionGroupIdPrefix(
@@ -279,7 +286,7 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
   if (mode === 'agent') {
     const pinnedResolver = createPinnedGroupResolver<T>({
       isPinned: (session) => session.pinned === true,
-      group: { id: SESSION_PINNED_GROUP_ID, label: labels.pinned } satisfies ResourceListGroup
+      group: { id: SESSION_PINNED_GROUP_ID, label: pinnedGroupLabel } satisfies ResourceListGroup
     })
 
     return composeResourceListGroupResolvers(pinnedResolver, (session) => {
@@ -297,7 +304,7 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
 
   const pinnedResolver = createPinnedGroupResolver<T>({
     isPinned: (session) => session.pinned === true,
-    group: { id: SESSION_PINNED_GROUP_ID, label: labels.pinned } satisfies ResourceListGroup
+    group: { id: SESSION_PINNED_GROUP_ID, label: pinnedGroupLabel } satisfies ResourceListGroup
   })
 
   return composeResourceListGroupResolvers(pinnedResolver, (session) => {
@@ -386,6 +393,18 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
 
 export function normalizeSessionDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
   return payload
+}
+
+export function normalizeSessionCollapsedGroupIds(
+  groupIds: readonly string[],
+  mode: AgentSessionDisplayMode
+): string[] {
+  const pinnedCollapseId = mode === 'time' ? SESSION_PINNED_GROUP_ID : SESSION_PINNED_SECTION_ID
+  const normalizedGroupIds = groupIds.map((groupId) =>
+    groupId === SESSION_PINNED_GROUP_ID || groupId === SESSION_PINNED_SECTION_ID ? pinnedCollapseId : groupId
+  )
+
+  return Array.from(new Set(normalizedGroupIds))
 }
 
 export function buildSessionDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest {
