@@ -8,19 +8,13 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 
 import NavbarIcon from '../../../../components/NavbarIcon'
-import ChatNavbarContent from './ChatNavbarContent'
 
 interface HeaderNavbarProps {
   onOpenSidePanelDrawer?: () => void | Promise<void>
-  onOpenTopicFlow?: () => void | Promise<void>
   showSidebarControls?: boolean
 }
 
-const HeaderNavbar: FC<HeaderNavbarProps> = ({
-  onOpenSidePanelDrawer,
-  onOpenTopicFlow,
-  showSidebarControls = true
-}) => {
+const HeaderNavbar: FC<HeaderNavbarProps> = ({ onOpenSidePanelDrawer, showSidebarControls = true }) => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
 
@@ -57,9 +51,6 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({
               )}
             </AnimatePresence>
           )}
-        </div>
-        <div className="flex shrink-0 items-center">
-          <ChatNavbarContent onOpenTopicFlow={onOpenTopicFlow} />
         </div>
       </div>
     </NavbarHeader>

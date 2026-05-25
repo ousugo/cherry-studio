@@ -24,6 +24,8 @@ export interface TopicMessageFlowCanvasProps {
   graph: TopicMessageFlowLayout
   onNodeSelect: (messageId: string) => void
   className?: string
+  focusKey?: string | number
+  layoutReady?: boolean
 }
 
 const nodeTypes = {
@@ -83,7 +85,22 @@ function getNodeCenter(node: TopicMessageFlowNodeModel) {
   }
 }
 
-const TopicMessageFlowCanvas = ({ className, graph, onNodeSelect }: TopicMessageFlowCanvasProps) => {
+function getRootFocusViewport(containerWidth: number, centerX: number, positionY: number): Viewport {
+  const zoom = rootFocusViewport.zoom
+  return {
+    x: containerWidth / 2 - centerX * zoom,
+    y: ROOT_TOP_OFFSET - positionY * zoom,
+    zoom
+  }
+}
+
+const TopicMessageFlowCanvas = ({
+  className,
+  graph,
+  onNodeSelect,
+  focusKey,
+  layoutReady = true
+}: TopicMessageFlowCanvasProps) => {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const hasNodes = graph.nodes.length > 0
@@ -123,29 +140,57 @@ const TopicMessageFlowCanvas = ({ className, graph, onNodeSelect }: TopicMessage
     [onNodeSelect]
   )
 
-  const rootCenter = useMemo(() => {
+  const rootFocusTarget = useMemo(() => {
     const rootNode = getRootFocusNode(nodes)
-    return rootNode ? getNodeCenter(rootNode) : null
+    if (!rootNode) return null
+
+    const center = getNodeCenter(rootNode)
+    return {
+      key: `${rootNode.id}:${rootNode.position.x}:${rootNode.position.y}`,
+      centerX: center.x,
+      positionY: rootNode.position.y
+    }
   }, [nodes])
+  const rootFocusKey = rootFocusTarget?.key
+  const rootFocusCenterX = rootFocusTarget?.centerX
+  const rootFocusPositionY = rootFocusTarget?.positionY
+  const focusSignature = rootFocusKey ? `${focusKey ?? 'initial'}:${rootFocusKey}` : null
+  const [initialViewport, setInitialViewport] = useState<{ signature: string; viewport: Viewport } | null>(null)
+  const readyViewport = initialViewport?.signature === focusSignature ? initialViewport.viewport : null
 
   useEffect(() => {
-    if (!reactFlowInstance || !rootCenter) return
+    if (!layoutReady || !focusSignature || rootFocusCenterX === undefined || rootFocusPositionY === undefined) return
 
-    const rootNode = getRootFocusNode(nodes)
-    const containerWidth = containerRef.current?.clientWidth ?? 0
-    const zoom = rootFocusViewport.zoom
+    let frame = 0
+    let cancelled = false
 
-    if (!rootNode || containerWidth <= 0) return
+    const measure = () => {
+      if (cancelled) return
+      const containerWidth = containerRef.current?.clientWidth ?? 0
+      if (containerWidth <= 0) {
+        frame = window.requestAnimationFrame(measure)
+        return
+      }
 
-    void reactFlowInstance.setViewport(
-      {
-        x: containerWidth / 2 - rootCenter.x * zoom,
-        y: ROOT_TOP_OFFSET - rootNode.position.y * zoom,
-        zoom
-      },
-      rootFocusOptions
-    )
-  }, [nodes, reactFlowInstance, rootCenter])
+      setInitialViewport({
+        signature: focusSignature,
+        viewport: getRootFocusViewport(containerWidth, rootFocusCenterX, rootFocusPositionY)
+      })
+    }
+
+    frame = window.requestAnimationFrame(measure)
+
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(frame)
+    }
+  }, [focusSignature, layoutReady, rootFocusCenterX, rootFocusPositionY])
+
+  useEffect(() => {
+    if (!reactFlowInstance || !readyViewport) return
+
+    void reactFlowInstance.setViewport(readyViewport, rootFocusOptions)
+  }, [reactFlowInstance, readyViewport])
 
   if (!hasNodes) {
     return (
@@ -167,40 +212,43 @@ const TopicMessageFlowCanvas = ({ className, graph, onNodeSelect }: TopicMessage
         'relative h-full min-h-[320px] overflow-hidden rounded-md border border-border bg-background',
         className
       )}>
-      <ReactFlow<TopicMessageFlowNodeModel, TopicMessageFlowEdgeModel>
-        colorMode="system"
-        defaultViewport={rootFocusViewport}
-        deleteKeyCode={null}
-        edges={edges}
-        edgesFocusable={false}
-        elementsSelectable
-        maxZoom={1.4}
-        minZoom={0.08}
-        multiSelectionKeyCode={null}
-        nodes={nodes}
-        nodesConnectable={false}
-        nodesDraggable={false}
-        nodesFocusable
-        nodeTypes={nodeTypes}
-        onInit={setReactFlowInstance}
-        onNodeClick={handleNodeClick}
-        onlyRenderVisibleElements
-        panOnDrag
-        proOptions={proOptions}
-        selectionKeyCode={null}
-        zoomOnDoubleClick={false}>
-        <TopicMessageFlowLegend />
-        <MiniMap
-          bgColor="var(--color-card)"
-          className="overflow-hidden rounded-md border border-border shadow-sm"
-          maskColor="color-mix(in srgb, var(--color-background) 72%, transparent)"
-          nodeColor={getMiniMapNodeColor}
-          pannable
-          position="bottom-right"
-          zoomable
-        />
-        <Controls position="bottom-left" showInteractive={false} />
-      </ReactFlow>
+      {layoutReady && readyViewport && (
+        <ReactFlow<TopicMessageFlowNodeModel, TopicMessageFlowEdgeModel>
+          key={focusSignature}
+          colorMode="system"
+          defaultViewport={readyViewport}
+          deleteKeyCode={null}
+          edges={edges}
+          edgesFocusable={false}
+          elementsSelectable
+          maxZoom={1.4}
+          minZoom={0.08}
+          multiSelectionKeyCode={null}
+          nodes={nodes}
+          nodesConnectable={false}
+          nodesDraggable={false}
+          nodesFocusable
+          nodeTypes={nodeTypes}
+          onInit={setReactFlowInstance}
+          onNodeClick={handleNodeClick}
+          onlyRenderVisibleElements
+          panOnDrag
+          proOptions={proOptions}
+          selectionKeyCode={null}
+          zoomOnDoubleClick={false}>
+          <TopicMessageFlowLegend />
+          <MiniMap
+            bgColor="var(--color-card)"
+            className="overflow-hidden rounded-md border border-border shadow-sm"
+            maskColor="color-mix(in srgb, var(--color-background) 72%, transparent)"
+            nodeColor={getMiniMapNodeColor}
+            pannable
+            position="bottom-right"
+            zoomable
+          />
+          <Controls position="bottom-left" showInteractive={false} />
+        </ReactFlow>
+      )}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import {
   TranslationOverlayProvider,
   TranslationOverlaySetterProvider
 } from '@renderer/components/chat/messages/blocks'
+import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { ChatWriteProvider } from '@renderer/hooks/ChatWriteContext'
@@ -29,6 +30,7 @@ interface Props {
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   locateMessageId?: string
   onLocateMessageHandled?: () => void
+  onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   /**
    * If the active topic is a freshly-leased temporary one, this callback
    * migrates it into SQLite (with the same id) before the first message
@@ -56,6 +58,7 @@ const ChatContent: FC<Props> = ({
   onNewTopic,
   locateMessageId,
   onLocateMessageHandled,
+  onBranchLiveStateChange,
   onPersistTemporaryTopic
 }) => {
   const [hasPersistedTemporaryTopic, setHasPersistedTemporaryTopic] = useState(false)
@@ -80,6 +83,7 @@ const ChatContent: FC<Props> = ({
       onNewTopic={onNewTopic}
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
+      onBranchLiveStateChange={onBranchLiveStateChange}
       onPersistTemporaryTopic={onPersistTemporaryTopic}
       isHistoryLoading={isHistoryLoading}
       isFreshTemporaryTopic={isFreshTemporaryTopic}
@@ -104,6 +108,7 @@ interface InnerProps extends Props {
   isHistoryLoading: boolean
   isFreshTemporaryTopic: boolean
   onTemporaryTopicPersisted: () => void
+  onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   /** One-time seed for `useChat(messages:)` — consumed on mount only. */
   initialMessages: CherryUIMessage[]
   /** Live DB-backed message list; reactive to SWR refreshes. */
@@ -123,6 +128,7 @@ const ChatContentInner: FC<InnerProps> = ({
   onNewTopic,
   locateMessageId,
   onLocateMessageHandled,
+  onBranchLiveStateChange,
   onPersistTemporaryTopic,
   isHistoryLoading,
   isFreshTemporaryTopic,
@@ -148,7 +154,8 @@ const ChatContentInner: FC<InnerProps> = ({
     uiMessages,
     refresh,
     activeNodeId,
-    messagesCacheMutate
+    messagesCacheMutate,
+    onBranchLiveStateChange
   })
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
 

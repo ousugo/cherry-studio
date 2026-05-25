@@ -10,6 +10,10 @@ const mockUseTopicMessages = vi.fn()
 const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
 const mockEventEmit = vi.hoisted(() => vi.fn())
 const mockRespondToolApproval = vi.hoisted(() => vi.fn())
+const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
+const mockUseExecutionOverlay = vi.hoisted(() =>
+  vi.fn<(...args: unknown[]) => unknown>(() => mockExecutionOverlay.current)
+)
 let capturedOnSend:
   | ((text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void)
   | undefined
@@ -40,12 +44,7 @@ vi.mock('@renderer/services/EventService', () => ({
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({
-    overlay: {},
-    liveAssistants: [],
-    disposeOverlay: vi.fn(),
-    reset: vi.fn()
-  })
+  useExecutionOverlay: (...args: unknown[]) => mockUseExecutionOverlay(...args)
 }))
 
 vi.mock('@renderer/services/ApiService', () => ({
@@ -216,6 +215,13 @@ describe('ChatContent', () => {
       setMessages: vi.fn(),
       activeExecutions: []
     })
+    mockExecutionOverlay.current = {
+      overlay: {},
+      liveAssistants: [],
+      disposeOverlay: vi.fn(),
+      reset: vi.fn()
+    }
+    mockUseExecutionOverlay.mockImplementation(() => mockExecutionOverlay.current)
 
     ;(window as any).api = {
       ...originalApi,
@@ -235,6 +241,7 @@ describe('ChatContent', () => {
     mockMessageListValue.current = null
     mockRespondToolApproval.mockReset()
     mockEventEmit.mockReset()
+    mockUseExecutionOverlay.mockReset()
   })
 
   it('opens a stream against the active branch node', async () => {
@@ -428,6 +435,192 @@ describe('ChatContent', () => {
     // List reflects uiMessages exactly — no extra `live-*` entry appended.
     await waitFor(() => {
       expect(screen.getByTestId('messages')).toHaveTextContent('history-user,history-assistant,pending-placeholder')
+    })
+  })
+
+  it('streams branch live state from reserved messages and live assistant snapshots before topic cache updates', async () => {
+    const onBranchLiveStateChange = vi.fn()
+    const reservedUser = {
+      id: 'reserved-user',
+      role: 'user',
+      parts: [{ type: 'text', text: 'live prompt' }],
+      metadata: {
+        createdAt: '2026-01-01T00:00:01.000Z',
+        parentId: 'branch-a',
+        status: 'success'
+      }
+    } as CherryUIMessage
+    const reservedAssistant = {
+      id: 'reserved-assistant',
+      role: 'assistant',
+      parts: [],
+      metadata: {
+        createdAt: '2026-01-01T00:00:02.000Z',
+        modelId: 'provider::model',
+        parentId: 'reserved-user',
+        status: 'pending'
+      }
+    } as CherryUIMessage
+    const liveAssistant = {
+      id: 'reserved-assistant',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'partial stream preview' }]
+    } as CherryUIMessage
+
+    ;(window.api.ai.streamOpen as any).mockResolvedValueOnce({
+      mode: 'started',
+      userMessageId: 'reserved-user',
+      reservedMessages: [reservedUser, reservedAssistant]
+    })
+
+    const view = render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
+
+    await act(async () => {
+      await capturedOnSend?.('live prompt', {
+        userMessageParts: [{ type: 'text', text: 'live prompt' } as CherryMessagePart]
+      })
+    })
+
+    await waitFor(() => {
+      expect(mockUseExecutionOverlay).toHaveBeenLastCalledWith(
+        'topic-1',
+        [{ executionId: 'provider::model', anchorMessageId: 'reserved-assistant' }],
+        expect.any(Array),
+        expect.any(Object)
+      )
+    })
+    await waitFor(() => {
+      expect(onBranchLiveStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeNodeId: 'reserved-assistant',
+          nodes: expect.arrayContaining([
+            expect.objectContaining({ id: 'reserved-user', preview: 'live prompt' }),
+            expect.objectContaining({ id: 'reserved-assistant', status: 'pending' })
+          ])
+        })
+      )
+    })
+
+    mockExecutionOverlay.current = {
+      overlay: { 'reserved-assistant': liveAssistant.parts as CherryMessagePart[] },
+      liveAssistants: [liveAssistant],
+      disposeOverlay: vi.fn(),
+      reset: vi.fn()
+    }
+    mockUseExecutionOverlay.mockImplementation(() => mockExecutionOverlay.current)
+    view.rerender(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
+
+    await waitFor(() => {
+      expect(onBranchLiveStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nodes: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'reserved-assistant',
+              parentId: 'reserved-user',
+              preview: 'partial stream preview',
+              status: 'pending'
+            })
+          ])
+        })
+      )
+    })
+    expect(screen.getByTestId('messages')).toHaveTextContent('history-user,history-assistant')
+  })
+
+  it('clears branch live state after all multi-model executions finish in the same tick', async () => {
+    const onBranchLiveStateChange = vi.fn()
+    const reservedUser = {
+      id: 'reserved-user',
+      role: 'user',
+      parts: [{ type: 'text', text: 'multi prompt' }],
+      metadata: {
+        createdAt: '2026-01-01T00:00:01.000Z',
+        parentId: 'branch-a',
+        status: 'success'
+      }
+    } as CherryUIMessage
+    const reservedAssistantA = {
+      id: 'reserved-assistant-a',
+      role: 'assistant',
+      parts: [],
+      metadata: {
+        createdAt: '2026-01-01T00:00:02.000Z',
+        modelId: 'provider::model-a',
+        parentId: 'reserved-user',
+        siblingsGroupId: 8,
+        status: 'pending'
+      }
+    } as CherryUIMessage
+    const reservedAssistantB = {
+      id: 'reserved-assistant-b',
+      role: 'assistant',
+      parts: [],
+      metadata: {
+        createdAt: '2026-01-01T00:00:03.000Z',
+        modelId: 'provider::model-b',
+        parentId: 'reserved-user',
+        siblingsGroupId: 8,
+        status: 'pending'
+      }
+    } as CherryUIMessage
+
+    ;(window.api.ai.streamOpen as any).mockResolvedValueOnce({
+      mode: 'started',
+      userMessageId: 'reserved-user',
+      reservedMessages: [reservedUser, reservedAssistantA, reservedAssistantB]
+    })
+    const refresh = vi.fn().mockResolvedValue([])
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
+      siblingsMap: {},
+      isLoading: false,
+      refresh,
+      activeNodeId: 'branch-a',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+
+    render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
+
+    await act(async () => {
+      await capturedOnSend?.('multi prompt', {
+        userMessageParts: [{ type: 'text', text: 'multi prompt' } as CherryMessagePart]
+      })
+    })
+
+    await waitFor(() => {
+      expect(mockUseExecutionOverlay).toHaveBeenLastCalledWith(
+        'topic-1',
+        [
+          { executionId: 'provider::model-a', anchorMessageId: 'reserved-assistant-a' },
+          { executionId: 'provider::model-b', anchorMessageId: 'reserved-assistant-b' }
+        ],
+        expect.any(Array),
+        expect.any(Object)
+      )
+    })
+
+    const finish = (mockUseExecutionOverlay.mock.calls.at(-1)?.[3] as any).onFinish as (
+      executionId: string,
+      event: { message: CherryUIMessage; isAbort: boolean; isError: boolean }
+    ) => void
+
+    act(() => {
+      finish('provider::model-a', {
+        message: { ...reservedAssistantA, parts: [{ type: 'text', text: 'model a final' }] as CherryMessagePart[] },
+        isAbort: false,
+        isError: false
+      })
+      finish('provider::model-b', {
+        message: { ...reservedAssistantB, parts: [{ type: 'text', text: 'model b final' }] as CherryMessagePart[] },
+        isAbort: false,
+        isError: false
+      })
+    })
+
+    await waitFor(() => {
+      expect(onBranchLiveStateChange).toHaveBeenLastCalledWith(null)
     })
   })
 

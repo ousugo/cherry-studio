@@ -1,9 +1,8 @@
 import { dataApiService } from '@data/DataApiService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import TopicMessageFlowPanel from '../TopicMessageFlowPanel'
+import TopicBranchPanel from '../TopicBranchPanel'
 
 const mocks = vi.hoisted(() => ({
   refetchTree: vi.fn(),
@@ -23,49 +22,13 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: React.PropsWithChildren<React.ButtonHTMLAttributes<HTMLButtonElement>>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  PageSidePanel: ({
-    open,
-    header,
-    closeLabel,
-    showBackdrop,
-    contentClassName,
-    bodyClassName,
-    children
-  }: React.PropsWithChildren<{
-    open: boolean
-    header?: React.ReactNode
-    closeLabel?: string
-    showBackdrop?: boolean
-    contentClassName?: string
-    bodyClassName?: string
-  }>) =>
-    open ? (
-      <section
-        data-testid="page-side-panel"
-        data-body-class-name={bodyClassName}
-        data-content-class-name={contentClassName}
-        data-show-backdrop={String(showBackdrop)}>
-        <div>{header}</div>
-        <button type="button" aria-label={closeLabel} />
-        {children}
-      </section>
-    ) : null,
-  Tooltip: ({ children }: React.PropsWithChildren<{ content?: React.ReactNode; delay?: number }>) => <>{children}</>
-}))
-
 vi.mock('@renderer/components/chat/messages/flow', () => ({
   buildTopicMessageFlowGraph: vi.fn((tree) => ({
     activeNodeId: tree.activeNodeId,
     edges: [],
-    nodes: tree.nodes.map((node: { id: string }) => ({
+    nodes: tree.nodes.map((node: { id: string; preview?: string }) => ({
       id: node.id,
-      data: { messageId: node.id },
+      data: { messageId: node.id, preview: node.preview },
       position: { x: 0, y: 0 }
     })),
     stats: {
@@ -75,10 +38,38 @@ vi.mock('@renderer/components/chat/messages/flow', () => ({
     }
   })),
   layoutTopicMessageFlowGraph: vi.fn((graph) => graph),
-  TopicMessageFlowCanvas: ({ onNodeSelect }: { onNodeSelect: (messageId: string) => void }) => (
-    <button type="button" data-testid="topic-message-flow-canvas" onClick={() => onNodeSelect('message-1')}>
-      flow canvas
-    </button>
+  mergeTopicMessageFlowLiveTree: vi.fn((tree, liveState) => {
+    if (!liveState?.nodes?.length) return tree
+    return {
+      ...tree,
+      activeNodeId: liveState.activeNodeId ?? tree.activeNodeId,
+      nodes: [
+        ...tree.nodes,
+        ...liveState.nodes
+          .filter((liveNode: { id: string }) => !tree.nodes.some((node: { id: string }) => node.id === liveNode.id))
+          .map((liveNode: { id: string; parentId: string | null; preview: string }) => ({
+            id: liveNode.id,
+            parentId: liveNode.parentId,
+            preview: liveNode.preview
+          }))
+      ]
+    }
+  }),
+  TopicMessageFlowCanvas: ({
+    graph,
+    onNodeSelect
+  }: {
+    graph: { nodes: { data: { preview?: string } }[] }
+    onNodeSelect: (messageId: string) => void
+  }) => (
+    <div>
+      <button type="button" data-testid="topic-message-flow-canvas" onClick={() => onNodeSelect('message-1')}>
+        flow canvas
+      </button>
+      {graph.nodes.map((node) => (
+        <span key={node.data.preview}>{node.data.preview}</span>
+      ))}
+    </div>
   )
 }))
 
@@ -88,7 +79,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-describe('TopicMessageFlowPanel', () => {
+describe('TopicBranchPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.useQuery.mockReturnValue({
@@ -118,23 +109,12 @@ describe('TopicMessageFlowPanel', () => {
     vi.mocked(dataApiService.get).mockResolvedValue([{ id: 'message-1' }, { id: 'leaf-1' }])
   })
 
-  it('uses the public page side panel and fetches the topic tree only while open', () => {
-    render(<TopicMessageFlowPanel open={true} onClose={vi.fn()} topicId="topic-1" topicName="AI 聊天应用技术选型" />)
+  it('renders the right-pane content and fetches the topic tree only while open', () => {
+    render(<TopicBranchPanel open={true} topicId="topic-1" topicName="AI 聊天应用技术选型" />)
 
-    expect(screen.getByTestId('page-side-panel')).toHaveAttribute(
-      'data-content-class-name',
-      'w-[min(760px,calc(100vw-24px))]'
-    )
-    expect(screen.getByTestId('page-side-panel')).toHaveAttribute('data-show-backdrop', 'false')
-    expect(screen.getByTestId('page-side-panel')).toHaveAttribute(
-      'data-body-class-name',
-      'flex min-h-0 flex-col space-y-0 overflow-hidden p-0'
-    )
-    expect(screen.getByText('chat.message.flow.title')).toBeInTheDocument()
     expect(screen.getByText('AI 聊天应用技术选型')).toBeInTheDocument()
     expect(screen.getByText('2 chat.message.flow.branches')).toBeInTheDocument()
     expect(screen.getByText('1 chat.message.flow.nodes')).toBeInTheDocument()
-    expect(screen.getByLabelText('common.close')).toBeInTheDocument()
     expect(mocks.useQuery).toHaveBeenCalledWith('/topics/:topicId/tree', {
       enabled: true,
       params: { topicId: 'topic-1' },
@@ -142,8 +122,18 @@ describe('TopicMessageFlowPanel', () => {
     })
   })
 
+  it('keeps the topic tree query disabled while the right pane is closed', () => {
+    render(<TopicBranchPanel open={false} topicId="topic-1" />)
+
+    expect(mocks.useQuery).toHaveBeenCalledWith('/topics/:topicId/tree', {
+      enabled: false,
+      params: { topicId: 'topic-1' },
+      query: { depth: -1 }
+    })
+  })
+
   it('sets the active branch to the latest leaf passing through the selected node', async () => {
-    render(<TopicMessageFlowPanel open={true} onClose={vi.fn()} topicId="topic-1" />)
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
     fireEvent.click(screen.getByTestId('topic-message-flow-canvas'))
 
@@ -182,7 +172,7 @@ describe('TopicMessageFlowPanel', () => {
       refetch: mocks.refetchTree
     })
 
-    render(<TopicMessageFlowPanel open={true} onClose={vi.fn()} topicId="topic-1" />)
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
     fireEvent.click(screen.getByTestId('topic-message-flow-canvas'))
 
@@ -192,15 +182,36 @@ describe('TopicMessageFlowPanel', () => {
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
   })
 
-  it('expands the drawer to cover the chat center area', () => {
-    render(<TopicMessageFlowPanel open={true} onClose={vi.fn()} topicId="topic-1" />)
-
-    fireEvent.click(screen.getByLabelText('common.maximize'))
-
-    expect(screen.getByTestId('page-side-panel')).toHaveAttribute(
-      'data-content-class-name',
-      'top-0 right-0 bottom-0 left-0 w-auto rounded-none border-y-0 border-r-0'
+  it('renders live branch preview without refetching the topic tree per chunk', () => {
+    render(
+      <TopicBranchPanel
+        open={true}
+        topicId="topic-1"
+        liveState={{
+          topicId: 'topic-1',
+          activeNodeId: 'assistant-live',
+          nodes: [
+            {
+              id: 'assistant-live',
+              parentId: 'message-1',
+              role: 'assistant',
+              preview: 'streaming live preview',
+              modelId: 'provider/model',
+              status: 'pending',
+              createdAt: '2026-05-22T00:00:01.000Z'
+            }
+          ]
+        }}
+      />
     )
-    expect(screen.getByLabelText('common.minimize')).toHaveAttribute('aria-pressed', 'true')
+
+    expect(screen.getByText('streaming live preview')).toBeInTheDocument()
+    expect(mocks.refetchTree).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the tree preview after live branch state is cleared', () => {
+    render(<TopicBranchPanel open={true} topicId="topic-1" liveState={null} />)
+
+    expect(screen.getByText('Hello')).toBeInTheDocument()
   })
 })

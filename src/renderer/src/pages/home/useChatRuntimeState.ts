@@ -1,7 +1,12 @@
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import { type TranslationOverlayEntry, type TranslationOverlaySetter } from '@renderer/components/chat/messages/blocks'
+import {
+  buildTopicMessageFlowLiveState,
+  type TopicMessageFlowLiveState
+} from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
   type ConversationHistoryAdapter,
@@ -11,9 +16,10 @@ import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/
 import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import type { FileMetadata, Topic } from '@renderer/types'
+import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useStablePartsByMessageId } from './hooks/useStablePartsByMessageId'
@@ -42,6 +48,71 @@ interface UseChatRuntimeStateParams {
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
+  onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
+}
+
+function mergeBranchLiveMessages(...sources: CherryUIMessage[][]): CherryUIMessage[] {
+  const order: string[] = []
+  const byId = new Map<string, CherryUIMessage>()
+
+  for (const messages of sources) {
+    for (const message of messages) {
+      const existing = byId.get(message.id)
+      if (!existing) {
+        order.push(message.id)
+        byId.set(message.id, message)
+        continue
+      }
+
+      const metadata = existing.metadata || message.metadata ? { ...existing.metadata, ...message.metadata } : undefined
+      byId.set(message.id, {
+        ...existing,
+        ...message,
+        ...(metadata && { metadata })
+      })
+    }
+  }
+
+  return order.flatMap((id) => {
+    const message = byId.get(id)
+    return message ? [message] : []
+  })
+}
+
+function mergeActiveExecutions(...sources: ActiveExecution[][]): ActiveExecution[] {
+  const order: string[] = []
+  const byId = new Map<string, ActiveExecution>()
+
+  for (const executions of sources) {
+    for (const execution of executions) {
+      const existing = byId.get(execution.executionId)
+      if (!existing) order.push(execution.executionId)
+      byId.set(execution.executionId, {
+        ...existing,
+        ...execution,
+        anchorMessageId: execution.anchorMessageId ?? existing?.anchorMessageId
+      })
+    }
+  }
+
+  return order.flatMap((executionId) => {
+    const execution = byId.get(executionId)
+    return execution ? [execution] : []
+  })
+}
+
+function getReservedActiveExecutions(messages: CherryUIMessage[]): ActiveExecution[] {
+  const executions: ActiveExecution[] = []
+  const seen = new Set<string>()
+
+  for (const message of messages) {
+    const executionId = message.role === 'assistant' ? message.metadata?.modelId : undefined
+    if (!executionId || seen.has(executionId)) continue
+    seen.add(executionId)
+    executions.push({ executionId: executionId as ActiveExecution['executionId'], anchorMessageId: message.id })
+  }
+
+  return executions
 }
 
 export function useChatRuntimeState({
@@ -54,10 +125,12 @@ export function useChatRuntimeState({
   uiMessages,
   refresh,
   activeNodeId,
-  messagesCacheMutate
+  messagesCacheMutate,
+  onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const messages = uiMessages
+  const invalidateCache = useInvalidateCache()
 
   // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after
   // every terminal render was the user's banned anti-pattern (effect-driven
@@ -67,6 +140,14 @@ export function useChatRuntimeState({
   // site inside `chatWriteActions.regenerateWithCapabilities`.
 
   const [translationOverlay, setTranslationOverlayMap] = useState<Record<string, TranslationOverlayEntry>>({})
+  const [branchLiveMessages, setBranchLiveMessages] = useState<CherryUIMessage[]>([])
+  const [branchLiveExecutions, setBranchLiveExecutions] = useState<ActiveExecution[]>([])
+  const finishedBranchExecutionIdsRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    finishedBranchExecutionIdsRef.current.clear()
+    setBranchLiveMessages([])
+    setBranchLiveExecutions([])
+  }, [topic.id])
   const setTranslationOverlay = useCallback<TranslationOverlaySetter>((messageId, entry) => {
     setTranslationOverlayMap((prev) => {
       if (entry == null) {
@@ -88,8 +169,13 @@ export function useChatRuntimeState({
     })
   }, [])
 
-  const finishRef = useRef<(executionId: string, event: ExecutionFinishEvent) => void>(undefined)
-  const { overlay, disposeOverlay } = useExecutionOverlay(topic.id, activeExecutions, messages, {
+  const branchActiveExecutions = useMemo(
+    () => mergeActiveExecutions(branchLiveExecutions, [...activeExecutions]),
+    [activeExecutions, branchLiveExecutions]
+  )
+
+  const finishRef = useRef<((executionId: string, event: ExecutionFinishEvent) => void) | undefined>(undefined)
+  const { overlay, liveAssistants, disposeOverlay } = useExecutionOverlay(topic.id, branchActiveExecutions, messages, {
     onFinish: (executionId, event) => finishRef.current?.(executionId, event)
   })
 
@@ -108,13 +194,29 @@ export function useChatRuntimeState({
   )
 
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
+  const seedReservedMessages = useCallback(
+    async (reservedMessages: CherryUIMessage[]) => {
+      if (reservedMessages.length > 0) {
+        const reservedExecutions = getReservedActiveExecutions(reservedMessages)
+        if (reservedExecutions.length > 0) {
+          for (const execution of reservedExecutions) {
+            finishedBranchExecutionIdsRef.current.delete(execution.executionId)
+          }
+          setBranchLiveExecutions((current) => mergeActiveExecutions(current, reservedExecutions))
+        }
+        setBranchLiveMessages((current) => mergeBranchLiveMessages(current, reservedMessages))
+      }
+      await cache.seedReservedMessages(reservedMessages)
+    },
+    [cache.seedReservedMessages]
+  )
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
-      seedReservedMessages: cache.seedReservedMessages,
+      seedReservedMessages,
       refresh,
       rollback: isFreshTemporaryTopic ? cache.clearBranchCache : cache.rollbackBranch
     }),
-    [cache.clearBranchCache, cache.rollbackBranch, cache.seedReservedMessages, isFreshTemporaryTopic, refresh]
+    [cache.clearBranchCache, cache.rollbackBranch, isFreshTemporaryTopic, refresh, seedReservedMessages]
   )
   const turnController = useConversationTurnController<
     ChatTurnInput,
@@ -143,15 +245,77 @@ export function useChatRuntimeState({
     })
   })
 
+  const activeStreamingMessageIds = useMemo(
+    () =>
+      new Set([
+        ...branchActiveExecutions.flatMap((execution) =>
+          execution.anchorMessageId ? [execution.anchorMessageId] : []
+        ),
+        ...liveAssistants.map((message) => message.id)
+      ]),
+    [branchActiveExecutions, liveAssistants]
+  )
+  const activeAnchorMessages = useMemo(
+    () => messages.filter((message) => activeStreamingMessageIds.has(message.id)),
+    [activeStreamingMessageIds, messages]
+  )
+  const branchFlowLiveMessages = useMemo(
+    () => mergeBranchLiveMessages(branchLiveMessages, activeAnchorMessages, liveAssistants),
+    [activeAnchorMessages, branchLiveMessages, liveAssistants]
+  )
+
+  useEffect(() => {
+    if (!onBranchLiveStateChange || (branchActiveExecutions.length === 0 && branchFlowLiveMessages.length === 0)) return
+
+    onBranchLiveStateChange(
+      buildTopicMessageFlowLiveState({
+        topicId: topic.id,
+        messages: branchFlowLiveMessages,
+        partsByMessageId,
+        activeNodeId: branchFlowLiveMessages.at(-1)?.id ?? activeNodeId,
+        streamingMessageIds: activeStreamingMessageIds
+      })
+    )
+  }, [
+    activeNodeId,
+    branchActiveExecutions.length,
+    activeStreamingMessageIds,
+    branchFlowLiveMessages,
+    onBranchLiveStateChange,
+    partsByMessageId,
+    topic.id
+  ])
+
   const handleExecutionFinish = useCallback(
-    (_executionId: string, { message, isError }: ExecutionFinishEvent) => {
-      if (isError || !message.parts?.length) {
-        void cache.rollbackBranch().then(() => disposeOverlay(message.id))
-        return
-      }
-      void refresh().finally(() => disposeOverlay(message.id))
+    (executionId: string, { message, isError }: ExecutionFinishEvent) => {
+      const treeCachePath = `/topics/${topic.id}/tree`
+      void (async () => {
+        try {
+          if (isError || !message.parts?.length) {
+            await cache.rollbackBranch()
+          } else {
+            await refresh()
+          }
+          await invalidateCache(treeCachePath)
+        } catch (err) {
+          logger.warn('failed to reconcile topic branch flow after execution finish', err as Error)
+        } finally {
+          finishedBranchExecutionIdsRef.current.add(executionId)
+          disposeOverlay(message.id)
+          setBranchLiveExecutions((current) => current.filter((execution) => execution.executionId !== executionId))
+          const hasRemainingExecutions = branchActiveExecutions.some(
+            (execution) => !finishedBranchExecutionIdsRef.current.has(execution.executionId)
+          )
+          if (hasRemainingExecutions) {
+            setBranchLiveMessages((current) => current.filter((item) => item.id !== message.id))
+          } else {
+            setBranchLiveMessages([])
+            onBranchLiveStateChange?.(null)
+          }
+        }
+      })()
     },
-    [cache, disposeOverlay, refresh]
+    [branchActiveExecutions, cache, disposeOverlay, invalidateCache, onBranchLiveStateChange, refresh, topic.id]
   )
   finishRef.current = handleExecutionFinish
 
@@ -160,7 +324,7 @@ export function useChatRuntimeState({
     isFreshTemporaryTopic &&
     turnController.layout === 'draft' &&
     uiMessages.length === 0 &&
-    activeExecutions.length === 0
+    branchActiveExecutions.length === 0
 
   const { actions: chatWriteActions } = useChatWriteActions({
     topic,

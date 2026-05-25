@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   TOPIC_MESSAGE_FLOW_NODE_TYPE,
@@ -72,6 +72,8 @@ vi.mock('@xyflow/react', async () => {
         'div',
         {
           'data-edges': edges.length,
+          'data-default-x': defaultViewport?.x,
+          'data-default-y': defaultViewport?.y,
           'data-default-zoom': defaultViewport?.zoom,
           'data-fit-view': fitView ? 'true' : 'false',
           'data-fit-view-max-zoom': fitViewOptions?.maxZoom,
@@ -163,10 +165,25 @@ const graph: TopicMessageFlowLayout = {
 }
 
 describe('TopicMessageFlowCanvas', () => {
-  it('renders the read-only React Flow surface with custom nodes and overlays', () => {
+  let clientWidthSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    setViewportMock.mockClear()
+    clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800)
+  })
+
+  afterEach(() => {
+    clientWidthSpy.mockRestore()
+  })
+
+  it('renders the read-only React Flow surface with custom nodes and overlays after measuring width', async () => {
     render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
 
+    expect(screen.queryByTestId('react-flow')).not.toBeInTheDocument()
+    expect(await screen.findByTestId('react-flow')).toBeInTheDocument()
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-fit-view', 'false')
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-default-x', '306.5')
+    expect(screen.getByTestId('react-flow')).toHaveAttribute('data-default-y', '64')
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-default-zoom', '0.85')
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-min-zoom', '0.08')
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-max-zoom', '1.4')
@@ -184,28 +201,71 @@ describe('TopicMessageFlowCanvas', () => {
     expect(screen.queryByText('#2')).not.toBeInTheDocument()
   })
 
-  it('starts with the root node centered horizontally near the top', () => {
-    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800)
-    setViewportMock.mockClear()
-
+  it('starts with the root node centered horizontally near the top', async () => {
     render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
 
-    expect(setViewportMock).toHaveBeenCalledWith({ x: 306.5, y: 64, zoom: 0.85 }, { duration: 0 })
-
-    clientWidthSpy.mockRestore()
+    await waitFor(() => {
+      expect(setViewportMock).toHaveBeenCalledWith({ x: 306.5, y: 64, zoom: 0.85 }, { duration: 0 })
+    })
   })
 
-  it('calls onNodeSelect with the clicked message id', () => {
+  it('does not refocus the canvas when only node preview changes', async () => {
+    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
+
+    await waitFor(() => expect(setViewportMock).toHaveBeenCalledTimes(1))
+    setViewportMock.mockClear()
+
+    rerender(
+      <TopicMessageFlowCanvas
+        graph={{
+          ...graph,
+          nodes: graph.nodes.map((node) =>
+            node.id === 'assistant-1'
+              ? { ...node, data: { ...node.data, preview: 'Streaming preview changed.' } }
+              : node
+          )
+        }}
+        onNodeSelect={vi.fn()}
+      />
+    )
+
+    expect(setViewportMock).not.toHaveBeenCalled()
+  })
+
+  it('waits for the pane layout before mounting React Flow', async () => {
+    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} layoutReady={false} />)
+
+    expect(screen.queryByTestId('react-flow')).not.toBeInTheDocument()
+
+    rerender(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} layoutReady />)
+
+    expect(await screen.findByTestId('react-flow')).toBeInTheDocument()
+  })
+
+  it('refocuses when the pane layout focus key changes', async () => {
+    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} focusKey="docked:0" />)
+
+    await waitFor(() => expect(setViewportMock).toHaveBeenCalledTimes(1))
+    setViewportMock.mockClear()
+
+    rerender(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} focusKey="docked:1" />)
+
+    await waitFor(() => {
+      expect(setViewportMock).toHaveBeenCalledWith({ x: 306.5, y: 64, zoom: 0.85 }, { duration: 0 })
+    })
+  })
+
+  it('calls onNodeSelect with the clicked message id', async () => {
     const onNodeSelect = vi.fn()
 
     render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={onNodeSelect} />)
 
-    fireEvent.click(screen.getByTestId('flow-node-assistant-1'))
+    fireEvent.click(await screen.findByTestId('flow-node-assistant-1'))
 
     expect(onNodeSelect).toHaveBeenCalledWith('assistant-1')
   })
 
-  it('renders active error nodes with the error state marker', () => {
+  it('renders active error nodes with the error state marker', async () => {
     render(
       <TopicMessageFlowCanvas
         graph={{
@@ -238,7 +298,7 @@ describe('TopicMessageFlowCanvas', () => {
       />
     )
 
-    const errorNode = screen.getByText('Broken branch.').closest('[data-message-id="error-1"]')
+    const errorNode = (await screen.findByText('Broken branch.')).closest('[data-message-id="error-1"]')
 
     expect(errorNode).toHaveAttribute('data-active', 'true')
     expect(errorNode?.querySelector('.bg-destructive')).toBeInTheDocument()
