@@ -12,7 +12,7 @@
  */
 
 import { Scrollbar } from '@cherrystudio/ui'
-import { type ReactNode, type Ref, useCallback } from 'react'
+import { type ReactNode, type Ref } from 'react'
 import { Virtualizer } from 'virtua'
 
 import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chatVirtualizerRuntime'
@@ -80,26 +80,13 @@ export function MessageVirtualList<T>({
   const runtime = useChatVirtualizerRuntime({
     items,
     getItemKey,
+    renderItem,
     onReachTop,
     hasMoreTop,
     handleRef,
     topReachOverscanItems: overscan,
     scrollToTopKey: forceScrollToBottomKey
   })
-
-  // virtua's `children` form: pass a render function + `data` to lazily
-  // instantiate item elements only for the visible window. The runtime's
-  // `itemElement` wraps each rendered item with `data-message-index` so
-  // text-selection survival can map back to an item index.
-  const renderItemLazy = useCallback(
-    (item: T, index: number) =>
-      runtime.itemElement({
-        index,
-        style: { width: '100%' },
-        children: renderItem(item, index)
-      }),
-    [renderItem, runtime]
-  )
 
   return (
     <Scrollbar
@@ -108,18 +95,18 @@ export function MessageVirtualList<T>({
       className={className}
       style={{ overflowY: 'auto', overflowX: 'hidden', position: 'relative', ...style }}
       onWheel={runtime.scrollerProps.onWheel}>
-      <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding + runtime.anchorBottomPaddingPx }}>
+      <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
         <Virtualizer
           ref={runtime.vlistHandleRef}
           scrollRef={runtime.scrollerRef}
-          data={items}
+          data={runtime.wrappedItems}
           itemSize={estimateSize}
           bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
           keepMounted={runtime.keepMounted}
           startMargin={topPadding}
           onScroll={runtime.scrollerProps.onScroll}
           onScrollEnd={runtime.scrollerProps.onScrollEnd}>
-          {renderItemLazy}
+          {runtime.wrappedRenderItem}
         </Virtualizer>
       </div>
     </Scrollbar>
