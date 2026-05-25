@@ -27,8 +27,6 @@ import {
 } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { FinderIcon } from '@renderer/components/Icons/SvgIcon'
-import { isMac, isWin } from '@renderer/config/constant'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
@@ -41,12 +39,17 @@ import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/li
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
-import type { TFunction } from 'i18next'
-import { Bot, FolderOpen, ListFilter, MoreHorizontal, Pin, PinOff, SquarePen, Trash2 } from 'lucide-react'
+import { Bot, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
 import { Fragment, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { buildAgentSessionMessageRouteUrl } from '../routeSearch'
+import {
+  type AgentGroupAction,
+  type AgentGroupActionContext,
+  executeAgentGroupAction,
+  resolveAgentGroupActions
+} from './agentGroupActions'
 import SessionItem from './SessionItem'
 import {
   type AgentSessionDisplayMode,
@@ -72,6 +75,12 @@ import {
   type SessionListItem,
   sortSessionsForDisplayGroups
 } from './SessionList.helpers'
+import {
+  executeWorkdirGroupAction,
+  resolveWorkdirGroupActions,
+  type WorkdirGroupAction,
+  type WorkdirGroupActionContext
+} from './workdirGroupActions'
 
 interface SessionsProps {
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
@@ -149,38 +158,6 @@ function SessionListOptionsMenu({
   )
 }
 
-type AgentGroupActionId = 'agent-group.edit' | 'agent-group.toggle-pin'
-type AgentGroupAction = ResolvedAction & { id: AgentGroupActionId }
-
-function resolveAgentGroupActions({
-  pinDisabled,
-  pinned,
-  t
-}: {
-  pinDisabled?: boolean
-  pinned: boolean
-  t: TFunction
-}): AgentGroupAction[] {
-  return [
-    {
-      id: 'agent-group.edit' satisfies AgentGroupActionId,
-      label: t('agent.edit.title'),
-      icon: <SquarePen size={14} />,
-      danger: false,
-      availability: { visible: true, enabled: true },
-      children: []
-    },
-    {
-      id: 'agent-group.toggle-pin' satisfies AgentGroupActionId,
-      label: pinned ? t('agent.unpin.title') : t('agent.pin.title'),
-      icon: pinned ? <PinOff size={14} /> : <Pin size={14} />,
-      danger: false,
-      availability: { visible: true, enabled: !pinDisabled },
-      children: []
-    }
-  ]
-}
-
 function GroupMoreDropdownMenuContent<TAction extends ResolvedAction>({
   actions,
   onAction
@@ -230,15 +207,17 @@ function AgentGroupMoreMenu({
   onTogglePin: (agentId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
-  const actions = resolveAgentGroupActions({ pinDisabled, pinned, t })
+  const actionContext: AgentGroupActionContext = {
+    agentId,
+    onEdit,
+    onTogglePin,
+    pinDisabled,
+    pinned,
+    t
+  }
+  const actions = resolveAgentGroupActions(actionContext)
   const handleAction = (action: AgentGroupAction) => {
-    if (action.id === 'agent-group.edit') {
-      window.requestAnimationFrame(() => onEdit(agentId))
-      return
-    }
-    if (action.id === 'agent-group.toggle-pin') {
-      void onTogglePin(agentId)
-    }
+    void executeAgentGroupAction(action, actionContext)
   }
 
   return (
@@ -256,61 +235,6 @@ function AgentGroupMoreMenu({
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
-
-type WorkdirGroupActionId = 'workdir-group.open' | 'workdir-group.rename' | 'workdir-group.delete'
-type WorkdirGroupAction = ResolvedAction & { id: WorkdirGroupActionId; label: string }
-
-function resolveWorkdirGroupActions({
-  canDelete,
-  canRename,
-  deleteDisabled,
-  fileManagerName,
-  renameDisabled,
-  t
-}: {
-  canDelete: boolean
-  canRename: boolean
-  deleteDisabled?: boolean
-  fileManagerName: string
-  renameDisabled?: boolean
-  t: TFunction
-}): WorkdirGroupAction[] {
-  const actions: WorkdirGroupAction[] = [
-    {
-      id: 'workdir-group.open' satisfies WorkdirGroupActionId,
-      label: t('common.open_in', { name: fileManagerName }),
-      icon: isMac ? <FinderIcon className="size-3.5" /> : <FolderOpen size={14} />,
-      danger: false,
-      availability: { visible: true, enabled: true },
-      children: []
-    }
-  ]
-
-  if (canRename) {
-    actions.push({
-      id: 'workdir-group.rename' satisfies WorkdirGroupActionId,
-      label: t('agent.session.workdir.rename.trigger'),
-      icon: <SquarePen size={14} />,
-      danger: false,
-      availability: { visible: true, enabled: !renameDisabled },
-      children: []
-    })
-  }
-
-  if (canDelete) {
-    actions.push({
-      id: 'workdir-group.delete' satisfies WorkdirGroupActionId,
-      label: t('agent.session.workdir.delete.trigger'),
-      icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
-      group: 'danger',
-      danger: true,
-      availability: { visible: true, enabled: !deleteDisabled },
-      children: []
-    })
-  }
-
-  return actions
 }
 
 function WorkdirGroupMoreMenu({
@@ -335,31 +259,21 @@ function WorkdirGroupMoreMenu({
   workdirPath: string
 }) {
   const { t } = useTranslation()
-  const fileManagerName = isMac
-    ? t('agent.session.file_manager.finder')
-    : isWin
-      ? t('agent.session.file_manager.file_explorer')
-      : t('agent.session.file_manager.files')
-  const actions = resolveWorkdirGroupActions({
+  const actionContext: WorkdirGroupActionContext = {
     canDelete,
     canRename,
     deleteDisabled,
-    fileManagerName,
+    group,
+    onDelete,
+    onOpen,
+    onRename,
     renameDisabled,
-    t
-  })
+    t,
+    workdirPath
+  }
+  const actions = resolveWorkdirGroupActions(actionContext)
   const handleAction = (action: WorkdirGroupAction) => {
-    if (action.id === 'workdir-group.open') {
-      void onOpen(workdirPath)
-      return
-    }
-    if (action.id === 'workdir-group.rename') {
-      void onRename(group)
-      return
-    }
-    if (action.id === 'workdir-group.delete') {
-      void onDelete(group)
-    }
+    void executeWorkdirGroupAction(action, actionContext)
   }
 
   return (
@@ -1214,26 +1128,17 @@ const Sessions = ({
         const agentId = getAgentIdFromSessionGroupId(group.id)
         if (!agentId || !agentById.has(agentId)) return null
 
-        const actions = resolveAgentGroupActions({
+        const actionContext: AgentGroupActionContext = {
+          agentId,
+          onEdit: openAgentEditor,
+          onTogglePin: handleToggleAgentPin,
           pinDisabled: isAgentPinActionDisabled,
           pinned: agentPinnedIdSet.has(agentId),
           t
-        })
+        }
+        const actions = resolveAgentGroupActions(actionContext)
 
-        return (
-          <ActionMenu
-            actions={actions}
-            onAction={(action) => {
-              if (action.id === 'agent-group.edit') {
-                openAgentEditor(agentId)
-                return
-              }
-              if (action.id === 'agent-group.toggle-pin') {
-                void handleToggleAgentPin(agentId)
-              }
-            }}
-          />
-        )
+        return <ActionMenu actions={actions} onAction={(action) => executeAgentGroupAction(action, actionContext)} />
       }
 
       if (displayMode !== 'workdir') return null
@@ -1241,39 +1146,21 @@ const Sessions = ({
       const workspaceId = workdirDisplay.workspaceIdByGroupId.get(group.id)
       const workdirPath = workdirDisplay.pathByGroupId.get(group.id) ?? getWorkdirPathFromSessionGroupId(group.id)
       if (!workdirPath) return null
-      const fileManagerName = isMac
-        ? t('agent.session.file_manager.finder')
-        : isWin
-          ? t('agent.session.file_manager.file_explorer')
-          : t('agent.session.file_manager.files')
-
-      const actions = resolveWorkdirGroupActions({
+      const actionContext: WorkdirGroupActionContext = {
         canDelete: !!workspaceId,
         canRename: !!workspaceId,
         deleteDisabled: !!deletingWorkspaceGroupId,
-        fileManagerName,
+        group,
+        onDelete: handleDeleteWorkdirGroup,
+        onOpen: handleOpenWorkdirGroup,
+        onRename: handleStartRenameWorkdirGroup,
         renameDisabled: isUpdatingWorkspace,
-        t
-      })
+        t,
+        workdirPath
+      }
+      const actions = resolveWorkdirGroupActions(actionContext)
 
-      return (
-        <ActionMenu
-          actions={actions}
-          onAction={(action) => {
-            if (action.id === 'workdir-group.open') {
-              void handleOpenWorkdirGroup(workdirPath)
-              return
-            }
-            if (action.id === 'workdir-group.rename') {
-              handleStartRenameWorkdirGroup(group)
-              return
-            }
-            if (action.id === 'workdir-group.delete') {
-              void handleDeleteWorkdirGroup(group)
-            }
-          }}
-        />
-      )
+      return <ActionMenu actions={actions} onAction={(action) => executeWorkdirGroupAction(action, actionContext)} />
     },
     [
       agentById,

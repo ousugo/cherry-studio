@@ -17,7 +17,6 @@ import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionMenu } from '@renderer/components/chat/actions/ActionMenu'
-import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
   ResourceList,
@@ -62,11 +61,9 @@ import { findIndex } from 'lodash'
 import {
   Bot,
   CheckSquare,
-  Edit3,
   ListFilter,
   MoreHorizontal,
   PinIcon,
-  PinOffIcon,
   Square,
   SquareMinus,
   SquarePen,
@@ -79,6 +76,12 @@ import { useTranslation } from 'react-i18next'
 
 import { buildChatMessageRouteUrl } from '../../routeSearch'
 import type { AddNewTopicPayload } from '../../types'
+import {
+  type AssistantGroupAction,
+  type AssistantGroupActionContext,
+  executeAssistantGroupAction,
+  resolveAssistantGroupActions
+} from './assistantGroupActions'
 import type { TopicExportMenuOptions } from './topicContextMenuActions'
 import { TopicManagePanel, useTopicManageMode } from './TopicManageMode'
 import {
@@ -142,47 +145,6 @@ function findLatestCreateTopicPayload(
   }
 
   return buildCreateTopicPayload(latestTopic, assistantById)
-}
-
-type AssistantGroupActionId = 'assistant-group.edit' | 'assistant-group.toggle-pin' | 'assistant-group.delete-topics'
-type AssistantGroupAction = ResolvedAction & { id: AssistantGroupActionId; label: string }
-
-function resolveAssistantGroupActions({
-  disabled,
-  pinned,
-  t
-}: {
-  disabled?: boolean
-  pinned: boolean
-  t: ReturnType<typeof useTranslation>['t']
-}): AssistantGroupAction[] {
-  return [
-    {
-      id: 'assistant-group.edit' satisfies AssistantGroupActionId,
-      label: t('assistants.edit.title'),
-      icon: <Edit3 size={14} />,
-      danger: false,
-      availability: { visible: true, enabled: true },
-      children: []
-    },
-    {
-      id: 'assistant-group.toggle-pin' satisfies AssistantGroupActionId,
-      label: pinned ? t('assistants.unpin.title') : t('assistants.pin.title'),
-      icon: pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
-      danger: false,
-      availability: { visible: true, enabled: !disabled },
-      children: []
-    },
-    {
-      id: 'assistant-group.delete-topics' satisfies AssistantGroupActionId,
-      label: t('assistants.clear.menu_title'),
-      icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
-      group: 'danger',
-      danger: true,
-      availability: { visible: true, enabled: true },
-      children: []
-    }
-  ]
 }
 
 function AssistantGroupMoreDropdownMenuContent({
@@ -307,19 +269,18 @@ function AssistantGroupMoreMenu({
   onTogglePin: (assistantId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
-  const actions = resolveAssistantGroupActions({ disabled, pinned, t })
+  const actionContext: AssistantGroupActionContext = {
+    assistantId,
+    disabled,
+    onDeleteAllTopics,
+    onEdit,
+    onTogglePin,
+    pinned,
+    t
+  }
+  const actions = resolveAssistantGroupActions(actionContext)
   const handleAction = (action: AssistantGroupAction) => {
-    if (action.id === 'assistant-group.edit') {
-      window.requestAnimationFrame(() => onEdit(assistantId))
-      return
-    }
-    if (action.id === 'assistant-group.toggle-pin') {
-      void onTogglePin(assistantId)
-      return
-    }
-    if (action.id === 'assistant-group.delete-topics') {
-      void onDeleteAllTopics(assistantId)
-    }
+    void executeAssistantGroupAction(action, actionContext)
   }
 
   return (
@@ -857,30 +818,18 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       if (!assistantId || !assistantById.has(assistantId)) return null
 
-      const actions = resolveAssistantGroupActions({
+      const actionContext: AssistantGroupActionContext = {
+        assistantId,
         disabled: isAssistantPinActionDisabled,
+        onDeleteAllTopics: handleDeleteAssistantTopics,
+        onEdit: openAssistantEditor,
+        onTogglePin: handleToggleAssistantPin,
         pinned: assistantPinnedIdSet.has(assistantId),
         t
-      })
+      }
+      const actions = resolveAssistantGroupActions(actionContext)
 
-      return (
-        <ActionMenu
-          actions={actions}
-          onAction={(action) => {
-            if (action.id === 'assistant-group.edit') {
-              openAssistantEditor(assistantId)
-              return
-            }
-            if (action.id === 'assistant-group.toggle-pin') {
-              void handleToggleAssistantPin(assistantId)
-              return
-            }
-            if (action.id === 'assistant-group.delete-topics') {
-              void handleDeleteAssistantTopics(assistantId)
-            }
-          }}
-        />
-      )
+      return <ActionMenu actions={actions} onAction={(action) => executeAssistantGroupAction(action, actionContext)} />
     },
     [
       assistantById,
@@ -1398,6 +1347,11 @@ function TopicRow({
       : ''
   const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
   const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
+  const hasTopicTrailingActions = !topic.pinned || !isManageMode || hasTopicStreamIndicator
+  const topicTrailingActionPaddingClassName =
+    !isManageMode && (hasTopicStreamIndicator || !topic.pinned)
+      ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
+      : 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
@@ -1468,7 +1422,11 @@ function TopicRow({
       {!rowState.renaming && (
         <ResourceList.ItemTitle
           title={topicName}
-          className={nameAnimationClassName}
+          className={cn(
+            nameAnimationClassName,
+            hasTopicTrailingActions && 'transition-[padding]',
+            hasTopicTrailingActions && topicTrailingActionPaddingClassName
+          )}
           onDoubleClick={(event) => {
             if (isManageMode) return
             event.stopPropagation()
@@ -1477,44 +1435,52 @@ function TopicRow({
           {topicName}
         </ResourceList.ItemTitle>
       )}
-      {!isManageMode && (
-        <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
-          <ResourceList.ItemAction
-            aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-            className={cn(topic.pinned && 'text-foreground/70 hover:text-foreground')}
-            onClick={(event) => {
-              event.stopPropagation()
-              void onPinTopic(topic)
-            }}>
-            <PinIcon size={13} className={cn(topic.pinned && '-rotate-45')} />
-          </ResourceList.ItemAction>
-        </Tooltip>
+      {hasTopicTrailingActions && (
+        <ResourceList.ItemActions active={hasTopicStreamIndicator || deletingTopicId === topic.id}>
+          {!isManageMode && (
+            <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
+              <ResourceList.ItemAction
+                aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+                className={cn(topic.pinned && 'text-foreground/70 hover:text-foreground')}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void onPinTopic(topic)
+                }}>
+                <PinIcon size={13} className={cn(topic.pinned && '-rotate-45')} />
+              </ResourceList.ItemAction>
+            </Tooltip>
+          )}
+          {hasTopicStreamIndicator ? (
+            <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
+          ) : !topic.pinned ? (
+            <Tooltip
+              placement="bottom"
+              delay={700}
+              title={
+                <span className="text-xs italic opacity-80">
+                  {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+                </span>
+              }>
+              <ResourceList.ItemAction
+                aria-label={t('common.delete')}
+                data-deleting={deletingTopicId === topic.id}
+                onClick={(event) => {
+                  if (event.ctrlKey || event.metaKey || deletingTopicId === topic.id) {
+                    void onConfirmDelete(topic, event)
+                    return
+                  }
+                  onDeleteClick(topic.id, event)
+                }}>
+                {deletingTopicId === topic.id ? (
+                  <Trash2 size={14} className="text-(--color-error)" />
+                ) : (
+                  <XIcon size={14} />
+                )}
+              </ResourceList.ItemAction>
+            </Tooltip>
+          ) : null}
+        </ResourceList.ItemActions>
       )}
-      {hasTopicStreamIndicator ? (
-        <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
-      ) : !topic.pinned ? (
-        <Tooltip
-          placement="bottom"
-          delay={700}
-          title={
-            <span className="text-xs italic opacity-80">
-              {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-            </span>
-          }>
-          <ResourceList.ItemAction
-            aria-label={t('common.delete')}
-            data-deleting={deletingTopicId === topic.id}
-            onClick={(event) => {
-              if (event.ctrlKey || event.metaKey || deletingTopicId === topic.id) {
-                void onConfirmDelete(topic, event)
-                return
-              }
-              onDeleteClick(topic.id, event)
-            }}>
-            {deletingTopicId === topic.id ? <Trash2 size={14} className="text-(--color-error)" /> : <XIcon size={14} />}
-          </ResourceList.ItemAction>
-        </Tooltip>
-      ) : null}
     </ResourceList.Item>
   )
 

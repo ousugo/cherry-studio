@@ -1586,7 +1586,9 @@ describe('ResourceList', () => {
               <ResourceList.Item item={item}>
                 <ResourceList.ItemIcon data-testid={`${item.id}-icon`} />
                 <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
-                <ResourceList.ItemAction aria-label={`Action ${item.name}`} />
+                <ResourceList.ItemActions>
+                  <ResourceList.ItemAction aria-label={`Action ${item.name}`} />
+                </ResourceList.ItemActions>
               </ResourceList.Item>
             )}
           />
@@ -1604,9 +1606,16 @@ describe('ResourceList', () => {
       '[&_.lucide:not(.lucide-custom)]:!text-current'
     )
     expect(screen.getByRole('listbox')).toHaveClass('px-1.5')
-    expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass('gap-1.5', 'px-1.5')
+    expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass('relative', 'gap-1.5', 'px-1.5')
     expect(screen.getByTestId('alpha-icon')).toHaveClass('size-6')
-    expect(screen.getByRole('button', { name: 'Action Alpha' })).toHaveClass('size-5')
+    const action = screen.getByRole('button', { name: 'Action Alpha' })
+    expect(action).toHaveClass('pointer-events-none', 'size-5')
+    expect(action.closest('[data-resource-list-item-actions="true"]')).toHaveClass(
+      'absolute',
+      'right-1.5',
+      'opacity-0',
+      'group-hover:opacity-100'
+    )
   })
 
   it('does not reveal item actions just because a row is selected', () => {
@@ -1623,7 +1632,9 @@ describe('ResourceList', () => {
                   data-active={item.pinned || undefined}
                 />
                 <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
-                <ResourceList.ItemAction aria-label={`Delete ${item.name}`} />
+                <ResourceList.ItemActions>
+                  <ResourceList.ItemAction aria-label={`Delete ${item.name}`} />
+                </ResourceList.ItemActions>
               </ResourceList.Item>
             )}
           />

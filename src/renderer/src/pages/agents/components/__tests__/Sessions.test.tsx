@@ -1117,6 +1117,23 @@ describe('Sessions', () => {
     clearTimeoutSpy.mockRestore()
   })
 
+  it('hides the inline delete action for pinned sessions', () => {
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
+        createSession({ id: 'session-pinned', name: 'Pinned session', orderKey: 'b' })
+      ],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<Sessions />)
+
+    const pinnedRow = screen.getByText('Pinned session').closest('[role="option"]')
+    expect(pinnedRow).not.toBeNull()
+    expect(within(pinnedRow as HTMLElement).getByLabelText('Unpin')).toBeInTheDocument()
+    expect(within(pinnedRow as HTMLElement).queryByLabelText('Delete')).not.toBeInTheDocument()
+  })
+
   it('subscribes stream status only for visible session rows', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     preferenceMocks.values.set('agent.session.collapsed_group_ids', ['session:workdir:%2FUsers%2Fjd%2Fproject-a'])
