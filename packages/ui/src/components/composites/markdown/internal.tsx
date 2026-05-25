@@ -11,6 +11,7 @@
 import { useCallback, useMemo } from 'react'
 import remarkAlert from 'remark-github-blockquote-alert'
 import {
+  type AnimateOptions,
   type Components,
   defaultRehypePlugins,
   defaultRemarkPlugins,
@@ -38,8 +39,8 @@ export interface MarkdownCoreProps {
   extraRehypePlugins?: Pluggable[]
   /** Caller-supplied extra remark plugins appended after Streamdown defaults + remarkAlert. */
   extraRemarkPlugins?: Pluggable[]
-  /** Animate plugin spliced into rehypePlugins — supplied only by the streaming wrapper. */
-  animatePlugin?: Pluggable
+  /** Animation config forwarded to Streamdown's built-in `animated` prop. */
+  animated?: AnimateOptions | false
   mode: 'static' | 'streaming'
   /** Repair half-typed markdown at the tail (only meaningful in streaming mode). */
   parseIncompleteMarkdown?: boolean
@@ -56,7 +57,7 @@ export function MarkdownCore({
   plugins,
   extraRehypePlugins,
   extraRemarkPlugins,
-  animatePlugin,
+  animated,
   mode,
   parseIncompleteMarkdown,
   className,
@@ -86,9 +87,8 @@ export function MarkdownCore({
       [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
     )
     if (extraRehypePlugins?.length) result.push(...extraRehypePlugins)
-    if (animatePlugin) result.push(animatePlugin)
     return result
-  }, [hasSvgElement, id, extraRehypePlugins, animatePlugin])
+  }, [hasSvgElement, id, extraRehypePlugins])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
     if (value.startsWith('data:image/png') || value.startsWith('data:image/jpeg')) return value
@@ -119,7 +119,9 @@ export function MarkdownCore({
           urlTransform={urlTransform}
           parseIncompleteMarkdown={parseIncompleteMarkdown}
           normalizeHtmlIndentation
-          remarkRehypeOptions={remarkRehypeOptions}>
+          remarkRehypeOptions={remarkRehypeOptions}
+          animated={animated || undefined}
+          isAnimating={!!animated && mode === 'streaming'}>
           {children}
         </Streamdown>
       </div>
