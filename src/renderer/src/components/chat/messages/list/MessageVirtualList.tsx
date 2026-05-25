@@ -1,35 +1,21 @@
 /**
  * Virtualized message list for the chat view.
  *
- * Built on `@tanstack/react-virtual` (already in deps via `CodeViewer`),
- * with chat-specific scroll behavior implemented by
- * `useMessageVirtualListRuntime`:
+ * Built on `virtua`'s `<Virtualizer>` so we get O(log n) item offsets,
+ * declarative `keepMounted` for selection survival, and `shift` for
+ * prepend without visual jump — without owning the basic DOM windowing
+ * + ResizeObserver scheduling code that was the source of past jitter.
  *
- *   - On mount: scroll to the bottom (newest item visible).
- *   - On append while user is at bottom: stick to bottom by setting
- *     `scrollTop = scrollHeight` directly. Avoids `scrollToIndex`'s
- *     animation path competing with `measureElement`'s ResizeObserver
- *     re-measure cycle during high-frequency streaming.
- *   - On prepend (older history loaded): preserve the user's visual
- *     position by shifting `scrollTop` by the new content height that
- *     was added above. Detection uses item-count growth + first-key
- *     change; size delta drives the offset.
- *   - On streaming (last item grows): if user is at bottom, follow;
- *     otherwise leave the scroll position alone (don't yank the user
- *     who's reading history).
- *
- * Stable `getItemKey` is mandatory — `@tanstack/react-virtual` keys its
- * measured-height cache by item key. Without it, prepend invalidates
- * every cached height and items "jump" visually as they remeasure.
- *
- * Accepts an imperative `handleRef` for callers that need to scroll
- * programmatically (e.g. `MessageAnchorLine`'s click-to-scroll).
+ * The chat-specific behavior (atBottom state machine, RAF smooth scroll
+ * with cancel-on-wheel, scroll-user-message-to-top on send) lives in
+ * `chatVirtualizerRuntime`. This component is just the JSX integration.
  */
 
 import { Scrollbar } from '@cherrystudio/ui'
-import { type ReactNode, type Ref } from 'react'
+import { type ReactNode, type Ref, useCallback } from 'react'
+import { Virtualizer } from 'virtua'
 
-import { type MessageVirtualListHandle, useMessageVirtualListRuntime } from './useMessageVirtualListRuntime'
+import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chatVirtualizerRuntime'
 
 const DEFAULT_TOP_PADDING_PX = 6
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
@@ -41,12 +27,12 @@ export interface MessageVirtualListProps<T> {
   items: T[]
   /**
    * Stable, unique key per item. Same item across renders MUST yield the
-   * same key — the virtualizer caches measured heights by this key.
+   * same key — virtua keys measured heights by this position.
    */
   getItemKey(item: T, index: number): string
   /** Render function for one item. */
   renderItem(item: T, index: number): ReactNode
-  /** Initial pixel estimate per item; refined by `measureElement`. */
+  /** Initial pixel estimate per item; refined as items are measured. */
   estimateSize?: number
   /** Items rendered off-screen on each side for smooth scroll. */
   overscan?: number
@@ -68,7 +54,11 @@ export interface MessageVirtualListProps<T> {
   topPadding?: number
   /** Extra empty space after the newest message. */
   bottomPadding?: number
-  /** Changes when the caller needs to force the viewport to the newest item after render. */
+  /**
+   * Changes when the caller wants the message with this group key
+   * scrolled to the viewport top. Typically set to the newest user
+   * message's group key after the user sends.
+   */
   forceScrollToBottomKey?: string
 }
 
@@ -76,7 +66,7 @@ export function MessageVirtualList<T>({
   items,
   getItemKey,
   renderItem,
-  estimateSize = 200,
+  estimateSize,
   overscan = 6,
   onReachTop,
   hasMoreTop = false,
@@ -87,41 +77,50 @@ export function MessageVirtualList<T>({
   bottomPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
   forceScrollToBottomKey
 }: MessageVirtualListProps<T>): React.ReactElement {
-  const { measureItem, scrollerRef, scrollHeight, virtualItems } = useMessageVirtualListRuntime({
+  const runtime = useChatVirtualizerRuntime({
     items,
     getItemKey,
-    estimateSize,
-    overscan,
     onReachTop,
     hasMoreTop,
     handleRef,
-    topPadding,
-    bottomPadding,
-    forceScrollToBottomKey
+    topReachOverscanItems: overscan,
+    scrollToTopKey: forceScrollToBottomKey
   })
+
+  // virtua's `children` form: pass a render function + `data` to lazily
+  // instantiate item elements only for the visible window. The runtime's
+  // `itemElement` wraps each rendered item with `data-message-index` so
+  // text-selection survival can map back to an item index.
+  const renderItemLazy = useCallback(
+    (item: T, index: number) =>
+      runtime.itemElement({
+        index,
+        style: { width: '100%' },
+        children: renderItem(item, index)
+      }),
+    [renderItem, runtime]
+  )
 
   return (
     <Scrollbar
-      ref={scrollerRef}
+      ref={runtime.scrollerRef}
       data-message-virtual-list-scroller
       className={className}
-      style={{ overflowY: 'auto', overflowX: 'hidden', position: 'relative', ...style }}>
-      <div style={{ height: scrollHeight, position: 'relative', width: '100%' }}>
-        {virtualItems.map((vi) => (
-          <div
-            key={vi.key}
-            data-index={vi.index}
-            ref={measureItem}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              transform: `translateY(${topPadding + vi.start}px)`
-            }}>
-            {renderItem(items[vi.index], vi.index)}
-          </div>
-        ))}
+      style={{ overflowY: 'auto', overflowX: 'hidden', position: 'relative', ...style }}
+      onWheel={runtime.scrollerProps.onWheel}>
+      <div style={{ paddingBottom: bottomPadding }}>
+        <Virtualizer
+          ref={runtime.vlistHandleRef}
+          scrollRef={runtime.scrollerRef}
+          data={items}
+          itemSize={estimateSize}
+          bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
+          keepMounted={runtime.keepMounted}
+          startMargin={topPadding}
+          onScroll={runtime.scrollerProps.onScroll}
+          onScrollEnd={runtime.scrollerProps.onScrollEnd}>
+          {renderItemLazy}
+        </Virtualizer>
       </div>
     </Scrollbar>
   )

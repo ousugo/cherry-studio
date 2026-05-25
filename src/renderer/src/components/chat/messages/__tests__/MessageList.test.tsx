@@ -185,12 +185,12 @@ describe('MessageList', () => {
       )
     })
 
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'user-1')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'useruser-1')
   })
 
   it('does not signal forced scroll when an assistant message is appended', () => {
     const view = renderMessageList([createMessage('user-1', 'user')])
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'user-1')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'useruser-1')
 
     act(() => {
       view.rerender(
@@ -201,7 +201,7 @@ describe('MessageList', () => {
       )
     })
 
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'user-1')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'useruser-1')
   })
 
   it('marks newly appended user and assistant messages for enter motion', () => {

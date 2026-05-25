@@ -252,7 +252,10 @@ const MessageList = () => {
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
   const latestUserMessage = messages.findLast((message) => message.role === 'user' && message.type !== 'clear')
-  const forceScrollToBottomKey = latestUserMessage?.id
+  // The runtime now treats this key as the group to scroll to the viewport
+  // top (rather than scrolling to the absolute bottom). User-message groups
+  // are keyed by `user${msgId}` — see stableGroupedMessages.
+  const forceScrollToBottomKey = latestUserMessage ? `user${latestUserMessage.id}` : undefined
   const defaultBottomPadding = isMultiSelectMode
     ? MULTI_SELECT_BOTTOM_PADDING_PX
     : MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX
