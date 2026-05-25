@@ -121,13 +121,19 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
 
   const scrollToMessage = useCallback(
     (message: MessageListItem) => {
+      if (message.role === 'assistant' && message.parentId) {
+        const siblings = messages.filter((m) => m.role === 'assistant' && m.parentId === message.parentId)
+        if (siblings.length > 1) {
+          for (const sibling of siblings) {
+            actions.updateMessageUiState?.(sibling.id, { foldSelected: sibling.id === message.id })
+          }
+        }
+      }
+
       // Virtualized message list: prefer the imperative API. Off-screen
       // messages have no DOM, so direct DOM lookup would silently no-op.
       // Fall back to it only when the prop isn't wired.
       if (scrollToMessageId) {
-        // Resolve fold state first — multi-model groups hide non-active
-        // siblings via display:none; selecting the right sibling unfolds
-        // it before we ask the virtualizer to scroll.
         scrollToMessageId(message.id)
         return
       }
@@ -140,7 +146,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
       }
       scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
     },
-    [scrollToMessageId, setSelectedMessage]
+    [actions, messages, scrollToMessageId, setSelectedMessage]
   )
 
   const scrollToBottom = useCallback(() => {

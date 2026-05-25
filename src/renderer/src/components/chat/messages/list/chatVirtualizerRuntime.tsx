@@ -338,11 +338,8 @@ export function useChatVirtualizerRuntime<T>({
         const handle = vlistHandleRef.current
         const idx = findDataIndexByKey(key)
         if (idx < 0 || !handle) return
-        if (align === 'start') {
-          anchor.pinTo(idx)
-        } else {
-          handle.scrollToIndex(idx, { align })
-        }
+        anchor.release()
+        handle.scrollToIndex(idx, { align, smooth: true })
       },
       isAtBottom: atBottom.isAtBottom,
       getScrollElement: () => scrollerRef.current
