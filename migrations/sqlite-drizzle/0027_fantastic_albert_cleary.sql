@@ -9,8 +9,45 @@ CREATE TABLE `agent_workspace` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `agent_workspace_path_unique_idx` ON `agent_workspace` (`path`);--> statement-breakpoint
 CREATE INDEX `agent_workspace_order_key_idx` ON `agent_workspace` (`order_key`);--> statement-breakpoint
-DROP TABLE `agent_task`;--> statement-breakpoint
 DROP TABLE `agent_task_run_log`;--> statement-breakpoint
+DROP TABLE `agent_task`;--> statement-breakpoint
+-- MANUAL PATCH: workaround for drizzle-orm/drizzle-kit #3653
+-- (rebuild-table path drops leading ALTER TABLE ADD/RENAME COLUMN statements,
+-- so the INSERT ... SELECT blocks below reference columns that don't yet exist
+-- on the old tables. Add them by hand per yume-chan's patch suggestion.)
+-- https://github.com/drizzle-team/drizzle-orm/issues/3653
+ALTER TABLE `agent_session` ADD COLUMN `workspace_id` text;--> statement-breakpoint
+ALTER TABLE `agent_session` ADD COLUMN `order_key` text NOT NULL DEFAULT '';--> statement-breakpoint
+ALTER TABLE `agent` ADD COLUMN `order_key` text NOT NULL DEFAULT '';--> statement-breakpoint
+ALTER TABLE `agent_session_message` ADD COLUMN `data` text NOT NULL DEFAULT '{"parts":[]}';--> statement-breakpoint
+ALTER TABLE `agent_session_message` ADD COLUMN `searchable_text` text NOT NULL DEFAULT '';--> statement-breakpoint
+ALTER TABLE `agent_session_message` ADD COLUMN `status` text NOT NULL DEFAULT 'success';--> statement-breakpoint
+ALTER TABLE `agent_session_message` ADD COLUMN `model_id` text;--> statement-breakpoint
+ALTER TABLE `agent_session_message` ADD COLUMN `model_snapshot` text;--> statement-breakpoint
+ALTER TABLE `agent_session_message` ADD COLUMN `trace_id` text;--> statement-breakpoint
+ALTER TABLE `agent_session_message` ADD COLUMN `stats` text;--> statement-breakpoint
+ALTER TABLE `agent_session_message` ADD COLUMN `runtime_resume_token` text;--> statement-breakpoint
+UPDATE `agent_session_message`
+SET
+	`data` = CASE
+		WHEN json_valid("content") THEN
+			CASE
+				WHEN json_type("content", '$.parts') = 'array' THEN "content"
+				WHEN json_type("content", '$.message.data.parts') = 'array' THEN json_object('parts', json_extract("content", '$.message.data.parts'))
+				ELSE json_object('parts', json_array())
+			END
+		ELSE json_object('parts', json_array())
+	END,
+	`status` = CASE
+		WHEN json_valid("content") THEN
+			CASE
+				WHEN json_extract("content", '$.message.status') IN ('success', 'error', 'paused') THEN json_extract("content", '$.message.status')
+				WHEN json_extract("content", '$.message.status') IN ('sending', 'pending', 'searching', 'processing') THEN 'error'
+				ELSE 'success'
+			END
+		ELSE 'success'
+	END,
+	`runtime_resume_token` = "agent_session_id";--> statement-breakpoint
 PRAGMA foreign_keys=OFF;--> statement-breakpoint
 CREATE TABLE `__new_agent_session_message` (
 	`id` text PRIMARY KEY NOT NULL,
@@ -32,7 +69,25 @@ CREATE TABLE `__new_agent_session_message` (
 	CONSTRAINT "agent_session_message_status_check" CHECK("__new_agent_session_message"."status" IN ('pending', 'success', 'error', 'paused'))
 );
 --> statement-breakpoint
-INSERT INTO `__new_agent_session_message`("id", "session_id", "role", "data", "searchable_text", "status", "model_id", "model_snapshot", "trace_id", "stats", "runtime_resume_token", "created_at", "updated_at") SELECT "id", "session_id", "role", "data", "searchable_text", "status", "model_id", "model_snapshot", "trace_id", "stats", "runtime_resume_token", "created_at", "updated_at" FROM `agent_session_message`;--> statement-breakpoint
+INSERT INTO `__new_agent_session_message`("id", "session_id", "role", "data", "searchable_text", "status", "model_id", "model_snapshot", "trace_id", "stats", "runtime_resume_token", "created_at", "updated_at")
+SELECT
+	CASE
+		WHEN "id" LIKE '________-____-____-____-____________' THEN "id"
+		ELSE lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-' || substr('89ab', abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6)))
+	END,
+	"session_id",
+	CASE WHEN "role" IN ('user', 'assistant', 'system') THEN "role" ELSE 'assistant' END,
+	"data",
+	"searchable_text",
+	"status",
+	"model_id",
+	"model_snapshot",
+	"trace_id",
+	"stats",
+	"runtime_resume_token",
+	"created_at",
+	"updated_at"
+FROM `agent_session_message`;--> statement-breakpoint
 DROP TABLE `agent_session_message`;--> statement-breakpoint
 ALTER TABLE `__new_agent_session_message` RENAME TO `agent_session_message`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
@@ -94,5 +149,5 @@ ALTER TABLE `__new_agent` RENAME TO `agent`;--> statement-breakpoint
 CREATE INDEX `agent_name_idx` ON `agent` (`name`);--> statement-breakpoint
 CREATE INDEX `agent_type_idx` ON `agent` (`type`);--> statement-breakpoint
 CREATE INDEX `agent_order_key_idx` ON `agent` (`order_key`);--> statement-breakpoint
-ALTER TABLE `assistant` ADD `order_key` text NOT NULL;--> statement-breakpoint
+ALTER TABLE `assistant` ADD `order_key` text NOT NULL DEFAULT '';--> statement-breakpoint
 CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);
