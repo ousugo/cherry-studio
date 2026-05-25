@@ -299,10 +299,6 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
     })
 
     return composeResourceListGroupResolvers(pinnedResolver, (session) => {
-      if (isSystemWorkspaceSession(session)) {
-        return { id: SESSION_NO_PROJECT_GROUP_ID, label: '' }
-      }
-
       const agentId = session.agentId
       if (!agentId) {
         return { id: SESSION_UNKNOWN_AGENT_GROUP_ID, label: labels.agent.unknown }
@@ -391,7 +387,7 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
   return sessions
     .map((session, index) => {
       let displayRank: number
-      if (isSystemWorkspaceSession(session)) {
+      if (options.mode === 'workdir' && isSystemWorkspaceSession(session)) {
         displayRank = NO_PROJECT_GROUP_RANK
       } else if (options.mode === 'agent') {
         displayRank = getAgentGroupRank(session, options.agentRankById)

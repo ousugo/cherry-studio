@@ -733,6 +733,40 @@ describe('Sessions', () => {
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
   })
 
+  it('keeps system workspace sessions inside agent groups in agent display mode', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
+      id: 'system-ws',
+      name: 'System Workspace',
+      type: 'system'
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-system',
+          name: 'System session',
+          orderKey: '0',
+          workspaceId: systemWorkspace.id,
+          workspace: systemWorkspace
+        }),
+        createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' })
+      ]
+    })
+
+    render(<Sessions />)
+
+    expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Chats' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Alpha agent' })).toBeInTheDocument()
+    expect(screen.getByText('System session')).toBeInTheDocument()
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+  })
+
   it('selects the first session from an agent group before toggling that selected group', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     cacheMocks.state.activeSessionId = 'session-a'

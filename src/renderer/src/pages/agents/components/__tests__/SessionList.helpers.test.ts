@@ -250,7 +250,7 @@ describe('SessionList helpers', () => {
     })
   })
 
-  it('treats system workspaces as the dedicated no-project display group', () => {
+  it('treats system workspaces as the dedicated no-project display group only in workdir mode', () => {
     const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
       id: 'system-ws',
       name: 'No project',
@@ -273,6 +273,16 @@ describe('SessionList helpers', () => {
     expect(workdirGroup(session)).toEqual({
       id: SESSION_NO_PROJECT_GROUP_ID,
       label: ''
+    })
+
+    const agentGroup = createSessionDisplayGroupResolver({
+      agentById: new Map([['agent-1', { id: 'agent-1', name: 'Alpha agent' }]]),
+      labels: SESSION_GROUP_LABELS,
+      mode: 'agent'
+    })
+    expect(agentGroup(session)).toEqual({
+      id: 'session:agent:agent-1',
+      label: 'Alpha agent'
     })
   })
 
@@ -409,13 +419,19 @@ describe('SessionList helpers', () => {
     ).toEqual(['pinned', 'newer', 'older'])
   })
 
-  it('keeps system workspace sessions at the bottom of grouped display modes', () => {
+  it('keeps system workspace sessions at the bottom only in workdir mode', () => {
     const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
       id: 'system-ws',
       type: 'system'
     })
     const sessions = [
-      createSession({ id: 'system', orderKey: '0', workspaceId: 'system-ws', workspace: systemWorkspace }),
+      createSession({
+        id: 'system',
+        agentId: 'agent-a',
+        orderKey: '0',
+        workspaceId: 'system-ws',
+        workspace: systemWorkspace
+      }),
       createSession({
         id: 'project-b',
         agentId: 'agent-b',
@@ -434,7 +450,7 @@ describe('SessionList helpers', () => {
         ]),
         mode: 'agent'
       }).map((session) => session.id)
-    ).toEqual(['project-a', 'project-b', 'system'])
+    ).toEqual(['system', 'project-a', 'project-b'])
 
     expect(
       sortSessionsForDisplayGroups(sessions, {

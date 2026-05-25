@@ -553,7 +553,7 @@ const Sessions = ({
         return { id: SESSION_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
       }
 
-      if (isSystemWorkspaceSession(session)) {
+      if (displayMode === 'workdir' && isSystemWorkspaceSession(session)) {
         return { id: SESSION_NO_PROJECT_SECTION_ID, label: t('agent.session.group.conversation') }
       }
 
