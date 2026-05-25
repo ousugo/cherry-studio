@@ -13,7 +13,7 @@ import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import type { FileMetadata, Topic } from '@renderer/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useStablePartsByMessageId } from './hooks/useStablePartsByMessageId'
@@ -56,17 +56,15 @@ export function useChatRuntimeState({
   activeNodeId,
   messagesCacheMutate
 }: UseChatRuntimeStateParams) {
-  const { regenerate, stop, status, setMessages, activeExecutions } = useChatWithHistory(
-    topic.id,
-    initialMessages,
-    refresh
-  )
+  const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const messages = uiMessages
 
-  useEffect(() => {
-    if (status === 'streaming' || status === 'submitted') return
-    setMessages(uiMessages)
-  }, [uiMessages, status, setMessages])
+  // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after
+  // every terminal render was the user's banned anti-pattern (effect-driven
+  // mutation of SWR-read data into another store). The only consumer that
+  // needs `useChat.state.messages` hydrated is `regenerate({ messageId })` for
+  // anchor resolution — that snapshot now happens synchronously at the call
+  // site inside `chatWriteActions.regenerateWithCapabilities`.
 
   const [translationOverlay, setTranslationOverlayMap] = useState<Record<string, TranslationOverlayEntry>>({})
   const setTranslationOverlay = useCallback<TranslationOverlaySetter>((messageId, entry) => {

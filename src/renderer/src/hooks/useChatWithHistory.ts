@@ -1,6 +1,6 @@
 import { Chat, useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
-import { ipcChatTransport, isPerExecutionOnly } from '@renderer/transport/IpcChatTransport'
+import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ChatRequestOptions } from 'ai'
@@ -111,24 +111,12 @@ export function useChatWithHistory(
     }
   }, [resumeActiveStream, topicStreamStatus])
 
-  useEffect(() => {
-    const doneUnsub = window.api.ai.onStreamDone((data) => {
-      if (data.topicId !== topicId || isPerExecutionOnly(data)) return
-      void refreshRef.current().catch((err) => {
-        logger.warn('Failed to refresh messages after stream done', { topicId, err })
-      })
-    })
-    const errorUnsub = window.api.ai.onStreamError((data) => {
-      if (data.topicId !== topicId) return
-      void refreshRef.current().catch((err) => {
-        logger.warn('Failed to refresh messages after stream error', { topicId, err })
-      })
-    })
-    return () => {
-      doneUnsub()
-      errorUnsub()
-    }
-  }, [topicId])
+  // PR 3: dropped the per-window `onStreamDone` / `onStreamError` IPC
+  // listeners that previously called `refresh()` here. `useTopicDbRefreshOnTerminal`
+  // above already revalidates SWR on every terminal transition via the
+  // classifier (covers done / aborted / error / awaiting-approval), so the
+  // IPC subscription was a second producer of the same `mutate()` call and
+  // produced the double-mutate race documented in the plan.
 
   return {
     sendMessage,

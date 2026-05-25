@@ -170,6 +170,14 @@ export function useChatWriteActions(params: Params): Result {
           ? (options?.modelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
           : options?.modelId
 
+      // PR 3: hydrate `useChat.state.messages` with the current DB-fresh
+      // snapshot synchronously, right before the AI SDK's regenerate uses it
+      // to splice the new branch. The old `useEffect`-driven sync in
+      // useChatRuntimeState was the user's banned anti-pattern; this is the
+      // single producer that genuinely needs the hydration, so the snapshot
+      // lives at the call site.
+      setMessages(uiMessages)
+
       await regenerate({
         messageId,
         body: {
@@ -179,7 +187,7 @@ export function useChatWriteActions(params: Params): Result {
         }
       })
     },
-    [regenerate, capabilityBody, uiMessages]
+    [regenerate, capabilityBody, uiMessages, setMessages]
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
