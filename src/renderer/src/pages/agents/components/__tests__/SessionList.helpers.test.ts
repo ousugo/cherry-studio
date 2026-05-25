@@ -18,6 +18,7 @@ import {
   normalizeSessionCollapsedGroupIds,
   normalizeSessionDropPayload,
   normalizeSessionWorkdirPath,
+  SESSION_NO_PROJECT_GROUP_ID,
   SESSION_PINNED_GROUP_ID,
   SESSION_PINNED_SECTION_ID,
   sortSessionsForDisplayGroups
@@ -48,6 +49,7 @@ function makeWorkspace(path: string, overrides: Partial<WorkspaceEntity> = {}): 
     id: `ws-${path}`,
     name: path,
     path,
+    type: 'user',
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -248,6 +250,32 @@ describe('SessionList helpers', () => {
     })
   })
 
+  it('treats system workspaces as the dedicated no-project display group', () => {
+    const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
+      id: 'system-ws',
+      name: 'No project',
+      type: 'system'
+    })
+    const session = createSession({
+      id: 'system-session',
+      workspaceId: systemWorkspace.id,
+      workspace: systemWorkspace
+    })
+    const workdirDisplay = createSessionWorkdirDisplayMaps([session], [systemWorkspace])
+
+    expect(getPrimarySessionWorkdir(session)).toBeNull()
+    expect(createSessionWorkdirLabelMap([session], [systemWorkspace])).toEqual(new Map())
+    const workdirGroup = createSessionDisplayGroupResolver({
+      labels: SESSION_GROUP_LABELS,
+      mode: 'workdir',
+      workdirDisplay
+    })
+    expect(workdirGroup(session)).toEqual({
+      id: SESSION_NO_PROJECT_GROUP_ID,
+      label: ''
+    })
+  })
+
   it('normalizes and labels workdir paths without merging duplicate basenames', () => {
     const sessions = [
       createSession({ workspace: makeWorkspace('/Users/jd/alpha/app') }),
@@ -379,6 +407,44 @@ describe('SessionList helpers', () => {
         workdirDisplay: createSessionWorkdirDisplayMaps(sessions, [makeWorkspace('/Users/jd/project-a')])
       }).map((session) => session.id)
     ).toEqual(['pinned', 'newer', 'older'])
+  })
+
+  it('keeps system workspace sessions at the bottom of grouped display modes', () => {
+    const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
+      id: 'system-ws',
+      type: 'system'
+    })
+    const sessions = [
+      createSession({ id: 'system', orderKey: '0', workspaceId: 'system-ws', workspace: systemWorkspace }),
+      createSession({
+        id: 'project-b',
+        agentId: 'agent-b',
+        orderKey: 'b',
+        workspaceId: 'ws-/Users/jd/project-b',
+        workspace: makeWorkspace('/Users/jd/project-b')
+      }),
+      createSession({ id: 'project-a', agentId: 'agent-a', orderKey: 'a' })
+    ]
+
+    expect(
+      sortSessionsForDisplayGroups(sessions, {
+        agentRankById: new Map([
+          ['agent-a', 0],
+          ['agent-b', 1]
+        ]),
+        mode: 'agent'
+      }).map((session) => session.id)
+    ).toEqual(['project-a', 'project-b', 'system'])
+
+    expect(
+      sortSessionsForDisplayGroups(sessions, {
+        mode: 'workdir',
+        workdirDisplay: createSessionWorkdirDisplayMaps(sessions, [
+          makeWorkspace('/Users/jd/project-a'),
+          makeWorkspace('/Users/jd/project-b')
+        ])
+      }).map((session) => session.id)
+    ).toEqual(['project-a', 'project-b', 'system'])
   })
 
   it('sorts fractional order keys by raw lexicographic order', () => {

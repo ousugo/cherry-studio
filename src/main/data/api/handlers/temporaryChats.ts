@@ -14,8 +14,9 @@
 
 import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { temporarySessionService } from '@data/services/TemporarySessionService'
+import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
-import type { TemporaryChatSchemas } from '@shared/data/api/schemas/temporaryChats'
+import { CreateTemporarySessionSchema, type TemporaryChatSchemas } from '@shared/data/api/schemas/temporaryChats'
 
 export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
   '/temporary/topics': {
@@ -51,7 +52,9 @@ export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
 
   '/temporary/sessions': {
     POST: async ({ body }) => {
-      return await temporarySessionService.createSession(body)
+      const parsed = CreateTemporarySessionSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return await temporarySessionService.createSession(parsed.data)
     }
   },
 

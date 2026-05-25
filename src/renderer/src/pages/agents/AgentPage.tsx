@@ -16,6 +16,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { useSearch } from '@tanstack/react-router'
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -27,6 +28,19 @@ import { AgentEmpty } from './components/status'
 import { parseAgentRouteSearch } from './routeSearch'
 
 const logger = loggerService.withContext('AgentPage')
+
+function getSessionWorkspaceDefaults(
+  session: AgentSessionEntity | null | undefined
+): Pick<TemporaryConversationDefaults, 'workspaceId' | 'workspaceMode'> {
+  if (session?.workspace?.type === 'system') {
+    return { workspaceMode: 'system' }
+  }
+  return session?.workspaceId ? { workspaceId: session.workspaceId } : {}
+}
+
+function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined): boolean {
+  return !!session?.workspaceId && session.workspace?.type !== 'system'
+}
 
 const AgentPage = () => {
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -160,13 +174,17 @@ const AgentPage = () => {
 
   const startTemporarySession = useCallback(
     async (defaults: TemporaryConversationDefaults) => {
-      const rememberedWorkspaceId = defaults.workspaceId ?? lastUsedWorkspaceId ?? undefined
+      const isSystemWorkspaceMode = defaults.workspaceMode === 'system'
+      const rememberedWorkspaceId = isSystemWorkspaceMode
+        ? undefined
+        : (defaults.workspaceId ?? lastUsedWorkspaceId ?? undefined)
       if (
+        !isSystemWorkspaceMode &&
         temporaryAgentConversation?.type === 'agent' &&
         defaults.agentId === temporaryAgentConversation.agentId &&
         (rememberedWorkspaceId ?? null) === (temporaryAgentConversation.session.workspaceId ?? null)
       ) {
-        if (temporaryAgentConversation.session.workspaceId) {
+        if (isUserWorkspaceSession(temporaryAgentConversation.session)) {
           setLastUsedWorkspaceId(temporaryAgentConversation.session.workspaceId)
         }
         setActiveSessionId(null)
@@ -174,8 +192,9 @@ const AgentPage = () => {
       }
 
       const startDefaults = {
-        ...defaults,
-        ...(rememberedWorkspaceId ? { workspaceId: rememberedWorkspaceId } : {}),
+        agentId: defaults.agentId,
+        ...(isSystemWorkspaceMode ? { workspaceMode: 'system' as const } : {}),
+        ...(!isSystemWorkspaceMode && rememberedWorkspaceId ? { workspaceId: rememberedWorkspaceId } : {}),
         name: defaults.name ?? t('common.unnamed')
       }
 
@@ -193,7 +212,7 @@ const AgentPage = () => {
       }
       if (started?.type === 'agent') {
         setLastUsedAgentId(started.agentId)
-        if (started.session.workspaceId) {
+        if (isUserWorkspaceSession(started.session)) {
           setLastUsedWorkspaceId(started.session.workspaceId)
         }
       }
@@ -238,7 +257,7 @@ const AgentPage = () => {
       const persisted = await persistTemporaryConversation(initialName)
       if (persisted?.type === 'agent') {
         setLastUsedAgentId(persisted.agentId)
-        if (persisted.session.workspaceId) {
+        if (isUserWorkspaceSession(persisted.session)) {
           setLastUsedWorkspaceId(persisted.session.workspaceId)
         }
         setActiveSessionId(persisted.sessionId)
@@ -266,7 +285,7 @@ const AgentPage = () => {
       try {
         await replaceTemporaryConversation({
           agentId,
-          workspaceId: temporaryAgentConversation.session.workspaceId ?? undefined,
+          ...getSessionWorkspaceDefaults(temporaryAgentConversation.session),
           name: temporaryAgentConversation.name ?? t('common.unnamed')
         })
         setLastUsedAgentId(agentId)
@@ -288,9 +307,11 @@ const AgentPage = () => {
     ]
   )
   const replaceTemporaryWorkspace = useCallback(
-    async (workspaceId: string) => {
-      if (!workspaceId || temporaryAgentConversation?.type !== 'agent') return
-      if (workspaceId === temporaryAgentConversation.session.workspaceId) {
+    async (workspaceId: string | null) => {
+      if (temporaryAgentConversation?.type !== 'agent') return
+      const currentIsSystemWorkspace = temporaryAgentConversation.session.workspace?.type === 'system'
+      if (workspaceId === null && currentIsSystemWorkspace) return
+      if (workspaceId && workspaceId === temporaryAgentConversation.session.workspaceId) {
         setLastUsedWorkspaceId(workspaceId)
         return
       }
@@ -300,10 +321,12 @@ const AgentPage = () => {
       try {
         await replaceTemporaryConversation({
           agentId: temporaryAgentConversation.agentId,
-          workspaceId,
+          ...(workspaceId ? { workspaceId } : { workspaceMode: 'system' as const }),
           name: temporaryAgentConversation.name ?? t('common.unnamed')
         })
-        setLastUsedWorkspaceId(workspaceId)
+        if (workspaceId) {
+          setLastUsedWorkspaceId(workspaceId)
+        }
         setActiveSessionId(null)
       } catch (err) {
         logger.error('Failed to replace temporary workspace', err as Error, { workspaceId })

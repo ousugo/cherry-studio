@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
-import { Folder, FolderPlus } from 'lucide-react'
+import { CircleSlash, Folder, FolderPlus } from 'lucide-react'
 import { type ReactElement, useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,7 +27,7 @@ type SharedProps = {
 
 export type WorkspaceSelectorProps = SharedProps & {
   value: string | null | undefined
-  onChange: (value: string) => void | Promise<void>
+  onChange: (value: string | null) => void | Promise<void>
 }
 
 function workspaceMatchesSearch(workspace: WorkspaceEntity, searchValue: string) {
@@ -87,7 +87,7 @@ export function WorkspaceSelector({
   const selectedId = value ?? null
 
   const handleSelectWorkspace = useCallback(
-    async (workspaceId: string) => {
+    async (workspaceId: string | null) => {
       if (workspaceId === selectedId) {
         handleOpenChange(false)
         return
@@ -144,7 +144,7 @@ export function WorkspaceSelector({
     )
   }
 
-  const listContent = isLoading ? null : filteredWorkspaces.length === 0 ? (
+  const workspaceListContent = isLoading ? null : filteredWorkspaces.length === 0 ? (
     <EmptyState
       compact
       preset="no-result"
@@ -172,12 +172,21 @@ export function WorkspaceSelector({
         placeholder: t('agent.session.workspace_selector.search_placeholder'),
         ariaControls: listboxId
       }}
-      bottomAction={{
-        icon: <FolderPlus size={14} className="shrink-0" />,
-        label: t('agent.session.workspace_selector.create_new'),
-        disabled: disabled || isCreatingWorkspace,
-        onClick: () => void handleCreateWorkspace()
-      }}>
+      bottomAction={[
+        {
+          icon: <FolderPlus size={14} className="shrink-0" />,
+          label: t('agent.session.workspace_selector.create_new'),
+          disabled: disabled || isCreatingWorkspace,
+          onClick: () => void handleCreateWorkspace()
+        },
+        {
+          type: 'selectable',
+          icon: <CircleSlash size={14} className="shrink-0" />,
+          label: t('agent.session.workspace_selector.no_project'),
+          selected: selectedId === null,
+          onClick: () => void handleSelectWorkspace(null)
+        }
+      ]}>
       {({ availableListHeight }) => {
         const listMaxHeight =
           availableListHeight === undefined
@@ -195,7 +204,7 @@ export function WorkspaceSelector({
             tabIndex={-1}
             className="min-h-0 flex-1 px-1 py-1 outline-none"
             style={{ maxHeight: listMaxHeight, minHeight: listMinHeight }}>
-            {listContent}
+            {workspaceListContent}
           </Scrollbar>
         )
       }}

@@ -276,6 +276,7 @@ function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace'
     id: `ws-${path}`,
     name: path,
     path,
+    type: 'user',
     orderKey: 'a',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z'
@@ -287,6 +288,7 @@ function makeWorkspaceEntity(path: string, overrides: Partial<WorkspaceEntity> =
     id: `ws-${path}`,
     name: path,
     path,
+    type: 'user',
     orderKey: 'a',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',

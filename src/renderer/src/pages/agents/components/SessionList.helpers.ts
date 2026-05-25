@@ -53,7 +53,7 @@ export type SessionListItem = AgentSessionEntity & {
 }
 
 type SessionWorkdirSource = Pick<AgentSessionEntity, 'workspace' | 'workspaceId'>
-type WorkspaceDisplaySource = Pick<WorkspaceEntity, 'id' | 'name' | 'path'>
+type WorkspaceDisplaySource = Pick<WorkspaceEntity, 'id' | 'name' | 'path' | 'type'>
 
 export type SessionWorkdirDisplayMaps = {
   groupIdByPath: ReadonlyMap<string, string>
@@ -75,13 +75,16 @@ export const SESSION_PINNED_GROUP_ID = 'session:pinned'
 export const SESSION_PINNED_SECTION_ID = 'session:section:pinned'
 export const SESSION_AGENT_SECTION_ID = 'session:section:agent'
 export const SESSION_WORKDIR_SECTION_ID = 'session:section:workdir'
+export const SESSION_NO_PROJECT_GROUP_ID = 'session:no-project'
+export const SESSION_NO_PROJECT_SECTION_ID = 'session:section:no-project'
 export const SESSION_UNKNOWN_AGENT_GROUP_ID = 'session:agent:unknown'
 export const SESSION_NO_WORKDIR_GROUP_ID = 'session:workdir:none'
 
 const SESSION_AGENT_GROUP_ID_PREFIX = 'session:agent:'
 const SESSION_WORKSPACE_GROUP_ID_PREFIX = 'session:workspace:'
 const SESSION_WORKDIR_GROUP_ID_PREFIX = 'session:workdir:'
-const UNKNOWN_GROUP_RANK = Number.MAX_SAFE_INTEGER
+const NO_PROJECT_GROUP_RANK = Number.MAX_SAFE_INTEGER
+const UNKNOWN_GROUP_RANK = Number.MAX_SAFE_INTEGER - 1
 
 function withSessionGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): ResourceListGroupResolver<T> {
   return (item) => {
@@ -124,7 +127,12 @@ export function normalizeSessionWorkdirPath(path: string | null | undefined): st
   return trimmed.replace(/[\\/]+$/, '') || trimmed
 }
 
+export function isSystemWorkspaceSession(session: SessionWorkdirSource): boolean {
+  return session.workspace?.type === 'system'
+}
+
 export function getPrimarySessionWorkdir(session: SessionWorkdirSource): string | null {
+  if (isSystemWorkspaceSession(session)) return null
   return normalizeSessionWorkdirPath(session.workspace?.path)
 }
 
@@ -211,6 +219,7 @@ export function createSessionWorkdirDisplayMaps(
   const workspaceIdByGroupId = new Map<string, string>()
 
   for (const workspace of workspaces) {
+    if (workspace.type === 'system') continue
     const path = normalizeSessionWorkdirPath(workspace.path)
     if (!path || groupIdByWorkspaceId.has(workspace.id)) continue
 
@@ -290,6 +299,10 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
     })
 
     return composeResourceListGroupResolvers(pinnedResolver, (session) => {
+      if (isSystemWorkspaceSession(session)) {
+        return { id: SESSION_NO_PROJECT_GROUP_ID, label: '' }
+      }
+
       const agentId = session.agentId
       if (!agentId) {
         return { id: SESSION_UNKNOWN_AGENT_GROUP_ID, label: labels.agent.unknown }
@@ -308,6 +321,10 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
   })
 
   return composeResourceListGroupResolvers(pinnedResolver, (session) => {
+    if (isSystemWorkspaceSession(session)) {
+      return { id: SESSION_NO_PROJECT_GROUP_ID, label: '' }
+    }
+
     const groupId = getSessionWorkdirGroupId(session, workdirDisplay)
     if (groupId === SESSION_NO_WORKDIR_GROUP_ID) {
       return { id: SESSION_NO_WORKDIR_GROUP_ID, label: labels.workdir.none }
@@ -334,6 +351,8 @@ function getWorkdirGroupRank(
   session: SessionWorkdirSource,
   workdirDisplay?: Pick<SessionWorkdirDisplayMaps, 'groupIdByPath' | 'groupIdByWorkspaceId' | 'rankByGroupId'>
 ) {
+  if (isSystemWorkspaceSession(session)) return NO_PROJECT_GROUP_RANK
+
   const groupId = getSessionWorkdirGroupId(session, workdirDisplay)
   if (groupId === SESSION_NO_WORKDIR_GROUP_ID) return UNKNOWN_GROUP_RANK
   return workdirDisplay?.rankByGroupId.get(groupId) ?? UNKNOWN_GROUP_RANK
@@ -371,15 +390,19 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
 
   return sessions
     .map((session, index) => {
-      const displayRank =
-        options.mode === 'agent'
-          ? getAgentGroupRank(session, options.agentRankById)
-          : getWorkdirGroupRank(session, options.workdirDisplay)
+      let displayRank: number
+      if (isSystemWorkspaceSession(session)) {
+        displayRank = NO_PROJECT_GROUP_RANK
+      } else if (options.mode === 'agent') {
+        displayRank = getAgentGroupRank(session, options.agentRankById)
+      } else {
+        displayRank = getWorkdirGroupRank(session, options.workdirDisplay)
+      }
 
       return {
         session,
         index,
-        rank: session.pinned === true ? 0 : displayRank === UNKNOWN_GROUP_RANK ? UNKNOWN_GROUP_RANK : displayRank + 1
+        rank: session.pinned === true ? 0 : displayRank >= UNKNOWN_GROUP_RANK ? displayRank : displayRank + 1
       }
     })
     .sort((a, b) => {

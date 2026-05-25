@@ -462,6 +462,7 @@
       },
       "group": {
         "collapse": "Collapse display",
+        "conversation": "Chats",
         "drag_hint": "Drag to reorder. Drag sessions to adjust display and hidden groups.",
         "earlier": "Earlier",
         "no_workdir": "No project",
@@ -510,6 +511,7 @@
         "create_failed": "Failed to add project.",
         "create_new": "Add new project",
         "empty_text": "No projects",
+        "no_project": "No project",
         "placeholder": "Select project",
         "search_placeholder": "Search projects",
         "select_failed": "Failed to select folder."

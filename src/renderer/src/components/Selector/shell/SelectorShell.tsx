@@ -49,12 +49,24 @@ export type SelectorShellMultiSelect = {
   rowTestId?: string
 }
 
-export type SelectorShellBottomAction = {
+export type SelectorShellBottomCommandAction = {
+  type?: 'command'
   icon?: ReactNode
   label: ReactNode
   onClick: () => void
   disabled?: boolean
 }
+
+export type SelectorShellBottomSelectableAction = {
+  type: 'selectable'
+  icon?: ReactNode
+  label: ReactNode
+  onClick: () => void
+  disabled?: boolean
+  selected: boolean
+}
+
+export type SelectorShellBottomAction = SelectorShellBottomCommandAction | SelectorShellBottomSelectableAction
 
 export type SelectorShellProps = {
   trigger: ReactNode
@@ -63,7 +75,7 @@ export type SelectorShellProps = {
   search?: SelectorShellSearch
   filterContent?: ReactNode
   multiSelect?: SelectorShellMultiSelect
-  bottomAction?: SelectorShellBottomAction
+  bottomAction?: SelectorShellBottomAction | SelectorShellBottomAction[]
   children: ReactNode | ((layout: SelectorShellLayout) => ReactNode)
   contentClassName?: string
   width?: number | string
@@ -145,7 +157,8 @@ export function SelectorShell({
   const hasSearch = Boolean(search)
   const hasFilterContent = Boolean(filterContent)
   const hasMultiSelect = Boolean(multiSelect)
-  const hasBottomAction = Boolean(bottomAction)
+  const resolvedBottomActions = Array.isArray(bottomAction) ? bottomAction : bottomAction ? [bottomAction] : []
+  const hasBottomAction = resolvedBottomActions.length > 0
 
   const measureAvailableListHeight = useCallback(() => {
     const contentElement = contentRef.current
@@ -391,19 +404,38 @@ export function SelectorShell({
           <div ref={setListBodyElement} className="min-h-0 flex-1 overflow-hidden" data-selector-shell-body="true">
             {body}
           </div>
-          {bottomAction ? (
+          {hasBottomAction ? (
             <div
               ref={setBottomActionElement}
               className="relative z-1 shrink-0 border-border border-t bg-popover"
               data-selector-shell-chrome="bottom-action">
-              <button
-                type="button"
-                disabled={bottomAction.disabled}
-                onClick={bottomAction.onClick}
-                className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-muted-foreground text-xs transition-colors hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
-                {bottomAction.icon}
-                <span className="flex-1">{bottomAction.label}</span>
-              </button>
+              {resolvedBottomActions.map((action, index) => {
+                const selected = action.type === 'selectable' && action.selected
+
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    disabled={action.disabled}
+                    aria-pressed={action.type === 'selectable' ? selected : undefined}
+                    onClick={action.onClick}
+                    className={cn(
+                      'relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                      selected
+                        ? 'bg-accent/70 text-foreground'
+                        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                    )}>
+                    {selected ? (
+                      <span
+                        aria-hidden="true"
+                        className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
+                      />
+                    ) : null}
+                    {action.icon}
+                    <span className="min-w-0 flex-1 truncate">{action.label}</span>
+                  </button>
+                )
+              })}
             </div>
           ) : null}
         </PopoverContent>

@@ -2,6 +2,7 @@ import { agentService } from '@data/services/AgentService'
 import { sessionService } from '@data/services/SessionService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { workspaceService } from '@data/services/WorkspaceService'
+import { workspaceWorkflowService } from '@data/services/WorkspaceWorkflowService'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { CreateTemporarySessionDto } from '@shared/data/api/schemas/temporaryChats'
@@ -14,6 +15,7 @@ type TemporarySessionRow = {
   name: string
   description: string
   workspaceId?: string
+  workspaceType?: WorkspaceEntity['type']
   createdAt: number
   updatedAt: number
 }
@@ -41,17 +43,30 @@ export class TemporarySessionService {
       throw DataApiErrorFactory.validation({ agentId: ['is required'] })
     }
 
-    // Resolve the workspace eagerly so the returned entity carries it for
-    // display; an invalid id surfaces as a precise 404 before the row is kept.
-    const workspace = dto.workspaceId ? await workspaceService.getById(dto.workspaceId) : null
+    if (dto.workspaceMode === 'system' && dto.workspaceId) {
+      throw DataApiErrorFactory.validation({
+        workspaceId: ['must be omitted when workspaceMode is system']
+      })
+    }
 
     const now = Date.now()
+    const id = uuidv4()
+    // Resolve the workspace eagerly so the returned entity carries it for
+    // display; an invalid id surfaces as a precise 404 before the row is kept.
+    const workspace =
+      dto.workspaceMode === 'system'
+        ? await workspaceService.createSystemWorkspaceForSession(id)
+        : dto.workspaceId
+          ? await workspaceService.getById(dto.workspaceId)
+          : null
+
     const row: TemporarySessionRow = {
-      id: uuidv4(),
+      id,
       agentId,
       name: dto.name?.trim() || 'Untitled',
       description: dto.description ?? '',
       workspaceId: workspace?.id,
+      workspaceType: workspace?.type,
       createdAt: now,
       updatedAt: now
     }
@@ -61,9 +76,14 @@ export class TemporarySessionService {
   }
 
   async deleteSession(id: string): Promise<void> {
-    if (!this.sessions.delete(id)) {
+    const row = this.sessions.get(id)
+    if (!row) {
       throw DataApiErrorFactory.notFound('TemporarySession', id)
     }
+    if (row.workspaceId && row.workspaceType === 'system') {
+      await workspaceWorkflowService.deleteWorkspace(row.workspaceId)
+    }
+    this.sessions.delete(id)
   }
 
   async persist(id: string): Promise<AgentSessionEntity> {
@@ -89,7 +109,7 @@ export class TemporarySessionService {
           description: row.description,
           workspaceId: row.workspaceId
         },
-        { id: row.id }
+        { id: row.id, allowSystemWorkspaceId: row.workspaceType === 'system' }
       )
     } catch (err) {
       this.sessions.set(id, row)

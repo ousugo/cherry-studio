@@ -33,6 +33,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'agent.session.workspace_selector.create_failed': 'Failed to add project',
           'agent.session.workspace_selector.create_new': 'Add new project',
           'agent.session.workspace_selector.empty_text': 'No projects',
+          'agent.session.workspace_selector.no_project': 'No project',
           'agent.session.workspace_selector.search_placeholder': 'Search projects',
           'agent.session.workspace_selector.select_failed': 'Failed to select folder'
         })[key] ?? key
@@ -47,6 +48,7 @@ const WORKSPACES = [
     id: 'workspace-alpha',
     name: 'cherry-studio',
     path: '/Users/jd/cherry-studio',
+    type: 'user',
     orderKey: 'a0',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
@@ -55,6 +57,7 @@ const WORKSPACES = [
     id: 'workspace-beta',
     name: 'cherry-studio-1',
     path: '/Users/jd/projects/cherry-studio-1',
+    type: 'user',
     orderKey: 'a1',
     createdAt: '2026-01-02T00:00:00.000Z',
     updatedAt: '2026-01-02T00:00:00.000Z'
@@ -65,6 +68,7 @@ const CREATED_WORKSPACE = {
   id: 'workspace-created',
   name: 'new-project',
   path: '/Users/jd/new-project',
+  type: 'user',
   orderKey: 'a2',
   createdAt: '2026-01-03T00:00:00.000Z',
   updatedAt: '2026-01-03T00:00:00.000Z'
@@ -143,6 +147,22 @@ describe('WorkspaceSelector', () => {
     expect(options[0]).toHaveTextContent('cherry-studio')
     expect(options[1]).toHaveTextContent('cherry-studio-1')
     expect(screen.queryByText('/Users/jd/cherry-studio')).not.toBeInTheDocument()
+  })
+
+  it('renders and selects the no-project option', async () => {
+    const onChange = vi.fn()
+    render(
+      <WorkspaceSelector trigger={<button type="button">Open</button>} value="workspace-alpha" onChange={onChange} />
+    )
+    openPopover()
+
+    const addProjectButton = screen.getByRole('button', { name: 'Add new project' })
+    const noProjectButton = screen.getByRole('button', { name: 'No project' })
+    expect(addProjectButton.compareDocumentPosition(noProjectButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(noProjectButton)
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(null))
   })
 
   it('filters workspaces by name or path', () => {

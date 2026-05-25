@@ -32,8 +32,10 @@ type SectionHeaderProps = ComponentProps<'div'> & {
 
 export function SectionHeader({ section, className, ref, style, ...props }: SectionHeaderProps) {
   const actions = useResourceListActions()
+  const meta = useResourceListMeta()
   const sectionState = useResourceListGroupState(section.id)
   const collapsed = sectionState.collapsed
+  const sectionHeaderAction = meta.getSectionHeaderAction?.(section)
 
   if (!section.label) return null
 
@@ -48,7 +50,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
           type="button"
           aria-expanded={!collapsed}
           className={cn(
-            'flex h-full min-w-0 max-w-full items-center gap-1 text-left outline-none focus-visible:text-foreground'
+            'flex h-full min-w-0 flex-1 items-center gap-1 text-left outline-none focus-visible:text-foreground'
           )}
           onClick={() => actions.toggleGroup(section.id)}>
           <span className="min-w-0 truncate text-left font-semibold text-[13px] text-inherit leading-5">
@@ -60,6 +62,11 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
             <ChevronDown size={12} className={cn('transition-transform', collapsed && '-rotate-90')} />
           </span>
         </button>
+        {sectionHeaderAction && (
+          <div className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100">
+            {sectionHeaderAction}
+          </div>
+        )}
       </div>
     </div>
   )

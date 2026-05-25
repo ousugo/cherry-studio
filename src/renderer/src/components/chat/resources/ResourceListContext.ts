@@ -123,6 +123,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getItemLabel: (item: T) => string
   groups: ResourceListGroup[]
   sections: ResourceListSection[]
+  getSectionHeaderAction?: (section: ResourceListSection) => ReactNode
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
   getGroupHeaderContextMenu?: (group: ResourceListGroup) => ReactNode
   getGroupHeaderLeadingAction?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode

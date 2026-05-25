@@ -462,6 +462,7 @@
       },
       "group": {
         "collapse": "折疊顯示",
+        "conversation": "對話",
         "drag_hint": "拖曳可排序，也可拖曳工作階段調整展示/隱藏分組。",
         "earlier": "[to be translated]:Earlier",
         "no_workdir": "無專案",
@@ -510,6 +511,7 @@
         "create_failed": "[to be translated]:Failed to add project.",
         "create_new": "[to be translated]:Add new project",
         "empty_text": "[to be translated]:No projects",
+        "no_project": "不使用專案",
         "placeholder": "選擇專案",
         "search_placeholder": "[to be translated]:Search projects",
         "select_failed": "[to be translated]:Failed to select folder."

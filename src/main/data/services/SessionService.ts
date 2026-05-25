@@ -49,6 +49,7 @@ type JoinedSessionRow = {
   workspace: WorkspaceRow | null
 }
 type SessionDeleteTx = Pick<DbType, 'delete'>
+type SessionDeleteWorkflowTx = Pick<DbType, 'delete' | 'select'>
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   if (row.session.workspaceId && !row.workspace) {
@@ -80,7 +81,16 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 export class SessionService {
-  async createSession(dto: CreateSessionDto, options: { id?: string } = {}): Promise<AgentSessionEntity> {
+  async createSession(
+    dto: CreateSessionDto,
+    options: { id?: string; allowSystemWorkspaceId?: boolean } = {}
+  ): Promise<AgentSessionEntity> {
+    if (dto.workspaceMode === 'system' && dto.workspaceId) {
+      throw DataApiErrorFactory.validation({
+        workspaceId: ['must be omitted when workspaceMode is system']
+      })
+    }
+
     const db = application.get('DbService').getDb()
 
     // Verify the agent exists; FK alone gives generic 404 — explicit check returns
@@ -93,34 +103,46 @@ export class SessionService {
     if (!agent) throw DataApiErrorFactory.notFound('Agent', dto.agentId)
 
     const id = options.id ?? uuidv4()
-    await withSqliteErrors(
-      () =>
-        db.transaction(async (tx) => {
-          let workspaceId = dto.workspaceId
-          if (workspaceId) {
-            await workspaceService.getByIdTx(tx, workspaceId)
-          } else {
-            const [sibling] = await tx
-              .select({ workspaceId: sessionsTable.workspaceId })
-              .from(sessionsTable)
-              .where(eq(sessionsTable.agentId, dto.agentId))
-              .orderBy(desc(sessionsTable.createdAt))
-              .limit(1)
-            workspaceId = sibling?.workspaceId ?? (await workspaceService.createDefaultWorkspaceTx(tx)).id
-          }
+    const preparedSystemWorkspace =
+      dto.workspaceMode === 'system' ? workspaceService.prepareSystemWorkspaceForSession(id) : null
+    try {
+      await withSqliteErrors(
+        () =>
+          application.get('DbService').withWriteTx(async (tx) => {
+            let workspaceId = dto.workspaceId
+            if (workspaceId) {
+              await workspaceService.getByIdTx(tx, workspaceId, { includeSystem: options.allowSystemWorkspaceId })
+            } else if (preparedSystemWorkspace) {
+              workspaceId = (await workspaceService.createPreparedSystemWorkspaceTx(tx, preparedSystemWorkspace)).id
+            } else {
+              const [sibling] = await tx
+                .select({ workspaceId: sessionsTable.workspaceId })
+                .from(sessionsTable)
+                .innerJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
+                .where(and(eq(sessionsTable.agentId, dto.agentId), eq(workspaceTable.type, 'user')))
+                .orderBy(desc(sessionsTable.createdAt))
+                .limit(1)
+              workspaceId = sibling?.workspaceId ?? (await workspaceService.createDefaultWorkspaceTx(tx)).id
+            }
 
-          return insertWithOrderKey(
-            tx,
-            sessionsTable,
-            { id, agentId: dto.agentId, name: dto.name, description: dto.description, workspaceId },
-            { pkColumn: sessionsTable.id, position: 'first' }
-          )
-        }),
-      {
-        ...defaultHandlersFor('Session', id),
-        foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
+            return insertWithOrderKey(
+              tx,
+              sessionsTable,
+              { id, agentId: dto.agentId, name: dto.name, description: dto.description, workspaceId },
+              { pkColumn: sessionsTable.id, position: 'first' }
+            )
+          }),
+        {
+          ...defaultHandlersFor('Session', id),
+          foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
+        }
+      )
+    } catch (error) {
+      if (preparedSystemWorkspace) {
+        workspaceService.deletePreparedSystemWorkspaceDirectory(preparedSystemWorkspace)
       }
-    )
+      throw error
+    }
 
     return await this.getById(id)
   }
@@ -212,8 +234,34 @@ export class SessionService {
   }
 
   async delete(id: string): Promise<void> {
-    const db = application.get('DbService').getDb()
-    await db.transaction((tx) => this.deleteByIdTx(tx, id))
+    let systemWorkspacePath: string | null = null
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx(async (tx) => {
+      const row = await this.getDeleteWorkflowRowTx(tx, id)
+      if (row.workspace?.type === 'system') {
+        workspaceService.assertSystemWorkspacePath(row.workspace.path)
+        systemWorkspacePath = row.workspace.path
+        await this.deleteByWorkspaceTx(tx, row.workspace.id)
+        await workspaceService.deleteByIdTx(tx, row.workspace.id)
+        return
+      }
+
+      await this.deleteByIdTx(tx, id)
+    })
+    if (systemWorkspacePath) {
+      workspaceService.deleteSystemWorkspaceDirectoryAfterCommit(systemWorkspacePath)
+    }
+  }
+
+  private async getDeleteWorkflowRowTx(tx: SessionDeleteWorkflowTx, id: string): Promise<JoinedSessionRow> {
+    const [row] = await tx
+      .select({ session: sessionsTable, workspace: workspaceTable })
+      .from(sessionsTable)
+      .leftJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
+      .where(eq(sessionsTable.id, id))
+      .limit(1)
+    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    return row
   }
 
   async deleteByIdTx(tx: SessionDeleteTx, id: string): Promise<void> {

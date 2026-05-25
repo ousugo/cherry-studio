@@ -37,7 +37,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import { Bot, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
 import { Fragment, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -62,11 +62,14 @@ import {
   createSessionWorkdirDisplayMaps,
   getAgentIdFromSessionGroupId,
   getWorkdirPathFromSessionGroupId,
+  isSystemWorkspaceSession,
   moveSessionAgentGroupAfterDrop,
   moveSessionWorkdirGroupAfterDrop,
   normalizeSessionCollapsedGroupIds,
   normalizeSessionDropPayload,
   SESSION_AGENT_SECTION_ID,
+  SESSION_NO_PROJECT_GROUP_ID,
+  SESSION_NO_PROJECT_SECTION_ID,
   SESSION_NO_WORKDIR_GROUP_ID,
   SESSION_PINNED_GROUP_ID,
   SESSION_PINNED_SECTION_ID,
@@ -99,7 +102,12 @@ const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
   workdir: 'agent.session.display.workdir'
 }
 const EMPTY_WORKSPACE_ROWS: WorkspaceEntity[] = []
-type CreateSessionSeed = { agentId: string; workspaceId?: string; workspacePath?: string }
+type CreateSessionSeed = {
+  agentId: string
+  workspaceId?: string
+  workspacePath?: string
+  workspaceMode?: WorkspaceMode
+}
 
 function SessionListOptionsMenu({
   mode,
@@ -297,6 +305,10 @@ export function buildCreateSessionSeed(
   session: Pick<AgentSessionEntity, 'agentId' | 'workspaceId' | 'workspace'> | null | undefined
 ): CreateSessionSeed | null {
   if (!session?.agentId) return null
+
+  if (session.workspace?.type === 'system') {
+    return { agentId: session.agentId, workspaceMode: 'system' }
+  }
 
   if (session.workspaceId) {
     return { agentId: session.agentId, workspaceId: session.workspaceId }
@@ -541,6 +553,10 @@ const Sessions = ({
         return { id: SESSION_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
       }
 
+      if (isSystemWorkspaceSession(session)) {
+        return { id: SESSION_NO_PROJECT_SECTION_ID, label: t('agent.session.group.conversation') }
+      }
+
       return {
         id: displayMode === 'agent' ? SESSION_AGENT_SECTION_ID : SESSION_WORKDIR_SECTION_ID,
         label: t(SESSION_DISPLAY_LABEL_KEYS[displayMode])
@@ -646,6 +662,7 @@ const Sessions = ({
         await onStartTemporarySession?.({
           agentId: seed.agentId,
           name: t('common.unnamed'),
+          ...(seed.workspaceMode ? { workspaceMode: seed.workspaceMode } : {}),
           ...(workspaceId ? { workspaceId } : {})
         })
 
@@ -1076,12 +1093,38 @@ const Sessions = ({
     ]
   )
 
+  const getSectionHeaderAction = useCallback(
+    (section: ResourceListSection) => {
+      if (section.id !== SESSION_NO_PROJECT_SECTION_ID) return null
+
+      const createSessionSeed = findLatestCreateSessionSeed(groupedSessions, isSystemWorkspaceSession)
+      const canCreateSession = createSessionSeed !== null && agentById.has(createSessionSeed.agentId)
+      if (!canCreateSession) return null
+
+      return (
+        <Tooltip title={t('chat.conversation.new')} delay={500}>
+          <ResourceList.GroupHeaderActionButton
+            type="button"
+            aria-label={t('chat.conversation.new')}
+            disabled={creatingSession}
+            onClick={(event) => {
+              event.stopPropagation()
+              void createSessionFromSeed(createSessionSeed)
+            }}>
+            <SquarePen className="block" />
+          </ResourceList.GroupHeaderActionButton>
+        </Tooltip>
+      )
+    },
+    [agentById, createSessionFromSeed, creatingSession, groupedSessions, t]
+  )
+
   const getGroupHeaderIcon = useCallback(
     (group: ResourceListGroup) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return undefined
 
       if (displayMode === 'workdir') {
-        if (group.id === SESSION_NO_WORKDIR_GROUP_ID) return null
+        if (group.id === SESSION_NO_WORKDIR_GROUP_ID || group.id === SESSION_NO_PROJECT_GROUP_ID) return null
         return <FolderOpen size={13} />
       }
 
@@ -1203,6 +1246,7 @@ const Sessions = ({
       revealRequest={revealRequest}
       defaultGroupVisibleCount={5}
       groupLoadStep={5}
+      getSectionHeaderAction={getSectionHeaderAction}
       getGroupHeaderAction={getGroupHeaderAction}
       getGroupHeaderClassName={getGroupHeaderClassName}
       getGroupHeaderContextMenu={getGroupHeaderContextMenu}

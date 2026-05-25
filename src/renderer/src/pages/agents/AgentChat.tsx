@@ -41,6 +41,15 @@ import {
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
 
+function getNewSessionWorkspaceDefaults(
+  session: AgentSessionEntity
+): Pick<TemporaryConversationDefaults, 'workspaceId' | 'workspaceMode'> {
+  if (session.workspace?.type === 'system') {
+    return { workspaceMode: 'system' }
+  }
+  return session.workspaceId ? { workspaceId: session.workspaceId } : {}
+}
+
 interface AgentChatProps {
   pane?: ReactNode
   paneOpen?: boolean
@@ -57,7 +66,7 @@ interface AgentChatProps {
   onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
   onPersistTemporarySession?: (initialName?: string) => Promise<TemporaryConversation | null>
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
-  onDraftWorkspaceChange?: (workspaceId: string) => void | Promise<void>
+  onDraftWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   onVisibleAgentChange?: (agentId: string) => void
   onVisibleWorkspaceChange?: (workspaceId: string) => void
   replacingTemporaryAgent?: boolean
@@ -105,6 +114,7 @@ const AgentChat = ({
     : (temporaryAgentConversation?.session ?? activeSession ?? null)
   const visibleAgentId = sessionSnapshot?.agentId ?? temporaryAgentConversation?.agentId ?? null
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
+  const visibleWorkspace = sessionSnapshot?.workspace ?? null
   const { agent: activeAgent } = useAgent(visibleAgentId)
 
   useEffect(() => {
@@ -121,8 +131,8 @@ const AgentChat = ({
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
   }, [onVisibleAgentChange, visibleAgentId])
   useEffect(() => {
-    if (visibleWorkspaceId) onVisibleWorkspaceChange?.(visibleWorkspaceId)
-  }, [onVisibleWorkspaceChange, visibleWorkspaceId])
+    if (visibleWorkspaceId && visibleWorkspace?.type !== 'system') onVisibleWorkspaceChange?.(visibleWorkspaceId)
+  }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
 
   const temporaryHistoryAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
@@ -255,7 +265,7 @@ const AgentChat = ({
         onNewSessionDraft={() =>
           onStartTemporarySession?.({
             agentId: temporaryAgentConversation.agentId,
-            workspaceId: temporaryAgentConversation.session.workspaceId ?? undefined,
+            ...getNewSessionWorkspaceDefaults(temporaryAgentConversation.session),
             name: t('common.unnamed')
           })
         }
@@ -290,7 +300,7 @@ const AgentChat = ({
           ? () =>
               onStartTemporarySession({
                 agentId: sessionAgentId,
-                workspaceId: sessionSnapshot.workspaceId ?? undefined,
+                ...getNewSessionWorkspaceDefaults(sessionSnapshot),
                 name: t('common.unnamed')
               })
           : undefined

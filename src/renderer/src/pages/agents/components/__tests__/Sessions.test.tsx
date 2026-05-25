@@ -386,6 +386,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.file_manager.finder': 'Finder',
         'agent.session.get.error.failed': 'Failed to get sessions',
         'agent.session.group.collapse': 'Collapse display',
+        'agent.session.group.conversation': 'Chats',
         'agent.session.group.drag_hint': 'Drag to reorder. Drag sessions to adjust display and hidden groups.',
         'agent.session.group.earlier': 'Earlier',
         'agent.session.group.no_workdir': 'No project',
@@ -455,6 +456,7 @@ function makeWorkspace(path: string, overrides: Partial<WorkspaceEntity> = {}): 
     id: `ws-${path}`,
     name: path.split('/').at(-1) ?? path,
     path,
+    type: 'user',
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -623,6 +625,52 @@ describe('Sessions', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toHaveClass('font-normal', 'text-sidebar-foreground/70')
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+  })
+
+  it('renders no-project sessions in a bottom chats section', () => {
+    const onStartTemporarySession = vi.fn()
+    const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
+      id: 'system-ws',
+      name: 'System Workspace',
+      type: 'system'
+    })
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-system',
+          name: 'System session',
+          orderKey: '0',
+          workspaceId: systemWorkspace.id,
+          workspace: systemWorkspace
+        }),
+        createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
+        createSession({
+          id: 'session-b',
+          name: 'Beta session',
+          orderKey: 'b',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' })
+        })
+      ]
+    })
+
+    render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
+
+    const projectSection = screen.getByRole('button', { name: 'Project' })
+    const chatsSection = screen.getByRole('button', { name: 'Chats' })
+    expect(projectSection.compareDocumentPosition(chatsSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText('System session')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'No project' })).not.toBeInTheDocument()
+
+    const chatsSectionHeader = chatsSection.closest('[class*="group/resource-list-section"]')
+    expect(chatsSectionHeader).not.toBeNull()
+    fireEvent.click(within(chatsSectionHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+
+    expect(onStartTemporarySession).toHaveBeenCalledWith({
+      agentId: 'agent-a',
+      name: 'Untitled',
+      workspaceMode: 'system'
+    })
   })
 
   it('orders workspace groups by workspace DataApi order', () => {

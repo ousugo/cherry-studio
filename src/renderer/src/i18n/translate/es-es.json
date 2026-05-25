@@ -458,6 +458,7 @@
       },
       "group": {
         "collapse": "[to be translated]:Collapse sessions",
+        "conversation": "[to be translated]:Chats",
         "earlier": "[to be translated]:Earlier",
         "no_workdir": "[to be translated]:No workspace",
         "show_more": "[to be translated]:Show more sessions",

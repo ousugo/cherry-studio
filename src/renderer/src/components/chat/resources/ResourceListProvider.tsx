@@ -283,6 +283,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   sectionBy?: (item: T) => ResourceListSection | null
   getItemId?: (item: T) => string
   getItemLabel?: (item: T) => string
+  getSectionHeaderAction?: ResourceListMeta<T>['getSectionHeaderAction']
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
   getGroupHeaderContextMenu?: ResourceListMeta<T>['getGroupHeaderContextMenu']
   getGroupHeaderLeadingAction?: ResourceListMeta<T>['getGroupHeaderLeadingAction']
@@ -460,6 +461,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   sectionBy,
   getItemId = getDefaultItemId as (item: T) => string,
   getItemLabel = getDefaultItemLabel as (item: T) => string,
+  getSectionHeaderAction,
   getGroupHeaderAction,
   getGroupHeaderContextMenu,
   getGroupHeaderLeadingAction,
@@ -768,6 +770,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getItemLabel,
       groups: viewGroups.map((group) => group.group),
       sections: viewSections.map((section) => section.section),
+      getSectionHeaderAction,
       getGroupHeaderAction,
       getGroupHeaderContextMenu,
       getGroupHeaderLeadingAction,
@@ -804,6 +807,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       dragCapabilities,
       estimateItemSize,
       filterOptions,
+      getSectionHeaderAction,
       getGroupHeaderAction,
       getGroupHeaderClassName,
       getGroupHeaderClickBehavior,
