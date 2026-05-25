@@ -79,10 +79,9 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
       // throughput, not wall-clock throughput.
       const totalMs = metrics.time_completion_millsec
       const ttftMs = metrics.time_first_token_millsec
-      const generationMs = ttftMs !== undefined && ttftMs < totalMs ? totalMs - ttftMs : totalMs
       metrixs = t('settings.messages.metrics', {
         time_first_token_millsec: ttftMs,
-        token_speed: (metrics.completion_tokens / (generationMs / 1000)).toFixed(0)
+        token_speed: (metrics.completion_tokens / (totalMs / 1000)).toFixed(0)
       })
     }
 
