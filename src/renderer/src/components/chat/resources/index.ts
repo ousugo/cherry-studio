@@ -42,16 +42,4 @@ export {
 } from './resourceListGrouping'
 export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'
 export { useResourceListPinnedState } from './useResourceListPinnedState'
-export {
-  AgentResourceList,
-  AssistantList,
-  type AssistantListActionContext,
-  type AssistantListActionHandlers,
-  type AssistantListLabels,
-  type AssistantListProps,
-  AssistantResourceList,
-  createAssistantListActionRegistry,
-  HistoryResourceList,
-  SessionResourceList,
-  TopicResourceList
-} from './variants'
+export { SessionResourceList, TopicResourceList } from './variants'

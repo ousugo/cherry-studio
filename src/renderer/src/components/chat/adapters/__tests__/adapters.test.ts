@@ -107,7 +107,7 @@ describe('chat adapters', () => {
     })
   })
 
-  it('maps assistants to stable resource items for AssistantList', () => {
+  it('maps assistants to stable resource items', () => {
     const item = ResourceListAdapter.fromAssistant(createAssistant(), {
       active: true,
       pinned: true
