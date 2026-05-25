@@ -108,7 +108,7 @@ export function MessageVirtualList<T>({
       className={className}
       style={{ overflowY: 'auto', overflowX: 'hidden', position: 'relative', ...style }}
       onWheel={runtime.scrollerProps.onWheel}>
-      <div style={{ paddingBottom: bottomPadding }}>
+      <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
         <Virtualizer
           ref={runtime.vlistHandleRef}
           scrollRef={runtime.scrollerRef}

@@ -26,6 +26,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
@@ -65,6 +66,14 @@ interface ScrollerEventHandlers {
 
 export interface ChatVirtualizerRuntime<T> {
   scrollerRef: RefObject<HTMLDivElement | null>
+  /**
+   * Ref for the inner content wrapper (the div that contains Virtualizer +
+   * any padding). We observe this with a ResizeObserver to detect content
+   * growth that doesn't change the `items` array — notably streaming text
+   * appended to the last message, which mutates `partsByMessageId` but
+   * leaves `groupedMessages` reference-stable.
+   */
+  contentRef: RefObject<HTMLDivElement | null>
   vlistHandleRef: RefObject<VListHandle | null>
   itemElement: (props: { index: number; style: CSSProperties; children: React.ReactNode }) => React.ReactElement
   keepMounted: readonly number[]
@@ -91,6 +100,7 @@ export function useChatVirtualizerRuntime<T>({
   scrollToTopKey
 }: ChatVirtualizerRuntimeOptions<T>): ChatVirtualizerRuntime<T> {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const contentRef = useRef<HTMLDivElement | null>(null)
   const vlistHandleRef = useRef<VListHandle | null>(null)
   const smoothScroll = useSmoothScrollAnimation(scrollerRef)
 
@@ -168,28 +178,38 @@ export function useChatVirtualizerRuntime<T>({
 
   // ---- size-change autoscroll -----------------------------------------
 
-  useEffect(() => {
-    // After every items update, re-measure and decide whether to stick.
+  // ResizeObserver fires on any DOM growth in the scroll content — covering
+  // both "new items rendered" (items array changed) and "existing streaming
+  // item got more tokens" (items array reference-stable but DOM grew).
+  // The latter is the dominant chat case: PR 2's identity-stability keeps
+  // groupedMessages reference-equal across token chunks, so an items-based
+  // effect would miss every chunk after the first.
+  const handleSizeChange = useCallback(() => {
     const m = readMetrics()
     if (!m) return
     const prevSize = lastScrollSizeRef.current
-    if (m.scrollSize !== prevSize) {
-      const wasAtBottom = atBottomStateRef.current.atBottom
-      atBottomStateRef.current = reduceAtBottom(atBottomStateRef.current, {
-        type: 'size-change',
-        offset: m.offset,
-        scrollSize: m.scrollSize,
-        viewportSize: m.viewportSize,
-        prevScrollSize: prevSize
-      })
-      lastScrollSizeRef.current = m.scrollSize
-      // Auto-stick: if user was at bottom before this size change and the
-      // size grew past the viewport, scroll smoothly to follow.
-      if (wasAtBottom && m.scrollSize > prevSize) {
-        stickToBottom(true)
-      }
+    if (m.scrollSize === prevSize) return
+    const wasAtBottom = atBottomStateRef.current.atBottom
+    atBottomStateRef.current = reduceAtBottom(atBottomStateRef.current, {
+      type: 'size-change',
+      offset: m.offset,
+      scrollSize: m.scrollSize,
+      viewportSize: m.viewportSize,
+      prevScrollSize: prevSize
+    })
+    lastScrollSizeRef.current = m.scrollSize
+    if (wasAtBottom && m.scrollSize > prevSize) {
+      stickToBottom(true)
     }
-  }, [items, readMetrics, stickToBottom])
+  }, [readMetrics, stickToBottom])
+
+  useLayoutEffect(() => {
+    const target = contentRef.current
+    if (!target || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => handleSizeChange())
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [handleSizeChange])
 
   // ---- scrollToTopKey: scroll the named item to the viewport top ------
 
@@ -250,29 +270,32 @@ export function useChatVirtualizerRuntime<T>({
   )
 
   const onScroll = useCallback(() => {
+    // Programmatic scrolls (our own smooth animation) fire scroll events too.
+    // If we don't ignore them here, mid-animation `measure` transitions will
+    // flip atBottom → false (we're not yet at the bottom while moving),
+    // poisoning the next size-change's `wasAtBottom` check and causing the
+    // next chunk's auto-stick to be skipped — the symptom is "auto-scroll
+    // happens but never reaches the bottom while streaming".
+    if (smoothScroll.isAnimating()) return
     const m = readMetrics()
     if (!m) return
+    // Infer direction from offset delta so keyboard / scrollbar drag /
+    // touchpad pan (which don't fire wheel events) still register as user
+    // intent. The wheel ref still wins when fresh — it's the most reliable
+    // signal for direction reversal mid-flight.
+    const wheelDir = lastWheelDirRef.current
+    const delta = m.offset - lastScrollOffsetRef.current
+    const direction: 'up' | 'down' | 'none' =
+      wheelDir !== 'none' ? wheelDir : delta < 0 ? 'up' : delta > 0 ? 'down' : 'none'
     lastScrollOffsetRef.current = m.offset
-    lastScrollSizeRef.current = m.scrollSize
-    const dir = lastWheelDirRef.current
-    // If a wheel direction is hot, treat this as user-initiated.
-    if (dir !== 'none') {
-      atBottomStateRef.current = reduceAtBottom(atBottomStateRef.current, {
-        type: 'user-scroll',
-        direction: dir,
-        offset: m.offset,
-        scrollSize: m.scrollSize,
-        viewportSize: m.viewportSize
-      })
-    } else {
-      atBottomStateRef.current = reduceAtBottom(atBottomStateRef.current, {
-        type: 'measure',
-        offset: m.offset,
-        scrollSize: m.scrollSize,
-        viewportSize: m.viewportSize
-      })
-    }
-  }, [readMetrics])
+    atBottomStateRef.current = reduceAtBottom(atBottomStateRef.current, {
+      type: 'user-scroll',
+      direction,
+      offset: m.offset,
+      scrollSize: m.scrollSize,
+      viewportSize: m.viewportSize
+    })
+  }, [readMetrics, smoothScroll])
 
   const onScrollEnd = useCallback(() => {
     lastWheelDirRef.current = 'none'
@@ -360,6 +383,7 @@ export function useChatVirtualizerRuntime<T>({
 
   return {
     scrollerRef,
+    contentRef,
     vlistHandleRef,
     itemElement: itemElement as ChatVirtualizerRuntime<T>['itemElement'],
     keepMounted,
