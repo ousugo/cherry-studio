@@ -1,18 +1,4 @@
-/**
- * Chat-side composition over `@cherrystudio/ui/composites/markdown`.
- *
- * - Picks `Markdown` (static) vs `StreamingMarkdown` based on `block.status`.
- * - Supplies chat-flavored components via `useChatMarkdownComponents`.
- * - Wires `withChatPlugins` preset (code + cjk + math + mermaid) gated on
- *   the user's `mathEnableSingleDollar` preference.
- * - Handles the "paused with empty content" UX (renders the localized
- *   placeholder) and footnote-label translation.
- *
- * This wrapper replaces the old `Markdown.tsx` monolith. Behaviour is
- * intentionally the same; the AST-stability mechanism (per-id animate
- * plugin with setPrevContentLength) is the only behavioural change, and it
- * lives in the generic `<StreamingMarkdown>` upstream.
- */
+import '@cherrystudio/ui/composites/markdown/styles'
 
 import { Markdown, type MarkdownSource, StreamingMarkdown, withChatPlugins } from '@cherrystudio/ui/composites/markdown'
 import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
