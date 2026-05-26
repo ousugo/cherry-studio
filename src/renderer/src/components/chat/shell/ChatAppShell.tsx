@@ -111,7 +111,6 @@ export function ChatAppShell({
           transition={CHAT_SHELL_TRANSITION}
           className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', centerClassName)}>
           {topBar && <ErrorBoundary>{topBar}</ErrorBoundary>}
-          {sidePanel && <ErrorBoundary>{sidePanel}</ErrorBoundary>}
           {hasCenterContent ? (
             <ErrorBoundary>{centerContent}</ErrorBoundary>
           ) : (
@@ -127,6 +126,12 @@ export function ChatAppShell({
 
         <RightPaneHost open={paneOpen && panePosition === 'right'}>{pane}</RightPaneHost>
       </div>
+
+      {sidePanel && (
+        <div data-chat-side-panel-host className="pointer-events-none absolute inset-0 z-80 *:pointer-events-auto">
+          <ErrorBoundary>{sidePanel}</ErrorBoundary>
+        </div>
+      )}
 
       <OverlayHost>{overlay}</OverlayHost>
     </div>

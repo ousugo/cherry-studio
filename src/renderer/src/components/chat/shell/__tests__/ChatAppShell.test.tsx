@@ -108,7 +108,7 @@ describe('ChatAppShell', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
-  it('keeps side panel inside chat-main with the navbar layer', () => {
+  it('renders side panel in a root overlay host above center layers', () => {
     const { container } = render(
       <ChatAppShell
         centerId="chat-main"
@@ -121,9 +121,18 @@ describe('ChatAppShell', () => {
     const chatMain = container.querySelector('#chat-main')
 
     expect(chatMain).toContainElement(screen.getByTestId('navbar'))
-    expect(chatMain).toContainElement(screen.getByTestId('settings-panel'))
+    expect(chatMain).not.toContainElement(screen.getByTestId('settings-panel'))
     expect(chatMain).toContainElement(screen.getByTestId('main'))
     expect(chatMain).toHaveClass('relative')
+
+    const sidePanelHost = container.querySelector('[data-chat-side-panel-host]')
+    expect(sidePanelHost).not.toBeNull()
+    expect(sidePanelHost).toContainElement(screen.getByTestId('settings-panel'))
+    expect(sidePanelHost).toHaveClass('pointer-events-none')
+    expect(sidePanelHost).toHaveClass('absolute')
+    expect(sidePanelHost).toHaveClass('inset-0')
+    expect(sidePanelHost).toHaveClass('z-80')
+    expect(sidePanelHost).toHaveClass('*:pointer-events-auto')
   })
 
   it('keeps the pane mounted when keyed center content changes', () => {
