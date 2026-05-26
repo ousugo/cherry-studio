@@ -53,7 +53,7 @@ function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
 
 function renderComposerMessageContent(content: string, composer: ComposerMessageSnapshot) {
   const tokens = composer.tokens
-    .filter((token) => token.label)
+    .filter((token) => token.kind !== 'model' && token.label)
     .sort((a, b) => a.textOffset - b.textOffset || a.index - b.index)
   const nodes: React.ReactNode[] = []
   let cursor = 0

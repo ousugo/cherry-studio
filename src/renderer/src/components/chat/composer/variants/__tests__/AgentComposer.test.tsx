@@ -102,7 +102,6 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
     selectedKnowledgeBases: [],
     isExpanded: false,
     couldAddImageFile: false,
-    couldMentionNotVisionModel: true,
     extensions: []
   }),
   useComposerToolDispatch: () => ({

@@ -110,7 +110,6 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
     selectedKnowledgeBases: [],
     isExpanded: false,
     couldAddImageFile: false,
-    couldMentionNotVisionModel: true,
     extensions: []
   }),
   useComposerToolDispatch: () => ({
@@ -146,6 +145,28 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <span data-testid="model-avatar" />
+}))
+
+vi.mock('../SelectedModelsTrigger', () => ({
+  SelectedModelsTrigger: ({ models, assistantModel, fallbackLabel, onModelsChange, onRestore }: any) => (
+    <div
+      data-testid="selected-models-trigger"
+      data-assistant-model-id={assistantModel?.id ?? ''}
+      data-model-count={String(models.length)}>
+      <span>{models.length === 0 ? fallbackLabel : `${models[0].name} | Provider`}</span>
+      <button
+        type="button"
+        onClick={() => onModelsChange(models.filter((currentModel: Model) => currentModel.id !== modelB.id))}>
+        trigger remove model 2
+      </button>
+      <button type="button" onClick={() => onModelsChange([])}>
+        trigger clear models
+      </button>
+      <button type="button" onClick={onRestore}>
+        trigger restore model
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/EmojiIcon', () => ({
@@ -435,22 +456,61 @@ describe('ChatComposer', () => {
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([])
   })
 
-  it('syncs the mentioned-model selector when a model token remove event is handled', () => {
+  it('does not expose selected models as editor tokens', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
 
     fireEvent.click(screen.getByText('toggle model multi select'))
     fireEvent.click(screen.getByText('select models 1 and 2'))
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
 
-    fireEvent.click(screen.getByTestId('remove-token-model:provider::model-b'))
+    expect(mocks.surfaceProps?.tokens.some((token) => token.kind === 'model')).toBe(false)
+    expect(screen.queryByTestId('remove-token-model:provider::model-a')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('remove-token-model:provider::model-b')).not.toBeInTheDocument()
+  })
+
+  it('updates mentioned models when the selected-model trigger removes one model', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
+
+    fireEvent.click(screen.getByText('trigger remove model 2'))
 
     expect(mocks.setMentionedModels).toHaveBeenLastCalledWith([model])
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+    expect(mocks.setModel).not.toHaveBeenCalled()
+  })
 
-    fireEvent.click(screen.getByTestId('remove-token-model:provider::model-a'))
+  it('keeps an empty mentioned-model selection when the selected-model trigger removes the last model', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+
+    fireEvent.click(screen.getByText('trigger clear models'))
 
     expect(mocks.setMentionedModels).toHaveBeenLastCalledWith([])
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '0')
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
+    expect(mocks.setModel).not.toHaveBeenCalled()
+  })
+
+  it('restores the selected-model trigger to the current assistant model', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+
+    fireEvent.click(screen.getByText('trigger restore model'))
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'false')
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-assistant-model-id', model.id)
+    expect(mocks.setMentionedModels).toHaveBeenLastCalledWith([])
+    expect(mocks.setModel).not.toHaveBeenCalled()
   })
 
   it('does not update the default model while a persisted assistant is loading', () => {
@@ -674,19 +734,22 @@ describe('ChatComposer', () => {
     expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
   })
 
-  it('keeps cached mentioned models for token-based model mentions', () => {
-    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
-      key.startsWith('inputbar-mentioned-models-') ? [model, modelB] : ''
+  it('does not read or write mentioned-model rich-text cache', () => {
+    const { unmount } = render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    unmount()
+
+    expect(cacheService.getCasual).not.toHaveBeenCalledWith(expect.stringMatching(/^inputbar-mentioned-models-/))
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
+      expect.stringMatching(/^inputbar-mentioned-models-/),
+      expect.anything(),
+      expect.anything()
     )
-
-    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
-
-    expect(screen.getByTestId('remove-token-model:provider::model-a')).toBeInTheDocument()
-    expect(screen.getByTestId('remove-token-model:provider::model-b')).toBeInTheDocument()
   })
 
-  it('fills mentioned-model tokens only after enabling multi-select and selecting multiple models', () => {
-    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+  it('sends selected model ids from the model selector without editor model tokens', async () => {
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    render(<ChatHomeComposer topic={topic} onSend={onSend} />)
 
     fireEvent.click(screen.getByText('toggle model multi select'))
     fireEvent.click(screen.getByText('select models 1 and 2'))
@@ -694,6 +757,17 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([model, modelB])
+    expect(mocks.surfaceProps?.tokens.some((token) => token.kind === 'model')).toBe(false)
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith(
+      'hello',
+      expect.objectContaining({
+        mentionedModels: [model.id, modelB.id],
+        userMessageParts: [{ type: 'text', text: 'hello' }]
+      })
+    )
   })
 
   it('keeps the temporary home model selector empty after manual clear', () => {
@@ -710,6 +784,8 @@ describe('ChatComposer', () => {
 
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '0')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('button.select_model')
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
   })
 
   it('reinitializes the temporary home selector when a new topic is created', async () => {
@@ -726,13 +802,13 @@ describe('ChatComposer', () => {
     })
   })
 
-  it('summarizes multiple temporary home model selections in the trigger', () => {
+  it('renders multiple temporary home model selections through the selected-model trigger', () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
     fireEvent.click(screen.getByText('toggle model multi select'))
     fireEvent.click(screen.getByText('select models 1 and 2'))
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
 
-    expect(screen.getByText('2 selected')).toBeInTheDocument()
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
   })
 })

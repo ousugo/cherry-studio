@@ -1,6 +1,5 @@
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
 import type { FileMetadata } from '@renderer/types'
-import { FILE_TYPE } from '@renderer/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -12,7 +11,7 @@ import React, { createContext, use, useCallback, useEffect, useMemo, useRef, use
 export interface ComposerToolState {
   /** Attached files */
   files: FileMetadata[]
-  /** Models mentioned in the input */
+  /** Models selected by the composer model selector for the current send */
   mentionedModels: Model[]
   /** Selected knowledge base items */
   selectedKnowledgeBases: KnowledgeBase[]
@@ -21,8 +20,6 @@ export interface ComposerToolState {
 
   /** Whether image files can be added (derived state) */
   couldAddImageFile: boolean
-  /** Whether non-vision models can be mentioned (derived state) */
-  couldMentionNotVisionModel: boolean
   /** Supported file extensions (derived state) */
   extensions: string[]
 }
@@ -152,8 +149,6 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
   const [couldAddImageFile, setCouldAddImageFile] = useState(initialState?.couldAddImageFile || false)
   const [extensions, setExtensions] = useState<string[]>(initialState?.extensions || [])
 
-  const couldMentionNotVisionModel = !files.some((file) => file.type === FILE_TYPE.IMAGE)
-
   // Composer launcher registry (stored in refs to avoid re-renders)
   const launcherRegistryRef = useRef(new Map<string, ComposerToolLauncher[]>())
   const [launcherVersion, setLauncherVersion] = useState(0)
@@ -201,18 +196,9 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
       selectedKnowledgeBases,
       isExpanded,
       couldAddImageFile,
-      couldMentionNotVisionModel,
       extensions
     }),
-    [
-      files,
-      mentionedModels,
-      selectedKnowledgeBases,
-      isExpanded,
-      couldAddImageFile,
-      couldMentionNotVisionModel,
-      extensions
-    ]
+    [files, mentionedModels, selectedKnowledgeBases, isExpanded, couldAddImageFile, extensions]
   )
 
   // Tools Registry API (stable references for tool buttons)

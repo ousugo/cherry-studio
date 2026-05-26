@@ -46,6 +46,7 @@ export interface ComposerQueuedMessagePayload {
   text: string
   userMessageParts: CherryMessagePart[]
   files?: Array<Record<string, unknown>>
+  /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
   knowledgeBaseIds?: string[]
 }
@@ -127,7 +128,7 @@ export interface StreamErrorPayload {
  */
 export type AiStreamOpenRequest = {
   topicId: string
-  /** UniqueModelIds of @-mentioned models — Main dispatches one execution per model. */
+  /** UniqueModelIds selected by the composer model selector — Main dispatches one execution per model. */
   mentionedModelIds?: UniqueModelId[]
 } & (
   | {
