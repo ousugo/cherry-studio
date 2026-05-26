@@ -36,6 +36,9 @@ describe('ComposerDockTransitionFrame', () => {
       if (this.hasAttribute('data-composer-inputbar')) {
         return rect(620, 820)
       }
+      if (this.hasAttribute('data-composer-viewport-inset-target')) {
+        return rect(640, 840)
+      }
       if (this.hasAttribute('data-composer-dock-surface')) {
         return rect(600, 820)
       }
@@ -68,6 +71,22 @@ describe('ComposerDockTransitionFrame', () => {
     await waitFor(() => {
       expect(screen.getByTestId('content-bottom-padding')).toHaveTextContent('236')
       expect(screen.getByTestId('scroller-bottom-margin')).toHaveTextContent('80')
+    })
+  })
+
+  it('uses the generic composer viewport inset target when no inputbar is rendered', async () => {
+    render(
+      <ComposerDockTransitionFrame
+        placement="docked"
+        main={<InsetProbe />}
+        composer={<div data-composer-viewport-inset-target="" />}
+        mainVisible
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('content-bottom-padding')).toHaveTextContent('256')
+      expect(screen.getByTestId('scroller-bottom-margin')).toHaveTextContent('60')
     })
   })
 

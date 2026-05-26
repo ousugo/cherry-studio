@@ -1,3 +1,4 @@
+import { TopicType } from '@renderer/types'
 import { act, render, screen } from '@testing-library/react'
 import type { ReactNode, Ref } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -186,6 +187,23 @@ describe('MessageList', () => {
     })
 
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'useruser-1')
+  })
+
+  it('does not force the latest user message to the viewport top for agent session topics', () => {
+    render(
+      <MessageListProvider
+        value={createValue([createMessage('user-1', 'user'), createMessage('assistant-placeholder', 'assistant')], {
+          topic: {
+            id: 'session:session-1',
+            name: 'Session',
+            type: TopicType.Session
+          } as MessageListProviderValue['state']['topic']
+        })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', '')
   })
 
   it('does not signal forced scroll when an assistant message is appended', () => {

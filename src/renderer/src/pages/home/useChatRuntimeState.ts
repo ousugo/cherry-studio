@@ -1,7 +1,5 @@
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
-import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import { type TranslationOverlayEntry, type TranslationOverlaySetter } from '@renderer/components/chat/messages/blocks'
 import {
   buildTopicMessageFlowLiveState,
@@ -14,7 +12,6 @@ import {
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
-import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import type { FileMetadata, Topic } from '@renderer/types'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -181,18 +178,6 @@ export function useChatRuntimeState({
 
   const partsByMessageId = useStablePartsByMessageId(messages, overlay, translationOverlay)
 
-  const respondToolApproval = useToolApprovalBridge(topic.id)
-  const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
-    partsByMessageId,
-    onRespond: respondToolApproval
-  })
-  const composerContext = useMemo<ComposerContextValue>(
-    () => ({
-      overrides: toolApprovalComposerOverrides
-    }),
-    [toolApprovalComposerOverrides]
-  )
-
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
   const seedReservedMessages = useCallback(
     async (reservedMessages: CherryUIMessage[]) => {
@@ -351,8 +336,6 @@ export function useChatRuntimeState({
   return {
     messages,
     partsByMessageId,
-    respondToolApproval,
-    composerContext,
     shouldRenderHomeComposer,
     chatWriteActions,
     sendMessage,

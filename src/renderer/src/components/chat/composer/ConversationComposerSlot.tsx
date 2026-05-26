@@ -4,11 +4,16 @@ import { ComposerContextProvider, type ComposerContextValue } from './ComposerCo
 import ComposerCore from './ComposerCore'
 
 export interface ConversationComposerSlotProps {
-  composerContext: ComposerContextValue
+  composerContext?: ComposerContextValue
   fallback?: ReactNode
 }
 
-export default function ConversationComposerSlot({ composerContext, fallback }: ConversationComposerSlotProps) {
+const emptyComposerContext: ComposerContextValue = {}
+
+export default function ConversationComposerSlot({
+  composerContext = emptyComposerContext,
+  fallback
+}: ConversationComposerSlotProps) {
   if (!fallback) return null
 
   return (

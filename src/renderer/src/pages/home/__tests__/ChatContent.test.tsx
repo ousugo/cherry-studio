@@ -9,7 +9,6 @@ const mockUseChatWithHistory = vi.fn()
 const mockUseTopicMessages = vi.fn()
 const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
 const mockEventEmit = vi.hoisted(() => vi.fn())
-const mockRespondToolApproval = vi.hoisted(() => vi.fn())
 const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
 const mockUseExecutionOverlay = vi.hoisted(() =>
   vi.fn<(...args: unknown[]) => unknown>(() => mockExecutionOverlay.current)
@@ -28,10 +27,6 @@ vi.mock('@renderer/hooks/ChatWriteContext', () => ({
 
 vi.mock('@renderer/hooks/useTopicMessages', () => ({
   useTopicMessages: (...args: unknown[]) => mockUseTopicMessages(...args)
-}))
-
-vi.mock('@renderer/hooks/useToolApprovalBridge', () => ({
-  useToolApprovalBridge: () => mockRespondToolApproval
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -272,7 +267,6 @@ describe('ChatContent', () => {
     vi.clearAllMocks()
     capturedOnSend = undefined
     mockMessageListValue.current = null
-    mockRespondToolApproval.mockReset()
     mockEventEmit.mockReset()
     mockUseExecutionOverlay.mockReset()
   })
@@ -634,7 +628,9 @@ describe('ChatContent', () => {
       )
     })
 
-    const finish = (mockUseExecutionOverlay.mock.calls.at(-1)?.[3] as any).onFinish as (
+    const overlayCall = mockUseExecutionOverlay.mock.calls.at(-1)
+    expect(overlayCall).toBeDefined()
+    const finish = (overlayCall![3] as any).onFinish as (
       executionId: string,
       event: { message: CherryUIMessage; isAbort: boolean; isError: boolean }
     ) => void
@@ -688,59 +684,6 @@ describe('ChatContent', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('messages')).toHaveTextContent('u-1,gemini-old,kimi,claude,gemini-new-pending')
-    })
-  })
-
-  it('replaces the normal inputbar with the shared permission composer and uses the chat approval bridge', async () => {
-    const approvalPart = {
-      type: 'tool-CustomTool',
-      toolName: 'CustomTool',
-      toolCallId: 'call-1',
-      state: 'approval-requested',
-      input: { command: 'pnpm test' },
-      approval: { id: 'approval-1' },
-      callProviderMetadata: {
-        'claude-code': {
-          rawInput: { command: 'pnpm test' },
-          parentToolCallId: null
-        }
-      }
-    } as unknown as CherryMessagePart
-    const approvalMessage = {
-      id: 'assistant-approval',
-      role: 'assistant',
-      parts: [approvalPart],
-      metadata: {
-        createdAt: '2026-01-01T00:00:01.000Z',
-        status: 'pending'
-      }
-    } as CherryUIMessage
-
-    mockUseTopicMessages.mockReturnValue({
-      uiMessages: [createUiMessage('history-user', 'user'), approvalMessage],
-      siblingsMap: {},
-      isLoading: false,
-      refresh: vi.fn().mockResolvedValue([]),
-      activeNodeId: 'branch-a',
-      loadOlder: vi.fn(),
-      hasOlder: false,
-      mutate: vi.fn().mockResolvedValue(undefined)
-    })
-
-    render(<ChatContent topic={topic} />)
-
-    expect(screen.queryByRole('button', { name: 'send' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /allow|允许|agent\.toolPermission\.button\.allow/i }))
-
-    await waitFor(() => expect(mockRespondToolApproval).toHaveBeenCalledTimes(1))
-    expect(mockRespondToolApproval).toHaveBeenCalledWith({
-      match: expect.objectContaining({
-        approvalId: 'approval-1',
-        messageId: 'assistant-approval',
-        toolCallId: 'call-1'
-      }),
-      approved: true
     })
   })
 

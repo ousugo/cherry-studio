@@ -73,7 +73,6 @@ interface HomeMessageListParams {
   hasOlder?: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   openTrace?: MessageListActions['openTrace']
-  respondToolApproval: NonNullable<MessageListActions['respondToolApproval']>
   onComponentUpdate?(): void
   onFirstUpdate?(): void
 }
@@ -87,7 +86,6 @@ export function useHomeMessageListProviderValue({
   hasOlder = false,
   openCitationsPanel,
   openTrace,
-  respondToolApproval,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
@@ -652,7 +650,6 @@ export function useHomeMessageListProviderValue({
       ...editorCapabilities,
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
-      respondToolApproval,
       removeMessageErrorPart,
       openTrace,
       openPath,
@@ -701,7 +698,6 @@ export function useHomeMessageListProviderValue({
       openTrace,
       regenerateMessage,
       renderRegenerateModelPicker,
-      respondToolApproval,
       removeMessageErrorPart,
       saveCodeBlock,
       selectFiles,

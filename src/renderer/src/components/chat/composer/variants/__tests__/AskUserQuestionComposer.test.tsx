@@ -68,6 +68,12 @@ function makeRequest(): AskUserQuestionComposerRequest {
 }
 
 describe('AskUserQuestionComposer', () => {
+  it('marks the root panel as a composer viewport inset target', () => {
+    const { container } = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(container.firstElementChild).toHaveAttribute('data-composer-viewport-inset-target', '')
+  })
+
   it('auto advances after option selection and submits a custom input as an answer option', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
