@@ -40,6 +40,7 @@ export {
   getResourceTimeBucket,
   sortByResourceGroupRank
 } from './resourceListGrouping'
+export { RESOURCE_LIST_SELECTED_ROW_CLASS } from './resourceListLayout'
 export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'
 export { useResourceListPinnedState } from './useResourceListPinnedState'
 export { SessionResourceList, TopicResourceList } from './variants'

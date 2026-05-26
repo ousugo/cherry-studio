@@ -19,6 +19,7 @@ import { loggerService } from '@logger'
 import { ActionMenu } from '@renderer/components/chat/actions/ActionMenu'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
+  RESOURCE_LIST_SELECTED_ROW_CLASS,
   ResourceList,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
@@ -910,7 +911,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
           className={cn(
             'flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 outline-none transition-colors [&_svg]:size-3.5 [&_svg]:shrink-0',
             'hover:text-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:cursor-not-allowed disabled:opacity-50',
-            (allSelected || partiallySelected) && 'text-(--color-primary)'
+            (allSelected || partiallySelected) && 'text-primary'
           )}
           onClick={(event) => {
             event.stopPropagation()
@@ -1086,7 +1087,6 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         items={visibleFilteredTopics}
         status={listStatus}
         selectedId={isManageMode ? null : activeTopic?.id}
-        estimateItemSize={() => 38}
         groupBy={topicGroupBy}
         sectionBy={topicSectionBy}
         collapsedGroupIds={effectiveCollapsedTopicGroupIds}
@@ -1152,7 +1152,6 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
           onOpenInNewTab={tabs ? openTopicInNewTab : undefined}
           onPinTopic={handlePinTopic}
           onSwitchTopic={setActiveTopic}
-          rowLayout="grouped"
           selectedIds={selectedIds}
           toggleSelectTopic={toggleSelectTopic}
           topicsLength={topics.length}
@@ -1172,7 +1171,6 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
 }
 
 type TopicListBodyVariant = 'manage' | 'draggable' | 'plain'
-type TopicRowLayout = 'grouped' | 'single'
 type TopicRowMode = 'manage' | 'default'
 type TopicStreamState = {
   isFulfilled: boolean
@@ -1264,7 +1262,6 @@ interface TopicListBodyProps {
   onOpenInNewTab?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
   onSwitchTopic: (topic: Topic) => void
-  rowLayout: TopicRowLayout
   selectedIds: Set<string>
   toggleSelectTopic: (topicId: string) => void
   topicsLength: number
@@ -1273,16 +1270,10 @@ interface TopicListBodyProps {
 
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
-  const { listRef, rowLayout, variant, ...rowProps } = props
+  const { listRef, variant, ...rowProps } = props
 
   const renderItem = (topic: Topic) => (
-    <TopicRow
-      key={topic.id}
-      topic={topic}
-      {...rowProps}
-      layout={rowLayout}
-      mode={variant === 'manage' ? 'manage' : 'default'}
-    />
+    <TopicRow key={topic.id} topic={topic} {...rowProps} mode={variant === 'manage' ? 'manage' : 'default'} />
   )
 
   return (
@@ -1296,8 +1287,7 @@ function TopicListBody(props: TopicListBodyProps) {
   )
 }
 
-type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'rowLayout' | 'variant'> & {
-  layout: TopicRowLayout
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'variant'> & {
   mode: TopicRowMode
 }
 
@@ -1313,7 +1303,6 @@ function TopicRow({
   exportMenuOptions,
   isNewlyRenamed,
   isRenaming,
-  layout,
   mode,
   notesPath,
   onAutoRename,
@@ -1381,10 +1370,8 @@ function TopicRow({
       data-testid="topic-list-row"
       className={cn(
         'relative',
-        isManageMode && isSelected && 'bg-accent text-foreground shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
-        isManageMode && !canSelect && 'cursor-not-allowed opacity-50',
-        layout === 'grouped' && !isManageMode && isActive && 'bg-accent text-foreground',
-        layout === 'single' && !isManageMode && isActive && 'bg-accent text-foreground shadow-none'
+        isManageMode && isSelected && RESOURCE_LIST_SELECTED_ROW_CLASS,
+        isManageMode && !canSelect && 'cursor-not-allowed opacity-50'
       )}
       style={{ cursor: isManageMode && !canSelect ? 'not-allowed' : 'pointer' }}
       onClick={() => {
@@ -1397,16 +1384,15 @@ function TopicRow({
 
         onSwitchTopic(topic)
       }}>
-      {isManageMode && (
-        <ResourceList.ItemIcon className={cn(!canSelect && 'opacity-50')}>
-          {isSelected ? (
-            <CheckSquare size={16} className="text-(--color-primary)" />
+      <ResourceList.ItemLeadingSlot className={cn(isManageMode && !canSelect && 'opacity-50')}>
+        {isManageMode ? (
+          isSelected ? (
+            <CheckSquare size={16} className="text-primary" />
           ) : (
             <Square size={16} className="text-foreground/70" />
-          )}
-        </ResourceList.ItemIcon>
-      )}
-      {!isManageMode && <span aria-hidden="true" className="size-6 shrink-0" />}
+          )
+        ) : null}
+      </ResourceList.ItemLeadingSlot>
       <ResourceList.RenameField
         item={topic}
         aria-label={t('chat.topics.edit.title')}
