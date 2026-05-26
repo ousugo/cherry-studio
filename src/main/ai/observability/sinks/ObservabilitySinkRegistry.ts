@@ -1,11 +1,16 @@
 import { loggerService } from '@logger'
 
+import { localTraceWindowSink } from '../cache/LocalTraceWindowSink'
 import type { ObservabilitySink } from './ObservabilitySink'
 
 const logger = loggerService.withContext('ObservabilitySinkRegistry')
 
 class ObservabilitySinkRegistry {
   private readonly sinks = new Map<string, ObservabilitySink>()
+
+  constructor() {
+    this.register(localTraceWindowSink)
+  }
 
   register(sink: ObservabilitySink): void {
     this.sinks.set(sink.id, sink)

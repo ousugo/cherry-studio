@@ -12,7 +12,6 @@ import { applyApprovalDecisions } from '@shared/ai/transport'
 import { type Assistant } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import { serializeError } from '@shared/types/error'
 import { isEmbeddingModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
@@ -120,6 +119,14 @@ export interface AiEmbedResult {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager'])
 export class AiService extends BaseService {
+  // Per-request AbortControllers for `Ai_GenerateImage`, paired with the
+  // `Ai_AbortImage` channel. Key is the renderer-generated requestId
+  // (see `src/preload/index.ts`). Entries are self-cleaning via the
+  // handler's `finally` block; abort on an unknown id is a no-op.
+  // TODO(abort-registry): collapse with MCP/stream/LAN registries once
+  // the shared `ipcHandleWithAbort` helper lands.
+  private readonly imageRequests = new Map<string, AbortController>()
+
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
     this.registerIpcHandlers()
@@ -139,38 +146,22 @@ export class AiService extends BaseService {
       return this.embedMany(request)
     })
 
-    // MessagePort instead of `ipcHandle` so abort goes through the port
-    // (`{ type: 'abort' }`) — no main-side request registry. See
-    // `preload/invokeWithAbort.ts`. AC scoped to the handler invocation.
-    this.ipcOn(IpcChannel.Ai_GenerateImage, (event, payload: AiImageRequest) => {
-      const port = event.ports[0]
-      if (!port) {
-        logger.error('Ai_GenerateImage received without a MessagePort — caller bypassed invokeWithAbort')
-        return
-      }
-
+    this.ipcHandle(IpcChannel.Ai_GenerateImage, async (_, request: { requestId: string; payload: AiImageRequest }) => {
+      const { requestId, payload } = request
       const controller = new AbortController()
-      const onAbortMessage = (msg: { data?: { type?: string } }) => {
-        if (msg.data?.type === 'abort') controller.abort()
+      this.imageRequests.set(requestId, controller)
+      try {
+        return await this.generateImage({
+          ...payload,
+          requestOptions: { ...payload.requestOptions, signal: controller.signal }
+        })
+      } finally {
+        this.imageRequests.delete(requestId)
       }
-      port.on('message', onAbortMessage)
-      port.start()
+    })
 
-      void (async () => {
-        try {
-          const result = await this.generateImage({
-            ...payload,
-            requestOptions: { ...payload.requestOptions, signal: controller.signal }
-          })
-          port.postMessage({ type: 'result', value: result })
-        } catch (err) {
-          port.postMessage({ type: 'error', error: serializeError(err) })
-        } finally {
-          // Drop the listener so the closure (and AbortController) GCs before the port does.
-          port.off('message', onAbortMessage)
-          port.close()
-        }
-      })()
+    this.ipcOn(IpcChannel.Ai_AbortImage, (_, request: { requestId: string }) => {
+      this.imageRequests.get(request.requestId)?.abort()
     })
 
     this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: ListModelsRequest) => {

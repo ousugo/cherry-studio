@@ -3,7 +3,7 @@ import { gunzipSync } from 'node:zlib'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { observabilitySinks } from '../../sinks/ObservabilitySinkRegistry'
 import { ClaudeCodeOtlpAdapter, type ClaudeCodeTraceContext } from './ClaudeCodeOtlpAdapter'
@@ -19,6 +19,7 @@ interface TraceContextEntry {
 
 @Injectable('ClaudeCodeTraceBridgeService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['SpanCacheService'])
 export class ClaudeCodeTraceBridgeService extends BaseService implements Activatable {
   private server?: Server
   private endpoint?: string

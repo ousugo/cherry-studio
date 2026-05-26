@@ -37,10 +37,6 @@ describe('AiService', () => {
     vi.clearAllMocks()
   })
 
-  // image-request abort lifecycle moved to imageRequestRegistry.test.ts —
-  // the service no longer owns that state, so its tests live with the
-  // registry instead of with the AiService surface.
-
   it('routes agent-session runtime requests directly to the runtime service', async () => {
     const service = createService()
     const stream = new ReadableStream()

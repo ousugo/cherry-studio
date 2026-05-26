@@ -1,6 +1,14 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { type Activatable, BaseService, Injectable, Phase, Priority, ServicePhase } from '@main/core/lifecycle'
+import {
+  type Activatable,
+  BaseService,
+  DependsOn,
+  Injectable,
+  Phase,
+  Priority,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 // Heavy OTel modules (trace-core processors, trace-node, opentelemetry SDK) are loaded
 // via dynamic import() in initTracer() to avoid startup overhead when developer_mode is off.
@@ -18,12 +26,13 @@ const logger = loggerService.withContext('NodeTraceService')
 /**
  * Priority(0) ensures this service initializes before all other WhenReady services (default priority is 100).
  * This is critical because onInit() monkey-patches ipcMain.handle() to inject trace context propagation.
- * The patch must be applied BEFORE other services (e.g. MainWindowService) register
+ * The patch must be applied BEFORE other services (e.g. MainWindowService, SpanCacheService) register
  * their IPC handlers via ipcMain.handle(), otherwise those handlers won't receive trace context
  * from the renderer process.
  */
 @Injectable('NodeTraceService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['SpanCacheService'])
 @Priority(0)
 export class NodeTraceService extends BaseService implements Activatable {
   // Stored from dynamic import, needed for shutdown in onDeactivate()
@@ -73,20 +82,22 @@ export class NodeTraceService extends BaseService implements Activatable {
   }
 
   /**
-   * Initialize the OpenTelemetry tracer with a BatchSpanProcessor.
+   * Initialize the OpenTelemetry tracer with a CacheBatchSpanProcessor
+   * that feeds span data into SpanCacheService.
    *
    * Dependencies are loaded via dynamic import() to avoid pulling in heavy OTel SDK
    * modules (NodeTracerProvider, BatchSpanProcessor, OTLPTraceExporter, etc.)
    * at file evaluation time — keeping startup fast when developer_mode is off.
    */
   private async initTracer() {
-    const [{ FunctionSpanExporter }, { BatchSpanProcessor }, { NodeTracer }] = await Promise.all([
+    const [{ FunctionSpanExporter }, { CacheBatchSpanProcessor }, { NodeTracer }] = await Promise.all([
       import('@mcp-trace/trace-core/exporters/FuncSpanExporter'),
-      import('@opentelemetry/sdk-trace-base'),
+      import('@mcp-trace/trace-core/processors/CacheSpanProcessor'),
       import('@mcp-trace/trace-node/nodeTracer')
     ])
 
     this.nodeTracer = NodeTracer
+    const spanCacheService = application.get('SpanCacheService')
     const exporter = new FunctionSpanExporter(async (spans) => {
       logger.info(`Spans length: ${spans.length}`)
     })
@@ -96,7 +107,7 @@ export class NodeTraceService extends BaseService implements Activatable {
         defaultTracerName: TRACER_NAME,
         serviceName: TRACER_NAME
       },
-      new BatchSpanProcessor(exporter)
+      new CacheBatchSpanProcessor(exporter, spanCacheService)
     )
   }
 
