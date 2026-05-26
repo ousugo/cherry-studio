@@ -9,7 +9,6 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger
 } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useQuery } from '@data/hooks/useDataApi'
@@ -184,12 +183,10 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
     }
   })
 
+  const { isFulfilled: activeIsFulfilled, markSeen: markActiveSeen } = useTopicStreamStatus(activeTopic.id)
   useEffect(() => {
-    // Mark the fulfilled badge as consumed when the user opens the
-    // topic. The shared stream status stays `done` globally; each
-    // window tracks its own "already seen" flag in casual memory cache.
-    cacheService.setCasual(`topic.stream.seen.${activeTopic.id}`, true)
-  }, [activeTopic.id])
+    if (activeIsFulfilled) markActiveSeen()
+  }, [activeIsFulfilled, markActiveSeen])
 
   const isRenaming = useCallback(
     (topicId: string) => {

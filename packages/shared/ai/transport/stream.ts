@@ -62,6 +62,7 @@ export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
   activeExecutions: ActiveExecution[]
   awaitingApprovalAnchors: ActiveExecution[]
+  lastCompletedAt?: number
 }
 
 /** Stream ended. */

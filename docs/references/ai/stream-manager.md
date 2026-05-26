@@ -164,10 +164,11 @@ Choose by **consumer / producer fanout**:
 - **Grace-period cleanup does NOT clear the SharedCache entry.** Terminal
   values (`done` / `aborted` / `error`) stay so renderer-side consumers
   (`useTopicDbRefreshOnTerminal`, `useChatWithHistory`, awaiting-approval
-  indicators, sidebar badges) can observe them. Each window's "I've
-  already animated the fulfilled badge" bit lives in a casual memory-cache
-  key (`topic.stream.seen.${topicId}`) — off-schema, per-window, reset on
-  reload.
+  indicators, sidebar badges) can observe them. The fulfilled-badge gate
+  is a read-receipt: the entry's `lastCompletedAt` (bumped only on
+  `done`) compared against `topic.stream.last_seen_completion.${topicId}`
+  (cross-window shared cache, written when the user acknowledges).
+  Memory tier — both reset on app restart.
 - **`PersistenceListener` placement.** Terminal-only consumer — doesn't
   need chunk bandwidth → not added via `attach`; the provider includes
   it in the `listeners` array passed to `send()`.
@@ -819,9 +820,11 @@ built-in `Cache_Sync` broadcast). The entry shape is
 `Ai_StreamStarted` IPC is gone. Grace-period cleanup does NOT clear the
 entry — terminal values (`done` / `aborted` / `error`) stay so renderer
 consumers (DB-refresh trigger, awaiting-approval indicators, sidebar
-badges) can observe them. Per-window "already animated the fulfilled
-badge" is a casual memory-cache flag (`topic.stream.seen.${topicId}`),
-deliberately kept off the schema.
+badges) can observe them. The badge "should I show this?" gate is a
+read-receipt: `entry.lastCompletedAt` (authoritative, bumped only on
+`done`) compared against `topic.stream.last_seen_completion.${topicId}`
+(cross-window shared cache, written by the renderer when the user
+acknowledges).
 
 **All traffic is keyed by topicId**; multi-model uses `executionId` to
 demux chunks per model.

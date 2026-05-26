@@ -31,9 +31,9 @@ export interface TurnStateFlags {
    */
   isTerminal: boolean
   /**
-   * `status === 'done'`. `useTopicStreamStatus` ANDs this with a
-   * window-local "already animated" flag (off-schema casual memory
-   * cache) before surfacing the fulfilled badge.
+   * `status === 'done'`. `useTopicStreamStatus` ANDs this with the
+   * entry's `lastCompletedAt` vs `topic.stream.last_seen_completion.${topicId}`
+   * read-receipt before surfacing the fulfilled badge.
    */
   isFulfilledCandidate: boolean
 }
