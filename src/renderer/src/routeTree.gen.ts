@@ -19,7 +19,6 @@ import { Route as SettingsSelectionAssistantRouteImport } from './routes/setting
 import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/scheduled-tasks'
 import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quick-assistant'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
-import { Route as SettingsPromptsRouteImport } from './routes/settings/prompts'
 import { Route as SettingsPluginsRouteImport } from './routes/settings/plugins'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
@@ -102,11 +101,6 @@ const SettingsQuickAssistantRoute = SettingsQuickAssistantRouteImport.update({
 const SettingsProviderRoute = SettingsProviderRouteImport.update({
   id: '/provider',
   path: '/provider',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsPromptsRoute = SettingsPromptsRouteImport.update({
-  id: '/prompts',
-  path: '/prompts',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsPluginsRoute = SettingsPluginsRouteImport.update({
@@ -294,7 +288,6 @@ export interface FileRoutesByFullPath {
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
   '/settings/plugins': typeof SettingsPluginsRoute
-  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
@@ -337,7 +330,6 @@ export interface FileRoutesByTo {
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/plugins': typeof SettingsPluginsRoute
-  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
@@ -383,7 +375,6 @@ export interface FileRoutesById {
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
   '/settings/plugins': typeof SettingsPluginsRoute
-  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
@@ -430,7 +421,6 @@ export interface FileRouteTypes {
     | '/settings/mcp'
     | '/settings/model'
     | '/settings/plugins'
-    | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
@@ -473,7 +463,6 @@ export interface FileRouteTypes {
     | '/settings/integrations'
     | '/settings/model'
     | '/settings/plugins'
-    | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
@@ -518,7 +507,6 @@ export interface FileRouteTypes {
     | '/settings/mcp'
     | '/settings/model'
     | '/settings/plugins'
-    | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
@@ -616,13 +604,6 @@ declare module '@tanstack/react-router' {
       path: '/provider'
       fullPath: '/settings/provider'
       preLoaderRoute: typeof SettingsProviderRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/prompts': {
-      id: '/settings/prompts'
-      path: '/prompts'
-      fullPath: '/settings/prompts'
-      preLoaderRoute: typeof SettingsPromptsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/plugins': {
@@ -924,7 +905,6 @@ interface SettingsRouteChildren {
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsModelRoute: typeof SettingsModelRoute
   SettingsPluginsRoute: typeof SettingsPluginsRoute
-  SettingsPromptsRoute: typeof SettingsPromptsRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
   SettingsScheduledTasksRoute: typeof SettingsScheduledTasksRoute
@@ -947,7 +927,6 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsModelRoute: SettingsModelRoute,
   SettingsPluginsRoute: SettingsPluginsRoute,
-  SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,
   SettingsScheduledTasksRoute: SettingsScheduledTasksRoute,

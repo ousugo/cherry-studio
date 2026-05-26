@@ -6,19 +6,22 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Textarea
+  Tooltip
 } from '@cherrystudio/ui'
 import type { Prompt } from '@shared/data/types/prompt'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
+import { Braces } from 'lucide-react'
 import { type FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import PromptEditorField from './PromptEditorField'
 
 interface FormData {
   title: string
   content: string
 }
 
-interface PromptEditModalProps {
+interface PromptEditDialogProps {
   open: boolean
   prompt?: Prompt | null
   saving?: boolean
@@ -26,10 +29,13 @@ interface PromptEditModalProps {
   onCancel: () => void
 }
 
-const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSave, onCancel }) => {
+const VARIABLE_PLACEHOLDER = '${变量}'
+
+const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onSave, onCancel }) => {
   const { t } = useTranslation()
   const [formData, setFormData] = useState<FormData>({ title: '', content: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [resetPreviewKey, setResetPreviewKey] = useState(0)
 
   const isEdit = !!prompt
   const trimmedTitleLength = formData.title.trim().length
@@ -78,6 +84,32 @@ const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSav
     [onCancel]
   )
 
+  const handleInsertVariable = useCallback(() => {
+    setFormData((current) => {
+      const separator = current.content.length > 0 && !/\s$/.test(current.content) ? ' ' : ''
+
+      return {
+        ...current,
+        content: `${current.content}${separator}${VARIABLE_PLACEHOLDER}`
+      }
+    })
+    setResetPreviewKey((key) => key + 1)
+  }, [])
+
+  const promptActions = (
+    <Tooltip content={t('library.config.prompt.insert_variable')}>
+      <Button
+        type="button"
+        variant="ghost"
+        aria-label={t('library.config.prompt.insert_variable')}
+        onClick={handleInsertVariable}
+        disabled={isSaving}
+        className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+        <Braces size={10} />
+      </Button>
+    </Tooltip>
+  )
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[600px]" onPointerDownOutside={(event) => event.preventDefault()}>
@@ -95,16 +127,14 @@ const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSav
             />
           </label>
 
-          <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
-            {t('settings.prompts.contentLabel')}
-            <Textarea.Input
-              className="min-h-[184px] resize-none"
-              placeholder={t('settings.prompts.contentPlaceholder')}
-              value={formData.content}
-              onValueChange={(content) => setFormData((current) => ({ ...current, content }))}
-              rows={8}
-            />
-          </label>
+          <PromptEditorField
+            label={<span className="font-medium text-foreground text-sm">{t('settings.prompts.contentLabel')}</span>}
+            value={formData.content}
+            onChange={(content) => setFormData((current) => ({ ...current, content }))}
+            placeholder={t('settings.prompts.contentPlaceholder')}
+            actions={promptActions}
+            resetPreviewKey={resetPreviewKey}
+          />
         </div>
 
         <DialogFooter>
@@ -120,4 +150,4 @@ const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSav
   )
 }
 
-export default PromptEditModal
+export default PromptEditDialog

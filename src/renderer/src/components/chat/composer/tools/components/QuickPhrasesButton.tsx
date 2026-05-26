@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
-import PromptEditModal from '@renderer/components/PromptEditModal'
+import PromptEditDialog from '@renderer/components/PromptEditDialog'
 import {
   type QuickPanelCallBackOptions,
   type QuickPanelListItem,
@@ -267,7 +267,7 @@ const QuickPhrasesModal = ({
   ReturnType<typeof useQuickPhrasesToolController>,
   'handleAddModalSave' | 'isAddModalOpen' | 'isCreatingPrompt' | 'setIsAddModalOpen'
 >) => (
-  <PromptEditModal
+  <PromptEditDialog
     open={isAddModalOpen}
     saving={isCreatingPrompt}
     onSave={handleAddModalSave}

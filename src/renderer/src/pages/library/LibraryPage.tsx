@@ -1,5 +1,7 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import PromptEditDialog from '@renderer/components/PromptEditDialog'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
@@ -10,12 +12,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAssistantMutations } from './adapters/assistantAdapter'
+import { usePromptMutations, usePromptMutationsById } from './adapters/promptAdapter'
 import { DEFAULT_TAG_COLOR, getRandomTagColor, RESOURCE_TYPE_ORDER } from './constants'
 import SkillDetailDialog from './detail/skill/SkillDetailDialog'
 import AgentConfigPage from './editor/agent/AgentConfigPage'
 import AssistantConfigPage from './editor/assistant/AssistantConfigPage'
 import { serializeAssistantForExport } from './editor/assistant/transfer'
-import PromptConfigPage from './editor/prompt/PromptConfigPage'
 import { AssistantPresetPreviewDialog } from './list/AssistantPresetPreviewDialog'
 import { DeleteConfirmDialog } from './list/DeleteConfirmDialog'
 import { ImportAssistantDialog } from './list/ImportAssistantDialog'
@@ -38,8 +40,8 @@ type ConfigView =
   | { type: 'assistant-edit'; assistant: Assistant }
   | { type: 'agent-edit'; agent: AgentDetail }
   | { type: 'agent-create' }
-  | { type: 'prompt-create' }
-  | { type: 'prompt-edit'; prompt: Prompt }
+
+type PromptDialogState = { prompt: Prompt | null } | null
 
 const DEFAULT_RESOURCE_TYPE = RESOURCE_TYPE_ORDER[0]
 
@@ -80,6 +82,7 @@ export default function LibraryPage() {
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
   const [configView, setConfigView] = useState<ConfigView>({ type: 'list' })
+  const [promptDialog, setPromptDialog] = useState<PromptDialogState>(null)
   const [selectedSkill, setSelectedSkill] = useState<InstalledSkill | null>(null)
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
   const [skillImportOpen, setSkillImportOpen] = useState(false)
@@ -114,6 +117,9 @@ export default function LibraryPage() {
   const assistantTagUiEnabled = isAssistantLibrary && isAssistantCatalogMine
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
+  const { createPrompt } = usePromptMutations()
+  const promptDialogPrompt = promptDialog?.prompt ?? null
+  const { updatePrompt } = usePromptMutationsById(promptDialogPrompt?.id ?? '')
   // The add-tag control uses ensureTags idempotently: existing names are reused,
   // and missing names are created before the card menu / editor binds them.
   const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
@@ -156,6 +162,38 @@ export default function LibraryPage() {
     clearRouteActionSearch()
   }, [clearRouteActionSearch, refetch])
 
+  const handleClosePromptDialog = useCallback(() => {
+    setPromptDialog(null)
+    clearRouteActionSearch()
+  }, [clearRouteActionSearch])
+
+  const handlePromptDialogSave = useCallback(
+    async (data: { title: string; content: string }) => {
+      const prompt = promptDialogPrompt
+
+      try {
+        if (prompt) {
+          await updatePrompt(data)
+        } else {
+          await createPrompt(data)
+        }
+
+        refetch()
+        setPromptDialog(null)
+        clearRouteActionSearch()
+      } catch (error) {
+        window.toast.error(
+          formatErrorMessageWithPrefix(
+            error,
+            t(prompt ? 'settings.prompts.errors.updateFailed' : 'settings.prompts.errors.createFailed')
+          )
+        )
+        throw error
+      }
+    },
+    [clearRouteActionSearch, createPrompt, promptDialogPrompt, refetch, t, updatePrompt]
+  )
+
   useEffect(() => {
     if (!routeResourceType) return
 
@@ -182,7 +220,8 @@ export default function LibraryPage() {
     } else if (routeResourceType === 'agent') {
       setConfigView((prev) => (prev.type === 'agent-create' ? prev : { type: 'agent-create' }))
     } else if (routeResourceType === 'prompt') {
-      setConfigView((prev) => (prev.type === 'prompt-create' ? prev : { type: 'prompt-create' }))
+      setConfigView({ type: 'list' })
+      setPromptDialog((prev) => (prev && !prev.prompt ? prev : { prompt: null }))
     }
   }, [routeAction, routeResourceType])
 
@@ -206,9 +245,8 @@ export default function LibraryPage() {
       )
     } else if (resource.type === 'prompt') {
       const prompt = resource.raw
-      setConfigView((prev) =>
-        prev.type === 'prompt-edit' && prev.prompt.id === prompt.id ? prev : { type: 'prompt-edit', prompt }
-      )
+      setConfigView({ type: 'list' })
+      setPromptDialog((prev) => (prev?.prompt?.id === prompt.id ? prev : { prompt }))
     }
   }, [allResources, routeAction, routeResourceId, routeResourceType])
 
@@ -220,7 +258,7 @@ export default function LibraryPage() {
     } else if (r.type === 'skill') {
       setSelectedSkill(r.raw)
     } else if (r.type === 'prompt') {
-      setConfigView({ type: 'prompt-edit', prompt: r.raw })
+      setPromptDialog({ prompt: r.raw })
     }
   }, [])
 
@@ -319,7 +357,7 @@ export default function LibraryPage() {
       // here without leaving the library page.
       setSkillImportOpen(true)
     } else if (type === 'prompt') {
-      setConfigView({ type: 'prompt-create' })
+      setPromptDialog({ prompt: null })
     }
   }, [])
 
@@ -411,36 +449,6 @@ export default function LibraryPage() {
     )
   }
 
-  if (configView.type === 'prompt-create') {
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key="prompt-create"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="flex min-h-0 flex-1 flex-col bg-background">
-          <PromptConfigPage onBack={handleBackToList} onCreated={handleCreated} />
-        </motion.div>
-      </AnimatePresence>
-    )
-  }
-
-  if (configView.type === 'prompt-edit') {
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`prompt-edit-${configView.prompt.id}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="flex min-h-0 flex-1 flex-col bg-background">
-          <PromptConfigPage prompt={configView.prompt} onBack={handleBackToList} />
-        </motion.div>
-      </AnimatePresence>
-    )
-  }
-
   return (
     <div className="flex min-h-0 flex-1 bg-background">
       <LibrarySidebar
@@ -520,6 +528,12 @@ export default function LibraryPage() {
       />
       <ImportAssistantDialog open={assistantImportOpen} onOpenChange={setAssistantImportOpen} onImported={refetch} />
       <ImportSkillDialog open={skillImportOpen} onOpenChange={setSkillImportOpen} onInstalled={refetch} />
+      <PromptEditDialog
+        open={promptDialog !== null}
+        prompt={promptDialogPrompt}
+        onSave={handlePromptDialogSave}
+        onCancel={handleClosePromptDialog}
+      />
     </div>
   )
 }

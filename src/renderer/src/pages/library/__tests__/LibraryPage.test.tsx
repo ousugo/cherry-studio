@@ -9,12 +9,14 @@ import LibraryPage from '../LibraryPage'
 const {
   allResourcesMock,
   assistantCatalogMock,
+  createPromptMock,
   duplicateAssistantMock,
   navigateMock,
   refetchSpy,
   resourceLibraryOptionsMock,
   routeSearchMock,
-  toastErrorMock
+  toastErrorMock,
+  updatePromptMock
 } = vi.hoisted(() => ({
   allResourcesMock: [] as any[],
   assistantCatalogMock: {
@@ -25,12 +27,14 @@ const {
     }>,
     presets: [] as any[]
   },
+  createPromptMock: vi.fn(),
   duplicateAssistantMock: vi.fn(),
   navigateMock: vi.fn(),
   refetchSpy: vi.fn(),
   resourceLibraryOptionsMock: [] as any[],
   routeSearchMock: vi.fn(() => ({})),
-  toastErrorMock: vi.fn()
+  toastErrorMock: vi.fn(),
+  updatePromptMock: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -60,6 +64,15 @@ vi.mock('../adapters/assistantAdapter', () => ({
   useAssistantMutations: () => ({
     createAssistant: vi.fn(),
     duplicateAssistant: duplicateAssistantMock
+  })
+}))
+
+vi.mock('../adapters/promptAdapter', () => ({
+  usePromptMutations: () => ({
+    createPrompt: createPromptMock
+  }),
+  usePromptMutationsById: () => ({
+    updatePrompt: updatePromptMock
   })
 }))
 
@@ -112,6 +125,30 @@ vi.mock('../list/ImportAssistantDialog', () => ({
 
 vi.mock('../list/ImportSkillDialog', () => ({
   ImportSkillDialog: () => null
+}))
+
+vi.mock('@renderer/components/PromptEditDialog', () => ({
+  default: ({
+    open,
+    prompt,
+    onCancel,
+    onSave
+  }: {
+    open: boolean
+    prompt?: { id: string } | null
+    onCancel: () => void
+    onSave: (data: { title: string; content: string }) => Promise<void>
+  }) =>
+    open ? (
+      <div role="dialog" data-testid={prompt ? 'prompt-edit-dialog' : 'prompt-create-dialog'}>
+        <button type="button" onClick={() => void onSave({ title: 'Prompt title', content: 'Prompt content' })}>
+          save prompt dialog
+        </button>
+        <button type="button" onClick={onCancel}>
+          close prompt dialog
+        </button>
+      </div>
+    ) : null
 }))
 
 vi.mock('../detail/skill/SkillDetailDialog', () => ({
@@ -208,21 +245,13 @@ vi.mock('../editor/agent/AgentConfigPage', () => ({
   )
 }))
 
-vi.mock('../editor/prompt/PromptConfigPage', () => ({
-  default: ({ prompt, onCreated }: { prompt?: { id: string }; onCreated?: (created: { id: string }) => void }) => (
-    <div data-testid={prompt ? 'prompt-edit-page' : 'prompt-create-page'}>
-      <button type="button" onClick={() => onCreated?.({ id: 'prompt-created' })}>
-        finish prompt create
-      </button>
-    </div>
-  )
-}))
-
 describe('LibraryPage create flow', () => {
   beforeEach(() => {
     allResourcesMock.length = 0
     assistantCatalogMock.tabs = [{ id: '__mine__', label: 'library.assistant_catalog.mine', count: 0 }]
     assistantCatalogMock.presets = []
+    createPromptMock.mockReset()
+    createPromptMock.mockResolvedValue({ id: 'prompt-created' })
     duplicateAssistantMock.mockReset()
     navigateMock.mockReset()
     refetchSpy.mockReset()
@@ -230,6 +259,8 @@ describe('LibraryPage create flow', () => {
     routeSearchMock.mockReset()
     routeSearchMock.mockReturnValue({})
     toastErrorMock.mockReset()
+    updatePromptMock.mockReset()
+    updatePromptMock.mockResolvedValue({ id: 'prompt-updated' })
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: {
@@ -278,20 +309,21 @@ describe('LibraryPage create flow', () => {
     expect(refetchSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('returns to the list and refetches after prompt creation succeeds', async () => {
+  it('creates a prompt in a dialog while keeping the list visible', async () => {
     const user = userEvent.setup()
 
     render(<LibraryPage />)
 
     await user.click(screen.getByRole('button', { name: 'create prompt' }))
-    expect(screen.getByTestId('prompt-create-page')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+    expect(screen.getByTestId('prompt-create-dialog')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'finish prompt create' }))
+    await user.click(screen.getByRole('button', { name: 'save prompt dialog' }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+      expect(screen.queryByTestId('prompt-create-dialog')).not.toBeInTheDocument()
     })
-    expect(screen.queryByTestId('prompt-edit-page')).not.toBeInTheDocument()
+    expect(createPromptMock).toHaveBeenCalledWith({ title: 'Prompt title', content: 'Prompt content' })
     expect(refetchSpy).toHaveBeenCalledTimes(1)
   })
 
@@ -355,12 +387,13 @@ describe('LibraryPage create flow', () => {
     expect(screen.getByTestId('assistant-create-page')).toBeInTheDocument()
   })
 
-  it('opens the prompt create page from route search', () => {
+  it('opens the prompt create dialog from route search', () => {
     routeSearchMock.mockReturnValue({ resourceType: 'prompt', action: 'create' })
 
     render(<LibraryPage />)
 
-    expect(screen.getByTestId('prompt-create-page')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+    expect(screen.getByTestId('prompt-create-dialog')).toBeInTheDocument()
   })
 
   it('opens the agent editor from route search after resources load', () => {
@@ -401,7 +434,7 @@ describe('LibraryPage create flow', () => {
     expect(screen.getByTestId('assistant-edit-page')).toBeInTheDocument()
   })
 
-  it('opens the prompt editor from route search after resources load', () => {
+  it('opens the prompt edit dialog from route search after resources load', () => {
     allResourcesMock.push({
       id: 'prompt-from-selector',
       type: 'prompt',
@@ -417,7 +450,37 @@ describe('LibraryPage create flow', () => {
 
     render(<LibraryPage />)
 
-    expect(screen.getByTestId('prompt-edit-page')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+    expect(screen.getByTestId('prompt-edit-dialog')).toBeInTheDocument()
+  })
+
+  it('updates a prompt in a dialog while keeping the list visible', async () => {
+    const user = userEvent.setup()
+    allResourcesMock.push({
+      id: 'prompt-from-grid',
+      type: 'prompt',
+      name: 'Grid Prompt',
+      description: '',
+      avatar: 'Aa',
+      tags: [],
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      raw: { id: 'prompt-from-grid' }
+    })
+
+    render(<LibraryPage />)
+
+    await user.click(screen.getByRole('button', { name: 'open first' }))
+    expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+    expect(screen.getByTestId('prompt-edit-dialog')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'save prompt dialog' }))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('prompt-edit-dialog')).not.toBeInTheDocument()
+    })
+    expect(updatePromptMock).toHaveBeenCalledWith({ title: 'Prompt title', content: 'Prompt content' })
+    expect(refetchSpy).toHaveBeenCalledTimes(1)
   })
 
   it('opens skill details in a dialog while keeping the library list visible', async () => {
