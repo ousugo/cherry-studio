@@ -1,6 +1,6 @@
 import { useQuery } from '@data/hooks/useDataApi'
 import type { MessageListActions, MessageListState } from '@renderer/components/chat/messages/types'
-import { containsInlineAbsoluteFilePath } from '@renderer/components/chat/messages/utils/filePath'
+import { containsInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import FileManager from '@renderer/services/FileManager'
@@ -51,7 +51,7 @@ function hasExternalEditorPathHint(part: CherryMessagePart): boolean {
   if (partType === 'dynamic-tool' || !!partType?.startsWith('tool-')) return true
   if (partType !== 'text') return false
 
-  return containsInlineAbsoluteFilePath((part as { text?: string }).text)
+  return containsInlineFilePath((part as { text?: string }).text)
 }
 
 export function useMessageLeafCapabilities({

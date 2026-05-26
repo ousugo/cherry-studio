@@ -1,4 +1,5 @@
 import { render, waitFor } from '@testing-library/react'
+import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -111,6 +112,11 @@ vi.mock('@renderer/components/chat', () => ({
 
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ARTIFACT_PANE_WIDTH: 460,
+  ArtifactFilePreview: () => <div />,
+  normalizeArtifactPaneFilePath: (workspacePath: string, rawPath: string) =>
+    rawPath.startsWith(`${workspacePath}/`) ? rawPath.slice(workspacePath.length + 1) : rawPath,
+  resolveArtifactPaneFileSelection: (workspacePath: string | undefined, rawPath: string) =>
+    workspacePath ? { workspacePath, filePath: rawPath.replace(`${workspacePath}/`, '') } : null,
   default: () => <div />
 }))
 
@@ -145,7 +151,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 }))
 
 vi.mock('motion/react', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('motion/react')>()),
+  ...(await importOriginal<typeof MotionReact>()),
   AnimatePresence: ({ children }: PropsWithChildren) => <>{children}</>,
   useReducedMotion: () => false
 }))
@@ -276,7 +282,10 @@ vi.mock('../../home/Inputbar/components/PinnedTodoPanel', () => ({
 }))
 
 describe('AgentChat locate pending message', () => {
-  const activeSessionProps = () => ({
+  const activeSessionProps = (): Pick<
+    ComponentProps<typeof AgentChat>,
+    'activeSession' | 'activeSessionLoading' | 'activeSessionSource'
+  > => ({
     activeSession: activeSessionMocks.result.session as ComponentProps<typeof AgentChat>['activeSession'],
     activeSessionLoading: activeSessionMocks.result.isLoading,
     activeSessionSource: activeSessionMocks.result.session ? 'query' : 'none'

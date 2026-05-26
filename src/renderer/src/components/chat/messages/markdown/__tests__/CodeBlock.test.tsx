@@ -134,13 +134,38 @@ describe('CodeBlock', () => {
       expect(screen.getByTestId('clickable-file-path').closest('code')).toHaveClass('break-all!')
     })
 
-    it.each(['/home/user/project/src/index.ts', '/tmp/test.log', '/var/log/app.log', '/etc/nginx/nginx.conf'])(
-      'should detect %s as a file path',
-      (path) => {
-        render(<CodeBlock {...defaultProps} className={undefined} children={path} />)
-        expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
-      }
-    )
+    it('should render ClickableFilePath for workspace-relative file paths', () => {
+      render(<CodeBlock {...defaultProps} className={undefined} children="src/renderer/src/index.tsx" />)
+
+      expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
+      expect(screen.getByText('src/renderer/src/index.tsx')).toBeInTheDocument()
+    })
+
+    it('should render ClickableFilePath for file paths with a line suffix', () => {
+      render(<CodeBlock {...defaultProps} className={undefined} children="src/renderer/src/index.tsx:42:5" />)
+
+      expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
+      expect(screen.getByText('src/renderer/src/index.tsx')).toBeInTheDocument()
+    })
+
+    it('should render ClickableFilePath for absolute file paths wrapped in backticks', () => {
+      render(<CodeBlock {...defaultProps} className={undefined} children="`/Users/foo/bar.tsx`" />)
+
+      expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
+      expect(screen.getByText('/Users/foo/bar.tsx')).toBeInTheDocument()
+    })
+
+    it.each([
+      '/home/user/project/src/index.ts',
+      '/tmp/test.log',
+      '/var/log/app.log',
+      '/etc/nginx/nginx.conf',
+      './src/index.ts',
+      '../packages/ui/src/button.tsx'
+    ])('should detect %s as a file path', (path) => {
+      render(<CodeBlock {...defaultProps} className={undefined} children={path} />)
+      expect(screen.getByTestId('clickable-file-path')).toBeInTheDocument()
+    })
 
     it.each(['inline code', '/single-segment', '//comment style', 'not/absolute/path', '/path with spaces/file.ts'])(
       'should NOT detect %s as a file path',

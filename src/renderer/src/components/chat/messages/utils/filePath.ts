@@ -1,13 +1,18 @@
-const INLINE_ABSOLUTE_FILE_PATH_PATTERN = /^\/[\w.-]+(?:\/[\w.-]+)+$/
+const INLINE_FILE_PATH_PATTERN = /^(?:\/|\.{1,2}\/)?(?:[^/\s`"'<>|]+\/)+[^/\s`"'<>|]+\.[^/\s`"'<>|.]+$/
+const INLINE_FILE_PATH_LOCATION_PATTERN = /(?::\d+){1,2}$/
 
-const trimInlinePathToken = (value: string) => value.replace(/^[`("'[]+|[`)"'\],.;:!?]+$/g, '')
+export const normalizeInlineFilePath = (value: string) =>
+  value
+    .trim()
+    .replace(/^[`("'[]+|[`)"'\],.;:!?]+$/g, '')
+    .replace(INLINE_FILE_PATH_LOCATION_PATTERN, '')
 
-export function isInlineAbsoluteFilePath(value: string): boolean {
-  return INLINE_ABSOLUTE_FILE_PATH_PATTERN.test(value)
+export function isInlineFilePath(value: string): boolean {
+  return INLINE_FILE_PATH_PATTERN.test(normalizeInlineFilePath(value))
 }
 
-export function containsInlineAbsoluteFilePath(value: string | undefined): boolean {
+export function containsInlineFilePath(value: string | undefined): boolean {
   if (!value) return false
 
-  return value.split(/\s+/).some((token) => isInlineAbsoluteFilePath(trimInlinePathToken(token)))
+  return value.split(/\s+/).some((token) => isInlineFilePath(token))
 }

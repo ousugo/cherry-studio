@@ -55,6 +55,19 @@ export interface ArtifactPaneProps {
 }
 
 export type ArtifactPaneViewMode = 'preview' | 'code'
+export interface ArtifactPaneFileSelection {
+  workspacePath: string
+  filePath: string
+}
+
+interface ArtifactFilePreviewProps {
+  workspacePath?: string
+  filePath?: string | null
+  viewMode?: ArtifactPaneViewMode
+  pdfLayoutPending?: boolean
+  pdfLayoutRefreshKey?: number
+  contentRefreshKey?: number
+}
 
 const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
 const HTML_EXT = new Set(['.html', '.htm'])
@@ -127,7 +140,18 @@ const normalizeTreePath = (path: string): string => {
 
 const isAbsoluteTreePath = (path: string): boolean => path.startsWith('/') || /^[A-Za-z]:\//.test(path)
 
-const normalizeWorkspaceRelativePath = (workspacePath: string, rawPath: string): string | null => {
+const getPathDirname = (path: string): string => {
+  const normalized = normalizeTreePath(path)
+  const basename = getPathBasename(normalized)
+  if (!basename || normalized === basename) return ''
+
+  const dirname = normalized.slice(0, normalized.length - basename.length).replace(/\/+$/, '')
+  if (!dirname && normalized.startsWith('/')) return '/'
+  if (/^[A-Za-z]:$/.test(dirname)) return `${dirname}/`
+  return dirname
+}
+
+export const normalizeArtifactPaneFilePath = (workspacePath: string, rawPath: string): string | null => {
   const workspace = normalizeTreePath(workspacePath)
   const normalized = normalizeTreePath(rawPath)
   if (!normalized) return null
@@ -138,6 +162,29 @@ const normalizeWorkspaceRelativePath = (workspacePath: string, rawPath: string):
   if (isAbsoluteTreePath(normalized)) return null
 
   return normalized.replace(/^\/+/, '')
+}
+
+export const resolveArtifactPaneFileSelection = (
+  workspacePath: string | undefined,
+  rawPath: string
+): ArtifactPaneFileSelection | null => {
+  const normalized = normalizeTreePath(rawPath)
+  if (!normalized) return null
+
+  if (workspacePath) {
+    const workspaceFilePath = normalizeArtifactPaneFilePath(workspacePath, normalized)
+    if (workspaceFilePath) {
+      return { workspacePath, filePath: workspaceFilePath }
+    }
+  }
+
+  if (!isAbsoluteTreePath(normalized)) return null
+
+  const externalWorkspacePath = getPathDirname(normalized)
+  const filePath = getPathBasename(normalized)
+  if (!externalWorkspacePath || !filePath || filePath === externalWorkspacePath) return null
+
+  return { workspacePath: externalWorkspacePath, filePath }
 }
 
 /**
@@ -179,7 +226,7 @@ function buildFileTreeNodes(workspacePath: string | undefined, paths: readonly s
   const relativePaths = Array.from(
     new Set(
       paths.map((raw) =>
-        normalizeWorkspaceRelativePath(workspacePath, raw)
+        normalizeArtifactPaneFilePath(workspacePath, raw)
           ?.split(/[/\\]+/)
           .filter(Boolean)
           .join('/')
@@ -424,6 +471,166 @@ const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult
   return { tree, isLoading, hasLoaded, error, refresh }
 }
 
+export function ArtifactFilePreview({
+  workspacePath,
+  filePath,
+  viewMode = 'preview',
+  pdfLayoutPending = false,
+  pdfLayoutRefreshKey = 0,
+  contentRefreshKey = 0
+}: ArtifactFilePreviewProps) {
+  const { t } = useTranslation()
+  const [fileContent, setFileContent] = useState<string | null>(null)
+  const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
+  const [loadingContent, setLoadingContent] = useState(false)
+  const isPdfPreview = viewMode === 'preview' && filePath ? isPdfFile(filePath) : false
+
+  useEffect(() => {
+    if (!filePath || !workspacePath) {
+      setFileContent(null)
+      setLoadingContent(false)
+      return
+    }
+
+    if (!isSourceViewAvailable(filePath)) {
+      setFileContent(null)
+      setLoadingContent(false)
+      return
+    }
+
+    const absPath = joinPath(workspacePath, filePath)
+    let cancelled = false
+    setLoadingContent(true)
+
+    void (async () => {
+      try {
+        const text = await window.api.fs.readText(absPath)
+        if (cancelled) return
+        setFileContent(text)
+      } catch (err) {
+        if (cancelled) return
+        const normalized = err instanceof Error ? err : new Error(String(err))
+        logger.error(`Failed to read file: ${absPath}`, normalized)
+        setFileContent(null)
+      } finally {
+        if (!cancelled) setLoadingContent(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [contentRefreshKey, filePath, workspacePath])
+
+  useEffect(() => {
+    if (!isPdfPreview || pdfLayoutPending || PdfPreviewPanel) return
+
+    let cancelled = false
+
+    loadPdfPreviewPanel()
+      .then((component) => {
+        if (!cancelled) setPdfPreviewPanel(() => component)
+      })
+      .catch((err: unknown) => {
+        const normalized = err instanceof Error ? err : new Error(String(err))
+        logger.error('Failed to load PDF preview panel', normalized)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [PdfPreviewPanel, isPdfPreview, pdfLayoutPending])
+
+  if (!workspacePath) {
+    return (
+      <EmptyState
+        icon={Sparkles}
+        title={t('agent.preview_pane.empty.title')}
+        description={t('agent.preview_pane.empty.description')}
+      />
+    )
+  }
+  if (!filePath) {
+    return <EmptyState icon={FileText} title={t('agent.preview_pane.select_file')} />
+  }
+  if (loadingContent) {
+    return <LoadingState variant="skeleton" rows={4} />
+  }
+
+  if (viewMode === 'code') {
+    if (!isSourceViewAvailable(filePath)) {
+      return (
+        <EmptyState
+          icon={FileText}
+          title={t('agent.preview_pane.preview')}
+          description={t('agent.preview_pane.code_unavailable')}
+        />
+      )
+    }
+    return (
+      <CodeViewer
+        key={`code-${filePath}-${contentRefreshKey}`}
+        value={fileContent ?? ''}
+        language={guessLanguage(filePath)}
+        wrapped={false}
+      />
+    )
+  }
+
+  if (isPdfFile(filePath)) {
+    if (pdfLayoutPending || !PdfPreviewPanel) {
+      return (
+        <div className="flex h-full w-full items-center justify-center">
+          <LoadingState label={t('common.loading')} />
+        </div>
+      )
+    }
+
+    return (
+      <PdfPreviewPanel
+        key={`pdf-${filePath}-${pdfLayoutRefreshKey}`}
+        filePath={joinPath(workspacePath, filePath)}
+        fileName={filePath}
+        refreshKey={pdfLayoutRefreshKey}
+      />
+    )
+  }
+  if (isHtmlFile(filePath)) {
+    return <HtmlPreviewPanel key={`html-${filePath}-${contentRefreshKey}`} html={fileContent ?? ''} title={filePath} />
+  }
+  if (!isSourceViewAvailable(filePath)) {
+    return (
+      <EmptyState
+        icon={FileText}
+        title={t('agent.preview_pane.preview')}
+        description={t('agent.preview_pane.code_unavailable')}
+      />
+    )
+  }
+  if (isMarkdownFile(filePath)) {
+    return (
+      <div className="min-w-0 px-5 py-4">
+        <RichEditor
+          key={`md-${filePath}-${contentRefreshKey}`}
+          initialContent={fileContent ?? ''}
+          isMarkdown
+          editable={false}
+          showToolbar={false}
+          isFullWidth
+        />
+      </div>
+    )
+  }
+  return (
+    <CodeViewer
+      key={`preview-${filePath}-${contentRefreshKey}`}
+      value={fileContent ?? ''}
+      language={guessLanguage(filePath)}
+      wrapped={false}
+    />
+  )
+}
+
 const ArtifactPane = ({
   workspacePath,
   maximized = false,
@@ -449,9 +656,6 @@ const ArtifactPane = ({
   const [internalViewMode, setInternalViewMode] = useState<ArtifactPaneViewMode>('preview')
   const [internalSelectedFile, setInternalSelectedFile] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
-  const [fileContent, setFileContent] = useState<string | null>(null)
-  const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
-  const [loadingContent, setLoadingContent] = useState(false)
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
   const previousWorkspacePathRef = useRef(workspacePath)
   const selectedFileControlled = selectedFileProp !== undefined
@@ -488,15 +692,13 @@ const ArtifactPane = ({
   // Reset transient state when the workspace changes.
   useEffect(() => {
     if (previousWorkspacePathRef.current !== workspacePath) {
-      setSelectedFile(null)
+      if (!selectedFileControlled) setSelectedFile(null)
       setViewMode('preview')
     }
     previousWorkspacePathRef.current = workspacePath
     setExpandedIds(workspacePath ? new Set([WORKSPACE_ROOT_ID]) : new Set())
-    setFileContent(null)
-    setLoadingContent(false)
     setContentRefreshToken(0)
-  }, [setSelectedFile, setViewMode, workspacePath])
+  }, [selectedFileControlled, setSelectedFile, setViewMode, workspacePath])
 
   useEffect(() => {
     if (!selectedFile || !hasLoaded) return
@@ -505,47 +707,7 @@ const ArtifactPane = ({
     if (selectedNode?.kind === 'file') return
 
     setSelectedFile(null)
-    setFileContent(null)
-    setLoadingContent(false)
   }, [hasLoaded, nodeById, selectedFile, setSelectedFile])
-
-  // Load the selected text file. PDFs are rendered by PdfPreviewPanel from the file path.
-  useEffect(() => {
-    if (!selectedFile || !workspacePath) {
-      setFileContent(null)
-      setLoadingContent(false)
-      return
-    }
-
-    if (!isSourceViewAvailable(selectedFile)) {
-      setFileContent(null)
-      setLoadingContent(false)
-      return
-    }
-
-    const absPath = joinPath(workspacePath, selectedFile)
-    let cancelled = false
-    setLoadingContent(true)
-
-    void (async () => {
-      try {
-        const text = await window.api.fs.readText(absPath)
-        if (cancelled) return
-        setFileContent(text)
-      } catch (err) {
-        if (cancelled) return
-        const normalized = err instanceof Error ? err : new Error(String(err))
-        logger.error(`Failed to read file: ${absPath}`, normalized)
-        setFileContent(null)
-      } finally {
-        if (!cancelled) setLoadingContent(false)
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [contentRefreshToken, selectedFile, workspacePath])
 
   const handleSelectedChange = useCallback(
     (id: string | null) => {
@@ -572,34 +734,14 @@ const ArtifactPane = ({
   }, [selectedFile, setViewMode, viewMode])
 
   const sourceViewAvailable = selectedFile ? isSourceViewAvailable(selectedFile) : true
+  const isSelectedHtmlPreview = viewMode === 'preview' && selectedFile ? isHtmlFile(selectedFile) : false
+  const isSelectedPdfPreview = viewMode === 'preview' && selectedFile ? isPdfFile(selectedFile) : false
 
   useEffect(() => {
     if (selectedFile && !sourceViewAvailable && viewMode === 'code') {
       setViewMode('preview')
     }
   }, [selectedFile, setViewMode, sourceViewAvailable, viewMode])
-
-  const isSelectedHtmlPreview = viewMode === 'preview' && selectedFile ? isHtmlFile(selectedFile) : false
-  const isSelectedPdfPreview = viewMode === 'preview' && selectedFile ? isPdfFile(selectedFile) : false
-
-  useEffect(() => {
-    if (!isSelectedPdfPreview || pdfLayoutPending || PdfPreviewPanel) return
-
-    let cancelled = false
-
-    loadPdfPreviewPanel()
-      .then((component) => {
-        if (!cancelled) setPdfPreviewPanel(() => component)
-      })
-      .catch((err: unknown) => {
-        const normalized = err instanceof Error ? err : new Error(String(err))
-        logger.error('Failed to load PDF preview panel', normalized)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [PdfPreviewPanel, isSelectedPdfPreview, pdfLayoutPending])
 
   const viewModeLabel = t(viewMode === 'preview' ? 'agent.preview_pane.preview' : 'agent.preview_pane.code')
   const maximizeLabel = t(maximized ? 'agent.preview_pane.minimize' : 'agent.preview_pane.maximize')
@@ -620,93 +762,14 @@ const ArtifactPane = ({
     if (error) {
       return <EmptyState icon={AlertCircle} title={t('common.error')} description={error.message} />
     }
-    if (!selectedFile) {
-      return <EmptyState icon={FileText} title={t('agent.preview_pane.select_file')} />
-    }
-    if (loadingContent) {
-      return <LoadingState variant="skeleton" rows={4} />
-    }
-
-    const name = selectedFile
-
-    if (viewMode === 'code') {
-      if (!isSourceViewAvailable(name)) {
-        return (
-          <EmptyState
-            icon={FileText}
-            title={t('agent.preview_pane.preview')}
-            description={t('agent.preview_pane.code_unavailable')}
-          />
-        )
-      }
-      return (
-        <CodeViewer
-          key={`code-${name}-${contentRefreshToken}`}
-          value={fileContent ?? ''}
-          language={guessLanguage(name)}
-          wrapped={false}
-        />
-      )
-    }
-
-    if (isPdfFile(name)) {
-      if (pdfLayoutPending) {
-        return (
-          <div className="flex h-full w-full items-center justify-center">
-            <LoadingState label={t('common.loading')} />
-          </div>
-        )
-      }
-
-      if (!PdfPreviewPanel) {
-        return (
-          <div className="flex h-full w-full items-center justify-center">
-            <LoadingState label={t('common.loading')} />
-          </div>
-        )
-      }
-
-      return (
-        <PdfPreviewPanel
-          key={`pdf-${name}-${pdfLayoutRefreshKey}`}
-          filePath={joinPath(workspacePath, name)}
-          fileName={name}
-          refreshKey={pdfLayoutRefreshKey}
-        />
-      )
-    }
-    if (isHtmlFile(name)) {
-      return <HtmlPreviewPanel key={`html-${name}-${contentRefreshToken}`} html={fileContent ?? ''} title={name} />
-    }
-    if (!isSourceViewAvailable(name)) {
-      return (
-        <EmptyState
-          icon={FileText}
-          title={t('agent.preview_pane.preview')}
-          description={t('agent.preview_pane.code_unavailable')}
-        />
-      )
-    }
-    if (isMarkdownFile(name)) {
-      return (
-        <div className="min-w-0 px-5 py-4">
-          <RichEditor
-            key={`md-${name}-${contentRefreshToken}`}
-            initialContent={fileContent ?? ''}
-            isMarkdown
-            editable={false}
-            showToolbar={false}
-            isFullWidth
-          />
-        </div>
-      )
-    }
     return (
-      <CodeViewer
-        key={`preview-${name}-${contentRefreshToken}`}
-        value={fileContent ?? ''}
-        language={guessLanguage(name)}
-        wrapped={false}
+      <ArtifactFilePreview
+        workspacePath={workspacePath}
+        filePath={selectedFile}
+        viewMode={viewMode}
+        pdfLayoutPending={pdfLayoutPending}
+        pdfLayoutRefreshKey={pdfLayoutRefreshKey}
+        contentRefreshKey={contentRefreshToken}
       />
     )
   }

@@ -10,6 +10,7 @@ import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions, useOptionalMessageListUi } from '../../MessageListProvider'
+import { normalizeInlineFilePath } from '../../utils/filePath'
 
 interface ClickableFilePathProps {
   path: string
@@ -18,10 +19,11 @@ interface ClickableFilePathProps {
 
 export const ClickableFilePath = memo(function ClickableFilePath({ path, displayName }: ClickableFilePathProps) {
   const { t } = useTranslation()
-  const iconName = useMemo(() => getFileIconName(path), [path])
+  const normalizedPath = useMemo(() => normalizeInlineFilePath(path), [path])
+  const iconName = useMemo(() => getFileIconName(normalizedPath), [normalizedPath])
   const ui = useOptionalMessageListUi()
   const actions = useOptionalMessageListActions()
-  const openPath = actions?.openPath
+  const openArtifactFile = actions?.openArtifactFile
   const showInFolder = actions?.showInFolder
   const openInExternalApp = actions?.openInExternalApp
   const notifyError = actions?.notifyError
@@ -42,22 +44,22 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
 
   const openInEditor = useCallback(
     (app: ExternalAppInfo) => {
-      Promise.resolve(openInExternalApp?.(app, path)).catch(() => {
-        notifyError?.(t('chat.input.tools.open_file_error', { path }))
+      Promise.resolve(openInExternalApp?.(app, normalizedPath)).catch(() => {
+        notifyError?.(t('chat.input.tools.open_file_error', { path: normalizedPath }))
       })
     },
-    [notifyError, openInExternalApp, path, t]
+    [normalizedPath, notifyError, openInExternalApp, t]
   )
 
   const handleOpen = useCallback(
     (e: React.MouseEvent | React.KeyboardEvent) => {
-      if (!openPath) return
+      if (!openArtifactFile) return
       e.stopPropagation()
-      Promise.resolve(openPath(path)).catch(() => {
-        notifyError?.(t('chat.input.tools.open_file_error', { path }))
+      Promise.resolve(openArtifactFile(normalizedPath)).catch(() => {
+        notifyError?.(t('chat.input.tools.open_file_error', { path: normalizedPath }))
       })
     },
-    [notifyError, openPath, path, t]
+    [normalizedPath, notifyError, openArtifactFile, t]
   )
 
   const handleKeyDown = useCallback(
@@ -72,16 +74,16 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
 
   return (
     <span className="inline-flex items-center gap-0.5">
-      <Tooltip content={path} delay={500}>
+      <Tooltip content={normalizedPath} delay={500}>
         <span
-          role={openPath ? 'link' : undefined}
-          tabIndex={openPath ? 0 : undefined}
-          onClick={openPath ? handleOpen : undefined}
-          onKeyDown={openPath ? handleKeyDown : undefined}
-          className={`inline-flex items-center gap-1 ${openPath ? 'cursor-pointer hover:underline' : 'cursor-default'}`}
+          role={openArtifactFile ? 'link' : undefined}
+          tabIndex={openArtifactFile ? 0 : undefined}
+          onClick={openArtifactFile ? handleOpen : undefined}
+          onKeyDown={openArtifactFile ? handleKeyDown : undefined}
+          className={`inline-flex items-center gap-1 ${openArtifactFile ? 'cursor-pointer hover:underline' : 'cursor-default'}`}
           style={{ color: 'var(--color-primary)', wordBreak: 'break-all' }}>
           <Icon icon={`material-icon-theme:${iconName}`} className="shrink-0" style={{ fontSize: '1.1em' }} />
-          {displayName ?? path}
+          {displayName ?? normalizedPath}
         </span>
       </Tooltip>
       {hasMoreActions && (
@@ -105,8 +107,8 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
                   icon={renderFileManagerIcon()}
                   onClick={(e) => {
                     e.stopPropagation()
-                    Promise.resolve(showInFolder(path)).catch(() => {
-                      notifyError?.(t('chat.input.tools.file_not_found', { path }))
+                    Promise.resolve(showInFolder(normalizedPath)).catch(() => {
+                      notifyError?.(t('chat.input.tools.file_not_found', { path: normalizedPath }))
                     })
                   }}
                 />

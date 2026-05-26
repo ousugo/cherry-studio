@@ -186,6 +186,25 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
 
   return {
     ARTIFACT_PANE_WIDTH: 460,
+    ArtifactFilePreview: ({ workspacePath, filePath }: { workspacePath?: string; filePath?: string | null }) => (
+      <div
+        data-testid="artifact-file-preview"
+        data-workspace-path={workspacePath ?? ''}
+        data-file-path={filePath ?? ''}
+      />
+    ),
+    normalizeArtifactPaneFilePath: (workspacePath: string, rawPath: string) =>
+      rawPath.startsWith(`${workspacePath}/`) ? rawPath.slice(workspacePath.length + 1) : rawPath,
+    resolveArtifactPaneFileSelection: (workspacePath: string | undefined, rawPath: string) => {
+      if (workspacePath && rawPath.startsWith(`${workspacePath}/`)) {
+        return { workspacePath, filePath: rawPath.slice(workspacePath.length + 1) }
+      }
+      if (rawPath.startsWith('/')) {
+        const index = rawPath.lastIndexOf('/')
+        return { workspacePath: rawPath.slice(0, index), filePath: rawPath.slice(index + 1) }
+      }
+      return workspacePath ? { workspacePath, filePath: rawPath } : null
+    },
     default: MockArtifactPane
   }
 })
@@ -366,10 +385,12 @@ vi.mock('../components/AgentSessionMessages', () => ({
   default: ({
     sessionId,
     openAgentToolFlow,
+    openArtifactFile,
     openTrace
   }: {
     sessionId: string
     openAgentToolFlow?: (input: any) => void
+    openArtifactFile?: (path: string) => void
     openTrace?: (message: any) => void
   }) => (
     <div data-testid="agent-messages" data-session-id={sessionId}>
@@ -397,6 +418,12 @@ vi.mock('../components/AgentSessionMessages', () => ({
       </button>
       <button type="button" onClick={() => openTrace?.({ topicId: 'agent-session:session-1', traceId: 'trace-a' })}>
         open trace
+      </button>
+      <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/src/index.ts')}>
+        open artifact file
+      </button>
+      <button type="button" onClick={() => openArtifactFile?.('/Users/suyao/Desktop/记忆商人.md')}>
+        open desktop artifact file
       </button>
     </div>
   )
@@ -643,6 +670,44 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByRole('button', { name: /trace\.label/ })).toBeInTheDocument()
     expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-trace-id', 'trace-a')
+  })
+
+  it('opens message file paths in a separate file preview tab', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact file' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByRole('button', { name: /index\.ts/ })).toBeInTheDocument()
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'src/index.ts')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
+  })
+
+  it('opens absolute file paths outside the workspace in a separate file preview tab', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open desktop artifact file' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByRole('button', { name: /记忆商人\.md/ })).toBeInTheDocument()
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/Users/suyao/Desktop')
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', '记忆商人.md')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
+  })
+
+  it('removes the file preview tab when it is closed', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open desktop artifact file' }))
+    const fileTab = screen.getByRole('button', { name: /记忆商人\.md/ })
+    fireEvent.click(within(fileTab.parentElement as HTMLElement).getByRole('button', { name: 'common.close' }))
+
+    expect(screen.queryByRole('button', { name: /记忆商人\.md/ })).toBeNull()
+    expect(screen.queryByTestId('artifact-file-preview')).toBeNull()
+    expect(screen.getByTestId('artifact-pane')).toBeInTheDocument()
   })
 
   it('removes the trace tab when it is closed', () => {

@@ -5,7 +5,7 @@ import type { PropsWithChildren } from 'react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ArtifactPane, { ARTIFACT_FILE_TREE_DEFAULT_WIDTH } from '../ArtifactPane'
+import ArtifactPane, { ARTIFACT_FILE_TREE_DEFAULT_WIDTH, resolveArtifactPaneFileSelection } from '../ArtifactPane'
 
 const mocks = vi.hoisted(() => ({
   listDirectory: vi.fn(),
@@ -251,6 +251,20 @@ describe('ArtifactPane', () => {
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     vi.restoreAllMocks()
+  })
+
+  it('resolves workspace file paths relative to the artifact workspace', () => {
+    expect(resolveArtifactPaneFileSelection('/tmp/workspace', '/tmp/workspace/src/index.ts')).toEqual({
+      workspacePath: '/tmp/workspace',
+      filePath: 'src/index.ts'
+    })
+  })
+
+  it('resolves absolute file paths outside the workspace from their parent directory', () => {
+    expect(resolveArtifactPaneFileSelection('/tmp/workspace', '/Users/suyao/Desktop/记忆商人.md')).toEqual({
+      workspacePath: '/Users/suyao/Desktop',
+      filePath: '记忆商人.md'
+    })
   })
 
   it('does not load the PDF preview panel module for non-PDF selections', async () => {

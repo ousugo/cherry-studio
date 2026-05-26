@@ -1,11 +1,12 @@
 import type { NormalToolResponse } from '@renderer/types'
 import { fireEvent, render, screen } from '@testing-library/react'
+import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
 import { MessageWebSearchToolTitle } from '../MessageWebSearch'
 
 vi.mock('react-i18next', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-i18next')>()
+  const actual = await importOriginal<typeof ReactI18next>()
 
   return {
     ...actual,

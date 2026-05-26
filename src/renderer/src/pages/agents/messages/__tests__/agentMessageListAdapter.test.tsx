@@ -211,6 +211,7 @@ describe('useAgentMessageListProviderValue', () => {
     const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
     const deleteMessage = vi.fn()
     const respondToolApproval = vi.fn()
+    const openArtifactFile = vi.fn()
     const openTrace = vi.fn()
     let value: MessageListProviderValue | undefined
 
@@ -226,6 +227,7 @@ describe('useAgentMessageListProviderValue', () => {
           provider: 'anthropic'
         },
         isLoading: false,
+        openArtifactFile,
         openTrace,
         deleteMessage,
         respondToolApproval,
@@ -312,6 +314,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.state.getFileView).toBe(leafCapabilitiesMock.getFileView)
     expect(value?.meta.userProfile).toBe(headerCapabilitiesMock.userProfile)
     expect(value?.actions.openTrace).toBe(openTrace)
+    expect(value?.actions.openArtifactFile).toBe(openArtifactFile)
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))

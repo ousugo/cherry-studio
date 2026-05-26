@@ -2,7 +2,11 @@ import { Badge } from '@cherrystudio/ui'
 import { EmptyState } from '@renderer/components/chat'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import ArtifactPane, { type ArtifactPaneViewMode } from '@renderer/components/chat/panes/ArtifactPane'
+import ArtifactPane, {
+  ArtifactFilePreview,
+  type ArtifactPaneViewMode,
+  resolveArtifactPaneFileSelection
+} from '@renderer/components/chat/panes/ArtifactPane'
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
 import { TracePane, type TracePanePayload } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -12,9 +16,9 @@ import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { Activity, CheckCircle, Circle, FolderOpen, GitBranch, Loader2 } from 'lucide-react'
+import { Activity, CheckCircle, Circle, FileText, FolderOpen, GitBranch, Loader2 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useEffect, useMemo, useState } from 'react'
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -30,6 +34,7 @@ import {
 // projections, agent session metadata — and feeds it into Shell.* slots.
 
 const FLOW_TAB_PREFIX = 'flow:'
+const FILE_PREVIEW_TAB = 'file-preview'
 const MAX_FLOW_TAB_TITLE_LENGTH = 32
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
@@ -46,10 +51,24 @@ function getFlowTabTitle(input: AgentToolFlowOpenInput): string {
   return title.length > MAX_FLOW_TAB_TITLE_LENGTH ? `${title.slice(0, MAX_FLOW_TAB_TITLE_LENGTH - 3)}...` : title
 }
 
+function getFilePreviewTitle(filePath: string): string {
+  const segments = filePath
+    .trim()
+    .split(/[/\\]+/)
+    .filter(Boolean)
+  return segments.at(-1) ?? filePath
+}
+
 interface AgentFlowTab {
   toolCallId: string
   toolName?: string
   sourceMessageId?: string
+  title: string
+}
+
+interface AgentFilePreviewTab {
+  workspacePath: string
+  filePath: string
   title: string
 }
 
@@ -68,6 +87,7 @@ interface AgentRightPaneState {
   flow: ReturnType<typeof buildAgentToolFlowProjection>
   status: AgentRightPaneStatus
   tracePayload: TracePanePayload | null
+  filePreview: AgentFilePreviewTab | null
   selectedFile: string | null
   viewMode: ArtifactPaneViewMode
   workspacePath?: string
@@ -76,7 +96,9 @@ interface AgentRightPaneState {
 interface AgentRightPaneActions {
   openAgentToolFlow: (input: AgentToolFlowOpenInput) => void
   openTrace: (payload: TracePanePayload) => void
+  openArtifactFile: (path: string) => void
   closeTrace: () => void
+  closeFilePreview: () => void
   closeFlowTab: (toolCallId: string) => void
   setSelectedFile: (file: string | null) => void
   setViewMode: (mode: ArtifactPaneViewMode) => void
@@ -123,8 +145,10 @@ function AgentRightPaneStateProvider({
   const { openTab } = useShellActions()
   const [flowTabs, setFlowTabs] = useState<AgentFlowTab[]>([])
   const [tracePayload, setTracePayload] = useState<TracePanePayload | null>(null)
+  const [filePreview, setFilePreview] = useState<AgentFilePreviewTab | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ArtifactPaneViewMode>('preview')
+  const previousWorkspacePathRef = useRef(workspacePath)
 
   const activeFlowToolCallId = getFlowToolCallId(activeTab)
   const activeFlowTab = activeFlowToolCallId
@@ -136,11 +160,6 @@ function AgentRightPaneStateProvider({
     [activeFlowTab?.toolCallId, messages, partsByMessageId]
   )
   const status = useMemo(() => buildAgentRightPaneStatus(messages, partsByMessageId), [messages, partsByMessageId])
-
-  useEffect(() => {
-    setSelectedFile(null)
-    setViewMode('preview')
-  }, [workspacePath])
 
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
@@ -165,9 +184,34 @@ function AgentRightPaneStateProvider({
     },
     [openTab]
   )
+  const openArtifactFile = useCallback(
+    (path: string) => {
+      const selection = resolveArtifactPaneFileSelection(workspacePath, path)
+      if (!selection) return
+      setFilePreview({
+        ...selection,
+        title: getFilePreviewTitle(selection.filePath)
+      })
+      openTab(FILE_PREVIEW_TAB)
+    },
+    [openTab, workspacePath]
+  )
+
+  useEffect(() => {
+    if (previousWorkspacePathRef.current === workspacePath) return
+    previousWorkspacePathRef.current = workspacePath
+    setSelectedFile(null)
+    setViewMode('preview')
+    setFilePreview(null)
+    if (activeTab === FILE_PREVIEW_TAB) openTab('files')
+  }, [activeTab, openTab, workspacePath])
   const closeTrace = useCallback(() => {
     if (activeTab === 'trace') openTab('files')
     setTracePayload(null)
+  }, [activeTab, openTab])
+  const closeFilePreview = useCallback(() => {
+    if (activeTab === FILE_PREVIEW_TAB) openTab('files')
+    setFilePreview(null)
   }, [activeTab, openTab])
   const closeFlowTab = useCallback(
     (toolCallId: string) => {
@@ -179,8 +223,27 @@ function AgentRightPaneStateProvider({
 
   const value = useMemo<AgentRightPaneContextValue>(
     () => ({
-      state: { flowTabs, activeFlowTab, flow, status, tracePayload, selectedFile, viewMode, workspacePath },
-      actions: { openAgentToolFlow, openTrace, closeTrace, closeFlowTab, setSelectedFile, setViewMode },
+      state: {
+        flowTabs,
+        activeFlowTab,
+        flow,
+        status,
+        tracePayload,
+        filePreview,
+        selectedFile,
+        viewMode,
+        workspacePath
+      },
+      actions: {
+        openAgentToolFlow,
+        openTrace,
+        openArtifactFile,
+        closeTrace,
+        closeFilePreview,
+        closeFlowTab,
+        setSelectedFile,
+        setViewMode
+      },
       meta: { sessionId, sessionName, agentId, agentName, agentAvatar, modelFallback }
     }),
     [
@@ -188,11 +251,14 @@ function AgentRightPaneStateProvider({
       agentAvatar,
       agentId,
       agentName,
+      closeFilePreview,
       closeTrace,
       closeFlowTab,
+      filePreview,
       flow,
       flowTabs,
       modelFallback,
+      openArtifactFile,
       openAgentToolFlow,
       openTrace,
       selectedFile,
@@ -233,6 +299,21 @@ function AgentRightPaneFilesPanel() {
   )
 }
 
+function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
+  const shellState = useShellState()
+
+  return (
+    <div className="h-full min-h-0 overflow-hidden bg-card text-card-foreground">
+      <ArtifactFilePreview
+        workspacePath={preview.workspacePath}
+        filePath={preview.filePath}
+        pdfLayoutPending={shellState.pdfLayoutPending}
+        pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
+      />
+    </div>
+  )
+}
+
 function AgentToolFlowMessageList({
   messages,
   partsByMessageId
@@ -269,6 +350,7 @@ function AgentToolFlowMessageList({
     isLoading: false,
     hasOlder: false,
     openAgentToolFlow: actions.openAgentToolFlow,
+    openArtifactFile: actions.openArtifactFile,
     messageNavigation
   })
   const flowProviderValue = useMemo(
@@ -435,6 +517,14 @@ function AgentRightPaneSurface() {
         <Shell.Tab value="files" icon={<FolderOpen className="size-3.5" />}>
           {t('agent.right_pane.tabs.files')}
         </Shell.Tab>
+        {state.filePreview && (
+          <Shell.Tab
+            value={FILE_PREVIEW_TAB}
+            icon={<FileText className="size-3.5" />}
+            onClose={actions.closeFilePreview}>
+            {state.filePreview.title}
+          </Shell.Tab>
+        )}
         {state.flowTabs.map((flowTab) => (
           <Shell.Tab
             key={flowTab.toolCallId}
@@ -465,6 +555,11 @@ function AgentRightPaneSurface() {
       <Shell.Panel value="files">
         <AgentRightPaneFilesPanel />
       </Shell.Panel>
+      {state.filePreview && (
+        <Shell.Panel value={FILE_PREVIEW_TAB}>
+          <AgentFilePreviewPanel preview={state.filePreview} />
+        </Shell.Panel>
+      )}
       {state.flowTabs.map((flowTab) => (
         <Shell.Panel key={flowTab.toolCallId} value={getFlowTabValue(flowTab.toolCallId)}>
           <AgentRightPaneFlowPanel tab={flowTab} />

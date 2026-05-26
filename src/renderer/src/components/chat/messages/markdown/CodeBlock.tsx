@@ -7,7 +7,7 @@ import React, { memo, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'
 
 import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
-import { isInlineAbsoluteFilePath } from '../utils/filePath'
+import { isInlineFilePath, normalizeInlineFilePath } from '../utils/filePath'
 
 interface Props {
   children: string
@@ -70,12 +70,11 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
     )
   }
 
-  // Detect inline code that looks like an absolute file path (e.g. /Users/foo/bar.tsx)
-  // On Windows, Unix-style paths are not valid local paths, so skip detection there.
-  if (!isWin && typeof children === 'string' && isInlineAbsoluteFilePath(children)) {
+  // Detect inline code that looks like an agent workspace file path.
+  if (!isWin && typeof children === 'string' && isInlineFilePath(children)) {
     return (
       <code className={mergeClassNames(className, INLINE_FILE_PATH_CODE_CLASS)}>
-        <ClickableFilePath path={children} />
+        <ClickableFilePath path={normalizeInlineFilePath(children)} />
       </code>
     )
   }
