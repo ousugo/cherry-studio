@@ -1,6 +1,5 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { cn } from '@renderer/utils'
-import { MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
 import { useEffect, useRef } from 'react'
@@ -9,6 +8,8 @@ import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
 import { RightPaneHost } from './RightPaneHost'
 import { CHAT_SHELL_TRANSITION, type ChatPanePosition } from './types'
+
+const RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH = 540
 
 interface ChatAppShellBaseProps {
   topBar?: ReactNode
@@ -62,27 +63,42 @@ export function ChatAppShell({
 }: ChatAppShellProps) {
   const hasCenterContent = centerContent !== undefined
   const leftPaneOpen = Boolean(paneOpen && panePosition === 'left')
-  const previousWindowWidthRef = useRef(typeof window === 'undefined' ? MIN_WINDOW_WIDTH : window.innerWidth)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const leftPaneOpenRef = useRef(leftPaneOpen)
+  const onPaneCollapseRef = useRef(onPaneCollapse)
+  const previousShellWidthRef = useRef<number | null>(null)
 
   useEffect(() => {
-    const handleResize = () => {
-      const previousWindowWidth = previousWindowWidthRef.current
-      const nextWindowWidth = window.innerWidth
-      previousWindowWidthRef.current = nextWindowWidth
-
-      if (!leftPaneOpen) return
-      if (previousWindowWidth < MIN_WINDOW_WIDTH) return
-      if (nextWindowWidth >= MIN_WINDOW_WIDTH) return
-
-      onPaneCollapse?.()
-    }
-
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+    leftPaneOpenRef.current = leftPaneOpen
+    onPaneCollapseRef.current = onPaneCollapse
   }, [leftPaneOpen, onPaneCollapse])
 
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root || typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(([entry]) => {
+      const previousShellWidth = previousShellWidthRef.current
+      const nextShellWidth = entry.contentRect.width
+      previousShellWidthRef.current = nextShellWidth
+
+      if (previousShellWidth === null) return
+      if (!leftPaneOpenRef.current) return
+      if (previousShellWidth < RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH) return
+      if (nextShellWidth >= RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH) return
+
+      onPaneCollapseRef.current?.()
+    })
+
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [])
+
   return (
-    <div id={rootId} className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
+    <div
+      ref={rootRef}
+      id={rootId}
+      className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse}>
           {pane}

@@ -11,6 +11,15 @@ import {
 } from '../useResourceListPaneResize'
 
 const RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD = 200
+const originalResizeObserver = globalThis.ResizeObserver
+
+interface ResizeObserverMockInstance {
+  callback: ResizeObserverCallback
+  observe: ReturnType<typeof vi.fn>
+  disconnect: ReturnType<typeof vi.fn>
+}
+
+const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
 
 const persistCacheMock = vi.hoisted(() => {
   const state = { width: 240 }
@@ -73,6 +82,20 @@ describe('ChatAppShell', () => {
       value: 1200,
       writable: true
     })
+    resizeObserverMockInstances.length = 0
+    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+      const instance = {
+        callback,
+        observe: vi.fn(),
+        disconnect: vi.fn()
+      }
+      resizeObserverMockInstances.push(instance)
+
+      return {
+        observe: instance.observe,
+        disconnect: instance.disconnect
+      } as unknown as ResizeObserver
+    }) as unknown as typeof ResizeObserver
   })
 
   afterEach(() => {
@@ -82,6 +105,7 @@ describe('ChatAppShell', () => {
     document.body.style.userSelect = ''
     document.documentElement.style.removeProperty('--assistants-width')
     vi.restoreAllMocks()
+    globalThis.ResizeObserver = originalResizeObserver
   })
 
   it('keeps side panel inside chat-main with the navbar layer', () => {
@@ -270,27 +294,37 @@ describe('ChatAppShell', () => {
     expect(pane).toHaveAttribute('data-resizing', 'true')
   })
 
-  it('auto-collapses the open left pane when the window is resized below the wide threshold', () => {
+  it('auto-collapses the open left pane when the shell width crosses below the 540px threshold', () => {
     const onPaneCollapse = vi.fn()
 
     render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
 
-    window.innerWidth = 959
-    fireEvent.resize(window)
+    notifyObservedShellWidth(540)
+    notifyObservedShellWidth(539)
 
     expect(onPaneCollapse).toHaveBeenCalledTimes(1)
   })
 
-  it('allows manually opening the left pane while the window is already below the wide threshold', () => {
+  it('does not collapse from the initial shell width observation even when already below the 540px threshold', () => {
     const onPaneCollapse = vi.fn()
-    window.innerWidth = 959
+
+    render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
+
+    notifyObservedShellWidth(539)
+
+    expect(onPaneCollapse).not.toHaveBeenCalled()
+  })
+
+  it('allows manually opening the left pane while the shell is already below the 540px threshold', () => {
+    const onPaneCollapse = vi.fn()
 
     const { rerender } = render(
       <ChatAppShell pane={<aside>topics</aside>} paneOpen={false} onPaneCollapse={onPaneCollapse} main={<div />} />
     )
 
+    notifyObservedShellWidth(539)
     rerender(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
-    fireEvent.resize(window)
+    notifyObservedShellWidth(538)
 
     expect(onPaneCollapse).not.toHaveBeenCalled()
   })
@@ -301,8 +335,8 @@ describe('ChatAppShell', () => {
       <ChatAppShell pane={<aside>topics</aside>} paneOpen={false} onPaneCollapse={onPaneCollapse} main={<div />} />
     )
 
-    window.innerWidth = 959
-    fireEvent.resize(window)
+    notifyObservedShellWidth(540)
+    notifyObservedShellWidth(539)
 
     rerender(
       <ChatAppShell
@@ -313,6 +347,19 @@ describe('ChatAppShell', () => {
         main={<div />}
       />
     )
+    notifyObservedShellWidth(540)
+    notifyObservedShellWidth(539)
+
+    expect(onPaneCollapse).not.toHaveBeenCalled()
+  })
+
+  it('does not auto-collapse from window resize alone', () => {
+    const onPaneCollapse = vi.fn()
+
+    render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
+
+    notifyObservedShellWidth(540)
+    window.innerWidth = 539
     fireEvent.resize(window)
 
     expect(onPaneCollapse).not.toHaveBeenCalled()
@@ -326,3 +373,25 @@ describe('ChatAppShell', () => {
     expect(handle).not.toHaveClass('z-50')
   })
 })
+
+function notifyObservedShellWidth(width: number) {
+  const instance = resizeObserverMockInstances.at(-1)
+  if (!instance) {
+    throw new Error('Expected ChatAppShell to create a ResizeObserver')
+  }
+
+  const target = instance.observe.mock.calls.at(-1)?.[0] as Element | undefined
+  if (!target) {
+    throw new Error('Expected ChatAppShell root to be observed')
+  }
+
+  instance.callback(
+    [
+      {
+        target,
+        contentRect: new DOMRect(0, 0, width, 0)
+      } as ResizeObserverEntry
+    ],
+    {} as ResizeObserver
+  )
+}
