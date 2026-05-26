@@ -17,6 +17,7 @@ import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model
 import { startAiTurnTrace } from '../../observability'
 import type { AiStreamRequest } from '../../types/requests'
 import { PersistenceListener } from '../listeners/PersistenceListener'
+import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
@@ -212,6 +213,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         })
       )
     }
+    listeners.push(new TraceFlushListener(req.topicId))
 
     // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
     const history = await this.buildHistory(userMessage.id)
@@ -280,7 +282,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             provider: model.providerId
           }
         })
-      })
+      }),
+      new TraceFlushListener(req.topicId)
     ]
 
     const history = await this.buildHistory(anchor.id)

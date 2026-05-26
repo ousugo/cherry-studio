@@ -22,6 +22,7 @@ import {
 import { PendingMessageQueue } from '../runtime/aiSdk/loop/PendingMessageQueue'
 import { type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode/ToolApprovalRegistry'
 import { PersistenceListener } from '../streamManager/listeners/PersistenceListener'
+import { TraceFlushListener } from '../streamManager/listeners/TraceFlushListener'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../streamManager/types'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 
@@ -177,7 +178,8 @@ export class AgentSessionRuntimeService extends BaseService {
         pendingMessages,
         listeners: [
           this.createPersistenceListener(existing, userMessage),
-          new AgentSessionRuntimeTerminalListener(this, input.sessionId)
+          new AgentSessionRuntimeTerminalListener(this, input.sessionId),
+          new TraceFlushListener(input.topicId)
         ],
         turnId
       }
@@ -201,7 +203,8 @@ export class AgentSessionRuntimeService extends BaseService {
       pendingMessages,
       listeners: [
         this.createPersistenceListener(entry, userMessage),
-        new AgentSessionRuntimeTerminalListener(this, input.sessionId)
+        new AgentSessionRuntimeTerminalListener(this, input.sessionId),
+        new TraceFlushListener(input.topicId)
       ],
       turnId
     }
@@ -534,7 +537,8 @@ export class AgentSessionRuntimeService extends BaseService {
       },
       listeners: [
         this.createPersistenceListener(entry, nextMessage),
-        new AgentSessionRuntimeTerminalListener(this, entry.sessionId)
+        new AgentSessionRuntimeTerminalListener(this, entry.sessionId),
+        new TraceFlushListener(entry.topicId)
       ]
     })
   }

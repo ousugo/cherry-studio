@@ -389,7 +389,8 @@ describe('AgentSessionRuntimeService', () => {
       },
       listeners: [
         expect.objectContaining({ id: expect.stringContaining('persistence:agents-db:') }),
-        expect.objectContaining({ id: 'agent-runtime:session-1' })
+        expect.objectContaining({ id: 'agent-runtime:session-1' }),
+        expect.objectContaining({ id: 'persistence:trace:agent-session:session-1' })
       ]
     })
     const request = mocks.startRuntimeTurn.mock.calls[0][0].request

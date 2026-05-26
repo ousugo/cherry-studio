@@ -26,6 +26,25 @@ The main-process observability boundary is `src/main/ai/observability`:
 - `cache/` keeps the trace-window projection and JSONL-compatible history.
 - `sinks/` defines the extension point for local and future external export.
 
+## Local history flush
+
+`Message.traceId` is persisted with the assistant message row, but the span
+tree is first collected in the main-process `SpanCacheService` memory store.
+The durable history file is written by the stream terminal path, not by the
+trace UI:
+
+- `PersistentChatContextProvider` attaches a `TraceFlushListener` to normal
+  chat turns.
+- `AgentSessionRuntimeService` attaches the same listener to
+  `agent-session:${sessionId}` turns, including queued follow-up turns.
+- On the topic-level terminal event (`done`, `paused`, or `error`),
+  `TraceFlushListener` calls `SpanCacheService.saveSpans(topicId)`.
+- Flush errors are logged as warnings and do not affect message completion.
+
+The trace pane and trace window are viewers only. They read spans through
+`SpanCacheService.getSpans(...)`, which falls back to the JSONL history file
+when the in-memory store has already been cleared.
+
 ## AdapterTracer
 
 `src/main/ai/observability/adapters/aiSdk/adapterTracer.ts` wraps the OTel `Tracer` returned
@@ -60,7 +79,8 @@ converted by `src/main/ai/observability/adapters/claudeCode/ClaudeCodeOtlpAdapte
 Dev mode only. The dev-tools span viewer reads from the local observability
 projection (`SpanCacheService`) and renders the per-topic tree. Disabled in
 production builds — the adapter tracer is still attached, but the local
-projection is short-circuited.
+projection is short-circuited. Viewer mount, tab close, and window close are
+not part of the trace persistence lifecycle.
 
 ## Where to read more
 
