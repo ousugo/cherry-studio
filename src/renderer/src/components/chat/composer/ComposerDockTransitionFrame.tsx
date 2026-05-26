@@ -111,7 +111,9 @@ export default function ComposerDockTransitionFrame({
         className={cn(
           'absolute inset-x-0 w-full',
           composerElevated ? 'z-50' : 'z-10',
-          isDocked ? 'bottom-0' : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh]'
+          isDocked
+            ? 'bottom-0'
+            : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh] has-[.inputbar-container.expanded]:pb-0'
         )}>
         <div className="pointer-events-auto w-full">
           {!isDocked && homeHeader ? <div className="mb-6 flex justify-center">{homeHeader}</div> : null}

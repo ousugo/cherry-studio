@@ -243,20 +243,24 @@ function filterSuggestionItems(items: readonly ComposerSuggestionItem[], query: 
 }
 
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
-const COMPOSER_EDITOR_MAX_HEIGHT = 'max(220px, 50vh)'
-const COMPOSER_EDITOR_MAX_HEIGHT_CLASS = 'max-h-[max(220px,50vh)]!'
+const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT = 'max(220px, 40vh)'
+const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT = 'max(220px, 50vh)'
+const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,40vh)]!'
+const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,50vh)]!'
 
 function getComposerEditorMinHeight(fontSize: number) {
   return Math.ceil(fontSize * 1.4 * 2 + 6)
 }
 
 function getComposerEditorStyle(fontSize: number, isExpanded: boolean) {
+  const maxHeight = isExpanded ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT
+
   return [
     '--composer-editor-padding: 6px 15px 0',
     `--composer-editor-min-height: ${getComposerEditorMinHeight(fontSize)}px`,
     `--composer-editor-font-size: ${fontSize}px`,
     '--composer-editor-line-height: 1.4',
-    `max-height: ${COMPOSER_EDITOR_MAX_HEIGHT}`,
+    `max-height: ${maxHeight}`,
     'overflow-y: auto',
     isExpanded ? 'height: 100%' : undefined
   ]
@@ -462,7 +466,7 @@ export default function ComposerSurface({
       attributes: {
         class: cn(
           'composer-tiptap after:hidden! box-border flex w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
-          COMPOSER_EDITOR_MAX_HEIGHT_CLASS,
+          isExpanded ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
           isExpanded && 'h-full'
         ),
         style: getComposerEditorStyle(fontSize, isExpanded)
@@ -730,7 +734,9 @@ export default function ComposerSurface({
       )}>
       <div
         style={
-          isExpanded ? { height: COMPOSER_EDITOR_MAX_HEIGHT, overflow: 'hidden' } : { minHeight: editorMinHeight }
+          isExpanded
+            ? { height: COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT, overflow: 'hidden' }
+            : { minHeight: editorMinHeight }
         }>
         <EditorContent
           editor={editor}
