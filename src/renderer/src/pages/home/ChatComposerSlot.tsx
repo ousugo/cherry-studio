@@ -1,6 +1,6 @@
 import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/chat/composer/ConversationComposerSlot'
-import ChatComposer, { ChatHomeComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
+import { ChatPlacementComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
 import type { FileMetadata, Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -34,20 +34,14 @@ export default function ChatComposerSlot({
   sendDisabled,
   composerContext
 }: ChatComposerSlotProps) {
-  const fallback = isHome ? (
-    <ChatHomeComposer
+  const fallback = (
+    <ChatPlacementComposer
+      isHome={isHome}
       topic={topic}
       onSend={onSend}
       onTemporaryAssistantChange={onTemporaryAssistantChange}
       onNewTopic={onNewTopic}
-    />
-  ) : (
-    <ChatComposer
-      topic={topic}
-      onSend={onSend}
-      onNewTopic={onNewTopic}
-      sendDisabled={sendDisabled}
-      useMentionedModelSelector
+      sendDisabled={isHome ? undefined : sendDisabled}
     />
   )
 

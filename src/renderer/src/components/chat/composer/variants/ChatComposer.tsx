@@ -974,4 +974,19 @@ export const ChatHomeComposer = (props: ChatComposerProps) => {
   return <ChatComposerRoot {...props} useMentionedModelSelector renderControls={renderChatHomeControls} />
 }
 
+export const ChatPlacementComposer = ({
+  isHome,
+  onTemporaryAssistantChange,
+  ...props
+}: ChatComposerProps & { isHome: boolean }) => {
+  return (
+    <ChatComposerRoot
+      {...props}
+      onTemporaryAssistantChange={isHome ? onTemporaryAssistantChange : undefined}
+      useMentionedModelSelector
+      renderControls={isHome ? renderChatHomeControls : renderChatToolbarControls}
+    />
+  )
+}
+
 export default ChatComposer

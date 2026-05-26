@@ -7,7 +7,7 @@ import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
-import ChatComposer, { ChatHomeComposer } from '../ChatComposer'
+import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
   createTopic: vi.fn(),
@@ -809,6 +809,23 @@ describe('ChatComposer', () => {
     fireEvent.click(screen.getByText('select models 1 and 2'))
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
 
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
+  })
+
+  it('keeps temporary multi-model selection when the composer placement docks', () => {
+    const view = render(<ChatPlacementComposer isHome topic={topic} onSend={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
+
+    view.rerender(<ChatPlacementComposer isHome={false} topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
   })
 })
