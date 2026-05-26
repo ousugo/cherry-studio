@@ -7215,8 +7215,7 @@
     "spendTime": "Χρόνος κατανάλωσης",
     "startTime": "Ώρα έναρξης",
     "tag": "Ετικέτα",
-    "tokenUsage": "Χρήση token",
-    "traceWindow": "Παράθυρο αλυσίδας κλήσης"
+    "tokenUsage": "Χρήση token"
   },
   "translate": {
     "alter_language": "Εναλλακτική γλώσσα",

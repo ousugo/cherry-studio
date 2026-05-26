@@ -9,14 +9,11 @@ import {
   Priority,
   ServicePhase
 } from '@main/core/lifecycle'
-import { WindowType } from '@main/core/window/types'
 // Heavy OTel modules (trace-core processors, trace-node, opentelemetry SDK) are loaded
 // via dynamic import() in initTracer() to avoid startup overhead when developer_mode is off.
 // Only type imports remain static as they are erased at compile time.
 import type { SpanContext } from '@opentelemetry/api'
 import { context, trace } from '@opentelemetry/api'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { TraceWindowInitData } from '@shared/types/traceWindow'
 import { ipcMain } from 'electron'
 
 import { TRACER_NAME } from '../constants'
@@ -47,7 +44,6 @@ export class NodeTraceService extends BaseService implements Activatable {
     if (application.get('PreferenceService').get('app.developer_mode.enabled')) {
       this.patchIpcMainHandle()
     }
-    this.registerIpcHandlers()
   }
 
   /**
@@ -135,43 +131,5 @@ export class NodeTraceService extends BaseService implements Activatable {
     this.registerDisposable(() => {
       ipcMain.handle = originalHandle
     })
-  }
-
-  private registerIpcHandlers() {
-    this.ipcHandle(
-      IpcChannel.TRACE_OPEN_WINDOW,
-      (_, topicId: string, traceId: string, autoOpen?: boolean, modelName?: string) =>
-        this.openTraceWindow(topicId, traceId, autoOpen, modelName)
-    )
-    this.ipcHandle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => this.setTraceWindowTitle(title))
-  }
-
-  private openTraceWindow(topicId: string, traceId: string, autoOpen = true, modelName?: string) {
-    if (!this.isActivated) return
-
-    const wm = application.get('WindowManager')
-    const existing = wm.getWindowsByType(WindowType.Trace)
-    if (existing.length === 0 && !autoOpen) {
-      return
-    }
-
-    const initData: TraceWindowInitData = {
-      topicId,
-      traceId,
-      modelName
-    }
-    wm.open(WindowType.Trace, {
-      initData
-    })
-  }
-
-  private setTraceWindowTitle(title: string) {
-    const wm = application.get('WindowManager')
-    for (const info of wm.getWindowsByType(WindowType.Trace)) {
-      const window = wm.getWindow(info.id)
-      if (window && !window.isDestroyed()) {
-        window.setTitle(title)
-      }
-    }
   }
 }

@@ -72,6 +72,7 @@ interface HomeMessageListParams {
   loadOlder?: () => void
   hasOlder?: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  openTrace?: MessageListActions['openTrace']
   respondToolApproval: NonNullable<MessageListActions['respondToolApproval']>
   onComponentUpdate?(): void
   onFirstUpdate?(): void
@@ -85,6 +86,7 @@ export function useHomeMessageListProviderValue({
   loadOlder,
   hasOlder = false,
   openCitationsPanel,
+  openTrace,
   respondToolApproval,
   onComponentUpdate,
   onFirstUpdate
@@ -335,11 +337,6 @@ export function useHomeMessageListProviderValue({
     },
     [editorTranslationTargetLanguage, showEditorTranslationConfirm, t, translationLanguages]
   )
-
-  const openTrace = useCallback((message: MessageListItem, options?: { modelName?: string }) => {
-    if (!message.traceId) return
-    return window.api.trace.openWindow(message.topicId, message.traceId, true, options?.modelName)
-  }, [])
 
   const openPath = useCallback((path: string) => {
     return window.api.file.openPath(path)

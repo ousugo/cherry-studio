@@ -1,0 +1,113 @@
+.trace-window {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--color-card);
+  color: var(--color-card-foreground);
+}
+
+.tab-container_trace {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--color-card);
+  color: var(--color-card-foreground);
+}
+
+.scroll-container {
+  height: 100%;
+  min-height: 0;
+  background: var(--color-card);
+  color: var(--color-card-foreground);
+}
+
+.scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+.floating {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-card);
+  border-bottom: 0.5px solid var(--color-border);
+}
+
+.table-header {
+  height: 32px;
+  padding-top: 8px;
+  padding-bottom: 4px;
+  background: var(--color-background-subtle);
+  color: var(--color-foreground-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.traceItem {
+  display: grid;
+  grid-template-columns: repeat(20, minmax(0, 1fr));
+  gap: 1px;
+  align-items: center;
+  min-height: 32px;
+  padding-right: 5px;
+  padding-left: 5px;
+}
+
+.traceItem:hover {
+  background: var(--color-accent);
+  cursor: pointer;
+}
+
+.trace-row-divider {
+  width: 100%;
+  height: 0.5px;
+  margin: 0 5px 0 0;
+  background: var(--color-border-subtle);
+}
+
+.default-text {
+  color: var(--color-foreground);
+  cursor: pointer;
+  user-select: none;
+}
+
+.error-text {
+  color: var(--color-destructive);
+  cursor: pointer;
+  user-select: none;
+}
+
+.trace-progress-track {
+  background: var(--color-muted);
+}
+
+.trace-progress-fill {
+  background: var(--color-success);
+}
+
+.trace-token-prompt {
+  color: var(--color-destructive);
+}
+
+.trace-token-completion {
+  color: var(--color-success);
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.back-button:hover {
+  text-decoration: underline;
+}
+
+.trace-code-viewer {
+  height: 100%;
+}
+
+.trace-code-viewer .shiki-scroller {
+  overflow-x: hidden;
+}

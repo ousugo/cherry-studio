@@ -440,7 +440,7 @@ export default function ComposerSurface({
     editorProps: {
       attributes: {
         class: cn(
-          'composer-tiptap box-border flex w-full overflow-auto rounded-none text-foreground outline-none transition-none! break-words whitespace-pre-wrap after:hidden! [&::-webkit-scrollbar]:w-[3px]',
+          'composer-tiptap after:hidden! box-border flex w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
           COMPOSER_EDITOR_MAX_HEIGHT_CLASS,
           isExpanded && 'h-full'
         ),
@@ -604,7 +604,7 @@ export default function ComposerSurface({
       id="inputbar"
       data-composer-inputbar=""
       className={cn(
-        'inputbar-container relative rounded-[20px] border-border border-[0.5px] bg-card pt-2 shadow-[0_4px_12px_rgba(15,23,42,0.08)] transition-all duration-200 ease-in-out dark:shadow-[0_4px_12px_rgba(0,0,0,0.2)]',
+        'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card pt-2 shadow-[0_4px_12px_rgba(15,23,42,0.08)] transition-all duration-200 ease-in-out dark:shadow-[0_4px_12px_rgba(0,0,0,0.2)]',
         belowControls ? 'mb-0.5' : 'mb-3',
         isDragging &&
           "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",

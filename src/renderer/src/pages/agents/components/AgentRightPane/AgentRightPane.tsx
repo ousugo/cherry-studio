@@ -4,6 +4,7 @@ import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import ArtifactPane, { type ArtifactPaneViewMode } from '@renderer/components/chat/panes/ArtifactPane'
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
+import { TracePane, type TracePanePayload } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentMessageListProviderValue } from '@renderer/pages/agents/messages/agentMessageListAdapter'
 import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
@@ -66,6 +67,7 @@ interface AgentRightPaneState {
   activeFlowTab?: AgentFlowTab
   flow: ReturnType<typeof buildAgentToolFlowProjection>
   status: AgentRightPaneStatus
+  tracePayload: TracePanePayload | null
   selectedFile: string | null
   viewMode: ArtifactPaneViewMode
   workspacePath?: string
@@ -73,6 +75,8 @@ interface AgentRightPaneState {
 
 interface AgentRightPaneActions {
   openAgentToolFlow: (input: AgentToolFlowOpenInput) => void
+  openTrace: (payload: TracePanePayload) => void
+  closeTrace: () => void
   closeFlowTab: (toolCallId: string) => void
   setSelectedFile: (file: string | null) => void
   setViewMode: (mode: ArtifactPaneViewMode) => void
@@ -118,6 +122,7 @@ function AgentRightPaneStateProvider({
   const { activeTab } = useShellState()
   const { openTab } = useShellActions()
   const [flowTabs, setFlowTabs] = useState<AgentFlowTab[]>([])
+  const [tracePayload, setTracePayload] = useState<TracePanePayload | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ArtifactPaneViewMode>('preview')
 
@@ -153,6 +158,17 @@ function AgentRightPaneStateProvider({
     },
     [openTab]
   )
+  const openTrace = useCallback(
+    (payload: TracePanePayload) => {
+      setTracePayload(payload)
+      openTab('trace')
+    },
+    [openTab]
+  )
+  const closeTrace = useCallback(() => {
+    if (activeTab === 'trace') openTab('files')
+    setTracePayload(null)
+  }, [activeTab, openTab])
   const closeFlowTab = useCallback(
     (toolCallId: string) => {
       setFlowTabs((currentTabs) => currentTabs.filter((tab) => tab.toolCallId !== toolCallId))
@@ -163,8 +179,8 @@ function AgentRightPaneStateProvider({
 
   const value = useMemo<AgentRightPaneContextValue>(
     () => ({
-      state: { flowTabs, activeFlowTab, flow, status, selectedFile, viewMode, workspacePath },
-      actions: { openAgentToolFlow, closeFlowTab, setSelectedFile, setViewMode },
+      state: { flowTabs, activeFlowTab, flow, status, tracePayload, selectedFile, viewMode, workspacePath },
+      actions: { openAgentToolFlow, openTrace, closeTrace, closeFlowTab, setSelectedFile, setViewMode },
       meta: { sessionId, sessionName, agentId, agentName, agentAvatar, modelFallback }
     }),
     [
@@ -172,15 +188,18 @@ function AgentRightPaneStateProvider({
       agentAvatar,
       agentId,
       agentName,
+      closeTrace,
       closeFlowTab,
       flow,
       flowTabs,
       modelFallback,
       openAgentToolFlow,
+      openTrace,
       selectedFile,
       sessionId,
       sessionName,
       status,
+      tracePayload,
       viewMode,
       workspacePath
     ]
@@ -437,6 +456,11 @@ function AgentRightPaneSurface() {
           }>
           {t('agent.right_pane.tabs.status')}
         </Shell.Tab>
+        {state.tracePayload && (
+          <Shell.Tab value="trace" icon={<Activity className="size-3.5" />} onClose={actions.closeTrace}>
+            {t('trace.label')}
+          </Shell.Tab>
+        )}
       </Shell.TabList>
       <Shell.Panel value="files">
         <AgentRightPaneFilesPanel />
@@ -449,6 +473,11 @@ function AgentRightPaneSurface() {
       <Shell.Panel value="status" className="overflow-auto">
         <AgentAgentRightPaneStatusPanel />
       </Shell.Panel>
+      {state.tracePayload && (
+        <Shell.Panel value="trace">
+          <TracePane payload={state.tracePayload} />
+        </Shell.Panel>
+      )}
     </Shell.Tabs>
   )
 }

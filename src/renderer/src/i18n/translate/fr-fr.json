@@ -7215,8 +7215,7 @@
     "spendTime": "Temps consommé",
     "startTime": "Heure de début",
     "tag": "Étiquette",
-    "tokenUsage": "Utilisation des tokens",
-    "traceWindow": "Fenêtre de chaîne d'appel"
+    "tokenUsage": "Utilisation des tokens"
   },
   "translate": {
     "alter_language": "Langue de secours",

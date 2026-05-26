@@ -67,6 +67,19 @@ export default function AgentChatMain({
 }
 
 const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<typeof AgentSessionMessages>) => {
-  const { openAgentToolFlow } = useAgentRightPaneActions()
-  return <AgentSessionMessages {...props} openAgentToolFlow={openAgentToolFlow} />
+  const { openAgentToolFlow, openTrace } = useAgentRightPaneActions()
+  return (
+    <AgentSessionMessages
+      {...props}
+      openAgentToolFlow={openAgentToolFlow}
+      openTrace={(message, options) => {
+        if (!message.traceId) return
+        openTrace({
+          topicId: message.topicId,
+          traceId: message.traceId,
+          modelName: options?.modelName
+        })
+      }}
+    />
+  )
 }

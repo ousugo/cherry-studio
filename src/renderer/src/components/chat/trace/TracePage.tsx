@@ -1,20 +1,18 @@
 import './Trace.css'
 
 import type { SpanEntity } from '@mcp-trace/trace-core'
-import type { TraceModal } from '@renderer/trace/pages/TraceModel'
-import { Divider } from 'antd/lib'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Box, GridItem, SimpleGrid, Text, VStack } from './Component'
 import SpanDetail from './SpanDetail'
+import type { TraceModal } from './TraceModel'
 import TraceTree from './TraceTree'
 
 export interface TracePageProp {
   topicId: string
   traceId: string
   modelName?: string
-  reload?: boolean
+  reload?: unknown
 }
 
 export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName, reload = false }) => {
@@ -158,47 +156,39 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
   return (
     <div className="trace-window">
       <div className="tab-container_trace">
-        <SimpleGrid columns={1} templateColumns="1fr">
-          <Box padding={0} className="scroll-container">
+        <div className="grid h-full min-h-0 grid-cols-1">
+          <div className="scroll-container">
             {showList ? (
-              <VStack gap={1} align="start">
+              <div className="flex h-full min-h-0 w-full flex-col overflow-auto p-3">
                 {spans.length === 0 ? (
-                  <Text>{t('trace.noTraceList')}</Text>
+                  <div className="flex h-full min-h-40 items-center justify-center text-muted-foreground text-xs">
+                    {t('trace.noTraceList')}
+                  </div>
                 ) : (
-                  <>
-                    <SimpleGrid columns={20} style={{ width: '100%' }} className="floating">
-                      <GridItem colSpan={8} padding={0} className={'table-header'}>
-                        <Text tabIndex={0}>{t('trace.name')}</Text>
-                      </GridItem>
-                      <GridItem colSpan={5} padding={0} className={'table-header'}>
-                        <Text>{t('trace.tokenUsage')}</Text>&nbsp;
-                      </GridItem>
-                      <GridItem colSpan={3} padding={0} className={'table-header'}>
-                        <Text>{t('trace.spendTime')}</Text>
-                      </GridItem>
-                      <GridItem colSpan={4} padding={0} className={'table-header'}>
-                        <Text></Text>
-                      </GridItem>
-                    </SimpleGrid>
-                    <Divider
-                      orientation="end"
-                      style={{
-                        width: '100%',
-                        marginTop: '36px',
-                        marginBottom: '0px'
-                      }}
-                    />
+                  <div className="min-w-[640px] overflow-hidden rounded-md border border-border-subtle bg-card">
+                    <div className="floating grid w-full grid-cols-[repeat(20,minmax(0,1fr))] gap-px">
+                      <div className="table-header col-span-8">
+                        <span tabIndex={0}>{t('trace.name')}</span>
+                      </div>
+                      <div className="table-header col-span-5">
+                        <span>{t('trace.tokenUsage')}</span>&nbsp;
+                      </div>
+                      <div className="table-header col-span-3">
+                        <span>{t('trace.spendTime')}</span>
+                      </div>
+                      <div className="table-header col-span-4" />
+                    </div>
                     {spans.map((node: TraceModal) => (
                       <TraceTree key={node.id} treeData={node.children} node={node} handleClick={handleNodeClick} />
                     ))}
-                  </>
+                  </div>
                 )}
-              </VStack>
+              </div>
             ) : (
               selectNode && <SpanDetail node={selectNode} clickShowModal={handleShowList} />
             )}
-          </Box>
-        </SimpleGrid>
+          </div>
+        </div>
       </div>
     </div>
   )

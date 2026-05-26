@@ -52,10 +52,6 @@ vi.mock('@renderer/components/Popups/InspectMessagePopup', () => ({
   }
 }))
 
-vi.mock('@renderer/trace/pages/Component', () => ({
-  TraceIcon: () => null
-}))
-
 vi.mock('react-i18next', () => ({
   initReactI18next: {
     type: '3rdParty',

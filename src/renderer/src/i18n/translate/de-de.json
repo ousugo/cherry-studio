@@ -7215,8 +7215,7 @@
     "spendTime": "Verbrauchte Zeit",
     "startTime": "Startzeit",
     "tag": "Tags",
-    "tokenUsage": "Token-Verwendung",
-    "traceWindow": "Aufrufkette-Fenster"
+    "tokenUsage": "Token-Verwendung"
   },
   "translate": {
     "alter_language": "Alternative Sprache",

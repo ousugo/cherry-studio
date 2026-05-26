@@ -2,6 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { type ChatPanePosition, ConversationShell, OverlayHost } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
+import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -18,7 +19,7 @@ import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavBar'
-import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
+import { TopicRightPane, useTopicBranchLiveStateSetter, useTopicRightPaneActions } from './components/TopicRightPane'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('Chat')
@@ -50,6 +51,7 @@ const ChatInner: FC<Props> = (props) => {
   const [messageStyle] = usePreference('chat.message.style')
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
+  const { openTrace } = useTopicRightPaneActions()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = useRef<ContentSearchRef>(null)
@@ -125,6 +127,18 @@ const ChatInner: FC<Props> = (props) => {
     setCitationPanelCitations(citations)
   }, [])
 
+  const handleOpenTrace = useCallback<NonNullable<MessageListActions['openTrace']>>(
+    (message, options) => {
+      if (!message.traceId) return
+      openTrace({
+        topicId: message.topicId,
+        traceId: message.traceId,
+        modelName: options?.modelName
+      })
+    },
+    [openTrace]
+  )
+
   const handleBranchLiveStateChange = useCallback(
     (state: Parameters<typeof setTopicBranchLiveState>[1]) => {
       setTopicBranchLiveState(state?.topicId ?? props.activeTopic.id, state)
@@ -160,6 +174,7 @@ const ChatInner: FC<Props> = (props) => {
           key={props.activeTopic.id}
           topic={props.activeTopic}
           onOpenCitationsPanel={handleOpenCitationsPanel}
+          onOpenTrace={handleOpenTrace}
           onNewTopic={props.onNewTopic}
           onTemporaryAssistantChange={props.onTemporaryAssistantChange}
           locateMessageId={props.locateMessageId}

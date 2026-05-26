@@ -14,10 +14,6 @@ vi.mock('@renderer/components/Popups/InspectMessagePopup', () => ({
   }
 }))
 
-vi.mock('@renderer/trace/pages/Component', () => ({
-  TraceIcon: () => null
-}))
-
 vi.mock('@renderer/utils/export', () => ({
   messageToMarkdown: vi.fn(),
   messageToPlainText: vi.fn(() => 'plain text')

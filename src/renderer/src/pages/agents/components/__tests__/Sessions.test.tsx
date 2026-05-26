@@ -522,7 +522,7 @@ function expectGroupBlocked(name: string) {
 function openSessionListOptions() {
   fireEvent.click(screen.getByLabelText('Display mode'))
   const title = screen.getByText('Display mode')
-  return (title.closest('[data-radix-popper-content-wrapper]') ?? title.parentElement) as HTMLElement | null
+  return title.closest('[data-radix-popper-content-wrapper]') ?? title.parentElement
 }
 
 function setupSessions(overrides: Record<string, unknown> = {}) {

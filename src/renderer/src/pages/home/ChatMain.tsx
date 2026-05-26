@@ -15,6 +15,7 @@ interface ChatMainProps {
   loadOlder: () => void
   hasOlder: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  openTrace?: MessageListActions['openTrace']
   respondToolApproval: NonNullable<MessageListActions['respondToolApproval']>
 }
 
@@ -26,6 +27,7 @@ const ChatMain: FC<ChatMainProps> = ({
   loadOlder,
   hasOlder,
   openCitationsPanel,
+  openTrace,
   respondToolApproval
 }) => {
   const value = useHomeMessageListProviderValue({
@@ -36,6 +38,7 @@ const ChatMain: FC<ChatMainProps> = ({
     loadOlder,
     hasOlder,
     openCitationsPanel,
+    openTrace,
     respondToolApproval
   })
   return (

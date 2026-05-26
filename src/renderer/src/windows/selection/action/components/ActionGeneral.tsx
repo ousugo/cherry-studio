@@ -12,7 +12,6 @@ import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
 import { useMessagePlatformActions } from '@renderer/pages/shared/messages/hooks/useMessagePlatformActions'
-import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
@@ -155,7 +154,6 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const handlePause = () => {
     void stopChat()
-    if (temporaryTopicId) void pauseTrace(temporaryTopicId)
   }
 
   const handleRegenerate = () => {

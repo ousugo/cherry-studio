@@ -1,10 +1,10 @@
-import type { TraceModal } from '@renderer/trace/pages/TraceModel'
-import { Divider } from 'antd/lib'
+import { Button } from '@cherrystudio/ui'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import * as React from 'react'
 import { useEffect, useState } from 'react'
 
-import { Box, GridItem, HStack, IconButton, SimpleGrid, Text } from './Component'
 import { ProgressBar } from './ProgressBar'
+import type { TraceModal } from './TraceModel'
 
 interface TreeNodeProps {
   node: TraceModal
@@ -47,71 +47,50 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
   }, [node])
 
   return (
-    <div
-      style={{
-        width: '100%'
-      }}>
-      <SimpleGrid
-        columns={20}
+    <div className="w-full text-xs">
+      <div
         className="traceItem"
         onClick={(e) => {
           e.preventDefault()
           handleClick(node.id)
         }}>
-        <GridItem colSpan={8} style={{ paddingLeft: `${paddingLeft}px`, textAlign: 'left' }}>
-          <HStack gap={2}>
-            <IconButton
+        <div className="col-span-8 text-left" style={{ paddingLeft: `${paddingLeft}px` }}>
+          <div className="inline-flex flex-row items-center gap-2">
+            <Button
               aria-label="Toggle"
               aria-expanded={isOpen ? true : false}
-              size="sm"
+              variant="ghost"
+              size="icon-sm"
+              className="h-6 w-3 p-0"
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 setIsOpen(!isOpen)
               }}
-              fontSize="10px"
               style={{
-                margin: '0px',
                 visibility: hasChildren ? 'visible' : 'hidden'
-              }}
-            />
-            <Text role="button" tabIndex={0} className={node.status === 'ERROR' ? 'error-text' : 'default-text'}>
+              }}>
+              {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </Button>
+            <span role="button" tabIndex={0} className={node.status === 'ERROR' ? 'error-text' : 'default-text'}>
               {node.name}
-            </Text>
-          </HStack>
-        </GridItem>
-        {/* <GridItem padding={4} colSpan={3}>
-          <Text
-            // ml={2}
-            style={{
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}>
-            {node.attributes?.tags}
-          </Text>
-        </GridItem> */}
-        <GridItem colSpan={5}>
-          <Text style={{ color: 'red' }}>{node.usage ? '↑' + node.usage.prompt_tokens : ''}</Text>&nbsp;
-          <Text style={{ color: 'green' }}>{node.usage ? '↓' + node.usage.completion_tokens : ''}</Text>
-        </GridItem>
-        <GridItem colSpan={3}>
-          <Text /** ml={2} */>{usedTime}</Text>
-        </GridItem>
-        <GridItem padding={2} colSpan={4}>
+            </span>
+          </div>
+        </div>
+        <div className="col-span-5 text-center">
+          <span className="trace-token-prompt">{node.usage ? '↑' + node.usage.prompt_tokens : ''}</span>&nbsp;
+          <span className="trace-token-completion">{node.usage ? '↓' + node.usage.completion_tokens : ''}</span>
+        </div>
+        <div className="col-span-3 text-center">
+          <span>{usedTime}</span>
+        </div>
+        <div className="col-span-4 p-2 text-center">
           <ProgressBar progress={Math.max(node.percent, 5)} start={node.start} />
-        </GridItem>
-      </SimpleGrid>
-      <Divider
-        orientation="end"
-        style={{
-          borderTop: '1px solid #ccc',
-          width: '100%',
-          margin: '0px 5px 0px 0px'
-        }}
-      />
+        </div>
+      </div>
+      <div className="trace-row-divider" />
       {hasChildren && isOpen && (
-        <Box>
+        <div>
           {node.children &&
             node.children
               .sort((a, b) => a.startTime - b.startTime)
@@ -124,7 +103,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
                   paddingLeft={paddingLeft + 4}
                 />
               ))}
-        </Box>
+        </div>
       )}
     </div>
   )

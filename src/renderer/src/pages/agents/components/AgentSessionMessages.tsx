@@ -28,6 +28,7 @@ type Props = {
   loadOlder?: () => void
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
+  openTrace?: MessageListActions['openTrace']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
 }
@@ -44,6 +45,7 @@ const AgentSessionMessages = ({
   loadOlder,
   onOpenCitationsPanel,
   openAgentToolFlow,
+  openTrace,
   deleteMessage,
   respondToolApproval
 }: Props) => {
@@ -86,6 +88,7 @@ const AgentSessionMessages = ({
     loadOlder,
     openCitationsPanel: onOpenCitationsPanel,
     openAgentToolFlow,
+    openTrace,
     deleteMessage,
     respondToolApproval,
     messageNavigation

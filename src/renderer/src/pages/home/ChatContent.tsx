@@ -26,6 +26,7 @@ import { useChatRuntimeState } from './useChatRuntimeState'
 interface Props {
   topic: Topic
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
+  onOpenTrace?: MessageListActions['openTrace']
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   locateMessageId?: string
@@ -54,6 +55,7 @@ interface Props {
 const ChatContent: FC<Props> = ({
   topic,
   onOpenCitationsPanel,
+  onOpenTrace,
   onTemporaryAssistantChange,
   onNewTopic,
   locateMessageId,
@@ -79,6 +81,7 @@ const ChatContent: FC<Props> = ({
     <ChatContentInner
       topic={topic}
       onOpenCitationsPanel={onOpenCitationsPanel}
+      onOpenTrace={onOpenTrace}
       onTemporaryAssistantChange={onTemporaryAssistantChange}
       onNewTopic={onNewTopic}
       locateMessageId={locateMessageId}
@@ -124,6 +127,7 @@ interface InnerProps extends Props {
 const ChatContentInner: FC<InnerProps> = ({
   topic,
   onOpenCitationsPanel,
+  onOpenTrace,
   onTemporaryAssistantChange,
   onNewTopic,
   locateMessageId,
@@ -207,6 +211,7 @@ const ChatContentInner: FC<InnerProps> = ({
                       loadOlder={loadOlder}
                       hasOlder={hasOlder}
                       openCitationsPanel={onOpenCitationsPanel}
+                      openTrace={onOpenTrace}
                       respondToolApproval={runtime.respondToolApproval}
                     />
                   )

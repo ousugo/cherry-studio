@@ -7215,8 +7215,7 @@
     "spendTime": "тратитьВремя",
     "startTime": "время начала",
     "tag": "ярлык",
-    "tokenUsage": "Использование токена",
-    "traceWindow": "Окно цепочки вызовов"
+    "tokenUsage": "Использование токена"
   },
   "translate": {
     "alter_language": "Альтернативный язык",

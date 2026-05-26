@@ -7215,8 +7215,7 @@
     "spendTime": "Tempo gasto",
     "startTime": "Hora de início",
     "tag": "Etiqueta",
-    "tokenUsage": "Uso de Token",
-    "traceWindow": "Janela de rastreamento"
+    "tokenUsage": "Uso de Token"
   },
   "translate": {
     "alter_language": "Idioma alternativo",

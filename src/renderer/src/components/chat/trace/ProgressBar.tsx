@@ -11,18 +11,18 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({ start = 0, progress, h
 
   return (
     <div
+      className="trace-progress-track"
       style={{
         width: '100%',
-        backgroundColor: '#e0e0e0',
         borderRadius: height,
         overflow: 'hidden',
         marginTop: '8px'
       }}>
       <div
+        className="trace-progress-fill"
         style={{
           width: `${displayProgress}%`,
           height: height,
-          backgroundColor: '#4CAF50',
           borderRadius: height,
           transition: 'width 0.3s ease',
           marginLeft: `${start}%`

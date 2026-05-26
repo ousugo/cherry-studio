@@ -62,6 +62,7 @@ interface AgentMessageListParams {
   loadOlder?: () => void
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
+  openTrace?: MessageListActions['openTrace']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
   messageNavigation: string
@@ -79,6 +80,7 @@ export function useAgentMessageListProviderValue({
   loadOlder,
   openCitationsPanel,
   openAgentToolFlow,
+  openTrace,
   deleteMessage,
   respondToolApproval,
   messageNavigation
@@ -228,6 +230,7 @@ export function useAgentMessageListProviderValue({
       openPath,
       openCitationsPanel,
       openAgentToolFlow,
+      openTrace,
       showInFolder,
       abortTool,
       bindMessageRuntime,
@@ -254,6 +257,7 @@ export function useAgentMessageListProviderValue({
       messageUiStateCache.updateMessageUiState,
       openCitationsPanel,
       openAgentToolFlow,
+      openTrace,
       openPath,
       respondToolApproval,
       selectionController.actions,

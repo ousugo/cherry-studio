@@ -7215,8 +7215,7 @@
     "spendTime": "Timp petrecut",
     "startTime": "Timp de început",
     "tag": "Etichetă",
-    "tokenUsage": "Utilizare token",
-    "traceWindow": "Fereastră lanț de apelare"
+    "tokenUsage": "Utilizare token"
   },
   "translate": {
     "alter_language": "Limbă alternativă",

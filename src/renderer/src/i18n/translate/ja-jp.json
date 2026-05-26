@@ -7215,8 +7215,7 @@
     "spendTime": "時間を過ごす",
     "startTime": "開始時間",
     "tag": "Tagラベル",
-    "tokenUsage": "トークンの使用",
-    "traceWindow": "呼び出しチェーンウィンドウ"
+    "tokenUsage": "トークンの使用"
   },
   "translate": {
     "alter_language": "備用言語",

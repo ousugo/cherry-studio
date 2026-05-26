@@ -190,6 +190,12 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
   }
 })
 
+vi.mock('@renderer/components/chat/trace/TracePane', () => ({
+  TracePane: ({ payload }: { payload: { topicId: string; traceId: string; modelName?: string } | null }) => (
+    <div data-testid="trace-pane" data-topic-id={payload?.topicId} data-trace-id={payload?.traceId} />
+  )
+}))
+
 vi.mock('@renderer/components/chat/composer/ComposerContext', () => ({
   ComposerContextProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
@@ -357,7 +363,15 @@ vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
-  default: ({ sessionId, openAgentToolFlow }: { sessionId: string; openAgentToolFlow?: (input: any) => void }) => (
+  default: ({
+    sessionId,
+    openAgentToolFlow,
+    openTrace
+  }: {
+    sessionId: string
+    openAgentToolFlow?: (input: any) => void
+    openTrace?: (message: any) => void
+  }) => (
     <div data-testid="agent-messages" data-session-id={sessionId}>
       <button
         type="button"
@@ -380,6 +394,9 @@ vi.mock('../components/AgentSessionMessages', () => ({
           })
         }>
         open flow b
+      </button>
+      <button type="button" onClick={() => openTrace?.({ topicId: 'agent-session:session-1', traceId: 'trace-a' })}>
+        open trace
       </button>
     </div>
   )
@@ -614,6 +631,30 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByRole('button', { name: /cache-usage\.md/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /renderer audit/ })).toBeInTheDocument()
     expect(screen.queryByText('Agent')).not.toBeInTheDocument()
+  })
+
+  it('opens the trace tab in the agent right pane', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    expect(screen.queryByRole('button', { name: /trace\.label/ })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'open trace' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByRole('button', { name: /trace\.label/ })).toBeInTheDocument()
+    expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-trace-id', 'trace-a')
+  })
+
+  it('removes the trace tab when it is closed', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open trace' }))
+    const traceTab = screen.getByRole('button', { name: /trace\.label/ })
+    fireEvent.click(within(traceTab.parentElement as HTMLElement).getByRole('button', { name: 'common.close' }))
+
+    expect(screen.queryByRole('button', { name: /trace\.label/ })).toBeNull()
+    expect(screen.queryByTestId('trace-pane')).toBeNull()
+    expect(screen.getByTestId('artifact-pane')).toBeInTheDocument()
   })
 
   it('closes a subagent flow tab from its hover close button', () => {

@@ -7310,8 +7310,7 @@
     "spendTime": "消耗時間",
     "startTime": "開始時間",
     "tag": "標籤",
-    "tokenUsage": "Token 使用量",
-    "traceWindow": "呼叫鏈視窗"
+    "tokenUsage": "Token 使用量"
   },
   "translate": {
     "alter_language": "備用語言",

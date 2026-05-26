@@ -7310,8 +7310,7 @@
     "spendTime": "Spend Time",
     "startTime": "Start Time",
     "tag": "Tag",
-    "tokenUsage": "Token Usage",
-    "traceWindow": "Call Chain Window"
+    "tokenUsage": "Token Usage"
   },
   "translate": {
     "alter_language": "Alternative Language",

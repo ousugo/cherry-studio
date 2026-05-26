@@ -7,7 +7,6 @@ import {
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/config/registry/messageMenuBar'
 import { getMessageTitle } from '@renderer/services/MessagesService'
-import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { TranslateLanguage } from '@renderer/types'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -19,6 +18,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
+  Activity,
   AtSign,
   Bug,
   Check,
@@ -394,7 +394,7 @@ registerToolbarAction({
   id: 'trace',
   commandId: 'message.trace',
   label: ({ t }) => t('trace.label'),
-  icon: <TraceIcon size={16} className="lucide lucide-trash" />,
+  icon: <Activity size={15} />,
   availability: toolbarAvailability(
     'trace',
     ({ actions, menuConfig, message }) => menuConfig.enableDeveloperMode && !!message.traceId && !!actions.openTrace
