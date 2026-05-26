@@ -2,38 +2,45 @@ import type { TopicStreamStatus } from '@shared/ai/transport'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { cacheService } from '../../data/CacheService'
-
 const mockEntry =
   vi.fn<
     () =>
       | {
           status: TopicStreamStatus | undefined
-          turnId?: string
+          lastCompletedAt?: number
           activeExecutions: []
           awaitingApprovalAnchors: []
         }
       | undefined
   >()
 
+let lastSeenCompletion: number | null = null
+const setLastSeenCompletion = vi.fn((next: number | null) => {
+  lastSeenCompletion = next
+})
+
 // Mock at the cache layer rather than at useTopicStreamStatus — intra-module
 // vi.mock can't intercept calls between functions in the same source file.
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useSharedCache: () => [mockEntry()]
+  useSharedCache: (key: string) => {
+    if (key.startsWith('topic.stream.last_seen_completion.')) {
+      return [lastSeenCompletion, setLastSeenCompletion]
+    }
+    return [mockEntry()]
+  }
 }))
 
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '../useTopicStreamStatus'
 
-const seenKey = (topicId: string) => `topic.stream.seen.${topicId}` as never
-
-const setEntry = (status: TopicStreamStatus | undefined, turnId?: string) => {
-  mockEntry.mockReturnValue({ status, turnId, activeExecutions: [], awaitingApprovalAnchors: [] })
+const setEntry = (status: TopicStreamStatus | undefined, lastCompletedAt?: number) => {
+  mockEntry.mockReturnValue({ status, lastCompletedAt, activeExecutions: [], awaitingApprovalAnchors: [] })
 }
 
 describe('useTopicAwaitingApproval', () => {
   beforeEach(() => {
     mockEntry.mockReset()
-    cacheService.delete(seenKey('t'))
+    setLastSeenCompletion.mockClear()
+    lastSeenCompletion = null
   })
 
   it('is true iff the cross-window shared-cache status is awaiting-approval', () => {
@@ -49,8 +56,8 @@ describe('useTopicAwaitingApproval', () => {
     }
   )
 
-  it('treats each stream turn as unread until that specific turn is marked seen', () => {
-    setEntry('done', 'turn-1')
+  it('treats each stream completion as unread until that specific completion is marked seen', () => {
+    setEntry('done', 1000)
 
     const { result, rerender } = renderHook(() => useTopicStreamStatus('t'))
 
@@ -63,7 +70,7 @@ describe('useTopicAwaitingApproval', () => {
 
     expect(result.current.isFulfilled).toBe(false)
 
-    setEntry('done', 'turn-2')
+    setEntry('done', 2000)
     rerender()
 
     expect(result.current.isFulfilled).toBe(true)

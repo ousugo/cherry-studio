@@ -133,8 +133,6 @@ vi.mock('@renderer/hooks/useTopic', async () => {
 })
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  isTopicStreamTurnSeen: (seen: boolean | string | undefined, turnId?: string) =>
-    turnId ? seen === turnId : seen === true,
   useTopicStreamStatus: (topicId: string) => {
     const status = topicStreamStatusMocks.statuses.get(topicId)
     return {
@@ -410,17 +408,18 @@ function droppableData(id: string) {
 }
 
 const topicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as never
-const topicStreamSeenCacheKey = (topicId: string) => `topic.stream.seen.${topicId}` as never
+const topicStreamLastSeenCompletionCacheKey = (topicId: string) =>
+  `topic.stream.last_seen_completion.${topicId}` as never
 
 function setTopicStreamCacheStatus(topicId: string, status: 'done' | 'pending' | 'streaming') {
   cacheService.setShared(topicStreamStatusCacheKey(topicId), { status } as never)
-  cacheService.set(topicStreamSeenCacheKey(topicId), false as never)
+  cacheService.deleteShared(topicStreamLastSeenCompletionCacheKey(topicId))
 }
 
 function clearTopicStreamCache(...topicIds: string[]) {
   for (const topicId of topicIds) {
     cacheService.deleteShared(topicStreamStatusCacheKey(topicId))
-    cacheService.delete(topicStreamSeenCacheKey(topicId))
+    cacheService.deleteShared(topicStreamLastSeenCompletionCacheKey(topicId))
   }
 }
 
@@ -938,9 +937,9 @@ describe('Topics', () => {
 
       const subscribedKeys = subscribeSpy.mock.calls.map(([key]) => key)
       expect(subscribedKeys).toContain(topicStreamStatusCacheKey('topic-5'))
-      expect(subscribedKeys).toContain(topicStreamSeenCacheKey('topic-5'))
+      expect(subscribedKeys).toContain(topicStreamLastSeenCompletionCacheKey('topic-5'))
       expect(subscribedKeys).not.toContain(topicStreamStatusCacheKey('topic-6'))
-      expect(subscribedKeys).not.toContain(topicStreamSeenCacheKey('topic-6'))
+      expect(subscribedKeys).not.toContain(topicStreamLastSeenCompletionCacheKey('topic-6'))
     } finally {
       subscribeSpy.mockRestore()
     }

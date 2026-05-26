@@ -1,7 +1,7 @@
-// Per-topic stream state. Main owns the shared cache entry; the "fulfilled
-// animation seen" bit is per-window and lives in a casual memory cache.
+// Per-topic stream state. Main owns the shared status entry (incl.
+// `lastCompletedAt`); the "last completion this window has acknowledged"
+// marker is a separate cross-window shared cache key.
 
-import { cacheService } from '@data/CacheService'
 import { useSharedCache } from '@renderer/data/hooks/useCache'
 import {
   type ActiveExecution,
@@ -9,9 +9,7 @@ import {
   type StreamPendingQueueItem,
   type TopicStreamStatus
 } from '@shared/ai/transport'
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
-
-export type TopicStreamSeenValue = boolean | string
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 interface TopicStreamStatusView {
   status: TopicStreamStatus | undefined
@@ -24,39 +22,36 @@ interface TopicStreamStatusView {
   awaitingApprovalAnchors: ActiveExecution[]
   pendingQueue: StreamPendingQueueItem[]
   isPending: boolean
-  /** `done` AND this window hasn't marked it seen yet. */
+  /**
+   * `done` AND this window's `lastSeenCompletion` does not match the
+   * authoritative `lastCompletedAt`. Read-receipt model: per-completion
+   * identity rather than a sticky 1-bit "ever seen" gate.
+   */
   isFulfilled: boolean
   markSeen: () => void
 }
 
-const seenKey = (topicId: string) => `topic.stream.seen.${topicId}`
-
-export function isTopicStreamTurnSeen(seen: TopicStreamSeenValue | undefined, turnId?: string): boolean {
-  return turnId ? seen === turnId : seen === true
-}
-
-function useTopicSeen(topicId: string, turnId?: string): readonly [boolean, () => void] {
-  const key = seenKey(topicId)
-  const subscribe = useCallback((cb: () => void) => cacheService.subscribe(key, cb), [key])
-  const getSnapshot = useCallback(() => cacheService.getCasual<TopicStreamSeenValue>(key), [key])
-  const seen = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-  const mark = useCallback(() => cacheService.setCasual<TopicStreamSeenValue>(key, turnId ?? true), [key, turnId])
-  return [isTopicStreamTurnSeen(seen, turnId), mark] as const
-}
-
 export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
+  const [lastSeenCompletion, setLastSeenCompletion] = useSharedCache(
+    `topic.stream.last_seen_completion.${topicId}` as const
+  )
 
   const status = entry?.status
-  const turnId = entry?.turnId
-  const [seen, markSeen] = useTopicSeen(topicId, turnId)
+  const lastCompletedAt = entry?.lastCompletedAt ?? null
   const activeExecutions = useMemo(() => entry?.activeExecutions ?? [], [entry])
   const awaitingApprovalAnchors = useMemo(() => entry?.awaitingApprovalAnchors ?? [], [entry])
   const pendingQueue = useMemo(() => entry?.pendingQueue ?? [], [entry])
 
   const flags = classifyTurn(status)
   const isPending = flags.isStreamLive
-  const isFulfilled = flags.isFulfilledCandidate && !seen
+  const isFulfilled = status === 'done' && lastCompletedAt !== lastSeenCompletion
+
+  const markSeen = useCallback(() => {
+    if (lastCompletedAt != null && lastCompletedAt !== lastSeenCompletion) {
+      setLastSeenCompletion(lastCompletedAt)
+    }
+  }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
 
   return { status, activeExecutions, awaitingApprovalAnchors, pendingQueue, isPending, isFulfilled, markSeen }
 }

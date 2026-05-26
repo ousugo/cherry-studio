@@ -585,6 +585,18 @@ describe('transformMessage', () => {
     const result = transformMessage(msg('m1', 'assistant'), null, 0, [mainTextBlock('b1', 'm1', 'x')], 't1')
     expect(result.modelSnapshot).toBeNull()
   })
+
+  it('drops legacy traceId because span history is not migrated', () => {
+    const result = transformMessage(
+      { ...msg('m1', 'assistant'), traceId: 'legacy-trace-id' },
+      null,
+      0,
+      [mainTextBlock('b1', 'm1', 'x')],
+      't1'
+    )
+
+    expect(result.traceId).toBeNull()
+  })
 })
 
 // ============================================================================

@@ -4,7 +4,7 @@
  *  1. Pure / non-React helpers — `mapApiTopicToRendererTopic`,
  *     `getTopicById`, `getTopicMessages`, topic-rename cache helpers.
  *  2. DataApi tier — raw SQLite-backed queries/mutations
- *     (`useTopics` / `useTopicById` / `useTopicMutations` / `useTopicSync`).
+ *     (`useTopics` / `useTopicById` / `useTopicMutations` / `useTopicAutoRenameSync`).
  *  3. Composed hook — `useActiveTopic`.
  *
  * Returns the canonical {@link Topic} entity straight from SQLite. The
@@ -15,7 +15,7 @@
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
-import { useCache, useSharedCache } from '@data/hooks/useCache'
+import { useCache } from '@data/hooks/useCache'
 import {
   useInfiniteFlatItems,
   useInfiniteQuery,
@@ -336,19 +336,22 @@ export function useTopicMutations() {
 }
 
 /**
- * Listens for topic updates from the main process (e.g. auto-rename)
- * and invalidates the SWR topic cache so UI reflects the change.
+ * Listens for `IpcChannel.Topic_AutoRenamed` and invalidates the renamed
+ * topic's SWR cache so the new name shows up without manual refetch.
  */
-export function useTopicSync() {
-  const [version] = useSharedCache('topic.cache_version')
+export function useTopicAutoRenameSync() {
   const invalidate = useInvalidateCache()
-  const lastSeenRef = useRef(version)
 
   useEffect(() => {
-    if (version === lastSeenRef.current) return
-    lastSeenRef.current = version
-    void invalidate(['/topics', '/topics/*'])
-  }, [version, invalidate])
+    const onAutoRenamed = window.api?.topic?.onAutoRenamed
+    if (!onAutoRenamed) return
+    const unsubscribe = onAutoRenamed(({ topicId }) => {
+      void invalidate(['/topics', `/topics/${topicId}`])
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [invalidate])
 }
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────

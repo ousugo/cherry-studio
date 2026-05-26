@@ -250,9 +250,8 @@ export type SharedCacheSchema = {
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
+  'topic.stream.last_seen_completion.${topicId}': number | null
   'composer.queue.drafts.${scopeId}': ComposerQueueSnapshot | null
-  'topic.cache_version': number
-  'agent_session.cache_version': number
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
@@ -271,9 +270,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
   'topic.stream.statuses.${topicId}': null,
+  'topic.stream.last_seen_completion.${topicId}': null,
   'composer.queue.drafts.${scopeId}': null,
-  'topic.cache_version': 0,
-  'agent_session.cache_version': 0,
   'feature.openclaw.gateway_status': 'stopped',
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',

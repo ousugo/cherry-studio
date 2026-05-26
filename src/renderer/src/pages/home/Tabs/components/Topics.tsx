@@ -45,11 +45,7 @@ import {
   useTopicMutations,
   useTopics
 } from '@renderer/hooks/useTopic'
-import {
-  isTopicStreamTurnSeen,
-  type TopicStreamSeenValue,
-  useTopicStreamStatus
-} from '@renderer/hooks/useTopicStreamStatus'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -1199,20 +1195,21 @@ const EMPTY_TOPIC_STREAM_STATE: TopicStreamState = Object.freeze({
 
 const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as const
 
-const getTopicStreamSeenCacheKey = (topicId: string) => `topic.stream.seen.${topicId}` as const
+const getTopicStreamLastSeenCompletionCacheKey = (topicId: string) =>
+  `topic.stream.last_seen_completion.${topicId}` as const
 
 const buildTopicStreamStatusSnapshot = (topicId: string): TopicStreamStatusSnapshot => {
   const statusEntry = cacheService.getShared(getTopicStreamStatusCacheKey(topicId))
-  const seen = cacheService.getCasual<TopicStreamSeenValue>(getTopicStreamSeenCacheKey(topicId))
+  const lastSeenCompletion = cacheService.getShared(getTopicStreamLastSeenCompletionCacheKey(topicId))
   const status = statusEntry?.status
-  const hasSeenTurn = isTopicStreamTurnSeen(seen, statusEntry?.turnId)
+  const lastCompletedAt = statusEntry?.lastCompletedAt ?? null
   const streamStatus = {
-    isFulfilled: status === 'done' && !hasSeenTurn,
+    isFulfilled: status === 'done' && lastCompletedAt !== lastSeenCompletion,
     isPending: status === 'pending' || status === 'streaming'
   }
 
   return {
-    signature: `${topicId}:${statusEntry?.turnId ?? ''}:${hasSeenTurn ? 1 : 0}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`,
+    signature: `${topicId}:${status ?? ''}:${lastCompletedAt ?? ''}:${lastSeenCompletion ?? ''}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`,
     value: streamStatus.isPending || streamStatus.isFulfilled ? streamStatus : EMPTY_TOPIC_STREAM_STATE
   }
 }
@@ -1220,7 +1217,7 @@ const buildTopicStreamStatusSnapshot = (topicId: string): TopicStreamStatusSnaps
 const subscribeTopicStreamStatus = (topicId: string, onStoreChange: () => void): (() => void) => {
   const unsubscribes = [
     cacheService.subscribe(getTopicStreamStatusCacheKey(topicId), onStoreChange),
-    cacheService.subscribe(getTopicStreamSeenCacheKey(topicId), onStoreChange)
+    cacheService.subscribe(getTopicStreamLastSeenCompletionCacheKey(topicId), onStoreChange)
   ]
 
   return () => {

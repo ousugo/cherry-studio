@@ -30,20 +30,13 @@ export interface TurnStateFlags {
    * persisted the row). This is the single "re-read DB" trigger.
    */
   isTerminal: boolean
-  /**
-   * `status === 'done'`. `useTopicStreamStatus` ANDs this with a
-   * window-local "already animated" flag (off-schema casual memory
-   * cache) before surfacing the fulfilled badge.
-   */
-  isFulfilledCandidate: boolean
 }
 
 const NO_STREAM: TurnStateFlags = {
   isStreamLive: false,
   isTurnActive: false,
   isAwaitingApproval: false,
-  isTerminal: false,
-  isFulfilledCandidate: false
+  isTerminal: false
 }
 
 /** Declarative status → flags table. Exhaustive over `TopicStreamStatus`. */
@@ -52,43 +45,37 @@ export const TURN_STATE: Record<TopicStreamStatus, TurnStateFlags> = {
     isStreamLive: true,
     isTurnActive: true,
     isAwaitingApproval: false,
-    isTerminal: false,
-    isFulfilledCandidate: false
+    isTerminal: false
   },
   streaming: {
     isStreamLive: true,
     isTurnActive: true,
     isAwaitingApproval: false,
-    isTerminal: false,
-    isFulfilledCandidate: false
+    isTerminal: false
   },
   done: {
     isStreamLive: false,
     isTurnActive: false,
     isAwaitingApproval: false,
-    isTerminal: true,
-    isFulfilledCandidate: true
+    isTerminal: true
   },
   aborted: {
     isStreamLive: false,
     isTurnActive: false,
     isAwaitingApproval: false,
-    isTerminal: true,
-    isFulfilledCandidate: false
+    isTerminal: true
   },
   error: {
     isStreamLive: false,
     isTurnActive: false,
     isAwaitingApproval: false,
-    isTerminal: true,
-    isFulfilledCandidate: false
+    isTerminal: true
   },
   'awaiting-approval': {
     isStreamLive: false,
     isTurnActive: true,
     isAwaitingApproval: true,
-    isTerminal: true,
-    isFulfilledCandidate: false
+    isTerminal: true
   }
 }
 

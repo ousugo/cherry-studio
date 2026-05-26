@@ -1,5 +1,4 @@
 import { cacheService } from '@data/CacheService'
-import { isTopicStreamTurnSeen, type TopicStreamSeenValue } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { TopicStreamStatus } from '@shared/ai/transport'
 import { useCallback, useRef, useSyncExternalStore } from 'react'
@@ -24,14 +23,15 @@ const EMPTY_AGENT_SESSION_STREAM_STATUS_MAP: ReadonlyMap<string, AgentSessionStr
 
 const getTopicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as const
 
-const getTopicStreamSeenCacheKey = (topicId: string) => `topic.stream.seen.${topicId}` as const
-
-export const getAgentSessionStreamSeenCacheKey = (sessionId: string) => {
-  return getTopicStreamSeenCacheKey(buildAgentSessionTopicId(sessionId))
-}
+const getTopicStreamLastSeenCompletionCacheKey = (topicId: string) =>
+  `topic.stream.last_seen_completion.${topicId}` as const
 
 const getAgentSessionStreamStatusCacheKey = (sessionId: string) => {
   return getTopicStreamStatusCacheKey(buildAgentSessionTopicId(sessionId))
+}
+
+const getAgentSessionStreamLastSeenCompletionCacheKey = (sessionId: string) => {
+  return getTopicStreamLastSeenCompletionCacheKey(buildAgentSessionTopicId(sessionId))
 }
 
 const buildAgentSessionStreamStatusSnapshot = (sessionIds: readonly string[]): AgentSessionStreamStatusSnapshot => {
@@ -47,17 +47,17 @@ const buildAgentSessionStreamStatusSnapshot = (sessionIds: readonly string[]): A
 
   for (const sessionId of sessionIds) {
     const statusEntry = cacheService.getShared(getAgentSessionStreamStatusCacheKey(sessionId))
-    const seen = cacheService.getCasual<TopicStreamSeenValue>(getAgentSessionStreamSeenCacheKey(sessionId))
+    const lastSeenCompletion = cacheService.getShared(getAgentSessionStreamLastSeenCompletionCacheKey(sessionId))
     const status = statusEntry?.status
-    const hasSeenTurn = isTopicStreamTurnSeen(seen, statusEntry?.turnId)
+    const lastCompletedAt = statusEntry?.lastCompletedAt ?? null
     const streamStatus = {
       status,
-      isFulfilled: status === 'done' && !hasSeenTurn,
+      isFulfilled: status === 'done' && lastCompletedAt !== lastSeenCompletion,
       isPending: status === 'pending' || status === 'streaming'
     }
 
     signatureParts.push(
-      `${sessionId}:${status ?? ''}:${statusEntry?.turnId ?? ''}:${hasSeenTurn ? 1 : 0}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`
+      `${sessionId}:${status ?? ''}:${lastCompletedAt ?? ''}:${lastSeenCompletion ?? ''}:${streamStatus.isPending ? 1 : 0}:${streamStatus.isFulfilled ? 1 : 0}`
     )
 
     if (streamStatus.isPending || streamStatus.isFulfilled || status === 'error') {
@@ -83,7 +83,7 @@ const subscribeAgentSessionStreamStatuses = (
 
   for (const sessionId of new Set(sessionIds)) {
     unsubscribes.push(cacheService.subscribe(getAgentSessionStreamStatusCacheKey(sessionId), onStoreChange))
-    unsubscribes.push(cacheService.subscribe(getAgentSessionStreamSeenCacheKey(sessionId), onStoreChange))
+    unsubscribes.push(cacheService.subscribe(getAgentSessionStreamLastSeenCompletionCacheKey(sessionId), onStoreChange))
   }
 
   return () => {

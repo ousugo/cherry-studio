@@ -8,11 +8,16 @@
  *
  * Companion hooks for derived/lifecycle state (not CRUD):
  *  - {@link import('./useCreateDefaultSession').useCreateDefaultSession}
- *  - {@link import('./useAgentSessionSync').useAgentSessionSync}
  */
 
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import {
+  useInfiniteFlatItems,
+  useInfiniteQuery,
+  useInvalidateCache,
+  useMutation,
+  useQuery
+} from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { getErrorMessage } from '@renderer/utils/error'
@@ -265,4 +270,23 @@ export const useUpdateSession = () => {
   )
 
   return { updateSession }
+}
+
+/**
+ * Listens for `IpcChannel.AgentSession_AutoRenamed` and invalidates the
+ * renamed session's SWR cache so the new name appears without manual refetch.
+ */
+export function useAgentSessionAutoRenameSync() {
+  const invalidate = useInvalidateCache()
+
+  useEffect(() => {
+    const onAutoRenamed = window.api?.agentSession?.onAutoRenamed
+    if (!onAutoRenamed) return
+    const unsubscribe = onAutoRenamed(({ sessionId }) => {
+      void invalidate(['/sessions', `/sessions/${sessionId}`])
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [invalidate])
 }

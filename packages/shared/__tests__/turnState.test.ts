@@ -21,8 +21,7 @@ describe('classifyTurn / TURN_STATE', () => {
       isStreamLive: false,
       isTurnActive: false,
       isAwaitingApproval: false,
-      isTerminal: false,
-      isFulfilledCandidate: false
+      isTerminal: false
     })
   })
 
@@ -33,8 +32,7 @@ describe('classifyTurn / TURN_STATE', () => {
         isStreamLive: true,
         isTurnActive: true,
         isAwaitingApproval: false,
-        isTerminal: false,
-        isFulfilledCandidate: false
+        isTerminal: false
       }
     ],
     [
@@ -43,8 +41,7 @@ describe('classifyTurn / TURN_STATE', () => {
         isStreamLive: true,
         isTurnActive: true,
         isAwaitingApproval: false,
-        isTerminal: false,
-        isFulfilledCandidate: false
+        isTerminal: false
       }
     ],
     [
@@ -53,8 +50,7 @@ describe('classifyTurn / TURN_STATE', () => {
         isStreamLive: false,
         isTurnActive: false,
         isAwaitingApproval: false,
-        isTerminal: true,
-        isFulfilledCandidate: true
+        isTerminal: true
       }
     ],
     [
@@ -63,8 +59,7 @@ describe('classifyTurn / TURN_STATE', () => {
         isStreamLive: false,
         isTurnActive: false,
         isAwaitingApproval: false,
-        isTerminal: true,
-        isFulfilledCandidate: false
+        isTerminal: true
       }
     ],
     [
@@ -73,8 +68,7 @@ describe('classifyTurn / TURN_STATE', () => {
         isStreamLive: false,
         isTurnActive: false,
         isAwaitingApproval: false,
-        isTerminal: true,
-        isFulfilledCandidate: false
+        isTerminal: true
       }
     ],
     [
@@ -83,8 +77,7 @@ describe('classifyTurn / TURN_STATE', () => {
         isStreamLive: false,
         isTurnActive: true,
         isAwaitingApproval: true,
-        isTerminal: true,
-        isFulfilledCandidate: false
+        isTerminal: true
       }
     ]
   ])('%s → expected flags', (status, expected) => {
@@ -109,12 +102,6 @@ describe('classifyTurn / TURN_STATE', () => {
   it('isAwaitingApproval == old useTopicAwaitingApproval (status === awaiting-approval)', () => {
     for (const s of ALL_STATUSES) {
       expect(classifyTurn(s).isAwaitingApproval).toBe(s === 'awaiting-approval')
-    }
-  })
-
-  it('isFulfilledCandidate == old (status === done)', () => {
-    for (const s of ALL_STATUSES) {
-      expect(classifyTurn(s).isFulfilledCandidate).toBe(s === 'done')
     }
   })
 })
