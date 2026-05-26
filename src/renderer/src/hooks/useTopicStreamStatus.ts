@@ -38,7 +38,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
 
   const flags = classifyTurn(status)
   const isPending = flags.isStreamLive
-  const isFulfilled = flags.isFulfilledCandidate && lastCompletedAt != null && lastCompletedAt !== lastSeenCompletion
+  const isFulfilled = status === 'done' && lastCompletedAt !== lastSeenCompletion
 
   const markSeen = useCallback(() => {
     if (lastCompletedAt != null && lastCompletedAt !== lastSeenCompletion) {
