@@ -7,7 +7,16 @@ import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps
 
 const mocks = vi.hoisted(() => ({
   editorOptions: undefined as any,
-  actions: undefined as ComposerSurfaceActions | undefined
+  actions: undefined as ComposerSurfaceActions | undefined,
+  editorViewComposing: false,
+  insertContent: vi.fn(),
+  setContent: vi.fn(),
+  setNodeSelection: vi.fn(),
+  chainRun: vi.fn(),
+  docDescendants: vi.fn(),
+  dispatch: vi.fn(),
+  selection: { from: 1 } as any,
+  transaction: undefined as any
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -47,20 +56,37 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
       isDestroyed: false,
       commands: {
         focus: vi.fn(),
-        setContent: vi.fn()
+        setContent: mocks.setContent,
+        setNodeSelection: mocks.setNodeSelection
       },
       chain: () => ({
         focus: () => ({
-          insertContent: () => ({ run: vi.fn() }),
+          setNodeSelection: (...args: unknown[]) => {
+            mocks.setNodeSelection(...args)
+            return { run: mocks.chainRun }
+          },
+          insertContent: (...args: unknown[]) => {
+            mocks.insertContent(...args)
+            return { run: vi.fn() }
+          },
           insertComposerToken: () => ({ insertContent: () => ({ run: vi.fn() }) })
         })
       }),
       view: {
-        composing: false
+        get composing() {
+          return mocks.editorViewComposing
+        },
+        dispatch: mocks.dispatch
       },
       state: {
+        get selection() {
+          return mocks.selection
+        },
+        get tr() {
+          return mocks.transaction
+        },
         doc: {
-          descendants: vi.fn()
+          descendants: mocks.docDescendants
         }
       }
     }
@@ -180,6 +206,19 @@ describe('ComposerSurface', () => {
   beforeEach(() => {
     mocks.editorOptions = undefined
     mocks.actions = undefined
+    mocks.editorViewComposing = false
+    mocks.insertContent.mockReset()
+    mocks.setContent.mockReset()
+    mocks.setNodeSelection.mockReset()
+    mocks.chainRun.mockReset()
+    mocks.docDescendants.mockReset()
+    mocks.dispatch.mockReset()
+    mocks.selection = { from: 1 }
+    mocks.transaction = {
+      doc: {},
+      setNodeMarkup: vi.fn(() => mocks.transaction),
+      setSelection: vi.fn(() => mocks.transaction)
+    }
   })
 
   it('uses a viewport-relative max height and only fixes height when expanded', async () => {
@@ -206,5 +245,109 @@ describe('ComposerSurface', () => {
     expect(screen.getByTestId('composer-editor').className).toContain('h-full')
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('height: 100%')
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('overflow-y: auto')
+  })
+
+  it('sets quick phrase text as prompt variable token content', async () => {
+    render(<Harness />)
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    act(() => {
+      mocks.actions?.onTextChange('plan ${from}')
+    })
+
+    expect(mocks.setContent).toHaveBeenCalledWith(
+      {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              { type: 'text', text: 'plan ' },
+              {
+                type: 'composerToken',
+                attrs: expect.objectContaining({
+                  kind: 'promptVariable',
+                  label: 'from',
+                  promptText: '${from}'
+                })
+              }
+            ]
+          }
+        ]
+      },
+      { emitUpdate: false }
+    )
+  })
+
+  it('uses Tab to select the next prompt variable token', async () => {
+    mocks.docDescendants.mockImplementation((visit: (node: unknown, position: number) => void) => {
+      visit(
+        {
+          type: { name: 'composerToken' },
+          attrs: {
+            id: 'prompt-variable:0:from',
+            kind: 'promptVariable',
+            label: 'from',
+            promptText: '${from}'
+          }
+        },
+        5
+      )
+    })
+    render(<Harness />)
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    const preventDefault = vi.fn()
+    const stopPropagation = vi.fn()
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, {
+      key: 'Tab',
+      shiftKey: false,
+      isComposing: false,
+      preventDefault,
+      stopPropagation
+    })
+
+    expect(handled).toBe(true)
+    expect(preventDefault).toHaveBeenCalled()
+    expect(stopPropagation).toHaveBeenCalled()
+    expect(mocks.setNodeSelection).toHaveBeenCalledWith(5)
+  })
+
+  it('commits IME composition to a selected prompt variable once composition ends', async () => {
+    mocks.selection = {
+      from: 5,
+      node: {
+        type: { name: 'composerToken' },
+        attrs: {
+          id: 'prompt-variable:0:city',
+          kind: 'promptVariable',
+          label: 'city',
+          promptText: '${city}'
+        }
+      }
+    }
+    render(<Harness />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    expect(mocks.editorOptions.editorProps.handleDOMEvents.compositionstart()).toBe(false)
+
+    mocks.editorViewComposing = true
+    expect(mocks.editorOptions.editorProps.handleTextInput(null, 5, 6, 'sh')).toBe(true)
+    expect(mocks.transaction.setNodeMarkup).not.toHaveBeenCalled()
+
+    mocks.editorViewComposing = false
+    expect(mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '上海' })).toBe(true)
+    expect(mocks.transaction.setNodeMarkup).toHaveBeenCalledWith(
+      5,
+      undefined,
+      expect.objectContaining({
+        label: '上海',
+        promptText: '上海'
+      })
+    )
+    expect(mocks.dispatch).toHaveBeenCalledWith(mocks.transaction)
+
+    expect(mocks.editorOptions.editorProps.handleTextInput(null, 5, 6, '上海')).toBe(true)
+    expect(mocks.transaction.setNodeMarkup).toHaveBeenCalledTimes(1)
   })
 })

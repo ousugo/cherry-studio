@@ -7,7 +7,8 @@ export const COMPOSER_DRAFT_TOKEN_KINDS = [
   'mcpPrompt',
   'mcpResource',
   'reference',
-  'environment'
+  'environment',
+  'promptVariable'
 ] as const
 
 export type ComposerDraftTokenKind = (typeof COMPOSER_DRAFT_TOKEN_KINDS)[number]

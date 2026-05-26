@@ -1,13 +1,39 @@
 import { mergeAttributes, Node } from '@tiptap/core'
+import { AllSelection } from '@tiptap/pm/state'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useCallback, useLayoutEffect, useState } from 'react'
 
 import { ComposerToken } from './ComposerToken'
+import { type PromptVariableCommitReason, PromptVariableToken } from './PromptVariableToken'
 import type { ComposerDraftToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
 export const COMPOSER_TOKEN_NODE_NAME = 'composerToken'
+export const COMPOSER_PROMPT_VARIABLE_EDIT_EVENT = 'composer-prompt-variable-edit'
+
+export interface ComposerPromptVariableEditEventDetail {
+  tokenId: string
+  position?: number
+}
+
+export function requestComposerPromptVariableEdit(
+  editorDom: HTMLElement | null | undefined,
+  tokenId: string,
+  position?: number
+) {
+  if (!editorDom) return
+
+  const view = editorDom.ownerDocument.defaultView ?? window
+  const requestFrame = view.requestAnimationFrame.bind(view)
+  const dispatchEditRequest = () => {
+    editorDom.dispatchEvent(new CustomEvent(COMPOSER_PROMPT_VARIABLE_EDIT_EVENT, { detail: { tokenId, position } }))
+  }
+  requestFrame(() => {
+    dispatchEditRequest()
+    requestFrame(dispatchEditRequest)
+  })
+}
 
 export type ComposerTokenRenderer = (
   token: ComposerDraftToken,
@@ -22,15 +48,136 @@ declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     composerToken: {
       insertComposerToken: (token: ComposerDraftToken) => ReturnType
+      editComposerToken: (tokenId: string, position?: number) => ReturnType
     }
   }
 }
 
 function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTokenRenderer }) {
   const token = normalizeComposerTokenAttrs(props.node.attrs)
-  const rendered = props.renderToken?.(token, { selected: props.selected, nodeViewProps: props }) ?? (
-    <ComposerToken token={token} selected={props.selected} />
+  const getNodePosition = props.getPos
+  const [isPromptVariableEditing, setPromptVariableEditing] = useState(false)
+
+  const isPromptVariableEditRequestForCurrentNode = useCallback(
+    (detail?: ComposerPromptVariableEditEventDetail) => {
+      if (!detail || detail.tokenId !== token.id) return false
+      if (typeof detail.position !== 'number') return true
+
+      const currentPosition = typeof getNodePosition === 'function' ? getNodePosition() : undefined
+      return currentPosition === detail.position
+    },
+    [getNodePosition, token.id]
   )
+
+  useLayoutEffect(() => {
+    if (token.kind !== 'promptVariable') return
+
+    const handlePromptVariableEdit = (event: Event) => {
+      const detail = (event as CustomEvent<ComposerPromptVariableEditEventDetail>).detail
+      if (isPromptVariableEditRequestForCurrentNode(detail)) setPromptVariableEditing(true)
+    }
+
+    props.editor.view.dom.addEventListener(COMPOSER_PROMPT_VARIABLE_EDIT_EVENT, handlePromptVariableEdit)
+    return () => {
+      props.editor.view.dom.removeEventListener(COMPOSER_PROMPT_VARIABLE_EDIT_EVENT, handlePromptVariableEdit)
+    }
+  }, [isPromptVariableEditRequestForCurrentNode, props.editor.view.dom, token.kind])
+
+  const commitPromptVariableValue = (value: string) => {
+    props.updateAttributes({
+      label: value || token.label,
+      promptText: value
+    })
+  }
+
+  const selectAdjacentPromptVariableToken = (direction: 1 | -1) => {
+    const currentPosition = typeof props.getPos === 'function' ? props.getPos() : undefined
+    if (typeof currentPosition !== 'number') return
+
+    const tokens: Array<{ position: number; token: ComposerDraftToken }> = []
+    props.editor.state.doc.descendants((node, position) => {
+      if (node.type.name !== COMPOSER_TOKEN_NODE_NAME) return
+      const nextToken = normalizeComposerTokenAttrs(node.attrs)
+      if (nextToken.kind === 'promptVariable') tokens.push({ position, token: nextToken })
+    })
+
+    if (!tokens.length) return
+
+    const currentIndex = tokens.findIndex((item) => item.position === currentPosition)
+    const nextIndex =
+      direction > 0
+        ? currentIndex >= 0
+          ? (currentIndex + 1) % tokens.length
+          : Math.max(
+              0,
+              tokens.findIndex((item) => item.position > currentPosition)
+            )
+        : currentIndex >= 0
+          ? (currentIndex - 1 + tokens.length) % tokens.length
+          : tokens.findLastIndex((item) => item.position < currentPosition)
+    const target = tokens[nextIndex >= 0 ? nextIndex : tokens.length - 1]
+
+    props.editor.chain().focus().setNodeSelection(target.position).run()
+    props.editor.commands.editComposerToken(target.token.id, target.position)
+  }
+
+  const finishPromptVariableEdit = (
+    value: string,
+    reason: PromptVariableCommitReason,
+    options: { dirty: boolean; direction?: 1 | -1 }
+  ) => {
+    if (token.kind !== 'promptVariable') return
+    if (options.dirty) {
+      commitPromptVariableValue(value)
+    }
+    setPromptVariableEditing(false)
+
+    if (reason === 'tab' && options.direction) {
+      selectAdjacentPromptVariableToken(options.direction)
+      return
+    }
+
+    if (reason === 'enter') {
+      const position = typeof props.getPos === 'function' ? props.getPos() : undefined
+      if (typeof position === 'number') {
+        props.editor
+          .chain()
+          .focus()
+          .setTextSelection(position + props.node.nodeSize)
+          .run()
+      }
+    }
+  }
+  const selectAllComposerContent = (value: string, options: { dirty: boolean }) => {
+    if (token.kind !== 'promptVariable') return
+    if (options.dirty) {
+      commitPromptVariableValue(value)
+    }
+    setPromptVariableEditing(false)
+
+    props.editor
+      .chain()
+      .focus()
+      .command(({ tr, dispatch }) => {
+        dispatch?.(tr.setSelection(new AllSelection(tr.doc)))
+        return true
+      })
+      .run()
+  }
+  const rendered =
+    props.renderToken?.(token, { selected: props.selected, nodeViewProps: props }) ??
+    (token.kind === 'promptVariable' ? (
+      <PromptVariableToken
+        token={token}
+        selected={props.selected}
+        editing={isPromptVariableEditing}
+        onCommit={finishPromptVariableEdit}
+        onSelectAll={selectAllComposerContent}
+        onEditRequest={() => setPromptVariableEditing(true)}
+      />
+    ) : (
+      <ComposerToken token={token} selected={props.selected} />
+    ))
 
   return (
     <NodeViewWrapper
@@ -102,6 +249,12 @@ export const ComposerTokenNode = Node.create<ComposerTokenNodeOptions>({
             type: this.name,
             attrs: token
           })
+        },
+      editComposerToken:
+        (tokenId, position) =>
+        ({ editor }) => {
+          requestComposerPromptVariableEdit(editor.view.dom, tokenId, position)
+          return true
         }
     }
   },

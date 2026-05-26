@@ -137,6 +137,39 @@ describe('composer draft serialization', () => {
     ).toBeUndefined()
   })
 
+  it('serializes prompt variable tokens as plain prompt text without persisting composer metadata', () => {
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Route from ' },
+            tokenNode({
+              id: 'prompt-variable:0:from',
+              kind: 'promptVariable',
+              label: 'from',
+              description: '${from}',
+              promptText: 'Shanghai',
+              payload: { variableName: 'from', raw: '${from}' }
+            }),
+            { type: 'text', text: ' to Beijing' }
+          ]
+        }
+      ]
+    })
+
+    expect(draft.text).toBe('Route from Shanghai to Beijing')
+    expect(draft.tokens[0]).toMatchObject({
+      id: 'prompt-variable:0:from',
+      kind: 'promptVariable',
+      label: 'from',
+      promptText: 'Shanghai',
+      textOffset: 11
+    })
+    expect(createComposerMessageSnapshot(draft)).toBeUndefined()
+  })
+
   it('builds user message parts with composer metadata and file parts', () => {
     const draft = serializeComposerDocument({
       type: 'doc',

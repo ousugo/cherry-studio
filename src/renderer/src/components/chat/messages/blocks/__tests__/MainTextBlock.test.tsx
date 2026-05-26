@@ -189,6 +189,31 @@ describe('MainTextBlock', () => {
       expect(textElement).not.toHaveTextContent('GPT')
       expect(textElement.querySelector('[data-composer-token-kind="model"]')).not.toBeInTheDocument()
     })
+
+    it('should ignore prompt-variable composer metadata in user messages', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = false
+      renderMainTextBlock({
+        content: 'Route from Shanghai',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'prompt-variable:0:from',
+              kind: 'promptVariable',
+              label: 'from',
+              index: 0,
+              textOffset: 11,
+              promptText: 'Shanghai'
+            }
+          ]
+        } as never
+      })
+
+      const textElement = getRenderedPlainText()!
+      expect(textElement.textContent).toBe('Route from Shanghai')
+      expect(textElement.querySelector('[data-composer-token-kind="promptVariable"]')).not.toBeInTheDocument()
+    })
   })
 
   describe('mentions functionality', () => {

@@ -9,6 +9,9 @@ import { normalizeComposerTokenAttrs } from './tokens'
 const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
 
 type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
+type PersistedComposerSerializedToken = ComposerSerializedToken & {
+  kind: Exclude<ComposerSerializedToken['kind'], 'promptVariable'>
+}
 
 interface ComposerFilePartSource {
   path?: string
@@ -68,7 +71,9 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
 }
 
 export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): ComposerMessageSnapshot | undefined {
-  const visibleTokens = draft.tokens.filter((token) => token.kind !== 'model')
+  const visibleTokens = draft.tokens.filter(
+    (token): token is PersistedComposerSerializedToken => token.kind !== 'model' && token.kind !== 'promptVariable'
+  )
   if (visibleTokens.length === 0) return undefined
 
   return {

@@ -18,7 +18,6 @@ import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import PasteService from '@renderer/services/PasteService'
 import type { FileMetadata } from '@renderer/types'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
-import type { JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent } from '@tiptap/react'
 import { CirclePause } from 'lucide-react'
@@ -30,6 +29,15 @@ import { getComposerPlainTextPasteOverride } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import type { ComposerSuggestionItem, ComposerSuggestionSource } from './ComposerSuggestion'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
+import {
+  createPromptVariableContent,
+  createPromptVariableInlineContent,
+  getNextPromptVariableIndex,
+  getSelectedPromptVariableToken,
+  selectPromptVariableToken,
+  tokenizePromptVariablesInEditor,
+  updateSelectedPromptVariableToken
+} from './promptVariables'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import type { ComposerToolLauncher } from './toolLauncher'
 
@@ -87,22 +95,6 @@ export interface ComposerSurfaceProps {
   ) => void
   renderLeftControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
   renderBelowControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
-}
-
-function createPlainTextContent(text: string): JSONContent {
-  if (!text) return { type: 'doc', content: [{ type: 'paragraph' }] }
-
-  const content = text.split('\n').flatMap<JSONContent>((line, index) => {
-    const nodes: JSONContent[] = []
-    if (index > 0) nodes.push({ type: 'hardBreak' })
-    if (line) nodes.push({ type: 'text', text: line })
-    return nodes
-  })
-
-  return {
-    type: 'doc',
-    content: [{ type: 'paragraph', content }]
-  }
 }
 
 function removeComposerTokens(editor: Editor, shouldRemove: (token: ComposerSerializedToken) => boolean) {
@@ -178,7 +170,13 @@ function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
     getText: () => serializeComposerDocument(editor).text,
     getCursorOffset: () => getComposerCursorTextOffset(editor),
     insertText: (insertedText) => {
-      editor.chain().focus().insertContent(insertedText).run()
+      editor
+        .chain()
+        .focus()
+        .insertContent(
+          createPromptVariableInlineContent(insertedText, { startIndex: getNextPromptVariableIndex(editor) })
+        )
+        .run()
     },
     insertToken: (token) => {
       editor
@@ -315,6 +313,9 @@ export default function ComposerSurface({
   const sendBlockedReasonRef = useRef(sendBlockedReason)
   const onSendDraftRef = useRef(onSendDraft)
   const previousTextRef = useRef(text)
+  const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
+  const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
+  const promptVariableSkipTextInputRef = useRef<{ tokenId: string; text: string } | null>(null)
   const managedTokenKindSet = useMemo(() => new Set(managedTokenKinds), [managedTokenKinds])
 
   useEffect(() => {
@@ -340,12 +341,22 @@ export default function ComposerSurface({
     }
   }, [])
 
+  const applyComposerText = useCallback(
+    (nextText: string) => {
+      previousTextRef.current = nextText
+      textRef.current = nextText
+      onTextChange(nextText)
+      editorRef.current?.commands.setContent(createPromptVariableContent(nextText), { emitUpdate: false })
+    },
+    [onTextChange]
+  )
+
   const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
     (value) => {
       const nextText = typeof value === 'function' ? value(textRef.current) : value
-      onTextChange(nextText)
+      applyComposerText(nextText)
     },
-    [onTextChange]
+    [applyComposerText]
   )
 
   const { handlePaste } = usePasteHandler(text, setText, {
@@ -360,7 +371,17 @@ export default function ComposerSurface({
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
     supportedExts,
     setFiles,
-    onTextDropped: (droppedText) => editorRef.current?.chain().focus().insertContent(droppedText).run(),
+    onTextDropped: (droppedText) => {
+      const editor = editorRef.current
+      if (!editor) return
+      editor
+        .chain()
+        .focus()
+        .insertContent(
+          createPromptVariableInlineContent(droppedText, { startIndex: getNextPromptVariableIndex(editor) })
+        )
+        .run()
+    },
     enabled: enableDragDrop,
     t
   })
@@ -382,9 +403,9 @@ export default function ComposerSurface({
     (updater: string | ((prev: string) => string)) => {
       const currentText = editorRef.current ? serializeComposerDocument(editorRef.current).text : textRef.current
       const nextText = typeof updater === 'function' ? updater(currentText) : updater
-      onTextChange(nextText)
+      applyComposerText(nextText)
     },
-    [onTextChange]
+    [applyComposerText]
   )
 
   const removeToken = useCallback((tokenId: string) => {
@@ -434,7 +455,7 @@ export default function ComposerSurface({
 
   const editor = useRichTextEditorKernel({
     extensions: editorExtensions,
-    content: createPlainTextContent(text),
+    content: createPromptVariableContent(text),
     editable,
     enableSpellCheck,
     editorProps: {
@@ -451,6 +472,19 @@ export default function ComposerSurface({
           event.stopPropagation()
           handleToggleExpanded(false)
           return true
+        }
+
+        if (event.key === 'Tab' && !event.isComposing && !quickPanel.isVisible) {
+          const targetToken = editorRef.current
+            ? selectPromptVariableToken(editorRef.current, event.shiftKey ? -1 : 1)
+            : null
+
+          if (targetToken) {
+            event.preventDefault()
+            event.stopPropagation()
+            promptVariableEditRef.current = { tokenId: targetToken.id, started: false }
+            return true
+          }
         }
 
         const isEnterPressed = event.key === 'Enter' && !event.isComposing
@@ -472,10 +506,87 @@ export default function ComposerSurface({
         }
 
         return false
+      },
+      handleTextInput: (_view, _from, _to, insertedText) => {
+        const editor = editorRef.current
+        if (!editor || editor.isDestroyed) return false
+        const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+        if (!selectedPromptVariable) return false
+
+        const composingToken = promptVariableCompositionRef.current
+        if (editor.view.composing || composingToken?.tokenId === selectedPromptVariable.token.id) {
+          if (composingToken) composingToken.text = insertedText || composingToken.text
+          return true
+        }
+
+        const skippedTextInput = promptVariableSkipTextInputRef.current
+        if (skippedTextInput?.tokenId === selectedPromptVariable.token.id && skippedTextInput.text === insertedText) {
+          promptVariableSkipTextInputRef.current = null
+          return true
+        }
+
+        const editState = promptVariableEditRef.current
+        const shouldAppend = editState?.tokenId === selectedPromptVariable.token.id && editState.started
+        const baseText = shouldAppend ? (selectedPromptVariable.token.promptText ?? '') : ''
+        updateSelectedPromptVariableToken(editor, `${baseText}${insertedText}`)
+        promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
+        return true
+      },
+      handleDOMEvents: {
+        compositionstart: () => {
+          const editor = editorRef.current
+          if (!editor || editor.isDestroyed) return false
+          const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+          if (!selectedPromptVariable) return false
+
+          promptVariableCompositionRef.current = { tokenId: selectedPromptVariable.token.id, text: '' }
+          promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: false }
+          return false
+        },
+        compositionupdate: (_view, event) => {
+          const editor = editorRef.current
+          const composingToken = promptVariableCompositionRef.current
+          if (!editor || editor.isDestroyed || !composingToken) return false
+          const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+          if (selectedPromptVariable?.token.id !== composingToken.tokenId) return false
+
+          const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
+          composingToken.text = data || composingToken.text
+          return true
+        },
+        compositionend: (_view, event) => {
+          const editor = editorRef.current
+          const composingToken = promptVariableCompositionRef.current
+          promptVariableCompositionRef.current = null
+
+          if (!editor || editor.isDestroyed || !composingToken) return false
+          const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+          if (selectedPromptVariable?.token.id !== composingToken.tokenId) return false
+
+          const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
+          const nextValue = data || composingToken.text
+          if (!nextValue) return true
+
+          updateSelectedPromptVariableToken(editor, nextValue)
+          promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
+          promptVariableSkipTextInputRef.current = { tokenId: selectedPromptVariable.token.id, text: nextValue }
+          return true
+        }
       }
     },
     handlePaste: (_view, event) => {
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
+      const editor = editorRef.current
+      if (editor && getSelectedPromptVariableToken(editor) && pastedText) {
+        event.preventDefault()
+        updateSelectedPromptVariableToken(editor, pastedText)
+        const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+        promptVariableEditRef.current = selectedPromptVariable
+          ? { tokenId: selectedPromptVariable.token.id, started: true }
+          : null
+        return true
+      }
+
       const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, {
         pasteLongTextAsFile,
         pasteLongTextThreshold
@@ -491,6 +602,8 @@ export default function ComposerSurface({
       return false
     },
     onUpdate: ({ editor: updatedEditor }) => {
+      if (tokenizePromptVariablesInEditor(updatedEditor)) return
+
       const draft = serializeComposerDocument(updatedEditor)
       const nextText = draft.text
       previousTextRef.current = nextText
@@ -516,7 +629,7 @@ export default function ComposerSurface({
     if (!editor || editor.isDestroyed) return
     const currentText = serializeComposerDocument(editor).text
     if (currentText === text) return
-    editor.commands.setContent(createPlainTextContent(text), { emitUpdate: false })
+    editor.commands.setContent(createPromptVariableContent(text), { emitUpdate: false })
   }, [editor, text])
 
   useEffect(() => {
@@ -543,7 +656,13 @@ export default function ComposerSurface({
       getText: () => serializeComposerDocument(editor).text,
       getCursorOffset: () => getComposerCursorTextOffset(editor),
       insertText: (insertedText) => {
-        editor.chain().focus().insertContent(insertedText).run()
+        editor
+          .chain()
+          .focus()
+          .insertContent(
+            createPromptVariableInlineContent(insertedText, { startIndex: getNextPromptVariableIndex(editor) })
+          )
+          .run()
       },
       insertToken: (token) => {
         editor
@@ -588,10 +707,9 @@ export default function ComposerSurface({
 
   const onTranslated = useCallback(
     (translatedText: string) => {
-      onTextChange(translatedText)
-      editor?.commands.setContent(createPlainTextContent(translatedText), { emitUpdate: false })
+      applyComposerText(translatedText)
     },
-    [editor, onTextChange]
+    [applyComposerText]
   )
 
   const quickPanelElement = quickPanelEnabled ? (

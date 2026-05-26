@@ -14,6 +14,11 @@ export {
 } from './ComposerTokenNode'
 export { default as ConversationComposerSlot, type ConversationComposerSlotProps } from './ConversationComposerSlot'
 export { type ConversationComposerPlacement, default as ConversationComposerStage } from './ConversationComposerStage'
+export {
+  type PromptVariableCommitReason,
+  PromptVariableToken,
+  type PromptVariableTokenProps
+} from './PromptVariableToken'
 export type {
   ComposerDraftToken,
   ComposerDraftTokenKind,
