@@ -49,11 +49,14 @@ export function useAutoStickToBottom({
     if (isLocked()) return
     if (!isAtBottom()) return
     if (curr <= prev) return
-    // Existing animation re-samples the target each frame and will catch up
-    // to the moving bottom; restarting it on every chunk cancels the RAF
-    // before any frame can run and stalls scrollTop in place.
+    // A live manual smooth-scroll (BackBottom button) re-samples its target
+    // every frame and will catch up to the new bottom; jumping in with an
+    // instant snap mid-animation would fight it.
     if (smoothScroll.isAnimating()) return
-    smoothScroll.scrollTo(targetBottom)
+    // Instant snap rather than starting a ~830ms RAF animation per chunk —
+    // the long animation window let scroll events fire after the spacer/anchor
+    // bookkeeping had reset, intermittently latching user-scrolled-up.
+    el.scrollTop = targetBottom()
     markStuck()
   }, [isAtBottom, isLocked, markStuck, scrollerRef, smoothScroll, targetBottom])
 

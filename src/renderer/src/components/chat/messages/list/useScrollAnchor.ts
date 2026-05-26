@@ -30,6 +30,10 @@ import type { VListHandle } from 'virtua'
 import type { SmoothScrollController } from './useSmoothScrollAnimation'
 
 const RELEASE_TOLERANCE_PX = 16
+// Anchor offsets at or below this count as "already at the top" — typically
+// the virtualizer's top padding. When the anchored item is here, scrollTop=0
+// already places it at the viewport top, so the spacer is redundant.
+const ANCHOR_NEAR_TOP_PX = 24
 
 export interface ScrollAnchorInputs {
   scrollerRef: RefObject<HTMLElement | null>
@@ -124,6 +128,16 @@ export function useScrollAnchor({ scrollerRef, vlistHandleRef, smoothScroll }: S
     if (anchorIndexRef.current != null) {
       // Refresh known anchor offset from virtua's measured table.
       anchorOffsetRef.current = handle.getItemOffset(anchorIndexRef.current)
+      // If the anchored item is already at (or essentially at) the top of
+      // the natural scroll range, no spacer is needed — scrollTop=0 already
+      // places it at the viewport top. Without this, a short assistant reply
+      // leaves a viewport-minus-natural spacer in place forever, creating
+      // a scrollable phantom area below the (already-fully-visible) content.
+      if (anchorOffsetRef.current <= ANCHOR_NEAR_TOP_PX) {
+        if (spacerHeight !== 0) setSpacerHeight(0)
+        anchorIndexRef.current = null
+        return
+      }
       const needed = computeNeededSpacer()
       if (needed !== spacerHeight) {
         setSpacerHeight(needed)

@@ -22,7 +22,7 @@ describe('isCloseToBottom', () => {
   })
 
   it('returns false when beyond tolerance', () => {
-    expect(isCloseToBottom(1980, 2000, 8)).toBe(false)
+    expect(isCloseToBottom(1700, 2000, 100)).toBe(false)
   })
 
   it('honors custom tolerance (Safari uses 5)', () => {
@@ -88,14 +88,18 @@ describe('reduceAtBottom', () => {
       expect(next).toEqual({ atBottom: false, reason: 'user-scrolled-up' })
     })
 
-    it('downward scroll that does not reach bottom still counts as user intent', () => {
-      const prev: AtBottomState = { atBottom: false, reason: 'scrolled-not-bottom' }
+    it('downward scroll that does not reach bottom does NOT latch user-scrolled-up', () => {
+      // End-of-animation scroll events (programmatic) fire with direction='down'
+      // when the smooth-scroll lands at what was the bottom moments ago but is
+      // no longer close due to newer content. Latching user-scrolled-up there
+      // would kill auto-stick for the rest of the stream.
+      const prev: AtBottomState = { atBottom: true, reason: 'stuck-on-grow' }
       const next = reduceAtBottom(prev, {
         type: 'user-scroll',
         direction: 'down',
         ...atBottom(300, 1000, 500)
       })
-      expect(next).toEqual({ atBottom: false, reason: 'user-scrolled-up' })
+      expect(next).toEqual({ atBottom: false, reason: 'scrolled-not-bottom' })
     })
 
     it('programmatic scroll (direction none) preserves prior user latch', () => {

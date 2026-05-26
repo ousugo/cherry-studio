@@ -1,28 +1,4 @@
-/**
- * Pure reducer for the "is the message list pinned to the bottom?" state.
- *
- * The point of going through a state machine (vs computing `atBottom` per
- * render from current measurements) is to distinguish four near-identical
- * inputs that should produce different decisions:
- *
- *   1. User scrolled up by hand          → stop auto-sticking
- *   2. Content grew while at bottom      → auto-stick to new bottom
- *   3. Content grew while scrolled away  → leave scroll alone
- *   4. User scrolled back down to bottom → resume auto-sticking
- *
- * Without the latched state, case 2 is indistinguishable from case 3 at the
- * moment the size change fires (both produce `scrollOffset + viewportSize <
- * scrollSize` immediately after).
- *
- * Ported in spirit from message-list's `St` cell (see
- * wakaru-unpacked/06-cell-graph-and-actions.js:34-120), but with a flat
- * 2-state space and explicit reasons. We do not implement the 8-reason
- * cascade because the chat use case does not need to distinguish all of
- * them — `atBottom` + a single `becauseUserScrolledUp` flag is enough to
- * drive the autoscroll decision.
- */
-
-export const DEFAULT_AT_BOTTOM_TOLERANCE_PX = 8
+export const DEFAULT_AT_BOTTOM_TOLERANCE_PX = 100
 
 export type AtBottomReason = 'initial' | 'scrolled-to-bottom' | 'stuck-on-grow' | 'size-stayed-at-bottom'
 
@@ -107,10 +83,11 @@ export function reduceAtBottom(
           ? state
           : { atBottom: true, reason: 'scrolled-to-bottom' }
       }
-      // Not at bottom: if user scrolled upward, latch the user-intent reason
-      // so it survives subsequent size-change events. A 'down' scroll that
-      // didn't reach the bottom is a partial drag — also count as user intent.
-      if (input.direction === 'up' || input.direction === 'down') {
+      // Only an upward scroll counts as "user wants out of auto-follow".
+      // Downward scrolls that don't reach the bottom can be the end-of-animation
+      // event firing after newer chunks arrived (programmatic, not user intent);
+      // latching user-scrolled-up here would kill subsequent auto-stick.
+      if (input.direction === 'up') {
         return { atBottom: false, reason: 'user-scrolled-up' }
       }
       // direction 'none' (programmatic) — keep prior reason if we already had
