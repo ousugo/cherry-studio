@@ -228,11 +228,24 @@ vi.mock('@cherrystudio/ui', () => {
         'data-testid': 'context-menu-trigger',
         onContextMenu: (event: React.MouseEvent) => {
           props.onContextMenu?.(event)
-          context.onOpenChange?.(true)
+          if (!event.defaultPrevented) {
+            context.onOpenChange?.(true)
+            event.preventDefault()
+          }
         }
       }
       if (asChild && React.isValidElement(children)) {
-        return React.cloneElement(children, { ...triggerProps, ...children.props })
+        const childProps = children.props || {}
+        return React.cloneElement(children, {
+          ...triggerProps,
+          ...childProps,
+          onContextMenu: (event: React.MouseEvent) => {
+            childProps.onContextMenu?.(event)
+            if (!event.defaultPrevented) {
+              triggerProps.onContextMenu(event)
+            }
+          }
+        })
       }
       return React.createElement('div', triggerProps, children)
     },

@@ -789,7 +789,10 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
               <ResourceList.GroupHeaderActionButton
                 type="button"
                 aria-label={t('chat.conversation.new')}
-                onClick={() => void onNewTopic?.(payload)}>
+                onClick={(event) => {
+                  event.stopPropagation()
+                  void onNewTopic?.(payload)
+                }}>
                 <SquarePen className="block" />
               </ResourceList.GroupHeaderActionButton>
             </Tooltip>
@@ -829,7 +832,14 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       }
       const actions = resolveAssistantGroupActions(actionContext)
 
-      return <ActionMenu actions={actions} onAction={(action) => executeAssistantGroupAction(action, actionContext)} />
+      return (
+        <ActionMenu
+          actions={actions}
+          onAction={(action) => {
+            void executeAssistantGroupAction(action, actionContext)
+          }}
+        />
+      )
     },
     [
       assistantById,

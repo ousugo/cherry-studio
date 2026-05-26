@@ -8,6 +8,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const React = await import('react')
   const actual = await importOriginal<typeof CherryStudioUi>()
+  const ContextMenuContext = React.createContext<{ onOpenChange?: (open: boolean) => void }>({})
   const itemHandler = (onSelect: ((event: Event) => void) | undefined, props: Record<string, unknown>) => ({
     ...props,
     disabled: props.disabled as boolean | undefined,
@@ -18,7 +19,11 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
   return {
     ...actual,
-    ContextMenu: ({ children }: { children?: ReactNode }) => <div data-testid="context-menu">{children}</div>,
+    ContextMenu: ({ children, onOpenChange }: { children?: ReactNode; onOpenChange?: (open: boolean) => void }) => (
+      <ContextMenuContext value={{ onOpenChange }}>
+        <div data-testid="context-menu">{children}</div>
+      </ContextMenuContext>
+    ),
     ContextMenuContent: ({ children, ...props }: { children?: ReactNode }) => (
       <div data-testid="context-menu-content" {...props}>
         {children}
@@ -41,7 +46,36 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {children}
       </button>
     ),
-    ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
+    ContextMenuTrigger: ({ asChild, children, ...props }: any) => {
+      const context = React.use(ContextMenuContext)
+      const triggerProps = {
+        ...props,
+        onContextMenu: (event: any) => {
+          props.onContextMenu?.(event)
+          if (!event.defaultPrevented) {
+            context.onOpenChange?.(true)
+            event.preventDefault()
+          }
+        }
+      }
+
+      if (asChild && React.isValidElement(children)) {
+        const childProps = children.props || {}
+
+        return React.cloneElement(children, {
+          ...triggerProps,
+          ...childProps,
+          onContextMenu: (event: any) => {
+            childProps.onContextMenu?.(event)
+            if (!event.defaultPrevented) {
+              triggerProps.onContextMenu(event)
+            }
+          }
+        })
+      }
+
+      return <div {...triggerProps}>{children}</div>
+    },
     DropdownMenu: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     DropdownMenuContent: ({ children, ...props }: { children?: ReactNode }) => (
       <div data-slot="dropdown-menu-content" {...props}>

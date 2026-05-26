@@ -23,7 +23,12 @@ import {
   useResourceListUiStore,
   useResourceListView
 } from './ResourceListContext'
-import { GroupHeader, GroupShowMore, SectionHeader } from './ResourceListGroups'
+import {
+  GroupHeader,
+  GroupShowMore,
+  ResourceListGroupHeaderContextMenuOwner,
+  SectionHeader
+} from './ResourceListGroups'
 import { RESOURCE_LIST_DEFAULT_ROW_SIZE, RESOURCE_LIST_ROW_HEIGHT_CLASS } from './resourceListLayout'
 
 const SCROLLBAR_AUTO_HIDE_DELAY = 1200
@@ -328,24 +333,26 @@ export function VirtualItems<T extends ResourceListItemBase>({ className, ref, r
   useRevealRequestScroll(getItemId, groups, revealRequest, virtualListRef)
 
   return (
-    <GroupedVirtualList
-      ref={virtualListRef}
-      scrollElementRef={ref}
-      role="listbox"
-      groups={groups}
-      className={getListViewportClassName(stage, className)}
-      scrollerProps={{ 'data-scrolling': isScrolling ? 'true' : 'false' }}
-      scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
-      getItemKey={getVirtualRowKey}
-      onScroll={handleScroll}
-      overscan={6}
-      estimateGroupHeaderSize={estimateResourceListChromeSize}
-      estimateItemSize={estimateVirtualItemSize}
-      estimateGroupFooterSize={estimateResourceListChromeSize}
-      renderGroupHeader={renderGroupHeader}
-      renderItem={renderVirtualItem}
-      renderGroupFooter={renderGroupFooter}
-    />
+    <ResourceListGroupHeaderContextMenuOwner>
+      <GroupedVirtualList
+        ref={virtualListRef}
+        scrollElementRef={ref}
+        role="listbox"
+        groups={groups}
+        className={getListViewportClassName(stage, className)}
+        scrollerProps={{ 'data-scrolling': isScrolling ? 'true' : 'false' }}
+        scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
+        getItemKey={getVirtualRowKey}
+        onScroll={handleScroll}
+        overscan={6}
+        estimateGroupHeaderSize={estimateResourceListChromeSize}
+        estimateItemSize={estimateVirtualItemSize}
+        estimateGroupFooterSize={estimateResourceListChromeSize}
+        renderGroupHeader={renderGroupHeader}
+        renderItem={renderVirtualItem}
+        renderGroupFooter={renderGroupFooter}
+      />
+    </ResourceListGroupHeaderContextMenuOwner>
   )
 }
 
@@ -528,31 +535,33 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   useRevealRequestScroll(getItemId, groups, revealRequest, virtualListRef)
 
   return (
-    <GroupedSortableVirtualList
-      ref={virtualListRef}
-      scrollElementRef={ref}
-      role="listbox"
-      groups={groups}
-      className={getListViewportClassName(stage, className)}
-      scrollerProps={{ 'data-scrolling': isScrolling ? 'true' : 'false' }}
-      scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
-      getItemKey={getVirtualRowKey}
-      onScroll={handleScroll}
-      overscan={6}
-      getGroupId={getGroupId}
-      getItemId={getVirtualItemId}
-      dragCapabilities={dragCapabilities}
-      estimateGroupHeaderSize={estimateResourceListChromeSize}
-      estimateItemSize={estimateVirtualItemSize}
-      estimateGroupFooterSize={estimateResourceListChromeSize}
-      canDragGroup={canDragGroup}
-      canDragItem={canDragVirtualItem}
-      canDropGroup={canDropGroup}
-      canDropItem={canDropVirtualItem}
-      onDragEnd={handleGroupedDragEnd}
-      renderGroupHeader={renderGroupHeader}
-      renderItem={renderVirtualItem}
-      renderGroupFooter={renderGroupFooter}
-    />
+    <ResourceListGroupHeaderContextMenuOwner>
+      <GroupedSortableVirtualList
+        ref={virtualListRef}
+        scrollElementRef={ref}
+        role="listbox"
+        groups={groups}
+        className={getListViewportClassName(stage, className)}
+        scrollerProps={{ 'data-scrolling': isScrolling ? 'true' : 'false' }}
+        scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
+        getItemKey={getVirtualRowKey}
+        onScroll={handleScroll}
+        overscan={6}
+        getGroupId={getGroupId}
+        getItemId={getVirtualItemId}
+        dragCapabilities={dragCapabilities}
+        estimateGroupHeaderSize={estimateResourceListChromeSize}
+        estimateItemSize={estimateVirtualItemSize}
+        estimateGroupFooterSize={estimateResourceListChromeSize}
+        canDragGroup={canDragGroup}
+        canDragItem={canDragVirtualItem}
+        canDropGroup={canDropGroup}
+        canDropItem={canDropVirtualItem}
+        onDragEnd={handleGroupedDragEnd}
+        renderGroupHeader={renderGroupHeader}
+        renderItem={renderVirtualItem}
+        renderGroupFooter={renderGroupFooter}
+      />
+    </ResourceListGroupHeaderContextMenuOwner>
   )
 }

@@ -1063,7 +1063,8 @@ const Sessions = ({
                 type="button"
                 aria-label={t('chat.conversation.new')}
                 disabled={creatingSession}
-                onClick={() => {
+                onClick={(event) => {
+                  event.stopPropagation()
                   void createSessionFromSeed(createSessionSeed)
                 }}>
                 <SquarePen className="block" />
@@ -1181,7 +1182,14 @@ const Sessions = ({
         }
         const actions = resolveAgentGroupActions(actionContext)
 
-        return <ActionMenu actions={actions} onAction={(action) => executeAgentGroupAction(action, actionContext)} />
+        return (
+          <ActionMenu
+            actions={actions}
+            onAction={(action) => {
+              void executeAgentGroupAction(action, actionContext)
+            }}
+          />
+        )
       }
 
       if (displayMode !== 'workdir') return null
@@ -1203,7 +1211,14 @@ const Sessions = ({
       }
       const actions = resolveWorkdirGroupActions(actionContext)
 
-      return <ActionMenu actions={actions} onAction={(action) => executeWorkdirGroupAction(action, actionContext)} />
+      return (
+        <ActionMenu
+          actions={actions}
+          onAction={(action) => {
+            void executeWorkdirGroupAction(action, actionContext)
+          }}
+        />
+      )
     },
     [
       agentById,

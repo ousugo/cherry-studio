@@ -169,6 +169,34 @@ describe('ActionMenu', () => {
     expect(container.querySelectorAll('[class]')).toHaveLength(1)
   })
 
+  it('lets menu item click events bubble by default', () => {
+    const onParentClick = vi.fn()
+
+    render(
+      <div onClick={onParentClick}>
+        <ContextMenu>
+          <ContextMenuTrigger>Trigger</ContextMenuTrigger>
+          <ActionMenu
+            actions={[
+              {
+                id: 'copy',
+                label: 'Copy',
+                danger: false,
+                availability: enabled,
+                children: []
+              }
+            ]}
+            onAction={vi.fn()}
+          />
+        </ContextMenu>
+      </div>
+    )
+
+    fireEvent.click(screen.getByText('Copy'))
+
+    expect(onParentClick).toHaveBeenCalled()
+  })
+
   it('executes actions after confirmation', async () => {
     const onAction = renderMenu([
       {

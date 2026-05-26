@@ -1,8 +1,8 @@
 import { ContextMenu as UiContextMenu, ContextMenuTrigger } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { ChevronDown } from 'lucide-react'
-import type { ComponentProps, MouseEvent, Ref } from 'react'
-import { useCallback, useState } from 'react'
+import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
+import { Fragment, useCallback, useState } from 'react'
 
 import {
   type ResourceListGroup,
@@ -24,6 +24,60 @@ import {
 import { ResourceListLeadingSlot } from './ResourceListLeadingSlot'
 
 const EMPTY_GROUP_HEADER_ITEMS: ResourceListItemBase[] = []
+const GROUP_HEADER_CONTEXT_MENU_GROUP_ID_ATTR = 'data-resource-list-group-context-menu-id'
+const GROUP_HEADER_CONTEXT_MENU_GROUP_ID_SELECTOR = `[${GROUP_HEADER_CONTEXT_MENU_GROUP_ID_ATTR}]`
+
+function stopEventPropagation(event: { stopPropagation: () => void }) {
+  event.stopPropagation()
+}
+
+export function ResourceListGroupHeaderContextMenuOwner({ children }: { children: ReactNode }) {
+  const meta = useResourceListMeta()
+  const { getGroupHeaderContextMenu, groups } = meta
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
+  const activeGroup = activeGroupId ? (groups.find((group) => group.id === activeGroupId) ?? null) : null
+  const activeContextMenu = activeGroup ? getGroupHeaderContextMenu?.(activeGroup) : null
+  const handleOpenChange = useCallback((open: boolean) => {
+    if (!open) setActiveGroupId(null)
+  }, [])
+  const handleContextMenu = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (event.defaultPrevented || !getGroupHeaderContextMenu) return
+
+      const target = event.target instanceof Element ? event.target : null
+      const groupElement = target?.closest<HTMLElement>(GROUP_HEADER_CONTEXT_MENU_GROUP_ID_SELECTOR)
+      if (!groupElement || !event.currentTarget.contains(groupElement)) {
+        event.preventDefault()
+        return
+      }
+
+      const groupId = groupElement.dataset.resourceListGroupContextMenuId
+      const group = groupId ? groups.find((candidate) => candidate.id === groupId) : null
+      if (!group || !getGroupHeaderContextMenu(group)) {
+        event.preventDefault()
+        return
+      }
+
+      setActiveGroupId(group.id)
+    },
+    [getGroupHeaderContextMenu, groups]
+  )
+
+  if (!getGroupHeaderContextMenu) {
+    return <>{children}</>
+  }
+
+  return (
+    <UiContextMenu onOpenChange={handleOpenChange}>
+      <ContextMenuTrigger asChild>
+        <div className="contents" onContextMenu={handleContextMenu}>
+          {children}
+        </div>
+      </ContextMenuTrigger>
+      {activeGroup && activeContextMenu ? <Fragment key={activeGroup.id}>{activeContextMenu}</Fragment> : null}
+    </UiContextMenu>
+  )
+}
 
 type GroupHeaderProps = ComponentProps<'div'> & {
   group: ResourceListGroup
@@ -89,7 +143,6 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupItems = viewGroup?.allItems ?? EMPTY_GROUP_HEADER_ITEMS
   const clickBehavior = meta.getGroupHeaderClickBehavior(group)
   const selected = clickBehavior === 'select-first-then-toggle' && groupState.selected
-  const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const groupHeaderContext = { collapsed }
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
   const groupHeaderContextMenu = meta.getGroupHeaderContextMenu?.(group)
@@ -106,11 +159,8 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const handleContextMenu = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       onContextMenu?.(event)
-      if (event.defaultPrevented || !groupHeaderContextMenu) return
-
-      setContextMenuOpen(true)
     },
-    [groupHeaderContextMenu, onContextMenu]
+    [onContextMenu]
   )
   const handleClick = useCallback(() => {
     if (clickBehavior === 'select-first-then-toggle' && !selected) {
@@ -135,6 +185,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         className
       )}
       data-selected={selected || undefined}
+      data-resource-list-group-context-menu-id={groupHeaderContextMenu ? group.id : undefined}
       onContextMenu={handleContextMenu}
       {...props}>
       <div
@@ -147,7 +198,14 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           groupHeaderClassName
         )}>
         {groupHeaderLeadingAction && (
-          <div className={RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS}>{groupHeaderLeadingAction}</div>
+          <div
+            className={RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS}
+            onClick={stopEventPropagation}
+            onContextMenu={stopEventPropagation}
+            onPointerDown={stopEventPropagation}
+            onPointerUp={stopEventPropagation}>
+            {groupHeaderLeadingAction}
+          </div>
         )}
         <button
           type="button"
@@ -163,7 +221,12 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           </span>
         </button>
         {groupHeaderAction && (
-          <div className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100">
+          <div
+            className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100"
+            onClick={stopEventPropagation}
+            onContextMenu={stopEventPropagation}
+            onPointerDown={stopEventPropagation}
+            onPointerUp={stopEventPropagation}>
             {groupHeaderAction}
           </div>
         )}
@@ -171,16 +234,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     </div>
   )
 
-  if (!groupHeaderContextMenu) {
-    return header
-  }
-
-  return (
-    <UiContextMenu onOpenChange={setContextMenuOpen}>
-      <ContextMenuTrigger asChild>{header}</ContextMenuTrigger>
-      {contextMenuOpen ? groupHeaderContextMenu : null}
-    </UiContextMenu>
-  )
+  return header
 }
 
 type GroupShowMoreProps = ComponentProps<'div'> & {

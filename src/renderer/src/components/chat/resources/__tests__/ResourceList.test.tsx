@@ -1208,6 +1208,114 @@ describe('ResourceList', () => {
     )
   })
 
+  it('opens group header context menus from the group header trigger', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderContextMenu={() => <div>Group Context Menu</div>}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'session' }))
+
+    expect(screen.getByText('Group Context Menu')).toBeInTheDocument()
+  })
+
+  it('uses one shared trigger for group header context menus', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const { container } = render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderContextMenu={() => <div>Group Context Menu</div>}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(container.querySelectorAll('[data-testid="context-menu-trigger"]')).toHaveLength(1)
+  })
+
+  it('does not bubble group header action context menus to the group header trigger', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderAction={() => <ResourceList.GroupHeaderActionButton aria-label="Group more" />}
+        getGroupHeaderContextMenu={() => <div>Group Context Menu</div>}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.contextMenu(screen.getAllByRole('button', { name: 'Group more' })[0])
+
+    expect(screen.queryByText('Group Context Menu')).not.toBeInTheDocument()
+  })
+
+  it('replaces the active group header context menu when another group opens', () => {
+    const onAction = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderContextMenu={(group) => (
+          <button type="button" onClick={() => onAction(group.id)}>
+            Run {group.label}
+          </button>
+        )}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'session' }))
+    expect(screen.getByRole('button', { name: 'Run session' })).toBeInTheDocument()
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'topic' }))
+
+    expect(screen.queryByRole('button', { name: 'Run session' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Run topic' }))
+    expect(onAction).toHaveBeenCalledWith('topic')
+  })
+
   it('auto-hides the shared list viewport scrollbar after scrolling stops', () => {
     vi.useFakeTimers()
     const Provider = ResourceList.Provider<TestItem>

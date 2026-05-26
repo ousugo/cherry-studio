@@ -1852,17 +1852,17 @@ describe('Topics', () => {
     fireEvent.click(within(betaHeader as HTMLElement).getByRole('button', { name: 'Select All Beta Assistant' }))
 
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
-    expect(getTopicRow('Gamma topic')).toHaveClass('bg-accent')
-    expect(getTopicRow('Epsilon yesterday')).toHaveClass('bg-accent')
-    expect(getTopicRow('Delta archive')).toHaveClass('bg-accent')
-    expect(getTopicRow('Alpha topic')).not.toHaveClass('bg-accent')
+    expect(getTopicRow('Gamma topic')).toHaveClass('bg-sidebar-accent')
+    expect(getTopicRow('Epsilon yesterday')).toHaveClass('bg-sidebar-accent')
+    expect(getTopicRow('Delta archive')).toHaveClass('bg-sidebar-accent')
+    expect(getTopicRow('Alpha topic')).not.toHaveClass('bg-sidebar-accent')
     expect(screen.getByText('3')).toBeInTheDocument()
 
     fireEvent.click(within(betaHeader as HTMLElement).getByRole('button', { name: 'Deselect All Beta Assistant' }))
 
-    expect(getTopicRow('Gamma topic')).not.toHaveClass('bg-accent')
-    expect(getTopicRow('Epsilon yesterday')).not.toHaveClass('bg-accent')
-    expect(getTopicRow('Delta archive')).not.toHaveClass('bg-accent')
+    expect(getTopicRow('Gamma topic')).not.toHaveClass('bg-sidebar-accent')
+    expect(getTopicRow('Epsilon yesterday')).not.toHaveClass('bg-sidebar-accent')
+    expect(getTopicRow('Delta archive')).not.toHaveClass('bg-sidebar-accent')
 
     const pinnedHeader = screen.getByRole('button', { name: 'Pinned' }).closest('div')
     expect(
