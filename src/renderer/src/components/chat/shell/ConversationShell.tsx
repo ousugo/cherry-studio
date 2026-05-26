@@ -22,6 +22,7 @@ export interface ConversationShellProps {
   centerId?: string
   centerRef?: Ref<HTMLDivElement>
   centerClassName?: string
+  onPaneCollapse?: () => void
 }
 
 export default function ConversationShell({
@@ -39,7 +40,8 @@ export default function ConversationShell({
   rightPane,
   centerId,
   centerRef,
-  centerClassName
+  centerClassName,
+  onPaneCollapse
 }: ConversationShellProps) {
   const resolvedTopBar = topRightTool ? <ConversationShellTopBar>{topBar}</ConversationShellTopBar> : topBar
   return (
@@ -62,6 +64,7 @@ export default function ConversationShell({
           centerId={centerId}
           centerRef={centerRef}
           centerClassName={centerClassName}
+          onPaneCollapse={onPaneCollapse}
         />
       </QuickPanelProvider>
       {topRightTool && <ConversationShellTopRightTool>{topRightTool}</ConversationShellTopRightTool>}
@@ -81,7 +84,7 @@ const ConversationShellTopRightTool = ({ children }: PropsWithChildren) => {
   const maximized = shellState?.maximized ?? false
   if (maximized) return null
   return (
-    <div className="absolute top-0 right-2 z-20 flex h-(--navbar-height) w-[30px] items-center justify-center [-webkit-app-region:no-drag]">
+    <div className="absolute top-0 right-2 z-20 flex h-(--navbar-height) w-7.5 items-center justify-center [-webkit-app-region:no-drag]">
       {children}
     </div>
   )

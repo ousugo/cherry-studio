@@ -1,4 +1,5 @@
 import type { Topic } from '@renderer/types'
+import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -161,7 +162,8 @@ vi.mock('../Chat', () => ({
     locateMessageId,
     onNewTopic,
     onLocateMessageHandled,
-    onTemporaryAssistantChange
+    onTemporaryAssistantChange,
+    onPaneCollapse
   }: {
     activeTopic: Topic
     pane?: ReactNode
@@ -171,6 +173,7 @@ vi.mock('../Chat', () => ({
     onNewTopic?: () => void | Promise<void>
     onLocateMessageHandled?: () => void
     onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
+    onPaneCollapse?: () => void
   }) => (
     <section>
       <output data-testid="active-topic">{activeTopic.id}</output>
@@ -191,6 +194,11 @@ vi.mock('../Chat', () => ({
       {onTemporaryAssistantChange && (
         <button type="button" onClick={() => onTemporaryAssistantChange('assistant-2')}>
           Switch temporary assistant
+        </button>
+      )}
+      {onPaneCollapse && (
+        <button type="button" onClick={onPaneCollapse}>
+          Collapse pane
         </button>
       )}
       {pane}
@@ -312,6 +320,29 @@ describe('HomePage', () => {
       clearQuery: true,
       itemId: 'topic-history',
       requestId: 1
+    })
+  })
+
+  it('collapses the topic sidebar when the shared shell requests it', async () => {
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse pane' }))
+
+    await waitFor(() => expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+
+  it('uses the compact minimum window width even while the topic sidebar is open', async () => {
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+
+    render(<HomePage />)
+
+    await waitFor(() => {
+      expect(window.api.window.setMinimumSize).toHaveBeenCalledWith(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
     })
   })
 
@@ -532,6 +563,7 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-1')
     expect(screen.getByRole('button', { name: 'Switch temporary assistant' })).toBeInTheDocument()
+    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('true')
 
     fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
 

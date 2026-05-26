@@ -12,10 +12,11 @@ export interface PageSidebarProps {
   width?: string | number
   className?: string
   style?: CSSProperties
+  onPaneCollapse?: () => void
 }
 
-export function PageSidebar({ children, open, width, className, style }: PageSidebarProps) {
-  const { isResizing, paneRef, paneWidth, startResizing } = useResourceListPaneResize()
+export function PageSidebar({ children, open, width, className, style, onPaneCollapse }: PageSidebarProps) {
+  const { isResizing, paneRef, paneWidth, startResizing } = useResourceListPaneResize({ onPaneCollapse })
   const resolvedWidth = width ?? paneWidth
 
   return (

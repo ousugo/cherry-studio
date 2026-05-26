@@ -62,6 +62,7 @@ interface AgentChatProps {
   showResourceListControls?: boolean
   locateMessageId?: string
   onLocateMessageHandled?: () => void
+  onPaneCollapse?: () => void
   temporaryConversation?: TemporaryConversation | null
   onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
   onPersistTemporarySession?: (initialName?: string) => Promise<TemporaryConversation | null>
@@ -85,6 +86,7 @@ const AgentChat = ({
   showResourceListControls = true,
   locateMessageId,
   onLocateMessageHandled,
+  onPaneCollapse,
   temporaryConversation,
   onStartTemporarySession,
   onPersistTemporarySession,
@@ -195,6 +197,7 @@ const AgentChat = ({
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
+          onPaneCollapse={onPaneCollapse}
           center={<ConversationCenterState state="loading" />}
           rightPane={<AgentRightPane.Host />}
         />
@@ -210,6 +213,7 @@ const AgentChat = ({
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
+          onPaneCollapse={onPaneCollapse}
           center={<EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />}
         />
       )
@@ -220,6 +224,7 @@ const AgentChat = ({
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
+        onPaneCollapse={onPaneCollapse}
         center={<ConversationCenterState state="empty" />}
       />
     )
@@ -294,6 +299,7 @@ const AgentChat = ({
       onOpenCitationsPanel={handleOpenCitationsPanel}
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
+      onPaneCollapse={onPaneCollapse}
       onNewSessionDraft={
         sessionAgentId && onStartTemporarySession
           ? () =>
@@ -339,6 +345,7 @@ interface AgentChatSessionFrameProps {
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   locateMessageId?: string
   onLocateMessageHandled?: () => void
+  onPaneCollapse?: () => void
   onNewSessionDraft?: () => void | Promise<void>
 }
 
@@ -364,6 +371,7 @@ const AgentChatSessionFrame = ({
   onOpenCitationsPanel,
   locateMessageId,
   onLocateMessageHandled,
+  onPaneCollapse,
   onNewSessionDraft
 }: AgentChatSessionFrameProps) => {
   const runtime = useAgentChatRuntimeState({
@@ -465,6 +473,7 @@ const AgentChatSessionFrame = ({
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
+        onPaneCollapse={onPaneCollapse}
         topBar={
           <AgentChatNavbar
             className="min-w-0"

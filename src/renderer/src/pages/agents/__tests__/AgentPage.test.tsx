@@ -1,3 +1,4 @@
+import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,7 +11,8 @@ const agentPageMocks = vi.hoisted(() => ({
   setActiveSessionId: vi.fn(),
   setLastUsedAgentId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
-  setShowSidebar: vi.fn()
+  setShowSidebar: vi.fn(),
+  showSidebar: false
 }))
 
 const temporaryConversationMocks = vi.hoisted(() => ({
@@ -33,9 +35,12 @@ vi.mock('@data/hooks/usePreference', async () => {
 
   return {
     usePreference: (key: string) => {
-      const [value, setValue] = React.useState<unknown>(key === 'topic.tab.show' ? false : undefined)
+      const [value, setValue] = React.useState<unknown>(
+        key === 'topic.tab.show' ? agentPageMocks.showSidebar : undefined
+      )
       const setPreference = vi.fn(async (nextValue: unknown) => {
         if (key === 'topic.tab.show') {
+          agentPageMocks.showSidebar = Boolean(nextValue)
           agentPageMocks.setShowSidebar(nextValue)
         }
         setValue(nextValue)
@@ -185,7 +190,8 @@ vi.mock('../AgentChat', () => ({
     onVisibleWorkspaceChange,
     onDraftWorkspaceChange,
     pane,
-    paneOpen
+    paneOpen,
+    onPaneCollapse
   }: {
     activeSession?: { id: string } | null
     activeSessionLoading?: boolean
@@ -200,6 +206,7 @@ vi.mock('../AgentChat', () => ({
     onDraftWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
     pane?: ReactNode
     paneOpen?: boolean
+    onPaneCollapse?: () => void
   }) => (
     <section>
       <output data-testid="active-session">{activeSession?.id ?? ''}</output>
@@ -220,6 +227,11 @@ vi.mock('../AgentChat', () => ({
       <button type="button" onClick={() => onVisibleWorkspaceChange?.('workspace-visible')}>
         Show visible workspace
       </button>
+      {onPaneCollapse && (
+        <button type="button" onClick={onPaneCollapse}>
+          Collapse pane
+        </button>
+      )}
       {pane}
     </section>
   )
@@ -248,6 +260,7 @@ describe('AgentPage', () => {
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
     agentPageMocks.lastUsedAgentId = null
     agentPageMocks.lastUsedWorkspaceId = null
+    agentPageMocks.showSidebar = false
     temporaryConversationMocks.conversation = null
     temporaryConversationMocks.persistedConversation = null
     temporaryConversationMocks.start.mockResolvedValue(null)
@@ -283,6 +296,29 @@ describe('AgentPage', () => {
       clearQuery: true,
       itemId: 'session-history',
       requestId: 1
+    })
+  })
+
+  it('collapses the agent sidebar when the shared shell requests it', async () => {
+    agentPageMocks.showSidebar = true
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse pane' }))
+
+    await waitFor(() => expect(agentPageMocks.setShowSidebar).toHaveBeenCalledWith(false))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+
+  it('uses the compact minimum window width even while the agent sidebar is open', async () => {
+    agentPageMocks.showSidebar = true
+
+    render(<AgentPage />)
+
+    await waitFor(() => {
+      expect(window.api.window.setMinimumSize).toHaveBeenCalledWith(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
     })
   })
 
