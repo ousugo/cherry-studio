@@ -1,4 +1,4 @@
-import { graphlib, layout } from '@dagrejs/dagre'
+import { graphlib, layout, type OrderConstraint } from '@dagrejs/dagre'
 import { MarkerType, Position } from '@xyflow/react'
 
 import type {
@@ -34,6 +34,7 @@ const EDGE_COLORS: Record<TopicMessageFlowEdgeState, string> = {
 export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): TopicMessageFlowLayout {
   const depthById = getDepthById(graph)
   const orderedNodes = [...graph.nodes].sort((a, b) => compareGraphNodes(a, b, depthById))
+  const orderConstraints = buildSiblingOrderConstraints(orderedNodes)
   const nodeOrder = new Map(orderedNodes.map((node, index) => [node.id, index]))
   const visibleEdges = getVisibleEdges({ ...graph, nodes: orderedNodes }).sort((a, b) =>
     compareGraphEdges(a, b, nodeOrder)
@@ -62,7 +63,7 @@ export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): Topic
     dagreGraph.setEdge(edge.source, edge.target)
   }
 
-  layout(dagreGraph)
+  layout(dagreGraph, { constraints: orderConstraints })
 
   return {
     nodes: orderedNodes.map((node): TopicMessageFlowNodeModel => {
@@ -164,6 +165,29 @@ function compareGraphNodes(
   if (createdAt !== 0) return createdAt
 
   return a.id.localeCompare(b.id)
+}
+
+function buildSiblingOrderConstraints(orderedNodes: TopicMessageFlowGraph['nodes']): OrderConstraint[] {
+  const constraints: OrderConstraint[] = []
+  const nodesByParent = new Map<string, TopicMessageFlowGraph['nodes']>()
+
+  for (const node of orderedNodes) {
+    const parentKey = node.parentId ?? '__root__'
+    const siblings = nodesByParent.get(parentKey)
+    if (siblings) {
+      siblings.push(node)
+    } else {
+      nodesByParent.set(parentKey, [node])
+    }
+  }
+
+  for (const siblings of nodesByParent.values()) {
+    for (let i = 1; i < siblings.length; i++) {
+      constraints.push({ left: siblings[i - 1].id, right: siblings[i].id })
+    }
+  }
+
+  return constraints
 }
 
 function compareGraphEdges(a: TopicMessageFlowGraphEdge, b: TopicMessageFlowGraphEdge, nodeOrder: Map<string, number>) {

@@ -180,6 +180,41 @@ describe('topicMessageFlowLayout', () => {
     expect(inactiveEdge.style?.opacity).toBe(1)
   })
 
+  it('lays out same-rank multi-model branches left-to-right by message order', () => {
+    const graph = createGraph({
+      nodes: [
+        createNode('root', null, {
+          createdAt: '2026-05-22T14:16:00.000Z',
+          role: 'user',
+          isInactiveBranch: false
+        }),
+        createNode('model-a', 'root', {
+          createdAt: '2026-05-22T14:16:01.000Z',
+          siblingsGroupId: 7
+        }),
+        createNode('model-b', 'root', {
+          createdAt: '2026-05-22T14:16:02.000Z',
+          siblingsGroupId: 7
+        }),
+        createNode('model-c', 'root', {
+          createdAt: '2026-05-22T14:16:03.000Z',
+          siblingsGroupId: 7
+        })
+      ],
+      edges: [
+        createEdge('root', 'model-a', { isSiblingBranch: true }),
+        createEdge('root', 'model-b', { isSiblingBranch: true }),
+        createEdge('root', 'model-c', { isSiblingBranch: true })
+      ],
+      activeNodeId: 'model-c'
+    })
+
+    const layout = layoutTopicMessageFlowGraph(graph)
+
+    expect(getNode(layout.nodes, 'model-a').position.x).toBeLessThan(getNode(layout.nodes, 'model-b').position.x)
+    expect(getNode(layout.nodes, 'model-b').position.x).toBeLessThan(getNode(layout.nodes, 'model-c').position.x)
+  })
+
   it('keeps edges without active path state visually neutral', () => {
     const layout = layoutTopicMessageFlowGraph(
       createGraph({
