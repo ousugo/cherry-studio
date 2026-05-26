@@ -113,7 +113,13 @@ vi.mock('../components/TopicRightPane', () => {
         branch toggle
       </button>
     ),
-    Host: ({ topicId }: { topicId: string }) => <div data-testid="topic-right-pane-host" data-topic-id={topicId} />,
+    Host: ({ onLocateMessage, topicId }: { onLocateMessage?: (messageId: string) => void; topicId: string }) => (
+      <div data-testid="topic-right-pane-host" data-topic-id={topicId}>
+        <button type="button" onClick={() => onLocateMessage?.('message-x')}>
+          locate branch message
+        </button>
+      </div>
+    ),
     MaximizedOverlay: ({ topicId }: { topicId: string }) => (
       <div data-testid="topic-right-pane-overlay" data-topic-id={topicId} />
     )
@@ -129,14 +135,22 @@ vi.mock('../components/TopicRightPane', () => {
 vi.mock('../ChatContent', () => ({
   default: ({
     onBranchLiveStateChange,
-    onOpenCitationsPanel
+    onLocateMessageHandled,
+    onOpenCitationsPanel,
+    locateMessageId
   }: {
     onBranchLiveStateChange?: (state: unknown) => void
+    onLocateMessageHandled?: () => void
     onOpenCitationsPanel: (payload: { citations: unknown[] }) => void
+    locateMessageId?: string
   }) => {
     renderCounters.chatContent += 1
     return (
       <>
+        <output data-testid="chat-content-locate-message-id">{locateMessageId ?? ''}</output>
+        <button type="button" onClick={() => onLocateMessageHandled?.()}>
+          handled locate
+        </button>
         <button type="button" onClick={() => onOpenCitationsPanel({ citations: [{ number: 1 }] })}>
           open citations
         </button>
@@ -228,5 +242,19 @@ describe('Chat panels', () => {
       nodes: [],
       topicId: 'topic-1'
     })
+  })
+
+  it('passes branch-panel locate requests to chat content and clears them after handling', () => {
+    render(<Chat activeTopic={activeTopic} />)
+
+    expect(screen.getByTestId('chat-content-locate-message-id')).toHaveTextContent('')
+
+    fireEvent.click(screen.getByRole('button', { name: 'locate branch message' }))
+
+    expect(screen.getByTestId('chat-content-locate-message-id')).toHaveTextContent('message-x')
+
+    fireEvent.click(screen.getByRole('button', { name: 'handled locate' }))
+
+    expect(screen.getByTestId('chat-content-locate-message-id')).toHaveTextContent('')
   })
 })

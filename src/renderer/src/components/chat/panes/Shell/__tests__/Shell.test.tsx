@@ -60,7 +60,17 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { Shell } from '../Shell'
+import { Shell, useShellActions } from '../Shell'
+
+function CloseShellButton() {
+  const actions = useShellActions()
+
+  return (
+    <button type="button" onClick={() => actions.close()}>
+      close shell
+    </button>
+  )
+}
 
 describe('Shell.Toggle', () => {
   it('keeps the same toggle button while swapping icons across states', () => {
@@ -95,6 +105,23 @@ describe('Shell.Toggle', () => {
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('data-state', 'closed')
     expect(screen.getByTestId('expand-icon')).toBeInTheDocument()
+  })
+
+  it('can close the open pane through shell actions', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" label="Files" />
+        <CloseShellButton />
+      </Shell>
+    )
+
+    const toggle = screen.getByRole('button', { name: 'Files' })
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('data-state', 'open')
+
+    fireEvent.click(screen.getByRole('button', { name: 'close shell' }))
+    expect(toggle).toHaveAttribute('data-state', 'closed')
   })
 })
 

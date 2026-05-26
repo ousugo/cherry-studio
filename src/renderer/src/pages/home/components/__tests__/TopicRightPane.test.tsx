@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -22,17 +22,31 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   Tooltip: ({ children }: PropsWithChildren) => children
 }))
 
-vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
-  ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
-  RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
-    <section data-testid="right-pane" data-open={String(Boolean(open))}>
-      {open ? children : null}
-    </section>
-  )
-}))
+vi.mock('@renderer/components/chat/shell/RightPaneHost', async () => {
+  const React = await import('react')
+
+  return {
+    ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
+    ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
+    ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
+    ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
+    RightPaneHost: ({
+      children,
+      onCloseAnimationComplete,
+      open
+    }: PropsWithChildren<{ onCloseAnimationComplete?: () => void; open?: boolean }>) => {
+      React.useEffect(() => {
+        if (!open) onCloseAnimationComplete?.()
+      }, [onCloseAnimationComplete, open])
+
+      return (
+        <section data-testid="right-pane" data-open={String(Boolean(open))}>
+          {open ? children : null}
+        </section>
+      )
+    }
+  }
+})
 
 vi.mock('@renderer/components/chat/trace/TracePane', () => ({
   TracePane: ({ payload }: { payload: { topicId: string; traceId: string } | null }) => (
@@ -41,7 +55,11 @@ vi.mock('@renderer/components/chat/trace/TracePane', () => ({
 }))
 
 vi.mock('../TopicBranchPanel', () => ({
-  default: () => <div data-testid="branch-pane" />
+  default: ({ onLocateMessage }: { onLocateMessage?: (messageId: string) => void }) => (
+    <button type="button" data-testid="branch-pane" onClick={() => onLocateMessage?.('message-1')}>
+      locate current branch message
+    </button>
+  )
 }))
 
 vi.mock('react-i18next', () => ({
@@ -94,5 +112,25 @@ describe('TopicRightPane', () => {
     expect(screen.queryByRole('button', { name: /trace\.label/ })).toBeNull()
     expect(screen.queryByTestId('trace-pane')).toBeNull()
     expect(screen.getByTestId('branch-pane')).toBeInTheDocument()
+  })
+
+  it('forwards branch-node locate requests after the shell closes', async () => {
+    const onLocateMessage = vi.fn()
+
+    render(
+      <TopicRightPane>
+        <TopicRightPane.Toggle />
+        <TopicRightPane.Host topicId="topic-1" topicName="Topic" onLocateMessage={onLocateMessage} />
+      </TopicRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.message.flow.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'locate current branch message' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+
+    await waitFor(() => {
+      expect(onLocateMessage).toHaveBeenCalledWith('message-1')
+    })
   })
 })

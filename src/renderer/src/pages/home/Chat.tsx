@@ -50,6 +50,7 @@ const ChatInner: FC<Props> = (props) => {
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
+  const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
   const { openTrace } = useTopicRightPaneActions()
 
@@ -60,6 +61,7 @@ const ChatInner: FC<Props> = (props) => {
 
   useEffect(() => {
     setTopicBranchLiveState(props.activeTopic.id, null)
+    setBranchLocateMessageId(undefined)
     return () => setTopicBranchLiveState(props.activeTopic.id, null)
   }, [props.activeTopic.id, setTopicBranchLiveState])
 
@@ -146,6 +148,13 @@ const ChatInner: FC<Props> = (props) => {
     [props.activeTopic.id, setTopicBranchLiveState]
   )
   const branchPaneDisabled = !!props.onPersistTemporaryTopic
+  const locateMessageId = props.locateMessageId ?? branchLocateMessageId
+  const handleLocateMessageHandled = useCallback(() => {
+    setBranchLocateMessageId(undefined)
+    if (props.locateMessageId) {
+      props.onLocateMessageHandled?.()
+    }
+  }, [props.locateMessageId, props.onLocateMessageHandled])
 
   return (
     <ConversationShell
@@ -177,8 +186,8 @@ const ChatInner: FC<Props> = (props) => {
           onOpenTrace={handleOpenTrace}
           onNewTopic={props.onNewTopic}
           onTemporaryAssistantChange={props.onTemporaryAssistantChange}
-          locateMessageId={props.locateMessageId}
-          onLocateMessageHandled={props.onLocateMessageHandled}
+          locateMessageId={locateMessageId}
+          onLocateMessageHandled={handleLocateMessageHandled}
           onBranchLiveStateChange={handleBranchLiveStateChange}
           onPersistTemporaryTopic={props.onPersistTemporaryTopic}
         />
@@ -195,13 +204,21 @@ const ChatInner: FC<Props> = (props) => {
             />
           </OverlayHost>
           {!branchPaneDisabled && (
-            <TopicRightPane.MaximizedOverlay topicId={props.activeTopic.id} topicName={props.activeTopic.name} />
+            <TopicRightPane.MaximizedOverlay
+              topicId={props.activeTopic.id}
+              topicName={props.activeTopic.name}
+              onLocateMessage={setBranchLocateMessageId}
+            />
           )}
         </>
       }
       rightPane={
         branchPaneDisabled ? undefined : (
-          <TopicRightPane.Host topicId={props.activeTopic.id} topicName={props.activeTopic.name} />
+          <TopicRightPane.Host
+            topicId={props.activeTopic.id}
+            topicName={props.activeTopic.name}
+            onLocateMessage={setBranchLocateMessageId}
+          />
         )
       }
       centerId="chat-main"

@@ -11,6 +11,7 @@ import TopicBranchPanel from './TopicBranchPanel'
 interface TopicRightPaneSurfaceProps {
   topicId: string
   topicName?: string
+  onLocateMessage?: (messageId: string) => void
 }
 
 interface TopicRightPaneState {
@@ -143,13 +144,20 @@ function TopicRightPaneProvider({ children }: PropsWithChildren) {
   )
 }
 
-function TopicRightPaneSurface({ topicId, topicName }: TopicRightPaneSurfaceProps) {
+function TopicRightPaneSurface({ topicId, topicName, onLocateMessage }: TopicRightPaneSurfaceProps) {
   const { t } = useTranslation()
   const { state, actions } = useTopicRightPane()
   const shellState = useShellState()
+  const shellActions = useShellActions()
   const branchLiveState = useTopicBranchLiveState(topicId)
   const canvasFocusKey = `${topicId}:${shellState.maximized ? 'maximized' : 'docked'}:${shellState.pdfLayoutRefreshKey}`
   const canvasLayoutReady = shellState.maximized || !shellState.pdfLayoutPending
+  const handleLocateMessage = useCallback(
+    (messageId: string) => {
+      shellActions.close(() => onLocateMessage?.(messageId))
+    },
+    [onLocateMessage, shellActions]
+  )
 
   return (
     <Shell.Tabs>
@@ -171,6 +179,7 @@ function TopicRightPaneSurface({ topicId, topicName }: TopicRightPaneSurfaceProp
           liveState={branchLiveState}
           focusKey={canvasFocusKey}
           layoutReady={canvasLayoutReady}
+          onLocateMessage={handleLocateMessage}
         />
       </Shell.Panel>
       {state.tracePayload && (

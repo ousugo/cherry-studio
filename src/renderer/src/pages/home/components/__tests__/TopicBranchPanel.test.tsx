@@ -23,20 +23,32 @@ vi.mock('@data/DataApiService', () => ({
 }))
 
 vi.mock('@renderer/components/chat/messages/flow', () => ({
-  buildTopicMessageFlowGraph: vi.fn((tree) => ({
-    activeNodeId: tree.activeNodeId,
-    edges: [],
-    nodes: tree.nodes.map((node: { id: string; preview?: string }) => ({
-      id: node.id,
-      data: { messageId: node.id, preview: node.preview },
-      position: { x: 0, y: 0 }
-    })),
-    stats: {
-      activePathLength: tree.nodes.length,
-      branchCount: 2,
-      nodeCount: tree.nodes.length
+  buildTopicMessageFlowGraph: vi.fn((tree) => {
+    const parentById = new Map(
+      tree.nodes.map((node: { id: string; parentId: string | null }) => [node.id, node.parentId])
+    )
+    const activePath = new Set<string>()
+    let currentId = tree.activeNodeId
+    while (currentId && parentById.has(currentId)) {
+      activePath.add(currentId)
+      currentId = parentById.get(currentId)
     }
-  })),
+
+    return {
+      activeNodeId: tree.activeNodeId,
+      edges: [],
+      nodes: tree.nodes.map((node: { id: string; preview?: string }) => ({
+        id: node.id,
+        data: { messageId: node.id, preview: node.preview, isOnActivePath: activePath.has(node.id) },
+        position: { x: 0, y: 0 }
+      })),
+      stats: {
+        activePathLength: activePath.size,
+        branchCount: 2,
+        nodeCount: tree.nodes.length
+      }
+    }
+  }),
   layoutTopicMessageFlowGraph: vi.fn((graph) => graph),
   mergeTopicMessageFlowLiveTree: vi.fn((tree, liveState) => {
     if (!liveState?.nodes?.length) return tree
@@ -59,15 +71,18 @@ vi.mock('@renderer/components/chat/messages/flow', () => ({
     graph,
     onNodeSelect
   }: {
-    graph: { nodes: { data: { preview?: string } }[] }
+    graph: { nodes: { data: { messageId: string; preview?: string } }[] }
     onNodeSelect: (messageId: string) => void
   }) => (
     <div>
-      <button type="button" data-testid="topic-message-flow-canvas" onClick={() => onNodeSelect('message-1')}>
-        flow canvas
-      </button>
       {graph.nodes.map((node) => (
-        <span key={node.data.preview}>{node.data.preview}</span>
+        <button
+          key={node.data.messageId}
+          type="button"
+          data-testid={`topic-message-flow-node-${node.data.messageId}`}
+          onClick={() => onNodeSelect(node.data.messageId)}>
+          {node.data.preview}
+        </button>
       ))}
     </div>
   )
@@ -135,7 +150,7 @@ describe('TopicBranchPanel', () => {
   it('sets the active branch to the latest leaf passing through the selected node', async () => {
     render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
-    fireEvent.click(screen.getByTestId('topic-message-flow-canvas'))
+    fireEvent.click(screen.getByTestId('topic-message-flow-node-message-1'))
 
     await waitFor(() => {
       expect(dataApiService.get).toHaveBeenCalledWith('/topics/topic-1/path', {
@@ -149,7 +164,8 @@ describe('TopicBranchPanel', () => {
     expect(mocks.refetchTree).toHaveBeenCalled()
   })
 
-  it('does not write when selecting the current active node', async () => {
+  it('locates the current active node without writing branch state', async () => {
+    const onLocateMessage = vi.fn()
     mocks.useQuery.mockReturnValue({
       data: {
         activeNodeId: 'message-1',
@@ -172,14 +188,62 @@ describe('TopicBranchPanel', () => {
       refetch: mocks.refetchTree
     })
 
-    render(<TopicBranchPanel open={true} topicId="topic-1" />)
+    render(<TopicBranchPanel open={true} topicId="topic-1" onLocateMessage={onLocateMessage} />)
 
-    fireEvent.click(screen.getByTestId('topic-message-flow-canvas'))
+    fireEvent.click(screen.getByTestId('topic-message-flow-node-message-1'))
 
     await Promise.resolve()
 
+    expect(onLocateMessage).toHaveBeenCalledWith('message-1')
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).not.toHaveBeenCalled()
+  })
+
+  it('locates an ancestor on the current active path without switching branch', async () => {
+    const onLocateMessage = vi.fn()
+    mocks.useQuery.mockReturnValue({
+      data: {
+        activeNodeId: 'leaf-1',
+        nodes: [
+          {
+            id: 'message-1',
+            parentId: null,
+            role: 'user',
+            preview: 'Hello',
+            modelId: null,
+            status: 'success',
+            createdAt: '2026-05-22T00:00:00.000Z',
+            hasChildren: true
+          },
+          {
+            id: 'leaf-1',
+            parentId: 'message-1',
+            role: 'assistant',
+            preview: 'Answer',
+            modelId: null,
+            status: 'success',
+            createdAt: '2026-05-22T00:00:01.000Z',
+            hasChildren: false
+          }
+        ],
+        siblingsGroups: []
+      },
+      error: undefined,
+      isLoading: false,
+      refetch: mocks.refetchTree
+    })
+
+    render(<TopicBranchPanel open={true} topicId="topic-1" onLocateMessage={onLocateMessage} />)
+
+    fireEvent.click(screen.getByTestId('topic-message-flow-node-message-1'))
+
+    await Promise.resolve()
+
+    expect(onLocateMessage).toHaveBeenCalledWith('message-1')
+    expect(dataApiService.get).not.toHaveBeenCalled()
+    expect(mocks.setActiveNode).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).not.toHaveBeenCalled()
   })
 
   it('renders live branch preview without refetching the topic tree per chunk', () => {

@@ -21,6 +21,7 @@ interface Props {
   liveState?: TopicMessageFlowLiveState | null
   focusKey?: string | number
   layoutReady?: boolean
+  onLocateMessage?: (messageId: string) => void
 }
 
 const logger = loggerService.withContext('TopicBranchPanel')
@@ -31,7 +32,15 @@ const emptyTree: TreeResponse = {
   siblingsGroups: []
 }
 
-const TopicBranchPanel: FC<Props> = ({ open, topicId, topicName, liveState, focusKey, layoutReady }) => {
+const TopicBranchPanel: FC<Props> = ({
+  open,
+  topicId,
+  topicName,
+  liveState,
+  focusKey,
+  layoutReady,
+  onLocateMessage
+}) => {
   const { t } = useTranslation()
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
@@ -52,7 +61,11 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, topicName, liveState, focu
 
   const handleNodeSelect = useCallback(
     async (messageId: string) => {
-      if (messageId === graph.activeNodeId) return
+      const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
+      if (selectedNode?.data.isOnActivePath) {
+        onLocateMessage?.(messageId)
+        return
+      }
 
       let leafId = messageId
       try {
@@ -76,7 +89,7 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, topicName, liveState, focu
         window.toast.error(t('common.error'))
       }
     },
-    [graph.activeNodeId, refetch, setActiveNode, t, topicId]
+    [graph.nodes, onLocateMessage, refetch, setActiveNode, t, topicId]
   )
 
   return (

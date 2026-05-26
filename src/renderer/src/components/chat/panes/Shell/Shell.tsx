@@ -5,7 +5,7 @@ import { cn } from '@renderer/utils'
 import { Maximize2, Minimize2, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useMemo, useState } from 'react'
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -29,6 +29,8 @@ export interface ShellState {
 }
 
 interface ShellActions {
+  close: (afterClose?: () => void) => void
+  finishClose: () => void
   openTab: (tab: string) => void
   toggleTab: (tab: string) => void
   toggleMaximized: () => void
@@ -66,7 +68,30 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
   const [activeTab, setActiveTab] = useState(defaultTab)
   const [pdfLayoutPending, setPdfLayoutPending] = useState(false)
   const [pdfLayoutRefreshKey, setPdfLayoutRefreshKey] = useState(0)
+  const openRef = useRef(open)
+  const closeCallbacksRef = useRef<Array<() => void>>([])
 
+  useEffect(() => {
+    openRef.current = open
+  }, [open])
+
+  const finishClose = useCallback(() => {
+    const callbacks = closeCallbacksRef.current
+    closeCallbacksRef.current = []
+    for (const callback of callbacks) callback()
+  }, [])
+  const close = useCallback((afterClose?: () => void) => {
+    if (!openRef.current) {
+      afterClose?.()
+      return
+    }
+    if (afterClose) {
+      closeCallbacksRef.current.push(afterClose)
+    }
+    setOpen(false)
+    setMaximized(false)
+    setPdfLayoutPending(false)
+  }, [])
   const openTab = useCallback((tab: string) => {
     setActiveTab(tab)
     setOpen((currentOpen) => {
@@ -101,10 +126,12 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
   const value = useMemo<ShellContextValue>(
     () => ({
       state: { open, maximized, activeTab, pdfLayoutPending, pdfLayoutRefreshKey },
-      actions: { openTab, toggleTab, toggleMaximized, refreshPdfLayout }
+      actions: { close, finishClose, openTab, toggleTab, toggleMaximized, refreshPdfLayout }
     }),
     [
       activeTab,
+      close,
+      finishClose,
       maximized,
       open,
       openTab,
@@ -136,7 +163,8 @@ function ShellHost({ children }: { children: ReactNode }) {
       defaultWidth={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
       maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
       cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}
-      onOpenAnimationComplete={actions.refreshPdfLayout}>
+      onOpenAnimationComplete={actions.refreshPdfLayout}
+      onCloseAnimationComplete={actions.finishClose}>
       {children}
     </RightPaneHost>
   )
@@ -152,11 +180,11 @@ const CLIP_COLLAPSED = 'inset(0% 0% 0% 100%)'
 const CLIP_REVEALED = 'inset(0% 0% 0% 0%)'
 
 function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
-  const { state } = useShell()
+  const { state, actions } = useShell()
   const reduceMotion = useReducedMotion()
 
   return (
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={actions.finishClose}>
       {state.open && state.maximized && (
         <motion.div
           key="shell-maximized"
