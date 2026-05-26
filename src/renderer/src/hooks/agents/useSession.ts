@@ -9,17 +9,22 @@
  * Companion hooks for derived/lifecycle state (not CRUD):
  *  - {@link import('./useCreateDefaultSession').useCreateDefaultSession}
  *  - {@link import('./useAgentSessionInitializer').useAgentSessionInitializer}
- *  - {@link import('./useAgentSessionSync').useAgentSessionSync}
  */
 
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useInfiniteFlatItems, useInfiniteQuery, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import {
+  useInfiniteFlatItems,
+  useInfiniteQuery,
+  useInvalidateCache,
+  useMutation,
+  useQuery
+} from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { getErrorMessage } from '@renderer/utils/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity, CreateSessionDto, UpdateSessionDto } from '@shared/data/api/schemas/sessions'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
@@ -214,4 +219,23 @@ export const useUpdateSession = (agentId: string | null) => {
   )
 
   return { updateSession }
+}
+
+/**
+ * Listens for `IpcChannel.AgentSession_AutoRenamed` and invalidates the
+ * renamed session's SWR cache so the new name appears without manual refetch.
+ */
+export function useAgentSessionAutoRenameSync() {
+  const invalidate = useInvalidateCache()
+
+  useEffect(() => {
+    const onAutoRenamed = window.api?.agentSession?.onAutoRenamed
+    if (!onAutoRenamed) return
+    const unsubscribe = onAutoRenamed(({ sessionId }) => {
+      void invalidate(['/sessions', `/sessions/${sessionId}`])
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [invalidate])
 }

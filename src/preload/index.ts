@@ -804,6 +804,20 @@ const api = {
       return () => ipcRenderer.off(channel, listener)
     }
   },
+  topic: {
+    onAutoRenamed: (callback: (payload: { topicId: string }) => void) => {
+      const listener = (_: any, payload: { topicId: string }) => callback(payload)
+      ipcRenderer.on(IpcChannel.Topic_AutoRenamed, listener)
+      return () => ipcRenderer.off(IpcChannel.Topic_AutoRenamed, listener)
+    }
+  },
+  agentSession: {
+    onAutoRenamed: (callback: (payload: { sessionId: string }) => void) => {
+      const listener = (_: any, payload: { sessionId: string }) => callback(payload)
+      ipcRenderer.on(IpcChannel.AgentSession_AutoRenamed, listener)
+      return () => ipcRenderer.off(IpcChannel.AgentSession_AutoRenamed, listener)
+    }
+  },
   ai: {
     // ── Stream push listeners ──
     onStreamChunk: (callback: (data: StreamChunkPayload) => void) => {

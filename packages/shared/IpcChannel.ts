@@ -356,6 +356,11 @@ export enum IpcChannel {
   DataApi_Unsubscribe = 'data-api:unsubscribe',
   DataApi_Stream = 'data-api:stream',
 
+  // Topic auto-rename push (main → renderer; payload: { topicId })
+  Topic_AutoRenamed = 'topic:auto-renamed',
+  // Agent session auto-rename push (main → renderer; payload: { sessionId })
+  AgentSession_AutoRenamed = 'agent-session:auto-renamed',
+
   // TRACE
   TRACE_SAVE_DATA = 'trace:saveData',
   TRACE_GET_DATA = 'trace:getData',

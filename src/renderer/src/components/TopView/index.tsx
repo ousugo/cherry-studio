@@ -2,9 +2,9 @@
 import { Box } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppModalProvider from '@renderer/components/AppModal'
-import { useAgentSessionSync } from '@renderer/hooks/agents/useAgentSessionSync'
+import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agents/useSession'
 import { useAppInit } from '@renderer/hooks/useAppInit'
-import { useTopicSync } from '@renderer/hooks/useTopic'
+import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,8 +41,8 @@ const TopViewContent: React.FC<Props> = ({ children }) => {
   const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
 
   useAppInit()
-  useTopicSync()
-  useAgentSessionSync()
+  useTopicAutoRenameSync()
+  useAgentSessionAutoRenameSync()
 
   const toast = useToasts()
 
