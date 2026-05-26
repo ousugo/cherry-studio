@@ -72,6 +72,12 @@ describe('PermissionRequestComposer', () => {
     window.toast = { error: vi.fn() } as any
   })
 
+  it('marks the root panel as a composer viewport inset target', () => {
+    const { container } = render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(container.firstElementChild).toHaveAttribute('data-composer-viewport-inset-target', '')
+  })
+
   it('submits an approval decision', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(

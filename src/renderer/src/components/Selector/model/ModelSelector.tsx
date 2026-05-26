@@ -35,11 +35,15 @@ import { getProviderDisplayName } from './utils'
 const logger = loggerService.withContext('ModelSelector')
 
 const ITEM_HEIGHT = 36
-const DEFAULT_MODEL_SELECTOR_MAX_LIST_HEIGHT = 400
+const DEFAULT_MODEL_SELECTOR_MAX_CONTENT_HEIGHT = 360
 const ROW_TAG_SIZE = 8
 const FILTER_TAG_SIZE = 10
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: string[] = []
 const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
+const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(
+  1,
+  Math.floor(DEFAULT_MODEL_SELECTOR_MAX_CONTENT_HEIGHT / ITEM_HEIGHT)
+)
 
 const estimateModelSelectorItemSize = () => ITEM_HEIGHT
 
@@ -388,7 +392,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   visibleSelectedModelIdSetRef.current = visibleSelectedModelIdSet
 
   const listHeight = useMemo(() => Math.max(1, listItems.length) * ITEM_HEIGHT, [listItems.length])
-  const pageSize = useMemo(() => Math.max(1, Math.floor(DEFAULT_MODEL_SELECTOR_MAX_LIST_HEIGHT / ITEM_HEIGHT)), [])
+  const pageSize = DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE
   const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
   const getListItemKey = useCallback((index: number) => listItems[index].key, [listItems])
   const isStickyListItem = useCallback((index: number) => listItems[index].type === 'group', [listItems])
@@ -716,6 +720,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     [handleMultiSelectModeChange, multiSelectMode, multiple, t]
   )
 
+  const initialListHeight = Math.min(listHeight, DEFAULT_MODEL_SELECTOR_MAX_CONTENT_HEIGHT)
+
   return (
     <>
       {shortcut ? <ShortcutBinding shortcut={shortcut} onTrigger={handleShortcut} /> : null}
@@ -732,13 +738,13 @@ export function ModelSelector(props: ModelSelectorProps) {
         portalContainer={portalContainer}
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
+        maxContentHeight={DEFAULT_MODEL_SELECTOR_MAX_CONTENT_HEIGHT}
         data-testid="model-selector-content">
         {({ availableListHeight }) => {
-          const visibleListHeight = Math.min(
-            listHeight,
-            DEFAULT_MODEL_SELECTOR_MAX_LIST_HEIGHT,
-            availableListHeight ?? DEFAULT_MODEL_SELECTOR_MAX_LIST_HEIGHT
-          )
+          const visibleListHeight =
+            availableListHeight === undefined || availableListHeight === 0
+              ? initialListHeight
+              : Math.min(listHeight, Math.max(ITEM_HEIGHT, availableListHeight))
 
           return listItems.length > 0 ? (
             <div className="py-1" role="listbox" aria-multiselectable={multiple && multiSelectMode}>

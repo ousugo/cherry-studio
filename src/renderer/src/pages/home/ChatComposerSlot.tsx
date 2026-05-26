@@ -1,4 +1,3 @@
-import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/chat/composer/ConversationComposerSlot'
 import { ChatPlacementComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
 import type { FileMetadata, Topic } from '@renderer/types'
@@ -22,7 +21,6 @@ interface ChatComposerSlotProps {
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   sendDisabled?: boolean
-  composerContext: ComposerContextValue
 }
 
 export default function ChatComposerSlot({
@@ -31,8 +29,7 @@ export default function ChatComposerSlot({
   onSend,
   onTemporaryAssistantChange,
   onNewTopic,
-  sendDisabled,
-  composerContext
+  sendDisabled
 }: ChatComposerSlotProps) {
   const fallback = (
     <ChatPlacementComposer
@@ -45,5 +42,5 @@ export default function ChatComposerSlot({
     />
   )
 
-  return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
+  return <ConversationComposerSlot fallback={fallback} />
 }

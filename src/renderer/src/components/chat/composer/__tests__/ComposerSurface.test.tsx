@@ -221,7 +221,7 @@ describe('ComposerSurface', () => {
     }
   })
 
-  it('uses a viewport-relative max height and only fixes height when expanded', async () => {
+  it('uses state-specific viewport-relative max heights and only fixes height when expanded', async () => {
     render(<Harness />)
 
     const editorContent = screen.getByTestId('editor-content')
@@ -231,8 +231,9 @@ describe('ComposerSurface', () => {
     expect(editorContainer).toHaveStyle({ minHeight: '46px' })
     expect(editorContainer).not.toHaveStyle({ height: 'max(220px, 50vh)' })
     expect(editorContent).not.toHaveStyle({ height: '100%' })
-    expect(editor.getAttribute('data-editor-style')).toContain('max-height: max(220px, 50vh)')
-    expect(editor.className).toContain('max-h-[max(220px,50vh)]')
+    expect(editor.getAttribute('data-editor-style')).toContain('max-height: max(220px, 40vh)')
+    expect(editor.className).toContain('max-h-[max(220px,40vh)]')
+    expect(editor.className).not.toContain('max-h-[max(220px,50vh)]')
     expect(editor.className).not.toContain('max-h-[500px]')
 
     await waitFor(() => expect(mocks.actions).toBeDefined())
@@ -242,7 +243,11 @@ describe('ComposerSurface', () => {
 
     expect(editorContainer).toHaveStyle({ height: 'max(220px, 50vh)', overflow: 'hidden' })
     expect(editorContent).toHaveStyle({ height: '100%' })
+    expect(screen.getByTestId('composer-editor').className).toContain('max-h-[max(220px,50vh)]')
     expect(screen.getByTestId('composer-editor').className).toContain('h-full')
+    expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain(
+      'max-height: max(220px, 50vh)'
+    )
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('height: 100%')
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('overflow-y: auto')
   })

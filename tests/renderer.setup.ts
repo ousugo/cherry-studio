@@ -451,6 +451,12 @@ vi.mock('@cherrystudio/ui', () => {
         { value: { open, onOpenChange } },
         React.createElement('div', { ...props, 'data-testid': 'popover' }, children)
       ),
+    PopoverAnchor: ({ children, asChild, ...props }) => {
+      if (asChild && React.isValidElement(children)) {
+        return React.cloneElement(children, { ...props, ...children.props })
+      }
+      return React.createElement('div', props, children)
+    },
     PopoverTrigger: ({ children, asChild, ...props }) => {
       const context = React.useContext(PopoverContext)
       const triggerProps = {

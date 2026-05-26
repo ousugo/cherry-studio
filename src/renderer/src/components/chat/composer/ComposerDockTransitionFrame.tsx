@@ -52,22 +52,24 @@ export default function ComposerDockTransitionFrame({
         setComposerInlineInsets({ left: 0, right: 0 })
         return
       }
-      const inputbar = node.querySelector<HTMLElement>('[data-composer-inputbar]')
+      const insetTarget =
+        node.querySelector<HTMLElement>('[data-composer-viewport-inset-target]') ??
+        node.querySelector<HTMLElement>('[data-composer-inputbar]')
       const root = rootRef.current
-      if (!inputbar || !root) {
+      if (!insetTarget || !root) {
         setBottomOverlayInsets(null)
         setComposerInlineInsets({ left: 0, right: 0 })
         return
       }
-      const inputbarRect = inputbar.getBoundingClientRect()
+      const insetTargetRect = insetTarget.getBoundingClientRect()
       const composerRect = node.getBoundingClientRect()
       const rootRect = root.getBoundingClientRect()
       const scroller = root.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
       const scrollerRect = scroller?.getBoundingClientRect()
       const scrollerClientWidth = scroller?.clientWidth ?? 0
       setBottomOverlayInsets({
-        contentBottomPadding: Math.max(0, inputbarRect.bottom - composerRect.top + COMPOSER_MESSAGE_GAP_PX),
-        scrollerBottomMargin: Math.max(0, rootRect.bottom - inputbarRect.bottom)
+        contentBottomPadding: Math.max(0, insetTargetRect.bottom - composerRect.top + COMPOSER_MESSAGE_GAP_PX),
+        scrollerBottomMargin: Math.max(0, rootRect.bottom - insetTargetRect.bottom)
       })
       setComposerInlineInsets({
         left: scrollerRect ? Math.max(0, scrollerRect.left - rootRect.left) : 0,
@@ -81,8 +83,10 @@ export default function ComposerDockTransitionFrame({
     const observer = new ResizeObserver(updateInset)
     if (rootRef.current) observer.observe(rootRef.current)
     observer.observe(node)
-    const inputbar = node.querySelector<HTMLElement>('[data-composer-inputbar]')
-    if (inputbar) observer.observe(inputbar)
+    const insetTarget =
+      node.querySelector<HTMLElement>('[data-composer-viewport-inset-target]') ??
+      node.querySelector<HTMLElement>('[data-composer-inputbar]')
+    if (insetTarget) observer.observe(insetTarget)
     const scroller = rootRef.current?.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
     if (scroller) observer.observe(scroller)
     return () => observer.disconnect()
@@ -111,7 +115,9 @@ export default function ComposerDockTransitionFrame({
         className={cn(
           'absolute inset-x-0 w-full',
           composerElevated ? 'z-50' : 'z-10',
-          isDocked ? 'bottom-0' : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh]'
+          isDocked
+            ? 'bottom-0'
+            : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh] has-[.inputbar-container.expanded]:pb-0'
         )}>
         <div className="pointer-events-auto w-full">
           {!isDocked && homeHeader ? <div className="mb-6 flex justify-center">{homeHeader}</div> : null}

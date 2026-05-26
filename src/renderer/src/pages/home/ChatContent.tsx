@@ -49,8 +49,8 @@ interface Props {
  * initial-loading view so the composer doesn't disappear during topic switches.
  *
  * `useChatRuntimeState` owns message runtime concerns — stream handoff,
- * execution overlays, write actions, and composer overrides. This page keeps
- * the provider/frame composition visible.
+ * execution overlays, and write actions. This page keeps the provider/frame
+ * composition visible.
  */
 const ChatContent: FC<Props> = ({
   topic,
@@ -212,7 +212,6 @@ const ChatContentInner: FC<InnerProps> = ({
                       hasOlder={hasOlder}
                       openCitationsPanel={onOpenCitationsPanel}
                       openTrace={onOpenTrace}
-                      respondToolApproval={runtime.respondToolApproval}
                     />
                   )
                   const composer = (
@@ -223,7 +222,6 @@ const ChatContentInner: FC<InnerProps> = ({
                       onTemporaryAssistantChange={onTemporaryAssistantChange}
                       onNewTopic={onNewTopic}
                       sendDisabled={isHistoryLoading}
-                      composerContext={runtime.composerContext}
                     />
                   )
                   const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'

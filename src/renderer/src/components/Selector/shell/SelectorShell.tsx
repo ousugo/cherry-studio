@@ -82,7 +82,7 @@ export type SelectorShellProps = {
   side?: PopoverContentProps['side']
   align?: PopoverContentProps['align']
   sideOffset?: PopoverContentProps['sideOffset']
-  maxListHeight?: number | string
+  maxContentHeight?: number | string
   portalContainer?: PopoverContentProps['portalContainer']
   mountStrategy?: SelectorShellMountStrategy
   contentProps?: Omit<
@@ -105,13 +105,14 @@ function parsePixelValue(value: string | null | undefined) {
 function getAvailablePopoverHeight(element: HTMLElement) {
   const styles = window.getComputedStyle(element)
   const parentStyles = element.parentElement ? window.getComputedStyle(element.parentElement) : null
-
-  return (
-    parsePixelValue(styles.getPropertyValue('--radix-popover-content-available-height')) ??
-    parsePixelValue(styles.getPropertyValue('--radix-popper-available-height')) ??
-    parsePixelValue(parentStyles?.getPropertyValue('--radix-popper-available-height')) ??
+  const heightCandidates = [
+    parsePixelValue(styles.getPropertyValue('--radix-popover-content-available-height')),
+    parsePixelValue(styles.getPropertyValue('--radix-popper-available-height')),
+    parsePixelValue(parentStyles?.getPropertyValue('--radix-popper-available-height')),
     parsePixelValue(styles.maxHeight)
-  )
+  ].filter((height): height is number => height !== undefined)
+
+  return heightCandidates.length > 0 ? Math.min(...heightCandidates) : undefined
 }
 
 export function SelectorShell({
@@ -128,7 +129,7 @@ export function SelectorShell({
   side = 'bottom',
   align = 'start',
   sideOffset = 4,
-  maxListHeight,
+  maxContentHeight,
   portalContainer,
   mountStrategy = 'destroy',
   contentProps,
@@ -318,7 +319,7 @@ export function SelectorShell({
           {...restContentProps}
           style={{
             width: typeof width === 'number' ? `${width}px` : width,
-            maxHeight: typeof maxListHeight === 'number' ? `${maxListHeight}px` : maxListHeight,
+            maxHeight: typeof maxContentHeight === 'number' ? `${maxContentHeight}px` : maxContentHeight,
             ...style
           }}
           onInteractOutside={(event) => {

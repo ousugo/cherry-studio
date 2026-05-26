@@ -223,6 +223,13 @@ async function openCreateDialog() {
 }
 
 describe('AssistantSelector', () => {
+  it('sets a 360px default popover max height', () => {
+    renderSelector()
+    openPopover()
+
+    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({ maxHeight: '360px' })
+  })
+
   it('renders rows in DataApi order and shows tag filters without sort controls', () => {
     renderSelector()
     openPopover()
