@@ -98,6 +98,7 @@ Main. The renderer's only job is rendering chunks.
 │      • TemporaryChatBackend   (in-memory)                    │
 │      • AgentSessionMessageBackend (agent-session DB)         │
 │      • TranslationBackend     (translate row)                │
+│    TraceFlushListener    → SpanCacheService.saveSpans(topicId)
 │    ChannelAdapterListener → adapter.onStreamComplete         │
 │    SseListener            → res.write('[DONE]')              │
 └──────────────────────────────────────────────────────────────┘
@@ -123,6 +124,7 @@ volume × audience width**.
 |---|---|---|
 | `WebContentsListener` | chunk + terminal | explicit `attach` → `ActiveStream.listeners` |
 | `PersistenceListener` | terminal | built by the provider and added in `send()` |
+| `TraceFlushListener` | terminal | built by chat / agent-session turn owners and added in `send()` |
 | `ChannelAdapterListener` / `SseListener` | chunk + terminal | caller injects into `send()`'s `listeners` |
 | UI indirect consumers (sidebar indicators, …) | topic status | `useSharedCache('topic.stream.statuses.${topicId}')` |
 
@@ -169,6 +171,11 @@ Choose by **consumer / producer fanout**:
 - **`PersistenceListener` placement.** Terminal-only consumer — doesn't
   need chunk bandwidth → not added via `attach`; the provider includes
   it in the `listeners` array passed to `send()`.
+- **`TraceFlushListener` placement.** Terminal-only consumer that flushes
+  `SpanCacheService.saveSpans(topicId)` after a chat / agent turn completes.
+  It belongs with the turn owner (`PersistentChatContextProvider` or
+  `AgentSessionRuntimeService`), not inside `AiStreamManager` and not in
+  trace viewer UI.
 
 ## File layout
 
@@ -203,6 +210,7 @@ src/main/ai/streamManager/
 ├── listeners/
 │   ├── WebContentsListener.ts         chunks → renderer windows
 │   ├── PersistenceListener.ts         observer protocol + delegates to PersistenceBackend
+│   ├── TraceFlushListener.ts          terminal trace-cache flush to local history
 │   ├── ChannelAdapterListener.ts      text → Discord / Slack / Feishu
 │   └── SseListener.ts                 UIMessageChunk → SSE response (API server)
 │
@@ -248,6 +256,7 @@ write paths per status.
 |---|---|---|---|
 | **WebContentsListener** | chunks → renderer window | `wc:${wc.id}:${topicId}` | `!wc.isDestroyed()` |
 | **PersistenceListener** | terminal write via strategy | `persistence:${backendKind}:${topicId}:${modelId}` | always `true` |
+| **TraceFlushListener** | terminal trace-cache flush | `persistence:trace:${topicId}` | always `true` |
 | **ChannelAdapterListener** | text → IM platform | `channel:${channelId}:${chatId}` | `adapter.connected` |
 | **SseListener** | API-server SSE passthrough | `sse:${uuid}` | `!res.writableEnded` |
 

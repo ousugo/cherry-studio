@@ -42,6 +42,7 @@ queue, and `resume` handling are driver internals.
    - a `PendingMessageQueue` for later live injects;
    - a runtime persistence listener;
    - a runtime terminal listener;
+   - a trace flush listener for `agent-session:${sessionId}` history files;
    - a `turnId`.
 6. The prepared model request includes:
    - `runtime: { kind: 'agent-session', sessionId, turnId }`;

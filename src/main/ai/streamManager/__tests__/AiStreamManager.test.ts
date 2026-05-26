@@ -114,6 +114,7 @@ const fakeCacheService = {
     sharedCacheStore.set(key, value)
   })
 }
+const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -124,13 +125,15 @@ vi.mock('@application', async () => {
   // is wired up regardless of the type.
   return mockApplicationFactory({
     AiService: { streamText: mockStreamText },
-    CacheService: fakeCacheService
+    CacheService: fakeCacheService,
+    SpanCacheService: { saveSpans: mockSaveSpans }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
+const { TraceFlushListener } = await import('../listeners/TraceFlushListener')
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -194,6 +197,7 @@ describe('AiStreamManager', () => {
     mockStreamText.mockImplementation(async (request: AiStreamRequest) =>
       pendingStream((request.requestOptions as { signal?: AbortSignal } | undefined)?.signal)
     )
+    mockSaveSpans.mockResolvedValue(undefined)
     sharedCacheStore.clear()
   })
 
@@ -600,6 +604,48 @@ describe('AiStreamManager', () => {
       // Both listeners received onDone despite thrower throwing
       expect(thrower.doneResults).toHaveLength(1)
       expect(receiver.doneResults).toHaveLength(1)
+    })
+
+    it('flushes trace spans for completed chat topics', async () => {
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a'), new TraceFlushListener('a')]
+      })
+
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      expect(mockSaveSpans).toHaveBeenCalledWith('a')
+    })
+
+    it('flushes trace spans for completed agent-session topics', async () => {
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('l:a'), new TraceFlushListener('agent-session:session-1')]
+      })
+
+      await mgr.onExecutionDone('agent-session:session-1', 'provider-a::model-a')
+
+      expect(mockSaveSpans).toHaveBeenCalledWith('agent-session:session-1')
+    })
+
+    it('does not let trace flush failure block terminal completion', async () => {
+      mockSaveSpans.mockRejectedValueOnce(new Error('trace write failed'))
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener, new TraceFlushListener('a')]
+      })
+
+      await expect(mgr.onExecutionDone('a', 'provider-a::model-a')).resolves.toBeUndefined()
+
+      expect(listener.doneResults).toHaveLength(1)
+      expect(mgr.inspect('a')?.status).toBe('done')
     })
   })
 
