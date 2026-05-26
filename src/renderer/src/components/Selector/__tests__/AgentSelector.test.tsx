@@ -214,6 +214,13 @@ async function openCreateDialog() {
 }
 
 describe('AgentSelector', () => {
+  it('sets a 360px default popover max height', () => {
+    renderSelector()
+    openPopover()
+
+    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({ maxHeight: '360px' })
+  })
+
   it('fetches agents from DataApi and renders returned rows', () => {
     renderSelector()
     openPopover()

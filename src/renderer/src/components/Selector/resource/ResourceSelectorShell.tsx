@@ -168,7 +168,7 @@ function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): s
 
 const DEFAULT_RESOURCE_TAG_COLOR = '#6372bd'
 const DEFAULT_MIN_LIST_HEIGHT = 144
-const DEFAULT_MAX_LIST_HEIGHT = 320
+const DEFAULT_MAX_CONTENT_HEIGHT = 360
 
 function normalizeTag(tag: ResourceSelectorShellTag) {
   return typeof tag === 'string' ? { name: tag, color: undefined } : tag
@@ -687,6 +687,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       sideOffset={sideOffset ?? 6}
       contentClassName="min-w-[280px]"
       mountStrategy={mountStrategy}
+      maxContentHeight={DEFAULT_MAX_CONTENT_HEIGHT}
       search={{
         value: searchValue,
         onChange: setSearchValue,
@@ -713,8 +714,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       {({ availableListHeight }) => {
         const listMaxHeight =
           availableListHeight === undefined
-            ? DEFAULT_MAX_LIST_HEIGHT
-            : Math.min(DEFAULT_MAX_LIST_HEIGHT, availableListHeight)
+            ? DEFAULT_MAX_CONTENT_HEIGHT
+            : Math.min(DEFAULT_MAX_CONTENT_HEIGHT, availableListHeight)
         const listMinHeight =
           availableListHeight === undefined
             ? DEFAULT_MIN_LIST_HEIGHT

@@ -146,6 +146,54 @@ describe('SelectorShell', () => {
     await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('112'))
   })
 
+  it('uses maxContentHeight as the popover cap before measuring list height', async () => {
+    const originalGetComputedStyle = window.getComputedStyle.bind(window)
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+      const style = originalGetComputedStyle(element)
+      const isContent = element instanceof HTMLElement && element.getAttribute('data-selector-shell-content') === 'true'
+      if (!isContent) return style
+
+      Object.defineProperties(style, {
+        maxHeight: { configurable: true, value: '160px' },
+        paddingTop: { configurable: true, value: '0px' },
+        paddingBottom: { configurable: true, value: '0px' }
+      })
+      vi.spyOn(style, 'getPropertyValue').mockImplementation((property: string) =>
+        property === '--radix-popover-content-available-height'
+          ? '500px'
+          : CSSStyleDeclaration.prototype.getPropertyValue.call(style, property)
+      )
+      return style
+    })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const isChrome = this.hasAttribute('data-selector-shell-chrome')
+      return {
+        x: 0,
+        y: 0,
+        width: 320,
+        height: isChrome ? 20 : 0,
+        top: 0,
+        right: 320,
+        bottom: isChrome ? 20 : 0,
+        left: 0,
+        toJSON: () => {}
+      }
+    })
+
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        maxContentHeight={160}
+        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}>
+        {({ availableListHeight }) => <div data-testid="available-height">{availableListHeight}</div>}
+      </SelectorShell>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('140'))
+  })
+
   it('does not force focus into search when search autoFocus is false', async () => {
     const focusSpy = vi.spyOn(HTMLInputElement.prototype, 'focus')
 

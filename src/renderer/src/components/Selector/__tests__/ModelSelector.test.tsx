@@ -652,7 +652,7 @@ describe('ModelSelector', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('uses a 400px default max height for long model lists', () => {
+  it('sets a 360px default popover max height for long model lists', () => {
     const items = Array.from({ length: 30 }, (_, index) => makeModelItem(`openai::model-${index}` as UniqueModelId))
     mockUseModelSelectorData.mockReturnValue(
       makeData({
@@ -663,7 +663,8 @@ describe('ModelSelector', () => {
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    expect(mockVirtualListSizes.at(-1)).toBe(400)
+    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ maxHeight: '360px' })
+    expect(mockVirtualListSizes.at(-1)).toBe(360)
   })
 
   it('clamps the visible model list height to the available popover space', async () => {

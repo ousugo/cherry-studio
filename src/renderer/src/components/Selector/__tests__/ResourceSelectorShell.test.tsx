@@ -185,6 +185,23 @@ describe('ResourceSelectorShell', () => {
       expect(screen.getByRole('listbox')).toHaveStyle({ minHeight: '144px' })
     })
 
+    it('sets a 360px default popover max height when available space is unconstrained', () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({ maxHeight: '360px' })
+    })
+
     it('renders empty results with the shared empty state', () => {
       render(
         <ResourceSelectorShell
