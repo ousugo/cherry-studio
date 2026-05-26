@@ -164,6 +164,31 @@ describe('MainTextBlock', () => {
       expect(textElement).not.toHaveTextContent('src/chat.ts')
       expect(textElement.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
     })
+
+    it('should ignore legacy model composer tokens in user messages', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = false
+      renderMainTextBlock({
+        content: 'Ask now',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'model-1',
+              kind: 'model',
+              label: 'GPT',
+              index: 0,
+              textOffset: 0
+            }
+          ]
+        }
+      })
+
+      const textElement = getRenderedPlainText()!
+      expect(textElement.textContent).toBe('Ask now')
+      expect(textElement).not.toHaveTextContent('GPT')
+      expect(textElement.querySelector('[data-composer-token-kind="model"]')).not.toBeInTheDocument()
+    })
   })
 
   describe('mentions functionality', () => {

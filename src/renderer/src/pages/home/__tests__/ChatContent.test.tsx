@@ -105,6 +105,39 @@ vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
         home composer
       </button>
     )
+  },
+  ChatPlacementComposer: ({
+    isHome,
+    onSend,
+    sendDisabled,
+    onTemporaryAssistantChange
+  }: {
+    isHome: boolean
+    onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
+    sendDisabled?: boolean
+    onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
+  }) => {
+    capturedOnSend = onSend
+    if (isHome) {
+      return (
+        <button
+          type="button"
+          data-testid="chat-home-composer"
+          onClick={() => onTemporaryAssistantChange?.('assistant-2')}>
+          home composer
+        </button>
+      )
+    }
+
+    return (
+      <button
+        type="button"
+        data-use-mentioned-model-selector="true"
+        disabled={sendDisabled}
+        onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })}>
+        send
+      </button>
+    )
   }
 }))
 

@@ -91,7 +91,7 @@ export interface StreamListener {
 
 /**
  * One model's execution within an ActiveStream. Single-model topics have
- * one entry; multi-model (`@gpt-4o @claude-sonnet`) have N entries
+ * one entry; multi-model selections have N entries
  * running independently against the same listeners and siblingsGroupId.
  *
  * Each execution has a `pendingMessages` queue. Callers may provide a

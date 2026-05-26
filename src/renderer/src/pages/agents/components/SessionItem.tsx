@@ -163,11 +163,15 @@ const SessionItem = ({
     <ResourceList.Item
       item={session}
       data-testid="agent-session-row"
-      className={cn('relative', isActive && 'bg-accent text-foreground')}
+      className="relative"
       style={{ cursor: 'pointer' }}
       onClick={handlePress}
       title={sessionName}>
-      <span aria-hidden="true" className="size-6 shrink-0" />
+      <ResourceList.ItemLeadingSlot className={cn(!rowState.renaming && channelIcon && 'rounded-sm')}>
+        {!rowState.renaming && channelIcon ? (
+          <img src={channelIcon} alt="" className="size-3.5 rounded-[2px] object-contain" />
+        ) : null}
+      </ResourceList.ItemLeadingSlot>
 
       <ResourceList.RenameField
         item={session}
@@ -177,22 +181,15 @@ const SessionItem = ({
       />
 
       {!rowState.renaming && (
-        <>
-          {channelIcon && (
-            <ResourceList.ItemIcon className="rounded-sm">
-              <img src={channelIcon} alt="" className="size-3.5 rounded-[2px] object-contain" />
-            </ResourceList.ItemIcon>
-          )}
-          <ResourceList.ItemTitle
-            title={sessionName}
-            className={cn(nameAnimationClassName, 'transition-[padding]', sessionTrailingActionPaddingClassName)}
-            onDoubleClick={(event) => {
-              event.stopPropagation()
-              startInlineEdit()
-            }}>
-            {sessionName}
-          </ResourceList.ItemTitle>
-        </>
+        <ResourceList.ItemTitle
+          title={sessionName}
+          className={cn(nameAnimationClassName, 'transition-[padding]', sessionTrailingActionPaddingClassName)}
+          onDoubleClick={(event) => {
+            event.stopPropagation()
+            startInlineEdit()
+          }}>
+          {sessionName}
+        </ResourceList.ItemTitle>
       )}
 
       <ResourceList.ItemActions active={hasStreamIndicator || (!pinned && isConfirmingDeletion)}>

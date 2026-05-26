@@ -1239,7 +1239,6 @@ const Sessions = ({
       items={visibleGroupedSessions}
       status={listStatus}
       selectedId={activeSessionId}
-      estimateItemSize={() => 38}
       groupBy={sessionGroupBy}
       sectionBy={sessionSectionBy}
       collapsedGroupIds={effectiveCollapsedSessionGroupIds}

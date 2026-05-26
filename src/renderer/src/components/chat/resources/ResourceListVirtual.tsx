@@ -24,10 +24,11 @@ import {
   useResourceListView
 } from './ResourceListContext'
 import { GroupHeader, GroupShowMore, SectionHeader } from './ResourceListGroups'
+import { RESOURCE_LIST_DEFAULT_ROW_SIZE, RESOURCE_LIST_ROW_HEIGHT_CLASS } from './resourceListLayout'
 
 const SCROLLBAR_AUTO_HIDE_DELAY = 1200
 const SCROLLBAR_FADE_STEP = 140
-const ITEM_ROW_GAP_CLASS = 'pb-[2px]'
+const ITEM_ROW_CLASS = `flex w-full items-center py-[2px] ${RESOURCE_LIST_ROW_HEIGHT_CLASS}`
 
 type ScrollbarStage = 'active' | 'fade-1' | 'fade-2' | 'fade-3' | 'idle'
 
@@ -94,9 +95,7 @@ type ResourceListVirtualRow<T extends ResourceListItemBase> = GroupedVirtualList
   ResourceListVirtualFooter
 >
 
-const RESOURCE_LIST_VIRTUAL_ROW_SIZE = 38
-
-const estimateResourceListChromeSize = () => RESOURCE_LIST_VIRTUAL_ROW_SIZE
+const estimateResourceListChromeSize = () => RESOURCE_LIST_DEFAULT_ROW_SIZE
 
 function toSectionVirtualGroup(section: ResourceListSection): ResourceListVirtualGroupData {
   return { ...section, __resourceListKind: 'section' }
@@ -143,7 +142,7 @@ function getListViewportClassName(stage: ScrollbarStage, className?: string) {
 
 function VirtualItemRow({ children }: { children: ReactNode }) {
   return (
-    <div data-resource-list-item-row="true" className={ITEM_ROW_GAP_CLASS}>
+    <div data-resource-list-item-row="true" className={ITEM_ROW_CLASS}>
       {children}
     </div>
   )
@@ -306,7 +305,7 @@ export function VirtualItems<T extends ResourceListItemBase>({ className, ref, r
   const renderVirtualItem = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => (
       <VirtualItemRow>
-        <div>{renderItem(virtualItem.item, renderContext)}</div>
+        <div className="w-full">{renderItem(virtualItem.item, renderContext)}</div>
       </VirtualItemRow>
     ),
     [renderContext, renderItem]
@@ -506,7 +505,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   const renderVirtualItem = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => (
       <VirtualItemRow>
-        <div>{renderItem(virtualItem.item, renderContext)}</div>
+        <div className="w-full">{renderItem(virtualItem.item, renderContext)}</div>
       </VirtualItemRow>
     ),
     [renderContext, renderItem]

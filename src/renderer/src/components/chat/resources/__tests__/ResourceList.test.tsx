@@ -207,8 +207,10 @@ describe('ResourceList', () => {
     expect(items).toHaveLength(5)
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(19)
     expect(groupHeaders[0]).toHaveClass('h-[38px]', 'px-1.5', 'pt-2', 'pb-1', 'gap-1.5')
+    expect(groupHeaders[0].querySelector('[data-resource-list-leading-slot="true"]')).toHaveClass('size-6')
     expect(groupHeaders[0].querySelector('[data-slot="skeleton"]')).toHaveClass('size-5')
-    expect(items[0]).toHaveClass('mb-[2px]', 'min-h-9', 'rounded-lg', 'px-1.5', 'py-1.5', 'gap-1.5')
+    expect(items[0]).toHaveClass('mb-1.5', 'h-8', 'rounded-lg', 'px-1.5', 'gap-1.5')
+    expect(items[0].querySelector('[data-resource-list-leading-slot="true"]')).toHaveClass('size-6')
     expect(items[0].querySelector('[data-slot="skeleton"]')).toHaveClass('size-5')
     expect(items[0].querySelectorAll('[data-slot="skeleton"]')[2]).toHaveClass('size-5')
   })
@@ -266,7 +268,13 @@ describe('ResourceList', () => {
     expect(screen.getByText('Beta')).toBeInTheDocument()
     expect(screen.getByText('Gamma')).toBeInTheDocument()
     expect(screen.getByText('Alpha')).toBeInTheDocument()
-    expect(container.querySelector('[data-resource-list-item-row="true"]')).toHaveClass('pb-[2px]')
+    expect(container.querySelector('[data-resource-list-item-row="true"]')).toHaveClass(
+      'flex',
+      'h-[38px]',
+      'items-center',
+      'w-full',
+      'py-[2px]'
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     fireEvent.change(screen.getByPlaceholderText('Search resources'), { target: { value: 'ga' } })
@@ -1010,7 +1018,7 @@ describe('ResourceList', () => {
 
     expect(screen.getByText('Pinned')).toBeInTheDocument()
     expect(screen.getByText('Regular')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveClass('text-[color:var(--resource-list-group-color)]')
+    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveClass('text-inherit')
     expect(screen.getByRole('button', { name: 'Pinned' })).not.toHaveClass('hover:text-muted-foreground/70')
     expect(screen.queryByText('2')).not.toBeInTheDocument()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
@@ -1051,6 +1059,31 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'session' }))
     expect(screen.getByTestId('session-icon')).toHaveAttribute('data-collapsed', 'true')
+  })
+
+  it('keeps group header text aligned when the icon slot is empty', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={ITEMS} groupBy={(item) => ({ id: item.kind, label: item.kind })} getGroupHeaderIcon={() => null}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const leadingSlot = screen
+      .getByRole('button', { name: 'session' })
+      .querySelector('[data-resource-list-leading-slot="true"]')
+
+    expect(leadingSlot).toHaveClass('size-6')
+    expect(leadingSlot).toBeEmptyDOMElement()
   })
 
   it('renders caller-provided leading group header actions separately from collapse controls', () => {
@@ -1130,7 +1163,7 @@ describe('ResourceList', () => {
     expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveAttribute('aria-selected', 'true')
     expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
     expect(sessionGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
-    expect(sessionGroupButton.closest('[data-selected]')?.firstElementChild?.className).toContain('h-9')
+    expect(sessionGroupButton.closest('[data-selected]')?.firstElementChild?.className).toContain('h-8')
     expect(screen.getByRole('button', { name: 'topic' })).not.toHaveAttribute('aria-current')
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       collapsedGroups: [],
@@ -1243,7 +1276,7 @@ describe('ResourceList', () => {
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     const showMoreButton = screen.getByRole('button', { name: 'Show more' })
     expect(showMoreButton.parentElement).toHaveClass('pl-9')
-    expect(showMoreButton).toHaveClass('text-[color:var(--resource-list-group-color)]')
+    expect(showMoreButton).toHaveClass('text-inherit')
     expect(showMoreButton).not.toHaveClass('opacity-[0.65]')
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 7 }))
 
@@ -1576,7 +1609,9 @@ describe('ResourceList', () => {
           <ResourceList.VirtualItems<TestItem>
             renderItem={(item) => (
               <ResourceList.Item item={item}>
-                <ResourceList.ItemIcon data-testid={`${item.id}-icon`} />
+                <ResourceList.ItemLeadingSlot data-testid={`${item.id}-leading-slot`}>
+                  {item.id === 'alpha' ? <span data-testid="alpha-leading-icon" /> : null}
+                </ResourceList.ItemLeadingSlot>
                 <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
                 <ResourceList.ItemActions>
                   <ResourceList.ItemAction aria-label={`Action ${item.name}`} />
@@ -1599,7 +1634,10 @@ describe('ResourceList', () => {
     )
     expect(screen.getByRole('listbox')).toHaveClass('px-1.5')
     expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass('relative', 'gap-1.5', 'px-1.5')
-    expect(screen.getByTestId('alpha-icon')).toHaveClass('size-6')
+    expect(screen.getByTestId('alpha-leading-slot')).toHaveClass('size-6')
+    expect(screen.getByTestId('alpha-leading-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('beta-leading-slot')).toHaveClass('size-6')
+    expect(screen.getByTestId('beta-leading-slot')).toHaveAttribute('aria-hidden', 'true')
     const action = screen.getByRole('button', { name: 'Action Alpha' })
     expect(action).toHaveClass('pointer-events-none', 'size-5')
     expect(action.closest('[data-resource-list-item-actions="true"]')).toHaveClass(
@@ -1619,10 +1657,6 @@ describe('ResourceList', () => {
           <ResourceList.VirtualItems<TestItem>
             renderItem={(item) => (
               <ResourceList.Item item={item}>
-                <ResourceList.ItemLeadingAction
-                  aria-label={`Pin ${item.name}`}
-                  data-active={item.pinned || undefined}
-                />
                 <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
                 <ResourceList.ItemActions>
                   <ResourceList.ItemAction aria-label={`Delete ${item.name}`} />
@@ -1635,17 +1669,12 @@ describe('ResourceList', () => {
     )
 
     expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveAttribute('data-selected', 'true')
-    expect(screen.getByRole('button', { name: 'Pin Alpha' })).toHaveClass('opacity-0', 'group-hover:opacity-100')
-    expect(screen.getByRole('button', { name: 'Pin Alpha' }).className).not.toContain(
-      'group-data-[selected=true]:opacity-100'
-    )
     expect(screen.getByText('Alpha')).toHaveClass('font-normal', 'group-data-[selected=true]:font-medium')
     expect(screen.getByText('Beta')).toHaveClass('font-normal')
     expect(screen.getByRole('button', { name: 'Delete Alpha' })).toHaveClass('opacity-0', 'group-hover:opacity-100')
     expect(screen.getByRole('button', { name: 'Delete Alpha' }).className).not.toContain(
       'group-data-[selected=true]:opacity-100'
     )
-    expect(screen.getByRole('button', { name: 'Pin Beta' })).toHaveAttribute('data-active', 'true')
   })
 
   it('keeps sidebar header and search chrome visually quiet', () => {

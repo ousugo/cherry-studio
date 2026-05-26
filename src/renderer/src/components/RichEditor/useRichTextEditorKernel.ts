@@ -29,18 +29,27 @@ export function useRichTextEditorKernel({
   onCreate
 }: UseRichTextEditorKernelOptions) {
   const mergedEditorProps = useMemo<EditorOptions['editorProps']>(() => {
-    const baseAttributes = editorProps?.attributes ?? {}
+    const readOnlyStyle = editable
+      ? ''
+      : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;'
+    const mergeAttributes = (attributes: Record<string, string> = {}) => {
+      const baseStyle = typeof attributes.style === 'string' ? attributes.style : ''
+
+      return {
+        ...attributes,
+        style: [baseStyle, readOnlyStyle].filter(Boolean).join('; '),
+        spellcheck: enableSpellCheck ? 'true' : 'false'
+      }
+    }
+    const baseAttributes = editorProps?.attributes
 
     return {
       ...editorProps,
       ...(handlePaste && { handlePaste }),
-      attributes: {
-        ...baseAttributes,
-        style: editable
-          ? ''
-          : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;',
-        spellcheck: enableSpellCheck ? 'true' : 'false'
-      }
+      attributes:
+        typeof baseAttributes === 'function'
+          ? (state) => mergeAttributes(baseAttributes(state))
+          : mergeAttributes(baseAttributes)
     }
   }, [editable, editorProps, enableSpellCheck, handlePaste])
 

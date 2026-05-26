@@ -1,7 +1,7 @@
 /**
  * Owns `agent-session:{id}` topics. Reads state from sessions /
  * agents, persists through `agentSessionMessageService`, single-model
- * only (no @mention fan-out), passes `userMessage` for the inject path.
+ * only (no selector fan-out), passes `userMessage` for the inject path.
  */
 
 import { agentService } from '@data/services/AgentService'

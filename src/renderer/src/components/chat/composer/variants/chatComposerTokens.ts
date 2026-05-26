@@ -1,13 +1,11 @@
 import type { FileMetadata } from '@renderer/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import type { Model } from '@shared/data/types/model'
 
 import type { ComposerDraftToken, ComposerSerializedToken } from '../tokens'
 
 export const chatComposerTokenId = {
   file: (file: Pick<FileMetadata, 'id' | 'path'>) => `file:${file.id || file.path}`,
-  knowledge: (base: Pick<KnowledgeBase, 'id'>) => `knowledge:${base.id}`,
-  model: (model: Pick<Model, 'id'>) => `model:${model.id}`
+  knowledge: (base: Pick<KnowledgeBase, 'id'>) => `knowledge:${base.id}`
 }
 
 export function fileToComposerToken(file: FileMetadata): ComposerDraftToken {
@@ -25,15 +23,6 @@ export function knowledgeBaseToComposerToken(base: KnowledgeBase): ComposerDraft
     kind: 'knowledge',
     label: base.name,
     payload: base
-  }
-}
-
-export function modelToComposerToken(model: Model): ComposerDraftToken {
-  return {
-    id: chatComposerTokenId.model(model),
-    kind: 'model',
-    label: model.name,
-    payload: model
   }
 }
 

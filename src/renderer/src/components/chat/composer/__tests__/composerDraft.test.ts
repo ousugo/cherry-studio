@@ -115,6 +115,28 @@ describe('composer draft serialization', () => {
     })
   })
 
+  it('filters model tokens out of persisted composer metadata', () => {
+    expect(
+      createComposerMessageSnapshot({
+        text: 'Ask docs',
+        tokens: [
+          { id: 'model-1', kind: 'model', label: 'GPT', index: 0, textOffset: 0 },
+          { id: 'kb-1', kind: 'knowledge', label: 'Docs', index: 1, textOffset: 4 }
+        ]
+      })
+    ).toEqual({
+      version: 1,
+      tokens: [{ id: 'kb-1', kind: 'knowledge', label: 'Docs', index: 1, textOffset: 4 }]
+    })
+
+    expect(
+      createComposerMessageSnapshot({
+        text: 'Ask',
+        tokens: [{ id: 'model-1', kind: 'model', label: 'GPT', index: 0, textOffset: 0 }]
+      })
+    ).toBeUndefined()
+  })
+
   it('builds user message parts with composer metadata and file parts', () => {
     const draft = serializeComposerDocument({
       type: 'doc',

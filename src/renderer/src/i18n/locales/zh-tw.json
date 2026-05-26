@@ -3645,6 +3645,12 @@
       "placeholder": "搜尋模型...",
       "tooltip": "搜尋模型"
     },
+    "selection": {
+      "context_window": "上下文 {{count}}",
+      "remove_model": "移除 {{name}}",
+      "restore_default": "恢復助理模型",
+      "selected_models": "已選模型"
+    },
     "stream_output": "串流輸出",
     "type": {
       "audio": "音訊",

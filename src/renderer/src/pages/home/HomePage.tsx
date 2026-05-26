@@ -14,7 +14,7 @@ import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
-import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -351,15 +351,12 @@ const HomePage: FC = () => {
   )
 
   useEffect(() => {
-    void window.api.window.setMinimumSize(
-      effectiveShowSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH,
-      MIN_WINDOW_HEIGHT
-    )
+    void window.api.window.setMinimumSize(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
     return () => {
       void window.api.window.resetMinimumSize()
     }
-  }, [effectiveShowSidebar])
+  }, [])
 
   const openHistory = useCallback((origin?: DOMRectReadOnly) => {
     setHistoryOrigin(origin)
@@ -465,6 +462,7 @@ const HomePage: FC = () => {
           }
           paneOpen={effectiveShowSidebar}
           panePosition={panePosition}
+          onPaneCollapse={() => void setShowSidebar(false)}
           onNewTopic={isMessageOnlyView ? undefined : startTemporaryTopic}
           onOpenSidePanelDrawer={isMessageOnlyView ? undefined : openSidePanelDrawer}
           showResourceListControls={!isMessageOnlyView}

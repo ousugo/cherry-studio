@@ -30,13 +30,14 @@ import {
   type ResourceListViewGroup,
   type ResourceListViewSection
 } from './ResourceListContext'
+import { RESOURCE_LIST_DEFAULT_ROW_SIZE } from './resourceListLayout'
 import { ResourceListUiStore } from './ResourceListUiStore'
 
 const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
 const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = []
 const getDefaultItemId = (item: ResourceListItemBase) => item.id
 const getDefaultItemLabel = (item: ResourceListItemBase) => item.name
-const estimateDefaultItemSize = () => 38
+const estimateDefaultItemSize = () => RESOURCE_LIST_DEFAULT_ROW_SIZE
 const UNGROUPED_RESOURCE_GROUP: ResourceListGroup = { id: 'ungrouped', label: '' }
 const UNSECTIONED_RESOURCE_SECTION: ResourceListSection = { id: 'resource-list:section:unsectioned', label: '' }
 

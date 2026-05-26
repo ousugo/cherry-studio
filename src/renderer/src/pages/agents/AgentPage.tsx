@@ -15,7 +15,7 @@ import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { useSearch } from '@tanstack/react-router'
 import type { PropsWithChildren } from 'react'
@@ -128,14 +128,11 @@ const AgentPage = () => {
   }, [activeSession])
 
   useEffect(() => {
-    void window.api.window.setMinimumSize(
-      effectiveShowSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH,
-      MIN_WINDOW_HEIGHT
-    )
+    void window.api.window.setMinimumSize(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
     return () => {
       void window.api.window.resetMinimumSize()
     }
-  }, [effectiveShowSidebar])
+  }, [])
 
   const openHistory = useCallback((origin?: DOMRectReadOnly) => {
     setHistoryOrigin(origin)
@@ -397,6 +394,7 @@ const AgentPage = () => {
           lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
           paneOpen={effectiveShowSidebar}
           panePosition={panePosition}
+          onPaneCollapse={() => void setShowSidebar(false)}
           showResourceListControls={!isMessageOnlyView}
           temporaryConversation={isMessageOnlyView ? null : temporaryAgentConversation}
           onStartTemporarySession={isMessageOnlyView ? undefined : startTemporarySession}

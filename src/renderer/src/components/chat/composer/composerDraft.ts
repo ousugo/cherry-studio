@@ -68,11 +68,12 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
 }
 
 export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): ComposerMessageSnapshot | undefined {
-  if (draft.tokens.length === 0) return undefined
+  const visibleTokens = draft.tokens.filter((token) => token.kind !== 'model')
+  if (visibleTokens.length === 0) return undefined
 
   return {
     version: COMPOSER_MESSAGE_SNAPSHOT_VERSION,
-    tokens: draft.tokens.map(({ id, kind, label, icon, description, index, textOffset, promptText }) => ({
+    tokens: visibleTokens.map(({ id, kind, label, icon, description, index, textOffset, promptText }) => ({
       id,
       kind,
       label,

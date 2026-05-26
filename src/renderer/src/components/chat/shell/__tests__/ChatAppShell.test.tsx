@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChatAppShell } from '../ChatAppShell'
 import {
@@ -10,8 +10,10 @@ import {
   RESOURCE_LIST_PANE_MIN_WIDTH
 } from '../useResourceListPaneResize'
 
+const RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD = 200
+
 const persistCacheMock = vi.hoisted(() => {
-  const state = { width: 275 }
+  const state = { width: 240 }
 
   return {
     state,
@@ -65,6 +67,14 @@ vi.mock('motion/react', () => {
 })
 
 describe('ChatAppShell', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      value: 1200,
+      writable: true
+    })
+  })
+
   afterEach(() => {
     persistCacheMock.state.width = RESOURCE_LIST_PANE_DEFAULT_WIDTH
     persistCacheMock.setWidth.mockClear()
@@ -147,8 +157,11 @@ describe('ChatAppShell', () => {
     )
   })
 
-  it('clamps drag width and cleans document resize styles', () => {
-    const { container } = render(<ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />)
+  it('saves drag width at or above the minimum and cleans document resize styles', () => {
+    const onPaneCollapse = vi.fn()
+    const { container } = render(
+      <ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />
+    )
     const pane = container.querySelector('[data-resource-list-pane]')
     const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
 
@@ -164,18 +177,145 @@ describe('ChatAppShell', () => {
     expect(pane).toHaveAttribute('data-resizing', 'true')
 
     fireEvent.mouseMove(document, { clientX: 350 })
-    fireEvent.mouseMove(document, { clientX: 50 })
     fireEvent.mouseMove(document, { clientX: 600 })
 
     expect(persistCacheMock.setWidth).toHaveBeenNthCalledWith(1, 250)
-    expect(persistCacheMock.setWidth).toHaveBeenNthCalledWith(2, RESOURCE_LIST_PANE_MIN_WIDTH)
-    expect(persistCacheMock.setWidth).toHaveBeenNthCalledWith(3, RESOURCE_LIST_PANE_MAX_WIDTH)
+    expect(persistCacheMock.setWidth).toHaveBeenNthCalledWith(2, RESOURCE_LIST_PANE_MAX_WIDTH)
+    expect(onPaneCollapse).not.toHaveBeenCalled()
 
     fireEvent.mouseUp(document)
 
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
     expect(pane).not.toHaveAttribute('data-resizing')
+  })
+
+  it('clamps below-minimum drag width without collapsing when left drag is below the collapse threshold', () => {
+    const onPaneCollapse = vi.fn()
+    const { container } = render(
+      <ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />
+    )
+    const pane = container.querySelector('[data-resource-list-pane]')
+    const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
+
+    if (!pane || !handle) {
+      throw new Error('Expected resource list pane and resize handle')
+    }
+
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, RESOURCE_LIST_PANE_MIN_WIDTH, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 340 })
+    fireEvent.mouseMove(document, { clientX: 339 })
+
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(RESOURCE_LIST_PANE_MIN_WIDTH)
+    expect(onPaneCollapse).not.toHaveBeenCalled()
+    expect(document.body.style.cursor).toBe('col-resize')
+    expect(document.body.style.userSelect).toBe('none')
+    expect(pane).toHaveAttribute('data-resizing', 'true')
+  })
+
+  it('collapses the left resource pane after resizing cleanup when dragging below the minimum width past the collapse threshold', async () => {
+    let pane: Element | null = null
+    const onPaneCollapse = vi.fn(() => {
+      expect(pane).not.toHaveAttribute('data-resizing')
+    })
+    const { container } = render(
+      <ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />
+    )
+    pane = container.querySelector('[data-resource-list-pane]')
+    const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
+
+    if (!pane || !handle) {
+      throw new Error('Expected resource list pane and resize handle')
+    }
+
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, RESOURCE_LIST_PANE_MIN_WIDTH, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 340 })
+    fireEvent.mouseMove(document, { clientX: 340 - RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD - 1 })
+
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(RESOURCE_LIST_PANE_DEFAULT_WIDTH)
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+    expect(pane).not.toHaveAttribute('data-resizing')
+
+    await waitFor(() => expect(onPaneCollapse).toHaveBeenCalledTimes(1))
+
+    fireEvent.mouseMove(document, { clientX: 600 })
+
+    expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not collapse on rightward drag even if the measured width is below the minimum', () => {
+    const onPaneCollapse = vi.fn()
+    const { container } = render(
+      <ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />
+    )
+    const pane = container.querySelector('[data-resource-list-pane]')
+    const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
+
+    if (!pane || !handle) {
+      throw new Error('Expected resource list pane and resize handle')
+    }
+
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(200, 0, RESOURCE_LIST_PANE_MIN_WIDTH, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 250 })
+    fireEvent.mouseMove(document, { clientX: 260 })
+
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(RESOURCE_LIST_PANE_MIN_WIDTH)
+    expect(onPaneCollapse).not.toHaveBeenCalled()
+    expect(document.body.style.cursor).toBe('col-resize')
+    expect(document.body.style.userSelect).toBe('none')
+    expect(pane).toHaveAttribute('data-resizing', 'true')
+  })
+
+  it('auto-collapses the open left pane when the window is resized below the wide threshold', () => {
+    const onPaneCollapse = vi.fn()
+
+    render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
+
+    window.innerWidth = 959
+    fireEvent.resize(window)
+
+    expect(onPaneCollapse).toHaveBeenCalledTimes(1)
+  })
+
+  it('allows manually opening the left pane while the window is already below the wide threshold', () => {
+    const onPaneCollapse = vi.fn()
+    window.innerWidth = 959
+
+    const { rerender } = render(
+      <ChatAppShell pane={<aside>topics</aside>} paneOpen={false} onPaneCollapse={onPaneCollapse} main={<div />} />
+    )
+
+    rerender(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
+    fireEvent.resize(window)
+
+    expect(onPaneCollapse).not.toHaveBeenCalled()
+  })
+
+  it('does not auto-collapse when the pane is closed or positioned on the right', () => {
+    const onPaneCollapse = vi.fn()
+    const { rerender } = render(
+      <ChatAppShell pane={<aside>topics</aside>} paneOpen={false} onPaneCollapse={onPaneCollapse} main={<div />} />
+    )
+
+    window.innerWidth = 959
+    fireEvent.resize(window)
+
+    rerender(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        panePosition="right"
+        onPaneCollapse={onPaneCollapse}
+        main={<div />}
+      />
+    )
+    fireEvent.resize(window)
+
+    expect(onPaneCollapse).not.toHaveBeenCalled()
   })
 
   it('keeps the resize handle below history overlays', () => {

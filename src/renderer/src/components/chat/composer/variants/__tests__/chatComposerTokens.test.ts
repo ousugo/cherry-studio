@@ -1,18 +1,16 @@
 import type { FileMetadata } from '@renderer/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import type { Model } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import {
   chatComposerTokenId,
   fileToComposerToken,
   getComposerTokenIds,
-  knowledgeBaseToComposerToken,
-  modelToComposerToken
+  knowledgeBaseToComposerToken
 } from '../chatComposerTokens'
 
 describe('chat composer token mapping', () => {
-  it('maps files, knowledge bases, and models to stable composer token ids', () => {
+  it('maps files and knowledge bases to stable composer token ids', () => {
     const file = {
       id: 'file-1',
       name: 'chat.ts',
@@ -20,7 +18,6 @@ describe('chat composer token mapping', () => {
       path: '/tmp/chat.ts'
     } as FileMetadata
     const knowledgeBase = { id: 'kb-1', name: 'Docs' } as KnowledgeBase
-    const model = { id: 'model-1', name: 'GPT 5.5' } as unknown as Model
 
     expect(fileToComposerToken(file)).toMatchObject({
       id: 'file:file-1',
@@ -33,12 +30,6 @@ describe('chat composer token mapping', () => {
       kind: 'knowledge',
       label: 'Docs',
       payload: knowledgeBase
-    })
-    expect(modelToComposerToken(model)).toMatchObject({
-      id: 'model:model-1',
-      kind: 'model',
-      label: 'GPT 5.5',
-      payload: model
     })
   })
 

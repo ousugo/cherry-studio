@@ -21,21 +21,14 @@ import { getComposerToolConfig } from '@renderer/components/chat/composer/tools/
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { AssistantSelector, ModelSelector } from '@renderer/components/Selector'
-import {
-  isEmbeddingModel,
-  isGenerateImageModel,
-  isGenerateImageModels,
-  isRerankModel,
-  isVisionModel,
-  isVisionModels
-} from '@renderer/config/models'
+import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/config/models'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModels } from '@renderer/hooks/useModel'
-import { getProviderDisplayName, useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
+import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -49,60 +42,32 @@ import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel, isWebSearchModel } from '@shared/utils/model'
-import type { Editor } from '@tiptap/core'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { createComposerUserMessageParts, serializeComposerDocument } from '../composerDraft'
-import type { ComposerSuggestionSource } from '../ComposerSuggestion'
-import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
+import { createComposerUserMessageParts } from '../composerDraft'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { useComposerMessageQueue } from '../useComposerMessageQueue'
 import {
   chatComposerTokenId,
   fileToComposerToken,
   getComposerTokenIds,
-  knowledgeBaseToComposerToken,
-  modelToComposerToken
+  knowledgeBaseToComposerToken
 } from './chatComposerTokens'
+import { SelectedModelsTrigger } from './SelectedModelsTrigger'
 
 const INPUTBAR_DRAFT_CACHE_KEY = 'inputbar-draft'
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 const logger = loggerService.withContext('ChatComposer')
-const CHAT_MANAGED_TOKEN_KINDS = ['file', 'model', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
+const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
 const COMPOSER_TOOLBAR_CLASS =
   'flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
 const COMPOSER_BELOW_SELECTOR_BUTTON_CLASS =
   'h-8 shrink-0 gap-1.5 rounded-lg border border-transparent bg-transparent px-2.5 text-xs font-medium text-muted-foreground/75 shadow-none hover:bg-transparent hover:text-muted-foreground/75 disabled:bg-transparent disabled:text-muted-foreground/50 [&_svg]:text-muted-foreground/60 hover:[&_svg]:text-muted-foreground/60'
-
-const getMentionedModelsCacheKey = (assistantId: string | undefined) =>
-  `inputbar-mentioned-models-${assistantId ?? 'no-assistant'}`
-
-const getValidatedCachedModels = (assistantId: string | undefined): Model[] => {
-  const cached = cacheService.getCasual<Model[]>(getMentionedModelsCacheKey(assistantId))
-  if (!Array.isArray(cached)) return []
-  const cachedModels = cached.filter((model) => model?.id && model?.name)
-  return cachedModels.length > 1 ? cachedModels : []
-}
-
-const deleteComposerTokenById = (editor: Editor, tokenId: string) => {
-  let tokenRange: { from: number; to: number } | undefined
-
-  editor.state.doc.descendants((node, pos) => {
-    if (node.type.name !== COMPOSER_TOKEN_NODE_NAME || node.attrs.id !== tokenId) return true
-
-    tokenRange = { from: pos, to: pos + node.nodeSize }
-    return false
-  })
-
-  if (!tokenRange) return false
-
-  editor.chain().focus().deleteRange(tokenRange).run()
-  return true
-}
 
 interface ChatComposerProps {
   topic: Topic
@@ -140,6 +105,7 @@ interface ChatComposerContextControlsProps {
   model?: Model
   modelProviderName?: string
   modelPending?: boolean
+  providers: Provider[]
   mentionedModels: Model[]
   mentionedModelSelectorValue: Model[]
   mentionedModelMultiSelectMode: boolean
@@ -150,6 +116,7 @@ interface ChatComposerContextControlsProps {
   onModelSelect: (model: Model | undefined) => void
   onMentionedModelsSelect: (models: Model[]) => void
   onMentionedModelMultiSelectModeChange: (enabled: boolean) => void
+  onMentionedModelSelectorRestore: () => void
 }
 
 const ChatComposerContextControls = ({
@@ -159,6 +126,7 @@ const ChatComposerContextControls = ({
   model,
   modelProviderName,
   modelPending,
+  providers,
   mentionedModels,
   mentionedModelSelectorValue,
   mentionedModelMultiSelectMode,
@@ -168,27 +136,16 @@ const ChatComposerContextControls = ({
   onAssistantChange,
   onModelSelect,
   onMentionedModelsSelect,
-  onMentionedModelMultiSelectModeChange
+  onMentionedModelMultiSelectModeChange,
+  onMentionedModelSelectorRestore
 }: ChatComposerContextControlsProps) => {
-  const { t } = useTranslation()
   const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
   const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const selectedMentionedModels = useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
-  const selectedMentionedModel = selectedMentionedModels[0]
-  const displayModel = useMentionedModelSelector ? selectedMentionedModel : model
   const assistantModelLabel = model
     ? `${model.name}${modelProviderName ? ` | ${modelProviderName}` : ''}`
     : selectModelLabel
-  const selectedMentionedModelLabel = selectedMentionedModel
-    ? `${selectedMentionedModel.name}${
-        selectedMentionedModel.id === model?.id && modelProviderName ? ` | ${modelProviderName}` : ''
-      }`
-    : selectModelLabel
-  const mentionedModelLabel =
-    selectedMentionedModels.length > 1
-      ? t('common.selectedItems', { count: selectedMentionedModels.length })
-      : selectedMentionedModelLabel
-  const modelLabel = useMentionedModelSelector ? mentionedModelLabel : assistantModelLabel
+  const modelLabel = assistantModelLabel
   const handleMentionedModelSelect = useCallback(
     (nextModels: Model[]) => {
       onMentionedModelsSelect(nextModels)
@@ -232,10 +189,16 @@ const ChatComposerContextControls = ({
           align="start"
           mountStrategy="lazy-keep"
           trigger={
-            <Button variant="ghost" size="sm" className={triggerClassName} disabled={modelPending}>
-              <ModelAvatar model={displayModel} size={20} />
-              <span className="max-w-52 truncate">{modelLabel}</span>
-            </Button>
+            <SelectedModelsTrigger
+              className={triggerClassName}
+              disabled={modelPending}
+              models={selectedMentionedModels}
+              assistantModel={model}
+              providers={providers}
+              fallbackLabel={selectModelLabel}
+              onModelsChange={handleMentionedModelSelect}
+              onRestore={onMentionedModelSelectorRestore}
+            />
           }
         />
       ) : (
@@ -311,7 +274,6 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
 
 type ChatComposerRootProps = ChatComposerProps & {
   renderControls: ChatComposerControlsRenderer
-  cacheMentionedModels?: boolean
 }
 
 const ChatComposerRoot = ({
@@ -321,25 +283,19 @@ const ChatComposerRoot = ({
   useMentionedModelSelector,
   onTemporaryAssistantChange,
   onNewTopic,
-  renderControls,
-  cacheMentionedModels = true
+  renderControls
 }: ChatComposerRootProps) => {
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-  const initialMentionedModels = useMemo(() => {
-    if (!cacheMentionedModels) return []
-    return getValidatedCachedModels(topic.assistantId)
-  }, [cacheMentionedModels, topic.assistantId])
-
   const initialState = useMemo(
     () => ({
       files: [] as FileMetadata[],
-      mentionedModels: initialMentionedModels,
+      mentionedModels: [] as Model[],
       selectedKnowledgeBases: [] as KnowledgeBase[],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
     }),
-    [initialMentionedModels]
+    []
   )
 
   return (
@@ -360,7 +316,6 @@ const ChatComposerRoot = ({
         onTemporaryAssistantChange={onTemporaryAssistantChange}
         onNewTopic={onNewTopic}
         renderControls={renderControls}
-        cacheMentionedModels={cacheMentionedModels}
       />
     </ComposerToolRuntimeProvider>
   )
@@ -369,7 +324,6 @@ const ChatComposerRoot = ({
 interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'setActiveTopic'> {
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   renderControls: ChatComposerControlsRenderer
-  cacheMentionedModels: boolean
 }
 
 const ChatComposerInner = ({
@@ -380,14 +334,12 @@ const ChatComposerInner = ({
   useMentionedModelSelector,
   onTemporaryAssistantChange,
   onNewTopic,
-  renderControls,
-  cacheMentionedModels
+  renderControls
 }: ChatComposerInnerProps) => {
   const awaitingApproval = useTopicAwaitingApproval(topic.id)
   const scope = topic.type ?? TopicType.Chat
   const config = getComposerToolConfig(scope)
-  const { files, mentionedModels, selectedKnowledgeBases, isExpanded, couldMentionNotVisionModel } =
-    useComposerToolState()
+  const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
   const { setCouldAddImageFile, setExtensions } = useComposerToolInternalDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
@@ -401,7 +353,7 @@ const ChatComposerInner = ({
   } = useAssistant(topic.assistantId, { loadDefaultModel: false })
   const { updateTopic } = useTopicMutations()
   const { bases: allKnowledgeBases } = useKnowledgeBases()
-  const { models: mentionableModels } = useModels()
+  const { models: selectableModels } = useModels()
   const { providers } = useProviders()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
@@ -427,6 +379,8 @@ const ChatComposerInner = ({
   const runtimeModelPending = isAssistantLoading || (!!assistant && isModelPending)
   const missingAssistantMessage = !isAssistantLoading && !assistant ? selectAssistantMessage : undefined
   const missingModelMessage = assistant && isModelMissing ? t('code.model_required') : undefined
+  const missingSelectedModelMessage =
+    useMentionedModelSelector && mentionedModelSelectorValue.length === 0 ? t('code.model_required') : undefined
   mentionedModelsRef.current = mentionedModels
   mentionedModelMultiSelectModeRef.current = mentionedModelMultiSelectMode
 
@@ -551,12 +505,8 @@ const ChatComposerInner = ({
       })
 
   const tokens = useMemo(
-    () => [
-      ...files.map(fileToComposerToken),
-      ...mentionedModels.map(modelToComposerToken),
-      ...selectedKnowledgeBases.map(knowledgeBaseToComposerToken)
-    ],
-    [files, mentionedModels, selectedKnowledgeBases]
+    () => [...files.map(fileToComposerToken), ...selectedKnowledgeBases.map(knowledgeBaseToComposerToken)],
+    [files, selectedKnowledgeBases]
   )
 
   const handleTokensChange = useCallback(
@@ -585,15 +535,6 @@ const ChatComposerInner = ({
       return prev.filter((file) => !duplicateIds.has(chatComposerTokenId.file(file)))
     })
   }, [files, setFiles])
-
-  const onUnmount = useEffectEvent((id: string | undefined) => {
-    if (!cacheMentionedModels) return
-    cacheService.setCasual(getMentionedModelsCacheKey(id), mentionedModels, DRAFT_CACHE_TTL)
-  })
-
-  useEffect(() => {
-    return () => onUnmount(topic.assistantId)
-  }, [onUnmount, topic.assistantId])
 
   const onPause = useCallback(() => {
     chatWrite?.pause()
@@ -651,107 +592,18 @@ const ChatComposerInner = ({
     [setMentionedModels]
   )
 
+  const handleMentionedModelSelectorRestore = useCallback(() => {
+    mentionedModelMultiSelectModeRef.current = false
+    setMentionedModelMultiSelectMode(false)
+    setMentionedModelSelectorValue(runtimeModel ? [runtimeModel] : [])
+    setMentionedModels([])
+  }, [runtimeModel, setMentionedModels])
+
   const handleTokenRemoveRequest = useCallback(
     (request: ComposerTokenRemoveRequest) => {
-      if (request.kind !== 'model') {
-        actionsRef.current.removeToken(request.tokenId)
-        return
-      }
-
-      const nextModels = mentionedModelsRef.current.filter(
-        (currentModel) => chatComposerTokenId.model(currentModel) !== request.tokenId
-      )
-      setMentionedModels(nextModels)
-      setMentionedModelSelectorValue(nextModels)
       actionsRef.current.removeToken(request.tokenId)
     },
-    [actionsRef, setMentionedModels]
-  )
-
-  const mentionSuggestionStateRef = useRef({
-    mentionableModels,
-    providers,
-    mentionedModels,
-    couldMentionNotVisionModel,
-    setMentionedModelsWithSelector
-  })
-  mentionSuggestionStateRef.current = {
-    mentionableModels,
-    providers,
-    mentionedModels,
-    couldMentionNotVisionModel,
-    setMentionedModelsWithSelector
-  }
-
-  const mentionModelSuggestionSource = useMemo<ComposerSuggestionSource>(
-    () => ({
-      pluginKey: 'chat-model-mention-suggestion',
-      char: '@',
-      allowSpaces: true,
-      allowedPrefixes: [' ', '\n'],
-      multiple: true,
-      pageSize: 7,
-      keepOpenOnSelect: true,
-      items: ({ query }) => {
-        const {
-          mentionableModels,
-          providers,
-          mentionedModels,
-          couldMentionNotVisionModel,
-          setMentionedModelsWithSelector
-        } = mentionSuggestionStateRef.current
-        const providerById = new Map(providers.map((provider) => [provider.id, provider]))
-        const normalizedQuery = query.trim().toLowerCase()
-        const queryTerms = normalizedQuery.split(/\s+/).filter(Boolean)
-
-        return mentionableModels
-          .filter((currentModel) => !isEmbeddingModel(currentModel) && !isRerankModel(currentModel))
-          .filter((currentModel) => couldMentionNotVisionModel || isVisionModel(currentModel))
-          .map((currentModel) => {
-            const provider = providerById.get(currentModel.providerId)
-            const providerName = provider ? getProviderDisplayName(provider) : currentModel.providerId
-            const filterText = `${providerName} ${currentModel.name} ${currentModel.group ?? ''}`.toLowerCase()
-            return {
-              id: chatComposerTokenId.model(currentModel),
-              label: `${providerName} | ${currentModel.name}`,
-              icon: <ModelAvatar model={currentModel} size={18} />,
-              filterText,
-              selected: mentionedModels.some((model) => model.id === currentModel.id),
-              command: ({ editor }) => {
-                const token = modelToComposerToken(currentModel)
-                const exists = serializeComposerDocument(editor).tokens.some(
-                  (currentToken) => currentToken.id === token.id
-                )
-
-                if (exists) {
-                  deleteComposerTokenById(editor, token.id)
-                  setMentionedModelsWithSelector((prev) => prev.filter((model) => model.id !== currentModel.id))
-                  return
-                }
-
-                editor.chain().focus().insertComposerToken(token).run()
-                setMentionedModelsWithSelector((prev) =>
-                  prev.some((model) => model.id === currentModel.id) ? prev : [...prev, currentModel]
-                )
-              }
-            }
-          })
-          .filter(
-            (item) =>
-              !normalizedQuery ||
-              queryTerms.every((term) => {
-                const compactFilterText = item.filterText.replace(/\s+/g, '')
-                return item.filterText.includes(term) || compactFilterText.includes(term)
-              })
-          )
-      }
-    }),
-    []
-  )
-
-  const suggestionSources = useMemo(
-    () => (enableQuickPanelTriggers ? [mentionModelSuggestionSource] : []),
-    [enableQuickPanelTriggers, mentionModelSuggestionSource]
+    [actionsRef]
   )
 
   const addNewTopic = useCallback(
@@ -796,9 +648,6 @@ const ChatComposerInner = ({
       if (!nextText) return null
       const tokenIds = getComposerTokenIds(draft.tokens)
       const payloadFiles = files.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
-      const payloadModels = mentionedModels.filter((currentModel) =>
-        tokenIds.has(chatComposerTokenId.model(currentModel))
-      )
       const payloadKnowledgeBases = selectedKnowledgeBases.filter((base) =>
         tokenIds.has(chatComposerTokenId.knowledge(base))
       )
@@ -809,7 +658,7 @@ const ChatComposerInner = ({
       return {
         text: nextText,
         files: payloadFiles.length ? (payloadFiles as unknown as Array<Record<string, unknown>>) : undefined,
-        mentionedModels: payloadModels.length ? payloadModels.map((currentModel) => currentModel.id) : undefined,
+        mentionedModels: mentionedModels.length ? mentionedModels.map((currentModel) => currentModel.id) : undefined,
         knowledgeBaseIds: knowledgeBaseIds?.length ? knowledgeBaseIds : undefined,
         userMessageParts
       }
@@ -856,6 +705,11 @@ const ChatComposerInner = ({
         return
       }
 
+      if (missingSelectedModelMessage) {
+        window.toast?.error(missingSelectedModelMessage)
+        return
+      }
+
       if (sendDisabled) return
       if (runtimeModelPending) return
 
@@ -877,6 +731,7 @@ const ChatComposerInner = ({
       clearCurrentDraft,
       loading,
       messageQueue,
+      missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
       sendDisabled,
@@ -891,13 +746,13 @@ const ChatComposerInner = ({
       setText(payload.text)
       setFiles((payload.files ?? []) as unknown as FileMetadata[])
       setMentionedModelsWithSelector(
-        mentionableModels.filter((currentModel) => payload.mentionedModels?.includes(currentModel.id))
+        selectableModels.filter((currentModel) => payload.mentionedModels?.includes(currentModel.id))
       )
       setSelectedKnowledgeBases(
         allKnowledgeBases.filter((base): base is KnowledgeBase => payload.knowledgeBaseIds?.includes(base.id) ?? false)
       )
     },
-    [allKnowledgeBases, mentionableModels, setFiles, setMentionedModelsWithSelector, setSelectedKnowledgeBases, setText]
+    [allKnowledgeBases, selectableModels, setFiles, setMentionedModelsWithSelector, setSelectedKnowledgeBases, setText]
   )
 
   const handleEditDraftQueueItem = useCallback(
@@ -982,6 +837,7 @@ const ChatComposerInner = ({
       runtimeModelPending ||
       !!missingAssistantMessage ||
       !!missingModelMessage ||
+      !!missingSelectedModelMessage ||
       !assistant ||
       !runtimeModel
     ) {
@@ -1014,6 +870,7 @@ const ChatComposerInner = ({
     messageQueue,
     missingAssistantMessage,
     missingModelMessage,
+    missingSelectedModelMessage,
     runtimeModel,
     runtimeModelPending,
     searching,
@@ -1030,6 +887,7 @@ const ChatComposerInner = ({
     model: runtimeModel,
     modelProviderName: providerName,
     modelPending: runtimeModelPending,
+    providers,
     mentionedModels,
     mentionedModelSelectorValue,
     mentionedModelMultiSelectMode,
@@ -1038,7 +896,8 @@ const ChatComposerInner = ({
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,
     onMentionedModelsSelect: handleMentionedModelsSelect,
-    onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange
+    onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
+    onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
 
   return (
@@ -1059,9 +918,14 @@ const ChatComposerInner = ({
           searching ||
           runtimeModelPending ||
           !!missingAssistantMessage ||
-          !!missingModelMessage
+          !!missingModelMessage ||
+          !!missingSelectedModelMessage
         }
-        sendBlockedReason={sendDisabled ? t('common.loading') : (missingAssistantMessage ?? missingModelMessage)}
+        sendBlockedReason={
+          sendDisabled
+            ? t('common.loading')
+            : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
+        }
         isLoading={loading}
         onSendDraft={handleSendDraft}
         onPause={onPause}
@@ -1081,7 +945,6 @@ const ChatComposerInner = ({
         onActionsChange={handleSurfaceActionsChange}
         onTokenRemoveRequest={handleTokenRemoveRequest}
         getToolLaunchers={() => getLaunchers('root-panel')}
-        suggestionSources={suggestionSources}
         queueContent={
           <ComposerMessageQueuePanel
             draftItems={messageQueue.draftItems}
@@ -1104,22 +967,24 @@ const ChatComposerInner = ({
 }
 
 const ChatComposer = (props: ChatComposerProps) => {
-  return (
-    <ChatComposerRoot
-      {...props}
-      cacheMentionedModels={!props.useMentionedModelSelector}
-      renderControls={renderChatToolbarControls}
-    />
-  )
+  return <ChatComposerRoot {...props} renderControls={renderChatToolbarControls} />
 }
 
 export const ChatHomeComposer = (props: ChatComposerProps) => {
+  return <ChatComposerRoot {...props} useMentionedModelSelector renderControls={renderChatHomeControls} />
+}
+
+export const ChatPlacementComposer = ({
+  isHome,
+  onTemporaryAssistantChange,
+  ...props
+}: ChatComposerProps & { isHome: boolean }) => {
   return (
     <ChatComposerRoot
       {...props}
+      onTemporaryAssistantChange={isHome ? onTemporaryAssistantChange : undefined}
       useMentionedModelSelector
-      cacheMentionedModels={false}
-      renderControls={renderChatHomeControls}
+      renderControls={isHome ? renderChatHomeControls : renderChatToolbarControls}
     />
   )
 }

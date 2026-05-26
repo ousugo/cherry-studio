@@ -3645,6 +3645,12 @@
       "placeholder": "Search models...",
       "tooltip": "Search models"
     },
+    "selection": {
+      "context_window": "Context {{count}}",
+      "remove_model": "Remove {{name}}",
+      "restore_default": "Restore assistant model",
+      "selected_models": "Selected models"
+    },
     "stream_output": "Stream output",
     "type": {
       "audio": "Audio",

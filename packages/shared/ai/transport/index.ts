@@ -6,7 +6,7 @@ export interface AiChatRequestBody {
   topicId: string
   /** Explicit parent node — message id at the current branch tip, or null for first message. */
   parentAnchorId?: string
-  /** Models mentioned via @ in the input (multi-model fan-out). */
+  /** Models selected by the composer model selector (multi-model fan-out). */
   mentionedModels?: UniqueModelId[]
   /** User message parts to persist/display for submit-message turns. */
   userMessageParts?: CherryMessagePart[]

@@ -1,7 +1,7 @@
 import { ContextMenu as UiContextMenu, ContextMenuTrigger } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { ChevronDown } from 'lucide-react'
-import type { ComponentProps, CSSProperties, MouseEvent, Ref } from 'react'
+import type { ComponentProps, MouseEvent, Ref } from 'react'
 import { useCallback, useState } from 'react'
 
 import {
@@ -13,11 +13,16 @@ import {
   useResourceListMeta,
   useResourceListView
 } from './ResourceListContext'
+import {
+  RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
+  RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS,
+  RESOURCE_LIST_ROW_HEIGHT_CLASS,
+  RESOURCE_LIST_SELECTED_ROW_CLASS,
+  RESOURCE_LIST_TEXT_START_PADDING_CLASS,
+  RESOURCE_LIST_VISUAL_ROW_CLASS
+} from './resourceListLayout'
+import { ResourceListLeadingSlot } from './ResourceListLeadingSlot'
 
-const GROUP_HEADER_COLOR_STYLE = {
-  '--resource-list-group-color': 'var(--color-foreground)'
-} as CSSProperties
-const GROUP_HEADER_TEXT_CLASS = 'text-[color:var(--resource-list-group-color)]'
 const EMPTY_GROUP_HEADER_ITEMS: ResourceListItemBase[] = []
 
 type GroupHeaderProps = ComponentProps<'div'> & {
@@ -43,15 +48,17 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
     <div
       ref={ref}
       style={style}
-      className={cn('group/resource-list-section flex h-[38px] w-full items-end px-0.5 pb-[2px]', className)}
+      className={cn(
+        'group/resource-list-section flex w-full items-end px-0.5 pb-[2px]',
+        RESOURCE_LIST_ROW_HEIGHT_CLASS,
+        className
+      )}
       {...props}>
       <div className="flex h-9 w-full items-center gap-1 px-1.5 text-muted-foreground">
         <button
           type="button"
           aria-expanded={!collapsed}
-          className={cn(
-            'flex h-full min-w-0 flex-1 items-center gap-1 text-left outline-none focus-visible:text-foreground'
-          )}
+          className="flex h-full min-w-0 flex-1 items-center gap-1 text-left outline-none focus-visible:text-foreground"
           onClick={() => actions.toggleGroup(section.id)}>
           <span className="min-w-0 truncate text-left font-semibold text-[13px] text-inherit leading-5">
             {section.label}
@@ -121,37 +128,36 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const header = (
     <div
       ref={ref}
-      style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
-      className={cn('group/resource-list-group h-[38px] w-full text-sm', GROUP_HEADER_TEXT_CLASS, className)}
+      style={style}
+      className={cn(
+        'group/resource-list-group flex w-full items-center text-foreground text-sm',
+        RESOURCE_LIST_ROW_HEIGHT_CLASS,
+        className
+      )}
       data-selected={selected || undefined}
       onContextMenu={handleContextMenu}
       {...props}>
       <div
         title={groupHeaderTooltip}
         className={cn(
-          'flex h-9 w-full items-center gap-1.5 rounded-(--list-item-border-radius) px-1.5 transition-colors duration-150 hover:bg-accent/60 hover:text-foreground',
-          selected && 'bg-accent text-foreground shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
+          'flex w-full items-center gap-1.5 px-1.5 transition-colors duration-150',
+          RESOURCE_LIST_VISUAL_ROW_CLASS,
+          RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
+          selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
           groupHeaderClassName
         )}>
         {groupHeaderLeadingAction && (
-          <div className="flex size-5 shrink-0 items-center justify-center">{groupHeaderLeadingAction}</div>
+          <div className={RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS}>{groupHeaderLeadingAction}</div>
         )}
         <button
           type="button"
           aria-expanded={!collapsed}
           aria-current={selected ? 'true' : undefined}
-          className={cn(
-            'flex h-full min-w-0 flex-1 items-center gap-1.5 text-left outline-none',
-            GROUP_HEADER_TEXT_CLASS
-          )}
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={handleClick}>
-          {groupHeaderIcon && (
-            <span
-              aria-hidden="true"
-              className="flex size-6 shrink-0 items-center justify-center rounded-lg text-inherit [&_svg]:size-4 [&_svg]:stroke-current [&_svg]:text-inherit">
-              {groupHeaderIcon}
-            </span>
-          )}
+          <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
+            {groupHeaderIcon}
+          </ResourceListLeadingSlot>
           <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-inherit leading-5">
             {group.label}
           </span>
@@ -194,16 +200,17 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
   return (
     <div
       ref={ref}
-      style={{ ...GROUP_HEADER_COLOR_STYLE, ...style }}
-      className={cn('flex h-[38px] items-center justify-start pr-1.5 pl-9', className)}
+      style={style}
+      className={cn(
+        'flex items-center justify-start pr-1.5 text-foreground',
+        RESOURCE_LIST_ROW_HEIGHT_CLASS,
+        RESOURCE_LIST_TEXT_START_PADDING_CLASS,
+        className
+      )}
       {...props}>
       <button
         type="button"
-        className={cn(
-          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] leading-4 transition-colors duration-150',
-          GROUP_HEADER_TEXT_CLASS,
-          'hover:text-muted-foreground/55 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring'
-        )}
+        className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-inherit leading-4 transition-colors duration-150 hover:text-muted-foreground/55 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
         onClick={() => {
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)

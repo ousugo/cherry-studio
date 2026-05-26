@@ -34,6 +34,7 @@ interface Props {
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   locateMessageId?: string
   onLocateMessageHandled?: () => void
+  onPaneCollapse?: () => void
   /**
    * Called by ChatContent before the first message of a freshly-leased
    * temporary topic is sent. HomePage owns the lease so it also owns the
@@ -139,6 +140,7 @@ const ChatInner: FC<Props> = (props) => {
       pane={props.pane}
       paneOpen={props.paneOpen}
       panePosition={props.panePosition}
+      onPaneCollapse={props.onPaneCollapse}
       topBar={
         <ChatNavbar
           onOpenSidePanelDrawer={props.onOpenSidePanelDrawer}
