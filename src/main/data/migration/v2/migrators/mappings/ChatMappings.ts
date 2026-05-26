@@ -477,7 +477,7 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
  * | status | status | Normalized to success/error/paused |
  * | (computed) | siblingsGroupId | From multi-model detection |
  * | model/modelId | modelId | Composite (provider::modelId) or raw fallback |
- * | traceId | traceId | Direct copy |
+ * | traceId | traceId | Dropped: legacy span detail files are not migrated |
  * | usage + metrics | stats | Merged into single stats object |
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
@@ -487,6 +487,7 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
  * - useful (boolean)
  * - enabledMCPs (deprecated)
  * - agentSessionId (session identifier)
+ * - traceId (span detail files are outside the v1 chat migration source set)
  * - providerMetadata (raw provider data)
  * - multiModelMessageStyle (UI state)
  * - askId (replaced by parentId)
@@ -534,7 +535,7 @@ export function transformMessage(
     modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),
     // Snapshot of model at message creation time for historical display
     modelSnapshot: buildModelSnapshot(oldMessage.model),
-    traceId: oldMessage.traceId || null,
+    traceId: null,
     stats: mergeStats(oldMessage.usage, oldMessage.metrics),
     createdAt: parseTimestamp(oldMessage.createdAt),
     updatedAt: parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)
