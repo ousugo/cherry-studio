@@ -56,6 +56,8 @@ src/main/ai/
 │   ├── endpoint.ts               ← resolveEffectiveEndpoint + adapterFamily routing
 │   ├── extensions/               ← ProviderExtension registrations
 │   └── listModels.ts             ← per-provider model listing
+├── mcp/                          ← MCP runtime/catalog services and built-in servers
+│   └── servers/                  ← in-memory MCP server implementations
 ├── tools/                        ← unified tool registry
 │   ├── builtin/                  ← KnowledgeSearch / KnowledgeList / WebSearch
 │   ├── mcp/                      ← MCP server → ToolEntry sync
