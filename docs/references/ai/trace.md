@@ -23,7 +23,7 @@ The main-process observability boundary is `src/main/ai/observability`:
 - `core/` creates Cherry-owned turn roots and common `cs.*` attributes.
 - `adapters/ai-sdk/` interprets AI SDK child spans.
 - `adapters/claude-code/` interprets Claude Code OTLP spans and logs.
-- `local/` keeps the trace-window projection and JSONL-compatible history.
+- `cache/` keeps the trace-window projection and JSONL-compatible history.
 - `sinks/` defines the extension point for local and future external export.
 
 ## AdapterTracer
@@ -65,5 +65,5 @@ projection is short-circuited.
 ## Where to read more
 
 - Code: `src/main/ai/observability/`
-- Span projection: `src/main/ai/observability/local/SpanCacheService.ts`
+- Span projection: `src/main/ai/observability/cache/SpanCacheService.ts`
 - AI SDK telemetry docs: https://ai-sdk.dev/docs/reference/ai-sdk-core/telemetry
