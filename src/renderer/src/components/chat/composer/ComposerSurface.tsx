@@ -22,7 +22,7 @@ import type { JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent } from '@tiptap/react'
 import { CirclePause } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { serializeComposerDocument } from './composerDraft'
@@ -245,18 +245,25 @@ function filterSuggestionItems(items: readonly ComposerSuggestionItem[], query: 
 }
 
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
+const COMPOSER_EDITOR_MAX_HEIGHT = 'max(220px, 50vh)'
+const COMPOSER_EDITOR_MAX_HEIGHT_CLASS = 'max-h-[max(220px,50vh)]!'
 
 function getComposerEditorMinHeight(fontSize: number) {
   return Math.ceil(fontSize * 1.4 * 2 + 6)
 }
 
-function getComposerEditorStyle(fontSize: number) {
+function getComposerEditorStyle(fontSize: number, isExpanded: boolean) {
   return [
     '--composer-editor-padding: 6px 15px 0',
     `--composer-editor-min-height: ${getComposerEditorMinHeight(fontSize)}px`,
     `--composer-editor-font-size: ${fontSize}px`,
-    '--composer-editor-line-height: 1.4'
-  ].join('; ')
+    '--composer-editor-line-height: 1.4',
+    `max-height: ${COMPOSER_EDITOR_MAX_HEIGHT}`,
+    'overflow-y: auto',
+    isExpanded ? 'height: 100%' : undefined
+  ]
+    .filter(Boolean)
+    .join('; ')
 }
 
 export default function ComposerSurface({
@@ -299,7 +306,6 @@ export default function ComposerSurface({
   const quickPanel = useQuickPanel()
   const { forceWideLayout } = useChatLayoutMode()
   const { setTimeoutTimer } = useTimer()
-  const [customHeight, setCustomHeight] = useState<number | undefined>()
   const editorMinHeight = getComposerEditorMinHeight(fontSize)
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
@@ -367,7 +373,6 @@ export default function ComposerSurface({
     (nextState?: boolean) => {
       const target = typeof nextState === 'boolean' ? nextState : !isExpanded
       onExpandedChange(target)
-      setCustomHeight(target ? Math.max(220, Math.round(window.innerHeight * 0.5)) : undefined)
       focusEditor()
     },
     [focusEditor, isExpanded, onExpandedChange]
@@ -434,9 +439,12 @@ export default function ComposerSurface({
     enableSpellCheck,
     editorProps: {
       attributes: {
-        class:
-          'composer-tiptap box-border flex max-h-[500px]! w-full overflow-auto rounded-none text-foreground outline-none transition-none! break-words whitespace-pre-wrap after:hidden! [&::-webkit-scrollbar]:w-[3px]',
-        style: getComposerEditorStyle(fontSize)
+        class: cn(
+          'composer-tiptap box-border flex w-full overflow-auto rounded-none text-foreground outline-none transition-none! break-words whitespace-pre-wrap after:hidden! [&::-webkit-scrollbar]:w-[3px]',
+          COMPOSER_EDITOR_MAX_HEIGHT_CLASS,
+          isExpanded && 'h-full'
+        ),
+        style: getComposerEditorStyle(fontSize, isExpanded)
       },
       handleKeyDown: (_view, event) => {
         if (event.key === 'Escape' && isExpanded) {
@@ -596,16 +604,19 @@ export default function ComposerSurface({
       id="inputbar"
       data-composer-inputbar=""
       className={cn(
-        'inputbar-container relative rounded-[20px] border-(--color-border) border-[0.5px] bg-card pt-2 shadow-[0_4px_12px_rgba(15,23,42,0.08)] transition-all duration-200 ease-in-out dark:shadow-[0_4px_12px_rgba(0,0,0,0.2)]',
+        'inputbar-container relative rounded-[20px] border-border border-[0.5px] bg-card pt-2 shadow-[0_4px_12px_rgba(15,23,42,0.08)] transition-all duration-200 ease-in-out dark:shadow-[0_4px_12px_rgba(0,0,0,0.2)]',
         belowControls ? 'mb-0.5' : 'mb-3',
         isDragging &&
           "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
         isExpanded && 'expanded'
       )}>
-      <div style={customHeight ? { height: customHeight } : { minHeight: editorMinHeight }}>
+      <div
+        style={
+          isExpanded ? { height: COMPOSER_EDITOR_MAX_HEIGHT, overflow: 'hidden' } : { minHeight: editorMinHeight }
+        }>
         <EditorContent
           editor={editor}
-          style={{ minHeight: editorMinHeight }}
+          style={isExpanded ? { height: '100%', minHeight: editorMinHeight } : { minHeight: editorMinHeight }}
           onFocus={() => {
             onFocus?.()
             PasteService.setLastFocusedComponent('inputbar')
@@ -613,7 +624,7 @@ export default function ComposerSurface({
         />
       </div>
 
-      <div className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-[5px]">
+      <div className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">{renderLeftControls?.(inputAdapter)}</div>
         <div className="flex flex-row items-center gap-1.5">
           <TranslateButton text={text} disabled={sendDisabled} onTranslated={onTranslated} />
@@ -621,7 +632,7 @@ export default function ComposerSurface({
             <Tooltip content={t('chat.input.pause')} placement="top">
               <button
                 type="button"
-                className="flex size-[30px] items-center justify-center rounded-full text-(--color-error-base) hover:bg-accent"
+                className="flex size-7.5 items-center justify-center rounded-full text-error-base hover:bg-accent"
                 aria-label={t('chat.input.pause')}
                 onClick={() => void onPause()}>
                 <CirclePause size={20} />
