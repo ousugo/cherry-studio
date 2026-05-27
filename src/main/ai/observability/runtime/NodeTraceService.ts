@@ -16,7 +16,7 @@ import type { SpanContext } from '@opentelemetry/api'
 import { context, trace } from '@opentelemetry/api'
 import { ipcMain } from 'electron'
 
-import { TRACER_NAME } from '../constants'
+const TRACER_NAME = 'CherryStudio'
 
 const logger = loggerService.withContext('NodeTraceService')
 

@@ -22,12 +22,8 @@ import type {
 } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type {
-  CherryProviderMetadata,
-  CodePartData,
-  ErrorPartData,
-  TranslationPartData
-} from '@shared/data/types/uiParts'
+import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
 // Retained as a no-op signature alias so existing call sites don't have to
 // drop their second argument when the v1 Redux-backed lookup goes away.
@@ -43,13 +39,6 @@ function syntheticBase(
     createdAt: '',
     status: MessageBlockStatus.SUCCESS
   }
-}
-
-function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefined {
-  if ('providerMetadata' in part && part.providerMetadata) {
-    return (part.providerMetadata as { cherry?: CherryProviderMetadata }).cherry
-  }
-  return undefined
 }
 
 function getParts(message: ExportableMessage): CherryMessagePart[] {
@@ -107,14 +96,16 @@ export const findAllBlocks = (message: ExportableMessage): MessageBlock[] => {
           content: (part as { text?: string }).text ?? ''
         } as MainTextMessageBlock)
         break
-      case 'reasoning':
+      case 'reasoning': {
+        const reasoningPart = part as Extract<CherryMessagePart, { type: 'reasoning' }>
         out.push({
           ...base,
           type: MessageBlockType.THINKING,
-          content: (part as { text?: string }).text ?? '',
-          thinking_millsec: getCherryMeta(part)?.thinkingMs ?? 0
+          content: reasoningPart.text ?? '',
+          thinking_millsec: readCherryMeta(reasoningPart)?.thinkingMs ?? 0
         } as ThinkingMessageBlock)
         break
+      }
       case 'data-code': {
         const data = getDataPart<CodePartData>(part)
         out.push({
@@ -213,7 +204,7 @@ export const findThinkingBlocks = (
       ...syntheticBase(message.id, i),
       type: MessageBlockType.THINKING,
       content: part.text ?? '',
-      thinking_millsec: getCherryMeta(part)?.thinkingMs ?? 0
+      thinking_millsec: readCherryMeta(part)?.thinkingMs ?? 0
     })
   })
   return out
@@ -277,7 +268,7 @@ export const getCitationContent = (message: ExportableMessage, _blockEntities?: 
   const lines: string[] = []
   for (const part of getParts(message)) {
     if (part.type !== 'text') continue
-    const refs = (getCherryMeta(part)?.references ?? []) as Array<{
+    const refs = (readCherryMeta(part)?.references ?? []) as Array<{
       category?: string
       number?: number
       title?: string

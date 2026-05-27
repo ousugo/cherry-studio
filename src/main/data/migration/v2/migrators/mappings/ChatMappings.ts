@@ -39,7 +39,6 @@
  * @since v2.0.0
  */
 
-import type { JSONObject } from '@ai-sdk/provider'
 import type {
   CherryMessagePart,
   CitationReference,
@@ -56,9 +55,10 @@ import type {
   SerializedErrorData,
   TextUIPart
 } from '@shared/data/types/message'
-import type { CherryDataPartTypes, CherryProviderMetadata } from '@shared/data/types/uiParts'
+import type { CherryDataPartTypes } from '@shared/data/types/uiParts'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { FileMetadata } from '@types'
-import type { ProviderMetadata, SourceUrlUIPart } from 'ai'
+import type { SourceUrlUIPart } from 'ai'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
@@ -297,9 +297,6 @@ export interface OldToolBlock extends OldMessageBlock {
   }
 }
 
-type OldRawToolResponse = NonNullable<OldToolBlock['metadata']>['rawMcpToolResponse']
-type MigratedToolType = 'mcp' | 'builtin' | 'provider'
-
 /**
  * Old CitationMessageBlock - contains web search, knowledge, and memory references
  * This is the primary source for ContentReference transformation
@@ -514,15 +511,9 @@ export function transformMessage(
   if (citationReferences.length > 0) {
     const textPartIndex = parts.findIndex((p): p is TextUIPart => p.type === 'text')
     if (textPartIndex >= 0) {
-      const textPart = parts[textPartIndex] as TextUIPart
-      const existingCherry = (textPart.providerMetadata?.cherry ?? {}) as CherryProviderMetadata
-      parts[textPartIndex] = {
-        ...textPart,
-        providerMetadata: {
-          ...textPart.providerMetadata,
-          cherry: { ...existingCherry, references: citationReferences } as unknown as JSONObject
-        }
-      }
+      parts[textPartIndex] = withCherryMeta(parts[textPartIndex] as TextUIPart, {
+        references: citationReferences
+      })
     }
   }
 
@@ -701,51 +692,6 @@ export function transformBlocksToParts(oldBlocks: OldBlock[]): {
 }
 
 /**
- * Build Cherry-specific providerMetadata from old block fields.
- */
-function buildCherryMetadata(oldBlock: OldMessageBlock): ProviderMetadata {
-  const cherry: JSONObject = {
-    createdAt: parseTimestamp(oldBlock.createdAt)
-  }
-  if (oldBlock.updatedAt) {
-    cherry.updatedAt = parseTimestamp(oldBlock.updatedAt)
-  }
-  if (oldBlock.metadata && Object.keys(oldBlock.metadata).length > 0) {
-    cherry.metadata = oldBlock.metadata as JSONObject
-  }
-  if (oldBlock.error) {
-    const { cause, ...errorWithoutCause } = oldBlock.error
-    void cause // intentionally unused — cause: unknown is not JSON-serializable
-    cherry.error = errorWithoutCause
-  }
-  return { cherry }
-}
-
-function normalizeMigratedToolType(value: unknown): MigratedToolType | undefined {
-  return value === 'mcp' || value === 'builtin' || value === 'provider' ? value : undefined
-}
-
-function buildToolProviderMetadata(raw: OldRawToolResponse | undefined): ProviderMetadata | undefined {
-  const tool = raw?.tool
-  if (!tool) return undefined
-
-  const toolType = normalizeMigratedToolType(tool.type)
-  const serverId = typeof tool.serverId === 'string' ? tool.serverId : undefined
-  const serverName = typeof tool.serverName === 'string' ? tool.serverName : undefined
-  if (!toolType && !serverId && !serverName) return undefined
-
-  return {
-    cherry: {
-      tool: {
-        ...(toolType ? { type: toolType } : {}),
-        ...(serverId ? { serverId } : {}),
-        ...(serverName ? { serverName } : {})
-      }
-    }
-  }
-}
-
-/**
  * Transform a single old block to UIMessage part(s).
  * Most blocks produce a single part, but citation blocks may produce multiple
  * (SourceUrlUIPart for web results + DataUIPart for knowledge/memory).
@@ -762,22 +708,19 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
       const part: TextUIPart = {
         type: 'text',
         text: block.content,
-        state: 'done',
-        providerMetadata: buildCherryMetadata(oldBlock)
+        state: 'done'
       }
       return { part, extraParts: null, citations: null, searchableText: block.content }
     }
 
     case 'thinking': {
       const block = oldBlock as OldThinkingBlock
-      const metadata = buildCherryMetadata(oldBlock)
-      metadata.cherry.thinkingMs = block.thinking_millsec
-      const part: ReasoningUIPart = {
+      const basePart: ReasoningUIPart = {
         type: 'reasoning',
         text: block.content,
-        state: 'done',
-        providerMetadata: metadata
+        state: 'done'
       }
+      const part = withCherryMeta(basePart, { thinkingMs: block.thinking_millsec })
       return { part, extraParts: null, citations: null, searchableText: block.content }
     }
 
@@ -793,14 +736,12 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
       const input = block.arguments ?? raw?.arguments ?? {}
       const output = raw?.response ?? block.content
       const isError = contentObj?.isError === true || raw?.status === 'error'
-      const callProviderMetadata = buildToolProviderMetadata(raw)
 
       const base = {
         type: 'dynamic-tool' as const,
         toolName,
         toolCallId,
-        input,
-        ...(callProviderMetadata ? { callProviderMetadata } : {})
+        input
       }
 
       const part: DynamicToolUIPart = isError
@@ -812,25 +753,25 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
 
     case 'image': {
       const block = oldBlock as OldImageBlock
-      const part: FileUIPart = {
+      const basePart: FileUIPart = {
         type: 'file',
         mediaType: inferMediaType(block.file?.ext, 'image/png'),
         url: block.url || (block.file?.path ? `file://${block.file.path}` : ''),
-        ...(block.file?.origin_name ? { filename: block.file.origin_name } : {}),
-        providerMetadata: buildCherryMetadata(oldBlock)
+        ...(block.file?.origin_name ? { filename: block.file.origin_name } : {})
       }
+      const part = block.file?.id ? withCherryMeta(basePart, { fileEntryId: block.file.id }) : basePart
       return { part, extraParts: null, citations: null, searchableText: null }
     }
 
     case 'file': {
       const block = oldBlock as OldFileBlock
-      const part: FileUIPart = {
+      const basePart: FileUIPart = {
         type: 'file',
         mediaType: inferMediaType(block.file.ext, 'application/octet-stream'),
         url: block.file.path ? `file://${block.file.path}` : '',
-        ...(block.file.origin_name ? { filename: block.file.origin_name } : {}),
-        providerMetadata: buildCherryMetadata(oldBlock)
+        ...(block.file.origin_name ? { filename: block.file.origin_name } : {})
       }
+      const part = block.file.id ? withCherryMeta(basePart, { fileEntryId: block.file.id }) : basePart
       return { part, extraParts: null, citations: null, searchableText: null }
     }
 

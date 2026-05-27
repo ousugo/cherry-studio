@@ -21,6 +21,7 @@ const PAGE_SIZE = 50
 export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryUIMessage {
   const metadata: CherryUIMessage['metadata'] = {}
   if (row.createdAt) metadata.createdAt = row.createdAt
+  if (row.updatedAt) metadata.updatedAt = row.updatedAt
   metadata.status = row.status
   if (row.modelId) metadata.modelId = row.modelId
   if (row.modelSnapshot) metadata.modelSnapshot = row.modelSnapshot

@@ -12,10 +12,12 @@ import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
 import { miniAppTable } from '@data/db/schemas/miniApp'
+import { noteTable } from '@data/db/schemas/note'
 import { pinTable } from '@data/db/schemas/pin'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { promptTable } from '@data/db/schemas/prompt'
@@ -24,7 +26,6 @@ import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { workspaceTable } from '@data/db/schemas/workspace'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import type {
@@ -45,10 +46,6 @@ import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
 import type { MigrationPaths } from './MigrationPaths'
-
-// TODO: Import these tables when they are created in user data schema
-// import { assistantTable } from '../../db/schemas/assistant'
-// import { fileTable } from '../../db/schemas/file'
 
 const logger = loggerService.withContext('MigrationEngine')
 
@@ -312,6 +309,7 @@ export class MigrationEngine {
       { table: mcpServerTable, name: 'mcp_server' },
       { table: miniAppTable, name: 'mini_app' },
       { table: preferenceTable, name: 'preference' },
+      { table: noteTable, name: 'note' },
       { table: translateHistoryTable, name: 'translate_history' },
       { table: translateLanguageTable, name: 'translate_language' },
       { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
@@ -321,15 +319,14 @@ export class MigrationEngine {
       { table: agentSessionMessageTable, name: 'agent_session_message' },
       { table: agentChannelTaskTable, name: 'agent_channel_task' },
       { table: agentChannelTable, name: 'agent_channel' },
+      // agent_task / agent_task_run_log dropped — migrated to JobManager (aac75929c5)
       { table: agentSkillTable, name: 'agent_skill' },
       { table: agentSessionTable, name: 'agent_session' },
-      { table: workspaceTable, name: 'agent_workspace' },
       { table: agentGlobalSkillTable, name: 'agent_global_skill' },
-      { table: agentTable, name: 'agent' }
-      // NOTE: jobScheduleTable rows for type='agent.task' are pruned at the
-      // start of AgentsMigrator.migrateScheduledTasksTs (per-type, not whole
-      // table) so other handlers' schedules survive a migration retry.
-      // TODO: Add fileTable when created
+      { table: agentTable, name: 'agent' },
+      // File-domain tables — child before parent (file_ref.fileEntryId CASCADEs from file_entry)
+      { table: fileRefTable, name: 'file_ref' },
+      { table: fileEntryTable, name: 'file_entry' }
     ]
 
     // Check if tables have data (safety check)

@@ -16,6 +16,17 @@ import * as z from 'zod'
 import type { CherryDataPartTypes } from './uiParts'
 
 /**
+ * Canonical schema for message IDs. Accepts any UUID version — v1 legacy IDs
+ * are UUIDv4, v2-native IDs are UUIDv7, dedup-remapped IDs are UUIDv4.
+ *
+ * Note: `MessageId` is inferred as `string` at the type level — it does NOT
+ * carry runtime validation. Boundary handlers (IPC, DataApi) MUST validate
+ * incoming IDs with `MessageIdSchema.parse()` to reject non-UUID strings.
+ */
+export const MessageIdSchema = z.uuid()
+export type MessageId = z.infer<typeof MessageIdSchema>
+
+/**
  * Message Statistics - combines token usage and performance metrics
  * Replaces the separate `usage` and `metrics` fields
  *
@@ -138,6 +149,8 @@ export interface CherryUIMessageMetadata {
 
   /** Creation timestamp (ISO). */
   createdAt?: string
+  /** Last modification timestamp (ISO). Mirrors v1 Message.updatedAt during migration. */
+  updatedAt?: string
 
   // ── Token stats. First four duplicate fields on `stats` so call-sites
   //    that only need a single counter can skip the nested object.
@@ -393,8 +406,8 @@ export type MessageStatus = z.infer<typeof MessageStatusSchema>
  * {@link MessageDataSchema} / {@link ModelSnapshotSchema} / {@link MessageStatsSchema}.
  */
 export const MessageSchema = z.strictObject({
-  /** Message ID (UUIDv7) */
-  id: z.string(),
+  /** Message ID (UUID — v4 legacy or v7 v2-native) */
+  id: MessageIdSchema,
   /** Topic ID this message belongs to */
   topicId: z.string(),
   /** Parent message ID (null for root) */

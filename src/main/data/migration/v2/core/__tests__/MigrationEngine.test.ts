@@ -13,12 +13,12 @@ const mockPaths: MigrationPaths = {
   cherryHome: '/tmp/test-cherryhome',
   databaseFile: '/tmp/test-userdata/cherrystudio.sqlite',
   knowledgeBaseDir: '/tmp/test-userdata/Data/KnowledgeBase',
-  agentWorkspacesDir: '/tmp/test-userdata/Data/Agents',
   versionLogFile: '/tmp/test-userdata/version.log',
   legacyAgentDbFile: '/tmp/test-userdata/Data/agents.db',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
-  migrationsFolder: '/tmp/test-migrations'
+  migrationsFolder: '/tmp/test-migrations',
+  agentWorkspacesDir: '/tmp/test-userdata/Data/AgentWorkspaces'
 }
 
 function createTestMigrator(id: string, order: number, events: string[]) {
@@ -142,9 +142,9 @@ describe('MigrationEngine', () => {
     await (engine as any).verifyAndClearNewTables()
 
     expect(transactionFn).toHaveBeenCalledTimes(1)
-    // 24 tables = 25 (v1 baseline) − 2 (agent_task + agent_task_run_log
-    // dropped as part of the agent.task → JobManager migration) + 1 (agent_workspace).
-    expect(deleteFn).toHaveBeenCalledTimes(24)
+
+    expect(deleteFn).toHaveBeenCalledTimes(26)
+
     expect(db).not.toHaveProperty('delete')
   })
 })

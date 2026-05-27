@@ -465,7 +465,6 @@ const createKnowledgeItem = ({ id }: { id: string }): KnowledgeItemOf<'note'> =>
     content: 'Example note'
   },
   status: 'completed',
-  phase: null,
   error: null,
   createdAt: '2026-04-21T10:00:00+08:00',
   updatedAt: '2026-04-21T10:00:00+08:00'
