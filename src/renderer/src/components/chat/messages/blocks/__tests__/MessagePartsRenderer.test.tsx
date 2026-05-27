@@ -162,7 +162,9 @@ vi.mock('../ToolBlockGroup', () => ({
 vi.mock('../BlockErrorFallback', () => ({ __esModule: true, default: () => null }))
 vi.mock('../PlaceholderBlock', () => ({
   __esModule: true,
-  default: ({ status }: any) => <div data-testid="mock-placeholder" data-status={status} />
+  default: ({ createdAt, status }: any) => (
+    <div data-testid="mock-placeholder" data-created-at={createdAt} data-status={status} />
+  )
 }))
 
 // ============================================================================
@@ -235,6 +237,7 @@ describe('MessagePartsRenderer', () => {
     renderParts([], msg({ status: 'pending' }))
 
     expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'preparing')
+    expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-created-at', '2026-01-01T00:00:00Z')
   })
 
   it('shows the thinking placeholder while reasoning is the latest activity', () => {

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 interface PlaceholderBlockProps {
   isProcessing: boolean
+  createdAt: string
   status?: PlaceholderStatus
 }
 
@@ -17,19 +18,24 @@ const PLACEHOLDER_LABEL_KEYS: Record<PlaceholderStatus, string> = {
 
 type Translate = (key: string, options?: Record<string, number | string>) => string
 
-function useElapsedMs(isProcessing: boolean): number {
-  const startedAtRef = React.useRef(Date.now())
-  const [elapsedMs, setElapsedMs] = React.useState(0)
+function getElapsedMs(createdAt: string): number {
+  const createdAtMs = Date.parse(createdAt)
+  if (!Number.isFinite(createdAtMs)) return 0
+  return Math.max(0, Date.now() - createdAtMs)
+}
+
+function useElapsedMs(isProcessing: boolean, createdAt: string): number {
+  const [elapsedMs, setElapsedMs] = React.useState(() => (isProcessing ? getElapsedMs(createdAt) : 0))
 
   React.useEffect(() => {
     if (!isProcessing) return
 
-    const updateElapsed = () => setElapsedMs(Math.max(0, Date.now() - startedAtRef.current))
+    const updateElapsed = () => setElapsedMs(getElapsedMs(createdAt))
     updateElapsed()
 
     const timer = setInterval(updateElapsed, 100)
     return () => clearInterval(timer)
-  }, [isProcessing])
+  }, [createdAt, isProcessing])
 
   return elapsedMs
 }
@@ -49,9 +55,9 @@ export function formatPlaceholderElapsed(elapsedMs: number, t: Translate): strin
   return t('message.tools.placeholder.elapsed.seconds', { seconds })
 }
 
-const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, status = 'preparing' }) => {
+const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, createdAt, status = 'preparing' }) => {
   const { t } = useTranslation()
-  const elapsedMs = useElapsedMs(isProcessing)
+  const elapsedMs = useElapsedMs(isProcessing, createdAt)
 
   if (isProcessing) {
     return (

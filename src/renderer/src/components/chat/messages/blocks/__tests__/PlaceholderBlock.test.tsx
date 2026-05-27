@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import PlaceholderBlock, { formatPlaceholderElapsed } from '../PlaceholderBlock'
 
@@ -28,8 +28,12 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('PlaceholderBlock', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('shows the processing stage without a loading icon', () => {
-    const { container } = render(<PlaceholderBlock isProcessing />)
+    const { container } = render(<PlaceholderBlock isProcessing createdAt={new Date().toISOString()} />)
 
     expect(screen.getByTestId('message-status-placeholder')).toBeInTheDocument()
     expect(screen.getByTestId('message-status-text')).toHaveTextContent('Preparing response')
@@ -39,9 +43,18 @@ describe('PlaceholderBlock', () => {
   })
 
   it('shows the requested generation stage', () => {
-    render(<PlaceholderBlock isProcessing status="thinking" />)
+    render(<PlaceholderBlock isProcessing createdAt={new Date().toISOString()} status="thinking" />)
 
     expect(screen.getByTestId('message-status-text')).toHaveTextContent('Thinking')
+  })
+
+  it('calculates elapsed time from the message creation time', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:10.500Z'))
+
+    render(<PlaceholderBlock isProcessing createdAt="2026-01-01T00:00:09.300Z" />)
+
+    expect(screen.getByTestId('message-status-elapsed')).toHaveTextContent('1.2 seconds')
   })
 
   it('formats elapsed time across seconds, minutes, hours, and days', () => {
@@ -61,7 +74,7 @@ describe('PlaceholderBlock', () => {
   })
 
   it('renders nothing when the message is not processing', () => {
-    const { container } = render(<PlaceholderBlock isProcessing={false} />)
+    const { container } = render(<PlaceholderBlock isProcessing={false} createdAt={new Date().toISOString()} />)
 
     expect(container).toBeEmptyDOMElement()
   })

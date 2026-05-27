@@ -707,7 +707,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       return (
         <AnimatePresence mode="sync">
           <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-            <PlaceholderBlock isProcessing={true} status={placeholderStatus} />
+            <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
           </AnimatedBlockWrapper>
         </AnimatePresence>
       )
@@ -733,7 +733,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       })}
       {isProcessing && (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock isProcessing={true} status={placeholderStatus} />
+          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
         </AnimatedBlockWrapper>
       )}
     </AnimatePresence>
