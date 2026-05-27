@@ -465,6 +465,9 @@ describe('AgentChat artifact pane', () => {
           toolApproval: {
             respond: vi.fn()
           }
+        },
+        file: {
+          isTextFile: vi.fn().mockResolvedValue(true)
         }
       }
     })

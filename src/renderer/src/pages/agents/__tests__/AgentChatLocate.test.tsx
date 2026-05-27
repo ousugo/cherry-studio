@@ -315,6 +315,9 @@ describe('AgentChat locate pending message', () => {
           toolApproval: {
             respond: vi.fn()
           }
+        },
+        file: {
+          isTextFile: vi.fn().mockResolvedValue(true)
         }
       }
     })

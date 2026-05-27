@@ -4,12 +4,12 @@ import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import ArtifactPane, {
   ArtifactFilePreview,
-  type ArtifactPaneViewMode,
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
 import { TracePane, type TracePanePayload } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { useAgentMessageListProviderValue } from '@renderer/pages/agents/messages/agentMessageListAdapter'
 import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
 import { TopicType } from '@renderer/types'
@@ -93,7 +93,6 @@ interface AgentRightPaneState {
   tracePayload: TracePanePayload | null
   filePreview: AgentFilePreviewTab | null
   selectedFile: string | null
-  viewMode: ArtifactPaneViewMode
   workspacePath?: string
 }
 
@@ -105,7 +104,6 @@ interface AgentRightPaneActions {
   closeFilePreview: () => void
   closeFlowTab: (toolCallId: string) => void
   setSelectedFile: (file: string | null) => void
-  setViewMode: (mode: ArtifactPaneViewMode) => void
 }
 
 interface AgentRightPaneContextValue {
@@ -151,7 +149,6 @@ function AgentRightPaneStateProvider({
   const [tracePayload, setTracePayload] = useState<TracePanePayload | null>(null)
   const [filePreview, setFilePreview] = useState<AgentFilePreviewTab | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<ArtifactPaneViewMode>('preview')
   const previousWorkspacePathRef = useRef(workspacePath)
 
   const activeFlowToolCallId = getFlowToolCallId(activeTab)
@@ -205,7 +202,6 @@ function AgentRightPaneStateProvider({
     if (previousWorkspacePathRef.current === workspacePath) return
     previousWorkspacePathRef.current = workspacePath
     setSelectedFile(null)
-    setViewMode('preview')
     setFilePreview(null)
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
   }, [activeTab, openTab, workspacePath])
@@ -235,7 +231,6 @@ function AgentRightPaneStateProvider({
         tracePayload,
         filePreview,
         selectedFile,
-        viewMode,
         workspacePath
       },
       actions: {
@@ -245,8 +240,7 @@ function AgentRightPaneStateProvider({
         closeTrace,
         closeFilePreview,
         closeFlowTab,
-        setSelectedFile,
-        setViewMode
+        setSelectedFile
       },
       meta: { sessionId, sessionName, agentId, agentName, agentAvatar, modelFallback }
     }),
@@ -270,7 +264,6 @@ function AgentRightPaneStateProvider({
       sessionName,
       status,
       tracePayload,
-      viewMode,
       workspacePath
     ]
   )
@@ -295,9 +288,7 @@ function AgentRightPaneFilesPanel() {
       workspacePath={state.workspacePath}
       pdfLayoutPending={shellState.pdfLayoutPending}
       selectedFile={state.selectedFile}
-      viewMode={state.viewMode}
       onSelectedFileChange={actions.setSelectedFile}
-      onViewModeChange={actions.setViewMode}
       pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
     />
   )
@@ -305,6 +296,7 @@ function AgentRightPaneFilesPanel() {
 
 function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
   const shellState = useShellState()
+  const isText = useIsTextFile(preview.workspacePath, preview.filePath)
 
   return (
     <div
@@ -315,6 +307,7 @@ function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
       <ArtifactFilePreview
         workspacePath={preview.workspacePath}
         filePath={preview.filePath}
+        isText={isText}
         pdfLayoutPending={shellState.pdfLayoutPending}
         pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
       />

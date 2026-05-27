@@ -3,7 +3,6 @@ import type { SerializedTreeNode } from '@shared/file/types'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
-import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ArtifactPane, { ARTIFACT_FILE_TREE_DEFAULT_WIDTH, resolveArtifactPaneFileSelection } from '../ArtifactPane'
@@ -14,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   treeOnMutation: vi.fn(),
   fsRead: vi.fn(),
   fsReadText: vi.fn(),
+  isTextFile: vi.fn(),
   createObjectURL: vi.fn(),
   revokeObjectURL: vi.fn(),
   pdfPreviewPanelProps: [] as Array<{
@@ -247,9 +247,15 @@ interface MockFileTreeNode {
   children?: MockFileTreeNode[]
 }
 
-vi.mock('@renderer/components/RichEditor', () => ({
-  default: ({ initialContent }: { initialContent?: string }) => <div data-testid="rich-editor">{initialContent}</div>
+vi.mock('@cherrystudio/ui/composites/markdown', () => ({
+  Markdown: ({ id, children }: { id: string; children: string }) => (
+    <div data-testid="markdown" data-md-id={id}>
+      {children}
+    </div>
+  )
 }))
+
+vi.mock('@cherrystudio/ui/composites/markdown/styles', () => ({}))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
   default: ({ value, language, wrapped }: { value: string; language: string; wrapped?: boolean }) => (
@@ -327,12 +333,15 @@ describe('ArtifactPane', () => {
     // `dispose(...).catch(...)`).
     mocks.treeDispose.mockImplementation(() => Promise.resolve())
     mocks.treeOnMutation.mockImplementation(() => () => {})
+    // Default: tests select text files; override per-test for binary cases.
+    mocks.isTextFile.mockResolvedValue(true)
     mocks.createObjectURL.mockReturnValue('blob:fake-url')
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         file: {
-          openPath: vi.fn()
+          openPath: vi.fn(),
+          isTextFile: mocks.isTextFile
         },
         fs: {
           read: mocks.fsRead,
@@ -386,7 +395,7 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
 
-    await waitFor(() => expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Hello'))
+    await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Hello'))
     expect(mocks.pdfPreviewPanelModuleLoadCount).toBe(0)
   })
 
@@ -419,13 +428,14 @@ describe('ArtifactPane', () => {
     expect(errorSpy).toHaveBeenCalledWith('Failed to create directory tree for /tmp/workspace', error)
   })
 
-  it('renders header tool buttons without a close button', () => {
+  it('renders header tool buttons without a close button or view-mode toggle', () => {
     render(<ArtifactPane onToggleMaximized={vi.fn()} />)
 
     for (const label of ['agent.preview_pane.file_tree', 'agent.preview_pane.refresh', 'agent.preview_pane.maximize']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
     }
-    expect(screen.getByRole('button', { name: 'agent.preview_pane.preview' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.preview' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.code' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'agent.preview_pane.close' })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   })
@@ -465,13 +475,11 @@ describe('ArtifactPane', () => {
     expect(screen.queryByRole('button', { name: 'Open in Finder' })).not.toBeInTheDocument()
   })
 
-  it('defaults to preview mode with the file tree collapsed', () => {
+  it('starts with the file tree collapsed', () => {
     render(<ArtifactPane />)
 
     const folderButton = screen.getByRole('button', { name: 'agent.preview_pane.file_tree' })
 
-    expect(screen.getByRole('button', { name: 'agent.preview_pane.preview' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'agent.preview_pane.code' })).not.toBeInTheDocument()
     expect(folderButton).toHaveAttribute('aria-pressed', 'false')
     expect(folderButton.querySelector('.lucide-folder')).toBeInTheDocument()
     expect(folderButton.querySelector('.lucide-folder-open')).not.toBeInTheDocument()
@@ -732,7 +740,7 @@ describe('ArtifactPane', () => {
     expect(rightPane).not.toHaveClass('pointer-events-none')
   })
 
-  it('renders markdown files with RichEditor in preview mode and CodeViewer in code mode', async () => {
+  it('renders markdown files through the shared Markdown component', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.fsReadText.mockResolvedValue('# Hello')
 
@@ -744,14 +752,8 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
 
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/README.md'))
-    expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Hello')
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.preview' }))
-    expect(screen.queryByTestId('rich-editor')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'agent.preview_pane.code' })).toBeInTheDocument()
-    expect(screen.getByTestId('code-viewer')).toHaveTextContent('# Hello')
-    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'markdown')
-    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
+    expect(screen.getByTestId('markdown')).toHaveTextContent('# Hello')
+    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
   })
 
   it('supports controlled selected file state', async () => {
@@ -768,7 +770,7 @@ describe('ArtifactPane', () => {
     )
 
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/README.md'))
-    expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Controlled')
+    expect(screen.getByTestId('markdown')).toHaveTextContent('# Controlled')
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
@@ -777,55 +779,6 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
 
     expect(onSelectedFileChange).toHaveBeenCalledWith('src/index.ts')
-  })
-
-  it('supports controlled view mode state', async () => {
-    const onViewModeChange = vi.fn()
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-    mocks.fsReadText.mockResolvedValue('# Controlled')
-
-    render(
-      <ArtifactPane
-        workspacePath="/tmp/workspace"
-        selectedFile="README.md"
-        viewMode="code"
-        onViewModeChange={onViewModeChange}
-      />
-    )
-
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/README.md'))
-    expect(screen.getByTestId('code-viewer')).toHaveTextContent('# Controlled')
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.code' }))
-
-    expect(onViewModeChange).toHaveBeenCalledWith('preview')
-  })
-
-  it('requests preview mode when a controlled source-unavailable file is selected in code mode', async () => {
-    const onViewModeChange = vi.fn()
-    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
-
-    const ControlledArtifactPane = () => {
-      const [viewMode, setViewMode] = useState<'preview' | 'code'>('code')
-
-      return (
-        <ArtifactPane
-          workspacePath="/tmp/workspace"
-          selectedFile="paper.pdf"
-          viewMode={viewMode}
-          onViewModeChange={(next) => {
-            onViewModeChange(next)
-            setViewMode(next)
-          }}
-        />
-      )
-    }
-
-    render(<ControlledArtifactPane />)
-
-    await waitFor(() => expect(onViewModeChange).toHaveBeenCalledWith('preview'))
-    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'agent.preview_pane.preview' })).toBeDisabled()
   })
 
   it('renders text file previews without wrapping so horizontal overflow can scroll', async () => {
@@ -841,7 +794,7 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/src/index.ts'))
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('const value = "a very long line";')
-    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'typescript')
+    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'TypeScript')
     expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
     expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-auto')
   })
@@ -1017,28 +970,8 @@ describe('ArtifactPane', () => {
     expect(screen.queryByTestId('loading-state')).not.toBeInTheDocument()
   })
 
-  it('disables source mode switching for PDF files', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
-
-    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
-    const modeButton = screen.getByRole('button', { name: 'agent.preview_pane.preview' })
-    expect(modeButton).toBeDisabled()
-
-    fireEvent.click(modeButton)
-
-    expect(screen.queryByRole('button', { name: 'agent.preview_pane.code' })).not.toBeInTheDocument()
-    expect(screen.queryByText('agent.preview_pane.code_unavailable')).not.toBeInTheDocument()
-    expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument()
-  })
-
-  it('does not read obvious binary files and disables source mode switching', async () => {
+  it('does not read files the buffer sniff classifies as binary', async () => {
+    mocks.isTextFile.mockResolvedValueOnce(false)
     mockWorkspaceTree('/tmp/workspace', ['image.png'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1048,11 +981,12 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(screen.getByTestId('tree-node-image.png'))
 
+    await waitFor(() => expect(screen.getByText('agent.preview_pane.code_unavailable')).toBeInTheDocument())
     expect(mocks.fsReadText).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'agent.preview_pane.preview' })).toBeDisabled()
   })
 
-  it('does not read unknown extensions and disables source mode switching', async () => {
+  it('does not read unknown extensions when the sniff says binary', async () => {
+    mocks.isTextFile.mockResolvedValueOnce(false)
     mockWorkspaceTree('/tmp/workspace', ['archive.custom'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1062,11 +996,26 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(screen.getByTestId('tree-node-archive.custom'))
 
+    await waitFor(() => expect(screen.getByText('agent.preview_pane.code_unavailable')).toBeInTheDocument())
     expect(mocks.fsReadText).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'agent.preview_pane.preview' })).toBeDisabled()
   })
 
-  it('allows source mode switching for LANG_MAP-backed files', async () => {
+  it('reads unknown extensions when the sniff says text', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.log'])
+    mocks.fsReadText.mockResolvedValue('boot at 12:00')
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.log')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-notes.log'))
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/notes.log'))
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('boot at 12:00')
+  })
+
+  it('renders non-markdown text files through CodeViewer with the resolved language', async () => {
     mockWorkspaceTree('/tmp/workspace', ['config.json'])
     mocks.fsReadText.mockResolvedValue('{"enabled":true}')
 
@@ -1078,37 +1027,8 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-config.json'))
 
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/config.json'))
-    const modeButton = screen.getByRole('button', { name: 'agent.preview_pane.preview' })
-    expect(modeButton).not.toBeDisabled()
-
-    fireEvent.click(modeButton)
-
-    expect(screen.getByRole('button', { name: 'agent.preview_pane.code' })).toBeInTheDocument()
-    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'json')
+    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'JSON')
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('{"enabled":true}')
-  })
-
-  it('returns to preview mode when a source-unavailable file is selected from code mode', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md', 'paper.pdf'])
-    mocks.fsReadText.mockResolvedValue('# Hello')
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-README.md'))
-    await waitFor(() => expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Hello'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.preview' }))
-    expect(screen.getByRole('button', { name: 'agent.preview_pane.code' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
-
-    await waitFor(() => expect(screen.getByRole('button', { name: 'agent.preview_pane.preview' })).toBeDisabled())
-    expect(screen.queryByRole('button', { name: 'agent.preview_pane.code' })).not.toBeInTheDocument()
-    expect(screen.queryByText('agent.preview_pane.code_unavailable')).not.toBeInTheDocument()
-    expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument()
   })
 
   it('re-reads the selected text file when refresh is clicked', async () => {
@@ -1121,7 +1041,7 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
-    await waitFor(() => expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Before'))
+    await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Before'))
 
     // The watcher keeps the tree current; the refresh button now only
     // re-pulls the active file's content (the FS scan stays a one-shot).
@@ -1129,7 +1049,7 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledTimes(2))
     expect(mocks.fsReadText).toHaveBeenLastCalledWith('/tmp/workspace/README.md')
-    expect(screen.getByTestId('rich-editor')).toHaveTextContent('# After')
+    expect(screen.getByTestId('markdown')).toHaveTextContent('# After')
     expect(mocks.treeCreate).toHaveBeenCalledTimes(1)
   })
 
@@ -1153,7 +1073,7 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
-    await waitFor(() => expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Before'))
+    await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Before'))
 
     await waitFor(() => expect(pushMutation).toBeDefined())
     act(() => {
@@ -1161,7 +1081,7 @@ describe('ArtifactPane', () => {
     })
 
     await waitFor(() => expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.select_file'))
-    expect(screen.queryByTestId('rich-editor')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('markdown')).not.toBeInTheDocument()
   })
 
   it('refresh does not re-read content for non-source-viewable selections (e.g. PDF)', async () => {

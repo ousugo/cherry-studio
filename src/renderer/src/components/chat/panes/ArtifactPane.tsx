@@ -1,25 +1,16 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { Markdown } from '@cherrystudio/ui/composites/markdown'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
-import RichEditor from '@renderer/components/RichEditor'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
+import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
+import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import type { DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/file/types'
-import {
-  AlertCircle,
-  CodeXml,
-  Eye,
-  FileText,
-  Folder,
-  FolderOpen,
-  Maximize2,
-  Minimize2,
-  RotateCw,
-  Sparkles
-} from 'lucide-react'
+import { AlertCircle, FileText, Folder, FolderOpen, Maximize2, Minimize2, RotateCw, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   type ComponentType,
@@ -50,13 +41,10 @@ export interface ArtifactPaneProps {
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   selectedFile?: string | null
-  viewMode?: ArtifactPaneViewMode
   onSelectedFileChange?: (file: string | null) => void
-  onViewModeChange?: (mode: ArtifactPaneViewMode) => void
   onToggleMaximized?: () => void
 }
 
-export type ArtifactPaneViewMode = 'preview' | 'code'
 export interface ArtifactPaneFileSelection {
   workspacePath: string
   filePath: string
@@ -65,43 +53,17 @@ export interface ArtifactPaneFileSelection {
 interface ArtifactFilePreviewProps {
   workspacePath?: string
   filePath?: string | null
-  viewMode?: ArtifactPaneViewMode
+  isText: IsTextState
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   contentRefreshKey?: number
 }
 
+// Extensions below drive special-case rendering (Markdown / iframe / PdfPreviewPanel),
+// not text-vs-binary classification. Text detection lives in `useIsTextFile`.
 const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
 const HTML_EXT = new Set(['.html', '.htm'])
 const PDF_EXT = new Set(['.pdf'])
-
-const LANG_MAP: Record<string, string> = {
-  ts: 'typescript',
-  tsx: 'tsx',
-  js: 'javascript',
-  jsx: 'jsx',
-  json: 'json',
-  py: 'python',
-  sh: 'bash',
-  bash: 'bash',
-  zsh: 'bash',
-  yml: 'yaml',
-  yaml: 'yaml',
-  toml: 'toml',
-  css: 'css',
-  scss: 'scss',
-  html: 'html',
-  htm: 'html',
-  xml: 'xml',
-  sql: 'sql',
-  rs: 'rust',
-  go: 'go',
-  rb: 'ruby',
-  md: 'markdown',
-  mdx: 'markdown',
-  markdown: 'markdown',
-  txt: 'text'
-}
 
 const extOf = (name: string): string => {
   const dot = name.lastIndexOf('.')
@@ -111,11 +73,6 @@ const extOf = (name: string): string => {
 const isMarkdownFile = (name: string) => MARKDOWN_EXT.has(extOf(name))
 const isHtmlFile = (name: string) => HTML_EXT.has(extOf(name))
 const isPdfFile = (name: string) => PDF_EXT.has(extOf(name))
-const isSourceViewAvailable = (name: string) => {
-  const ext = extOf(name).slice(1)
-  return Boolean(ext && LANG_MAP[ext])
-}
-const guessLanguage = (name: string) => LANG_MAP[extOf(name).slice(1)] ?? 'text'
 
 const joinPath = (base: string, rel: string): string => {
   const trimmed = rel.replace(/^[/\\]+/, '')
@@ -418,7 +375,7 @@ const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult
 export function ArtifactFilePreview({
   workspacePath,
   filePath,
-  viewMode = 'preview',
+  isText,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
   contentRefreshKey = 0
@@ -427,7 +384,7 @@ export function ArtifactFilePreview({
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
-  const isPdfPreview = viewMode === 'preview' && filePath ? isPdfFile(filePath) : false
+  const isPdfPreview = filePath ? isPdfFile(filePath) : false
 
   useEffect(() => {
     if (!filePath || !workspacePath) {
@@ -436,7 +393,14 @@ export function ArtifactFilePreview({
       return
     }
 
-    if (!isSourceViewAvailable(filePath)) {
+    // PDF renders straight from disk via PdfPreviewPanel; no readText needed.
+    if (isPdfFile(filePath)) {
+      setFileContent(null)
+      setLoadingContent(false)
+      return
+    }
+
+    if (isText !== 'text') {
       setFileContent(null)
       setLoadingContent(false)
       return
@@ -464,7 +428,7 @@ export function ArtifactFilePreview({
     return () => {
       cancelled = true
     }
-  }, [contentRefreshKey, filePath, workspacePath])
+  }, [contentRefreshKey, filePath, workspacePath, isText])
 
   useEffect(() => {
     if (!isPdfPreview || pdfLayoutPending || PdfPreviewPanel) return
@@ -497,30 +461,8 @@ export function ArtifactFilePreview({
   if (!filePath) {
     return <EmptyState icon={FileText} title={t('agent.preview_pane.select_file')} />
   }
-  if (loadingContent) {
-    return <LoadingState variant="skeleton" rows={4} />
-  }
 
-  if (viewMode === 'code') {
-    if (!isSourceViewAvailable(filePath)) {
-      return (
-        <EmptyState
-          icon={FileText}
-          title={t('agent.preview_pane.preview')}
-          description={t('agent.preview_pane.code_unavailable')}
-        />
-      )
-    }
-    return (
-      <CodeViewer
-        key={`code-${filePath}-${contentRefreshKey}`}
-        value={fileContent ?? ''}
-        language={guessLanguage(filePath)}
-        wrapped={false}
-      />
-    )
-  }
-
+  // PDF: binary but renderable; bypass isText gating.
   if (isPdfFile(filePath)) {
     if (pdfLayoutPending || !PdfPreviewPanel) {
       return (
@@ -529,7 +471,6 @@ export function ArtifactFilePreview({
         </div>
       )
     }
-
     return (
       <PdfPreviewPanel
         key={`pdf-${filePath}-${pdfLayoutRefreshKey}`}
@@ -539,10 +480,11 @@ export function ArtifactFilePreview({
       />
     )
   }
-  if (isHtmlFile(filePath)) {
-    return <HtmlPreviewPanel key={`html-${filePath}-${contentRefreshKey}`} html={fileContent ?? ''} title={filePath} />
+
+  if (isText === 'pending') {
+    return <LoadingState variant="skeleton" rows={4} />
   }
-  if (!isSourceViewAvailable(filePath)) {
+  if (isText === 'binary') {
     return (
       <EmptyState
         icon={FileText}
@@ -551,17 +493,18 @@ export function ArtifactFilePreview({
       />
     )
   }
+
+  if (loadingContent) {
+    return <LoadingState variant="skeleton" rows={4} />
+  }
+
+  if (isHtmlFile(filePath)) {
+    return <HtmlPreviewPanel key={`html-${filePath}-${contentRefreshKey}`} html={fileContent ?? ''} title={filePath} />
+  }
   if (isMarkdownFile(filePath)) {
     return (
       <div className="min-w-0 px-5 py-4">
-        <RichEditor
-          key={`md-${filePath}-${contentRefreshKey}`}
-          initialContent={fileContent ?? ''}
-          isMarkdown
-          editable={false}
-          showToolbar={false}
-          isFullWidth
-        />
+        <Markdown id={`md-${filePath}-${contentRefreshKey}`}>{fileContent ?? ''}</Markdown>
       </div>
     )
   }
@@ -569,7 +512,7 @@ export function ArtifactFilePreview({
     <CodeViewer
       key={`preview-${filePath}-${contentRefreshKey}`}
       value={fileContent ?? ''}
-      language={guessLanguage(filePath)}
+      language={getLanguageByFilePath(filePath)}
       wrapped={false}
     />
   )
@@ -581,9 +524,7 @@ const ArtifactPane = ({
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
   selectedFile: selectedFileProp,
-  viewMode: viewModeProp,
   onSelectedFileChange,
-  onViewModeChange,
   onToggleMaximized
 }: ArtifactPaneProps) => {
   const { t } = useTranslation()
@@ -597,28 +538,18 @@ const ArtifactPane = ({
   } = useArtifactFileTreeResize()
 
   const [treeOpen, setTreeOpen] = useState(false)
-  const [internalViewMode, setInternalViewMode] = useState<ArtifactPaneViewMode>('preview')
   const [internalSelectedFile, setInternalSelectedFile] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
   const previousWorkspacePathRef = useRef(workspacePath)
   const selectedFileControlled = selectedFileProp !== undefined
   const selectedFile = selectedFileControlled ? selectedFileProp : internalSelectedFile
-  const viewModeControlled = viewModeProp !== undefined
-  const viewMode = viewModeControlled ? viewModeProp : internalViewMode
   const setSelectedFile = useCallback(
     (file: string | null) => {
       if (!selectedFileControlled) setInternalSelectedFile(file)
       onSelectedFileChange?.(file)
     },
     [onSelectedFileChange, selectedFileControlled]
-  )
-  const setViewMode = useCallback(
-    (mode: ArtifactPaneViewMode) => {
-      if (!viewModeControlled) setInternalViewMode(mode)
-      onViewModeChange?.(mode)
-    },
-    [onViewModeChange, viewModeControlled]
   )
 
   const nodeById = useMemo(() => {
@@ -637,12 +568,11 @@ const ArtifactPane = ({
   useEffect(() => {
     if (previousWorkspacePathRef.current !== workspacePath) {
       if (!selectedFileControlled) setSelectedFile(null)
-      setViewMode('preview')
     }
     previousWorkspacePathRef.current = workspacePath
     setExpandedIds(workspacePath ? new Set([WORKSPACE_ROOT_ID]) : new Set())
     setContentRefreshToken(0)
-  }, [selectedFileControlled, setSelectedFile, setViewMode, workspacePath])
+  }, [selectedFileControlled, setSelectedFile, workspacePath])
 
   useEffect(() => {
     if (!selectedFile || !hasLoaded) return
@@ -666,31 +596,19 @@ const ArtifactPane = ({
     [nodeById, setSelectedFile]
   )
 
+  const isText = useIsTextFile(workspacePath, selectedFile)
+  const isPdfSelection = selectedFile ? isPdfFile(selectedFile) : false
+
   const handleRefresh = useCallback(() => {
     refresh()
-    if (workspacePath && selectedFile && isSourceViewAvailable(selectedFile)) setContentRefreshToken((v) => v + 1)
-  }, [refresh, selectedFile, workspacePath])
+    if (workspacePath && selectedFile && isText === 'text') setContentRefreshToken((v) => v + 1)
+  }, [refresh, selectedFile, workspacePath, isText])
 
-  const handleViewModeToggle = useCallback(() => {
-    if (!selectedFile || isSourceViewAvailable(selectedFile)) {
-      setViewMode(viewMode === 'preview' ? 'code' : 'preview')
-    }
-  }, [selectedFile, setViewMode, viewMode])
+  const isSelectedHtmlPreview = selectedFile ? isHtmlFile(selectedFile) : false
+  const isSelectedPdfPreview = isPdfSelection
 
-  const sourceViewAvailable = selectedFile ? isSourceViewAvailable(selectedFile) : true
-  const isSelectedHtmlPreview = viewMode === 'preview' && selectedFile ? isHtmlFile(selectedFile) : false
-  const isSelectedPdfPreview = viewMode === 'preview' && selectedFile ? isPdfFile(selectedFile) : false
-
-  useEffect(() => {
-    if (selectedFile && !sourceViewAvailable && viewMode === 'code') {
-      setViewMode('preview')
-    }
-  }, [selectedFile, setViewMode, sourceViewAvailable, viewMode])
-
-  const viewModeLabel = t(viewMode === 'preview' ? 'agent.preview_pane.preview' : 'agent.preview_pane.code')
   const maximizeLabel = t(maximized ? 'agent.preview_pane.minimize' : 'agent.preview_pane.maximize')
   const FileTreeIcon = treeOpen ? FolderOpen : Folder
-  const ViewModeIcon = viewMode === 'preview' ? Eye : CodeXml
   const MaximizeIcon = maximized ? Minimize2 : Maximize2
 
   const renderRight = () => {
@@ -710,7 +628,7 @@ const ArtifactPane = ({
       <ArtifactFilePreview
         workspacePath={workspacePath}
         filePath={selectedFile}
-        viewMode={viewMode}
+        isText={isText}
         pdfLayoutPending={pdfLayoutPending}
         pdfLayoutRefreshKey={pdfLayoutRefreshKey}
         contentRefreshKey={contentRefreshToken}
@@ -792,18 +710,6 @@ const ArtifactPane = ({
                   aria-pressed={treeOpen}
                   onClick={() => setTreeOpen((v) => !v)}>
                   <FileTreeIcon size={16} />
-                </Button>
-              </Tooltip>
-              <Tooltip content={viewModeLabel} delay={800}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:bg-accent hover:text-foreground"
-                  aria-label={viewModeLabel}
-                  disabled={!sourceViewAvailable}
-                  onClick={handleViewModeToggle}>
-                  <ViewModeIcon size={16} />
                 </Button>
               </Tooltip>
             </div>
