@@ -1,4 +1,4 @@
-import { Button, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
+import { Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { cn } from '@renderer/utils'
@@ -201,6 +201,8 @@ function ShellToggle({ tab, disabled = false }: { tab: string; disabled?: boolea
   return (
     <Tooltip content={toggleLabel} delay={800}>
       <NavbarIcon
+        tone="conversation"
+        active={pressed}
         disabled={disabled}
         onClick={handleClick}
         aria-pressed={pressed}
@@ -240,16 +242,14 @@ function ShellTabList({ children }: { children: ReactNode }) {
       )}>
       <TabsList className="min-w-0 flex-1 justify-start gap-1 overflow-x-auto">{children}</TabsList>
       <Tooltip content={maximizeLabel} delay={800}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+        <NavbarIcon
+          tone="conversation"
+          className="shrink-0"
           aria-label={maximizeLabel}
           aria-pressed={state.maximized}
           onClick={actions.toggleMaximized}>
-          <MaximizeIcon size={15} />
-        </Button>
+          <MaximizeIcon />
+        </NavbarIcon>
       </Tooltip>
     </div>
   )

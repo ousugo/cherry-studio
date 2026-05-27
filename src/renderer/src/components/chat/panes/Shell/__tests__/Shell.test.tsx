@@ -26,8 +26,13 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('@renderer/components/NavbarIcon', () => ({
-  default: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
-    <button type="button" {...props}>
+  default: ({
+    active,
+    children,
+    tone,
+    ...props
+  }: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; children: ReactNode; tone?: string }) => (
+    <button type="button" data-active={active || undefined} data-tone={tone} {...props}>
       {children}
     </button>
   )
@@ -103,6 +108,8 @@ describe('Shell.Toggle', () => {
     const toggle = screen.getByRole('button', { name: 'common.open_sidebar' })
 
     expect(toggle).toHaveAttribute('data-state', 'closed')
+    expect(toggle).toHaveAttribute('data-tone', 'conversation')
+    expect(toggle).not.toHaveAttribute('data-active')
     expect(screen.getByTestId('shell-tooltip')).toHaveAttribute('data-content', 'common.open_sidebar')
     expect(screen.getByTestId('expand-icon')).toBeInTheDocument()
 
@@ -110,6 +117,7 @@ describe('Shell.Toggle', () => {
 
     expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toBe(toggle)
     expect(toggle).toHaveAttribute('data-state', 'open')
+    expect(toggle).toHaveAttribute('data-active', 'true')
     expect(screen.getByTestId('shell-tooltip')).toHaveAttribute('data-content', 'common.close_sidebar')
     expect(screen.getByTestId('collapse-icon')).toBeInTheDocument()
   })
@@ -186,6 +194,12 @@ describe('Shell.TabList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
+    const minimizeButton = screen.getByRole('button', { name: 'common.minimize' })
+
+    expect(minimizeButton).toHaveAttribute('data-tone', 'conversation')
+    expect(minimizeButton).toHaveAttribute('aria-pressed', 'true')
+    expect(minimizeButton).not.toHaveAttribute('data-active')
+    expect(minimizeButton.querySelector('svg')).not.toHaveAttribute('width', '15')
     expect(tabList).not.toHaveClass('pr-11')
     expect(tabList).toHaveClass('px-3')
   })

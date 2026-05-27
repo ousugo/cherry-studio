@@ -29,14 +29,18 @@ const AgentContent = ({ activeAgent, tools, showSidebarControls = true }: AgentC
           <>
             {showSidebar && (
               <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
-                <NavbarIcon onClick={toggleShowSidebar}>
+                <NavbarIcon tone="conversation" active aria-pressed={showSidebar} onClick={toggleShowSidebar}>
                   <SidebarCollapseIcon />
                 </NavbarIcon>
               </Tooltip>
             )}
             {!showSidebar && (
               <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
-                <NavbarIcon onClick={toggleShowSidebar} style={{ marginRight: 2 }}>
+                <NavbarIcon
+                  tone="conversation"
+                  aria-pressed={showSidebar}
+                  onClick={toggleShowSidebar}
+                  style={{ marginRight: 2 }}>
                   <SidebarExpandIcon />
                 </NavbarIcon>
               </Tooltip>
@@ -48,7 +52,10 @@ const AgentContent = ({ activeAgent, tools, showSidebarControls = true }: AgentC
                   animate={{ width: 'auto', opacity: 1 }}
                   exit={{ width: 0, opacity: 0 }}
                   transition={{ duration: 0.3, ease: 'easeInOut' }}>
-                  <NavbarIcon onClick={() => AgentSidePanelDrawer.show()} style={{ marginRight: 5 }}>
+                  <NavbarIcon
+                    tone="conversation"
+                    onClick={() => AgentSidePanelDrawer.show()}
+                    style={{ marginRight: 5 }}>
                     <Menu size={18} />
                   </NavbarIcon>
                 </motion.div>

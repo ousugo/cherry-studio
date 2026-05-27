@@ -12,6 +12,8 @@ const ArtifactPaneToggleButton = ({ open, onToggle }: ArtifactPaneToggleButtonPr
   return (
     <Tooltip content={t('agent.preview_pane.toggle')} delay={800}>
       <NavbarIcon
+        tone="conversation"
+        active={open}
         onClick={onToggle}
         aria-pressed={open}
         aria-label={t('agent.preview_pane.toggle')}

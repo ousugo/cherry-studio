@@ -1,18 +1,34 @@
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const preferenceMock = vi.hoisted(() => ({
+  setShowSidebar: vi.fn(),
+  showSidebar: false
+}))
 
 vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => children
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => [false, vi.fn()]
+  usePreference: () => [preferenceMock.showSidebar, preferenceMock.setShowSidebar]
 }))
 
 vi.mock('@renderer/components/NavbarIcon', () => ({
-  default: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
-    <button type="button" onClick={onClick}>
+  default: ({
+    active,
+    children,
+    onClick,
+    tone,
+    ...props
+  }: {
+    active?: boolean
+    children: ReactNode
+    onClick?: () => void
+    tone?: string
+  }) => (
+    <button type="button" data-active={active || undefined} data-tone={tone} onClick={onClick} {...props}>
       {children}
     </button>
   )
@@ -49,6 +65,11 @@ const agentA = {
 } as any
 
 describe('AgentContent', () => {
+  beforeEach(() => {
+    preferenceMock.showSidebar = false
+    preferenceMock.setShowSidebar.mockClear()
+  })
+
   it('keeps agent page tools in the navbar', () => {
     render(<AgentContent activeAgent={agentA} tools={<span>files</span>} />)
 
@@ -68,5 +89,29 @@ describe('AgentContent', () => {
 
     expect(screen.queryByText('tools')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'open workspace' })).not.toBeInTheDocument()
+  })
+
+  it('marks the sidebar toggle active when the sidebar is visible', () => {
+    preferenceMock.showSidebar = true
+
+    render(<AgentContent activeAgent={agentA} />)
+
+    const [toggle] = screen.getAllByRole('button')
+
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    expect(toggle).toHaveAttribute('data-tone', 'conversation')
+    expect(toggle).toHaveAttribute('data-active', 'true')
+  })
+
+  it('keeps the workspace drawer button inactive when the sidebar is hidden', () => {
+    render(<AgentContent activeAgent={agentA} />)
+
+    const [toggle, drawer] = screen.getAllByRole('button')
+
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(toggle).toHaveAttribute('data-tone', 'conversation')
+    expect(toggle).not.toHaveAttribute('data-active')
+    expect(drawer).toHaveAttribute('data-tone', 'conversation')
+    expect(drawer).not.toHaveAttribute('data-active')
   })
 })

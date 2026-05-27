@@ -39,6 +39,7 @@ describe('ArtifactPaneToggleButton', () => {
     const toggle = screen.getByLabelText('agent.preview_pane.toggle')
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(toggle).toHaveAttribute('data-state', 'closed')
+    expect(toggle).not.toHaveAttribute('data-active')
 
     fireEvent.click(toggle)
 
@@ -48,5 +49,6 @@ describe('ArtifactPaneToggleButton', () => {
 
     expect(screen.getByLabelText('agent.preview_pane.toggle')).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByLabelText('agent.preview_pane.toggle')).toHaveAttribute('data-state', 'open')
+    expect(screen.getByLabelText('agent.preview_pane.toggle')).toHaveAttribute('data-active', 'true')
   })
 })
