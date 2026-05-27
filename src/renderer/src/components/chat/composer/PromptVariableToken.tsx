@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, MouseEventHandler } from 'react'
 import { useLayoutEffect, useRef } from 'react'
 
 import { ComposerToken } from './ComposerToken'
@@ -152,6 +152,14 @@ export function PromptVariableToken({
     isDirtyRef.current = true
     hasFinishedCurrentDraftRef.current = false
   }
+  const handleTokenMouseDown: MouseEventHandler<HTMLSpanElement> | undefined =
+    !isEditing && onEditRequest
+      ? (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          onEditRequest()
+        }
+      : undefined
 
   return (
     <ComposerToken
@@ -159,7 +167,7 @@ export function PromptVariableToken({
       selected={selected}
       className={className}
       maxWidthClassName={isEditing ? 'max-w-none' : 'max-w-52'}
-      onMouseDown={!isEditing ? onEditRequest : undefined}>
+      onMouseDown={handleTokenMouseDown}>
       {isEditing ? (
         <input
           ref={inputRef}

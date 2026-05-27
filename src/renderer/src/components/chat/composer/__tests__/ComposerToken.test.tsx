@@ -40,6 +40,14 @@ function ComposerEditorHarness({
   return <EditorContent editor={editor} />
 }
 
+function findComposerTokenPosition(editor: Editor): number {
+  let tokenPosition = -1
+  editor.state.doc.descendants((node, position) => {
+    if (node.type.name === COMPOSER_TOKEN_NODE_NAME) tokenPosition = position
+  })
+  return tokenPosition
+}
+
 describe('ComposerToken', () => {
   it('renders a static composer token label', () => {
     render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
@@ -103,10 +111,7 @@ describe('ComposerToken', () => {
     render(<ComposerEditorHarness onEditor={(nextEditor) => (editor = nextEditor)} />)
 
     await waitFor(() => expect(editor).not.toBeNull())
-    let promptVariablePosition = -1
-    editor!.state.doc.descendants((node, position) => {
-      if (node.type.name === COMPOSER_TOKEN_NODE_NAME) promptVariablePosition = position
-    })
+    const promptVariablePosition = findComposerTokenPosition(editor!)
 
     act(() => {
       editor!.chain().focus().setNodeSelection(promptVariablePosition).run()
@@ -114,6 +119,20 @@ describe('ComposerToken', () => {
 
     await waitFor(() => expect(editor!.state.selection.from).toBe(promptVariablePosition))
     expect(screen.queryByLabelText('${city}')).toBeNull()
+  })
+
+  it('selects and edits a prompt variable when its rendered label is clicked', async () => {
+    let editor: Editor | null = null
+    render(<ComposerEditorHarness onEditor={(nextEditor) => (editor = nextEditor)} />)
+
+    await waitFor(() => expect(editor).not.toBeNull())
+    const promptVariablePosition = findComposerTokenPosition(editor!)
+
+    fireEvent.mouseDown(screen.getByText('city'))
+
+    const input = (await screen.findByLabelText('${city}')) as HTMLInputElement
+    await waitFor(() => expect(editor!.state.selection.from).toBe(promptVariablePosition))
+    expect(input.value).toBe('city')
   })
 
   it('focuses the prompt variable input after a Tab edit request and keeps IME text inside the token node', async () => {

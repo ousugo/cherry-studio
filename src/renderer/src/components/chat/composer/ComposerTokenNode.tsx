@@ -121,6 +121,13 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
     props.editor.commands.editComposerToken(target.token.id, target.position)
   }
 
+  const selectCurrentToken = () => {
+    const position = typeof props.getPos === 'function' ? props.getPos() : undefined
+    if (typeof position !== 'number') return
+
+    props.editor.chain().focus().setNodeSelection(position).run()
+  }
+
   const finishPromptVariableEdit = (
     value: string,
     reason: PromptVariableCommitReason,
@@ -173,7 +180,10 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
         editing={isPromptVariableEditing}
         onCommit={finishPromptVariableEdit}
         onSelectAll={selectAllComposerContent}
-        onEditRequest={() => setPromptVariableEditing(true)}
+        onEditRequest={() => {
+          selectCurrentToken()
+          setPromptVariableEditing(true)
+        }}
       />
     ) : (
       <ComposerToken token={token} selected={props.selected} />
