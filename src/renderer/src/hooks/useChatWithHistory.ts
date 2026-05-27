@@ -45,10 +45,23 @@ export function useChatWithHistory(
       })
   )
 
-  const { setMessages, stop, status, error, sendMessage, regenerate, resumeStream } = useChat<CherryUIMessage>({
+  const {
+    setMessages,
+    stop: sdkStop,
+    status,
+    error,
+    sendMessage,
+    regenerate,
+    resumeStream
+  } = useChat<CherryUIMessage>({
     chat,
     experimental_throttle: 0
   })
+
+  const stop = useCallback(async () => {
+    void window.api.ai.streamAbort({ topicId })
+    await sdkStop()
+  }, [sdkStop, topicId])
 
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
