@@ -293,7 +293,12 @@ export class FileMigrator extends BaseMigrator {
         })
       }
 
-      // Sample physical files for internal entries
+      // Sample physical files for internal entries. v1 routinely leaves
+      // dangling file_entry rows behind (deleted attachments, interrupted
+      // uploads); migration shouldn't abort over them — the DB row keeps
+      // the historical reference and the read path already handles missing
+      // bytes. Record via this.recordWarning so they land in this.warnings
+      // alongside prepare-phase warnings.
       const internalEntries = this.preparedEntries
         .filter((e): e is PreparedInternalEntry => e.origin === 'internal')
         .slice(0, VALIDATE_SAMPLE_LIMIT)
@@ -306,10 +311,7 @@ export class FileMigrator extends BaseMigrator {
           entry.ext ? `${entry.id}.${entry.ext}` : entry.id
         )
         if (!fs.existsSync(physicalPath)) {
-          errors.push({
-            key: 'file_entry_missing_physical_file',
-            message: `Physical file missing for entry id=${entry.id}: ${physicalPath}`
-          })
+          this.recordWarning(`Physical file missing for entry id=${entry.id}: ${physicalPath}`)
         }
       }
 
