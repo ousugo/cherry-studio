@@ -369,7 +369,6 @@
     },
     "right_pane": {
       "close": "关闭",
-      "files_toggle": "显示文件",
       "flow": {
         "empty": {
           "description": "选择一个 Agent 工具调用来查看它的子消息流。",
@@ -1884,6 +1883,7 @@
     "clear_all": "清除全部",
     "click_to_replace": "点击替换",
     "close": "关闭",
+    "close_sidebar": "关闭侧边栏",
     "collapse": "折叠",
     "completed": "完成",
     "confirm": "确认",
@@ -1949,6 +1949,7 @@
     "open": "打开",
     "open_in": "在 {{name}} 中打开",
     "open_in_new_tab": "在新标签页打开",
+    "open_sidebar": "打开侧边栏",
     "paste": "粘贴",
     "placeholders": {
       "select": {

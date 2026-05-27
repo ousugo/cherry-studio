@@ -602,8 +602,7 @@ function AgentRightPaneMaximizedOverlay() {
 }
 
 function AgentRightPaneFilesToggle() {
-  const { t } = useTranslation()
-  return <Shell.Toggle tab="files" label={t('agent.right_pane.files_toggle')} />
+  return <Shell.Toggle tab="files" />
 }
 
 // `AgentRightPane` is the provider itself, with the other parts attached as

@@ -369,7 +369,6 @@
     },
     "right_pane": {
       "close": "Close",
-      "files_toggle": "Show files",
       "flow": {
         "empty": {
           "description": "Select an agent tool call to inspect its child message flow.",
@@ -1884,6 +1883,7 @@
     "clear_all": "Clear All",
     "click_to_replace": "Click to replace",
     "close": "Close",
+    "close_sidebar": "Close sidebar",
     "collapse": "Collapse",
     "completed": "Completed",
     "confirm": "Confirm",
@@ -1949,6 +1949,7 @@
     "open": "Open",
     "open_in": "Open in {{name}}",
     "open_in_new_tab": "Open in new tab",
+    "open_sidebar": "Open sidebar",
     "paste": "Paste",
     "placeholders": {
       "select": {

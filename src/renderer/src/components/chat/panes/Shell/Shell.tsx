@@ -32,7 +32,6 @@ interface ShellActions {
   close: (afterClose?: () => void) => void
   finishClose: () => void
   openTab: (tab: string) => void
-  toggleTab: (tab: string) => void
   toggleMaximized: () => void
   refreshPdfLayout: () => void
 }
@@ -99,21 +98,6 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
       return true
     })
   }, [])
-  const toggleTab = useCallback(
-    (tab: string) => {
-      setOpen((currentOpen) => {
-        if (currentOpen && activeTab === tab) {
-          setMaximized(false)
-          setPdfLayoutPending(false)
-          return false
-        }
-        setActiveTab(tab)
-        if (!currentOpen) setPdfLayoutPending(true)
-        return true
-      })
-    },
-    [activeTab]
-  )
   const toggleMaximized = useCallback(() => {
     setPdfLayoutPending(false)
     setMaximized((currentMaximized) => !currentMaximized)
@@ -126,7 +110,7 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
   const value = useMemo<ShellContextValue>(
     () => ({
       state: { open, maximized, activeTab, pdfLayoutPending, pdfLayoutRefreshKey },
-      actions: { close, finishClose, openTab, toggleTab, toggleMaximized, refreshPdfLayout }
+      actions: { close, finishClose, openTab, toggleMaximized, refreshPdfLayout }
     }),
     [
       activeTab,
@@ -138,8 +122,7 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
       pdfLayoutPending,
       pdfLayoutRefreshKey,
       refreshPdfLayout,
-      toggleMaximized,
-      toggleTab
+      toggleMaximized
     ]
   )
 
@@ -200,19 +183,28 @@ function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
   )
 }
 
-// Navbar button that opens the pane to a given tab (or collapses it).
-function ShellToggle({ tab, label, disabled = false }: { tab: string; label: string; disabled?: boolean }) {
+// Navbar button that opens the side pane to a given tab (or collapses it).
+function ShellToggle({ tab, disabled = false }: { tab: string; disabled?: boolean }) {
   const { state, actions } = useShell()
-  const pressed = state.open && state.activeTab === tab
+  const { t } = useTranslation()
+  const pressed = state.open
   const ToggleIcon = pressed ? RightSidebarCollapseIcon : RightSidebarExpandIcon
+  const toggleLabel = t(pressed ? 'common.close_sidebar' : 'common.open_sidebar')
+  const handleClick = useCallback(() => {
+    if (state.open) {
+      actions.close()
+      return
+    }
+    actions.openTab(tab)
+  }, [actions, state.open, tab])
 
   return (
-    <Tooltip content={label} delay={800}>
+    <Tooltip content={toggleLabel} delay={800}>
       <NavbarIcon
         disabled={disabled}
-        onClick={() => actions.toggleTab(tab)}
+        onClick={handleClick}
         aria-pressed={pressed}
-        aria-label={label}
+        aria-label={toggleLabel}
         data-state={pressed ? 'open' : 'closed'}>
         <ToggleIcon />
       </NavbarIcon>

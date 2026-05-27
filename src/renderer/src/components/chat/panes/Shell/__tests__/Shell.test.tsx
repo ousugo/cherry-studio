@@ -18,7 +18,11 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  Tooltip: ({ children }: { children: ReactNode }) => children
+  Tooltip: ({ children, content }: { children: ReactNode; content: ReactNode }) => (
+    <div data-testid="shell-tooltip" data-content={typeof content === 'string' ? content : undefined}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/NavbarIcon', () => ({
@@ -60,7 +64,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { Shell, useShellActions } from '../Shell'
+import { Shell, useShellActions, useShellState } from '../Shell'
 
 function CloseShellButton() {
   const actions = useShellActions()
@@ -72,34 +76,52 @@ function CloseShellButton() {
   )
 }
 
+function OpenTraceButton() {
+  const actions = useShellActions()
+
+  return (
+    <button type="button" onClick={() => actions.openTab('trace')}>
+      open trace
+    </button>
+  )
+}
+
+function ShellStateSnapshot() {
+  const state = useShellState()
+
+  return <div data-testid="shell-state">{`${state.open ? 'open' : 'closed'}:${state.activeTab}`}</div>
+}
+
 describe('Shell.Toggle', () => {
   it('keeps the same toggle button while swapping icons across states', () => {
     render(
       <Shell defaultTab="files">
-        <Shell.Toggle tab="files" label="Files" />
+        <Shell.Toggle tab="files" />
       </Shell>
     )
 
-    const toggle = screen.getByRole('button', { name: 'Files' })
+    const toggle = screen.getByRole('button', { name: 'common.open_sidebar' })
 
     expect(toggle).toHaveAttribute('data-state', 'closed')
+    expect(screen.getByTestId('shell-tooltip')).toHaveAttribute('data-content', 'common.open_sidebar')
     expect(screen.getByTestId('expand-icon')).toBeInTheDocument()
 
     fireEvent.click(toggle)
 
-    expect(screen.getByRole('button', { name: 'Files' })).toBe(toggle)
+    expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toBe(toggle)
     expect(toggle).toHaveAttribute('data-state', 'open')
+    expect(screen.getByTestId('shell-tooltip')).toHaveAttribute('data-content', 'common.close_sidebar')
     expect(screen.getByTestId('collapse-icon')).toBeInTheDocument()
   })
 
   it('does not open the pane when disabled', () => {
     render(
       <Shell defaultTab="files">
-        <Shell.Toggle tab="files" label="Files" disabled />
+        <Shell.Toggle tab="files" disabled />
       </Shell>
     )
 
-    const toggle = screen.getByRole('button', { name: 'Files' })
+    const toggle = screen.getByRole('button', { name: 'common.open_sidebar' })
 
     expect(toggle).toBeDisabled()
     fireEvent.click(toggle)
@@ -110,18 +132,39 @@ describe('Shell.Toggle', () => {
   it('can close the open pane through shell actions', () => {
     render(
       <Shell defaultTab="files">
-        <Shell.Toggle tab="files" label="Files" />
+        <Shell.Toggle tab="files" />
         <CloseShellButton />
       </Shell>
     )
 
-    const toggle = screen.getByRole('button', { name: 'Files' })
+    const toggle = screen.getByRole('button', { name: 'common.open_sidebar' })
 
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('data-state', 'open')
 
     fireEvent.click(screen.getByRole('button', { name: 'close shell' }))
     expect(toggle).toHaveAttribute('data-state', 'closed')
+  })
+
+  it('closes the pane directly without switching tabs when another tab is active', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" />
+        <OpenTraceButton />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open trace' }))
+
+    const toggle = screen.getByRole('button', { name: 'common.close_sidebar' })
+    expect(toggle).toHaveAttribute('data-state', 'open')
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:trace')
+
+    fireEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute('data-state', 'closed')
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:trace')
   })
 })
 
