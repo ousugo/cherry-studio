@@ -268,6 +268,48 @@ describe('AgentChat settings panel', () => {
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
   })
 
+  it('keeps the agent home composer for pending ask-user-question requests', () => {
+    partsByMessageIdMock.value = {
+      'message-1': [
+        {
+          type: 'dynamic-tool',
+          toolName: 'AskUserQuestion',
+          toolCallId: 'call-1',
+          state: 'approval-requested',
+          input: {
+            questions: [
+              {
+                question: 'Choose logger',
+                header: 'Logger',
+                options: [{ label: 'Winston' }, { label: 'Pino' }],
+                multiSelect: false
+              }
+            ]
+          },
+          providerExecuted: true,
+          callProviderMetadata: { 'claude-code': { parentToolCallId: null } },
+          approval: { id: 'approval-1' }
+        }
+      ]
+    }
+
+    renderAgentChat({
+      activeSession: null,
+      temporaryConversation: {
+        type: 'agent',
+        id: 'temporary-session',
+        sessionId: 'temporary-session',
+        topicId: 'agent-session:temporary-session',
+        agentId: 'agent-1',
+        session: { id: 'temporary-session', agentId: 'agent-1', accessiblePaths: [] } as any
+      } as any
+    })
+
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('agent-home-composer')).toBeInTheDocument()
+    expect(screen.queryByText('Choose logger')).not.toBeInTheDocument()
+  })
+
   it('prioritizes AskUserQuestionComposer over regular permission requests', () => {
     partsByMessageIdMock.value = {
       'message-1': [
@@ -341,6 +383,44 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByRole('button', { name: 'agent.toolPermission.button.allow' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.toolPermission.button.deny' })).toBeInTheDocument()
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
+  })
+
+  it('keeps the agent home composer for pending tool permissions', () => {
+    partsByMessageIdMock.value = {
+      'message-1': [
+        {
+          type: 'tool-CustomTool',
+          toolName: 'CustomTool',
+          toolCallId: 'call-1',
+          state: 'approval-requested',
+          input: { command: 'pnpm test' },
+          approval: { id: 'approval-1' },
+          callProviderMetadata: {
+            'claude-code': {
+              rawInput: { command: 'pnpm test' },
+              parentToolCallId: null
+            }
+          }
+        }
+      ]
+    }
+
+    renderAgentChat({
+      activeSession: null,
+      temporaryConversation: {
+        type: 'agent',
+        id: 'temporary-session',
+        sessionId: 'temporary-session',
+        topicId: 'agent-session:temporary-session',
+        agentId: 'agent-1',
+        session: { id: 'temporary-session', agentId: 'agent-1', accessiblePaths: [] } as any
+      } as any
+    })
+
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('agent-home-composer')).toBeInTheDocument()
+    expect(screen.queryByText('CustomTool')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.toolPermission.button.allow' })).not.toBeInTheDocument()
   })
 
   it('responds to agent-session approvals with session topic and anchor context', async () => {

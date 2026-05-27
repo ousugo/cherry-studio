@@ -51,6 +51,7 @@ export default function AgentComposerSlot({
         onNewSessionDraft={onNewSessionDraft}
       />
     ) : undefined
+  const effectiveComposerContext = placement === 'home' ? undefined : composerContext
 
-  return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
+  return <ConversationComposerSlot composerContext={effectiveComposerContext} fallback={fallback} />
 }
