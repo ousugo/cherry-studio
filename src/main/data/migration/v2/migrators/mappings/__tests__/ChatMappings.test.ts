@@ -14,26 +14,14 @@ import { describe, expect, it, vi } from 'vitest'
 // returns a deterministic path, and `db.insert(...).values(...)` captures
 // the inserted row.
 vi.mock('node:fs/promises', async () => {
-  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
-  return {
-    ...actual,
-    default: {
-      ...actual,
-      mkdir: vi.fn().mockResolvedValue(undefined),
-      writeFile: vi.fn().mockResolvedValue(undefined),
-      unlink: vi.fn().mockResolvedValue(undefined)
-    },
-    mkdir: vi.fn().mockResolvedValue(undefined),
-    writeFile: vi.fn().mockResolvedValue(undefined),
-    unlink: vi.fn().mockResolvedValue(undefined)
-  }
+  const { createNodeFsPromisesMock } = await import('@test-helpers/mocks/nodeFsPromisesMock')
+  return createNodeFsPromisesMock()
 })
 
-vi.mock('@application', () => ({
-  application: {
-    getPath: vi.fn((_key: string, filename?: string) => (filename ? `/mock/files/${filename}` : '/mock/files'))
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
 
 /** Build a stub DbType that captures `db.insert(table).values(row)` calls. */
 function stubDb(): { db: DbType; inserts: Array<{ table: unknown; values: unknown }> } {
@@ -419,7 +407,8 @@ describe('transformBlocksToParts', () => {
 
     expect(parts).toHaveLength(1)
     const part = parts[0] as FileUIPart
-    expect(part.url).toMatch(/^file:\/\/\/mock\/files\/.+\.png$/)
+    // mockApplicationFactory returns `/mock/<key>/<filename>` for getPath.
+    expect(part.url).toMatch(/^file:\/\/\/mock\/feature\.files\.data\/.+\.png$/)
     expect(part.mediaType).toBe('image/png')
     expect(readCherryMeta(part)?.fileEntryId).toBeTruthy()
     // One file_entry row inserted
