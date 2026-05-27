@@ -318,7 +318,8 @@ export function useChatRuntimeState({
     setMessages,
     stop,
     refresh,
-    cache
+    cache,
+    seedReservedMessages
   })
 
   const sendMessage = useCallback(

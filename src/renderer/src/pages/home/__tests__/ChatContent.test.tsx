@@ -1,4 +1,5 @@
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +9,7 @@ import ChatContent from '../ChatContent'
 const mockUseChatWithHistory = vi.fn()
 const mockUseTopicMessages = vi.fn()
 const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
+const mockChatWriteValue = vi.hoisted(() => ({ current: null as any }))
 const mockEventEmit = vi.hoisted(() => vi.fn())
 const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
 const mockUseExecutionOverlay = vi.hoisted(() =>
@@ -22,7 +24,10 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
 }))
 
 vi.mock('@renderer/hooks/ChatWriteContext', () => ({
-  ChatWriteProvider: ({ children }: { children: ReactNode }) => children
+  ChatWriteProvider: ({ value, children }: { value: unknown; children: ReactNode }) => {
+    mockChatWriteValue.current = value
+    return children
+  }
 }))
 
 vi.mock('@renderer/hooks/useTopicMessages', () => ({
@@ -223,6 +228,23 @@ describe('ChatContent', () => {
 
   beforeEach(() => {
     const streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })
+    mockUseMutation.mockImplementation((method: string) => ({
+      trigger: vi.fn(async () => {
+        switch (method) {
+          case 'POST':
+            return { id: 'new_item', created: true }
+          case 'PUT':
+          case 'PATCH':
+            return { id: 'updated_item', updated: true }
+          case 'DELETE':
+            return { deleted: true, deletedIds: [] }
+          default:
+            return { success: true }
+        }
+      }),
+      isLoading: false,
+      error: undefined
+    }))
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
       siblingsMap: {},
@@ -267,6 +289,7 @@ describe('ChatContent', () => {
     vi.clearAllMocks()
     capturedOnSend = undefined
     mockMessageListValue.current = null
+    mockChatWriteValue.current = null
     mockEventEmit.mockReset()
     mockUseExecutionOverlay.mockReset()
   })
@@ -552,6 +575,128 @@ describe('ChatContent', () => {
       )
     })
     expect(screen.getByTestId('messages')).toHaveTextContent('history-user,history-assistant')
+  })
+
+  it('adds the forked user sibling to branch live state before refreshed tree data arrives', async () => {
+    const onBranchLiveStateChange = vi.fn()
+    const editedParts = [{ type: 'text', text: 'edited branch prompt' } as CherryMessagePart]
+    const createSiblingTrigger = vi.fn().mockResolvedValue({
+      id: 'forked-user',
+      topicId: 'topic-1',
+      parentId: 'branch-a',
+      role: 'user',
+      data: { parts: editedParts },
+      searchableText: '',
+      status: 'pending',
+      siblingsGroupId: 17,
+      modelId: null,
+      modelSnapshot: null,
+      traceId: null,
+      stats: null,
+      createdAt: '2026-01-01T00:00:03.000Z',
+      updatedAt: '2026-01-01T00:00:03.000Z'
+    })
+    const refresh = vi.fn().mockResolvedValue([
+      createUiMessage('history-user', 'user'),
+      createUiMessage('history-assistant', 'assistant'),
+      {
+        id: 'forked-user',
+        role: 'user',
+        parts: editedParts,
+        metadata: {
+          parentId: 'branch-a',
+          siblingsGroupId: 17,
+          status: 'pending',
+          createdAt: '2026-01-01T00:00:03.000Z'
+        }
+      } as CherryUIMessage
+    ])
+    const setMessages = vi.fn()
+    const regenerate = vi.fn().mockResolvedValue(undefined)
+
+    mockUseMutation.mockImplementation((method: string, path: string) => ({
+      trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
+      siblingsMap: {},
+      isLoading: false,
+      refresh,
+      activeNodeId: 'branch-a',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate,
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages,
+      activeExecutions: [{ executionId: 'forked-exec', anchorMessageId: 'forked-assistant' }] as never
+    })
+
+    render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
+
+    await act(async () => {
+      await mockChatWriteValue.current?.forkAndResend('history-user', editedParts)
+    })
+
+    expect(createSiblingTrigger).toHaveBeenCalledWith({
+      params: { id: 'history-user' },
+      body: { parts: editedParts }
+    })
+    expect(refresh).toHaveBeenCalled()
+    expect(setMessages).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'forked-user' })]))
+    expect(regenerate).toHaveBeenCalledWith({
+      messageId: 'forked-user',
+      body: expect.objectContaining({ parentAnchorId: 'forked-user' })
+    })
+    await waitFor(() => {
+      expect(onBranchLiveStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activeNodeId: 'forked-user',
+          nodes: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'forked-user',
+              parentId: 'branch-a',
+              role: 'user',
+              preview: 'edited branch prompt',
+              status: 'pending',
+              siblingsGroupId: 17
+            })
+          ])
+        })
+      )
+    })
+
+    const overlayCall = mockUseExecutionOverlay.mock.calls.at(-1)
+    expect(overlayCall).toBeDefined()
+    const finish = (overlayCall![3] as any).onFinish as (
+      executionId: string,
+      event: { message: CherryUIMessage; isAbort: boolean; isError: boolean }
+    ) => void
+
+    act(() => {
+      finish('forked-exec', {
+        message: {
+          id: 'forked-assistant',
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'final answer' }] as CherryMessagePart[],
+          metadata: { parentId: 'forked-user', status: 'success' }
+        } as CherryUIMessage,
+        isAbort: false,
+        isError: false
+      })
+    })
+
+    await waitFor(() => {
+      expect(refresh).toHaveBeenCalledTimes(2)
+      expect(onBranchLiveStateChange).toHaveBeenLastCalledWith(null)
+    })
   })
 
   it('clears branch live state after all multi-model executions finish in the same tick', async () => {
