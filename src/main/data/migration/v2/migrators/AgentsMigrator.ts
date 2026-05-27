@@ -1,4 +1,3 @@
-import { application } from '@application'
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { jobScheduleTable } from '@data/db/schemas/job'
@@ -159,9 +158,7 @@ export class AgentsMigrator extends BaseMigrator {
       //   2. importLegacySessionMessages — generates UUID message ids instead
       //      of preserving legacy integer row ids, and writes final `data.parts`.
       await backfillAgentOrderKeys(ctx.db)
-      await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
-        fileManager: application.get('FileManager')
-      })
+      await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo, { db: ctx.db })
 
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true

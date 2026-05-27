@@ -61,7 +61,6 @@
  * @since v2.0.0
  */
 
-import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
@@ -396,10 +395,12 @@ export class ChatMigrator extends BaseMigrator {
         ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
         : null
 
-      // FileManager promotes any v1 inline base64 (block.url=data: or
+      // ChatMappings promotes any v1 inline base64 (block.url=data: or
       // legacy metadata.generateImageResponse.images) into v2 file_entry
-      // rows during transformMessage. Same instance reused across batches.
-      const mappingDeps: ChatMappingDeps = { fileManager: application.get('FileManager') }
+      // rows during transformMessage — written through the migration's
+      // own DB handle, *not* through `application.get('FileManager')`:
+      // migration runs in preboot, before any `WhenReady` service is up.
+      const mappingDeps: ChatMappingDeps = { db: ctx.db }
 
       // Buffer all topics first; orderKey is stamped post-stream because per-batch
       // keys would collide across batches sharing a `groupId` partition.

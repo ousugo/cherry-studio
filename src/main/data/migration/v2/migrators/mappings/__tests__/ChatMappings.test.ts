@@ -1,4 +1,4 @@
-import type { IFileManager } from '@main/services/file/FileManager'
+import type { DbType } from '@data/db/types'
 import type {
   CherryMessagePart,
   DynamicToolUIPart,
@@ -8,6 +8,46 @@ import type {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { describe, expect, it, vi } from 'vitest'
+
+// Stub the side effects of base64 → file_entry promotion so the unit
+// tests can stay in-memory: fs writes become no-ops, `application.getPath`
+// returns a deterministic path, and `db.insert(...).values(...)` captures
+// the inserted row.
+vi.mock('node:fs/promises', async () => {
+  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+  return {
+    ...actual,
+    default: {
+      ...actual,
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      unlink: vi.fn().mockResolvedValue(undefined)
+    },
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    writeFile: vi.fn().mockResolvedValue(undefined),
+    unlink: vi.fn().mockResolvedValue(undefined)
+  }
+})
+
+vi.mock('@application', () => ({
+  application: {
+    getPath: vi.fn((_key: string, filename?: string) => (filename ? `/mock/files/${filename}` : '/mock/files'))
+  }
+}))
+
+/** Build a stub DbType that captures `db.insert(table).values(row)` calls. */
+function stubDb(): { db: DbType; inserts: Array<{ table: unknown; values: unknown }> } {
+  const inserts: Array<{ table: unknown; values: unknown }> = []
+  const db = {
+    insert: (table: unknown) => ({
+      values: async (values: unknown) => {
+        inserts.push({ table, values })
+        return undefined
+      }
+    })
+  } as unknown as DbType
+  return { db, inserts }
+}
 
 import {
   buildMessageTree,
@@ -360,7 +400,7 @@ describe('transformBlocksToParts', () => {
     expect(part.filename).toBe('photo.jpg')
   })
 
-  it('passes inline data: URL through unchanged when no FileManager dep is provided', async () => {
+  it('passes inline data: URL through unchanged when no db dep is provided', async () => {
     const dataUrl = 'data:image/png;base64,iVBORw0KGgo'
     const { parts } = await transformBlocksToParts([block('image', { url: dataUrl })])
 
@@ -372,84 +412,51 @@ describe('transformBlocksToParts', () => {
     expect(part.providerMetadata?.cherry).toBeUndefined()
   })
 
-  it('promotes inline data: URL to v2 file_entry when FileManager dep is provided', async () => {
-    const dataUrl = 'data:image/png;base64,iVBORw0KGgo'
-    const createInternalEntry = vi.fn().mockResolvedValue({
-      id: 'entry-from-url',
-      name: 'migrated-image',
-      ext: 'png',
-      origin: 'internal',
-      size: 9,
-      createdAt: 1,
-      updatedAt: 1
-    })
-    const getUrl = vi.fn().mockResolvedValue('file:///mock/storage/entry-from-url.png')
-    const fileManager = { createInternalEntry, getUrl } as unknown as IFileManager
-    const { parts } = await transformBlocksToParts([block('image', { url: dataUrl })], { fileManager })
+  it('promotes inline data: URL to v2 file_entry when db dep is provided', async () => {
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgo='
+    const { db, inserts } = stubDb()
+    const { parts } = await transformBlocksToParts([block('image', { url: dataUrl })], { db })
 
     expect(parts).toHaveLength(1)
     const part = parts[0] as FileUIPart
-    expect(part.url).toBe('file:///mock/storage/entry-from-url.png')
-    expect(createInternalEntry).toHaveBeenCalledWith({ source: 'base64', data: dataUrl, name: 'migrated-image' })
-    expect(readCherryMeta(part)?.fileEntryId).toBe('entry-from-url')
+    expect(part.url).toMatch(/^file:\/\/\/mock\/files\/.+\.png$/)
+    expect(part.mediaType).toBe('image/png')
+    expect(readCherryMeta(part)?.fileEntryId).toBeTruthy()
+    // One file_entry row inserted
+    expect(inserts).toHaveLength(1)
+    expect(inserts[0].values).toMatchObject({
+      origin: 'internal',
+      name: 'migrated-image',
+      ext: 'png',
+      externalPath: null
+    })
   })
 
   it('promotes each image in metadata.generateImageResponse.images to its own file_entry', async () => {
-    const img1 = 'data:image/png;base64,AAA'
-    const img2 = 'BBB' // raw base64, no data: prefix — helper should wrap
-    const createInternalEntry = vi
-      .fn()
-      .mockResolvedValueOnce({
-        id: 'gen-1',
-        name: 'migrated-image',
-        ext: 'png',
-        origin: 'internal',
-        size: 3,
-        createdAt: 1,
-        updatedAt: 1
-      })
-      .mockResolvedValueOnce({
-        id: 'gen-2',
-        name: 'migrated-image',
-        ext: 'png',
-        origin: 'internal',
-        size: 3,
-        createdAt: 1,
-        updatedAt: 1
-      })
-    const getUrl = vi
-      .fn()
-      .mockResolvedValueOnce('file:///mock/storage/gen-1.png')
-      .mockResolvedValueOnce('file:///mock/storage/gen-2.png')
-    const fileManager = { createInternalEntry, getUrl } as unknown as IFileManager
+    const img1 = 'data:image/png;base64,AAA='
+    const img2 = 'BBB=' // raw base64, no data: prefix — helper should wrap
+    const { db, inserts } = stubDb()
     const { parts } = await transformBlocksToParts(
       [
         block('image', {
           metadata: { generateImageResponse: { type: 'base64', images: [img1, img2] } }
         })
       ],
-      { fileManager }
+      { db }
     )
 
     expect(parts).toHaveLength(2)
-    expect(readCherryMeta(parts[0] as FileUIPart)?.fileEntryId).toBe('gen-1')
-    expect(readCherryMeta(parts[1] as FileUIPart)?.fileEntryId).toBe('gen-2')
-    expect(createInternalEntry).toHaveBeenNthCalledWith(1, {
-      source: 'base64',
-      data: img1,
-      name: 'migrated-image'
-    })
-    expect(createInternalEntry).toHaveBeenNthCalledWith(2, {
-      source: 'base64',
-      data: 'data:image/png;base64,BBB', // wrapped
-      name: 'migrated-image'
-    })
+    expect(readCherryMeta(parts[0] as FileUIPart)?.fileEntryId).toBeTruthy()
+    expect(readCherryMeta(parts[1] as FileUIPart)?.fileEntryId).toBeTruthy()
+    expect(inserts).toHaveLength(2)
+    expect(inserts[0].values).toMatchObject({ origin: 'internal', ext: 'png' })
+    expect(inserts[1].values).toMatchObject({ origin: 'internal', ext: 'png' })
   })
 
-  it('drops metadata.generateImageResponse base64 images when no FileManager dep is provided (parity with pre-helper behavior)', async () => {
+  it('drops metadata.generateImageResponse base64 images when no db dep is provided (parity with pre-helper behavior)', async () => {
     const { parts } = await transformBlocksToParts([
       block('image', {
-        metadata: { generateImageResponse: { type: 'base64', images: ['AAA'] } }
+        metadata: { generateImageResponse: { type: 'base64', images: ['AAA='] } }
       })
     ])
 
@@ -457,9 +464,7 @@ describe('transformBlocksToParts', () => {
   })
 
   it('ignores metadata.generateImageResponse when type is url (remote URLs, not base64)', async () => {
-    const createInternalEntry = vi.fn()
-    const getUrl = vi.fn()
-    const fileManager = { createInternalEntry, getUrl } as unknown as IFileManager
+    const { db, inserts } = stubDb()
     const { parts } = await transformBlocksToParts(
       [
         block('image', {
@@ -468,13 +473,13 @@ describe('transformBlocksToParts', () => {
           }
         })
       ],
-      { fileManager }
+      { db }
     )
 
     // The remote URL is in generateImageResponse, not block.url — so no part for now;
     // promotion only triggers when type === 'base64'.
     expect(parts).toHaveLength(0)
-    expect(createInternalEntry).not.toHaveBeenCalled()
+    expect(inserts).toHaveLength(0)
   })
 
   it('transforms file to FileUIPart with path and inferred mediaType', async () => {

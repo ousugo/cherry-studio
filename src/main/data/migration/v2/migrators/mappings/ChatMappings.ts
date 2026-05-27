@@ -39,8 +39,13 @@
  * @since v2.0.0
  */
 
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
+import { application } from '@application'
+import { fileEntryTable } from '@data/db/schemas/file'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import type { IFileManager } from '@main/services/file/FileManager'
 import type {
   CherryMessagePart,
   CitationReference,
@@ -59,9 +64,11 @@ import type {
 } from '@shared/data/types/message'
 import type { CherryDataPartTypes } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import type { Base64String } from '@shared/file/types/common'
+import type { Base64String, FilePath } from '@shared/file/types/common'
 import type { FileMetadata } from '@types'
 import type { SourceUrlUIPart } from 'ai'
+import mime from 'mime'
+import { v7 as uuidv7 } from 'uuid'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
@@ -74,12 +81,21 @@ const logger = loggerService.withContext('ChatMappings')
  * data) into v2 `file_entry` rows so the bytes leave the message JSON blob
  * and gain `fileEntryId` / path-resilience.
  *
+ * Migration runs in `preboot/` before any `WhenReady` lifecycle service is
+ * up, so this can't go through `application.get('FileManager')`. We follow
+ * the established migration pattern (see `FileMigrator.execute` at
+ * `src/main/data/migration/v2/migrators/FileMigrator.ts:254`) and write
+ * directly to `fileEntryTable` via the migration's own DB handle. The same
+ * pattern of "decode → write physical → insert row" that
+ * `internal/entry/create.ts:createInternal` runs at service-time is open-
+ * coded inline here so the mapper can stay service-free.
+ *
  * When omitted, inline base64 is left in place: `block.url = data:` becomes
  * `FileUIPart.url = data:` (functional via fileProcessor's pass-through);
  * `metadata.generateImageResponse.images` is dropped (current behavior).
  */
 export interface ChatMappingDeps {
-  fileManager: IFileManager
+  db: DbType
 }
 
 // ============================================================================
@@ -892,25 +908,56 @@ function mediaTypeFromDataUrl(dataUrl: Base64String): string {
 }
 
 async function promoteBase64ToFileEntry(
-  fileManager: IFileManager,
+  db: DbType,
   dataUrl: Base64String,
   blockId: string
 ): Promise<FileUIPart | null> {
+  const match = BASE64_DATA_URL_RE.exec(dataUrl)
+  if (!match) return null
+  const mimeType = match[1]
+  const payload = match[2]
+  const ext = mime.getExtension(mimeType)
+  const id = uuidv7()
+  const filename = ext ? `${id}.${ext}` : id
+  const physicalPath = application.getPath('feature.files.data', filename) as FilePath
+  const bytes = Buffer.from(payload, 'base64')
+  let physicalWritten = false
+
   try {
-    const entry = await fileManager.createInternalEntry({
-      source: 'base64',
-      data: dataUrl,
-      name: MIGRATED_IMAGE_NAME
+    // Write physical file first. If we crash before the DB insert lands,
+    // the orphan checker won't sweep this file (no file_entry row means
+    // no DB linkage to look up). Same risk model as the rest of
+    // FileMigrator's transform path; acceptable for a migration step.
+    await fs.mkdir(path.dirname(physicalPath), { recursive: true })
+    await fs.writeFile(physicalPath, bytes)
+    physicalWritten = true
+
+    const now = Date.now()
+    await db.insert(fileEntryTable).values({
+      id,
+      origin: 'internal',
+      name: MIGRATED_IMAGE_NAME,
+      ext: ext ?? null,
+      size: bytes.length,
+      externalPath: null,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
     })
-    const url = await fileManager.getUrl(entry.id)
+
     const basePart: FileUIPart = {
       type: 'file',
-      mediaType: mediaTypeFromDataUrl(dataUrl),
-      url,
-      filename: entry.ext ? `${entry.name}.${entry.ext}` : entry.name
+      mediaType: mimeType,
+      url: `file://${physicalPath}`,
+      filename: ext ? `${MIGRATED_IMAGE_NAME}.${ext}` : MIGRATED_IMAGE_NAME
     }
-    return withCherryMeta(basePart, { fileEntryId: entry.id })
+    return withCherryMeta(basePart, { fileEntryId: id })
   } catch (error) {
+    if (physicalWritten) {
+      // Best-effort: clean up the file we just wrote so we don't leave
+      // bytes on disk that no DB row references.
+      await fs.unlink(physicalPath).catch(() => {})
+    }
     logger.warn('Failed to promote v1 base64 image to v2 file_entry; dropping image', {
       blockId,
       error: error instanceof Error ? error.message : String(error)
@@ -956,8 +1003,8 @@ async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDep
     // (2)+(3) URL-only image (no disk file).
     if (isBase64DataUrl(block.url)) {
       // `block.url` is now narrowed to `Base64String`; no `as` cast.
-      if (deps?.fileManager) {
-        const promoted = await promoteBase64ToFileEntry(deps.fileManager, block.url, block.id)
+      if (deps?.db) {
+        const promoted = await promoteBase64ToFileEntry(deps.db, block.url, block.id)
         if (promoted) parts.push(promoted)
       } else {
         // No promoter → keep inline (fileProcessor passes data: through unchanged).
@@ -975,15 +1022,15 @@ async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDep
   const isBase64Mode = generated?.type === 'base64'
   const rawImages = Array.isArray(generated?.images) ? generated.images.filter((x) => typeof x === 'string') : []
   if (isBase64Mode && rawImages.length > 0) {
-    if (deps?.fileManager) {
+    if (deps?.db) {
       for (const raw of rawImages) {
         const dataUrl = toBase64DataUrl(raw, 'image/png')
-        const promoted = await promoteBase64ToFileEntry(deps.fileManager, dataUrl, block.id)
+        const promoted = await promoteBase64ToFileEntry(deps.db, dataUrl, block.id)
         if (promoted) parts.push(promoted)
       }
     } else {
       logger.warn(
-        'OldImageBlock carries metadata.generateImageResponse.images but no FileManager dep was provided; dropping legacy base64 images',
+        'OldImageBlock carries metadata.generateImageResponse.images but no db dep was provided; dropping legacy base64 images',
         {
           blockId: block.id,
           imageCount: rawImages.length
