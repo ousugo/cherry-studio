@@ -23,14 +23,7 @@ export function BashTool({
 
   return {
     key: AgentToolsType.Bash,
-    label: (
-      <ToolHeader
-        toolName={AgentToolsType.Bash}
-        params={<SkeletonValue value={input?.description} width="150px" />}
-        variant="collapse-label"
-        showStatus={false}
-      />
-    ),
+    label: <ToolHeader toolName={AgentToolsType.Bash} args={input} variant="collapse-label" showStatus={false} />,
     children: (
       <div className="flex flex-col gap-3">
         {/* Command 输入区域 */}

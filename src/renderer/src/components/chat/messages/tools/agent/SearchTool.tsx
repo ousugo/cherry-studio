@@ -26,7 +26,7 @@ export function SearchTool({
     label: (
       <ToolHeader
         toolName={AgentToolsType.Search}
-        params={input ? `"${input}"` : undefined}
+        args={input}
         stats={output ? t('message.tools.units.result', { count: resultCount }) : undefined}
         variant="collapse-label"
         showStatus={false}

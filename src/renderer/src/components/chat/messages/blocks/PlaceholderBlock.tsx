@@ -1,9 +1,21 @@
-import { CherryPulse } from '@renderer/components/Icons/SvgIcon'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface PlaceholderBlockProps {
   isProcessing: boolean
+  status?: PlaceholderStatus
 }
+
+export type PlaceholderStatus = 'generating' | 'preparing' | 'thinking' | 'usingTools'
+
+const PLACEHOLDER_LABEL_KEYS: Record<PlaceholderStatus, string> = {
+  generating: 'message.tools.placeholder.generating',
+  preparing: 'message.tools.placeholder.preparing',
+  thinking: 'message.tools.placeholder.thinking',
+  usingTools: 'message.tools.placeholder.usingTools'
+}
+
+type Translate = (key: string, options?: Record<string, number | string>) => string
 
 function useElapsedMs(isProcessing: boolean): number {
   const startedAtRef = React.useRef(Date.now())
@@ -22,18 +34,47 @@ function useElapsedMs(isProcessing: boolean): number {
   return elapsedMs
 }
 
-const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing }) => {
+export function formatPlaceholderElapsed(elapsedMs: number, t: Translate): string {
+  const safeElapsedMs = Math.max(0, Math.floor(elapsedMs))
+  const totalTenths = Math.floor(safeElapsedMs / 100)
+  const totalSeconds = Math.floor(totalTenths / 10)
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = `${totalSeconds % 60}.${totalTenths % 10}`
+
+  if (days > 0) return t('message.tools.placeholder.elapsed.days', { days, hours, minutes, seconds })
+  if (hours > 0) return t('message.tools.placeholder.elapsed.hours', { hours, minutes, seconds })
+  if (minutes > 0) return t('message.tools.placeholder.elapsed.minutes', { minutes, seconds })
+  return t('message.tools.placeholder.elapsed.seconds', { seconds })
+}
+
+const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, status = 'preparing' }) => {
+  const { t } = useTranslation()
   const elapsedMs = useElapsedMs(isProcessing)
 
   if (isProcessing) {
-    const seconds = (elapsedMs / 1000).toFixed(1)
-
     return (
       <div
-        className="-mt-1.25 mb-1.25 flex h-8 flex-row items-center gap-2 text-[12px] text-muted-foreground/75 leading-4"
+        className="-mt-1.25 mb-1.25 flex min-h-8 flex-row items-center gap-1.5 text-[12px] text-muted-foreground/75 leading-4"
         data-testid="message-status-placeholder">
-        <CherryPulse aria-hidden="true" size={20} className="shrink-0 text-[#ed6a65]" />
-        <span>{seconds}s</span>
+        <span
+          className="animation-shimmer motion-reduce:!animate-none"
+          data-testid="message-status-text"
+          style={
+            {
+              '--color-shimmer-mid': 'var(--color-foreground-secondary)',
+              '--color-shimmer-end': 'color-mix(in srgb, var(--color-foreground-secondary) 35%, transparent)'
+            } as React.CSSProperties
+          }>
+          {t(PLACEHOLDER_LABEL_KEYS[status])}
+        </span>
+        <span aria-hidden="true" className="text-muted-foreground/40">
+          ·
+        </span>
+        <span className="text-muted-foreground/55" data-testid="message-status-elapsed">
+          {formatPlaceholderElapsed(elapsedMs, t)}
+        </span>
       </div>
     )
   }

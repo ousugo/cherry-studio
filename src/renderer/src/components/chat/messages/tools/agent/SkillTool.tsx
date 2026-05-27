@@ -14,6 +14,7 @@ export function SkillTool({ input, output }: { input?: SkillToolInput; output?: 
     label: (
       <ToolHeader
         toolName={AgentToolsType.Skill}
+        args={input}
         params={<SkeletonValue value={input?.skill} width="150px" />}
         variant="collapse-label"
         showStatus={false}

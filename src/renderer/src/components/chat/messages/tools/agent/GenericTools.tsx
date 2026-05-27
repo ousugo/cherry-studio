@@ -1,6 +1,5 @@
 // 通用工具组件 - 减少重复代码
 
-import { LoadingIcon } from '@renderer/components/Icons'
 import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
 import type { MCPToolResponseStatus } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils/file'
@@ -8,7 +7,13 @@ import { Check, Ellipsis, TriangleAlert, X } from 'lucide-react'
 import { createContext, type ReactNode, use } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export { default as ToolHeader, type ToolHeaderProps } from '../ToolHeader'
+export {
+  getReadableToolActivity,
+  getReadableToolDescription,
+  type ToolActivity,
+  default as ToolHeader,
+  type ToolHeaderProps
+} from '../ToolHeader'
 
 // Streaming context - 用于传递流式状态给子组件
 export const StreamingContext = createContext<boolean>(false)
@@ -130,15 +135,15 @@ export function getEffectiveStatus(status: MCPToolResponseStatus | undefined, is
 export function ToolStatusIndicator({ status, hasError = false }: { status: ToolStatus; hasError?: boolean }) {
   const { t } = useTranslation()
 
-  const getStatusInfo = (): { label: string; icon: ReactNode; color: StatusColor } | null => {
+  const getStatusInfo = (): { label: string; icon?: ReactNode; color: StatusColor } | null => {
     switch (status) {
       case 'streaming':
-        return { label: t('message.tools.streaming', 'Streaming'), icon: <LoadingIcon />, color: 'primary' }
+        return { label: t('message.tools.streaming', 'Streaming'), color: 'primary' }
       case 'waiting':
-        return { label: t('message.tools.pending', 'Awaiting Approval'), icon: <LoadingIcon />, color: 'warning' }
+        return { label: t('message.tools.pending', 'Awaiting Approval'), color: 'warning' }
       case 'pending':
       case 'invoking':
-        return { label: t('message.tools.invoking'), icon: <LoadingIcon />, color: 'primary' }
+        return { label: t('message.tools.invoking'), color: 'primary' }
       case 'cancelled':
         return {
           label: t('message.tools.cancelled'),

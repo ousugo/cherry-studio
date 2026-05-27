@@ -76,6 +76,7 @@ export function ReadTool({
     label: (
       <ToolHeader
         toolName={AgentToolsType.Read}
+        args={input}
         params={
           <SkeletonValue
             value={input?.file_path ? <ClickableFilePath path={input.file_path} displayName={filename} /> : undefined}

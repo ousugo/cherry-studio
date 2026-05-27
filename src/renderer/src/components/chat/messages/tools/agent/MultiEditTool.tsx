@@ -32,6 +32,7 @@ export function MultiEditTool({
     label: (
       <ToolHeader
         toolName={AgentToolsType.MultiEdit}
+        args={input}
         params={input?.file_path ? <ClickableFilePath path={input.file_path} displayName={filename} /> : undefined}
         variant="collapse-label"
         showStatus={false}

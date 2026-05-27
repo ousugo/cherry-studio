@@ -1,7 +1,7 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
@@ -15,8 +15,9 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false, vi.fn()]) }))
+const mockIsActiveTurnTarget = vi.hoisted(() => vi.fn(() => false))
 vi.mock('@renderer/hooks/useIsActiveTurnTarget', () => ({
-  useIsActiveTurnTarget: () => false
+  useIsActiveTurnTarget: () => mockIsActiveTurnTarget()
 }))
 vi.mock('@renderer/types/file', () => ({
   FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
@@ -40,12 +41,10 @@ vi.mock('@renderer/components/ErrorBoundary', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, params?: Record<string, number>) => {
-      if (key === 'message.tools.groupHeaderWithMessages') {
-        return `${params?.toolCount} tool calls, ${params?.messageCount} messages`
-      }
       if (key === 'message.tools.groupHeader') {
         return `${params?.count} tool calls`
       }
+      if (key === 'message.tools.thinkingHeader') return 'Thinking...'
       return key
     }
   })
@@ -140,11 +139,31 @@ vi.mock('../../frame/MessageAttachments', () => ({
 
 vi.mock('../ToolBlockGroup', () => ({
   __esModule: true,
+  ToolBlockGroupContent: ({ items }: any) => (
+    <div data-testid="mock-tool-group-content" data-count={items?.length ?? 0}>
+      {items?.map((item: any) => (
+        <div
+          key={item.id}
+          data-testid="mock-message-tools"
+          data-status={item.toolResponse?.status}
+          data-tool-type={item.toolResponse?.tool?.type}
+          data-tool-name={item.toolResponse?.tool?.name}
+          data-server-name={item.toolResponse?.tool?.serverName ?? ''}
+        />
+      ))}
+    </div>
+  ),
+  ToolBlockGroupHeaderContent: ({ activityLabel, summary, items }: any) => (
+    <span>{activityLabel ?? summary ?? `${items?.length ?? 0} tool calls`}</span>
+  ),
   default: ({ items }: any) => <div data-testid="mock-tool-group" data-count={items?.length ?? 0} />
 }))
 
 vi.mock('../BlockErrorFallback', () => ({ __esModule: true, default: () => null }))
-vi.mock('../PlaceholderBlock', () => ({ __esModule: true, default: () => null }))
+vi.mock('../PlaceholderBlock', () => ({
+  __esModule: true,
+  default: ({ status }: any) => <div data-testid="mock-placeholder" data-status={status} />
+}))
 
 // ============================================================================
 // Setup
@@ -200,10 +219,48 @@ const renderParts = (parts: CherryMessagePart[], message?: MessageListItem) => {
 // ============================================================================
 
 describe('MessagePartsRenderer', () => {
+  beforeEach(() => {
+    mockIsActiveTurnTarget.mockReturnValue(false)
+  })
+
   // -- empty --
   it('renders nothing for empty parts', () => {
     const { container } = renderParts([])
     expect(container.innerHTML).toBe('')
+  })
+
+  it('shows the preparing placeholder before any parts arrive', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts([], msg({ status: 'pending' }))
+
+    expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'preparing')
+  })
+
+  it('shows the thinking placeholder while reasoning is the latest activity', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts([{ type: 'reasoning', text: 'thinking', state: 'streaming' } as unknown as CherryMessagePart])
+
+    expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'thinking')
+  })
+
+  it('shows the tool placeholder while a tool call is the latest activity', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts([
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'Read', state: 'input-available', input: {} }
+    ] as unknown as CherryMessagePart[])
+
+    expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
+  })
+
+  it('shows the generating placeholder after answer text starts streaming', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts([{ type: 'text', text: 'partial answer' } as unknown as CherryMessagePart])
+
+    expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'generating')
   })
 
   // -- text --
@@ -361,7 +418,7 @@ describe('MessagePartsRenderer', () => {
       { type: 'text', text: 'final answer' }
     ] as unknown as CherryMessagePart[])
 
-    const historyButton = screen.getByRole('button', { name: '2 tool calls, 2 messages' })
+    const historyButton = screen.getByRole('button', { name: '2 tool calls' })
     expect(screen.getByTestId('mock-markdown').textContent).toContain('final answer')
     expect(screen.queryByText(/checking project files/)).toBeNull()
     expect(screen.queryByText(/reading package metadata/)).toBeNull()
@@ -379,6 +436,28 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
+  it('expands completed history tool runs without nesting another ToolBlockGroup', () => {
+    renderParts([
+      { type: 'text', text: 'checking project files' },
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+      { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
+      { type: 'text', text: 'final answer' }
+    ] as unknown as CherryMessagePart[])
+
+    const historyButton = screen.getByRole('button', { name: '2 tool calls' })
+    expect(screen.getByTestId('mock-markdown')).toHaveTextContent('final answer')
+    expect(screen.queryByTestId('mock-tool-group')).toBeNull()
+
+    fireEvent.click(historyButton)
+
+    expect(screen.queryByTestId('mock-tool-group')).toBeNull()
+    expect(screen.getByTestId('mock-tool-group-content').getAttribute('data-count')).toBe('2')
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'list',
+      'read'
+    ])
+  })
+
   it('collapses reasoning after the final tool before final result', () => {
     renderParts([
       { type: 'text', text: 'checking project files' },
@@ -387,7 +466,7 @@ describe('MessagePartsRenderer', () => {
       { type: 'text', text: 'final answer' }
     ] as unknown as CherryMessagePart[])
 
-    const historyButton = screen.getByRole('button', { name: '1 tool calls, 2 messages' })
+    const historyButton = screen.getByRole('button', { name: '1 tool calls' })
     expect(screen.getByTestId('mock-markdown').textContent).toContain('final answer')
     expect(screen.queryByText(/checking project files/)).toBeNull()
     expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
@@ -434,7 +513,7 @@ describe('MessagePartsRenderer', () => {
     expect(container.querySelectorAll('.block-wrapper')).toHaveLength(2)
   })
 
-  it('does not collapse tool history while message is pending', () => {
+  it('collapses tool history while message is pending and keeps the final answer visible', () => {
     renderParts(
       [
         { type: 'text', text: 'checking project files' },
@@ -444,11 +523,59 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    expect(screen.queryByRole('button', { name: /tool calls/ })).toBeNull()
+    const historyButton = screen.getByRole('button', { name: '1 tool calls' })
+    expect(historyButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByTestId('mock-markdown')).toHaveTextContent('final answer')
+    expect(screen.queryByText(/checking project files/)).toBeNull()
+
+    fireEvent.click(historyButton)
+
+    expect(historyButton).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
       'checking project files',
       'final answer'
     ])
+  })
+
+  it('collapses thinking content with active tool history before the final result exists', () => {
+    renderParts(
+      [
+        { type: 'reasoning', text: 'thinking before tool', state: 'streaming' },
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'input-available', input: {} }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    const historyButton = screen.getByRole('button', { name: '1 tool calls' })
+    expect(historyButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('thinking before tool')).toBeNull()
+    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+
+    fireEvent.click(historyButton)
+
+    expect(historyButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('thinking before tool')
+    expect(screen.getByTestId('mock-message-tools').getAttribute('data-tool-name')).toBe('list')
+  })
+
+  it('shows thinking as the top-level history title while reasoning is streaming after a tool', () => {
+    renderParts(
+      [
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+        { type: 'reasoning', text: 'thinking after tool', state: 'streaming' }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    const historyButton = screen.getByRole('button', { name: 'Thinking...' })
+    expect(historyButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+
+    fireEvent.click(historyButton)
+
+    expect(historyButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('thinking after tool')
+    expect(screen.getByTestId('mock-message-tools').getAttribute('data-tool-name')).toBe('list')
   })
 
   // -- data-video --

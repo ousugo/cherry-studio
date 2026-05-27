@@ -1,7 +1,6 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { ChevronDown, Wrench } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { Brain, ChevronDown } from 'lucide-react'
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,7 +17,7 @@ interface Props {
   items: ToolRenderItem[]
 }
 
-function isCompletedStatus(status: ToolResponseLike['status'] | undefined): boolean {
+function isToolGroupItemCompleted(status: ToolResponseLike['status'] | undefined): boolean {
   return status === 'done' || status === 'error' || status === 'cancelled'
 }
 
@@ -38,103 +37,111 @@ function getItemEffectiveStatus(
   return getEffectiveStatus(item.toolResponse?.status, isWaiting)
 }
 
-// Animation variants for smooth header transitions
-const headerVariants = {
-  enter: { x: 20, opacity: 0 },
-  center: { x: 0, opacity: 1, transition: { duration: 0.2, ease: 'easeOut' as const } },
-  exit: { x: -20, opacity: 0, transition: { duration: 0.15 } }
-}
-
 // ============ Sub-Components ============
 
-interface GroupHeaderContentProps {
+interface ToolBlockGroupHeaderContentProps {
   items: ToolRenderItem[]
-  allCompleted: boolean
+  activityLabel?: React.ReactNode
+  summary?: React.ReactNode
+  isLiveProgress?: boolean
+  showLatestWhenComplete?: boolean
 }
 
-const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderContentProps) => {
-  const { t } = useTranslation()
-  const partsMap = usePartsMap()
+export const ToolBlockGroupHeaderContent = React.memo(
+  ({ items, activityLabel, summary, isLiveProgress, showLatestWhenComplete }: ToolBlockGroupHeaderContentProps) => {
+    const { t } = useTranslation()
+    const partsMap = usePartsMap()
+    const allCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
+    const fallbackLabel = summary ?? t('message.tools.groupHeader', { count: items.length })
 
-  if (allCompleted) {
-    return (
-      <div className="flex min-w-0 items-center gap-1.5 text-[13px]">
-        <div className="flex h-5 w-4 shrink-0 items-center justify-start text-foreground-muted transition-colors duration-150 group-hover/tool-group:text-foreground-secondary">
-          <Wrench size={14} />
+    if (allCompleted && !showLatestWhenComplete) {
+      return (
+        <div className="flex min-w-0 items-center text-[13px]">
+          <span className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/completed-tool-history:text-foreground group-hover/tool-group:text-foreground">
+            {fallbackLabel}
+          </span>
         </div>
-        <span className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group:text-foreground">
-          {t('message.tools.groupHeader', { count: items.length })}
+      )
+    }
+
+    if (activityLabel) {
+      return (
+        <div className="flex min-w-0 items-center gap-1.5 text-[13px]">
+          <span
+            className={['inline-flex shrink-0 items-center text-foreground-muted', isLiveProgress && 'animate-pulse']
+              .filter(Boolean)
+              .join(' ')}>
+            <Brain size={14} />
+          </span>
+          <span className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/completed-tool-history:text-foreground group-hover/tool-group:text-foreground">
+            {activityLabel}
+          </span>
+        </div>
+      )
+    }
+
+    // Find items actually waiting for approval (using effective status)
+    const waitingItems = items.filter((item) => getItemEffectiveStatus(item, partsMap) === 'waiting')
+
+    // Prioritize showing waiting items that need approval
+    const lastWaitingItem = waitingItems[waitingItems.length - 1]
+    if (lastWaitingItem) {
+      return (
+        <div className="inline-block" key={lastWaitingItem.id}>
+          <ToolHeader toolResponse={lastWaitingItem.toolResponse} variant="collapse-label" status="waiting" />
+        </div>
+      )
+    }
+
+    // Find running items (invoking or streaming)
+    const runningItems = items.filter((item) => {
+      const status = getItemEffectiveStatus(item, partsMap)
+      return status === 'invoking' || status === 'streaming'
+    })
+
+    // Get the last running item (most recent) and render with animation
+    const lastRunningItem = runningItems[runningItems.length - 1]
+    if (lastRunningItem) {
+      const lastRunningStatus = getItemEffectiveStatus(lastRunningItem, partsMap)
+      return (
+        <div className="inline-block" key={lastRunningItem.id}>
+          <ToolHeader toolResponse={lastRunningItem.toolResponse} variant="collapse-label" status={lastRunningStatus} />
+        </div>
+      )
+    }
+
+    const latestItem = showLatestWhenComplete ? items.at(-1) : undefined
+    if (latestItem) {
+      return (
+        <div className="inline-block" key={latestItem.id}>
+          <ToolHeader
+            toolResponse={latestItem.toolResponse}
+            variant="collapse-label"
+            status={isLiveProgress ? 'invoking' : getItemEffectiveStatus(latestItem, partsMap)}
+          />
+        </div>
+      )
+    }
+
+    // Fallback
+    return (
+      <div className="flex min-w-0 items-center text-[13px]">
+        <span className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/completed-tool-history:text-foreground group-hover/tool-group:text-foreground">
+          {fallbackLabel}
         </span>
       </div>
     )
   }
-
-  // Find items actually waiting for approval (using effective status)
-  const waitingItems = items.filter((item) => getItemEffectiveStatus(item, partsMap) === 'waiting')
-
-  // Prioritize showing waiting items that need approval
-  const lastWaitingItem = waitingItems[waitingItems.length - 1]
-  if (lastWaitingItem) {
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          className="inline-block"
-          key={lastWaitingItem.id}
-          variants={headerVariants}
-          initial="enter"
-          animate="center"
-          exit="exit">
-          <ToolHeader toolResponse={lastWaitingItem.toolResponse} variant="collapse-label" status="waiting" />
-        </motion.div>
-      </AnimatePresence>
-    )
-  }
-
-  // Find running items (invoking or streaming)
-  const runningItems = items.filter((item) => {
-    const status = getItemEffectiveStatus(item, partsMap)
-    return status === 'invoking' || status === 'streaming'
-  })
-
-  // Get the last running item (most recent) and render with animation
-  const lastRunningItem = runningItems[runningItems.length - 1]
-  if (lastRunningItem) {
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          className="inline-block"
-          key={lastRunningItem.id}
-          variants={headerVariants}
-          initial="enter"
-          animate="center"
-          exit="exit">
-          <ToolHeader toolResponse={lastRunningItem.toolResponse} variant="collapse-label" />
-        </motion.div>
-      </AnimatePresence>
-    )
-  }
-
-  // Fallback
-  return (
-    <div className="flex min-w-0 items-center gap-1.5 text-[13px]">
-      <div className="flex h-5 w-8 shrink-0 items-center justify-start text-foreground-muted transition-colors duration-150 group-hover/tool-group:text-foreground-secondary">
-        <Wrench size={14} />
-      </div>
-      <span className="truncate font-normal text-foreground-secondary transition-colors duration-150 group-hover/tool-group:text-foreground">
-        {t('message.tools.groupHeader', { count: items.length })}
-      </span>
-    </div>
-  )
-})
-GroupHeaderContent.displayName = 'GroupHeaderContent'
+)
+ToolBlockGroupHeaderContent.displayName = 'ToolBlockGroupHeaderContent'
 
 // Component for tool list content with auto-scroll
-interface ToolListContentProps {
+interface ToolBlockGroupContentProps {
   items: ToolRenderItem[]
-  scrollRef: React.RefObject<HTMLDivElement | null>
+  scrollRef?: React.RefObject<HTMLDivElement | null>
 }
 
-const ToolListContent = React.memo(({ items, scrollRef }: ToolListContentProps) => (
+export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlockGroupContentProps) => (
   <div ref={scrollRef} className="flex w-full flex-col gap-2">
     {items.map((item) => {
       return (
@@ -147,7 +154,7 @@ const ToolListContent = React.memo(({ items, scrollRef }: ToolListContentProps) 
     })}
   </div>
 ))
-ToolListContent.displayName = 'ToolListContent'
+ToolBlockGroupContent.displayName = 'ToolBlockGroupContent'
 
 // ============ Main Component ============
 
@@ -156,25 +163,14 @@ const ToolBlockGroup: React.FC<Props> = ({ items }) => {
   const contentId = useId()
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const allCompleted = useMemo(() => {
-    return items.every((item) => isCompletedStatus(item.toolResponse.status))
-  }, [items])
-
-  // Auto-expand group when there are active tools (pending/waiting for approval, streaming)
-  useEffect(() => {
-    if (!allCompleted) {
-      setIsExpanded(true)
-    }
-  }, [allCompleted])
-
   const currentRunningBlock = useMemo(() => {
-    return items.find((item) => !isCompletedStatus(item.toolResponse.status))
+    return items.find((item) => !isToolGroupItemCompleted(item.toolResponse.status))
   }, [items])
 
   useEffect(() => {
     if (isExpanded && currentRunningBlock && scrollRef.current) {
       const element = scrollRef.current.querySelector(`[data-block-id="${currentRunningBlock.id}"]`)
-      element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      element?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
     }
   }, [isExpanded, currentRunningBlock])
 
@@ -186,7 +182,7 @@ const ToolBlockGroup: React.FC<Props> = ({ items }) => {
         aria-controls={contentId}
         className="flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
         onClick={() => setIsExpanded((expanded) => !expanded)}>
-        <GroupHeaderContent items={items} allCompleted={allCompleted} />
+        <ToolBlockGroupHeaderContent items={items} />
         <ChevronDown
           size={16}
           className={`shrink-0 text-foreground-muted opacity-70 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
@@ -194,7 +190,7 @@ const ToolBlockGroup: React.FC<Props> = ({ items }) => {
       </button>
       {isExpanded && (
         <div id={contentId} className="mt-1.5">
-          <ToolListContent items={items} scrollRef={scrollRef} />
+          <ToolBlockGroupContent items={items} scrollRef={scrollRef} />
         </div>
       )}
     </div>
