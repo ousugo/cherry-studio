@@ -40,6 +40,7 @@ interface Params {
   stop: () => Promise<void>
   refresh: () => Promise<CherryUIMessage[]>
   cache: ReturnType<typeof useTopicMessagesCache>
+  seedReservedMessages: (messages: CherryUIMessage[]) => Promise<void>
 }
 
 interface Result {
@@ -50,7 +51,7 @@ interface Result {
 }
 
 export function useChatWriteActions(params: Params): Result {
-  const { topic, uiMessages, regenerate, setMessages, stop, refresh, cache } = params
+  const { topic, uiMessages, regenerate, setMessages, stop, refresh, cache, seedReservedMessages } = params
   const { assistant } = useAssistant(topic.assistantId)
   const {
     branchWithoutIds,
@@ -196,6 +197,19 @@ export function useChatWriteActions(params: Params): Result {
         params: { id: messageId },
         body: { parts: editedParts }
       })
+      await seedReservedMessages([
+        {
+          id: newMessage.id,
+          role: 'user',
+          parts: editedParts,
+          metadata: {
+            parentId: newMessage.parentId,
+            siblingsGroupId: newMessage.siblingsGroupId ?? undefined,
+            status: newMessage.status,
+            createdAt: newMessage.createdAt
+          }
+        } as CherryUIMessage
+      ])
       // Sync `useChat` from DB before regenerate. The server flipped
       // `activeNodeId` to the new branch in the same transaction.
       const refreshed = await refresh()
@@ -212,7 +226,7 @@ export function useChatWriteActions(params: Params): Result {
         body: { ...capabilityBody, parentAnchorId: newMessage.id }
       })
     },
-    [createSiblingTrigger, refresh, setMessages, regenerate, capabilityBody]
+    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, regenerate, capabilityBody]
   )
 
   const handleSetActiveNode = useCallback<ChatWriteActions['setActiveNode']>(
