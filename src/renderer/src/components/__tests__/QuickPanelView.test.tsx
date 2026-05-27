@@ -283,7 +283,7 @@ describe('QuickPanelView', () => {
 
     it('filters from the composer input adapter instead of rendering an internal search input', async () => {
       const list = createList(3, 'Item')
-      const input = createInputAdapter('/Item 1')
+      const input = createInputAdapter('/Item1')
 
       render(
         wrapWithProviders(
@@ -292,7 +292,7 @@ describe('QuickPanelView', () => {
             <OpenPanelOnMount
               list={list}
               symbol="/"
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 3' }}
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item3' }}
             />
           </>
         )
@@ -302,7 +302,7 @@ describe('QuickPanelView', () => {
       expect(within(panel).queryByRole('textbox')).not.toBeInTheDocument()
       expect(screen.getByText('Item 1')).toBeInTheDocument()
 
-      input.setText('/Item 2')
+      input.setText('/Item2')
       await waitFor(() => expect(screen.getByText('Item 2')).toBeInTheDocument())
       expect(screen.queryByText('Item 1')).not.toBeInTheDocument()
       expect(input.adapter.focus).toHaveBeenCalled()
@@ -310,7 +310,7 @@ describe('QuickPanelView', () => {
 
     it('auto-selects the first composer-query match', async () => {
       const list = createList(3, 'Item')
-      const input = createInputAdapter('/Item 3')
+      const input = createInputAdapter('/Item3')
 
       render(
         wrapWithProviders(
@@ -319,7 +319,7 @@ describe('QuickPanelView', () => {
             <OpenPanelOnMount
               list={list}
               symbol="/"
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item1' }}
             />
           </>
         )
@@ -338,7 +338,7 @@ describe('QuickPanelView', () => {
 
     it('closes when the input trigger slash is deleted', async () => {
       const list = createList(3, 'Item')
-      const input = createInputAdapter('/Item 1')
+      const input = createInputAdapter('/Item1')
 
       render(
         wrapWithProviders(
@@ -347,7 +347,7 @@ describe('QuickPanelView', () => {
             <OpenPanelOnMount
               list={list}
               symbol="/"
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item1' }}
             />
           </>
         )
@@ -355,7 +355,7 @@ describe('QuickPanelView', () => {
 
       expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
 
-      input.setText('Item 1')
+      input.setText('Item1')
 
       await waitFor(() => expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible'))
     })
@@ -500,7 +500,7 @@ describe('QuickPanelView', () => {
 
     it('consumes the composer query before executing a leaf item with Enter', () => {
       const action = vi.fn()
-      const input = createInputAdapter('/Item 1')
+      const input = createInputAdapter('/Item1')
       const list = createList(1, 'Item', { action })
 
       render(
@@ -510,7 +510,7 @@ describe('QuickPanelView', () => {
             <OpenPanelOnMount
               list={list}
               symbol="/"
-              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item1' }}
             />
           </>
         )
@@ -518,8 +518,110 @@ describe('QuickPanelView', () => {
 
       fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
 
-      expect(input.adapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 7 })
-      expect(action).toHaveBeenCalledWith(expect.objectContaining({ action: 'enter', searchText: 'Item 1' }))
+      expect(input.adapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
+      expect(action).toHaveBeenCalledWith(expect.objectContaining({ action: 'enter', searchText: 'Item1' }))
+    })
+
+    it('keeps the root input panel when slash follows whitespace', () => {
+      const input = createInputAdapter('hello /', 7)
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount
+              list={createList(1)}
+              symbol="/"
+              queryAnchor={6}
+              triggerInfo={{ type: 'input', position: 6, originalText: '/' }}
+            />
+          </>
+        )
+      )
+
+      expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+    })
+
+    it('keeps the root input panel when slash is at the beginning of a line', () => {
+      const input = createInputAdapter('hello\n/', 7)
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount
+              list={createList(1)}
+              symbol="/"
+              queryAnchor={6}
+              triggerInfo={{ type: 'input', position: 6, originalText: '/' }}
+            />
+          </>
+        )
+      )
+
+      expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+    })
+
+    it('closes the root input panel when slash is attached to previous text', async () => {
+      const input = createInputAdapter('hello/', 6)
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount
+              list={createList(1)}
+              symbol="/"
+              queryAnchor={5}
+              triggerInfo={{ type: 'input', position: 5, originalText: '/' }}
+            />
+          </>
+        )
+      )
+
+      await waitFor(() => expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible'))
+    })
+
+    it('closes the root input panel when slash query contains whitespace', async () => {
+      const input = createInputAdapter('hello /image', 12)
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount
+              list={createList(1)}
+              symbol="/"
+              queryAnchor={6}
+              triggerInfo={{ type: 'input', position: 6, originalText: '/image' }}
+            />
+          </>
+        )
+      )
+
+      input.setText('hello /image prompt')
+
+      await waitFor(() => expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible'))
+    })
+
+    it('closes the root input panel when cursor is not at the end of the slash query segment', async () => {
+      const input = createInputAdapter('hello /imageTail', 12)
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount
+              list={createList(1)}
+              symbol="/"
+              queryAnchor={6}
+              triggerInfo={{ type: 'input', position: 6, originalText: '/image' }}
+            />
+          </>
+        )
+      )
+
+      await waitFor(() => expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible'))
     })
 
     it('removes the trigger slash when opening a child panel without filtering the child panel', async () => {
@@ -591,6 +693,55 @@ describe('QuickPanelView', () => {
 
       await waitFor(() => expect(screen.getByText('Prompt 1')).toBeInTheDocument())
       expect(screen.getByText('Prompt 2')).toBeInTheDocument()
+    })
+
+    it('only consumes the composer query once while selecting multiple non-root items', async () => {
+      const input = createInputAdapter('/Prompt')
+      const secondAction = vi.fn()
+      const list: QuickPanelListItem[] = [
+        {
+          id: 'prompt-1',
+          label: 'Prompt 1',
+          filterText: 'Prompt 1',
+          icon: 'Prompt Icon 1',
+          action: () => {
+            queueMicrotask(() => input.setText('[Prompt 1] '))
+          }
+        },
+        {
+          id: 'prompt-2',
+          label: 'Prompt 2',
+          filterText: 'Prompt 2',
+          icon: 'Prompt Icon 2',
+          action: secondAction
+        }
+      ]
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount
+              list={list}
+              symbol="mcp-prompt"
+              panelOptions={{ multiple: true }}
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Prompt' }}
+            />
+          </>
+        )
+      )
+
+      fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
+
+      await waitFor(() => expect(input.adapter.getText()).toBe('[Prompt 1] '))
+      expect(input.adapter.deleteTriggerRange).toHaveBeenCalledTimes(1)
+      expect(input.adapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 7 })
+
+      fireEvent.click(screen.getByText('Prompt 2'))
+
+      expect(secondAction).toHaveBeenCalled()
+      expect(input.adapter.deleteTriggerRange).toHaveBeenCalledTimes(1)
+      expect(input.adapter.getText()).toBe('[Prompt 1] ')
     })
 
     it('does not close a replacement panel opened by a leaf action', async () => {

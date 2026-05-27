@@ -22,6 +22,21 @@ const ITEM_HEIGHT = 31
 
 const firstSelectableIndex = (items: readonly QuickPanelListItem[]) => items.findIndex((item) => !item.disabled)
 const INPUT_TRIGGER_SYMBOLS = new Set(['/', '@'])
+const ROOT_INPUT_QUERY_TERMINATOR_REGEX = /\s/
+
+function isRootInputQueryAnchorAllowed(text: string, queryAnchor: number) {
+  if (queryAnchor === 0) return true
+  return /\s/.test(text.slice(queryAnchor - 1, queryAnchor))
+}
+
+function isRootInputQueryTerminated(searchText: string) {
+  return ROOT_INPUT_QUERY_TERMINATOR_REGEX.test(searchText.slice(1))
+}
+
+function isRootInputQueryCursorAtEnd(text: string, cursorOffset: number) {
+  const nextChar = text.slice(cursorOffset, cursorOffset + 1)
+  return nextChar.length === 0 || /\s/.test(nextChar)
+}
 
 interface Props {
   inputAdapter?: QuickPanelInputAdapter
@@ -42,6 +57,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const closePanel = ctx.close
   const isPanelVisible = ctx.isVisible
   const registerKeyDownHandler = ctx.registerKeyDownHandler
+  const getPanelGeneration = ctx.getPanelGeneration
 
   const ASSISTIVE_KEY = isMac ? '⌘' : 'Ctrl'
   const [isAssistiveKeyPressed, setIsAssistiveKeyPressed] = useState(false)
@@ -59,6 +75,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const [inputSearchText, setInputSearchText] = useState('')
   const queryAnchorRef = useRef<number | undefined>(undefined)
   const inputTriggerConsumedRef = useRef(false)
+  const inputQueryConsumedRef = useRef(false)
+  const prevPanelGenerationRef = useRef<number | undefined>(undefined)
   const isRootInputPanel = ctx.symbol === QuickPanelReservedSymbol.Root && ctx.triggerInfo?.type === 'input'
   const activeSearchText = isRootInputPanel ? inputSearchText : ''
 
@@ -124,11 +142,19 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       prevSearchTextRef.current = ''
       queryAnchorRef.current = undefined
       inputTriggerConsumedRef.current = false
+      inputQueryConsumedRef.current = false
+      prevPanelGenerationRef.current = undefined
       setActiveIndex(-1)
       return
     }
 
     if (!ctx.isVisible) return
+
+    const panelGeneration = getPanelGeneration()
+    if (prevPanelGenerationRef.current !== panelGeneration) {
+      inputQueryConsumedRef.current = false
+      prevPanelGenerationRef.current = panelGeneration
+    }
 
     if (ctx.manageListExternally) {
       const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
@@ -156,7 +182,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     prevSearchTextRef.current = activeSearchText
     prevSymbolRef.current = ctx.symbol
-  }, [ctx.isVisible, ctx.manageListExternally, ctx.symbol, activeSearchText, list])
+  }, [ctx.isVisible, ctx.manageListExternally, ctx.symbol, getPanelGeneration, activeSearchText, list])
 
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
@@ -200,6 +226,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
   }, [ctx.queryAnchor, inputAdapter])
+
+  const consumeInputQueryOnce = useCallback(() => {
+    if (inputQueryConsumedRef.current) return
+    inputQueryConsumedRef.current = true
+    consumeInputQuery()
+  }, [consumeInputQuery])
 
   const consumeInputTriggerSymbol = useCallback(() => {
     if (!inputAdapter) return
@@ -245,7 +277,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           inputAdapter
         }
 
-        consumeInputQuery()
+        consumeInputQueryOnce()
         ctx.beforeAction?.(quickPanelCallBackOptions)
         item?.action?.(quickPanelCallBackOptions)
         ctx.afterAction?.(quickPanelCallBackOptions)
@@ -293,6 +325,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       activeIndex,
       consumeInputTriggerSymbol,
       consumeInputQuery,
+      consumeInputQueryOnce,
       inputAdapter,
       handleClose
     ]
@@ -315,6 +348,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
+    if (!isRootInputQueryAnchorAllowed(text, queryAnchor)) {
+      closePanel('input_prefix_invalid')
+      return
+    }
+
     if (
       shouldRequireInputTrigger &&
       !inputTriggerConsumedRef.current &&
@@ -324,7 +362,18 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    setInputSearchText(text.slice(queryAnchor, cursorOffset))
+    const nextSearchText = text.slice(queryAnchor, cursorOffset)
+    if (isRootInputQueryTerminated(nextSearchText)) {
+      closePanel('input_query_terminated')
+      return
+    }
+
+    if (!isRootInputQueryCursorAtEnd(text, cursorOffset)) {
+      closePanel('input_cursor_invalid')
+      return
+    }
+
+    setInputSearchText(nextSearchText)
   }, [closePanel, ctx.triggerInfo?.originalText, ctx.triggerInfo?.type, inputAdapter, isPanelVisible, isRootInputPanel])
 
   useEffect(() => {
@@ -360,7 +409,23 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    setInputSearchText(text.slice(queryAnchor, cursorOffset))
+    if (!isRootInputQueryAnchorAllowed(text, queryAnchor)) {
+      closePanel('input_prefix_invalid')
+      return
+    }
+
+    const nextSearchText = text.slice(queryAnchor, cursorOffset)
+    if (isRootInputQueryTerminated(nextSearchText)) {
+      closePanel('input_query_terminated')
+      return
+    }
+
+    if (!isRootInputQueryCursorAtEnd(text, cursorOffset)) {
+      closePanel('input_cursor_invalid')
+      return
+    }
+
+    setInputSearchText(nextSearchText)
     inputAdapter.focus()
 
     return inputAdapter.subscribeInput?.((event) => {
@@ -374,6 +439,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     ctx.triggerInfo?.originalText,
     ctx.triggerInfo?.position,
     ctx.triggerInfo?.type,
+    closePanel,
     inputAdapter,
     isRootInputPanel,
     updateSearchFromInput
@@ -386,6 +452,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       setInputSearchText('')
       queryAnchorRef.current = undefined
       inputTriggerConsumedRef.current = false
+      inputQueryConsumedRef.current = false
+      prevPanelGenerationRef.current = undefined
     }, 200)
 
     return () => clearTimeout(timer)

@@ -1,4 +1,5 @@
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
+import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -60,12 +61,23 @@ const createLauncherApi = (): ToolLauncherApi => ({
   registerLaunchers: vi.fn(() => vi.fn())
 })
 
+const createInputAdapter = (): QuickPanelInputAdapter => ({
+  deleteTriggerRange: vi.fn(),
+  focus: vi.fn(),
+  getCursorOffset: vi.fn(() => 0),
+  getText: vi.fn(() => ''),
+  insertText: vi.fn(),
+  insertToken: vi.fn()
+})
+
 describe('McpToolsRuntime', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
     ;(global.window as any).api = {
       mcp: {
+        getPrompt: vi.fn(async ({ name }: { name: string }) => `${name} body`),
+        getResource: vi.fn(async ({ uri }: { uri: string }) => ({ text: `${uri} body`, uri })),
         listPrompts: vi.fn(async () => []),
         listResources: vi.fn(async () => [])
       }
@@ -232,5 +244,165 @@ describe('McpToolsRuntime', () => {
     )
     expect(window.api.mcp.listPrompts).not.toHaveBeenCalled()
     expect(window.api.mcp.listResources).not.toHaveBeenCalled()
+  })
+
+  it('inserts multiple MCP prompt selections as composer tokens without text fallback', async () => {
+    const launcher = createLauncherApi()
+    const quickPanel = {
+      close: vi.fn(),
+      isVisible: false,
+      open: vi.fn(),
+      symbol: '',
+      updateList: vi.fn()
+    }
+    const inputAdapter = createInputAdapter()
+    const setInputValue = vi.fn()
+
+    mocks.useQuickPanel.mockReturnValue(quickPanel)
+    mocks.useMcpServers.mockReturnValue({
+      mcpServers: [
+        {
+          id: 'server-a',
+          name: 'Filesystem',
+          isActive: true
+        }
+      ]
+    })
+    ;(window as any).api.mcp.listPrompts = vi.fn(async () => [
+      { serverId: 'server-a', serverName: 'Filesystem', name: 'Prompt A', description: 'First prompt' },
+      { serverId: 'server-a', serverName: 'Filesystem', name: 'Prompt B', description: 'Second prompt' }
+    ])
+
+    render(<McpToolsRuntime assistantId="assistant-1" launcher={launcher} setInputValue={setInputValue} />)
+
+    await waitFor(() => expect((window as any).api.mcp.listPrompts).toHaveBeenCalled())
+    await waitFor(() => expect(vi.mocked(launcher.registerLaunchers).mock.calls.length).toBeGreaterThan(1))
+
+    const launchers = vi.mocked(launcher.registerLaunchers).mock.calls.at(-1)?.[0] ?? []
+    const promptLauncher = launchers.find((item) => item.id === 'mcp-prompts')
+    promptLauncher?.action?.({
+      inputAdapter,
+      parentPanel: { list: [], symbol: '/' },
+      queryAnchor: 0,
+      quickPanel: quickPanel as never,
+      source: 'root-panel',
+      triggerInfo: { type: 'input', position: 0, originalText: '/mcp' }
+    })
+
+    await waitFor(() =>
+      expect(quickPanel.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          multiple: true,
+          symbol: 'mcp-prompt',
+          list: expect.arrayContaining([
+            expect.objectContaining({ label: 'Prompt A' }),
+            expect.objectContaining({ label: 'Prompt B' })
+          ])
+        })
+      )
+    )
+
+    const panelOptions = quickPanel.open.mock.calls.at(-1)?.[0]
+    panelOptions.list[0].action({ inputAdapter } as never)
+    panelOptions.list[1].action({ inputAdapter } as never)
+
+    await waitFor(() => expect(inputAdapter.insertToken).toHaveBeenCalledTimes(2))
+    expect(inputAdapter.insertToken).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        id: 'mcpPrompt:server-a:Prompt A',
+        kind: 'mcpPrompt',
+        promptText: 'Prompt A body'
+      })
+    )
+    expect(inputAdapter.insertToken).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        id: 'mcpPrompt:server-a:Prompt B',
+        kind: 'mcpPrompt',
+        promptText: 'Prompt B body'
+      })
+    )
+    expect(setInputValue).not.toHaveBeenCalled()
+  })
+
+  it('inserts multiple MCP resource selections as composer tokens without text fallback', async () => {
+    const launcher = createLauncherApi()
+    const quickPanel = {
+      close: vi.fn(),
+      isVisible: false,
+      open: vi.fn(),
+      symbol: '',
+      updateList: vi.fn()
+    }
+    const inputAdapter = createInputAdapter()
+    const setInputValue = vi.fn()
+
+    mocks.useQuickPanel.mockReturnValue(quickPanel)
+    mocks.useMcpServers.mockReturnValue({
+      mcpServers: [
+        {
+          id: 'server-a',
+          name: 'Filesystem',
+          isActive: true
+        }
+      ]
+    })
+    ;(window as any).api.mcp.listResources = vi.fn(async () => [
+      { serverId: 'server-a', serverName: 'Filesystem', name: 'Resource A', uri: 'file://a', mimeType: 'text/plain' },
+      { serverId: 'server-a', serverName: 'Filesystem', name: 'Resource B', uri: 'file://b', mimeType: 'text/plain' }
+    ])
+
+    render(<McpToolsRuntime assistantId="assistant-1" launcher={launcher} setInputValue={setInputValue} />)
+
+    await waitFor(() => expect((window as any).api.mcp.listResources).toHaveBeenCalled())
+    await waitFor(() => expect(vi.mocked(launcher.registerLaunchers).mock.calls.length).toBeGreaterThan(1))
+
+    const launchers = vi.mocked(launcher.registerLaunchers).mock.calls.at(-1)?.[0] ?? []
+    const resourceLauncher = launchers.find((item) => item.id === 'mcp-resources')
+    resourceLauncher?.action?.({
+      inputAdapter,
+      parentPanel: { list: [], symbol: '/' },
+      queryAnchor: 0,
+      quickPanel: quickPanel as never,
+      source: 'root-panel',
+      triggerInfo: { type: 'input', position: 0, originalText: '/mcp' }
+    })
+
+    await waitFor(() =>
+      expect(quickPanel.open).toHaveBeenCalledWith(
+        expect.objectContaining({
+          multiple: true,
+          symbol: 'mcp-resource',
+          list: expect.arrayContaining([
+            expect.objectContaining({ label: 'Resource A' }),
+            expect.objectContaining({ label: 'Resource B' })
+          ])
+        })
+      )
+    )
+
+    const panelOptions = quickPanel.open.mock.calls.at(-1)?.[0]
+    panelOptions.list[0].action({ inputAdapter } as never)
+    panelOptions.list[1].action({ inputAdapter } as never)
+
+    await waitFor(() => expect(inputAdapter.insertToken).toHaveBeenCalledTimes(2))
+    expect(inputAdapter.insertToken).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        id: 'mcpResource:server-a:file://a',
+        kind: 'mcpResource',
+        promptText: 'file://a body'
+      })
+    )
+    expect(inputAdapter.insertToken).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        id: 'mcpResource:server-a:file://b',
+        kind: 'mcpResource',
+        promptText: 'file://b body'
+      })
+    )
+    expect(setInputValue).not.toHaveBeenCalled()
   })
 })
