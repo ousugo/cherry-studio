@@ -181,6 +181,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.delete': 'Delete',
           'common.description': 'Description',
           'common.edit': 'Edit',
+          'common.help': 'Help',
           'common.loading': 'Loading',
           'common.model': 'Model',
           'common.name': 'Name',
@@ -484,6 +485,18 @@ function selectTab(name: string) {
   fireEvent.keyDown(tab, { key: 'Enter', code: 'Enter' })
 }
 
+function expectHelpTrigger(label: string, description: string) {
+  expect(screen.getByRole('button', { name: `${label} Help` })).toBeInTheDocument()
+  expect(screen.queryByText(description)).not.toBeInTheDocument()
+}
+
+async function expectVariablesHelpOnHover() {
+  const trigger = screen.getByRole('button', { name: 'Variables' })
+  expect(trigger).toHaveClass('size-4')
+  fireEvent.pointerMove(trigger, { pointerType: 'mouse' })
+  await waitFor(() => expect(screen.getAllByText('{{date}}').length).toBeGreaterThan(0))
+}
+
 describe('edit dialogs', () => {
   it('submits assistant name, description, and model changes as a PATCH', async () => {
     const onSaved = vi.fn()
@@ -542,6 +555,7 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     selectTab('Prompt')
+    await expectVariablesHelpOnHover()
     const instructionsInput = screen.getByLabelText('Instructions')
     expect(instructionsInput).toHaveStyle({
       minHeight: EDIT_DIALOG_PROMPT_MIN_HEIGHT,
@@ -573,6 +587,7 @@ describe('edit dialogs', () => {
 
     selectTab('Knowledge')
     await waitFor(() => expect(screen.getByText('Linked knowledge')).toBeVisible())
+    expectHelpTrigger('Linked knowledge', 'Choose knowledge bases.')
     fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
     fireEvent.click(screen.getByText('Knowledge One'))
 
@@ -584,6 +599,14 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'MCP One' }))
 
     selectTab('Model configuration')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Temperature Help' })).toBeVisible())
+    expectHelpTrigger('Temperature', 'Controls randomness.')
+    expectHelpTrigger('Top-P', 'Controls nucleus sampling.')
+    expectHelpTrigger('Max tokens', 'Caps response length.')
+    expectHelpTrigger('Stream output', 'Stream responses.')
+    expectHelpTrigger('Tool mode', 'Controls tool mode.')
+    expectHelpTrigger('Max tool calls', 'Caps tool loops.')
+    expectHelpTrigger('Custom parameters', 'Extra provider parameters.')
     fireEvent.click(screen.getByRole('switch', { name: 'Temperature' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -605,6 +628,7 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     selectTab('Prompt')
+    await expectVariablesHelpOnHover()
     fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated prompt'))
@@ -622,6 +646,8 @@ describe('edit dialogs', () => {
 
     selectTab('Advanced')
     await waitFor(() => expect(screen.getByText('Max turns')).toBeVisible())
+    expectHelpTrigger('Max turns', '0 means default')
+    expectHelpTrigger('Environment variables', 'One KEY=VALUE per line')
     fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '7' } })
     fireEvent.blur(screen.getByRole('spinbutton'))
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'FOO=bar' } })

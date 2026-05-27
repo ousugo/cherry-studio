@@ -1,7 +1,6 @@
 import {
   EditableNumber,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -53,6 +52,7 @@ import {
   type EditDialogBaseProps,
   EditDialogShell,
   type EditDialogTab,
+  FieldLabelWithHelp,
   type ModelLabels,
   PromptVariablesPopover,
   TextInputField
@@ -533,10 +533,10 @@ function AgentPromptField({
       name="instructions"
       render={({ field }) => (
         <FormItem>
-          <div className="flex items-center gap-1.5">
-            <FormLabel>{t('library.config.agent.field.instructions.label')}</FormLabel>
-            <PromptVariablesPopover portalContainer={portalContainer} />
-          </div>
+          <FieldLabelWithHelp
+            label={t('library.config.agent.field.instructions.label')}
+            helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
+          />
           <FormControl>
             <Textarea.Input
               value={field.value}
@@ -748,8 +748,10 @@ function AgentAdvancedFields({ form }: { form: UseFormReturn<AgentEditFormValues
         name="maxTurns"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>{t('library.config.agent.field.max_turns.label')}</FormLabel>
-            <FormDescription className="text-xs">{t('library.config.agent.field.max_turns.help')}</FormDescription>
+            <FieldLabelWithHelp
+              label={t('library.config.agent.field.max_turns.label')}
+              help={t('library.config.agent.field.max_turns.help')}
+            />
             <EditableNumber
               block
               min={0}
@@ -771,8 +773,10 @@ function AgentAdvancedFields({ form }: { form: UseFormReturn<AgentEditFormValues
         name="envVarsText"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>{t('library.config.agent.field.env_vars.label')}</FormLabel>
-            <FormDescription className="text-xs">{t('library.config.agent.field.env_vars.help')}</FormDescription>
+            <FieldLabelWithHelp
+              label={t('library.config.agent.field.env_vars.label')}
+              help={t('library.config.agent.field.env_vars.help')}
+            />
             <FormControl>
               <Textarea.Input
                 value={field.value}

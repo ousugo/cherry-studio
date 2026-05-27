@@ -13,9 +13,7 @@ import {
   FormMessage,
   Input,
   MenuList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+  NormalTooltip,
   Scrollbar,
   Tabs,
   TabsList,
@@ -28,7 +26,7 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, HelpCircle, Trash2 } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ComponentProps, type ReactNode, useEffect, useRef, useState } from 'react'
 import type { FieldValues, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -109,6 +107,61 @@ export function setFormValues<TValues extends FieldValues>(form: UseFormReturn<T
   Object.entries(patch).forEach(([key, value]) => {
     form.setValue(key as never, value as never, { shouldDirty: true })
   })
+}
+
+const HelpIconButton = ({
+  ref,
+  ariaLabel,
+  className,
+  ...props
+}: ComponentProps<'button'> & { ariaLabel: string } & { ref?: React.RefObject<HTMLButtonElement | null> }) => {
+  return (
+    <button
+      ref={ref}
+      {...props}
+      type="button"
+      aria-label={ariaLabel}
+      className={cn(
+        'flex size-4 min-h-0 shrink-0 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0',
+        className
+      )}>
+      <HelpCircle size={11} />
+    </button>
+  )
+}
+HelpIconButton.displayName = 'HelpIconButton'
+
+export function FieldLabelWithHelp({
+  label,
+  help,
+  helpTrigger,
+  className,
+  formLabel = true
+}: {
+  label: string
+  help?: ReactNode
+  helpTrigger?: ReactNode
+  className?: string
+  formLabel?: boolean
+}) {
+  const { t } = useTranslation()
+  const labelContent = formLabel ? (
+    <FormLabel>{label}</FormLabel>
+  ) : (
+    <span className="font-medium text-foreground text-sm leading-none">{label}</span>
+  )
+
+  return (
+    <div className={cn('flex items-center gap-1.5', className)}>
+      {labelContent}
+      {helpTrigger ??
+        (help ? (
+          <NormalTooltip content={help} delayDuration={300} sideOffset={4}>
+            <HelpIconButton ariaLabel={`${label} ${t('common.help')}`} />
+          </NormalTooltip>
+        ) : null)}
+    </div>
+  )
 }
 
 export function EditDialogShell<TValues extends FieldValues>({
@@ -462,32 +515,33 @@ export function CompactModelField({
 
 export function PromptVariablesPopover({ portalContainer }: { portalContainer: HTMLElement | null }) {
   const { t } = useTranslation()
+  const content = (
+    <div>
+      <div className="mb-2 font-medium text-neutral-50 text-xs dark:text-neutral-900">
+        {t('library.config.prompt.variables_title')}
+      </div>
+      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-neutral-300 text-xs dark:text-neutral-700">
+        {PROMPT_VARIABLES.map((variable) => (
+          <div key={variable.name} className="contents">
+            <span className="text-neutral-50 dark:text-neutral-900">{variable.name}</span>
+            <span>{t(variable.i18n)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          aria-label={t('library.config.prompt.variables_title')}
-          className="flex size-6 min-h-0 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
-          <HelpCircle size={11} />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        portalContainer={portalContainer}
-        align="start"
-        className="w-72 rounded-lg border-border/30 p-3 shadow-black/[0.06] shadow-lg">
-        <div className="mb-2 font-medium text-foreground text-xs">{t('library.config.prompt.variables_title')}</div>
-        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-muted-foreground text-xs">
-          {PROMPT_VARIABLES.map((variable) => (
-            <div key={variable.name} className="contents">
-              <span className="text-foreground">{variable.name}</span>
-              <span>{t(variable.i18n)}</span>
-            </div>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <NormalTooltip
+      content={content}
+      delayDuration={300}
+      align="start"
+      sideOffset={4}
+      contentProps={{
+        portalContainer,
+        className: 'w-72 p-3'
+      }}>
+      <HelpIconButton ariaLabel={t('library.config.prompt.variables_title')} />
+    </NormalTooltip>
   )
 }

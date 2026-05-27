@@ -3,7 +3,6 @@ import {
   ButtonGroup,
   EditableNumber,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -47,6 +46,7 @@ import {
   type EditDialogBaseProps,
   EditDialogShell,
   type EditDialogTab,
+  FieldLabelWithHelp,
   type ModelLabels,
   PromptVariablesPopover,
   setFormValues,
@@ -491,8 +491,13 @@ function AssistantPromptField({
       name="prompt"
       render={({ field }) => (
         <PromptEditorField
-          label={<span className="font-medium text-foreground text-sm">{t('library.config.prompt.label')}</span>}
-          labelAddon={<PromptVariablesPopover portalContainer={portalContainer} />}
+          label={
+            <FieldLabelWithHelp
+              label={t('library.config.prompt.label')}
+              helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
+              formLabel={false}
+            />
+          }
           value={field.value}
           onChange={handlePromptChange}
           placeholder={t('library.config.prompt.placeholder')}
@@ -555,8 +560,10 @@ function AssistantKnowledgeFields({
         name="knowledgeBaseIds"
         render={() => (
           <FormItem>
-            <FormLabel>{t('library.config.knowledge.linked')}</FormLabel>
-            <FormDescription className="text-xs">{t('library.config.knowledge.linked_hint')}</FormDescription>
+            <FieldLabelWithHelp
+              label={t('library.config.knowledge.linked')}
+              help={t('library.config.knowledge.linked_hint')}
+            />
             {linkedItems.length === 0 ? (
               <div className="mt-2 flex flex-col items-center rounded-xs border border-border/20 border-dashed p-6">
                 <Database size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/80" />
@@ -832,10 +839,10 @@ function AssistantAdvancedFields({
           <FormItem>
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <FormLabel>{t('library.config.basic.stream_output')}</FormLabel>
-                <FormDescription className="text-xs">
-                  {t('library.config.basic.field.stream_output.hint')}
-                </FormDescription>
+                <FieldLabelWithHelp
+                  label={t('library.config.basic.stream_output')}
+                  help={t('library.config.basic.field.stream_output.hint')}
+                />
               </div>
               <FormControl>
                 <Switch
@@ -853,8 +860,11 @@ function AssistantAdvancedFields({
 
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-medium text-foreground text-sm">{t('library.config.basic.tool_use_mode')}</div>
-          <p className="text-muted-foreground text-xs">{t('library.config.basic.field.tool_use_mode.hint')}</p>
+          <FieldLabelWithHelp
+            label={t('library.config.basic.tool_use_mode')}
+            help={t('library.config.basic.field.tool_use_mode.hint')}
+            formLabel={false}
+          />
         </div>
         <ButtonGroup className="shrink-0 overflow-hidden rounded-2xs border border-border/30">
           {(['function', 'prompt'] as const).map((mode) => (
@@ -938,10 +948,9 @@ function ToggleFieldGroup({
       <div className="mb-1.5 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="font-medium text-foreground text-sm">{label}</span>
+            <FieldLabelWithHelp label={label} help={description} formLabel={false} />
             <span className="text-muted-foreground/80 text-sm">{valueLabel}</span>
           </div>
-          <p className="text-muted-foreground text-xs">{description}</p>
         </div>
         <Switch size="sm" checked={enabled} onCheckedChange={onEnabledChange} aria-label={label} />
       </div>
@@ -980,8 +989,10 @@ function CustomParametersField({
     <FormItem>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <FormLabel>{t('library.config.basic.custom_params')}</FormLabel>
-          <FormDescription className="text-xs">{t('library.config.basic.field.custom_params.hint')}</FormDescription>
+          <FieldLabelWithHelp
+            label={t('library.config.basic.custom_params')}
+            help={t('library.config.basic.field.custom_params.hint')}
+          />
         </div>
         <Button type="button" variant="secondary" size="sm" onClick={add} className="h-7 gap-1 px-2.5 text-xs">
           <Sparkles size={11} />
