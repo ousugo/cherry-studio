@@ -317,7 +317,8 @@ describe('AgentChat locate pending message', () => {
           }
         },
         file: {
-          isTextFile: vi.fn().mockResolvedValue(true)
+          isTextFile: vi.fn().mockResolvedValue(true),
+          getFileSize: vi.fn().mockResolvedValue(1024)
         }
       }
     })

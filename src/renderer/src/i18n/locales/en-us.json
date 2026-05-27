@@ -360,7 +360,11 @@
       "preview": "Preview",
       "refresh": "Refresh",
       "select_file": "Select a file to preview",
-      "toggle": "Show preview panel"
+      "toggle": "Show preview panel",
+      "too_large": {
+        "description": "File exceeds the {{limit}} preview limit.",
+        "title": "File too large to preview"
+      }
     },
     "reorder": {
       "error": {

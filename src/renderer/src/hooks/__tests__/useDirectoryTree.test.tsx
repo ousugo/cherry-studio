@@ -103,7 +103,7 @@ describe('useDirectoryTree', () => {
     expect(result.current.root?.hasChild('existing.md')).toBe(false)
   })
 
-  it('disposes the tree on unmount', async () => {
+  it('debounces tree.dispose so toggle churn cannot tear down the main builder', async () => {
     mocks.create.mockResolvedValue({ treeId: 't-3', snapshot: makeSnapshot('/notes', []) })
     const unsub = vi.fn()
     mocks.onMutation.mockReturnValue(unsub)
@@ -116,7 +116,10 @@ describe('useDirectoryTree', () => {
 
     unmount()
     expect(unsub).toHaveBeenCalled()
-    expect(mocks.dispose).toHaveBeenCalledWith('t-3')
+    // tree.dispose stays parked behind the debounce — main keeps the builder warm.
+    expect(mocks.dispose).not.toHaveBeenCalled()
+
+    await waitFor(() => expect(mocks.dispose).toHaveBeenCalledWith('t-3'), { timeout: 6000 })
   })
 
   it('returns null root when no rootPath is supplied', () => {
@@ -153,7 +156,8 @@ describe('useDirectoryTree', () => {
       expect(result.current.treeId).toBe('t-second')
     })
 
-    expect(mocks.dispose).toHaveBeenCalledWith('t-first')
+    // dispose is debounced — wait for the timer to fire.
+    await waitFor(() => expect(mocks.dispose).toHaveBeenCalledWith('t-first'), { timeout: 6000 })
   })
 
   it('does not call setError when Tree_Create rejects after unmount', async () => {
@@ -196,8 +200,8 @@ describe('useDirectoryTree', () => {
       expect(result.current.treeId).toBe('t-strict-2')
     })
 
-    // StrictMode's discarded mount must hand back its treeId, not leak it.
-    expect(mocks.dispose).toHaveBeenCalledWith('t-strict-1')
+    // StrictMode's discarded mount must hand back its treeId, not leak it (debounced).
+    await waitFor(() => expect(mocks.dispose).toHaveBeenCalledWith('t-strict-1'), { timeout: 6000 })
   })
 
   it('ignores Tree_Mutation payloads whose treeId does not match', async () => {

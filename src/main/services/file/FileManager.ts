@@ -712,6 +712,7 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_GetPathStatus, (_e, params: unknown) =>
       this.getPathStatus(GetPathStatusIpcSchema.parse(params))
     )
+    this.ipcHandle(IpcChannel.File_GetFileSize, async (_e, filePath: FilePath) => this.getFileSize(filePath))
     this.ipcHandle(IpcChannel.File_SelectFolder, fileStorage.selectFolder)
     this.ipcHandle(IpcChannel.File_ListDirectory, async (_e, dirPath: FilePath, options?: DirectoryListOptions) =>
       searchListDirectory(dirPath, options)
@@ -932,6 +933,14 @@ export class FileManager extends BaseService implements IFileManager {
 
   private async getPathStatus(params: GetPathStatusIpcParams) {
     return readPathStatus(params.path, { expectedKind: params.expectedKind })
+  }
+
+  private async getFileSize(filePath: FilePath): Promise<number> {
+    const s = await fsStat(filePath)
+    if (s.isDirectory) {
+      throw new Error(`Cannot read size: path is a directory (${filePath})`)
+    }
+    return s.size
   }
 
   async getPhysicalPath(id: FileEntryId): Promise<FilePath> {

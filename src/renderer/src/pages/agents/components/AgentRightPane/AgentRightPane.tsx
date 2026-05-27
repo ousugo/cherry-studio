@@ -9,6 +9,7 @@ import ArtifactPane, {
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
 import { TracePane, type TracePanePayload } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { useAgentMessageListProviderValue } from '@renderer/pages/agents/messages/agentMessageListAdapter'
 import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
@@ -297,6 +298,7 @@ function AgentRightPaneFilesPanel() {
 function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
   const shellState = useShellState()
   const isText = useIsTextFile(preview.workspacePath, preview.filePath)
+  const fileSize = useFileSize(preview.workspacePath, preview.filePath)
 
   return (
     <div
@@ -308,6 +310,7 @@ function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
         workspacePath={preview.workspacePath}
         filePath={preview.filePath}
         isText={isText}
+        fileSize={fileSize}
         pdfLayoutPending={shellState.pdfLayoutPending}
         pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
       />

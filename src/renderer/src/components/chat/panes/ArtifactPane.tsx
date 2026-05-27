@@ -7,6 +7,7 @@ import { EmptyState, LoadingState } from '@renderer/components/chat'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
+import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
 import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import type { DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/file/types'
@@ -54,10 +55,15 @@ interface ArtifactFilePreviewProps {
   workspacePath?: string
   filePath?: string | null
   isText: IsTextState
+  fileSize: FileSizeState
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   contentRefreshKey?: number
 }
+
+/** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
+export const ARTIFACT_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
+const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
 
 // Extensions below drive special-case rendering (Markdown / iframe / PdfPreviewPanel),
 // not text-vs-binary classification. Text detection lives in `useIsTextFile`.
@@ -376,6 +382,7 @@ export function ArtifactFilePreview({
   workspacePath,
   filePath,
   isText,
+  fileSize,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
   contentRefreshKey = 0
@@ -385,6 +392,8 @@ export function ArtifactFilePreview({
   const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
   const isPdfPreview = filePath ? isPdfFile(filePath) : false
+  const oversizedForPreview =
+    !isPdfPreview && fileSize.status === 'ok' && fileSize.size > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
 
   useEffect(() => {
     if (!filePath || !workspacePath) {
@@ -400,7 +409,9 @@ export function ArtifactFilePreview({
       return
     }
 
-    if (isText !== 'text') {
+    // Wait for both sniffs to settle before paying the readText cost — gates
+    // out binary files, oversized files, and inaccessible paths.
+    if (isText !== 'text' || fileSize.status !== 'ok' || oversizedForPreview) {
       setFileContent(null)
       setLoadingContent(false)
       return
@@ -428,7 +439,7 @@ export function ArtifactFilePreview({
     return () => {
       cancelled = true
     }
-  }, [contentRefreshKey, filePath, workspacePath, isText])
+  }, [contentRefreshKey, filePath, workspacePath, isText, fileSize.status, oversizedForPreview])
 
   useEffect(() => {
     if (!isPdfPreview || pdfLayoutPending || PdfPreviewPanel) return
@@ -481,10 +492,20 @@ export function ArtifactFilePreview({
     )
   }
 
-  if (isText === 'pending') {
+  if (oversizedForPreview) {
+    return (
+      <EmptyState
+        icon={FileText}
+        title={t('agent.preview_pane.too_large.title')}
+        description={t('agent.preview_pane.too_large.description', { limit: ARTIFACT_PREVIEW_MAX_SIZE_LABEL })}
+      />
+    )
+  }
+
+  if (isText === 'pending' || fileSize.status === 'pending') {
     return <LoadingState variant="skeleton" rows={4} />
   }
-  if (isText === 'binary') {
+  if (fileSize.status === 'error' || isText === 'binary') {
     return (
       <EmptyState
         icon={FileText}
@@ -597,6 +618,7 @@ const ArtifactPane = ({
   )
 
   const isText = useIsTextFile(workspacePath, selectedFile)
+  const fileSize = useFileSize(workspacePath, selectedFile)
   const isPdfSelection = selectedFile ? isPdfFile(selectedFile) : false
 
   const handleRefresh = useCallback(() => {
@@ -629,6 +651,7 @@ const ArtifactPane = ({
         workspacePath={workspacePath}
         filePath={selectedFile}
         isText={isText}
+        fileSize={fileSize}
         pdfLayoutPending={pdfLayoutPending}
         pdfLayoutRefreshKey={pdfLayoutRefreshKey}
         contentRefreshKey={contentRefreshToken}

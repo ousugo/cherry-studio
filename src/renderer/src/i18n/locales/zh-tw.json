@@ -360,7 +360,11 @@
       "preview": "預覽",
       "refresh": "重新整理",
       "select_file": "選擇檔案以預覽",
-      "toggle": "顯示預覽面板"
+      "toggle": "顯示預覽面板",
+      "too_large": {
+        "description": "檔案超過 {{limit}} 預覽上限。",
+        "title": "檔案太大，無法預覽"
+      }
     },
     "reorder": {
       "error": {

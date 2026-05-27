@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   fsRead: vi.fn(),
   fsReadText: vi.fn(),
   isTextFile: vi.fn(),
+  getFileSize: vi.fn(),
   createObjectURL: vi.fn(),
   revokeObjectURL: vi.fn(),
   pdfPreviewPanelProps: [] as Array<{
@@ -335,13 +336,16 @@ describe('ArtifactPane', () => {
     mocks.treeOnMutation.mockImplementation(() => () => {})
     // Default: tests select text files; override per-test for binary cases.
     mocks.isTextFile.mockResolvedValue(true)
+    // Default: tests use tiny files; override per-test to exercise the size gate.
+    mocks.getFileSize.mockResolvedValue(1024)
     mocks.createObjectURL.mockReturnValue('blob:fake-url')
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         file: {
           openPath: vi.fn(),
-          isTextFile: mocks.isTextFile
+          isTextFile: mocks.isTextFile,
+          getFileSize: mocks.getFileSize
         },
         fs: {
           read: mocks.fsRead,
@@ -1013,6 +1017,36 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/notes.log'))
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('boot at 12:00')
+  })
+
+  it('skips preview and readText for text files above the 2 MB size cap', async () => {
+    mocks.getFileSize.mockResolvedValueOnce(3 * 1024 * 1024)
+    mockWorkspaceTree('/tmp/workspace', ['huge.json'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-huge.json')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-huge.json'))
+
+    await waitFor(() => expect(screen.getByText('agent.preview_pane.too_large.title')).toBeInTheDocument())
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+  })
+
+  it('still renders PDFs above the 2 MB size cap', async () => {
+    mocks.getFileSize.mockResolvedValueOnce(50 * 1024 * 1024)
+    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
+
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
+    expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
   })
 
   it('renders non-markdown text files through CodeViewer with the resolved language', async () => {

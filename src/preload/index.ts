@@ -292,6 +292,7 @@ const api = {
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
     getPathStatus: (params: GetPathStatusIpcParams): Promise<PathStatus> =>
       ipcRenderer.invoke(IpcChannel.File_GetPathStatus, params),
+    getFileSize: (filePath: string): Promise<number> => ipcRenderer.invoke(IpcChannel.File_GetFileSize, filePath),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>

@@ -10,9 +10,20 @@ import {
   type TreeMutationPushPayload,
   type TreeNode
 } from '@shared/file/types'
+import { debounce } from 'lodash'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useDirectoryTree')
+
+/**
+ * Delay each `tree.dispose` so high-frequency mount/unmount churn (e.g. user
+ * toggling the artifact pane) doesn't tear down the warm `DirectoryTreeBuilder`
+ * on the main side. Within this window the main-side `TreeRegistry` keeps the
+ * shared builder alive (refcount stays > 0 because the next mount lands before
+ * dispose fires), so a remount hits the cached snapshot instead of paying a
+ * fresh ripgrep + stat sweep.
+ */
+const TREE_DISPOSE_DEBOUNCE_MS = 5_000
 
 export interface UseDirectoryTreeResult {
   readonly root: TreeDirRoot | null
@@ -104,20 +115,17 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
     setIsLoading(true)
     setError(null)
 
-    const disposeTree = (treeId: string): void => {
-      // Wrap so mocked / synchronous dispose impls that return `undefined`
-      // don't throw before our `.catch`. The IPC contract is async; we
-      // treat the result defensively.
+    const scheduleDispose = debounce((treeId: string): void => {
       Promise.resolve(window.api.tree.dispose(treeId)).catch((err) => {
         logger.error(`Failed to dispose tree ${treeId}`, err as Error)
       })
-    }
+    }, TREE_DISPOSE_DEBOUNCE_MS)
 
     void (async () => {
       try {
         const result: CreateTreeIpcResult = await window.api.tree.create(rootPath, optionsRef.current)
         if (cancelled) {
-          disposeTree(result.treeId)
+          scheduleDispose(result.treeId)
           return
         }
 
@@ -149,7 +157,7 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
     return () => {
       cancelled = true
       unsubscribeMutations?.()
-      if (createdTreeId) disposeTree(createdTreeId)
+      if (createdTreeId) scheduleDispose(createdTreeId)
       mirrorRef.current = null
       setTreeId(null)
     }

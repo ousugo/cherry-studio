@@ -538,6 +538,15 @@ export interface FileIpcApi {
   getPathStatus(params: GetPathStatusIpcParams): Promise<PathStatus>
 
   /**
+   * Read the size (in bytes) of a regular file at an arbitrary path. Thin
+   * wrapper around `fs.stat` — rejects if the path is missing, inaccessible,
+   * or not a regular file. Separate from `getPathStatus` to keep each
+   * single-hop facade focused on one semantic concern (kind vs. measurement).
+   * @phase 1 — wired in FileManager lifecycle IPC
+   */
+  getFileSize(path: FilePath): Promise<number>
+
+  /**
    * List contents of an arbitrary directory.
    * @phase 2 — not yet wired
    */
