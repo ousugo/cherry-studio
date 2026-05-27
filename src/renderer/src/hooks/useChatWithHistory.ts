@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { ChatRequestOptions } from 'ai'
+import type { ChatRequestOptions, FileUIPart } from 'ai'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useTopicDbRefreshOnTerminal } from './useTopicStreamStatus'
@@ -16,7 +16,7 @@ const EMPTY_EXECUTIONS: readonly ActiveExecution[] = Object.freeze([])
 // ── Return type ──
 
 export interface UseChatWithHistoryResult {
-  sendMessage: (message?: { text: string }, options?: ChatRequestOptions) => Promise<void>
+  sendMessage: (message?: { text: string; files?: FileUIPart[] }, options?: ChatRequestOptions) => Promise<void>
   regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
   stop: () => Promise<void>
   error: Error | undefined

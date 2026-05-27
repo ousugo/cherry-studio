@@ -10,6 +10,7 @@ import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicMessagesV2 } from '@renderer/hooks/useTopicMessagesV2'
 import { V2ChatOverridesProvider } from '@renderer/hooks/V2ChatContext'
 import type { FileMetadata, Topic } from '@renderer/types'
+import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { FC, ReactNode } from 'react'
@@ -264,12 +265,17 @@ const V2ChatContentInner: FC<InnerProps> = ({
         files: options?.files,
         withAssistantPlaceholder: !options?.mentionedModels?.length
       })
+      // Build v2 FileEntry-backed FileUIParts so the persisted user message
+      // carries `providerMetadata.cherry.fileEntryId` (path-resilient across
+      // userData moves). AI SDK's sendMessage takes `files: FileUIPart[]`
+      // alongside `text`; IpcChatTransport then reads `lastMessage.parts`
+      // and these ride along automatically.
+      const fileParts = options?.files?.length ? await buildFilePartsForAttachments(options.files) : []
       await sendMessage(
-        { text },
+        { text, files: fileParts },
         {
           body: {
             parentAnchorId: activeNodeId ?? undefined,
-            files: options?.files,
             mentionedModels: options?.mentionedModels,
             ...capabilityBody
           }

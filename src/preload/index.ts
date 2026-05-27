@@ -39,6 +39,7 @@ import type {
   UnifiedPreferenceType,
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
+import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import type {
   FileProcessingTaskStartResult,
   ListAvailableFileProcessorsResult
@@ -61,7 +62,12 @@ import type {
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
-import type { WorkspacePathStatus } from '@shared/file/types/ipc'
+import type { FilePath } from '@shared/file/types/common'
+import type {
+  CreateInternalEntryIpcParams,
+  GetPhysicalPathIpcParams,
+  WorkspacePathStatus
+} from '@shared/file/types/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type {
@@ -243,6 +249,10 @@ const api = {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
       ipcRenderer.invoke(IpcChannel.File_Select, options),
     upload: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
+    createInternalEntry: (params: CreateInternalEntryIpcParams): Promise<FileEntry> =>
+      ipcRenderer.invoke(IpcChannel.File_CreateInternalEntry, params),
+    getPhysicalPath: (params: GetPhysicalPathIpcParams): Promise<FilePath> =>
+      ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
     delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
     deleteDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteDir, dirPath),
     deleteExternalFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalFile, filePath),

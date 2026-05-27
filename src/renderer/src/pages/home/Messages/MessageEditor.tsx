@@ -7,12 +7,11 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
 import type { FileMetadata } from '@renderer/types'
-import { FILE_TYPE } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
+import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -173,16 +172,8 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const buildFinalParts = async (): Promise<CherryMessagePart[]> => {
     const finalParts = [...editedParts]
     if (files.length > 0) {
-      const uploadedFiles = await FileManager.uploadFiles(files)
-      for (const file of uploadedFiles) {
-        const isImage = file.type === FILE_TYPE.IMAGE
-        finalParts.push({
-          type: 'file',
-          mediaType: isImage ? `image/${file.ext.replace('.', '')}` : 'application/octet-stream',
-          url: `file://${file.path}`,
-          filename: file.origin_name || file.name
-        } as CherryMessagePart)
-      }
+      const fileParts = await buildFilePartsForAttachments(files)
+      finalParts.push(...(fileParts as CherryMessagePart[]))
     }
     return finalParts
   }
