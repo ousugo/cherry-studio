@@ -59,6 +59,10 @@ function getFilePreviewTitle(filePath: string): string {
   return segments.at(-1) ?? filePath
 }
 
+function isFramedFilePreview(filePath: string): boolean {
+  return /\.(html?|pdf)$/i.test(filePath)
+}
+
 interface AgentFlowTab {
   toolCallId: string
   toolName?: string
@@ -303,7 +307,11 @@ function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
   const shellState = useShellState()
 
   return (
-    <div className="h-full min-h-0 overflow-hidden bg-card text-card-foreground">
+    <div
+      className={cn(
+        'h-full min-h-0 bg-card text-card-foreground',
+        isFramedFilePreview(preview.filePath) ? 'overflow-hidden' : 'overflow-auto'
+      )}>
       <ArtifactFilePreview
         workspacePath={preview.workspacePath}
         filePath={preview.filePath}

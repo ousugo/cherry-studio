@@ -47,21 +47,21 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
   }, [node])
 
   return (
-    <div className="w-full text-xs">
+    <div className="w-full min-w-0 text-xs">
       <div
         className="traceItem"
         onClick={(e) => {
           e.preventDefault()
           handleClick(node.id)
         }}>
-        <div className="col-span-8 text-left" style={{ paddingLeft: `${paddingLeft}px` }}>
-          <div className="inline-flex flex-row items-center gap-2">
+        <div className="min-w-0 text-left" style={{ paddingLeft: `${paddingLeft}px` }}>
+          <div className="flex min-w-0 flex-row items-center gap-1.5">
             <Button
               aria-label="Toggle"
               aria-expanded={isOpen ? true : false}
               variant="ghost"
               size="icon-sm"
-              className="h-6 w-3 p-0"
+              className="h-6 w-4 shrink-0 p-0"
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -72,19 +72,22 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
               }}>
               {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             </Button>
-            <span role="button" tabIndex={0} className={node.status === 'ERROR' ? 'error-text' : 'default-text'}>
+            <span
+              role="button"
+              tabIndex={0}
+              className={`${node.status === 'ERROR' ? 'error-text' : 'default-text'} min-w-0 flex-1`}>
               {node.name}
             </span>
           </div>
         </div>
-        <div className="col-span-5 text-center">
+        <div className="min-w-0 whitespace-nowrap text-center">
           <span className="trace-token-prompt">{node.usage ? '↑' + node.usage.prompt_tokens : ''}</span>&nbsp;
           <span className="trace-token-completion">{node.usage ? '↓' + node.usage.completion_tokens : ''}</span>
         </div>
-        <div className="col-span-3 text-center">
+        <div className="min-w-0 whitespace-nowrap text-center">
           <span>{usedTime}</span>
         </div>
-        <div className="col-span-4 p-2 text-center">
+        <div className="min-w-0 px-1 py-2 text-center">
           <ProgressBar progress={Math.max(node.percent, 5)} start={node.start} />
         </div>
       </div>

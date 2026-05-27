@@ -91,8 +91,8 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
   ]
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden p-3 text-xs">
-      <div className="mb-3 flex min-w-0 items-start justify-between gap-3">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden p-3 text-xs">
+      <div className="mb-3 flex min-w-0 shrink-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="font-medium text-foreground text-sm">{t('trace.spanDetail')}</div>
           <div className="mt-1 truncate text-muted-foreground">{node.name}</div>
@@ -103,7 +103,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
         </Button>
       </div>
 
-      <FieldGroup className="mb-3 gap-0 overflow-hidden rounded-md border border-border-subtle bg-background-subtle">
+      <FieldGroup className="mb-3 shrink-0 gap-0 overflow-hidden rounded-md border border-border-subtle bg-background-subtle">
         {detailRows.map(([label, value]) => (
           <DetailField key={label} label={label} value={value} />
         ))}
@@ -132,7 +132,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
         </TabsList>
         <TabsContent
           value={activeTab}
-          className="min-h-0 overflow-hidden rounded-md border border-border-subtle bg-popover">
+          className="min-h-0 flex-1 overflow-hidden rounded-md border border-border-subtle bg-popover">
           <CodeViewer
             value={content}
             language={contentLanguage}

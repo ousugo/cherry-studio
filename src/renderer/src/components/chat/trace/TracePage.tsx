@@ -156,38 +156,40 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
   return (
     <div className="trace-window">
       <div className="tab-container_trace">
-        <div className="grid h-full min-h-0 grid-cols-1">
-          <div className="scroll-container">
-            {showList ? (
-              <div className="flex h-full min-h-0 w-full flex-col overflow-auto p-3">
-                {spans.length === 0 ? (
-                  <div className="flex h-full min-h-40 items-center justify-center text-muted-foreground text-xs">
-                    {t('trace.noTraceList')}
-                  </div>
-                ) : (
-                  <div className="min-w-[640px] overflow-hidden rounded-md border border-border-subtle bg-card">
-                    <div className="floating grid w-full grid-cols-[repeat(20,minmax(0,1fr))] gap-px">
-                      <div className="table-header col-span-8">
-                        <span tabIndex={0}>{t('trace.name')}</span>
-                      </div>
-                      <div className="table-header col-span-5">
-                        <span>{t('trace.tokenUsage')}</span>&nbsp;
-                      </div>
-                      <div className="table-header col-span-3">
-                        <span>{t('trace.spendTime')}</span>
-                      </div>
-                      <div className="table-header col-span-4" />
+        <div className="scroll-container">
+          {showList ? (
+            <div
+              data-testid="trace-list-scroll"
+              className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-y-auto overflow-x-hidden p-3">
+              {spans.length === 0 ? (
+                <div className="flex h-full min-h-40 items-center justify-center text-muted-foreground text-xs">
+                  {t('trace.noTraceList')}
+                </div>
+              ) : (
+                <div
+                  data-testid="trace-table"
+                  className="min-w-0 overflow-hidden rounded-md border border-border-subtle bg-card">
+                  <div className="floating trace-table-grid w-full">
+                    <div className="table-header text-left">
+                      <span tabIndex={0}>{t('trace.name')}</span>
                     </div>
-                    {spans.map((node: TraceModal) => (
-                      <TraceTree key={node.id} treeData={node.children} node={node} handleClick={handleNodeClick} />
-                    ))}
+                    <div className="table-header justify-center text-center">
+                      <span>{t('trace.tokenUsage')}</span>
+                    </div>
+                    <div className="table-header justify-center text-center">
+                      <span>{t('trace.spendTime')}</span>
+                    </div>
+                    <div className="table-header" />
                   </div>
-                )}
-              </div>
-            ) : (
-              selectNode && <SpanDetail node={selectNode} clickShowModal={handleShowList} />
-            )}
-          </div>
+                  {spans.map((node: TraceModal) => (
+                    <TraceTree key={node.id} treeData={node.children} node={node} handleClick={handleNodeClick} />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            selectNode && <SpanDetail node={selectNode} clickShowModal={handleShowList} />
+          )}
         </div>
       </div>
     </div>

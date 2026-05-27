@@ -694,6 +694,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByRole('button', { name: /记忆商人\.md/ })).toBeInTheDocument()
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/Users/suyao/Desktop')
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', '记忆商人.md')
+    expect(screen.getByTestId('artifact-file-preview').parentElement).toHaveClass('overflow-auto')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
   })

@@ -165,8 +165,9 @@ export function useChatVirtualizerRuntime<T>({
   // ---- ResizeObserver: dispatch to anchor + auto-stick ----------------
 
   useLayoutEffect(() => {
-    const target = contentRef.current
-    if (!target || typeof ResizeObserver === 'undefined') return
+    const content = contentRef.current
+    const scroller = scrollerRef.current
+    if (!content || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(() => {
       // Anchor first: it may adjust spacer height. Auto-stick reads
       // scrollHeight after, so any pin-driven layout change is reflected.
@@ -183,7 +184,12 @@ export function useChatVirtualizerRuntime<T>({
         })
       }
     })
-    observer.observe(target)
+    observer.observe(content)
+    // Also observe the scroller — the composer can expand (long paste) and
+    // shrink the viewport without changing content height. Without this, the
+    // spacer stays sized for the old viewport and turns into phantom scroll
+    // room below the messages.
+    if (scroller) observer.observe(scroller)
     return () => observer.disconnect()
   }, [anchor, atBottom, autoStick])
 
