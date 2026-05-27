@@ -1,10 +1,13 @@
 /**
  * Main-process file reader for AI message parts.
  *
- * Cherry's v2 messages store `FileUIPart.url` as `file://${absolutePath}`.
- * AI SDK's `convertToModelMessages` won't fetch `file://` URLs — they'd
- * reach the provider as bogus links. This module rewrites them in-place
- * to base64 `data:` URLs so the provider receives actual bytes.
+ * Cherry's v2 messages reference file bytes by either:
+ *   - `providerMetadata.cherry.fileEntryId` (preferred; path-resilient,
+ *     written by v1→v2 migrator and future producer-side rework), or
+ *   - `FileUIPart.url = file://${absolutePath}` (legacy / external files;
+ *     still produced by renderer attachment flows today)
+ * AI SDK's `convertToModelMessages` doesn't fetch either; this module
+ * inlines the bytes as base64 `data:` URLs before they hit the provider.
  *
  * Large-file upload through provider File APIs (Gemini File / OpenAI
  * Files) is not yet wired — see
@@ -16,8 +19,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import type { FileUIPart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
 const logger = loggerService.withContext('ai:fileProcessor')
 
@@ -43,6 +48,31 @@ function inferMediaType(filePath: string): string {
   return EXT_TO_MEDIA_TYPE[ext] ?? 'application/octet-stream'
 }
 
+async function pathToDataUrl(absPath: string, mediaTypeHint?: string): Promise<string> {
+  const bytes = await fs.readFile(absPath)
+  const mediaType = mediaTypeHint ?? inferMediaType(absPath)
+  return `data:${mediaType};base64,${bytes.toString('base64')}`
+}
+
+/**
+ * Resolve a FileEntryId via FileManager → read bytes → base64 data URL.
+ * Returns `null` on missing entry / unreadable file so the caller can fall
+ * through to the `file://` URL branch.
+ */
+async function fileEntryIdToDataUrl(fileEntryId: string, mediaTypeHint?: string): Promise<string | null> {
+  try {
+    const fileManager = application.get('FileManager')
+    const absPath = await fileManager.getPhysicalPath(fileEntryId)
+    return await pathToDataUrl(absPath, mediaTypeHint)
+  } catch (error) {
+    logger.warn('Failed to inline file from fileEntryId', {
+      fileEntryId,
+      error: error instanceof Error ? error.message : error
+    })
+    return null
+  }
+}
+
 /**
  * Read a `file://` URL's contents from disk and return a base64 data URL.
  * Returns `null` on failure so callers can drop the part rather than abort
@@ -51,21 +81,22 @@ function inferMediaType(filePath: string): string {
 async function fileUrlToDataUrl(fileUrl: string, mediaTypeHint?: string): Promise<string | null> {
   try {
     const absPath = fileURLToPath(fileUrl)
-    const bytes = await fs.readFile(absPath)
-    const mediaType = mediaTypeHint ?? inferMediaType(absPath)
-    return `data:${mediaType};base64,${bytes.toString('base64')}`
+    return await pathToDataUrl(absPath, mediaTypeHint)
   } catch (error) {
     logger.warn('Failed to inline file:// URL', { fileUrl, error: error instanceof Error ? error.message : error })
     return null
   }
 }
 
-/**
- * Rewrite any `file://` URLs in a `FileUIPart` to base64 data URLs. Leaves
- * `data:` / `https:` / `http:` URLs untouched. If the file can't be read,
- * returns `null` to signal the caller should drop the part.
- */
 export async function resolveFileUIPart(part: FileUIPart): Promise<FileUIPart | null> {
+  const fileEntryId = readCherryMeta(part)?.fileEntryId
+  if (fileEntryId) {
+    const dataUrl = await fileEntryIdToDataUrl(fileEntryId, part.mediaType)
+    if (dataUrl) return { ...part, url: dataUrl }
+    // fileEntry missing / unreadable — fall through to url-based path so a
+    // still-valid `file://` snapshot can rescue legacy / migrated rows.
+  }
+
   const url = part.url
   if (!url) return part
   if (!url.startsWith('file://')) return part
