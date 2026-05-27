@@ -40,7 +40,7 @@ describe('generateImageTool', () => {
 
     await waitFor(() => expect(registerLaunchers).toHaveBeenCalled())
 
-    const [generateImageLauncher] = vi.mocked(registerLaunchers).mock.calls[0]![0]
+    const [generateImageLauncher] = vi.mocked(registerLaunchers).mock.calls[0][0]
     expect(generateImageLauncher).toMatchObject({
       id: 'generate-image',
       sources: ['popover']

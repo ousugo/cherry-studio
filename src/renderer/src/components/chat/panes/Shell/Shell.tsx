@@ -308,9 +308,34 @@ function ShellTab({ value, icon, badge, onClose, children }: ShellTabProps) {
   )
 }
 
-function ShellPanel({ value, className, children }: { value: string; className?: string; children: ReactNode }) {
+/**
+ * Pass `forceMount` for panels whose children own state that's expensive
+ * to rebuild on every show — e.g. the workspace file tree, which would
+ * otherwise re-serialize + rematerialize + re-index O(N) nodes every time
+ * the user toggles between tabs. Default (omitted): radix's standard
+ * "unmount when inactive" behaviour.
+ *
+ * NB: with `forceMount`, radix keeps the subtree in the DOM but does NOT
+ * set the `hidden` attribute (because `Presence.present` stays true). The
+ * consumer has to enforce hiding via `data-[state=inactive]`, otherwise
+ * the kept-alive panel renders *on top of* whichever tab is active.
+ */
+function ShellPanel({
+  value,
+  className,
+  forceMount,
+  children
+}: {
+  value: string
+  className?: string
+  forceMount?: boolean
+  children: ReactNode
+}) {
   return (
-    <TabsContent value={value} className={cn('min-h-0 overflow-hidden', className)}>
+    <TabsContent
+      value={value}
+      className={cn('min-h-0 overflow-hidden', forceMount && 'data-[state=inactive]:hidden', className)}
+      {...(forceMount ? { forceMount: true as const } : {})}>
       {children}
     </TabsContent>
   )

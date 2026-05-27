@@ -6,6 +6,8 @@ import { EmptyState, LoadingState } from '@renderer/components/chat'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import RichEditor from '@renderer/components/RichEditor'
+import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
+import type { DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/file/types'
 import {
   AlertCircle,
   CodeXml,
@@ -188,97 +190,57 @@ export const resolveArtifactPaneFileSelection = (
 }
 
 /**
- * Turn the flat `listDirectory` output (paths separated by `/`) into the nested
- * `FileTreeNode[]` shape that `@renderer/components/FileTree` consumes. Folders
- * are placed before files at each level and entries are alphabetised.
+ * Project the main-side `DirectoryTreeBuilder` snapshot into the legacy
+ * `FileTreeNode[]` shape `@renderer/components/FileTree` consumes.
+ *
+ * Identity rule (kept stable so persisted `expandedIds` / `selectedId`
+ * survive the migration from the flat-paths era):
+ *   - synthetic root node uses `id === path === WORKSPACE_ROOT_ID`
+ *   - every descendant's `id` is its workspace-relative path
+ *     (forward-slash, no leading slash) and `path` is `WORKSPACE_ROOT_ID/<id>`
+ *
+ * The sort order matches the previous `buildFileTreeNodes` behaviour:
+ * folders first, then files, each layer alphabetised by name.
  */
-function buildFileTreeNodes(workspacePath: string | undefined, paths: readonly string[]): FileTreeNode[] {
-  if (!workspacePath) return []
+function projectArtifactTree(root: TreeDirRoot | null, workspacePath: string | undefined): FileTreeNode[] {
+  if (!root || !workspacePath) return []
 
-  const root: FileTreeNode = {
+  const rootName = getPathBasename(workspacePath)
+  const rootNode: FileTreeNode = {
     id: WORKSPACE_ROOT_ID,
-    name: getPathBasename(workspacePath),
+    name: rootName || workspacePath,
     kind: 'folder',
     path: WORKSPACE_ROOT_ID,
-    children: []
+    children: projectChildren(root, '')
   }
+  return [rootNode]
+}
 
-  const folderMap = new Map<string, FileTreeNode>()
+function projectChildren(dir: TreeDir, parentRelPath: string): FileTreeNode[] {
+  const out: FileTreeNode[] = []
+  for (const child of Object.values(dir.children)) {
+    out.push(projectTreeNode(child, parentRelPath))
+  }
+  out.sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1
+    return a.name.localeCompare(b.name)
+  })
+  return out
+}
 
-  const getOrCreateFolder = (relPath: string, name: string): FileTreeNode => {
-    const existing = folderMap.get(relPath)
-    if (existing) return existing
-    const node: FileTreeNode = {
+function projectTreeNode(node: TreeNode, parentRelPath: string): FileTreeNode {
+  const relPath = parentRelPath ? `${parentRelPath}/${node.basename}` : node.basename
+  const path = joinPath(WORKSPACE_ROOT_ID, relPath)
+  if (node.isTreeDir()) {
+    return {
       id: relPath,
-      name,
+      name: node.basename,
       kind: 'folder',
-      path: joinPath(WORKSPACE_ROOT_ID, relPath),
-      children: []
-    }
-    folderMap.set(relPath, node)
-    return node
-  }
-
-  const attach = (parentChildren: FileTreeNode[], child: FileTreeNode) => {
-    if (!parentChildren.some((n) => n.id === child.id)) parentChildren.push(child)
-  }
-
-  const relativePaths = Array.from(
-    new Set(
-      paths.map((raw) =>
-        normalizeArtifactPaneFilePath(workspacePath, raw)
-          ?.split(/[/\\]+/)
-          .filter(Boolean)
-          .join('/')
-      )
-    )
-  ).filter((path): path is string => Boolean(path))
-  const directoryPaths = new Set<string>()
-
-  for (const relPath of relativePaths) {
-    const segments = relPath.split('/')
-    for (let i = 1; i < segments.length; i += 1) {
-      directoryPaths.add(segments.slice(0, i).join('/'))
+      path,
+      children: projectChildren(node, relPath)
     }
   }
-
-  for (const relPath of relativePaths) {
-    const segments = relPath.split('/')
-    if (segments.length === 0) continue
-
-    let parentChildren = root.children!
-    for (let i = 0; i < segments.length; i += 1) {
-      const name = segments[i]
-      const isLast = i === segments.length - 1
-      const currentRelPath = segments.slice(0, i + 1).join('/')
-
-      if (!isLast || directoryPaths.has(currentRelPath)) {
-        const folder = getOrCreateFolder(currentRelPath, name)
-        attach(parentChildren, folder)
-        parentChildren = folder.children!
-      } else {
-        attach(parentChildren, {
-          id: currentRelPath,
-          name,
-          kind: 'file',
-          path: joinPath(WORKSPACE_ROOT_ID, currentRelPath)
-        })
-      }
-    }
-  }
-
-  const sortRecursive = (nodes: FileTreeNode[]) => {
-    nodes.sort((a, b) => {
-      if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1
-      return a.name.localeCompare(b.name)
-    })
-    for (const node of nodes) {
-      if (node.children?.length) sortRecursive(node.children)
-    }
-  }
-  sortRecursive(root.children!)
-
-  return [root]
+  return { id: relPath, name: node.basename, kind: 'file', path }
 }
 
 interface WorkspaceFileTreeResult {
@@ -416,59 +378,41 @@ const HtmlPreviewPanel = memo<HtmlPreviewPanelProps>(({ html, title }) => {
 })
 /* eslint-enable @eslint-react/dom/no-unsafe-iframe-sandbox */
 
+// Memoized at module scope so the hook's useEffect dependency stays stable
+// across renders — otherwise every render would tear down + recreate the
+// underlying `Tree_Create` IPC.
+const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
+  // No extension filter — the workspace pane shows whatever the agent
+  // produced. `respectGitignore` defaults to `true` (good for code repos),
+  // dotfiles stay hidden by default.
+}
+
+// The main-side `TreeRegistry` dedupes by `(rootPath, options)` and only
+// tears the underlying `DirectoryTreeBuilder` down after a short grace
+// window — so the mount/unmount churn when ArtifactPane swaps between
+// `Shell.Host` and `Shell.MaximizedOverlay` (or when tabs unmount) reuses
+// the same main-side scan + watcher instead of rebuilding.
 const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult => {
-  const [paths, setPaths] = useState<string[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [hasLoaded, setHasLoaded] = useState(false)
-  const [error, setError] = useState<Error | undefined>(undefined)
-  const [refreshToken, setRefreshToken] = useState(0)
+  const { root, version, isLoading, error } = useDirectoryTree(path, WORKSPACE_TREE_OPTIONS)
 
-  useEffect(() => {
-    if (!path) {
-      setPaths([])
-      setIsLoading(false)
-      setHasLoaded(false)
-      setError(undefined)
-      return
-    }
+  const tree = useMemo(() => projectArtifactTree(root, path), [root, version, path])
 
-    let cancelled = false
-    setIsLoading(true)
-    setHasLoaded(false)
-    setError(undefined)
+  // The watcher attached by `DirectoryTreeBuilder` keeps the projection
+  // current automatically (agent writes / external edits surface as
+  // `added` / `removed` events). `refresh` stays in the public shape so
+  // the toolbar refresh button + content-cache re-pull continue to work,
+  // but the tree side is a no-op now.
+  const refresh = useCallback(() => {
+    /* no-op — watcher-driven */
+  }, [])
 
-    window.api.file
-      .listDirectory(path, {
-        recursive: true,
-        includeHidden: false,
-        includeFiles: true,
-        includeDirectories: true
-      })
-      .then((result) => {
-        if (cancelled) return
-        setPaths(result)
-        setIsLoading(false)
-        setHasLoaded(true)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        const normalized = err instanceof Error ? err : new Error(String(err))
-        logger.error(`Failed to list directory: ${path}`, normalized)
-        setError(normalized)
-        setPaths([])
-        setIsLoading(false)
-        setHasLoaded(true)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [path, refreshToken])
-
-  const tree = useMemo(() => buildFileTreeNodes(path, paths), [path, paths])
-  const refresh = useCallback(() => setRefreshToken((v) => v + 1), [])
-
-  return { tree, isLoading, hasLoaded, error, refresh }
+  return {
+    tree,
+    isLoading,
+    hasLoaded: !isLoading && root !== null,
+    error: error ?? undefined,
+    refresh
+  }
 }
 
 export function ArtifactFilePreview({

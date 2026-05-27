@@ -560,7 +560,7 @@ function AgentRightPaneSurface() {
           </Shell.Tab>
         )}
       </Shell.TabList>
-      <Shell.Panel value="files">
+      <Shell.Panel value="files" forceMount>
         <AgentRightPaneFilesPanel />
       </Shell.Panel>
       {state.filePreview && (

@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { SerializedTreeNode } from '@shared/file/types'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { useState } from 'react'
@@ -8,7 +9,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ArtifactPane, { ARTIFACT_FILE_TREE_DEFAULT_WIDTH, resolveArtifactPaneFileSelection } from '../ArtifactPane'
 
 const mocks = vi.hoisted(() => ({
-  listDirectory: vi.fn(),
+  treeCreate: vi.fn(),
+  treeDispose: vi.fn(),
+  treeOnMutation: vi.fn(),
   fsRead: vi.fn(),
   fsReadText: vi.fn(),
   createObjectURL: vi.fn(),
@@ -22,8 +25,97 @@ const mocks = vi.hoisted(() => ({
   artifactFileTreeWidth: null as number | null,
   setArtifactFileTreeWidth: vi.fn((width: number) => {
     mocks.artifactFileTreeWidth = width
-  })
+  }),
+  nextTreeId: 0
 }))
+
+/**
+ * Convert the flat-path fixtures the tests still use into a
+ * `SerializedTreeNode` snapshot — the wire shape `useDirectoryTree`
+ * receives from the main-side `Tree_Create` IPC. Absolute paths outside
+ * the workspace are silently dropped (matching what the watcher would
+ * surface in practice: nothing).
+ */
+function pathsToSnapshot(workspacePath: string, paths: readonly string[]): SerializedTreeNode {
+  const normalizedWorkspace = workspacePath.replace(/\\/g, '/').replace(/\/+$/, '')
+  const wsBase = normalizedWorkspace || '/'
+  const wsName = wsBase.split('/').filter(Boolean).pop() ?? wsBase
+
+  const relPaths: string[] = []
+  for (const raw of paths) {
+    const norm = raw.replace(/\\/g, '/')
+    if (norm === wsBase) continue
+    if (norm.startsWith(`${wsBase}/`)) {
+      relPaths.push(norm.slice(wsBase.length + 1))
+      continue
+    }
+    if (/^(?:[A-Za-z]:)?\//.test(norm)) continue // unrelated absolute path
+    relPaths.push(norm.replace(/^\/+/, ''))
+  }
+
+  // Any segment that is itself a path prefix of another listed path is a
+  // directory; everything else is a file.
+  const dirSet = new Set<string>()
+  for (const rel of relPaths) {
+    const segments = rel.split('/').filter(Boolean)
+    for (let i = 1; i < segments.length; i += 1) {
+      dirSet.add(segments.slice(0, i).join('/'))
+    }
+  }
+  for (const rel of relPaths) {
+    if (dirSet.has(rel)) continue // already known to be a parent dir
+  }
+
+  const root: SerializedTreeNode = {
+    kind: 'directory',
+    path: wsBase,
+    basename: wsName,
+    children: {}
+  }
+
+  const ensureDir = (parent: SerializedTreeNode, relPath: string, basename: string): SerializedTreeNode => {
+    const children = parent.children as Record<string, SerializedTreeNode>
+    const existing = children[basename]
+    if (existing && existing.kind === 'directory') return existing
+    const dir: SerializedTreeNode = {
+      kind: 'directory',
+      path: `${wsBase}/${relPath}`,
+      basename,
+      children: {}
+    }
+    children[basename] = dir
+    return dir
+  }
+
+  for (const rel of relPaths) {
+    const segments = rel.split('/').filter(Boolean)
+    if (segments.length === 0) continue
+    let parent: SerializedTreeNode = root
+    for (let i = 0; i < segments.length; i += 1) {
+      const name = segments[i]
+      const isLast = i === segments.length - 1
+      const currentRelPath = segments.slice(0, i + 1).join('/')
+      const treatAsDir = !isLast || dirSet.has(currentRelPath)
+      if (treatAsDir) {
+        parent = ensureDir(parent, currentRelPath, name)
+      } else {
+        const children = parent.children as Record<string, SerializedTreeNode>
+        if (!children[name]) {
+          children[name] = { kind: 'file', path: `${wsBase}/${currentRelPath}`, basename: name }
+        }
+      }
+    }
+  }
+
+  return root
+}
+
+function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): void {
+  mocks.nextTreeId += 1
+  const treeId = `tree-${mocks.nextTreeId}`
+  const snapshot = pathsToSnapshot(workspacePath, paths)
+  mocks.treeCreate.mockResolvedValueOnce({ treeId, snapshot })
+}
 
 vi.mock('@cherrystudio/ui', async () => {
   return {
@@ -222,18 +314,34 @@ describe('ArtifactPane', () => {
     vi.clearAllMocks()
     mocks.artifactFileTreeWidth = null
     mocks.pdfPreviewPanelProps.length = 0
-    mocks.listDirectory.mockResolvedValue([])
+    mocks.nextTreeId = 0
+    // Default: every test gets an empty tree unless it queues a fixture
+    // via `mockWorkspaceTree(...)` (which calls `mockResolvedValueOnce`).
+    mocks.treeCreate.mockResolvedValue({
+      treeId: 'tree-default',
+      snapshot: pathsToSnapshot('/tmp/workspace', [])
+    })
+    // `restoreAllMocks` in afterEach wipes out custom implementations, so
+    // re-bind via `mockImplementation` (more robust than `mockResolvedValue`
+    // for callers that don't await the returned promise — the hook does
+    // `dispose(...).catch(...)`).
+    mocks.treeDispose.mockImplementation(() => Promise.resolve())
+    mocks.treeOnMutation.mockImplementation(() => () => {})
     mocks.createObjectURL.mockReturnValue('blob:fake-url')
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         file: {
-          listDirectory: mocks.listDirectory,
           openPath: vi.fn()
         },
         fs: {
           read: mocks.fsRead,
           readText: mocks.fsReadText
+        },
+        tree: {
+          create: mocks.treeCreate,
+          dispose: mocks.treeDispose,
+          onMutation: mocks.treeOnMutation
         }
       }
     })
@@ -268,7 +376,7 @@ describe('ArtifactPane', () => {
   })
 
   it('does not load the PDF preview panel module for non-PDF selections', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.fsReadText.mockResolvedValue('# Hello')
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -285,37 +393,30 @@ describe('ArtifactPane', () => {
   it('shows the ready empty state when no workspace path is available', () => {
     render(<ArtifactPane />)
 
-    expect(mocks.listDirectory).not.toHaveBeenCalled()
+    expect(mocks.treeCreate).not.toHaveBeenCalled()
     expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.empty.title')
     expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.empty.description')
   })
 
-  it('lists the workspace directory recursively', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md', 'src/index.ts'])
+  it('requests the workspace tree from DirectoryTreeBuilder', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md', 'src/index.ts'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
-    await waitFor(() =>
-      expect(mocks.listDirectory).toHaveBeenCalledWith('/tmp/workspace', {
-        recursive: true,
-        includeHidden: false,
-        includeFiles: true,
-        includeDirectories: true
-      })
-    )
+    await waitFor(() => expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace', expect.any(Object)))
   })
 
   it('logs and displays directory listing errors', async () => {
     const error = new Error('Permission denied')
     const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
-    mocks.listDirectory.mockRejectedValueOnce(error)
+    mocks.treeCreate.mockRejectedValueOnce(error)
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
     await waitFor(() => expect(screen.getByText('Permission denied')).toBeInTheDocument())
     expect(screen.getByTestId('empty-state')).toHaveTextContent('common.error')
     expect(screen.getByTestId('empty-state')).not.toHaveTextContent('agent.preview_pane.empty.title')
-    expect(errorSpy).toHaveBeenCalledWith('Failed to list directory: /tmp/workspace', error)
+    expect(errorSpy).toHaveBeenCalledWith('Failed to create directory tree for /tmp/workspace', error)
   })
 
   it('renders header tool buttons without a close button', () => {
@@ -347,7 +448,7 @@ describe('ArtifactPane', () => {
   it('renders the workspace opener between refresh and maximize when a workspace path exists', async () => {
     render(<ArtifactPane workspacePath="/tmp/workspace" onToggleMaximized={vi.fn()} />)
 
-    await waitFor(() => expect(mocks.listDirectory).toHaveBeenCalledWith('/tmp/workspace', expect.any(Object)))
+    await waitFor(() => expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace', expect.any(Object)))
 
     const refreshButton = screen.getByRole('button', { name: 'agent.preview_pane.refresh' })
     const openButton = screen.getByRole('button', { name: 'Open in Finder' })
@@ -396,7 +497,7 @@ describe('ArtifactPane', () => {
   })
 
   it('toggles the file tree when the folder button is clicked', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -433,7 +534,7 @@ describe('ArtifactPane', () => {
   })
 
   it('renders a right-edge resize handle for the file tree', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -449,7 +550,7 @@ describe('ArtifactPane', () => {
   })
 
   it('clamps dragged file tree width from the default artifact pane width and cleans document resize styles', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -487,7 +588,7 @@ describe('ArtifactPane', () => {
   })
 
   it('clamps dragged file tree width from the measured artifact pane width', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -515,7 +616,7 @@ describe('ArtifactPane', () => {
   })
 
   it('keeps a non-zero minimum file tree width for narrow artifact panes', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -541,7 +642,7 @@ describe('ArtifactPane', () => {
   })
 
   it('caps the minimum file tree width for large artifact panes', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -569,7 +670,7 @@ describe('ArtifactPane', () => {
   })
 
   it('disables HTML iframe pointer events while resizing the file tree', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['index.html'])
+    mockWorkspaceTree('/tmp/workspace', ['index.html'])
     mocks.fsReadText.mockResolvedValue('<!doctype html><html><body><h1>Hello</h1></body></html>')
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -603,7 +704,7 @@ describe('ArtifactPane', () => {
   })
 
   it('disables PDF preview panel pointer events while resizing the file tree', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
+    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -632,7 +733,7 @@ describe('ArtifactPane', () => {
   })
 
   it('renders markdown files with RichEditor in preview mode and CodeViewer in code mode', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.fsReadText.mockResolvedValue('# Hello')
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -655,7 +756,7 @@ describe('ArtifactPane', () => {
 
   it('supports controlled selected file state', async () => {
     const onSelectedFileChange = vi.fn()
-    mocks.listDirectory.mockResolvedValueOnce(['README.md', 'src/index.ts'])
+    mockWorkspaceTree('/tmp/workspace', ['README.md', 'src/index.ts'])
     mocks.fsReadText.mockResolvedValue('# Controlled')
 
     render(
@@ -680,7 +781,7 @@ describe('ArtifactPane', () => {
 
   it('supports controlled view mode state', async () => {
     const onViewModeChange = vi.fn()
-    mocks.listDirectory.mockResolvedValueOnce(['README.md'])
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.fsReadText.mockResolvedValue('# Controlled')
 
     render(
@@ -702,7 +803,7 @@ describe('ArtifactPane', () => {
 
   it('requests preview mode when a controlled source-unavailable file is selected in code mode', async () => {
     const onViewModeChange = vi.fn()
-    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
+    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
 
     const ControlledArtifactPane = () => {
       const [viewMode, setViewMode] = useState<'preview' | 'code'>('code')
@@ -728,7 +829,7 @@ describe('ArtifactPane', () => {
   })
 
   it('renders text file previews without wrapping so horizontal overflow can scroll', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['src/index.ts'])
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
     mocks.fsReadText.mockResolvedValue('const value = "a very long line";')
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -746,7 +847,7 @@ describe('ArtifactPane', () => {
   })
 
   it('renders HTML previews in an iframe with Popup-aligned sandbox and hidden outer overflow', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['index.html'])
+    mockWorkspaceTree('/tmp/workspace', ['index.html'])
     mocks.fsReadText.mockResolvedValue('<!doctype html><html><body><h1>Hello</h1></body></html>')
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -767,7 +868,7 @@ describe('ArtifactPane', () => {
   })
 
   it('keeps empty HTML previews blank without showing the Popup empty text', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['empty.html'])
+    mockWorkspaceTree('/tmp/workspace', ['empty.html'])
     mocks.fsReadText.mockResolvedValue('   ')
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -784,7 +885,7 @@ describe('ArtifactPane', () => {
   })
 
   it('does not read content when a folder node is selected', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['src/index.ts'])
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -799,7 +900,7 @@ describe('ArtifactPane', () => {
   })
 
   it('keeps returned directory entries as folders with real child files', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['src', 'src/index.ts'])
+    mockWorkspaceTree('/tmp/workspace', ['src', 'src/index.ts'])
     mocks.fsReadText.mockResolvedValue('export {}')
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -820,7 +921,7 @@ describe('ArtifactPane', () => {
   })
 
   it('renders absolute file paths under the workspace root as relative children', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['/Users/me/dev/test.md'])
+    mockWorkspaceTree('/Users/me/dev', ['/Users/me/dev/test.md'])
 
     render(<ArtifactPane workspacePath="/Users/me/dev" />)
 
@@ -832,7 +933,7 @@ describe('ArtifactPane', () => {
   })
 
   it('keeps absolute directory entries as relative folders with real child files', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['/Users/me/dev/src', '/Users/me/dev/src/index.ts'])
+    mockWorkspaceTree('/Users/me/dev', ['/Users/me/dev/src', '/Users/me/dev/src/index.ts'])
     mocks.fsReadText.mockResolvedValue('export {}')
 
     render(<ArtifactPane workspacePath="/Users/me/dev" />)
@@ -850,7 +951,7 @@ describe('ArtifactPane', () => {
   })
 
   it('renders PDF files with PdfPreviewPanel using the selected file path', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
+    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -874,7 +975,7 @@ describe('ArtifactPane', () => {
   })
 
   it('passes the PDF layout refresh key to PdfPreviewPanel', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
+    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
 
     const { rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutRefreshKey={0} />)
 
@@ -897,7 +998,7 @@ describe('ArtifactPane', () => {
   })
 
   it('shows loading instead of mounting the selected PDF while PDF layout is pending', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
+    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
 
     const { rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutPending />)
 
@@ -917,7 +1018,7 @@ describe('ArtifactPane', () => {
   })
 
   it('disables source mode switching for PDF files', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf'])
+    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -938,7 +1039,7 @@ describe('ArtifactPane', () => {
   })
 
   it('does not read obvious binary files and disables source mode switching', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['image.png'])
+    mockWorkspaceTree('/tmp/workspace', ['image.png'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -952,7 +1053,7 @@ describe('ArtifactPane', () => {
   })
 
   it('does not read unknown extensions and disables source mode switching', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['archive.custom'])
+    mockWorkspaceTree('/tmp/workspace', ['archive.custom'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -966,7 +1067,7 @@ describe('ArtifactPane', () => {
   })
 
   it('allows source mode switching for LANG_MAP-backed files', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['config.json'])
+    mockWorkspaceTree('/tmp/workspace', ['config.json'])
     mocks.fsReadText.mockResolvedValue('{"enabled":true}')
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -988,7 +1089,7 @@ describe('ArtifactPane', () => {
   })
 
   it('returns to preview mode when a source-unavailable file is selected from code mode', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md', 'paper.pdf'])
+    mockWorkspaceTree('/tmp/workspace', ['README.md', 'paper.pdf'])
     mocks.fsReadText.mockResolvedValue('# Hello')
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1010,8 +1111,8 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument()
   })
 
-  it('refreshes the workspace tree and selected text file content when refresh is clicked', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md']).mockResolvedValueOnce(['README.md'])
+  it('re-reads the selected text file when refresh is clicked', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.fsReadText.mockResolvedValueOnce('# Before').mockResolvedValueOnce('# After')
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1022,17 +1123,29 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
     await waitFor(() => expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Before'))
 
+    // The watcher keeps the tree current; the refresh button now only
+    // re-pulls the active file's content (the FS scan stays a one-shot).
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
 
-    await waitFor(() => expect(mocks.listDirectory).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledTimes(2))
     expect(mocks.fsReadText).toHaveBeenLastCalledWith('/tmp/workspace/README.md')
     expect(screen.getByTestId('rich-editor')).toHaveTextContent('# After')
+    expect(mocks.treeCreate).toHaveBeenCalledTimes(1)
   })
 
-  it('clears the selected file when refresh removes it from the workspace tree', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['README.md']).mockResolvedValueOnce([])
-    mocks.fsReadText.mockResolvedValueOnce('# Before').mockResolvedValueOnce('# Stale read')
+  it('clears the selected file when the watcher reports the file was removed', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.fsReadText.mockResolvedValueOnce('# Before')
+
+    // Capture the live mutation listener so the test can push a `removed`
+    // event the way the main-side builder would.
+    let pushMutation: ((payload: { treeId: string; event: { type: 'removed'; path: string } }) => void) | undefined
+    mocks.treeOnMutation.mockImplementation((cb) => {
+      pushMutation = cb as typeof pushMutation
+      return () => {
+        pushMutation = undefined
+      }
+    })
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -1042,15 +1155,17 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
     await waitFor(() => expect(screen.getByTestId('rich-editor')).toHaveTextContent('# Before'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+    await waitFor(() => expect(pushMutation).toBeDefined())
+    act(() => {
+      pushMutation?.({ treeId: 'tree-1', event: { type: 'removed', path: '/tmp/workspace/README.md' } })
+    })
 
-    await waitFor(() => expect(mocks.listDirectory).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.select_file'))
     expect(screen.queryByTestId('rich-editor')).not.toBeInTheDocument()
   })
 
-  it('refreshes the workspace tree without directly reloading the selected PDF preview', async () => {
-    mocks.listDirectory.mockResolvedValueOnce(['paper.pdf']).mockResolvedValueOnce(['paper.pdf'])
+  it('refresh does not re-read content for non-source-viewable selections (e.g. PDF)', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -1062,7 +1177,6 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
 
-    await waitFor(() => expect(mocks.listDirectory).toHaveBeenCalledTimes(2))
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.createObjectURL).not.toHaveBeenCalled()

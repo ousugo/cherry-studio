@@ -137,6 +137,7 @@ import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry
 import { fileStorage } from '@main/services/FileStorage'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import { getPathStatus as readPathStatus } from '@main/utils/file/pathStatus'
+import { listDirectory as searchListDirectory } from '@main/utils/file/search'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
@@ -144,6 +145,7 @@ import type {
   BatchCreateResult,
   BatchMutationResult,
   CreateInternalEntryIpcParams,
+  DirectoryListOptions,
   EnsureExternalEntryIpcParams,
   FilePath,
   FileURLString,
@@ -688,9 +690,14 @@ export class FileManager extends BaseService implements IFileManager {
    * without it the batch fan-out is unbounded — a 100k-id `Promise.all` over
    * `findById` would saturate the event loop and the DB connection pool.
    *
-   * The directory handlers delegate to the legacy `fileStorage` singleton.
-   * They live here (not in the post-bootstrap `registerIpc()`) so they are
-   * registered during bootstrap, before the renderer can invoke them.
+   * The directory handlers live here (not in the post-bootstrap
+   * `registerIpc()`) so they are registered during bootstrap, before the
+   * renderer can invoke them. `File_ListDirectory` calls into the
+   * `@main/utils/file/search` primitive (RFC §G — ripgrep + fuzzy is
+   * exposed via the single `listDirectory` public entry, internals are
+   * private). `Tree_*` channels back the `DirectoryTreeBuilder` primitive
+   * (RFC §12) that replaced the legacy `getDirectoryStructure` + chokidar
+   * singleton for Notes.
    */
   private registerIpcHandlers(): void {
     // Handlers are async so a synchronous `Schema.parse` throw becomes a
@@ -706,8 +713,13 @@ export class FileManager extends BaseService implements IFileManager {
       this.getPathStatus(GetPathStatusIpcSchema.parse(params))
     )
     this.ipcHandle(IpcChannel.File_SelectFolder, fileStorage.selectFolder)
-    this.ipcHandle(IpcChannel.File_ListDirectory, fileStorage.listDirectory)
-    this.ipcHandle(IpcChannel.File_GetDirectoryStructure, fileStorage.getDirectoryStructure)
+    this.ipcHandle(IpcChannel.File_ListDirectory, async (_e, dirPath: FilePath, options?: DirectoryListOptions) =>
+      searchListDirectory(dirPath, options)
+    )
+    // `Tree_Create` / `Tree_Dispose` (RFC §12) are owned by `TreeRegistry`
+    // itself — that service registers them in its own `onInit` so the
+    // handler lifetime tracks the service that holds the underlying
+    // chokidar watchers and IPC subscriptions.
 
     // Phase 2 channels.
     //

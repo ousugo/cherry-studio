@@ -25,7 +25,6 @@ import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
   CodeToolsRunResult,
-  FileChangeEvent,
   LanClientEvent,
   LanFileCompleteMessage,
   LanHandshakeAckMessage,
@@ -68,6 +67,7 @@ import type {
 } from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import type { GetPathStatusIpcParams, PathStatus } from '@shared/file/types/ipc'
+import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type {
@@ -292,33 +292,35 @@ const api = {
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
     getPathStatus: (params: GetPathStatusIpcParams): Promise<PathStatus> =>
       ipcRenderer.invoke(IpcChannel.File_GetPathStatus, params),
-    getDirectoryStructure: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_GetDirectoryStructure, dirPath),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_CheckFileName, dirPath, fileName, isFile),
     validateNotesDirectory: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_ValidateNotesDirectory, dirPath),
-    startFileWatcher: (dirPath: string, config?: any) =>
-      ipcRenderer.invoke(IpcChannel.File_StartWatcher, dirPath, config),
-    stopFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_StopWatcher),
-    pauseFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_PauseWatcher),
-    resumeFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_ResumeWatcher),
+    // Legacy file-watcher bindings (`startFileWatcher` / `stopFileWatcher`
+    // / `pauseFileWatcher` / `resumeFileWatcher` / `onFileChange`) and
+    // `getDirectoryStructure` were removed alongside the Notes migration
+    // to `DirectoryTreeBuilder` (RFC §12). Renderers subscribe to per-tree
+    // mutations via `window.api.tree.onMutation` instead.
     batchUploadMarkdown: (filePaths: string[], targetPath: string) =>
       ipcRenderer.invoke(IpcChannel.File_BatchUploadMarkdown, filePaths, targetPath),
-    onFileChange: (callback: (data: FileChangeEvent) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, data: any) => {
-        if (data && typeof data === 'object') {
-          callback(data)
-        }
-      }
-      ipcRenderer.on('file-change', listener)
-      return () => ipcRenderer.off('file-change', listener)
-    },
     showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path)
   },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
     readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)
+  },
+  tree: {
+    create: (rootPath: string, options?: DirectoryTreeOptions): Promise<CreateTreeIpcResult> =>
+      ipcRenderer.invoke(IpcChannel.Tree_Create, { rootPath, options }),
+    dispose: (treeId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Tree_Dispose, { treeId }),
+    onMutation: (callback: (payload: TreeMutationPushPayload) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: TreeMutationPushPayload) => {
+        if (payload && typeof payload === 'object') callback(payload)
+      }
+      ipcRenderer.on(IpcChannel.Tree_Mutation, listener)
+      return () => ipcRenderer.off(IpcChannel.Tree_Mutation, listener)
+    }
   },
   pdf: {
     extractText: (data: Uint8Array | ArrayBuffer | string): Promise<string> =>

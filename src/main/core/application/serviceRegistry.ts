@@ -17,6 +17,7 @@ import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
+import { TreeRegistry } from '@main/file/tree/registry'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
@@ -87,6 +88,7 @@ export const services = {
   ComposerQueueService,
   LanTransferService,
   FileManager,
+  TreeRegistry,
   FileProcessingOrchestrationService,
   PowerMonitorService,
   SelectionService,
