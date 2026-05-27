@@ -793,7 +793,7 @@ export default function ComposerSurface({
             <div className="mb-6 rounded-[20px] bg-muted/25 pb-1.5 shadow-[0_14px_36px_rgba(15,23,42,0.07)] dark:bg-muted/15 dark:shadow-[0_14px_36px_rgba(0,0,0,0.24)]">
               {queueContent}
               {inputbarStack}
-              <div className="px-2">{belowControls}</div>
+              <div className="min-w-0 overflow-hidden px-2">{belowControls}</div>
             </div>
           ) : (
             <>

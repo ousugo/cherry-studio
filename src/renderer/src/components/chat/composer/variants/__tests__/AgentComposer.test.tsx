@@ -5,7 +5,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import AgentComposer, { AgentHomeComposer } from '../AgentComposer'
@@ -28,6 +28,17 @@ const mocks = vi.hoisted(() => ({
     | { assistant?: { modelId?: string | null }; model?: Model; session?: { agentId?: string } }
     | undefined
 }))
+
+const originalResizeObserver = globalThis.ResizeObserver
+
+interface ResizeObserverMockInstance {
+  callback: ResizeObserverCallback
+  target?: Element
+  observe: ReturnType<typeof vi.fn>
+  disconnect: ReturnType<typeof vi.fn>
+}
+
+const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
 
 const model = {
   id: 'anthropic::claude-sonnet-4-5',
@@ -284,6 +295,23 @@ vi.mock('react-i18next', async (importOriginal) => {
 
 describe('AgentComposer', () => {
   beforeEach(() => {
+    resizeObserverMockInstances.length = 0
+    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+      const instance: ResizeObserverMockInstance = {
+        callback,
+        observe: vi.fn((target: Element) => {
+          instance.target = target
+        }),
+        disconnect: vi.fn()
+      }
+      resizeObserverMockInstances.push(instance)
+
+      return {
+        observe: instance.observe,
+        disconnect: instance.disconnect
+      } as unknown as ResizeObserver
+    }) as unknown as typeof ResizeObserver
+
     mocks.draftText = 'hello'
     mocks.files = []
     mocks.modelLookupId = undefined
@@ -321,6 +349,10 @@ describe('AgentComposer', () => {
         }
       }
     })
+  })
+
+  afterEach(() => {
+    globalThis.ResizeObserver = originalResizeObserver
   })
 
   it('resolves the agent model through the v2 UniqueModelId', () => {
@@ -521,6 +553,45 @@ describe('AgentComposer', () => {
     })
   })
 
+  it('shows only icons in the input bottom toolbar when it is narrow', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
+
+    await notifyComposerBottomToolbarWidth(420)
+
+    await waitFor(() => {
+      expect(screen.getByText('Agent')).toHaveClass('sr-only')
+      expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('sr-only')
+    })
+  })
+
+  it('keeps input bottom toolbar labels visible when the toolbar fits', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await notifyComposerBottomToolbarWidth(420, 420)
+
+    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
+  })
+
   it('renders agent and model selectors below the surface in temporary home mode', () => {
     render(
       <AgentHomeComposer
@@ -541,6 +612,30 @@ describe('AgentComposer', () => {
     const belowText = belowControls.textContent ?? ''
     expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5 | Anthropic'))
     expect(belowText.indexOf('Claude Sonnet 4.5 | Anthropic')).toBeLessThan(belowText.indexOf('Workspace 1'))
+  })
+
+  it('shows only icons in the temporary home bottom toolbar when it is narrow', async () => {
+    render(
+      <AgentHomeComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Workspace 1')).not.toHaveClass('sr-only')
+
+    await notifyComposerBottomToolbarWidth(420)
+
+    await waitFor(() => {
+      expect(screen.getByText('Agent')).toHaveClass('sr-only')
+      expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('sr-only')
+      expect(screen.getByText('Workspace 1')).toHaveClass('sr-only')
+    })
   })
 
   it('does not render the workspace selector in docked composer mode', () => {
@@ -604,3 +699,35 @@ describe('AgentComposer', () => {
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
   })
 })
+
+async function notifyComposerBottomToolbarWidth(width: number, scrollWidth = width + 240) {
+  await waitFor(() => {
+    expect(
+      resizeObserverMockInstances.some((instance) =>
+        String(instance.target?.getAttribute('class') ?? '').includes('max-w-full')
+      )
+    ).toBe(true)
+  })
+
+  const toolbarInstances = resizeObserverMockInstances.filter((instance) =>
+    String(instance.target?.getAttribute('class') ?? '').includes('max-w-full')
+  )
+  if (toolbarInstances.length === 0) {
+    throw new Error('Expected composer bottom toolbar to create a ResizeObserver')
+  }
+
+  act(() => {
+    for (const instance of toolbarInstances) {
+      Object.defineProperty(instance.target, 'clientWidth', { configurable: true, value: width })
+      Object.defineProperty(instance.target, 'scrollWidth', { configurable: true, value: scrollWidth })
+      instance.callback(
+        [
+          {
+            contentRect: { width }
+          } as ResizeObserverEntry
+        ],
+        {} as ResizeObserver
+      )
+    }
+  })
+}

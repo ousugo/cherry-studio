@@ -44,7 +44,7 @@ import { getFileTypeByExt } from '@shared/file/types'
 import type { PathStatus } from '@shared/file/types/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { TFunction } from 'i18next'
-import { ChevronDown, CircleSlash, Folder, TriangleAlert } from 'lucide-react'
+import { Bot, ChevronDown, CircleSlash, Folder, TriangleAlert } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -53,6 +53,7 @@ import type { ComposerSuggestionSource } from '../ComposerSuggestion'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { useComposerMessageQueue } from '../useComposerMessageQueue'
 import { agentComposerTokenId, agentFileToComposerToken, getAgentComposerTokenIds } from './agentComposerTokens'
+import { useComposerBottomToolbarIconOnly } from './useComposerBottomToolbarIconOnly'
 
 const logger = loggerService.withContext('AgentComposer')
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
@@ -104,9 +105,10 @@ function formatWorkspacePathWarning(
 }
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file'] as const satisfies readonly ComposerDraftToken['kind'][]
-const COMPOSER_TOOLBAR_CLASS =
-  'flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+const COMPOSER_TOOLBAR_CLASS = 'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden'
 const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
+const COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS = 'w-8 justify-center px-0'
+const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
 
 const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentId}`
 
@@ -294,6 +296,7 @@ interface AgentComposerContextControlsProps {
   selectModelLabel: string
   agentChanging?: boolean
   side: 'top' | 'bottom'
+  iconOnly?: boolean
   onAgentChange: (agentId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
 }
@@ -305,6 +308,7 @@ interface AgentComposerWorkspaceControlProps {
   workspaceWarning?: string
   selectWorkspaceLabel: string
   side: 'top' | 'bottom'
+  iconOnly?: boolean
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
 }
 
@@ -317,9 +321,20 @@ const AgentComposerContextControls = ({
   selectModelLabel,
   agentChanging,
   side,
+  iconOnly = false,
   onAgentChange,
   onModelSelect
 }: AgentComposerContextControlsProps) => {
+  const triggerClassName = cn(COMPOSER_SELECTOR_BUTTON_CLASS, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
+  const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
+  const chevronClassName = cn('text-muted-foreground', iconOnly && 'hidden')
+  const modelTriggerClassName = cn(
+    COMPOSER_SELECTOR_BUTTON_CLASS,
+    iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
+  )
+  const modelLabelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
+  const modelChevronClassName = cn('text-muted-foreground', iconOnly && model && 'hidden')
+
   return (
     <>
       <AgentSelector
@@ -329,16 +344,23 @@ const AgentComposerContextControls = ({
         align="start"
         mountStrategy="lazy-keep"
         trigger={
-          <Button variant="ghost" size="sm" className={COMPOSER_SELECTOR_BUTTON_CLASS} disabled={agentChanging}>
+          <Button variant="ghost" size="sm" className={triggerClassName} disabled={agentChanging}>
             {agent ? (
               <AgentLabel
                 agent={agent}
-                classNames={{ name: 'max-w-40 text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
+                classNames={{
+                  name: cn('max-w-40 text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS),
+                  avatar: 'h-4.5 w-4.5',
+                  container: 'gap-1.5'
+                }}
               />
             ) : (
-              <span className="max-w-40 truncate text-muted-foreground">{selectAgentLabel}</span>
+              <>
+                {iconOnly ? <Bot size={16} aria-hidden /> : null}
+                <span className={cn('max-w-40 text-muted-foreground', labelClassName)}>{selectAgentLabel}</span>
+              </>
             )}
-            <ChevronDown size={14} className="text-muted-foreground" />
+            <ChevronDown size={14} className={chevronClassName} />
           </Button>
         }
       />
@@ -352,13 +374,13 @@ const AgentComposerContextControls = ({
           align="start"
           mountStrategy="lazy-keep"
           trigger={
-            <Button variant="ghost" size="sm" className={COMPOSER_SELECTOR_BUTTON_CLASS}>
-              <ModelAvatar model={model} size={20} />
-              <span className="max-w-52 truncate">
+            <Button variant="ghost" size="sm" className={modelTriggerClassName}>
+              {model ? <ModelAvatar model={model} size={20} /> : null}
+              <span className={cn('max-w-52', modelLabelClassName)}>
                 {model ? model.name : selectModelLabel}
                 {modelProviderName ? ` | ${modelProviderName}` : ''}
               </span>
-              <ChevronDown size={14} className="text-muted-foreground" />
+              <ChevronDown size={14} className={modelChevronClassName} />
             </Button>
           }
         />
@@ -379,6 +401,7 @@ const AgentComposerWorkspaceControl = ({
   workspaceWarning,
   selectWorkspaceLabel,
   side,
+  iconOnly = false,
   onWorkspaceChange
 }: AgentComposerWorkspaceControlProps) => {
   const { t } = useTranslation()
@@ -400,7 +423,11 @@ const AgentComposerWorkspaceControl = ({
         <Button
           variant="ghost"
           size="sm"
-          className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, hasWarning && 'text-warning hover:text-warning')}
+          className={cn(
+            COMPOSER_SELECTOR_BUTTON_CLASS,
+            iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
+            hasWarning && 'text-warning hover:text-warning'
+          )}
           disabled={!onWorkspaceChange || workspaceChanging}
           aria-label={workspaceWarning}>
           {hasWarning ? (
@@ -410,8 +437,8 @@ const AgentComposerWorkspaceControl = ({
           ) : (
             <Folder size={14} aria-hidden className="text-muted-foreground" />
           )}
-          <span className="max-w-40 truncate">{workspaceLabel}</span>
-          <ChevronDown size={14} aria-hidden className="text-muted-foreground" />
+          <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
+          <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
         </Button>
       }
     />
@@ -435,10 +462,12 @@ const AgentComposerToolMenuControls = ({ inputAdapter }: { inputAdapter?: QuickP
 }
 
 const AgentComposerToolbarControls = ({ inputAdapter, ...contextProps }: AgentComposerToolbarControlsProps) => {
+  const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
+
   return (
-    <div className={COMPOSER_TOOLBAR_CLASS}>
+    <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
       <AgentComposerToolMenuControls inputAdapter={inputAdapter} />
-      <AgentComposerContextControls {...contextProps} side="top" />
+      <AgentComposerContextControls {...contextProps} side="top" iconOnly={iconOnly} />
     </div>
   )
 }
@@ -458,13 +487,14 @@ type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => Agent
 
 const AgentComposerBelowControls = (contextProps: AgentComposerControlProps) => {
   const { showWorkspaceSelector = true, ...controlProps } = contextProps
+  const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
 
   return (
-    <div className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
-      <AgentComposerContextControls {...controlProps} side="bottom" />
+    <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
+      <AgentComposerContextControls {...controlProps} side="bottom" iconOnly={iconOnly} />
       {showWorkspaceSelector ? (
         <div className="ml-auto flex shrink-0">
-          <AgentComposerWorkspaceControl {...controlProps} side="bottom" />
+          <AgentComposerWorkspaceControl {...controlProps} side="bottom" iconOnly={iconOnly} />
         </div>
       ) : null}
     </div>

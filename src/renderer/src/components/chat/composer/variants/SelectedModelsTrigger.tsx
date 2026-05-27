@@ -23,6 +23,7 @@ interface SelectedModelsTriggerProps extends Omit<ComponentPropsWithoutRef<typeo
   assistantModel?: Model
   providers: Provider[]
   fallbackLabel: string
+  iconOnly?: boolean
   onModelsChange: (models: Model[]) => void
   onRestore: () => void
 }
@@ -60,6 +61,7 @@ export const SelectedModelsTrigger = ({
   assistantModel,
   providers,
   fallbackLabel,
+  iconOnly = false,
   onModelsChange,
   onRestore,
   className,
@@ -78,6 +80,7 @@ export const SelectedModelsTrigger = ({
     : fallbackLabel
   const selectedModelsLabel = t('models.selection.selected_models')
   const hasSelectionPopover = models.length !== 1
+  const hasVisibleTriggerIcon = models.length > 0
 
   const modelProviderNames = useMemo(() => {
     return new Map(models.map((model) => [model.id, getProviderName(model, providers)]))
@@ -211,7 +214,7 @@ export const SelectedModelsTrigger = ({
           ref={ref}
           variant="ghost"
           size="sm"
-          className={cn(className, 'min-w-0')}
+          className={cn(className, 'min-w-0', iconOnly && hasVisibleTriggerIcon && 'w-8 justify-center px-0')}
           aria-label={ariaLabel ?? selectedModelsLabel}
           {...buttonProps}
           onClick={handleTriggerClick}
@@ -228,7 +231,7 @@ export const SelectedModelsTrigger = ({
           ) : (
             <>
               {singleModel ? <ModelAvatar model={singleModel} size={20} /> : null}
-              <span className="max-w-52 truncate">{singleModelLabel}</span>
+              <span className={cn('max-w-52 truncate', iconOnly && singleModel && 'sr-only')}>{singleModelLabel}</span>
             </>
           )}
         </Button>

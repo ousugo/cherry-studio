@@ -215,6 +215,25 @@ describe('SelectedModelsTrigger', () => {
     expect(screen.queryByTestId('selected-models-popover')).not.toBeInTheDocument()
   })
 
+  it('does not render a placeholder avatar for the fallback model label', () => {
+    render(
+      <SelectedModelsTrigger
+        models={[]}
+        assistantModel={modelA}
+        providers={providers}
+        fallbackLabel="Select model"
+        iconOnly
+        onModelsChange={vi.fn()}
+        onRestore={vi.fn()}
+      />
+    )
+
+    const fallbackLabel = screen.getByText('Select model')
+    expect(screen.queryByTestId('model-avatar-empty')).not.toBeInTheDocument()
+    expect(fallbackLabel).not.toHaveClass('sr-only')
+    expect(screen.getByRole('button', { name: 'Selected models' })).not.toHaveClass('w-8')
+  })
+
   it('calls the restore callback from the popover content', () => {
     const onRestore = vi.fn()
     render(

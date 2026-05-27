@@ -5,7 +5,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { isValidElement, type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
@@ -38,6 +38,17 @@ const mocks = vi.hoisted(() => ({
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn()
 }))
+
+const originalResizeObserver = globalThis.ResizeObserver
+
+interface ResizeObserverMockInstance {
+  callback: ResizeObserverCallback
+  target?: Element
+  observe: ReturnType<typeof vi.fn>
+  disconnect: ReturnType<typeof vi.fn>
+}
+
+const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
 
 const model = {
   id: 'provider::model-a',
@@ -165,12 +176,23 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 }))
 
 vi.mock('../SelectedModelsTrigger', () => ({
-  SelectedModelsTrigger: ({ models, assistantModel, fallbackLabel, onModelsChange, onRestore }: any) => (
+  SelectedModelsTrigger: ({
+    models,
+    assistantModel,
+    fallbackLabel,
+    iconOnly,
+    className,
+    onModelsChange,
+    onRestore
+  }: any) => (
     <div
       data-testid="selected-models-trigger"
+      className={className}
       data-assistant-model-id={assistantModel?.id ?? ''}
       data-model-count={String(models.length)}>
-      <span>{models.length === 0 ? fallbackLabel : `${models[0].name} | Provider`}</span>
+      <span className={iconOnly ? 'sr-only' : undefined}>
+        {models.length === 0 ? fallbackLabel : `${models[0].name} | Provider`}
+      </span>
       <button
         type="button"
         onClick={() => onModelsChange(models.filter((currentModel: Model) => currentModel.id !== modelB.id))}>
@@ -380,6 +402,23 @@ const missingAssistantTopic = {
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    resizeObserverMockInstances.length = 0
+    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+      const instance: ResizeObserverMockInstance = {
+        callback,
+        observe: vi.fn((target: Element) => {
+          instance.target = target
+        }),
+        disconnect: vi.fn()
+      }
+      resizeObserverMockInstances.push(instance)
+
+      return {
+        observe: instance.observe,
+        disconnect: instance.disconnect
+      } as unknown as ResizeObserver
+    }) as unknown as typeof ResizeObserver
+
     vi.mocked(cacheService.getCasual).mockReset()
     vi.mocked(cacheService.getCasual).mockReturnValue('')
     vi.mocked(cacheService.setCasual).mockReset()
@@ -439,12 +478,39 @@ describe('ChatComposer', () => {
     })
   })
 
+  afterEach(() => {
+    globalThis.ResizeObserver = originalResizeObserver
+  })
+
   it('renders the tool menu before assistant and model selectors', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByText('tool menu')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
     expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+  })
+
+  it('shows only icons in the input bottom toolbar when it is narrow', async () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Model A | Provider')).not.toHaveClass('sr-only')
+
+    await notifyComposerBottomToolbarWidth(420)
+
+    await waitFor(() => {
+      expect(screen.getByText('Assistant 1')).toHaveClass('sr-only')
+      expect(screen.getByText('Model A | Provider')).toHaveClass('sr-only')
+    })
+  })
+
+  it('keeps input bottom toolbar labels visible when the toolbar fits', async () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    await notifyComposerBottomToolbarWidth(420, 420)
+
+    expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Model A | Provider')).not.toHaveClass('sr-only')
   })
 
   it('appends quoted selected text from the main-window quote IPC', async () => {
@@ -702,6 +768,21 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
   })
 
+  it('shows only icons in the temporary home bottom toolbar when it is narrow', async () => {
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Model A | Provider')).not.toHaveClass('sr-only')
+
+    await notifyComposerBottomToolbarWidth(420)
+
+    await waitFor(() => {
+      expect(screen.getByText('Assistant 1')).toHaveClass('sr-only')
+      expect(screen.getByText('Model A | Provider')).toHaveClass('sr-only')
+      expect(screen.getByTestId('selected-models-trigger')).toHaveClass('w-8')
+    })
+  })
+
   it('routes temporary home assistant changes to the temporary handler', async () => {
     const onTemporaryAssistantChange = vi.fn()
     const view = render(
@@ -878,3 +959,35 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
   })
 })
+
+async function notifyComposerBottomToolbarWidth(width: number, scrollWidth = width + 240) {
+  await waitFor(() => {
+    expect(
+      resizeObserverMockInstances.some((instance) =>
+        String(instance.target?.getAttribute('class') ?? '').includes('max-w-full')
+      )
+    ).toBe(true)
+  })
+
+  const toolbarInstances = resizeObserverMockInstances.filter((instance) =>
+    String(instance.target?.getAttribute('class') ?? '').includes('max-w-full')
+  )
+  if (toolbarInstances.length === 0) {
+    throw new Error('Expected composer bottom toolbar to create a ResizeObserver')
+  }
+
+  act(() => {
+    for (const instance of toolbarInstances) {
+      Object.defineProperty(instance.target, 'clientWidth', { configurable: true, value: width })
+      Object.defineProperty(instance.target, 'scrollWidth', { configurable: true, value: scrollWidth })
+      instance.callback(
+        [
+          {
+            contentRect: { width }
+          } as ResizeObserverEntry
+        ],
+        {} as ResizeObserver
+      )
+    }
+  })
+}

@@ -35,7 +35,7 @@ import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/
 import type { AddNewTopicPayload } from '@renderer/pages/home/types'
 import type { FileMetadata, Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
-import { getLeadingEmoji } from '@renderer/utils'
+import { cn, getLeadingEmoji } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerQueuedMessagePayload, ComposerQueueItem, StreamPendingQueueItem } from '@shared/ai/transport'
@@ -46,6 +46,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 import { isNonChatModel, isWebSearchModel } from '@shared/utils/model'
+import { Bot } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -59,17 +60,19 @@ import {
   knowledgeBaseToComposerToken
 } from './chatComposerTokens'
 import { SelectedModelsTrigger } from './SelectedModelsTrigger'
+import { useComposerBottomToolbarIconOnly } from './useComposerBottomToolbarIconOnly'
 
 const INPUTBAR_DRAFT_CACHE_KEY = 'inputbar-draft'
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
-const COMPOSER_TOOLBAR_CLASS =
-  'flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+const COMPOSER_TOOLBAR_CLASS = 'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden'
 const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
 const COMPOSER_BELOW_SELECTOR_BUTTON_CLASS =
   'h-8 shrink-0 gap-1.5 rounded-lg border border-transparent bg-transparent px-2.5 text-xs font-medium text-muted-foreground/75 shadow-none hover:bg-transparent hover:text-muted-foreground/75 disabled:bg-transparent disabled:text-muted-foreground/50 [&_svg]:text-muted-foreground/60 hover:[&_svg]:text-muted-foreground/60'
+const COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS = 'w-8 justify-center px-0'
+const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
 
 interface ChatComposerProps {
   topic: Topic
@@ -114,6 +117,7 @@ interface ChatComposerContextControlsProps {
   selectModelLabel: string
   useMentionedModelSelector?: boolean
   side: 'top' | 'bottom'
+  iconOnly?: boolean
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
   onMentionedModelsSelect: (models: Model[]) => void
@@ -135,6 +139,7 @@ const ChatComposerContextControls = ({
   selectModelLabel,
   useMentionedModelSelector,
   side,
+  iconOnly = false,
   onAssistantChange,
   onModelSelect,
   onMentionedModelsSelect,
@@ -143,7 +148,15 @@ const ChatComposerContextControls = ({
 }: ChatComposerContextControlsProps) => {
   const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
   const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
+  const compactTriggerClassName = cn(triggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
+  const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
+  const modelTriggerClassName = cn(triggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
+  const modelLabelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const selectedMentionedModels = useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
+  const mentionedModelTriggerClassName = cn(
+    triggerClassName,
+    iconOnly && selectedMentionedModels.length > 0 && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
+  )
   const assistantModelLabel = model
     ? `${model.name}${modelProviderName ? ` | ${modelProviderName}` : ''}`
     : selectModelLabel
@@ -172,9 +185,13 @@ const ChatComposerContextControls = ({
         align="start"
         mountStrategy="lazy-keep"
         trigger={
-          <Button variant="ghost" size="sm" className={triggerClassName}>
-            {assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : null}
-            <span className="max-w-40 truncate">{assistantName}</span>
+          <Button variant="ghost" size="sm" className={compactTriggerClassName}>
+            {assistantIcon ? (
+              <EmojiIcon emoji={assistantIcon} size={20} />
+            ) : iconOnly ? (
+              <Bot size={16} aria-hidden />
+            ) : null}
+            <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
           </Button>
         }
       />
@@ -192,8 +209,9 @@ const ChatComposerContextControls = ({
           mountStrategy="lazy-keep"
           trigger={
             <SelectedModelsTrigger
-              className={triggerClassName}
+              className={mentionedModelTriggerClassName}
               disabled={modelPending}
+              iconOnly={iconOnly}
               models={selectedMentionedModels}
               assistantModel={model}
               providers={providers}
@@ -214,9 +232,9 @@ const ChatComposerContextControls = ({
           align="start"
           mountStrategy="lazy-keep"
           trigger={
-            <Button variant="ghost" size="sm" className={triggerClassName} disabled={modelPending}>
-              <ModelAvatar model={model} size={20} />
-              <span className="max-w-52 truncate">{modelLabel}</span>
+            <Button variant="ghost" size="sm" className={modelTriggerClassName} disabled={modelPending}>
+              {model ? <ModelAvatar model={model} size={20} /> : null}
+              <span className={cn('max-w-52', modelLabelClassName)}>{modelLabel}</span>
             </Button>
           }
         />
@@ -239,10 +257,12 @@ const ChatComposerToolMenuControls = ({ inputAdapter }: { inputAdapter?: QuickPa
 }
 
 const ChatComposerToolbarControls = ({ inputAdapter, ...contextProps }: ChatComposerToolbarControlsProps) => {
+  const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
+
   return (
-    <div className={COMPOSER_TOOLBAR_CLASS}>
+    <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
       <ChatComposerToolMenuControls inputAdapter={inputAdapter} />
-      <ChatComposerContextControls {...contextProps} side="top" />
+      <ChatComposerContextControls {...contextProps} side="top" iconOnly={iconOnly} />
     </div>
   )
 }
@@ -250,9 +270,11 @@ const ChatComposerToolbarControls = ({ inputAdapter, ...contextProps }: ChatComp
 type ChatComposerControlProps = Omit<ChatComposerToolbarControlsProps, 'inputAdapter'>
 
 const ChatComposerBelowControls = (contextProps: ChatComposerControlProps) => {
+  const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
+
   return (
-    <div className={COMPOSER_TOOLBAR_CLASS}>
-      <ChatComposerContextControls {...contextProps} side="bottom" useMentionedModelSelector />
+    <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
+      <ChatComposerContextControls {...contextProps} side="bottom" useMentionedModelSelector iconOnly={iconOnly} />
     </div>
   )
 }
