@@ -107,6 +107,17 @@ export interface CherryToolMeta {
   }
 }
 
+/** Cherry metadata on a FileUIPart. */
+export interface CherryFileMeta {
+  /**
+   * FileEntryId for internal files (v1→v2 migrator preserves this from
+   * `OldFileBlock.file.id` / `OldImageBlock.file.id`). External (user-path)
+   * files have no fileEntryId. Consumed by `ChatMigrator` to backfill
+   * `file_ref` rows after migration.
+   */
+  fileEntryId?: string
+}
+
 /**
  * Conditional mapping from a part's `type` literal to its cherry-meta shape.
  * Parts without a registered shape have no cherry meta — represented as `Record<string, never>`.
@@ -117,14 +128,16 @@ export type CherryMetaForPartType<T extends string> = T extends 'text'
     ? CherryReasoningMeta
     : T extends `tool-${string}` | 'dynamic-tool'
       ? CherryToolMeta
-      : Record<string, never>
+      : T extends 'file'
+        ? CherryFileMeta
+        : Record<string, never>
 
 /**
- * @deprecated Use `CherryTextMeta` / `CherryReasoningMeta` / `CherryToolMeta` directly,
- * or `CherryMetaForPartType<P['type']>` in generic positions. Retained for one PR
+ * @deprecated Use `CherryTextMeta` / `CherryReasoningMeta` / `CherryToolMeta` / `CherryFileMeta`
+ * directly, or `CherryMetaForPartType<P['type']>` in generic positions. Retained for one PR
  * cycle to keep external imports compiling.
  */
-export type CherryProviderMetadata = CherryTextMeta & CherryReasoningMeta & CherryToolMeta
+export type CherryProviderMetadata = CherryTextMeta & CherryReasoningMeta & CherryToolMeta & CherryFileMeta
 
 // ============================================================================
 // Zod schemas — runtime validation at the read boundary
@@ -150,11 +163,16 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
     .optional()
 })
 
+export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
+  fileEntryId: z.string().optional()
+})
+
 // Table-driven dispatch — part `type` → schema. First match wins.
 const SCHEMA_BY_PART_TYPE: ReadonlyArray<readonly [(t: string) => boolean, z.ZodTypeAny]> = [
   [(t) => t === 'text', CherryTextMetaSchema],
   [(t) => t === 'reasoning', CherryReasoningMetaSchema],
-  [(t) => t === 'dynamic-tool' || t.startsWith('tool-'), CherryToolMetaSchema]
+  [(t) => t === 'dynamic-tool' || t.startsWith('tool-'), CherryToolMetaSchema],
+  [(t) => t === 'file', CherryFileMetaSchema]
 ]
 
 function schemaForPartType(type: string): z.ZodTypeAny | null {

@@ -747,23 +747,25 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
 
     case 'image': {
       const block = oldBlock as OldImageBlock
-      const part: FileUIPart = {
+      const basePart: FileUIPart = {
         type: 'file',
         mediaType: inferMediaType(block.file?.ext, 'image/png'),
         url: block.url || (block.file?.path ? `file://${block.file.path}` : ''),
         ...(block.file?.origin_name ? { filename: block.file.origin_name } : {})
       }
+      const part = block.file?.id ? withCherryMeta(basePart, { fileEntryId: block.file.id }) : basePart
       return { part, extraParts: null, citations: null, searchableText: null }
     }
 
     case 'file': {
       const block = oldBlock as OldFileBlock
-      const part: FileUIPart = {
+      const basePart: FileUIPart = {
         type: 'file',
         mediaType: inferMediaType(block.file.ext, 'application/octet-stream'),
         url: block.file.path ? `file://${block.file.path}` : '',
         ...(block.file.origin_name ? { filename: block.file.origin_name } : {})
       }
+      const part = block.file.id ? withCherryMeta(basePart, { fileEntryId: block.file.id }) : basePart
       return { part, extraParts: null, citations: null, searchableText: null }
     }
 

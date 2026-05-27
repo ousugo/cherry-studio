@@ -847,10 +847,16 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
       topicId,
       role: 'user',
       data: {
-        blocks: blocks.map((b) => {
-          if (b.type === 'image') return { type: 'image', fileId: b.fileId } as any
-          if (b.type === 'file') return { type: 'file', fileId: b.fileId } as any
-          return { type: 'main_text', content: b.content ?? 'hello' } as any
+        parts: blocks.map((b) => {
+          if (b.type === 'image' || b.type === 'file') {
+            return {
+              type: 'file',
+              mediaType: b.type === 'image' ? 'image/png' : 'application/octet-stream',
+              url: 'file:///tmp/dummy',
+              ...(b.fileId ? { providerMetadata: { cherry: { fileEntryId: b.fileId } } } : {})
+            } as any
+          }
+          return { type: 'text', text: b.content ?? 'hello', state: 'done' } as any
         })
       },
       searchableText: '',
