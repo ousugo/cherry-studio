@@ -1,8 +1,9 @@
 import { cacheService } from '@data/CacheService'
 import type { ComposerQueueItem } from '@shared/ai/transport'
 import type { Model } from '@shared/data/types/model'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { isValidElement, type ReactNode } from 'react'
+import { IpcChannel } from '@shared/IpcChannel'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { isValidElement, type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,7 +34,9 @@ const mocks = vi.hoisted(() => ({
   enqueueDraft: vi.fn(),
   completeDraft: vi.fn(),
   failDraft: vi.fn(),
-  surfaceProps: undefined as ComposerSurfaceProps | undefined
+  surfaceProps: undefined as ComposerSurfaceProps | undefined,
+  ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
+  ipcOn: vi.fn()
 }))
 
 const model = {
@@ -66,25 +69,39 @@ vi.mock('@data/CacheService', () => ({
 }))
 
 vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
+  function MockComposerSurface(props: ComposerSurfaceProps) {
+    useEffect(() => {
+      props.onActionsChange?.({
+        resizeTextArea: vi.fn(),
+        onTextChange: (updater) => {
+          const nextText = typeof updater === 'function' ? updater(props.text) : updater
+          props.onTextChange(nextText)
+        },
+        toggleExpanded: vi.fn(),
+        removeToken: vi.fn()
+      })
+    }, [props])
+
+    mocks.surfaceProps = props
+    return (
+      <div>
+        <div data-testid="composer-left-controls">{props.renderLeftControls?.(undefined)}</div>
+        <div data-testid="composer-below-controls">{props.renderBelowControls?.(undefined)}</div>
+        {props.tokens.map((token) => (
+          <button
+            key={token.id}
+            type="button"
+            data-testid={`remove-token-${token.id}`}
+            onClick={() => props.onTokenRemoveRequest?.({ kind: token.kind, tokenId: token.id })}>
+            remove {token.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
   return {
-    default: (props: ComposerSurfaceProps) => {
-      mocks.surfaceProps = props
-      return (
-        <div>
-          <div data-testid="composer-left-controls">{props.renderLeftControls?.(undefined)}</div>
-          <div data-testid="composer-below-controls">{props.renderBelowControls?.(undefined)}</div>
-          {props.tokens.map((token) => (
-            <button
-              key={token.id}
-              type="button"
-              data-testid={`remove-token-${token.id}`}
-              onClick={() => props.onTokenRemoveRequest?.({ kind: token.kind, tokenId: token.id })}>
-              remove {token.label}
-            </button>
-          ))}
-        </div>
-      )
-    }
+    default: MockComposerSurface
   }
 })
 
@@ -402,6 +419,20 @@ describe('ChatComposer', () => {
     mocks.failDraft.mockReset()
     mocks.failDraft.mockResolvedValue(undefined)
     mocks.surfaceProps = undefined
+    mocks.ipcListeners.clear()
+    mocks.ipcOn.mockReset()
+    mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
+      mocks.ipcListeners.set(channel, listener)
+      return () => mocks.ipcListeners.delete(channel)
+    })
+    Object.defineProperty(window, 'electron', {
+      configurable: true,
+      value: {
+        ipcRenderer: {
+          on: mocks.ipcOn
+        }
+      }
+    })
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: { error: mocks.toastError }
@@ -414,6 +445,24 @@ describe('ChatComposer', () => {
     expect(screen.getByText('tool menu')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
     expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+  })
+
+  it('appends quoted selected text from the main-window quote IPC', async () => {
+    vi.mocked(cacheService.getCasual).mockReturnValue('Existing draft')
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(mocks.ipcOn).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, expect.any(Function))
+    })
+
+    act(() => {
+      mocks.ipcListeners.get(IpcChannel.App_QuoteToMain)?.({}, 'Selected message text')
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('Existing draft\n<blockquote>\n\nSelected message text\n</blockquote>\n\n')
+    })
   })
 
   it('updates the topic assistant from the composer toolbar', () => {
