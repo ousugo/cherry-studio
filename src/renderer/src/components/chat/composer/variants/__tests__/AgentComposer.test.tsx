@@ -1,7 +1,9 @@
+import { cacheService } from '@data/CacheService'
 import type { FileMetadata } from '@renderer/types'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { IpcChannel } from '@shared/IpcChannel'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   setFiles: vi.fn(),
   enqueueDraft: vi.fn(),
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
+  ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
+  ipcOn: vi.fn(),
   runtimeHostProps: undefined as
     | { assistant?: { modelId?: string | null }; model?: Model; session?: { agentId?: string } }
     | undefined
@@ -51,36 +55,50 @@ vi.mock('@data/CacheService', () => ({
 }))
 
 vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
+  function MockComposerSurface(props: ComposerSurfaceProps) {
+    useEffect(() => {
+      props.onActionsChange?.({
+        resizeTextArea: vi.fn(),
+        onTextChange: (updater) => {
+          const nextText = typeof updater === 'function' ? updater(props.text) : updater
+          props.onTextChange(nextText)
+        },
+        toggleExpanded: vi.fn(),
+        removeToken: vi.fn()
+      })
+    }, [props])
+
+    mocks.surfaceProps = props
+    return (
+      <div>
+        <div data-testid="composer-left-controls">{props.renderLeftControls?.(undefined)}</div>
+        <div data-testid="composer-below-controls">{props.renderBelowControls?.(undefined)}</div>
+        <button
+          type="button"
+          onClick={() =>
+            props.onSendDraft({
+              text: mocks.draftText,
+              tokens: mocks.files.map((currentFile, index) => ({
+                id: `file:${currentFile.id}`,
+                kind: 'file',
+                label: currentFile.name,
+                payload: currentFile,
+                index,
+                textOffset: mocks.draftText.length
+              }))
+            })
+          }>
+          send
+        </button>
+        <button type="button" onClick={() => props.onPause()}>
+          pause
+        </button>
+      </div>
+    )
+  }
+
   return {
-    default: (props: ComposerSurfaceProps) => {
-      mocks.surfaceProps = props
-      return (
-        <div>
-          <div data-testid="composer-left-controls">{props.renderLeftControls?.(undefined)}</div>
-          <div data-testid="composer-below-controls">{props.renderBelowControls?.(undefined)}</div>
-          <button
-            type="button"
-            onClick={() =>
-              props.onSendDraft({
-                text: mocks.draftText,
-                tokens: mocks.files.map((currentFile, index) => ({
-                  id: `file:${currentFile.id}`,
-                  kind: 'file',
-                  label: currentFile.name,
-                  payload: currentFile,
-                  index,
-                  textOffset: mocks.draftText.length
-                }))
-              })
-            }>
-            send
-          </button>
-          <button type="button" onClick={() => props.onPause()}>
-            pause
-          </button>
-        </div>
-      )
-    }
+    default: MockComposerSurface
   }
 })
 
@@ -289,6 +307,20 @@ describe('AgentComposer', () => {
     mocks.enqueueDraft.mockResolvedValue(undefined)
     mocks.surfaceProps = undefined
     mocks.runtimeHostProps = undefined
+    mocks.ipcListeners.clear()
+    mocks.ipcOn.mockReset()
+    mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
+      mocks.ipcListeners.set(channel, listener)
+      return () => mocks.ipcListeners.delete(channel)
+    })
+    Object.defineProperty(window, 'electron', {
+      configurable: true,
+      value: {
+        ipcRenderer: {
+          on: mocks.ipcOn
+        }
+      }
+    })
   })
 
   it('resolves the agent model through the v2 UniqueModelId', () => {
@@ -404,6 +436,32 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).not.toHaveBeenCalled()
     expect(mocks.enqueueDraft).toHaveBeenCalledWith(expect.objectContaining({ text: 'hello' }))
+  })
+
+  it('appends quoted selected text from the main-window quote IPC', async () => {
+    vi.mocked(cacheService.getCasual).mockReturnValue('Existing draft')
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.ipcOn).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, expect.any(Function))
+    })
+
+    act(() => {
+      mocks.ipcListeners.get(IpcChannel.App_QuoteToMain)?.({}, 'Selected message text')
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('Existing draft\n<blockquote>\n\nSelected message text\n</blockquote>\n\n')
+    })
   })
 
   it('updates the active session agent from the composer toolbar', () => {

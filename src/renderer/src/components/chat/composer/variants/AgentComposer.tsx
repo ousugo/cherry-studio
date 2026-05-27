@@ -33,6 +33,7 @@ import { FILE_TYPE, type FileMetadata, type ThinkingOption } from '@renderer/typ
 import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { formatQuotedText } from '@renderer/utils/formats'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerQueuedMessagePayload, ComposerQueueItem, StreamPendingQueueItem } from '@shared/ai/transport'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
@@ -41,6 +42,7 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { getFileTypeByExt } from '@shared/file/types'
 import type { PathStatus } from '@shared/file/types/ipc'
+import { IpcChannel } from '@shared/IpcChannel'
 import type { TFunction } from 'i18next'
 import { ChevronDown, CircleSlash, Folder, TriangleAlert } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -597,6 +599,23 @@ const AgentComposerInner = ({
     },
     [actionsRef]
   )
+
+  const handleQuote = useCallback(
+    (selectedText: string) => {
+      if (!selectedText) return
+
+      const quotedText = formatQuotedText(selectedText)
+      actionsRef.current.onTextChange((prevText) => (prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`))
+      actionsRef.current.toggleExpanded(isExpanded)
+    },
+    [actionsRef, isExpanded]
+  )
+
+  useEffect(() => {
+    return window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, selectedText: string) => {
+      handleQuote(selectedText)
+    })
+  }, [handleQuote])
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })
