@@ -54,5 +54,14 @@ export interface FileTreeProps {
   /** When true, folder rows are treated as sticky headers by the default virtualizer. Default: true. */
   stickyFolders?: boolean
 
+  /** When true, renders a controlled search input above the tree. Filtering is the caller's responsibility - pass already-filtered `nodes`. */
+  showSearch?: boolean
+  /** Controlled search keyword. Required when `showSearch` is true. */
+  searchKeyword?: string
+  /** Fires on every keystroke in the search input. */
+  onSearchKeywordChange?: (keyword: string) => void
+  /** Placeholder for the search input. */
+  searchPlaceholder?: string
+
   emptyState?: React.ReactNode
 }

@@ -240,3 +240,69 @@ describe('FileTree - icon behaviour', () => {
     expect(markdownRow.querySelector('[data-icon^="material-icon-theme:"]')).toBeNull()
   })
 })
+
+describe('FileTree - search box', () => {
+  it('does not render the search input when showSearch is omitted', () => {
+    render(<FileTree nodes={nodes} renderList={passthroughRenderList} />)
+    expect(screen.queryByTestId('file-tree-search-input')).toBeNull()
+  })
+
+  it('renders the search input when showSearch is true', () => {
+    render(
+      <FileTree
+        nodes={nodes}
+        showSearch
+        searchKeyword=""
+        onSearchKeywordChange={() => {}}
+        renderList={passthroughRenderList}
+      />
+    )
+    expect(screen.getByTestId('file-tree-search-input')).toBeInTheDocument()
+  })
+
+  it('reflects the controlled searchKeyword value', () => {
+    render(
+      <FileTree
+        nodes={nodes}
+        showSearch
+        searchKeyword="hello"
+        onSearchKeywordChange={() => {}}
+        renderList={passthroughRenderList}
+      />
+    )
+    const input = screen.getByTestId('file-tree-search-input') as HTMLInputElement
+    expect(input.value).toBe('hello')
+  })
+
+  it('fires onSearchKeywordChange on input', async () => {
+    const onSearchKeywordChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <FileTree
+        nodes={nodes}
+        showSearch
+        searchKeyword=""
+        onSearchKeywordChange={onSearchKeywordChange}
+        renderList={passthroughRenderList}
+      />
+    )
+    await user.type(screen.getByTestId('file-tree-search-input'), 'a')
+    expect(onSearchKeywordChange).toHaveBeenCalledWith('a')
+  })
+
+  it('clears the keyword via the clear button', async () => {
+    const onSearchKeywordChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <FileTree
+        nodes={nodes}
+        showSearch
+        searchKeyword="abc"
+        onSearchKeywordChange={onSearchKeywordChange}
+        renderList={passthroughRenderList}
+      />
+    )
+    await user.click(screen.getByLabelText('Clear search'))
+    expect(onSearchKeywordChange).toHaveBeenCalledWith('')
+  })
+})
