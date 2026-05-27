@@ -15,6 +15,7 @@ export function WriteTool({ input }: { input?: WriteToolInput; output?: WriteToo
     label: (
       <ToolHeader
         toolName={AgentToolsType.Write}
+        args={input}
         params={
           <SkeletonValue
             value={input?.file_path ? <ClickableFilePath path={input.file_path} displayName={filename} /> : undefined}

@@ -34,6 +34,7 @@ export function TaskTool({
     label: (
       <ToolHeader
         toolName={toolName}
+        args={input}
         params={<SkeletonValue value={input?.description} width="150px" />}
         variant="collapse-label"
         showStatus={false}

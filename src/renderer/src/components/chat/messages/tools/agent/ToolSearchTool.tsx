@@ -32,7 +32,7 @@ export function ToolSearchTool({
     label: (
       <ToolHeader
         toolName={AgentToolsType.ToolSearch}
-        params={input?.query ? `"${input.query}"` : undefined}
+        args={input}
         stats={matches.length > 0 ? t('message.tools.units.result', { count: matches.length }) : undefined}
         variant="collapse-label"
         showStatus={false}

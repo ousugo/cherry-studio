@@ -14,9 +14,7 @@ export function WebFetchTool({
 
   return {
     key: AgentToolsType.WebFetch,
-    label: (
-      <ToolHeader toolName={AgentToolsType.WebFetch} params={input?.url} variant="collapse-label" showStatus={false} />
-    ),
+    label: <ToolHeader toolName={AgentToolsType.WebFetch} args={input} variant="collapse-label" showStatus={false} />,
     children: (
       <div>
         <div>{truncatedOutput}</div>

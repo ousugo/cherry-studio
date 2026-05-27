@@ -190,14 +190,20 @@ function HeaderActionButton({
   )
 }
 
-function GroupHeaderActionButton({ className, ref, size, variant = 'ghost', ...props }: HeaderActionButtonProps) {
+function GroupHeaderActionButton({
+  className,
+  ref,
+  size = null,
+  variant = 'ghost',
+  ...props
+}: HeaderActionButtonProps) {
   return (
     <Button
       ref={ref}
       size={size}
       variant={variant}
       className={cn(
-        'inline-flex h-[30px] min-w-[30px] shrink-0 items-center justify-center rounded-[8px] px-[7px] py-0 text-foreground/70! leading-none shadow-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-[18px] [&_svg]:shrink-0',
+        'inline-flex size-6 min-h-6 min-w-6 shrink-0 items-center justify-center gap-0 rounded-md p-0 text-foreground/70! leading-none shadow-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:!size-3 [&_svg]:block [&_svg]:shrink-0',
         className
       )}
       {...props}

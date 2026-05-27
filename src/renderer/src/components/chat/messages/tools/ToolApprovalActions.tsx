@@ -1,5 +1,4 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { LoadingIcon } from '@renderer/components/Icons'
 import { ChevronDown, CirclePlay, CircleX, ShieldCheck } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,7 +40,7 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
   // Nothing to show if not waiting and not executing
   if (!isWaiting && !isExecuting) return null
 
-  // Executing state - show loading or abort button
+  // Executing state - show abort button when available; otherwise the parent label already describes progress.
   if (isExecuting) {
     if (showAbort && onAbort) {
       return (
@@ -52,14 +51,7 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
         </ActionsContainer>
       )
     }
-    return (
-      <ActionsContainer $compact={compact} onClick={(e) => e.stopPropagation()}>
-        <LoadingIndicator>
-          <LoadingIcon />
-          {!compact && <span>{t('message.tools.invoking')}</span>}
-        </LoadingIndicator>
-      </ActionsContainer>
-    )
+    return null
   }
 
   // Waiting state - show confirm/cancel buttons
@@ -138,13 +130,6 @@ const ActionsContainer = ({
     ]
       .filter(Boolean)
       .join(' ')}
-    {...props}
-  />
-)
-
-const LoadingIndicator = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={['flex items-center gap-1.5 text-(--color-primary) text-xs', className].filter(Boolean).join(' ')}
     {...props}
   />
 )

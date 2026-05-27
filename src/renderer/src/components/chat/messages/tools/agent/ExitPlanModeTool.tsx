@@ -26,6 +26,7 @@ export function ExitPlanModeTool({
     label: (
       <ToolHeader
         toolName={AgentToolsType.ExitPlanMode}
+        args={input}
         stats={t('message.tools.units.plan', { count: planCount })}
         variant="collapse-label"
         showStatus={false}

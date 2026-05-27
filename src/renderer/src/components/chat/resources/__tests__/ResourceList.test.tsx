@@ -1180,7 +1180,7 @@ describe('ResourceList', () => {
     })
   })
 
-  it('keeps group header action buttons on the 30px right-side affordance', () => {
+  it('keeps group header action buttons compact on the right side', () => {
     const Provider = ResourceList.Provider<TestItem>
 
     render(
@@ -1201,11 +1201,14 @@ describe('ResourceList', () => {
     )
 
     expect(screen.getAllByRole('button', { name: 'Group more' })[0]).toHaveClass(
-      'h-[30px]',
-      'min-w-[30px]',
-      'rounded-[8px]',
-      '[&_svg]:size-[18px]'
+      'size-6',
+      'min-h-6',
+      'min-w-6',
+      'rounded-md',
+      'p-0',
+      '[&_svg]:!size-3'
     )
+    expect(screen.getAllByRole('button', { name: 'Group more' })[0]).not.toHaveClass('min-h-7.5')
   })
 
   it('opens group header context menus from the group header trigger', () => {

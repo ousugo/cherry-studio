@@ -415,6 +415,7 @@ describe('ComposerSurface', () => {
 
     const rootSource = mocks.editorPresetOptions.suggestionSources[0]
     expect(rootSource.renderMode).toBe('headless')
+    expect(rootSource.allowedPrefixes).toEqual([' ', '\n', '\t'])
     expect(rootSource.items({ query: 'image' })).toEqual([])
 
     rootSource.onActiveChange({
@@ -453,6 +454,78 @@ describe('ComposerSurface', () => {
     const event = new KeyboardEvent('keydown', { key: 'Enter' })
     expect(rootSource.onKeyDown({ event })).toBe(false)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+  })
+
+  it('opens the QuickPanel root when slash follows whitespace', async () => {
+    render(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const rootSource = mocks.editorPresetOptions.suggestionSources[0]
+    rootSource.onActiveChange({
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn(() => 'hello ')
+          }
+        }
+      },
+      range: { from: 7, to: 8 },
+      query: '',
+      text: '/',
+      items: []
+    })
+
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(expect.objectContaining({ queryAnchor: 6, symbol: 'root' }))
+  })
+
+  it('does not open the QuickPanel root when slash is attached to previous text', async () => {
+    render(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const rootSource = mocks.editorPresetOptions.suggestionSources[0]
+    rootSource.onActiveChange({
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn(() => 'hello')
+          }
+        }
+      },
+      range: { from: 6, to: 7 },
+      query: '',
+      text: '/',
+      items: []
+    })
+
+    expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
+  })
+
+  it('does not open the QuickPanel root when cursor is not at the end of the slash query', async () => {
+    render(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const rootSource = mocks.editorPresetOptions.suggestionSources[0]
+    rootSource.onActiveChange({
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn((_from: number, to: number) => (to === 7 ? 'hello ' : 'hello /i'))
+          },
+          selection: {
+            from: 9
+          }
+        }
+      },
+      range: { from: 7, to: 13 },
+      query: 'image',
+      text: '/image',
+      items: []
+    })
+
+    expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
   })
 
   it('closes the QuickPanel root when the slash suggestion exits', async () => {
@@ -506,7 +579,7 @@ describe('ComposerSurface', () => {
       items: []
     })
 
-    mocks.quickPanelSymbol = 'mcp-prompts'
+    mocks.quickPanelSymbol = 'child-panel'
     rerender(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
 
     await act(async () => {

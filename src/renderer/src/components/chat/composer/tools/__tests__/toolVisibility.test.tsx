@@ -24,10 +24,6 @@ vi.mock('@renderer/components/chat/composer/tools/components/KnowledgeBaseButton
   KnowledgeBaseToolRuntime: () => null
 }))
 
-vi.mock('@renderer/components/chat/composer/tools/components/McpToolsButton', () => ({
-  McpToolsRuntime: () => null
-}))
-
 vi.mock('@renderer/components/chat/composer/tools/components/ThinkingButton', () => ({
   ThinkingToolRuntime: () => null
 }))
@@ -49,7 +45,6 @@ describe('composer tool visibility', () => {
 
     await import('../definitions/generateImageTool')
     await import('../definitions/knowledgeBaseTool')
-    await import('../definitions/mcpToolsTool')
     await import('../definitions/thinkingTool')
 
     const tools = getToolsForScope(TopicType.Chat, {
@@ -67,7 +62,7 @@ describe('composer tool visibility', () => {
     })
 
     expect(tools.map((tool) => tool.key)).toEqual(
-      expect.arrayContaining(['generate_image', 'knowledge_base', 'mcp_tools', 'thinking'])
+      expect.arrayContaining(['generate_image', 'knowledge_base', 'thinking'])
     )
   })
 })

@@ -150,6 +150,13 @@ function getComposerTextOffset(editor: Editor, position: number) {
   return editor.state.doc.textBetween(0, position, '\n', '').length
 }
 
+const ROOT_QUICK_PANEL_ALLOWED_PREFIXES = [' ', '\n', '\t']
+
+function hasRootQuickPanelTriggerBoundary(textBeforeTrigger: string) {
+  if (textBeforeTrigger.length === 0) return true
+  return /\s/.test(textBeforeTrigger.slice(-1))
+}
+
 function getComposerCursorTextOffset(editor: Editor) {
   return getComposerTextOffset(editor, editor.state.selection.from)
 }
@@ -577,16 +584,29 @@ export default function ComposerSurface({
       char: QuickPanelReservedSymbol.Root,
       title: t('settings.quickPanel.title'),
       renderMode: 'headless',
-      allowedPrefixes: [' ', '\n'],
+      allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
       items: () => [],
       onActiveChange: ({ editor, query, range, text }) => {
         const { getToolLaunchers, onToolLauncherSelect, quickPanel } = rootSuggestionStateRef.current
         const launchers = getToolLaunchers?.() ?? []
-        const queryAnchor = getComposerTextOffset(editor, range.from)
+        const textBeforeTrigger = editor.state.doc.textBetween(0, range.from, '\n', '')
+        const queryAnchor = textBeforeTrigger.length
+        const cursorOffset = editor.state.selection?.from
+          ? getComposerCursorTextOffset(editor)
+          : queryAnchor + (text || `${QuickPanelReservedSymbol.Root}${query}`).length
+        const triggerText = text || `${QuickPanelReservedSymbol.Root}${query}`
+
+        if (!hasRootQuickPanelTriggerBoundary(textBeforeTrigger) || cursorOffset !== queryAnchor + triggerText.length) {
+          if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.Root) {
+            quickPanel.close('input_prefix_invalid')
+          }
+          return
+        }
+
         const triggerInfo: QuickPanelTriggerInfo = {
           type: 'input',
           position: queryAnchor,
-          originalText: text || `${QuickPanelReservedSymbol.Root}${query}`
+          originalText: triggerText
         }
 
         quickPanel.open(

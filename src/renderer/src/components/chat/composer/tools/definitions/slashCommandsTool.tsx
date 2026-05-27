@@ -77,7 +77,8 @@ const slashCommandsTool = defineTool({
           {
             id: 'slash-commands',
             kind: 'group' as const,
-            sources: ['popover'] as const,
+            // Carrier entry: keep "/" root suggestions registered without showing a "+" menu row.
+            sources: [] as const,
             order: 20,
             label: t('chat.input.slash_commands.title'),
             description: t('chat.input.slash_commands.description'),

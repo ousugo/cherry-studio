@@ -565,7 +565,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.message.show_prompt': true,
     'chat.message.style': 'bubble',
     'chat.message.thought.auto_collapse': true,
-    'chat.narrow_mode': false,
+    'chat.narrow_mode': true,
     'chat.web_search.compression.cutoff_limit': 2000,
     'chat.web_search.compression.method': 'none',
     'chat.web_search.default_fetch_urls_provider': null,

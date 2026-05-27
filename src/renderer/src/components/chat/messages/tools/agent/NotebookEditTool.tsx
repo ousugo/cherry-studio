@@ -21,7 +21,7 @@ export function NotebookEditTool({
     key: AgentToolsType.NotebookEdit,
     label: (
       <div className="flex items-center gap-2">
-        <ToolHeader toolName={AgentToolsType.NotebookEdit} variant="collapse-label" showStatus={false} />
+        <ToolHeader toolName={AgentToolsType.NotebookEdit} args={input} variant="collapse-label" showStatus={false} />
         <Badge variant="secondary">
           {input?.notebook_path ? <ClickableFilePath path={input.notebook_path} /> : undefined}
         </Badge>

@@ -26,17 +26,7 @@ type ToolOrder = {
 }
 
 export const DEFAULT_TOOL_ORDER: ToolOrder = {
-  visible: [
-    'new_topic',
-    'attachment',
-    'thinking',
-    'web_search',
-    'url_context',
-    'knowledge_base',
-    'mcp_tools',
-    'generate_image',
-    'mention_models'
-  ],
+  visible: ['new_topic', 'attachment', 'thinking', 'web_search', 'url_context', 'knowledge_base', 'generate_image'],
   hidden: ['quick_phrases']
 }
 
@@ -55,11 +45,11 @@ export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<ComposerToolScope | 'mini-windo
     hidden: []
   },
   'mini-window': {
-    visible: ['attachment', 'mention_models', 'quick_phrases'],
+    visible: ['attachment', 'quick_phrases'],
     hidden: []
   },
   'quick-assistant': {
-    visible: ['attachment', 'mention_models', 'quick_phrases'],
+    visible: ['attachment', 'quick_phrases'],
     hidden: []
   }
 }

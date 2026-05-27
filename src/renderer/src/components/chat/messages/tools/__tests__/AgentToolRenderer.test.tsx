@@ -104,6 +104,24 @@ describe('AgentToolRenderer', () => {
     'message.tools.labels.notebookEdit': 'NotebookEdit',
     'message.tools.labels.mcpServerTool': 'MCP Server Tool',
     'message.tools.labels.tool': 'Tool',
+    'message.tools.invoking': 'Invoking',
+    'message.tools.activity.assistantTask': 'task',
+    'message.tools.activity.availableFeatures': 'available features',
+    'message.tools.activity.availableResources': 'available resources',
+    'message.tools.activity.commandName': '{{name}} command',
+    'message.tools.activity.create': 'Create',
+    'message.tools.activity.currentFolder': 'current folder',
+    'message.tools.activity.executeCommand': 'Run command',
+    'message.tools.activity.executingCommand': 'Running command',
+    'message.tools.activity.file': 'file',
+    'message.tools.activity.handle': 'Handle',
+    'message.tools.activity.handling': 'Handling',
+    'message.tools.activity.installing': 'Installing',
+    'message.tools.activity.projectDependencies': 'project dependencies',
+    'message.tools.activity.searching': 'Finding',
+    'message.tools.activity.taskList': 'task list',
+    'message.tools.activity.view': 'View',
+    'message.tools.activity.viewing': 'Viewing',
     'message.tools.error': 'Error',
     'message.tools.sections.command': 'Command',
     'message.tools.sections.output': 'Output',
@@ -207,8 +225,8 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       // Should render the DEDICATED ReadTool component, not StreamingToolContent
-      // ReadTool uses 'Read File' as label, not just 'Read'
-      expect(screen.getByText('Read File')).toBeInTheDocument()
+      // ReadTool uses a friendly activity label, not just the raw tool name
+      expect(screen.getByText('Viewing')).toBeInTheDocument()
       // Should show the filename from partial args
       expect(screen.getByText('test.ts')).toBeInTheDocument()
     })
@@ -223,7 +241,7 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       // Should use dedicated ReadTool renderer
-      expect(screen.getByText('Read File')).toBeInTheDocument()
+      expect(screen.getByText('Viewing')).toBeInTheDocument()
       // Should show the filename extracted by ReadTool
       expect(screen.getByText('myfile.ts')).toBeInTheDocument()
     })
@@ -238,7 +256,7 @@ describe('AgentToolRenderer', () => {
       const { rerender } = render(<AgentToolRenderer toolResponse={initialResponse} />)
 
       // Should use dedicated renderer even with partial path
-      expect(screen.getByText('Read File')).toBeInTheDocument()
+      expect(screen.getByText('Viewing')).toBeInTheDocument()
 
       // Update with status changed to pending when arguments complete
       const updatedResponse = createToolResponse({
@@ -249,8 +267,8 @@ describe('AgentToolRenderer', () => {
 
       rerender(<AgentToolRenderer toolResponse={updatedResponse} />)
 
-      // When pending with no permission, shows ToolStatusIndicator with loading icon
-      expect(screen.getByTestId('loading-icon')).toBeInTheDocument()
+      expect(screen.getByText('Invoking')).toBeInTheDocument()
+      expect(screen.queryByTestId('loading-icon')).toBeNull()
     })
   })
 
@@ -273,7 +291,7 @@ describe('AgentToolRenderer', () => {
 
       const { container } = render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.getByText('TaskCreate')).toBeInTheDocument()
+      expect(screen.getByText('Create')).toBeInTheDocument()
       expect(screen.getByText('Register the new SDK task tools')).toBeInTheDocument()
       expect(container.textContent).not.toContain('task-1')
       expect(screen.queryByTestId('collapse-content-TaskCreate')).toBeNull()
@@ -309,7 +327,7 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.getByText('Agent')).toBeInTheDocument()
+      expect(screen.getByText('Handle')).toBeInTheDocument()
       expect(screen.getByText('Inspect renderer')).toBeInTheDocument()
       expect(screen.queryByText('Inspection complete')).toBeNull()
       expect(screen.queryByTestId('collapse-content-Agent')).toBeNull()
@@ -326,7 +344,7 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       // Should render the complete tool with output
-      expect(screen.getByText('Read File')).toBeInTheDocument()
+      expect(screen.getByText('View')).toBeInTheDocument()
     })
 
     it('should render error state correctly', () => {
@@ -340,7 +358,7 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       // Should still render the tool component
-      expect(screen.getByText('Read File')).toBeInTheDocument()
+      expect(screen.getByText('View')).toBeInTheDocument()
       expect(screen.getByText('Error')).toHaveStyle('color: var(--color-foreground-secondary)')
     })
   })
@@ -379,8 +397,8 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      // Should show the ToolStatusIndicator with loading icon
-      expect(screen.getByTestId('loading-icon')).toBeInTheDocument()
+      expect(screen.getByText('Invoking')).toBeInTheDocument()
+      expect(screen.queryByTestId('loading-icon')).toBeNull()
     })
 
     it('hides AskUserQuestion message card while the composer handles the pending question', () => {
@@ -556,7 +574,7 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      fireEvent.click(screen.getByText('Agent').closest('[role="button"]')!)
+      fireEvent.click(screen.getByText('Handle').closest('[role="button"]')!)
       expect(openAgentToolFlow).toHaveBeenCalledWith({
         toolCallId: 'call-123',
         toolName: 'Agent',
@@ -578,12 +596,12 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      fireEvent.click(screen.getByText('Bash').closest('[role="button"]')!)
+      fireEvent.click(screen.getByText('View').closest('[role="button"]')!)
       expect(openAgentToolFlow).not.toHaveBeenCalled()
       expect(screen.getByTestId('collapse-content-Bash')).toBeVisible()
       expect(screen.getByTestId('collapse-content-Bash')).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
 
-      fireEvent.click(screen.getByText('Bash').closest('[role="button"]')!)
+      fireEvent.click(screen.getByText('View').closest('[role="button"]')!)
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
       expect(screen.queryByRole('button', { name: 'button.collapse' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()
@@ -601,7 +619,7 @@ describe('AgentToolRenderer', () => {
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
       // Should render the DEDICATED BashTool component
-      const bashLabel = screen.getByText('Bash')
+      const bashLabel = screen.getByText('Installing')
       expect(bashLabel.parentElement?.parentElement).toHaveClass('text-[13px]')
       expect(bashLabel.parentElement?.parentElement).not.toHaveClass('text-sm')
       expect(bashLabel.parentElement).toHaveClass('font-normal text-foreground-secondary')

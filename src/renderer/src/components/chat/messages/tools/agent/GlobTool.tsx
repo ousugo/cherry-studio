@@ -28,7 +28,7 @@ export function GlobTool({
     label: (
       <ToolHeader
         toolName={AgentToolsType.Glob}
-        params={input?.pattern}
+        args={input}
         stats={output ? t('message.tools.units.file', { count: lineCount }) : undefined}
         variant="collapse-label"
         showStatus={false}

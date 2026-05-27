@@ -38,9 +38,9 @@ import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock from './MainTextBlock'
 import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
-import PlaceholderBlock from './PlaceholderBlock'
+import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
-import ToolBlockGroup from './ToolBlockGroup'
+import ToolBlockGroup, { ToolBlockGroupContent, ToolBlockGroupHeaderContent } from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
 
 const logger = loggerService.withContext('MessagePartsRenderer')
@@ -66,11 +66,22 @@ const blockWrapperVariants: Variants = {
   }
 }
 
-const AnimatedBlockWrapper: React.FC<{ children: React.ReactNode; enableAnimation: boolean; className?: string }> = ({
-  className,
-  children,
-  enableAnimation
-}) => {
+const blockWrapperFadeVariants: Variants = {
+  visible: {
+    opacity: 1,
+    transition: { duration: 0.2 }
+  },
+  hidden: {
+    opacity: 0
+  }
+}
+
+const AnimatedBlockWrapper: React.FC<{
+  children: React.ReactNode
+  enableAnimation: boolean
+  className?: string
+  animation?: 'slide' | 'fade'
+}> = ({ className, children, enableAnimation, animation = 'slide' }) => {
   const wrapperClassName = ['block-wrapper', className].filter(Boolean).join(' ')
 
   if (!enableAnimation) {
@@ -80,8 +91,9 @@ const AnimatedBlockWrapper: React.FC<{ children: React.ReactNode; enableAnimatio
       </div>
     )
   }
+  const variants = animation === 'fade' ? blockWrapperFadeVariants : blockWrapperVariants
   return (
-    <motion.div className={wrapperClassName} variants={blockWrapperVariants} initial="hidden" animate="visible">
+    <motion.div className={wrapperClassName} variants={variants} initial="hidden" animate="visible">
       <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
     </motion.div>
   )
@@ -184,8 +196,8 @@ function isReasoningMessagePart(part: CherryMessagePart): boolean {
   return (part.type as string) === 'reasoning' && !!(part as ReasoningUIPart).text?.trim()
 }
 
-function isCollapsedMessagePart(part: CherryMessagePart): boolean {
-  return isSummaryMessagePart(part) || isReasoningMessagePart(part)
+function isStreamingReasoningMessagePart(part: CherryMessagePart): boolean {
+  return isReasoningMessagePart(part) && (part as ReasoningUIPart).state === 'streaming'
 }
 
 function isResultPart(part: CherryMessagePart): boolean {
@@ -207,6 +219,26 @@ function shouldCollapseAfterLastTool(part: CherryMessagePart): boolean {
     partType === 'source-url' ||
     partType === 'data-citation'
   )
+}
+
+function getLatestToolHistoryActivity(entries: readonly PartEntry[]): 'thinking' | undefined {
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const { part } = entries[index]
+    if (isStreamingReasoningMessagePart(part)) return 'thinking'
+    if (isToolUIPart(part)) return undefined
+  }
+  return undefined
+}
+
+function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): PlaceholderStatus {
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const { part } = entries[index]
+    if (isToolUIPart(part)) return 'usingTools'
+    if (isReasoningMessagePart(part)) return 'thinking'
+    if (isResultPart(part)) return 'generating'
+  }
+
+  return 'preparing'
 }
 
 // ============================================================================
@@ -416,13 +448,18 @@ interface ToolGroupEntryShape {
   part: CherryMessagePart
   index: number
 }
+
+function buildToolRenderItems(entries: readonly ToolGroupEntryShape[], messageId: string): ToolRenderItem[] {
+  return entries.flatMap((e): ToolRenderItem[] => {
+    const id = `${messageId}-part-${e.index}`
+    const toolResponse = buildToolResponseFromPart(e.part, id)
+    return toolResponse && canRenderMessageTool(toolResponse) ? [{ id, toolResponse }] : []
+  })
+}
+
 const ToolGroupView = React.memo(
   function ToolGroupView({ entries, messageId }: { entries: readonly ToolGroupEntryShape[]; messageId: string }) {
-    const toolItems = entries.flatMap((e): ToolRenderItem[] => {
-      const id = `${messageId}-part-${e.index}`
-      const toolResponse = buildToolResponseFromPart(e.part, id)
-      return toolResponse && canRenderMessageTool(toolResponse) ? [{ id, toolResponse }] : []
-    })
+    const toolItems = buildToolRenderItems(entries, messageId)
     if (toolItems.length === 0) return null
     if (toolItems.length === 1) return <MessageTools toolResponse={toolItems[0].toolResponse} />
     return <ToolBlockGroup items={toolItems} />
@@ -438,60 +475,85 @@ const ToolGroupView = React.memo(
   }
 )
 
-const CompletedToolHistoryGroup = React.memo(function CompletedToolHistoryGroup({
+const ToolHistoryGroup = React.memo(function ToolHistoryGroup({
   entries,
   message,
   toolCount,
-  messageCount
+  hasResult,
+  isProcessing
 }: {
   entries: readonly PartEntry[]
   message: MessageListItem
   toolCount: number
-  messageCount: number
+  hasResult: boolean
+  isProcessing: boolean
 }) {
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = React.useState(false)
   const contentId = React.useId()
 
   const groupedEntries = useMemo(() => groupPartEntries(entries), [entries])
-  const summary =
-    messageCount > 0
-      ? t('message.tools.groupHeaderWithMessages', { toolCount, messageCount })
-      : t('message.tools.groupHeader', { count: toolCount })
+  const toolItems = useMemo(() => buildToolRenderItems(entries, message.id), [entries, message.id])
+  const summary = t('message.tools.groupHeader', { count: toolCount })
+  const showLiveProgress = (isProcessing || message.status !== 'success') && !hasResult
+  const activityLabel =
+    showLiveProgress && getLatestToolHistoryActivity(entries) === 'thinking'
+      ? t('message.tools.thinkingHeader')
+      : undefined
+  const headerContent = (
+    <ToolBlockGroupHeaderContent
+      items={toolItems}
+      activityLabel={activityLabel}
+      summary={summary}
+      isLiveProgress={showLiveProgress}
+      showLatestWhenComplete={showLiveProgress}
+    />
+  )
 
   return (
     <div className={`group/completed-tool-history max-w-full ${isExpanded ? 'w-full' : 'w-fit'}`}>
-      <button
-        type="button"
-        aria-expanded={isExpanded}
-        aria-controls={contentId}
-        className="flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-        onClick={() => setIsExpanded((expanded) => !expanded)}>
-        <ChevronDown
-          size={16}
-          className={`shrink-0 text-foreground-muted transition-transform duration-150 ${isExpanded ? 'rotate-180' : '-rotate-90'}`}
-        />
-        <span className="truncate font-normal text-[13px] text-foreground-secondary transition-colors duration-150 group-hover/completed-tool-history:text-foreground">
-          {summary}
-        </span>
-      </button>
+      {showLiveProgress ? (
+        <button
+          type="button"
+          aria-expanded={isExpanded}
+          aria-controls={contentId}
+          className="flex min-h-7 w-full items-center justify-start gap-1 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          onClick={() => setIsExpanded((expanded) => !expanded)}>
+          {headerContent}
+        </button>
+      ) : (
+        <button
+          type="button"
+          aria-expanded={isExpanded}
+          aria-controls={contentId}
+          className="flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          onClick={() => setIsExpanded((expanded) => !expanded)}>
+          <ChevronDown
+            size={16}
+            className={`shrink-0 text-foreground-muted transition-transform duration-150 ${isExpanded ? 'rotate-180' : '-rotate-90'}`}
+          />
+          {headerContent}
+        </button>
+      )}
       {isExpanded && (
         <div
           id={contentId}
           className="mt-1.5 flex w-full flex-col gap-2 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
-          {groupedEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
+          {groupedEntries.map((entry) =>
+            renderGroupedEntry(entry, message, false, false, { renderToolGroupsInline: true })
+          )}
         </div>
       )}
     </div>
   )
 })
 
-function getCompletedToolHistory(
+function getToolHistoryGroup(
   entries: readonly PartEntry[],
   message: MessageListItem,
   isProcessing: boolean
-): { collapsedEntries: PartEntry[]; resultEntries: PartEntry[]; toolCount: number; messageCount: number } | null {
-  if (message.role !== 'assistant' || message.status !== 'success' || isProcessing) return null
+): { collapsedEntries: PartEntry[]; resultEntries: PartEntry[]; toolCount: number; hasResult: boolean } | null {
+  if (message.role !== 'assistant') return null
 
   let lastToolIndex = -1
   for (let index = entries.length - 1; index >= 0; index--) {
@@ -501,7 +563,7 @@ function getCompletedToolHistory(
     }
   }
 
-  if (lastToolIndex < 0 || lastToolIndex === entries.length - 1) return null
+  if (lastToolIndex < 0) return null
 
   let collapsedEndIndex = lastToolIndex
   for (let index = lastToolIndex + 1; index < entries.length; index++) {
@@ -511,7 +573,8 @@ function getCompletedToolHistory(
 
   const collapsedEntries = entries.slice(0, collapsedEndIndex + 1)
   const resultEntries = entries.slice(collapsedEndIndex + 1)
-  if (!resultEntries.some((entry) => isResultPart(entry.part))) return null
+  const hasResult = resultEntries.some((entry) => isResultPart(entry.part))
+  if (message.status === 'success' && !isProcessing && !hasResult) return null
   if (collapsedEntries.some((entry) => isTopLevelSubagentToolPart(entry.part))) return null
 
   const toolCount = collapsedEntries.filter((entry) => isToolUIPart(entry.part)).length
@@ -521,7 +584,7 @@ function getCompletedToolHistory(
     collapsedEntries,
     resultEntries,
     toolCount,
-    messageCount: collapsedEntries.filter((entry) => isCollapsedMessagePart(entry.part)).length
+    hasResult
   }
 }
 
@@ -529,7 +592,8 @@ function renderGroupedEntry(
   entry: GroupedEntry,
   message: MessageListItem,
   isStreaming: boolean,
-  isTranslationOverlayActive: boolean
+  isTranslationOverlayActive: boolean,
+  options?: { renderToolGroupsInline?: boolean }
 ): React.ReactNode {
   if (Array.isArray(entry)) {
     const groupKey = entry.map((e) => `${message.id}-part-${e.index}`).join('-')
@@ -558,17 +622,20 @@ function renderGroupedEntry(
     }
 
     if (isToolUIPart(firstPart)) {
-      if (
-        !entry.some((e) => {
-          const toolResponse = buildToolResponseFromPart(e.part, `${message.id}-part-${e.index}`)
-          return toolResponse && canRenderMessageTool(toolResponse)
-        })
-      )
-        return null
+      const toolItems = buildToolRenderItems(entry, message.id)
+      if (toolItems.length === 0) return null
 
       const stableGroupKey = `tool-group-${message.id}-part-${entry[0].index}`
+      if (options?.renderToolGroupsInline) {
+        return (
+          <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={isStreaming} animation="fade">
+            <ToolBlockGroupContent items={toolItems} />
+          </AnimatedBlockWrapper>
+        )
+      }
+
       return (
-        <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={isStreaming}>
+        <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={isStreaming} animation="fade">
           <ToolGroupView entries={entry} messageId={message.id} />
         </AnimatedBlockWrapper>
       )
@@ -621,12 +688,12 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
     () => messageParts.flatMap((part, index) => (hasPartParentToolCallId(part) ? [] : [{ part, index }])),
     [messageParts]
   )
-  const completedToolHistory = useMemo(
-    () =>
-      renderConfig.collapseCompletedToolHistory ? getCompletedToolHistory(partEntries, message, isProcessing) : null,
+  const placeholderStatus = useMemo(() => getProcessingPlaceholderStatus(partEntries), [partEntries])
+  const toolHistoryGroup = useMemo(
+    () => (renderConfig.collapseCompletedToolHistory ? getToolHistoryGroup(partEntries, message, isProcessing) : null),
     [partEntries, message, isProcessing, renderConfig.collapseCompletedToolHistory]
   )
-  const visibleEntries = completedToolHistory?.resultEntries ?? partEntries
+  const visibleEntries = toolHistoryGroup?.resultEntries ?? partEntries
 
   const grouped = useMemo(() => {
     if (visibleEntries.length === 0) return []
@@ -640,7 +707,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       return (
         <AnimatePresence mode="sync">
           <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-            <PlaceholderBlock isProcessing={true} />
+            <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
           </AnimatedBlockWrapper>
         </AnimatePresence>
       )
@@ -650,13 +717,14 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
 
   return (
     <AnimatePresence mode="sync">
-      {completedToolHistory && (
-        <AnimatedBlockWrapper key={`completed-tool-history-${message.id}`} enableAnimation={false}>
-          <CompletedToolHistoryGroup
-            entries={completedToolHistory.collapsedEntries}
+      {toolHistoryGroup && (
+        <AnimatedBlockWrapper key={`tool-history-${message.id}`} enableAnimation={false}>
+          <ToolHistoryGroup
+            entries={toolHistoryGroup.collapsedEntries}
             message={message}
-            toolCount={completedToolHistory.toolCount}
-            messageCount={completedToolHistory.messageCount}
+            toolCount={toolHistoryGroup.toolCount}
+            hasResult={toolHistoryGroup.hasResult}
+            isProcessing={isProcessing}
           />
         </AnimatedBlockWrapper>
       )}
@@ -665,7 +733,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       })}
       {isProcessing && (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock isProcessing={true} />
+          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
         </AnimatedBlockWrapper>
       )}
     </AnimatePresence>

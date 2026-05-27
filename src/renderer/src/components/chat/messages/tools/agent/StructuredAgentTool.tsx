@@ -28,7 +28,13 @@ function StructuredAgentTool({ toolName, input }: StructuredAgentToolProps): Too
   return {
     key: toolName,
     label: (
-      <ToolHeader toolName={toolName} params={getPrimaryParam(input)} variant="collapse-label" showStatus={false} />
+      <ToolHeader
+        toolName={toolName}
+        args={input}
+        params={getPrimaryParam(input)}
+        variant="collapse-label"
+        showStatus={false}
+      />
     )
   }
 }

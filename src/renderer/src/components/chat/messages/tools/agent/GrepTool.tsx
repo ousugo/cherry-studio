@@ -20,12 +20,7 @@ export function GrepTool({ input, output }: { input?: GrepToolInput; output?: Gr
     label: (
       <ToolHeader
         toolName={AgentToolsType.Grep}
-        params={
-          <>
-            {input?.pattern}
-            {input?.output_mode && <span className="ml-1">({input.output_mode})</span>}
-          </>
-        }
+        args={input}
         stats={output ? t('message.tools.units.line', { count: resultLines }) : undefined}
         variant="collapse-label"
         showStatus={false}

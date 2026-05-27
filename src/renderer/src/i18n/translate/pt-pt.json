@@ -341,6 +341,9 @@
         "failed": "Falha ao listar agentes."
       }
     },
+    "pin": {
+      "title": "[to be translated]:Pin Agent"
+    },
     "preview_pane": {
       "close": "[to be translated]:Close preview",
       "code": "[to be translated]:Code",
@@ -453,12 +456,14 @@
       "get": {
         "error": {
           "failed": "Falha ao obter a sessão",
+          "not_found": "[to be translated]:Session not found",
           "null_id": "O ID da sessão é nulo"
         }
       },
       "group": {
         "collapse": "[to be translated]:Collapse sessions",
         "conversation": "[to be translated]:Chats",
+        "drag_hint": "[to be translated]:Drag to reorder. Drag sessions to adjust display and hidden groups.",
         "earlier": "[to be translated]:Earlier",
         "no_workdir": "[to be translated]:No workspace",
         "show_more": "[to be translated]:Show more sessions",
@@ -506,6 +511,7 @@
         "create_failed": "[to be translated]:Failed to add project.",
         "create_new": "[to be translated]:Add new project",
         "empty_text": "[to be translated]:No projects",
+        "no_project": "[to be translated]:No project",
         "placeholder": "[to be translated]:Select workspace",
         "search_placeholder": "[to be translated]:Search projects",
         "select_failed": "[to be translated]:Failed to select folder."
@@ -883,6 +889,9 @@
     "type": {
       "label": "Tipo de Agente",
       "unknown": "Tipo Desconhecido"
+    },
+    "unpin": {
+      "title": "[to be translated]:Unpin Agent"
     },
     "update": {
       "error": {
@@ -1939,6 +1948,7 @@
     "on": "Ligado",
     "open": "Abrir",
     "open_in": "Abrir em {{name}}",
+    "open_in_new_tab": "[to be translated]:Open in new tab",
     "paste": "Colar",
     "placeholders": {
       "select": {
@@ -2184,6 +2194,85 @@
     "text": "Texto",
     "title": "Arquivo",
     "type": "Tipo"
+  },
+  "globalSearch": {
+    "clear": "[to be translated]:Clear search",
+    "error": "[to be translated]:Search failed",
+    "filters": {
+      "agent": "[to be translated]:Agent",
+      "all": "[to be translated]:All",
+      "assistant": "[to be translated]:Assistant",
+      "conversation": "[to be translated]:Work",
+      "knowledge": "[to be translated]:Knowledge",
+      "label": "[to be translated]:Search type",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "groups": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "conversation": "[to be translated]:Work",
+      "knowledge-base": "[to be translated]:Knowledge",
+      "message": "[to be translated]:Messages",
+      "recent": "[to be translated]:Recent",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "keyboard": {
+      "select": "[to be translated]:Select"
+    },
+    "messageSearch": {
+      "entry": "[to be translated]:Messages",
+      "hint": "[to be translated]:Type to search message content",
+      "jumpToMessage": "[to be translated]:Jump to message",
+      "more": "[to be translated]:Show {{count}} more results",
+      "open": "[to be translated]:Search messages",
+      "roles": {
+        "assistant": "[to be translated]:Assistant",
+        "system": "[to be translated]:System",
+        "tool": "[to be translated]:Tool",
+        "user": "[to be translated]:User"
+      },
+      "sourceLabel": "[to be translated]:Message source",
+      "sources": {
+        "all": "[to be translated]:All messages",
+        "session": "[to be translated]:Work messages",
+        "topic": "[to be translated]:Topic messages"
+      },
+      "viewMore": "[to be translated]:View more in Messages"
+    },
+    "no_recent": "[to be translated]:No recent routes",
+    "open": "[to be translated]:Open global search",
+    "open_failed": "[to be translated]:Failed to open search result",
+    "placeholder": "[to be translated]:Search topics, work, assistants, agents, and knowledge...",
+    "quickApps": {
+      "hide": "[to be translated]:Hide {{name}}",
+      "manage": "[to be translated]:Manage",
+      "manager_description": "[to be translated]:Drag to reorder, click the eye to hide or show",
+      "manager_title": "[to be translated]:Manage quick apps",
+      "reset": "[to be translated]:Reset",
+      "save_failed": "[to be translated]:Failed to save quick apps",
+      "show": "[to be translated]:Show {{name}}",
+      "title": "[to be translated]:Quick apps"
+    },
+    "recent_hint": "[to be translated]:Type to search work, assistants, agents, and knowledge",
+    "resultTypes": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "knowledge-base": "[to be translated]:Knowledge",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "showMore": "[to be translated]:Show {{count}} more",
+    "timeFilters": {
+      "any": "[to be translated]:Any time",
+      "label": "[to be translated]:Updated time",
+      "messageLabel": "[to be translated]:Created time",
+      "month": "[to be translated]:Last month",
+      "quarter": "[to be translated]:Last 3 months",
+      "today": "[to be translated]:Today",
+      "week": "[to be translated]:Last 7 days"
+    }
   },
   "gpustack": {
     "keep_alive_time": {
@@ -3272,13 +3361,82 @@
     "tools": {
       "abort_failed": "Falha ao interromper a chamada da ferramenta",
       "aborted": "Chamada da ferramenta foi interrompida",
+      "activity": {
+        "archive": "[to be translated]:archive",
+        "assistantTask": "[to be translated]:task",
+        "availableFeatures": "[to be translated]:available features",
+        "availableResources": "[to be translated]:available resources",
+        "branch": "[to be translated]:code branch",
+        "build": "[to be translated]:Build",
+        "building": "[to be translated]:Building",
+        "check": "[to be translated]:Check",
+        "checking": "[to be translated]:Checking",
+        "codeFiles": "[to be translated]:code files",
+        "codeHostInfo": "[to be translated]:code hosting information",
+        "commandName": "[to be translated]:{{name}} command",
+        "configFiles": "[to be translated]:project docs and config files",
+        "copy": "[to be translated]:Copy",
+        "copying": "[to be translated]:Copying",
+        "create": "[to be translated]:Create",
+        "creating": "[to be translated]:Creating",
+        "currentFolder": "[to be translated]:current folder",
+        "delete": "[to be translated]:Delete",
+        "deleting": "[to be translated]:Deleting",
+        "documentFiles": "[to be translated]:document files",
+        "download": "[to be translated]:Download",
+        "downloading": "[to be translated]:Downloading",
+        "executeCommand": "[to be translated]:Run command",
+        "executingCommand": "[to be translated]:Running command",
+        "extract": "[to be translated]:Extract",
+        "extracting": "[to be translated]:Extracting",
+        "file": "[to be translated]:file",
+        "fileList": "[to be translated]:file list",
+        "folder": "[to be translated]:folder",
+        "handle": "[to be translated]:Handle",
+        "handling": "[to be translated]:Handling",
+        "imageFiles": "[to be translated]:image files",
+        "install": "[to be translated]:Install",
+        "installing": "[to be translated]:Installing",
+        "matchingFiles": "[to be translated]:matching files",
+        "modify": "[to be translated]:Modify",
+        "modifying": "[to be translated]:Modifying",
+        "move": "[to be translated]:Move",
+        "moving": "[to be translated]:Moving",
+        "open": "[to be translated]:Open",
+        "opening": "[to be translated]:Opening",
+        "plan": "[to be translated]:execution plan",
+        "projectChanges": "[to be translated]:project changes",
+        "projectChecks": "[to be translated]:project checks",
+        "projectDependencies": "[to be translated]:project dependencies",
+        "projectFiles": "[to be translated]:project files",
+        "projectRootFiles": "[to be translated]:project root files",
+        "projectTask": "[to be translated]:project task",
+        "relatedContent": "[to be translated]:related content",
+        "repository": "[to be translated]:code repository",
+        "search": "[to be translated]:Find",
+        "searching": "[to be translated]:Finding",
+        "switch": "[to be translated]:Switch",
+        "switching": "[to be translated]:Switching",
+        "sync": "[to be translated]:Sync",
+        "syncing": "[to be translated]:Syncing",
+        "taskList": "[to be translated]:task list",
+        "translationFiles": "[to be translated]:translation files",
+        "upload": "[to be translated]:Upload",
+        "uploading": "[to be translated]:Uploading",
+        "view": "[to be translated]:View",
+        "viewing": "[to be translated]:Viewing",
+        "webPage": "[to be translated]:web page",
+        "webSearch": "[to be translated]:web content",
+        "workspace": "[to be translated]:workspace",
+        "write": "[to be translated]:Save",
+        "writing": "[to be translated]:Saving"
+      },
       "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
       "completed": "Completo",
       "error": "Ocorreu um erro",
       "groupHeader": "{{count}} chamadas de ferramenta",
-      "groupHeaderWithMessages": "{{toolCount}} chamadas de ferramenta, {{messageCount}} mensagens",
       "invoking": "Em execução",
       "labels": {
         "bash": "Bash",
@@ -3301,6 +3459,18 @@
       },
       "noData": "Nenhum dado disponível para esta ferramenta",
       "pending": "Pendente",
+      "placeholder": {
+        "elapsed": {
+          "days": "[to be translated]:{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
+          "hours": "[to be translated]:{{hours}}h {{minutes}}m {{seconds}}s",
+          "minutes": "[to be translated]:{{minutes}}m {{seconds}}s",
+          "seconds": "[to be translated]:{{seconds}}s"
+        },
+        "generating": "[to be translated]:Writing response",
+        "preparing": "[to be translated]:Preparing response",
+        "thinking": "[to be translated]:Thinking",
+        "usingTools": "[to be translated]:Working on the task"
+      },
       "preview": "Pré-visualização",
       "raw": "Bruto",
       "runningCount": "{{count}} ferramentas em execução",
@@ -3325,6 +3495,7 @@
         "success": "Sucesso"
       },
       "streaming": "Transmissão",
+      "thinkingHeader": "[to be translated]:Thinking",
       "truncated": "Saída truncada (original: {{size}})",
       "units": {
         "done_one": "{{count}} Concluído",
@@ -3555,6 +3726,12 @@
     "search": {
       "placeholder": "Procurar modelo...",
       "tooltip": "Procurar modelo"
+    },
+    "selection": {
+      "context_window": "[to be translated]:Context {{count}}",
+      "remove_model": "[to be translated]:Remove {{name}}",
+      "restore_default": "[to be translated]:Restore assistant model",
+      "selected_models": "[to be translated]:Selected models"
     },
     "stream_output": "Saída em fluxo",
     "type": {

@@ -30,6 +30,7 @@ export function EditTool({ input, output }: { input?: EditToolInput; output?: Ed
     label: (
       <ToolHeader
         toolName={AgentToolsType.Edit}
+        args={input}
         params={input?.file_path ? <ClickableFilePath path={input.file_path} displayName={filename} /> : undefined}
         variant="collapse-label"
         showStatus={false}

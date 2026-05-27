@@ -18,7 +18,7 @@ const useGenerateImageToolController = (context) => {
       {
         id: 'generate-image',
         kind: 'command',
-        sources: ['popover', 'root-panel'],
+        sources: ['popover'],
         order: 20,
         label: t('chat.input.generate_image'),
         description: '',

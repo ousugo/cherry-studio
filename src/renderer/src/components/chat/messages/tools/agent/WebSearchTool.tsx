@@ -22,7 +22,7 @@ export function WebSearchTool({
     label: (
       <ToolHeader
         toolName={AgentToolsType.WebSearch}
-        params={input?.query}
+        args={input}
         stats={output ? t('message.tools.units.result', { count: resultCount }) : undefined}
         variant="collapse-label"
         showStatus={false}
