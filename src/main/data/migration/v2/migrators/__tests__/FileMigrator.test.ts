@@ -510,10 +510,7 @@ describe('FileMigrator validate physical file sampling', () => {
 
     expect(result.success).toBe(true)
     expect(result.errors).toEqual([])
-    expect(loggerWarnMock).toHaveBeenCalledWith(
-      'Physical file missing for migrated entry',
-      expect.objectContaining({ entryId: row.id })
-    )
+    expect(loggerWarnMock).toHaveBeenCalledWith(expect.stringContaining(`Physical file missing for entry id=${row.id}`))
   })
 
   it('validate succeeds when all sampled physical files exist', async () => {
