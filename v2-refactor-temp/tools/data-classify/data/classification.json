@@ -1638,7 +1638,7 @@
         {
           "originalKey": "narrowMode",
           "type": "boolean",
-          "defaultValue": false,
+          "defaultValue": true,
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.narrow_mode"
