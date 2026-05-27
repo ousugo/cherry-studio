@@ -1,7 +1,5 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { ActionIconButton } from '@renderer/components/Buttons'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
 import PromptEditDialog from '@renderer/components/PromptEditDialog'
 import {
@@ -15,22 +13,21 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt } from '@shared/data/types/prompt'
 import { Plus, Zap } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
   launcher: ToolLauncherApi
-  setInputValue: React.Dispatch<React.SetStateAction<string>>
-  resizeTextArea: () => void
+  setInputValue: Dispatch<SetStateAction<string>>
 }
 
 const logger = loggerService.withContext('QuickPhrasesButton')
 
-const useQuickPhrasesToolController = ({ launcher, setInputValue, resizeTextArea }: Props) => {
+const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const { t } = useTranslation()
   const {
-    close: closeQuickPanel,
     isVisible: isQuickPanelVisible,
     open: openQuickPanelContext,
     symbol: quickPanelSymbol,
@@ -62,21 +59,12 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue, resizeTextArea
       setTimeoutTimer(
         'handlePhraseSelect_1',
         () => {
-          setInputValue((prev) => {
-            setTimeoutTimer(
-              'handlePhraseSelect_2',
-              () => {
-                resizeTextArea()
-              },
-              10
-            )
-            return `${prev}${text}`
-          })
+          setInputValue((prev) => `${prev}${text}`)
         },
         10
       )
     },
-    [setTimeoutTimer, setInputValue, resizeTextArea]
+    [setTimeoutTimer, setInputValue]
   )
 
   const handleItemSelect = useCallback(
@@ -171,14 +159,6 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue, resizeTextArea
     [openQuickPanelContext]
   )
 
-  const handleOpenQuickPanel = useCallback(() => {
-    if (isQuickPanelVisible && quickPanelSymbol === QuickPanelReservedSymbol.QuickPhrases) {
-      closeQuickPanel()
-    } else {
-      openQuickPanel()
-    }
-  }, [closeQuickPanel, isQuickPanelVisible, openQuickPanel, quickPanelSymbol])
-
   useEffect(() => {
     const disposeLauncher = launcher.registerLaunchers([
       {
@@ -189,13 +169,8 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue, resizeTextArea
         label: t('settings.prompts.title'),
         description: '',
         icon: <Zap />,
-        action: ({ parentPanel, queryAnchor, quickPanel: context }) => {
-          context.close('select')
-          setTimeoutTimer(
-            'openQuickPhrasesRootMenu',
-            () => openQuickPanel(parentPanel, queryAnchor, context.triggerInfo),
-            0
-          )
+        action: ({ parentPanel, queryAnchor, triggerInfo }) => {
+          openQuickPanel(parentPanel, queryAnchor, triggerInfo)
         }
       }
     ])
@@ -203,15 +178,13 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue, resizeTextArea
     return () => {
       disposeLauncher()
     }
-  }, [launcher, openQuickPanel, setTimeoutTimer, t])
+  }, [launcher, openQuickPanel, t])
 
   return {
     handleAddModalSave,
-    handleOpenQuickPanel,
     isAddModalOpen,
     isCreatingPrompt,
-    setIsAddModalOpen,
-    t
+    setIsAddModalOpen
   }
 }
 
@@ -236,24 +209,3 @@ export const QuickPhrasesToolRuntime = (props: Props) => {
   const controller = useQuickPhrasesToolController(props)
   return <QuickPhrasesModal {...controller} />
 }
-
-const QuickPhrasesButton = (props: Props) => {
-  const controller = useQuickPhrasesToolController(props)
-  const { handleOpenQuickPanel, t } = controller
-
-  return (
-    <>
-      <Tooltip content={t('settings.prompts.title')}>
-        <ActionIconButton
-          onClick={handleOpenQuickPanel}
-          aria-label={t('settings.prompts.title')}
-          icon={<Zap size={18} />}
-        />
-      </Tooltip>
-
-      <QuickPhrasesModal {...controller} />
-    </>
-  )
-}
-
-export default memo(QuickPhrasesButton)

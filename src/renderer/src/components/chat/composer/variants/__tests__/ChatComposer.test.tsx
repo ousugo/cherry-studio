@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   completeDraft: vi.fn(),
   failDraft: vi.fn(),
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
+  derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn()
 }))
@@ -83,7 +84,6 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
     useEffect(() => {
       props.onActionsChange?.({
-        resizeTextArea: vi.fn(),
         onTextChange: (updater) => {
           const nextText = typeof updater === 'function' ? updater(props.text) : updater
           props.onTextChange(nextText)
@@ -98,15 +98,6 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
       <div>
         <div data-testid="composer-left-controls">{props.renderLeftControls?.(undefined)}</div>
         <div data-testid="composer-below-controls">{props.renderBelowControls?.(undefined)}</div>
-        {props.tokens.map((token) => (
-          <button
-            key={token.id}
-            type="button"
-            data-testid={`remove-token-${token.id}`}
-            onClick={() => props.onTokenRemoveRequest?.({ kind: token.kind, tokenId: token.id })}>
-            remove {token.label}
-          </button>
-        ))}
       </div>
     )
   }
@@ -129,6 +120,18 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
     }
     return <>{children}</>
   },
+  ComposerToolDerivedStateProvider: ({
+    children,
+    couldAddImageFile,
+    extensions
+  }: {
+    children: ReactNode
+    couldAddImageFile: boolean
+    extensions: string[]
+  }) => {
+    mocks.derivedToolState = { couldAddImageFile, extensions }
+    return <>{children}</>
+  },
   ComposerToolRuntimeHost: () => null,
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
@@ -145,7 +148,6 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
     setMentionedModels: mocks.setMentionedModels,
     setSelectedKnowledgeBases: mocks.setSelectedKnowledgeBases,
     setIsExpanded: mocks.setIsExpanded,
-    resizeTextArea: vi.fn(),
     addNewTopic: vi.fn(),
     onTextChange: vi.fn(),
     toolsRegistry: {
@@ -155,10 +157,6 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
       getLaunchers: vi.fn(() => []),
       version: 0
     }
-  }),
-  useComposerToolInternalDispatch: () => ({
-    setCouldAddImageFile: vi.fn(),
-    setExtensions: vi.fn()
   }),
   useComposerToolLauncherController: () => ({
     getLaunchers: vi.fn(() => []),
@@ -457,6 +455,7 @@ describe('ChatComposer', () => {
     mocks.failDraft.mockReset()
     mocks.failDraft.mockResolvedValue(undefined)
     mocks.surfaceProps = undefined
+    mocks.derivedToolState = undefined
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
@@ -510,6 +509,15 @@ describe('ChatComposer', () => {
 
     expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
     expect(screen.getByText('Model A | Provider')).not.toHaveClass('sr-only')
+  })
+
+  it('passes attachment capabilities through the provider without effect mirroring', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.derivedToolState).toEqual({
+      couldAddImageFile: false,
+      extensions: mocks.surfaceProps?.supportedExts
+    })
   })
 
   it('appends quoted selected text from the main-window quote IPC', async () => {

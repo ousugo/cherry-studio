@@ -1,721 +1,255 @@
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
 import type { Assistant, ThinkingOption } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ThinkingButton from '../ThinkingButton'
+import { ThinkingToolRuntime } from '../ThinkingButton'
 
-// Core Hook mocks
-const mockUseTranslation = vi.fn()
-const mockUseQuickPanel = vi.fn()
-const mockUseAssistant = vi.fn()
-
-// Utility function mocks
-const mockGetThinkModelType = vi.fn()
-const mockIsFixedReasoningModel = vi.fn()
-const mockIsGPT5SeriesReasoningModel = vi.fn()
-const mockIsOpenAIWebSearchModel = vi.fn()
-const mockIsDoubaoThinkingAutoModel = vi.fn()
-const mockIsReasoningModel = vi.fn()
-
-// Global toast mock
-const mockToastWarning = vi.fn()
-
-// Mock react-i18next
-vi.mock('react-i18next', () => ({
-  useTranslation: () => mockUseTranslation()
+const mocks = vi.hoisted(() => ({
+  getThinkModelType: vi.fn(),
+  isDoubaoThinkingAutoModel: vi.fn(),
+  isFixedReasoningModel: vi.fn(),
+  isGPT5SeriesReasoningModel: vi.fn(),
+  isOpenAIWebSearchModel: vi.fn(),
+  isReasoningModel: vi.fn(),
+  toastWarning: vi.fn(),
+  useAssistant: vi.fn()
 }))
 
-// Mock QuickPanel
-vi.mock('@renderer/components/QuickPanel', () => ({
-  useQuickPanel: () => mockUseQuickPanel(),
-  QuickPanelReservedSymbol: {
-    Thinking: 'thinking'
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => {
+      const translations: Record<string, string> = {
+        'assistants.settings.reasoning_effort.auto': 'Auto',
+        'assistants.settings.reasoning_effort.high': 'High',
+        'assistants.settings.reasoning_effort.label': 'Reasoning Effort',
+        'assistants.settings.reasoning_effort.low': 'Low',
+        'assistants.settings.reasoning_effort.medium': 'Medium',
+        'assistants.settings.reasoning_effort.minimal': 'Minimal',
+        'assistants.settings.reasoning_effort.off': 'Off',
+        'assistants.settings.reasoning_effort.xhigh': 'Extra High',
+        'chat.input.thinking.fixed_model': 'Fixed reasoning model',
+        'chat.input.thinking.unsupported_model': 'Unsupported reasoning model',
+        'chat.web_search.warning.openai': 'Cannot use minimal reasoning with web search'
+      }
+
+      return translations[key] ?? key
+    }
+  })
+}))
+
+vi.mock('@renderer/hooks/useAssistant', () => ({
+  useAssistant: (...args: unknown[]) => mocks.useAssistant(...args)
+}))
+
+vi.mock('@renderer/data/CacheService', () => ({
+  cacheService: {
+    set: vi.fn()
   }
 }))
 
-// Mock useAssistant
-vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => mockUseAssistant()
-}))
-
-// Mock reasoning.ts utility functions
 vi.mock('@renderer/config/models', () => ({
-  getThinkModelType: (...args: any[]) => mockGetThinkModelType(...args),
-  isFixedReasoningModel: (...args: any[]) => mockIsFixedReasoningModel(...args),
-  isGPT5SeriesReasoningModel: (...args: any[]) => mockIsGPT5SeriesReasoningModel(...args),
-  isOpenAIWebSearchModel: (...args: any[]) => mockIsOpenAIWebSearchModel(...args),
-  isReasoningModel: (...args: any[]) => mockIsReasoningModel(...args),
-  isDoubaoThinkingAutoModel: (...args: any[]) => mockIsDoubaoThinkingAutoModel(...args),
+  getThinkModelType: (...args: unknown[]) => mocks.getThinkModelType(...args),
+  isDoubaoThinkingAutoModel: (...args: unknown[]) => mocks.isDoubaoThinkingAutoModel(...args),
+  isFixedReasoningModel: (...args: unknown[]) => mocks.isFixedReasoningModel(...args),
+  isGPT5SeriesReasoningModel: (...args: unknown[]) => mocks.isGPT5SeriesReasoningModel(...args),
+  isOpenAIWebSearchModel: (...args: unknown[]) => mocks.isOpenAIWebSearchModel(...args),
+  isReasoningModel: (...args: unknown[]) => mocks.isReasoningModel(...args),
   MODEL_SUPPORTED_OPTIONS: {
     default: ['default', 'none', 'low', 'medium', 'high'],
-    o: ['default', 'low', 'medium', 'high'],
-    gpt5: ['default', 'minimal', 'low', 'medium', 'high'],
-    gpt5pro: ['default', 'high'],
-    gpt5_2: ['default', 'none', 'low', 'medium', 'high', 'xhigh'],
-    gemini2_flash: ['default', 'none', 'low', 'medium', 'high', 'auto'],
-    gemini3_flash: ['default', 'minimal', 'low', 'medium', 'high'],
     doubao: ['default', 'none', 'auto', 'high'],
-    doubao_no_auto: ['default', 'none', 'high'],
-    doubao_after_251015: ['default', 'minimal', 'low', 'medium', 'high']
+    gpt5: ['default', 'minimal', 'low', 'medium', 'high'],
+    gpt5pro: ['default', 'high']
   }
 }))
 
-// Mock icon components
 vi.mock('@renderer/components/Icons/SvgIcon', () => ({
-  MdiLightbulbAutoOutline: ({ className }: any) => (
-    <div data-testid="mdi-lightbulb-auto-outline" className={className}>
-      AutoOutline
-    </div>
-  ),
-  MdiLightbulbOn30: ({ className }: any) => (
-    <div data-testid="mdi-lightbulb-on30" className={className}>
-      On30
-    </div>
-  ),
-  MdiLightbulbOn50: ({ className }: any) => (
-    <div data-testid="mdi-lightbulb-on50" className={className}>
-      On50
-    </div>
-  ),
-  MdiLightbulbOn80: ({ className }: any) => (
-    <div data-testid="mdi-lightbulb-on80" className={className}>
-      On80
-    </div>
-  ),
-  MdiLightbulbOn90: ({ className }: any) => (
-    <div data-testid="mdi-lightbulb-on90" className={className}>
-      On90
-    </div>
-  ),
-  MdiLightbulbOn: ({ className }: any) => (
-    <div data-testid="mdi-lightbulb-on" className={className}>
-      On
-    </div>
-  ),
-  MdiLightbulbOffOutline: ({ className }: any) => (
-    <div data-testid="mdi-lightbulb-off-outline" className={className}>
-      OffOutline
-    </div>
-  ),
-  MdiLightbulbQuestion: ({ className }: any) => (
-    <div data-testid="mdi-lightbulb-question" className={className}>
-      Question
-    </div>
-  )
+  MdiLightbulbAutoOutline: () => <span data-testid="thinking-auto-icon" />,
+  MdiLightbulbOffOutline: () => <span data-testid="thinking-off-icon" />,
+  MdiLightbulbOn: () => <span data-testid="thinking-on-icon" />,
+  MdiLightbulbOn30: () => <span data-testid="thinking-minimal-icon" />,
+  MdiLightbulbOn50: () => <span data-testid="thinking-low-icon" />,
+  MdiLightbulbOn80: () => <span data-testid="thinking-medium-icon" />,
+  MdiLightbulbOn90: () => <span data-testid="thinking-high-icon" />,
+  MdiLightbulbQuestion: () => <span data-testid="thinking-question-icon" />
 }))
 
-// Mock ActionIconButton component
-vi.mock('@renderer/components/Buttons', () => ({
-  ActionIconButton: ({ onClick, active, 'aria-label': ariaLabel, 'aria-pressed': ariaPressed, style, icon }: any) => (
-    <button
-      type="button"
-      data-testid="action-icon-button"
-      onClick={onClick}
-      data-active={active}
-      aria-label={ariaLabel}
-      aria-pressed={ariaPressed}
-      style={style}>
-      {icon}
-    </button>
-  )
-}))
+const DEFAULT_TEST_SETTINGS = {
+  customParameters: [],
+  enableMaxToolCalls: true,
+  enableMaxTokens: false,
+  enableTemperature: false,
+  enableTopP: false,
+  enableWebSearch: false,
+  maxTokens: 4096,
+  maxToolCalls: 20,
+  mcpMode: 'disabled' as const,
+  reasoning_effort: 'none' as ThinkingOption,
+  streamOutput: true,
+  temperature: 0.7,
+  toolUseMode: 'function' as const,
+  topP: 1
+}
 
-// Mock @cherrystudio/ui Tooltip
-vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ content, children, placement }: any) => (
-    <div data-testid="tooltip" data-title={content} data-placement={placement}>
-      {children}
-    </div>
-  )
-}))
-
-// Test data factory functions
-// ThinkingButton's config/models predicates are fully mocked here, so the
-// model is an opaque prop — a structural v2 stub is sufficient.
 const createModel = (overrides: Record<string, unknown> = {}): Model =>
   ({
-    id: 'openai::gpt-5',
-    providerId: 'openai',
-    name: 'GPT-5',
-    group: 'openai',
     capabilities: [],
+    group: 'openai',
+    id: 'openai::gpt-5',
+    name: 'GPT-5',
+    providerId: 'openai',
     ...overrides
   }) as unknown as Model
 
-const DEFAULT_TEST_SETTINGS = {
-  temperature: 0.7,
-  enableTemperature: false,
-  topP: 1,
-  enableTopP: false,
-  maxTokens: 4096,
-  enableMaxTokens: false,
-  streamOutput: true,
-  reasoning_effort: 'none',
-  mcpMode: 'disabled' as const,
-  toolUseMode: 'function' as const,
-  maxToolCalls: 20,
-  enableMaxToolCalls: true,
-  enableWebSearch: false,
-  customParameters: []
-}
-
-type AssistantTestOverrides = Omit<Partial<Assistant>, 'settings'> & {
-  settings?: Partial<Assistant['settings']>
-}
-
-const createAssistant = (overrides: AssistantTestOverrides = {}): Assistant => ({
-  id: 'assistant-1',
-  name: 'Test Assistant',
-  prompt: '',
-  emoji: '🌟',
+const createAssistant = (settings: Partial<Assistant['settings']> = {}): Assistant => ({
+  createdAt: new Date().toISOString(),
   description: '',
+  emoji: '',
+  id: 'assistant-1',
+  knowledgeBaseIds: [],
+  mcpServerIds: [],
   modelId: null,
   modelName: null,
+  name: 'Assistant',
   orderKey: 'a0',
-  mcpServerIds: [],
-  knowledgeBaseIds: [],
+  prompt: '',
+  settings: { ...DEFAULT_TEST_SETTINGS, ...settings },
   tags: [],
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  ...overrides,
-  // Deep-merge settings so test sites that supply only the key under test
-  // don't drop the rest of the v2 schema.
-  settings: { ...DEFAULT_TEST_SETTINGS, ...overrides.settings }
-})
-
-const createUseAssistantReturn = (overrides: any = {}) => ({
-  assistant: createAssistant(),
-  updateAssistantSettings: vi.fn(),
-  ...overrides
-})
-
-const createUseQuickPanelReturn = (overrides: any = {}) => ({
-  open: vi.fn(),
-  close: vi.fn(),
-  isVisible: false,
-  symbol: '',
-  ...overrides
-})
-
-const createUseTranslationReturn = (overrides: any = {}) => ({
-  t: (key: string, params?: any) => {
-    const translations: Record<string, string> = {
-      'assistants.settings.reasoning_effort.label': 'Reasoning Effort',
-      'assistants.settings.reasoning_effort.off': 'Off',
-      'assistants.settings.reasoning_effort.minimal': 'Minimal',
-      'assistants.settings.reasoning_effort.low': 'Low',
-      'assistants.settings.reasoning_effort.medium': 'Medium',
-      'assistants.settings.reasoning_effort.high': 'High',
-      'assistants.settings.reasoning_effort.xhigh': 'Extra High',
-      'assistants.settings.reasoning_effort.auto': 'Auto',
-      'assistants.settings.reasoning_effort.default': 'Default',
-      'assistants.settings.reasoning_effort.default_description': 'Default reasoning level',
-      'assistants.settings.reasoning_effort.off_description': 'Turn off reasoning',
-      'assistants.settings.reasoning_effort.minimal_description': 'Minimal reasoning',
-      'assistants.settings.reasoning_effort.low_description': 'Low reasoning',
-      'assistants.settings.reasoning_effort.medium_description': 'Medium reasoning',
-      'assistants.settings.reasoning_effort.high_description': 'High reasoning',
-      'assistants.settings.reasoning_effort.xhigh_description': 'Extra high reasoning',
-      'assistants.settings.reasoning_effort.auto_description': 'Auto select reasoning level',
-      'chat.input.thinking.label': 'Thinking',
-      'common.close': 'Close',
-      'chat.web_search.warning.openai': 'Cannot use minimal reasoning with web search'
-    }
-    const baseTranslation = translations[key] || key
-    if (params) {
-      return baseTranslation.replace(/\{(\w+)\}/g, (_match: string, paramName: string) => {
-        return params[paramName] !== undefined ? String(params[paramName]) : _match
-      })
-    }
-    return baseTranslation
-  },
-  i18n: { language: 'en' },
-  ...overrides
+  updatedAt: new Date().toISOString()
 })
 
 const createLauncherApi = (): ToolLauncherApi => ({
   registerLaunchers: vi.fn(() => vi.fn())
 })
 
-// Model presets for common test scenarios
-const modelPresets = {
-  gpt5: () => createModel({ id: 'gpt-5', name: 'GPT-5' }),
-  gpt5pro: () => createModel({ id: 'gpt-5-pro', name: 'GPT-5 Pro' }),
-  gemini2Flash: () => createModel({ id: 'gemini-2.5-flash-latest', name: 'Gemini 2.5 Flash' }),
-  gemini3Flash: () => createModel({ id: 'gemini-3-flash', name: 'Gemini 3 Flash' }),
-  doubaoAuto: () => createModel({ id: 'doubao-seed-1-6', name: 'Doubao Seed 1.6' }),
-  doubaoNoAuto: () => createModel({ id: 'doubao-seed-1-6-lite-251015', name: 'Doubao Seed 1.6 251015' }),
-  fixedReasoning: () => createModel({ id: 'claude-3.7-sonnet', name: 'Claude 3.7 Sonnet' })
-}
-
-// Render helper function
-const renderComponent = (
-  overrides: {
-    model?: Model
-    assistantId?: string
-    launcherApi?: ToolLauncherApi
-    useAssistantReturn?: ReturnType<typeof createUseAssistantReturn>
-    useQuickPanelReturn?: ReturnType<typeof createUseQuickPanelReturn>
-    useTranslationReturn?: ReturnType<typeof createUseTranslationReturn>
-    modelType?: string
+const renderRuntime = (
+  options: {
+    assistant?: Assistant
     isFixedReasoning?: boolean
-    isOpenAIWebSearchModel?: boolean
     isGPT5SeriesReasoningModel?: boolean
+    isOpenAIWebSearchModel?: boolean
     isReasoningModel?: boolean
-    reasoningEffort?: ThinkingOption
-    enableWebSearch?: boolean
-    isDoubaoThinkingAutoModel?: boolean
+    launcher?: ToolLauncherApi
+    model?: Model
+    modelType?: string
   } = {}
 ) => {
   const {
-    model = modelPresets.gpt5(),
-    assistantId = 'assistant-1',
-    launcherApi = createLauncherApi(),
-    useAssistantReturn = createUseAssistantReturn(),
-    useQuickPanelReturn = createUseQuickPanelReturn(),
-    useTranslationReturn = createUseTranslationReturn(),
-    modelType = 'gpt5',
+    assistant = createAssistant(),
     isFixedReasoning = false,
-    isOpenAIWebSearchModel = false,
     isGPT5SeriesReasoningModel = false,
+    isOpenAIWebSearchModel = false,
     isReasoningModel = true,
-    reasoningEffort = 'none',
-    enableWebSearch = false,
-    isDoubaoThinkingAutoModel = false
-  } = overrides
+    launcher = createLauncherApi(),
+    model = createModel(),
+    modelType = 'gpt5'
+  } = options
+  const updateAssistantSettings = vi.fn()
 
-  // Configure assistant with reasoning_effort (use provided value or from useAssistantReturn)
-  const assistantWithSettings = {
-    ...useAssistantReturn.assistant,
-    settings: {
-      ...useAssistantReturn.assistant.settings,
-      reasoning_effort: reasoningEffort ?? useAssistantReturn.assistant.settings?.reasoning_effort ?? 'none',
-      enableWebSearch
-    }
-  }
+  mocks.useAssistant.mockReturnValue({ assistant, updateAssistantSettings })
+  mocks.getThinkModelType.mockReturnValue(modelType)
+  mocks.isDoubaoThinkingAutoModel.mockReturnValue(false)
+  mocks.isFixedReasoningModel.mockReturnValue(isFixedReasoning)
+  mocks.isGPT5SeriesReasoningModel.mockReturnValue(isGPT5SeriesReasoningModel)
+  mocks.isOpenAIWebSearchModel.mockReturnValue(isOpenAIWebSearchModel)
+  mocks.isReasoningModel.mockReturnValue(isReasoningModel)
 
-  // Set up mock return values
-  mockUseAssistant.mockReturnValue({
-    ...useAssistantReturn,
-    assistant: assistantWithSettings
-  })
-  mockUseQuickPanel.mockReturnValue(useQuickPanelReturn)
-  mockUseTranslation.mockReturnValue(useTranslationReturn)
-  mockGetThinkModelType.mockReturnValue(modelType)
-  mockIsFixedReasoningModel.mockReturnValue(isFixedReasoning)
-  mockIsOpenAIWebSearchModel.mockReturnValue(isOpenAIWebSearchModel)
-  mockIsGPT5SeriesReasoningModel.mockReturnValue(isGPT5SeriesReasoningModel)
-  mockIsReasoningModel.mockReturnValue(isReasoningModel)
-  mockIsDoubaoThinkingAutoModel.mockReturnValue(isDoubaoThinkingAutoModel)
+  render(<ThinkingToolRuntime launcher={launcher} model={model} assistantId={assistant.id} />)
 
-  // Setup global toast mock
-  ;(global.window as any).toast = { warning: mockToastWarning }
-
-  return render(<ThinkingButton model={model} assistantId={assistantId} launcher={launcherApi} />)
+  return { launcher, updateAssistantSettings }
 }
 
-// Query helper functions
-const getActionIconButton = () => screen.getByTestId('action-icon-button')
-const getTooltip = () => screen.getByTestId('tooltip')
-const getIconByTestId = (testId: string) => screen.getByTestId(testId)
-
-describe('ThinkingButton', () => {
+describe('ThinkingToolRuntime', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockToastWarning.mockClear()
-
-    // Set default mock return values
-    mockUseTranslation.mockReturnValue(createUseTranslationReturn())
-    mockUseQuickPanel.mockReturnValue(createUseQuickPanelReturn())
-    mockUseAssistant.mockReturnValue(createUseAssistantReturn())
-    mockGetThinkModelType.mockReturnValue('gpt5')
-    mockIsFixedReasoningModel.mockReturnValue(false)
-    mockIsGPT5SeriesReasoningModel.mockReturnValue(false)
-    mockIsOpenAIWebSearchModel.mockReturnValue(false)
-    mockIsReasoningModel.mockReturnValue(true)
-    mockIsDoubaoThinkingAutoModel.mockReturnValue(false)
-
-    ;(global.window as any).toast = { warning: mockToastWarning }
+    ;(window as any).toast = { warning: mocks.toastWarning }
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  it('registers only the runtime launcher, with slash-panel submenu entries', async () => {
+    const { launcher } = renderRuntime({
+      assistant: createAssistant({ reasoning_effort: 'low' })
+    })
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [thinkingLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+
+    expect(thinkingLauncher).toMatchObject({
+      id: 'thinking',
+      kind: 'group',
+      sources: ['popover'],
+      suffix: 'Low'
+    })
+    expect(thinkingLauncher.submenu?.map((item) => item.id)).toEqual([
+      'thinking-minimal',
+      'thinking-low',
+      'thinking-medium',
+      'thinking-high'
+    ])
+    expect(thinkingLauncher.submenu?.every((item) => item.sources?.includes('root-panel'))).toBe(true)
+    expect(thinkingLauncher.submenu?.find((item) => item.id === 'thinking-low')).toMatchObject({ active: true })
+  })
+
+  it('cycles GPT-5 from off to the first supported reasoning level', async () => {
+    const { launcher, updateAssistantSettings } = renderRuntime({
+      assistant: createAssistant({ reasoning_effort: 'none' })
+    })
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [thinkingLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    thinkingLauncher.action?.({
+      quickPanel: {} as any,
+      source: 'popover'
+    })
+
+    expect(updateAssistantSettings).toHaveBeenCalledWith({
+      reasoning_effort: 'minimal'
+    })
+  })
+
+  it('blocks unsupported and fixed reasoning models in launcher state', async () => {
+    const unsupported = renderRuntime({ isReasoningModel: false })
+    await waitFor(() => expect(unsupported.launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [unsupportedLauncher] = vi.mocked(unsupported.launcher.registerLaunchers).mock.calls[0][0]
+    expect(unsupportedLauncher).toMatchObject({
+      disabled: true,
+      disabledReason: 'Unsupported reasoning model'
+    })
+
     vi.clearAllMocks()
-  })
 
-  describe('basic rendering', () => {
-    it('should render component correctly', () => {
-      renderComponent()
-      expect(getActionIconButton()).toBeInTheDocument()
-      expect(getTooltip()).toBeInTheDocument()
-    })
+    const fixed = renderRuntime({ isFixedReasoning: true })
+    await waitFor(() => expect(fixed.launcher.registerLaunchers).toHaveBeenCalled())
 
-    it('should display correct icon for reasoning level', () => {
-      const testCases: Array<{ option: ThinkingOption; expectedTestId: string }> = [
-        { option: 'minimal', expectedTestId: 'mdi-lightbulb-on30' },
-        { option: 'low', expectedTestId: 'mdi-lightbulb-on50' },
-        { option: 'medium', expectedTestId: 'mdi-lightbulb-on80' },
-        { option: 'high', expectedTestId: 'mdi-lightbulb-on90' },
-        { option: 'xhigh', expectedTestId: 'mdi-lightbulb-on' },
-        { option: 'auto', expectedTestId: 'mdi-lightbulb-auto-outline' },
-        { option: 'none', expectedTestId: 'mdi-lightbulb-off-outline' },
-        { option: 'default', expectedTestId: 'mdi-lightbulb-question' }
-      ]
-
-      testCases.forEach(({ option, expectedTestId }) => {
-        const { unmount } = renderComponent({
-          modelType: 'gpt5_2',
-          reasoningEffort: option
-        })
-        expect(getIconByTestId(expectedTestId)).toBeInTheDocument()
-        unmount()
-      })
+    const [fixedLauncher] = vi.mocked(fixed.launcher.registerLaunchers).mock.calls[0][0]
+    expect(fixedLauncher).toMatchObject({
+      active: false,
+      disabled: true,
+      disabledReason: 'Fixed reasoning model'
     })
   })
 
-  describe('cycle behavior', () => {
-    it('cycles GPT-5 from off to the first supported reasoning level', () => {
-      const mockUpdateSettings = vi.fn()
-      const useAssistantReturn = createUseAssistantReturn({
-        updateAssistantSettings: mockUpdateSettings
-      })
-
-      renderComponent({
-        modelType: 'gpt5',
-        model: modelPresets.gpt5(),
-        reasoningEffort: 'none',
-        useAssistantReturn
-      })
-
-      fireEvent.click(getActionIconButton())
-      expect(mockUpdateSettings).toHaveBeenCalledWith({
-        reasoning_effort: 'minimal'
-      })
+  it('keeps OpenAI web search from selecting minimal reasoning', async () => {
+    const { launcher, updateAssistantSettings } = renderRuntime({
+      assistant: createAssistant({ enableWebSearch: true, reasoning_effort: 'none' }),
+      isGPT5SeriesReasoningModel: true,
+      isOpenAIWebSearchModel: true
     })
 
-    it('turns GPT-5 Pro on when currently off', () => {
-      const mockUpdateSettings = vi.fn()
-      const useAssistantReturn = createUseAssistantReturn({
-        updateAssistantSettings: mockUpdateSettings
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [thinkingLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    thinkingLauncher.submenu
+      ?.find((item) => item.id === 'thinking-minimal')
+      ?.action?.({
+        quickPanel: {} as any,
+        source: 'root-panel'
       })
 
-      renderComponent({
-        modelType: 'gpt5pro',
-        model: modelPresets.gpt5pro(),
-        reasoningEffort: 'none',
-        useAssistantReturn
-      })
-
-      fireEvent.click(getActionIconButton())
-      expect(mockUpdateSettings).toHaveBeenCalledWith({
-        reasoning_effort: 'high'
-      })
-    })
-
-    it('does nothing when GPT-5 Pro is already on its only supported level', () => {
-      const mockUpdateSettings = vi.fn()
-      const useAssistantReturn = createUseAssistantReturn({
-        updateAssistantSettings: mockUpdateSettings
-      })
-
-      renderComponent({
-        modelType: 'gpt5pro',
-        model: modelPresets.gpt5pro(),
-        reasoningEffort: 'high',
-        useAssistantReturn
-      })
-
-      fireEvent.click(getActionIconButton())
-      expect(mockUpdateSettings).not.toHaveBeenCalled()
-    })
-
-    it('cycles Doubao with auto and high back to off', () => {
-      const mockUpdateSettings = vi.fn()
-      const useAssistantReturn = createUseAssistantReturn({
-        updateAssistantSettings: mockUpdateSettings,
-        assistant: createAssistant({ settings: { reasoning_effort: 'high' } })
-      })
-
-      renderComponent({
-        modelType: 'doubao',
-        model: modelPresets.doubaoAuto(),
-        reasoningEffort: 'high',
-        useAssistantReturn,
-        isDoubaoThinkingAutoModel: true
-      })
-
-      fireEvent.click(getActionIconButton())
-      expect(mockUpdateSettings).toHaveBeenCalledWith({
-        reasoning_effort: 'none'
-      })
-    })
-
-    it('cycles Doubao after 251015 to the first supported level', () => {
-      const mockUpdateSettings = vi.fn()
-      const useAssistantReturn = createUseAssistantReturn({
-        updateAssistantSettings: mockUpdateSettings
-      })
-
-      renderComponent({
-        modelType: 'doubao_after_251015',
-        model: modelPresets.doubaoNoAuto(),
-        reasoningEffort: 'high',
-        useAssistantReturn,
-        isDoubaoThinkingAutoModel: false
-      })
-
-      fireEvent.click(getActionIconButton())
-      expect(mockUpdateSettings).toHaveBeenCalledWith({
-        reasoning_effort: 'minimal'
-      })
-    })
-
-    describe('fixed reasoning models', () => {
-      it('should not respond to clicks', () => {
-        const mockUpdateSettings = vi.fn()
-        const useAssistantReturn = createUseAssistantReturn({
-          updateAssistantSettings: mockUpdateSettings
-        })
-
-        renderComponent({
-          isFixedReasoning: true,
-          model: modelPresets.fixedReasoning(),
-          useAssistantReturn
-        })
-
-        fireEvent.click(getActionIconButton())
-        expect(mockUpdateSettings).not.toHaveBeenCalled()
-      })
-    })
-  })
-
-  describe('aria-labels consistency', () => {
-    it('should show "Thinking" for fixed reasoning models', () => {
-      renderComponent({
-        isFixedReasoning: true,
-        model: modelPresets.fixedReasoning()
-      })
-
-      expect(getActionIconButton()).toHaveAttribute('aria-label', 'Thinking')
-    })
-
-    it('should always show "Reasoning Effort" for multi-level models', () => {
-      // Thinking enabled
-      const { unmount: unmount1 } = renderComponent({
-        modelType: 'gpt5',
-        reasoningEffort: 'high'
-      })
-      expect(getActionIconButton()).toHaveAttribute('aria-label', 'Reasoning Effort')
-      unmount1()
-
-      // Thinking disabled
-      const { unmount: unmount2 } = renderComponent({
-        modelType: 'gpt5',
-        reasoningEffort: 'none'
-      })
-      expect(getActionIconButton()).toHaveAttribute('aria-label', 'Reasoning Effort')
-      unmount2()
-    })
-
-    it('should show "Reasoning Effort" for single-level models when thinking enabled', () => {
-      renderComponent({
-        modelType: 'gpt5pro',
-        reasoningEffort: 'high'
-      })
-
-      expect(getActionIconButton()).toHaveAttribute('aria-label', 'Reasoning Effort')
-    })
-
-    it('should show "Reasoning Effort" for single-level models when thinking disabled', () => {
-      renderComponent({
-        modelType: 'gpt5pro',
-        reasoningEffort: 'none'
-      })
-
-      expect(getActionIconButton()).toHaveAttribute('aria-label', 'Reasoning Effort')
-    })
-  })
-
-  describe('icon rendering', () => {
-    it('should show auto outline icon for fixed reasoning models', () => {
-      renderComponent({
-        isFixedReasoning: true,
-        model: modelPresets.fixedReasoning()
-      })
-
-      expect(getIconByTestId('mdi-lightbulb-auto-outline')).toBeInTheDocument()
-    })
-
-    it('should show correct icons for different reasoning levels', () => {
-      const testCases: Array<{ option: ThinkingOption; expectedTestId: string }> = [
-        { option: 'minimal', expectedTestId: 'mdi-lightbulb-on30' },
-        { option: 'low', expectedTestId: 'mdi-lightbulb-on50' },
-        { option: 'medium', expectedTestId: 'mdi-lightbulb-on80' },
-        { option: 'high', expectedTestId: 'mdi-lightbulb-on90' },
-        { option: 'xhigh', expectedTestId: 'mdi-lightbulb-on' },
-        { option: 'auto', expectedTestId: 'mdi-lightbulb-auto-outline' },
-        { option: 'none', expectedTestId: 'mdi-lightbulb-off-outline' },
-        { option: 'default', expectedTestId: 'mdi-lightbulb-question' }
-      ]
-
-      testCases.forEach(({ option, expectedTestId }) => {
-        const { unmount } = renderComponent({
-          modelType: 'gpt5_2',
-          reasoningEffort: option
-        })
-        expect(getIconByTestId(expectedTestId)).toBeInTheDocument()
-        unmount()
-      })
-    })
-  })
-
-  describe('fixed reasoning model special behavior', () => {
-    it('should show active state when reasoning enabled', () => {
-      renderComponent({
-        isFixedReasoning: true,
-        model: modelPresets.fixedReasoning(),
-        reasoningEffort: 'high'
-      })
-
-      expect(getActionIconButton()).toHaveAttribute('aria-pressed', 'true')
-    })
-
-    it('should show inactive aria-pressed when reasoning disabled', () => {
-      renderComponent({
-        isFixedReasoning: true,
-        model: modelPresets.fixedReasoning(),
-        reasoningEffort: 'none'
-      })
-
-      // aria-pressed reflects actual reasoning state, not fixed reasoning flag
-      expect(getActionIconButton()).toHaveAttribute('aria-pressed', 'false')
-    })
-
-    it('should show disabled pointer cursor style', () => {
-      renderComponent({
-        isFixedReasoning: true,
-        model: modelPresets.fixedReasoning()
-      })
-
-      expect(getActionIconButton()).toHaveStyle({ cursor: 'default' })
-    })
-  })
-
-  describe('web search warning', () => {
-    it('should show warning when using minimal reasoning with web search', () => {
-      const useAssistantReturn = createUseAssistantReturn({
-        assistant: createAssistant({
-          settings: {
-            reasoning_effort: 'none',
-            temperature: 0.7,
-            streamOutput: true,
-            toolUseMode: 'function' as const,
-            enableWebSearch: true
-          }
-        })
-      })
-
-      renderComponent({
-        isOpenAIWebSearchModel: true,
-        isGPT5SeriesReasoningModel: true,
-        modelType: 'gpt5',
-        useAssistantReturn
-      })
-
-      // Simulate selecting minimal reasoning
-      expect(mockToastWarning).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('edge cases', () => {
-    it('should handle undefined reasoning level by falling back to none', () => {
-      const assistantReturn = createUseAssistantReturn({
-        assistant: createAssistant({ settings: { reasoning_effort: 'default' } })
-      })
-
-      renderComponent({
-        useAssistantReturn: assistantReturn
-      })
-
-      // When reasoning_effort is undefined, component uses 'none' as default
-      // Should show off-outline icon (for 'none' state)
-      expect(getIconByTestId('mdi-lightbulb-off-outline')).toBeInTheDocument()
-    })
-
-    it('should handle unsupported model types', () => {
-      renderComponent({
-        modelType: 'default',
-        reasoningEffort: 'none'
-      })
-
-      expect(getActionIconButton()).toBeInTheDocument()
-    })
-
-    it('registers unsupported reasoning models as disabled launchers', () => {
-      const launcherApi = createLauncherApi()
-
-      renderComponent({
-        launcherApi,
-        isReasoningModel: false,
-        reasoningEffort: 'none'
-      })
-
-      expect(launcherApi.registerLaunchers).toHaveBeenCalledWith([
-        expect.objectContaining({
-          id: 'thinking',
-          disabled: true,
-          disabledReason: 'chat.input.thinking.unsupported_model'
-        })
-      ])
-    })
-
-    it('registers configurable reasoning levels as submenu entries for the slash panel', () => {
-      const launcherApi = createLauncherApi()
-
-      renderComponent({
-        launcherApi,
-        modelType: 'gpt5',
-        reasoningEffort: 'low'
-      })
-
-      const [launcher] = vi.mocked(launcherApi.registerLaunchers).mock.calls[0][0]
-
-      expect(launcher).toMatchObject({
-        id: 'thinking',
-        kind: 'group',
-        sources: ['popover'],
-        suffix: 'Low'
-      })
-      expect(launcher.submenu?.map((item) => item.id)).toEqual([
-        'thinking-minimal',
-        'thinking-low',
-        'thinking-medium',
-        'thinking-high'
-      ])
-      expect(launcher.submenu?.every((item) => item.sources?.includes('root-panel'))).toBe(true)
-      expect(launcher.submenu?.find((item) => item.id === 'thinking-low')).toMatchObject({ active: true })
-    })
-
-    it('does not mark fixed reasoning models as active composer launchers', () => {
-      const launcherApi = createLauncherApi()
-
-      renderComponent({
-        launcherApi,
-        isFixedReasoning: true,
-        model: modelPresets.fixedReasoning(),
-        reasoningEffort: 'none'
-      })
-
-      const [launcher] = vi.mocked(launcherApi.registerLaunchers).mock.calls[0][0]
-
-      expect(launcher).toMatchObject({
-        id: 'thinking',
-        active: false,
-        disabled: true,
-        disabledReason: 'chat.input.thinking.fixed_model'
-      })
-    })
+    expect(mocks.toastWarning).toHaveBeenCalledWith('Cannot use minimal reasoning with web search')
+    expect(updateAssistantSettings).not.toHaveBeenCalled()
   })
 })

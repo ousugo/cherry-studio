@@ -8,20 +8,14 @@ const quickPhrasesTool = defineTool({
   visibleInScopes: [TopicType.Chat, TopicType.Session, 'quick-assistant'],
 
   dependencies: {
-    actions: ['onTextChange', 'resizeTextArea'] as const
+    actions: ['onTextChange'] as const
   },
 
   composer: {
     runtime: ({ context }) => {
       const { actions, launcher } = context
 
-      return (
-        <QuickPhrasesToolRuntime
-          launcher={launcher}
-          setInputValue={actions.onTextChange}
-          resizeTextArea={actions.resizeTextArea}
-        />
-      )
+      return <QuickPhrasesToolRuntime launcher={launcher} setInputValue={actions.onTextChange} />
     }
   }
 })

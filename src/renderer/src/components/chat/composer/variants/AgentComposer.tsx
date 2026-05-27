@@ -6,11 +6,11 @@ import ComposerMessageQueuePanel from '@renderer/components/chat/composer/Compos
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
   ComposerActiveToolControls,
+  ComposerToolDerivedStateProvider,
   ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
   useComposerToolDispatch,
-  useComposerToolInternalDispatch,
   useComposerToolLauncherActions,
   useComposerToolState
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
@@ -179,7 +179,6 @@ type ProviderActionHandlers = ComposerSurfaceActions & {
 }
 
 const emptyActions: ProviderActionHandlers = {
-  resizeTextArea: () => undefined,
   addNewTopic: () => undefined,
   onTextChange: () => undefined,
   toggleExpanded: () => undefined,
@@ -237,7 +236,6 @@ const AgentComposerRoot = ({
     <ComposerToolRuntimeProvider
       initialState={initialState}
       actions={{
-        resizeTextArea: () => actionsRef.current.resizeTextArea(),
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         addNewTopic: () => {
           void onNewSessionDraft?.()
@@ -539,7 +537,6 @@ const AgentComposerInner = ({
   const config = getComposerToolConfig(scope)
   const { files, isExpanded } = useComposerToolState()
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
-  const { setCouldAddImageFile, setExtensions } = useComposerToolInternalDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
@@ -580,14 +577,6 @@ const AgentComposerInner = ({
     if (canAddTextFile) return [...documentExts, ...textExts]
     return []
   }, [canAddImageFile, canAddTextFile])
-
-  useEffect(() => {
-    setCouldAddImageFile(canAddImageFile)
-  }, [canAddImageFile, setCouldAddImageFile])
-
-  useEffect(() => {
-    setExtensions(supportedExts)
-  }, [setExtensions, supportedExts])
 
   const setText = useCallback(
     (nextText: string) => {
@@ -984,7 +973,7 @@ const AgentComposerInner = ({
   })
 
   return (
-    <>
+    <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
       {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
       <ComposerSurface
         text={text}
@@ -1029,7 +1018,7 @@ const AgentComposerInner = ({
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}
       />
-    </>
+    </ComposerToolDerivedStateProvider>
   )
 }
 

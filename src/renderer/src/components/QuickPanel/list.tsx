@@ -5,15 +5,19 @@ import { Check, ChevronRight } from 'lucide-react'
 import type { ReactNode, Ref } from 'react'
 import { useEffect, useRef } from 'react'
 
-export interface QuickPanelCandidateItem {
-  id: string
+export interface QuickPanelRowData {
+  id?: string
   label: ReactNode | string
   description?: ReactNode | string
   icon?: ReactNode | string
   suffix?: ReactNode | string
-  selected?: boolean
   disabled?: boolean
   isMenu?: boolean
+}
+
+export interface QuickPanelCandidateItem extends QuickPanelRowData {
+  id: string
+  selected?: boolean
 }
 
 interface QuickPanelFrameProps {
@@ -36,6 +40,18 @@ interface QuickPanelFooterProps {
   confirmLabel?: ReactNode
   className?: string
   containerRef?: Ref<HTMLDivElement>
+}
+
+interface QuickPanelRowProps<T extends QuickPanelRowData> {
+  active: boolean
+  className?: string
+  contentClassName?: string
+  dataId?: string
+  item: T
+  onSelect: () => void
+  reserveIconSlot?: boolean
+  rowRef?: Ref<HTMLDivElement>
+  selected?: boolean
 }
 
 export function firstQuickPanelSelectableIndex(items: readonly QuickPanelCandidateItem[]) {
@@ -127,6 +143,64 @@ export function QuickPanelFooter({
   )
 }
 
+export function QuickPanelRow<T extends QuickPanelRowData>({
+  active,
+  className,
+  contentClassName = 'max-w-[68%]',
+  dataId,
+  item,
+  onSelect,
+  reserveIconSlot = false,
+  rowRef,
+  selected = false
+}: QuickPanelRowProps<T>) {
+  return (
+    <div
+      ref={rowRef}
+      className={cn(
+        'mx-[5px] mb-px flex h-[30px] items-center justify-between gap-5 rounded-md p-[5px] transition-colors duration-100',
+        item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer hover:bg-accent',
+        selected && 'bg-muted',
+        selected && active && 'bg-accent',
+        selected && !item.disabled && 'hover:bg-accent',
+        !selected && active && 'bg-accent',
+        className
+      )}
+      data-active={active}
+      data-id={dataId}
+      data-selected={selected ? '' : undefined}
+      onClick={(event) => {
+        event.stopPropagation()
+        onSelect()
+      }}>
+      <div className={cn('flex flex-1 shrink-0 items-center gap-[5px]', contentClassName)}>
+        {reserveIconSlot || item.icon ? (
+          <span className="flex items-center justify-center text-[13px] text-muted-foreground [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
+            {item.icon}
+          </span>
+        ) : null}
+        <span className="flex-1 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-4">
+          {item.label}
+        </span>
+      </div>
+      <div className="flex min-w-[20%] items-center justify-end gap-0.5 text-[11px] text-muted-foreground">
+        {item.description ? (
+          <span className="overflow-hidden text-ellipsis whitespace-nowrap">{item.description}</span>
+        ) : null}
+        <span className="flex min-w-3 shrink-0 items-center justify-end gap-[3px] [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
+          {item.suffix ? (
+            item.suffix
+          ) : selected ? (
+            <Check />
+          ) : item.isMenu && !item.disabled ? (
+            <ChevronRight size={14} />
+          ) : null}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export function QuickPanelList<T extends QuickPanelCandidateItem>({
   activeIndex,
   emptyLabel,
@@ -145,54 +219,21 @@ export function QuickPanelList<T extends QuickPanelCandidateItem>({
     <div className="max-h-72 overflow-y-auto">
       {items.length > 0 ? (
         items.map((item, itemIndex) => (
-          <div
+          <QuickPanelRow
             key={item.id}
-            ref={(node) => {
+            active={itemIndex === activeIndex}
+            dataId={item.id}
+            item={item}
+            rowRef={(node) => {
               if (node) {
                 itemRefs.current.set(item.id, node)
               } else {
                 itemRefs.current.delete(item.id)
               }
             }}
-            className={cn(
-              'mx-[5px] mb-px flex h-[30px] items-center justify-between gap-5 rounded-md p-[5px] transition-colors duration-100',
-              item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer hover:bg-accent',
-              item.selected && 'bg-muted',
-              item.selected && itemIndex === activeIndex && 'bg-accent',
-              item.selected && !item.disabled && 'hover:bg-accent',
-              !item.selected && itemIndex === activeIndex && 'bg-accent'
-            )}
-            data-active={itemIndex === activeIndex}
-            data-selected={item.selected ? '' : undefined}
-            onClick={(event) => {
-              event.stopPropagation()
-              onSelect(item, itemIndex)
-            }}>
-            <div className="flex max-w-[68%] flex-1 shrink-0 items-center gap-[5px]">
-              {item.icon ? (
-                <span className="flex items-center justify-center text-[13px] text-muted-foreground [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
-                  {item.icon}
-                </span>
-              ) : null}
-              <span className="flex-1 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-4">
-                {item.label}
-              </span>
-            </div>
-            <div className="flex min-w-[20%] items-center justify-end gap-0.5 text-[11px] text-muted-foreground">
-              {item.description ? (
-                <span className="overflow-hidden text-ellipsis whitespace-nowrap">{item.description}</span>
-              ) : null}
-              <span className="flex min-w-3 shrink-0 items-center justify-end gap-[3px] [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
-                {item.suffix ? (
-                  item.suffix
-                ) : item.selected ? (
-                  <Check />
-                ) : item.isMenu && !item.disabled ? (
-                  <ChevronRight size={14} />
-                ) : null}
-              </span>
-            </div>
-          </div>
+            selected={item.selected}
+            onSelect={() => onSelect(item, itemIndex)}
+          />
         ))
       ) : (
         <div className="p-4 text-center text-[13px] text-muted-foreground">{emptyLabel}</div>

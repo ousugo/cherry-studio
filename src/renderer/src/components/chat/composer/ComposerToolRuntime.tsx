@@ -13,9 +13,9 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
+  ComposerToolDerivedStateProvider,
   ComposerToolProvider,
   useComposerToolProviderDispatch,
-  useComposerToolProviderInternalDispatch,
   useComposerToolProviderLaunchers,
   useComposerToolProviderState
 } from '@renderer/components/chat/composer/tools/ComposerToolProvider'
@@ -43,7 +43,6 @@ import { useTranslation } from 'react-i18next'
 import type { ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
 
 interface ComposerToolRuntimeActions {
-  resizeTextArea: () => void
   addNewTopic: () => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
 }
@@ -88,15 +87,8 @@ const ComposerToolRuntimeSlot = ({ tool, context }: { tool: AnyToolDefinition; c
 export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
   const toolState = useComposerToolProviderState()
-  const {
-    addNewTopic,
-    onTextChange,
-    resizeTextArea,
-    setFiles,
-    setMentionedModels,
-    setSelectedKnowledgeBases,
-    toolsRegistry
-  } = useComposerToolProviderDispatch()
+  const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
+    useComposerToolProviderDispatch()
   const quickPanelContext = useQuickPanel()
   const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
   const { provider } = useProvider(model.providerId)
@@ -105,12 +97,11 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
     () => ({
       addNewTopic,
       onTextChange,
-      resizeTextArea,
       setFiles,
       setMentionedModels,
       setSelectedKnowledgeBases
     }),
-    [addNewTopic, onTextChange, resizeTextArea, setFiles, setMentionedModels, setSelectedKnowledgeBases]
+    [addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases]
   )
 
   const availableTools = useMemo(() => {
@@ -209,15 +200,7 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
 
 export const useComposerToolState = useComposerToolProviderState
 export const useComposerToolDispatch = useComposerToolProviderDispatch
-
-interface ComposerToolInternalDispatch {
-  setCouldAddImageFile: React.Dispatch<React.SetStateAction<boolean>>
-  setExtensions: React.Dispatch<React.SetStateAction<string[]>>
-}
-
-export const useComposerToolInternalDispatch = (): ComposerToolInternalDispatch => {
-  return useComposerToolProviderInternalDispatch()
-}
+export { ComposerToolDerivedStateProvider }
 
 const getSortedLaunchers = (
   triggers: ReturnType<typeof useComposerToolProviderLaunchers>,
@@ -239,6 +222,9 @@ const getSortedLaunchers = (
     (left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER)
   )
 }
+
+const launcherSupportsSource = (launcher: ComposerToolLauncher, source: ComposerToolLauncherActionOptions['source']) =>
+  !launcher.sources || launcher.sources.includes(source)
 
 type ComposerToolMenuEntry = {
   launcher: ComposerToolLauncher
@@ -364,7 +350,9 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
           const tooltipContent = launcher.disabled
             ? (launcher.disabledReason ?? launcher.tooltip ?? launcher.description)
             : launcher.tooltip
-          const submenuItems = (launcher.submenu ?? []).filter((item) => !item.hidden)
+          const submenuItems = (launcher.submenu ?? []).filter(
+            (item) => !item.hidden && launcherSupportsSource(item, source)
+          )
           const hasSubmenu = !launcher.disabled && submenuItems.length > 0
           const itemClassName = cn(
             !launcher.disabled && launcher.active && 'bg-accent text-accent-foreground',

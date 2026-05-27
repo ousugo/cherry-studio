@@ -44,15 +44,9 @@ import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedTok
 import type { ComposerToolLauncher } from './toolLauncher'
 
 export interface ComposerSurfaceActions {
-  resizeTextArea: () => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
-}
-
-export interface ComposerTokenRemoveRequest {
-  kind: ComposerDraftToken['kind']
-  tokenId: string
 }
 
 export interface ComposerSurfaceProps {
@@ -81,7 +75,6 @@ export interface ComposerSurfaceProps {
   narrowMode: boolean
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
-  onTokenRemoveRequest?: (request: ComposerTokenRemoveRequest) => void
   getToolLaunchers?: () => ComposerToolLauncher[]
   suggestionSources?: readonly ComposerSuggestionSource[]
   queueContent?: React.ReactNode
@@ -467,7 +460,6 @@ export default function ComposerSurface({
   const sendDisabledRef = useRef(sendDisabled)
   const sendBlockedReasonRef = useRef(sendBlockedReason)
   const onSendDraftRef = useRef(onSendDraft)
-  const previousTextRef = useRef(text)
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
   const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
   const promptVariableSkipTextInputRef = useRef<{ tokenId: string; text: string } | null>(null)
@@ -475,7 +467,6 @@ export default function ComposerSurface({
 
   useEffect(() => {
     textRef.current = text
-    previousTextRef.current = text
   }, [text])
 
   useEffect(() => {
@@ -498,7 +489,6 @@ export default function ComposerSurface({
 
   const applyComposerText = useCallback(
     (nextText: string) => {
-      previousTextRef.current = nextText
       textRef.current = nextText
       onTextChange(nextText)
       editorRef.current?.commands.setContent(createPromptVariableContent(nextText), { emitUpdate: false })
@@ -572,7 +562,6 @@ export default function ComposerSurface({
 
   useEffect(() => {
     onActionsChange?.({
-      resizeTextArea: () => undefined,
       onTextChange: handleTextChangeFromTool,
       toggleExpanded: handleToggleExpanded,
       removeToken
@@ -613,6 +602,14 @@ export default function ComposerSurface({
       },
       onKeyDown: ({ event }) => {
         return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
+      },
+      onExit: () => {
+        window.setTimeout(() => {
+          const { quickPanel } = rootSuggestionStateRef.current
+          if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.Root) {
+            quickPanel.close()
+          }
+        }, 0)
       }
     }),
     [t]
@@ -792,7 +789,6 @@ export default function ComposerSurface({
 
       const draft = serializeComposerDocument(updatedEditor)
       const nextText = draft.text
-      previousTextRef.current = nextText
       textRef.current = nextText
       onTextChange(nextText)
       inputListenersRef.current.forEach((listener) => listener({ isComposing: updatedEditor.view.composing }))

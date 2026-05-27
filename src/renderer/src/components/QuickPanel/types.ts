@@ -101,6 +101,8 @@ export type QuickPanelOpenOptions = {
 }
 
 export type QuickPanelListItem = {
+  /** Stable identity for selection updates and DOM keys. */
+  id?: string
   label: React.ReactNode | string
   description?: React.ReactNode | string
   /**

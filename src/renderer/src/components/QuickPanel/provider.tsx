@@ -37,6 +37,29 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const clearTimer = useRef<NodeJS.Timeout | null>(null)
   const keyDownHandlerRef = useRef<QuickPanelKeyDownHandler | undefined>(undefined)
   const panelGenerationRef = useRef(0)
+  const generatedItemIdsRef = useRef(new WeakMap<QuickPanelListItem, string>())
+  const generatedItemIdCounterRef = useRef(0)
+
+  const ensureListItemIds = useCallback((items: QuickPanelListItem[]) => {
+    const usedIds = new Set<string>()
+
+    return items.map((item, index) => {
+      if (item.id && !usedIds.has(item.id)) {
+        usedIds.add(item.id)
+        return item
+      }
+
+      let id = generatedItemIdsRef.current.get(item)
+      if (!id || usedIds.has(id)) {
+        id = `quick-panel-item-${panelGenerationRef.current}-${index}-${generatedItemIdCounterRef.current}`
+        generatedItemIdCounterRef.current += 1
+        generatedItemIdsRef.current.set(item, id)
+      }
+
+      usedIds.add(id)
+      return { ...item, id }
+    })
+  }, [])
 
   // 添加更新item选中状态的方法
   const updateItemSelection = useCallback((targetItem: QuickPanelListItem, isSelected: boolean) => {
@@ -47,50 +70,51 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         return prevList.map((item, idx) => (idx === refIndex ? { ...item, isSelected } : item))
       }
 
-      // 如果引用匹配失败，使用内容匹配（兜底方案）
-      // 通过 label 和 filterText 来识别同一个item
-      return prevList.map((item) => {
-        const isSameItem =
-          (item.label === targetItem.label || item.filterText === targetItem.filterText) &&
-          (!targetItem.filterText || item.filterText === targetItem.filterText)
-        return isSameItem ? { ...item, isSelected } : item
-      })
+      if (!targetItem.id) return prevList
+
+      return prevList.map((item) => (item.id === targetItem.id ? { ...item, isSelected } : item))
     })
   }, [])
 
   // 添加更新整个列表的方法
-  const updateList = useCallback((newList: QuickPanelListItem[]) => {
-    setList(newList)
-  }, [])
+  const updateList = useCallback(
+    (newList: QuickPanelListItem[]) => {
+      setList(ensureListItemIds(newList))
+    },
+    [ensureListItemIds]
+  )
 
-  const open = useCallback((options: QuickPanelOpenOptions) => {
-    if (clearTimer.current) {
-      clearTimeout(clearTimer.current)
-      clearTimer.current = null
-    }
+  const open = useCallback(
+    (options: QuickPanelOpenOptions) => {
+      if (clearTimer.current) {
+        clearTimeout(clearTimer.current)
+        clearTimer.current = null
+      }
 
-    panelGenerationRef.current += 1
-    setLastCloseAction(undefined)
-    setTitle(options.title)
-    setList(options.list)
-    const nextDefaultIndex = typeof options.defaultIndex === 'number' ? Math.max(-1, options.defaultIndex) : -1
-    setDefaultIndex(nextDefaultIndex)
-    setPageSize(options.pageSize ?? 7)
-    setMultiple(options.multiple ?? false)
-    setManageListExternally(options.manageListExternally ?? false)
-    setSymbol(options.symbol)
-    setTriggerInfo(options.triggerInfo)
-    setQueryAnchor(options.queryAnchor ?? options.triggerInfo?.position)
-    setParentPanel(options.parentPanel)
+      panelGenerationRef.current += 1
+      setLastCloseAction(undefined)
+      setTitle(options.title)
+      setList(ensureListItemIds(options.list))
+      const nextDefaultIndex = typeof options.defaultIndex === 'number' ? Math.max(-1, options.defaultIndex) : -1
+      setDefaultIndex(nextDefaultIndex)
+      setPageSize(options.pageSize ?? 7)
+      setMultiple(options.multiple ?? false)
+      setManageListExternally(options.manageListExternally ?? false)
+      setSymbol(options.symbol)
+      setTriggerInfo(options.triggerInfo)
+      setQueryAnchor(options.queryAnchor ?? options.triggerInfo?.position)
+      setParentPanel(options.parentPanel)
 
-    setOnClose(() => options.onClose)
-    setBeforeAction(() => options.beforeAction)
-    setAfterAction(() => options.afterAction)
-    setFilterFn(() => options.filterFn)
-    setSortFn(() => options.sortFn)
+      setOnClose(() => options.onClose)
+      setBeforeAction(() => options.beforeAction)
+      setAfterAction(() => options.afterAction)
+      setFilterFn(() => options.filterFn)
+      setSortFn(() => options.sortFn)
 
-    setIsVisible(true)
-  }, [])
+      setIsVisible(true)
+    },
+    [ensureListItemIds]
+  )
 
   const close = useCallback(
     (action?: QuickPanelCloseAction, searchText?: string) => {

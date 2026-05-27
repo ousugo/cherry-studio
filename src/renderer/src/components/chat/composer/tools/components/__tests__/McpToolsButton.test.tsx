@@ -14,10 +14,6 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
-}))
-
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: (...args: unknown[]) => mocks.useAssistant(...args)
 }))
@@ -82,7 +78,7 @@ describe('McpToolsRuntime', () => {
         mcpServerIds: []
       },
       model: {
-        id: 'model-1',
+        id: 'provider-1::model-1',
         providerId: 'provider-1',
         name: 'Model'
       },
@@ -105,9 +101,7 @@ describe('McpToolsRuntime', () => {
   it('keeps MCP mode in the plus menu and MCP prompt/resource entries in the root panel', async () => {
     const launcher = createLauncherApi()
 
-    render(
-      <McpToolsRuntime assistantId="assistant-1" launcher={launcher} setInputValue={vi.fn()} resizeTextArea={vi.fn()} />
-    )
+    render(<McpToolsRuntime assistantId="assistant-1" launcher={launcher} setInputValue={vi.fn()} />)
 
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
 
@@ -124,6 +118,7 @@ describe('McpToolsRuntime', () => {
       'mcp-mode-manual'
     ])
     expect(modeLauncher?.submenu?.map((item) => item.order)).toEqual([90, 90.01, 90.02])
+    expect(modeLauncher?.submenu?.every((item) => item.sources?.includes('popover'))).toBe(true)
     expect(modeLauncher?.submenu?.every((item) => item.sources?.includes('root-panel'))).toBe(true)
     expect(promptLauncher?.sources).toEqual(['root-panel'])
     expect(promptLauncher?.order).toBe(91)
@@ -133,6 +128,7 @@ describe('McpToolsRuntime', () => {
 
   it('opens the manual server picker from the plus-menu manual mode item', async () => {
     const launcher = createLauncherApi()
+    const updateAssistant = vi.fn()
     const quickPanel = {
       close: vi.fn(),
       isVisible: false,
@@ -140,6 +136,19 @@ describe('McpToolsRuntime', () => {
       symbol: '',
       updateList: vi.fn()
     }
+    mocks.useAssistant.mockReturnValue({
+      assistant: {
+        id: 'assistant-1',
+        settings: { mcpMode: 'disabled' },
+        mcpServerIds: []
+      },
+      model: {
+        id: 'provider-1::model-1',
+        providerId: 'provider-1',
+        name: 'Model'
+      },
+      updateAssistant
+    })
     mocks.useQuickPanel.mockReturnValue(quickPanel)
     mocks.useMcpServers.mockReturnValue({
       mcpServers: [
@@ -158,9 +167,7 @@ describe('McpToolsRuntime', () => {
       ]
     })
 
-    render(
-      <McpToolsRuntime assistantId="assistant-1" launcher={launcher} setInputValue={vi.fn()} resizeTextArea={vi.fn()} />
-    )
+    render(<McpToolsRuntime assistantId="assistant-1" launcher={launcher} setInputValue={vi.fn()} />)
 
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
 
@@ -180,5 +187,50 @@ describe('McpToolsRuntime', () => {
         ])
       })
     )
+
+    updateAssistant.mockClear()
+    const panelOptions = quickPanel.open.mock.calls[0][0]
+    panelOptions.list[0].action({} as never)
+
+    expect(updateAssistant).toHaveBeenCalledWith({
+      mcpServerIds: ['server-a'],
+      settings: { mcpMode: 'manual' }
+    })
+  })
+
+  it('does not register or fetch root-panel prompt/resource launchers when MCP tool-use is unavailable', async () => {
+    const launcher = createLauncherApi()
+    mocks.useMcpServers.mockReturnValue({
+      mcpServers: [
+        {
+          id: 'server-a',
+          name: 'Filesystem',
+          isActive: true
+        }
+      ]
+    })
+
+    render(
+      <McpToolsRuntime
+        assistantId="assistant-1"
+        launcher={launcher}
+        setInputValue={vi.fn()}
+        disabled
+        disabledReason="Requires tool use"
+      />
+    )
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const launchers = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    expect(launchers.map((item) => item.id)).toEqual(['mcp-tools'])
+    expect(launchers[0]).toEqual(
+      expect.objectContaining({
+        disabled: true,
+        disabledReason: 'Requires tool use'
+      })
+    )
+    expect(window.api.mcp.listPrompts).not.toHaveBeenCalled()
+    expect(window.api.mcp.listResources).not.toHaveBeenCalled()
   })
 })

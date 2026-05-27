@@ -1,6 +1,10 @@
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
 import { defineTool, registerTool, TopicType } from '@renderer/components/chat/composer/tools/types'
-import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import {
+  type QuickPanelInputAdapter,
+  type QuickPanelListItem,
+  QuickPanelReservedSymbol
+} from '@renderer/components/QuickPanel'
 import { getBuiltinSlashCommands } from '@shared/ai/agentSlashCommands'
 import { Terminal } from 'lucide-react'
 
@@ -56,27 +60,56 @@ const slashCommandsTool = defineTool({
           return []
         }
 
+        const commandLaunchers: ComposerToolLauncher[] = slashCommands.map((cmd, index) => ({
+          id: `slash-command:${cmd.command}`,
+          kind: 'command' as const,
+          sources: ['root-panel'] as const,
+          order: 20 + (index + 1) / 100,
+          label: cmd.command,
+          description: cmd.description || '',
+          icon: <Terminal size={16} />,
+          action: ({ inputAdapter }) => {
+            insertSlashCommand(cmd.command, actions.onTextChange, inputAdapter)
+          }
+        }))
+
         const rootLaunchers: ComposerToolLauncher[] = [
           {
             id: 'slash-commands',
             kind: 'group' as const,
-            sources: ['root-panel'] as const,
+            sources: ['popover'] as const,
             order: 20,
             label: t('chat.input.slash_commands.title'),
             description: t('chat.input.slash_commands.description'),
             icon: <Terminal size={16} />,
-            submenu: slashCommands.map((cmd, index) => ({
-              id: `slash-command:${cmd.command}`,
-              kind: 'command' as const,
-              sources: ['root-panel'] as const,
-              order: 20 + (index + 1) / 100,
-              label: cmd.command,
-              description: cmd.description || '',
-              icon: <Terminal size={16} />,
-              action: ({ inputAdapter }) => {
-                insertSlashCommand(cmd.command, actions.onTextChange, inputAdapter)
-              }
-            }))
+            submenu: commandLaunchers,
+            action: ({ quickPanel, inputAdapter, parentPanel, queryAnchor, triggerInfo }) => {
+              const list: QuickPanelListItem[] = commandLaunchers.map((launcher) => ({
+                label: launcher.label,
+                description: launcher.description,
+                icon: launcher.icon,
+                action: (options) => {
+                  launcher.action?.({
+                    quickPanel: options.context,
+                    inputAdapter: options.inputAdapter ?? inputAdapter,
+                    parentPanel: options.parentPanel ?? parentPanel,
+                    queryAnchor: options.queryAnchor ?? queryAnchor,
+                    searchText: options.searchText,
+                    source: 'root-panel',
+                    triggerInfo: options.context.triggerInfo ?? triggerInfo
+                  })
+                }
+              }))
+
+              quickPanel.open({
+                title: t('chat.input.slash_commands.title'),
+                list,
+                symbol: QuickPanelReservedSymbol.SlashCommands,
+                parentPanel,
+                queryAnchor,
+                triggerInfo: triggerInfo ?? { type: 'button' }
+              })
+            }
           }
         ]
 

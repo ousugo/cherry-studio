@@ -2,20 +2,20 @@ import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/compon
 import { isMac } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
 import { t } from 'i18next'
-import { Check, ChevronRight } from 'lucide-react'
-import React, { use, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { defaultFilterFn, defaultSortFn } from './defaultStrategies'
-import { QuickPanelFooter } from './list'
+import { QuickPanelFooter, QuickPanelRow } from './list'
 import { QuickPanelContext } from './provider'
-import type {
-  QuickPanelCallBackOptions,
-  QuickPanelCloseAction,
-  QuickPanelInputAdapter,
-  QuickPanelKeyDownEvent,
-  QuickPanelListItem,
-  QuickPanelOpenOptions,
-  QuickPanelScrollTrigger
+import {
+  type QuickPanelCallBackOptions,
+  type QuickPanelCloseAction,
+  type QuickPanelInputAdapter,
+  type QuickPanelKeyDownEvent,
+  type QuickPanelListItem,
+  type QuickPanelOpenOptions,
+  QuickPanelReservedSymbol,
+  type QuickPanelScrollTrigger
 } from './types'
 
 const ITEM_HEIGHT = 31
@@ -50,17 +50,17 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const [isMouseOver, setIsMouseOver] = useState(false)
 
   const scrollTriggerRef = useRef<QuickPanelScrollTrigger>('initial')
-  const [_index, setIndex] = useState(-1)
-  const index = useDeferredValue(_index)
+  const [activeIndex, setActiveIndex] = useState(-1)
 
   const bodyRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<DynamicVirtualListRef>(null)
   const footerRef = useRef<HTMLDivElement>(null)
 
   const [inputSearchText, setInputSearchText] = useState('')
-  const searchText = useDeferredValue(inputSearchText)
   const queryAnchorRef = useRef<number | undefined>(undefined)
   const inputTriggerConsumedRef = useRef(false)
+  const isRootInputPanel = ctx.symbol === QuickPanelReservedSymbol.Root && ctx.triggerInfo?.type === 'input'
+  const activeSearchText = isRootInputPanel ? inputSearchText : ''
 
   // 缓存：按 item 缓存拼音文本，避免重复转换
   const pinyinCacheRef = useRef<WeakMap<QuickPanelListItem, string>>(new WeakMap())
@@ -76,37 +76,16 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const list = useMemo(() => {
     // Reset stale state when panel fully closes (both isVisible false AND symbol cleared)
     if (!ctx.isVisible && !ctx.symbol) {
-      prevSymbolRef.current = ''
-      prevSearchTextRef.current = ''
-      queryAnchorRef.current = undefined
-      inputTriggerConsumedRef.current = false
-      setIndex(-1)
       return []
     }
 
     const baseList = (ctx.list || []).filter((item) => !item.hidden)
 
-    if (ctx.manageListExternally) {
-      const combinedLength = baseList.length
-      const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
-      if (isSymbolChanged) {
-        setIndex(firstSelectableIndex(baseList))
-      } else {
-        setIndex((prevIndex) => {
-          if (prevIndex >= combinedLength) {
-            return combinedLength > 0 ? combinedLength - 1 : -1
-          }
-          return prevIndex
-        })
-      }
-
-      prevSearchTextRef.current = ''
-      prevSymbolRef.current = ctx.symbol
-
+    if (ctx.manageListExternally || !isRootInputPanel) {
       return baseList
     }
 
-    const _searchText = searchText.replace(/^[/@]/, '')
+    const _searchText = activeSearchText.replace(/^[/@]/, '')
     const lowerSearchText = _searchText.toLowerCase()
     const fuzzyPattern = lowerSearchText
       .split('')
@@ -126,37 +105,66 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     // Sort filtered items using injected sort function
     const sortedNormalItems = sortFn(filteredNormalItems, _searchText)
 
+    // 固定项置顶 + 排序后的普通项
+    return [...pinnedItems, ...sortedNormalItems]
+  }, [
+    ctx.isVisible,
+    ctx.symbol,
+    ctx.manageListExternally,
+    ctx.list,
+    isRootInputPanel,
+    activeSearchText,
+    filterFn,
+    sortFn
+  ])
+
+  useLayoutEffect(() => {
+    if (!ctx.isVisible && !ctx.symbol) {
+      prevSymbolRef.current = ''
+      prevSearchTextRef.current = ''
+      queryAnchorRef.current = undefined
+      inputTriggerConsumedRef.current = false
+      setActiveIndex(-1)
+      return
+    }
+
+    if (!ctx.isVisible) return
+
+    if (ctx.manageListExternally) {
+      const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
+      if (isSymbolChanged) {
+        setActiveIndex(firstSelectableIndex(list))
+      } else {
+        setActiveIndex((prevIndex) => (prevIndex >= list.length ? (list.length > 0 ? list.length - 1 : -1) : prevIndex))
+      }
+
+      prevSearchTextRef.current = ''
+      prevSymbolRef.current = ctx.symbol
+      return
+    }
+
     // 只有在搜索文本变化或面板符号变化时才重置index
-    const isSearchChanged = prevSearchTextRef.current !== searchText
+    const isSearchChanged = prevSearchTextRef.current !== activeSearchText
     const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
 
     if (isSearchChanged || isSymbolChanged) {
-      setIndex(firstSelectableIndex([...pinnedItems, ...sortedNormalItems]))
+      setActiveIndex(firstSelectableIndex(list))
     } else {
       // 如果当前index超出范围，调整到有效范围内
-      setIndex((prevIndex) => {
-        const combinedLength = pinnedItems.length + sortedNormalItems.length
-        if (prevIndex >= combinedLength) {
-          return combinedLength > 0 ? combinedLength - 1 : -1
-        }
-        return prevIndex
-      })
+      setActiveIndex((prevIndex) => (prevIndex >= list.length ? (list.length > 0 ? list.length - 1 : -1) : prevIndex))
     }
 
-    prevSearchTextRef.current = searchText
+    prevSearchTextRef.current = activeSearchText
     prevSymbolRef.current = ctx.symbol
-
-    // 固定项置顶 + 排序后的普通项
-    return [...pinnedItems, ...sortedNormalItems]
-  }, [ctx.isVisible, ctx.symbol, ctx.manageListExternally, ctx.list, searchText, filterFn, sortFn])
+  }, [ctx.isVisible, ctx.manageListExternally, ctx.symbol, activeSearchText, list])
 
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
-      const cleanSearchText = searchText.trim()
+      const cleanSearchText = activeSearchText.trim()
       ctx.close(action, cleanSearchText)
       scrollTriggerRef.current = 'initial'
     },
-    [ctx, searchText]
+    [ctx, activeSearchText]
   )
 
   const getCurrentPanelOptions = useCallback(
@@ -215,8 +223,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const handleItemAction = useCallback(
     (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
       if (item.disabled) return
-      const cleanSearchText = searchText.replace(/^[/@]/, '')
-      const parentPanel = getCurrentPanelOptions(index)
+      const cleanSearchText = activeSearchText.replace(/^[/@]/, '')
+      const parentPanel = getCurrentPanelOptions(activeIndex)
       const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
       const panelGenerationBeforeAction = ctx.getPanelGeneration()
 
@@ -280,9 +288,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     },
     [
       ctx,
-      searchText,
+      activeSearchText,
       getCurrentPanelOptions,
-      index,
+      activeIndex,
       consumeInputTriggerSymbol,
       consumeInputQuery,
       inputAdapter,
@@ -291,7 +299,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   )
 
   const updateSearchFromInput = useCallback(() => {
-    if (!isPanelVisible || !inputAdapter) return
+    if (!isPanelVisible || !inputAdapter || !isRootInputPanel) return
 
     const queryAnchor = queryAnchorRef.current
     if (queryAnchor === undefined) return
@@ -317,7 +325,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     setInputSearchText(text.slice(queryAnchor, cursorOffset))
-  }, [closePanel, ctx.triggerInfo?.originalText, ctx.triggerInfo?.type, inputAdapter, isPanelVisible])
+  }, [closePanel, ctx.triggerInfo?.originalText, ctx.triggerInfo?.type, inputAdapter, isPanelVisible, isRootInputPanel])
 
   useEffect(() => {
     if (!ctx.isVisible) return
@@ -346,6 +354,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     queryAnchorRef.current = queryAnchor
+    if (!isRootInputPanel) {
+      setInputSearchText('')
+      inputAdapter.focus()
+      return
+    }
+
     setInputSearchText(text.slice(queryAnchor, cursorOffset))
     inputAdapter.focus()
 
@@ -361,6 +375,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     ctx.triggerInfo?.position,
     ctx.triggerInfo?.type,
     inputAdapter,
+    isRootInputPanel,
     updateSearchFromInput
   ])
 
@@ -377,13 +392,13 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   }, [ctx.isVisible])
 
   useLayoutEffect(() => {
-    if (!listRef.current || index < 0 || scrollTriggerRef.current === 'none') return
+    if (!listRef.current || activeIndex < 0 || scrollTriggerRef.current === 'none') return
 
     const alignment = scrollTriggerRef.current === 'keyboard' ? 'auto' : 'center'
-    listRef.current?.scrollToIndex(index, { align: alignment })
+    listRef.current?.scrollToIndex(activeIndex, { align: alignment })
 
     scrollTriggerRef.current = 'none'
-  }, [index])
+  }, [activeIndex])
 
   const handlePanelKeyDown = useCallback(
     (e: QuickPanelKeyDownEvent) => {
@@ -408,14 +423,14 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         case 'ArrowUp':
           scrollTriggerRef.current = 'keyboard'
           if (assistivePressed) {
-            setIndex((prev) => {
+            setActiveIndex((prev) => {
               if (prev === -1) return list.length > 0 ? list.length - 1 : -1
               const newIndex = prev - ctx.pageSize
               if (prev === 0) return list.length - 1
               return newIndex < 0 ? 0 : newIndex
             })
           } else {
-            setIndex((prev) => {
+            setActiveIndex((prev) => {
               if (prev === -1) return list.length > 0 ? list.length - 1 : -1
               return prev > 0 ? prev - 1 : list.length - 1
             })
@@ -425,14 +440,14 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         case 'ArrowDown':
           scrollTriggerRef.current = 'keyboard'
           if (assistivePressed) {
-            setIndex((prev) => {
+            setActiveIndex((prev) => {
               if (prev === -1) return list.length > 0 ? 0 : -1
               const newIndex = prev + ctx.pageSize
               if (prev + 1 === list.length) return 0
               return newIndex >= list.length ? list.length - 1 : newIndex
             })
           } else {
-            setIndex((prev) => {
+            setActiveIndex((prev) => {
               if (prev === -1) return list.length > 0 ? 0 : -1
               return prev < list.length - 1 ? prev + 1 : 0
             })
@@ -441,7 +456,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
         case 'PageUp':
           scrollTriggerRef.current = 'keyboard'
-          setIndex((prev) => {
+          setActiveIndex((prev) => {
             if (prev === -1) return list.length > 0 ? Math.max(0, list.length - ctx.pageSize) : -1
             const newIndex = prev - ctx.pageSize
             return newIndex < 0 ? 0 : newIndex
@@ -450,7 +465,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
         case 'PageDown':
           scrollTriggerRef.current = 'keyboard'
-          setIndex((prev) => {
+          setActiveIndex((prev) => {
             if (prev === -1) return list.length > 0 ? Math.min(ctx.pageSize - 1, list.length - 1) : -1
             const newIndex = prev + ctx.pageSize
             return newIndex >= list.length ? list.length - 1 : newIndex
@@ -459,9 +474,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
         case 'ArrowRight':
           if (!assistivePressed) return false
-          if (!list?.[index]?.isMenu) return false
+          if (!list?.[activeIndex]?.isMenu) return false
           scrollTriggerRef.current = 'initial'
-          handleItemAction(list[index], 'enter')
+          handleItemAction(list[activeIndex], 'enter')
           return true
 
         case 'Enter':
@@ -475,7 +490,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           }
 
           // 折叠/软隐藏时也要拦截，避免把查询输入当作发送消息。
-          const hasSearch = searchText.length > 0
+          const hasSearch = activeSearchText.length > 0
           const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
           const isCollapsed = hasSearch && nonPinnedCount === 0
           if (isCollapsed) {
@@ -494,12 +509,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             return true
           }
 
-          if (list?.[index]) {
+          if (list?.[activeIndex]) {
             e.preventDefault()
             e.stopPropagation()
             setIsMouseOver(false)
 
-            handleItemAction(list[index], 'enter')
+            handleItemAction(list[activeIndex], 'enter')
           } else {
             e.preventDefault()
             e.stopPropagation()
@@ -515,7 +530,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
       return false
     },
-    [index, ctx, list, handleItemAction, handleClose, searchText]
+    [activeIndex, ctx, list, handleItemAction, handleClose, activeSearchText]
   )
 
   useEffect(() => {
@@ -528,6 +543,30 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       setIsAssistiveKeyPressed(false)
     }
   }, [])
+
+  useEffect(() => {
+    if (!ctx.isVisible) {
+      setIsAssistiveKeyPressed(false)
+      return
+    }
+
+    const handleAssistiveKeyUp = (event: KeyboardEvent) => {
+      if (isMac ? event.key === 'Meta' || !event.metaKey : event.key === 'Control' || !event.ctrlKey) {
+        setIsAssistiveKeyPressed(false)
+      }
+    }
+    const resetAssistiveKey = () => setIsAssistiveKeyPressed(false)
+
+    window.addEventListener('keyup', handleAssistiveKeyUp)
+    window.addEventListener('blur', resetAssistiveKey)
+    document.addEventListener('visibilitychange', resetAssistiveKey)
+
+    return () => {
+      window.removeEventListener('keyup', handleAssistiveKeyUp)
+      window.removeEventListener('blur', resetAssistiveKey)
+      document.removeEventListener('visibilitychange', resetAssistiveKey)
+    }
+  }, [ctx.isVisible])
 
   useEffect(() => {
     if (!ctx.isVisible) return
@@ -548,23 +587,27 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const [footerWidth, setFooterWidth] = useState(0)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!footerRef.current || !ctx.isVisible) return
-    const footerWidth = footerRef.current.clientWidth
-    setFooterWidth(footerWidth)
 
-    const handleResize = () => {
-      const footerWidth = footerRef.current!.clientWidth
-      setFooterWidth(footerWidth)
+    const footerElement = footerRef.current
+    const updateFooterWidth = () => {
+      setFooterWidth(footerElement.clientWidth)
     }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+
+    updateFooterWidth()
+    if (typeof ResizeObserver === 'undefined') return
+
+    const resizeObserver = new ResizeObserver(updateFooterWidth)
+    resizeObserver.observe(footerElement)
+
+    return () => resizeObserver.disconnect()
   }, [ctx.isVisible])
 
   const listHeight = useMemo(() => {
     return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
   }, [ctx.pageSize, list.length])
-  const hasSearchText = useMemo(() => searchText.length > 0, [searchText])
+  const hasSearchText = useMemo(() => activeSearchText.length > 0, [activeSearchText])
   // 折叠仅依据“非固定项”的匹配数；仅剩固定项（如“清除”）时仍视为无匹配，保持折叠
   const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
   const collapsed = !ctx.manageListExternally && hasSearchText && visibleNonPinnedCount === 0
@@ -577,52 +620,23 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       if (!item) return null
 
       return (
-        <div
-          className={classNames(
-            'mx-[5px] mb-px flex h-[30px] items-center justify-between gap-5 rounded-md p-[5px] transition-colors duration-100',
-            item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer hover:bg-accent',
-            item.isSelected && 'bg-muted',
-            item.isSelected && itemIndex === index && 'bg-accent',
-            item.isSelected && !item.disabled && 'hover:bg-accent',
-            !item.isSelected && itemIndex === index && 'bg-accent',
-            {
-              focused: itemIndex === index,
-              selected: item.isSelected,
-              disabled: item.disabled
-            }
-          )}
-          data-id={itemIndex}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleItemAction(item, 'click')
-          }}>
-          <div className="flex max-w-[60%] flex-1 shrink-0 items-center gap-[5px]">
-            <span className="flex items-center justify-center text-[13px] text-muted-foreground [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
-              {item.icon}
-            </span>
-            <span className="flex-1 shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-4">
-              {item.label}
-            </span>
-          </div>
-
-          <div className="flex min-w-[20%] items-center justify-end gap-0.5 text-[11px] text-muted-foreground">
-            {item.description && (
-              <span className="overflow-hidden text-ellipsis whitespace-nowrap">{item.description}</span>
-            )}
-            <span className="flex min-w-3 shrink-0 items-center justify-end gap-[3px] [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
-              {item.suffix ? (
-                item.suffix
-              ) : item.isSelected ? (
-                <Check />
-              ) : (
-                item.isMenu && !item.disabled && <ChevronRight size={14} />
-              )}
-            </span>
-          </div>
-        </div>
+        <QuickPanelRow
+          className={classNames({
+            focused: itemIndex === activeIndex,
+            selected: item.isSelected,
+            disabled: item.disabled
+          })}
+          active={itemIndex === activeIndex}
+          contentClassName="max-w-[60%]"
+          dataId={item.id}
+          item={item}
+          reserveIconSlot
+          selected={item.isSelected}
+          onSelect={() => handleItemAction(item, 'click')}
+        />
       )
     },
-    [index, handleItemAction]
+    [activeIndex, handleItemAction]
   )
 
   return (

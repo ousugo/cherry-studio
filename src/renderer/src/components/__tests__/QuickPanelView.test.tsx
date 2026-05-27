@@ -97,12 +97,14 @@ function createInputAdapter(initialText = '', initialCursor = initialText.length
 // 用于测试 open 行为的组件
 function OpenPanelOnMount({
   list,
+  panelOptions,
   parentPanel,
   queryAnchor = 0,
   symbol = 'test',
   triggerInfo
 }: {
   list: QuickPanelListItem[]
+  panelOptions?: Partial<QuickPanelOpenOptions>
   parentPanel?: QuickPanelOpenOptions
   queryAnchor?: number
   symbol?: string
@@ -121,9 +123,10 @@ function OpenPanelOnMount({
       pageSize: PAGE_SIZE,
       parentPanel,
       queryAnchor,
-      triggerInfo: triggerInfo ?? { type: 'input', position: queryAnchor, originalText: '' }
+      triggerInfo: triggerInfo ?? { type: 'input', position: queryAnchor, originalText: '' },
+      ...panelOptions
     })
-  }, [list, parentPanel, queryAnchor, quickPanel, symbol, triggerInfo])
+  }, [list, panelOptions, parentPanel, queryAnchor, quickPanel, symbol, triggerInfo])
   return null
 }
 
@@ -195,7 +198,11 @@ describe('QuickPanelView', () => {
         wrapWithProviders(
           <>
             <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount list={list} />
+            <OpenPanelOnMount
+              list={list}
+              symbol="/"
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
+            />
           </>
         )
       )
@@ -215,7 +222,11 @@ describe('QuickPanelView', () => {
         wrapWithProviders(
           <>
             <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount list={list} />
+            <OpenPanelOnMount
+              list={list}
+              symbol="/"
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 3' }}
+            />
           </>
         )
       )
@@ -233,7 +244,11 @@ describe('QuickPanelView', () => {
         wrapWithProviders(
           <>
             <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount list={list} />
+            <OpenPanelOnMount
+              list={list}
+              symbol="/"
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
+            />
           </>
         )
       )
@@ -252,12 +267,16 @@ describe('QuickPanelView', () => {
         wrapWithProviders(
           <>
             <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount list={list} />
+            <OpenPanelOnMount
+              list={list}
+              symbol="/"
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
+            />
           </>
         )
       )
 
-      const selectedRow = screen.getByText('Selected 1').closest('[data-id="0"]')
+      const selectedRow = screen.getByText('Selected 1').closest('[data-id="Selected-1"]')
       expect(selectedRow).toHaveClass('bg-accent')
       expect(selectedRow?.className).not.toContain('primary')
     })
@@ -270,7 +289,11 @@ describe('QuickPanelView', () => {
         wrapWithProviders(
           <>
             <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount list={list} />
+            <OpenPanelOnMount
+              list={list}
+              symbol="/"
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 3' }}
+            />
           </>
         )
       )
@@ -293,7 +316,11 @@ describe('QuickPanelView', () => {
         wrapWithProviders(
           <>
             <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount list={list} />
+            <OpenPanelOnMount
+              list={list}
+              symbol="/"
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
+            />
           </>
         )
       )
@@ -383,7 +410,11 @@ describe('QuickPanelView', () => {
         wrapWithProviders(
           <>
             <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount list={list} />
+            <OpenPanelOnMount
+              list={list}
+              symbol="/"
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
+            />
           </>
         )
       )
@@ -476,7 +507,11 @@ describe('QuickPanelView', () => {
         wrapWithProviders(
           <>
             <QuickPanelView inputAdapter={input.adapter} />
-            <OpenPanelOnMount list={list} />
+            <OpenPanelOnMount
+              list={list}
+              symbol="/"
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
+            />
           </>
         )
       )
@@ -487,7 +522,7 @@ describe('QuickPanelView', () => {
       expect(action).toHaveBeenCalledWith(expect.objectContaining({ action: 'enter', searchText: 'Item 1' }))
     })
 
-    it('removes the trigger slash when opening a child panel and keeps filtering with the remaining query', async () => {
+    it('removes the trigger slash when opening a child panel without filtering the child panel', async () => {
       const input = createInputAdapter('/Child')
       const childAction = vi.fn()
       const rootItem: QuickPanelListItem = {
@@ -498,7 +533,7 @@ describe('QuickPanelView', () => {
         action: ({ context, parentPanel, queryAnchor }) => {
           context.open({
             title: 'Child Panel',
-            list: createList(1, 'Child', { action: childAction }),
+            list: createList(1, 'Server', { action: childAction }),
             symbol: 'child',
             parentPanel,
             queryAnchor,
@@ -523,12 +558,39 @@ describe('QuickPanelView', () => {
       fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
 
       expect(input.adapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 1 })
-      await waitFor(() => expect(screen.getByText('Child 1')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByText('Server 1')).toBeInTheDocument())
 
       fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
 
       expect(input.adapter.deleteTriggerRange).toHaveBeenLastCalledWith({ from: 0, to: 5 })
-      expect(childAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'enter', searchText: 'Child' }))
+      expect(childAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'enter', searchText: '' }))
+    })
+
+    it('does not filter non-root multi-select panels from composer input changes', async () => {
+      const input = createInputAdapter('/Alpha')
+      const list = createList(2, 'Prompt')
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount
+              list={list}
+              symbol="mcp-prompt"
+              panelOptions={{ multiple: true }}
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Alpha' }}
+            />
+          </>
+        )
+      )
+
+      expect(screen.getByText('Prompt 1')).toBeInTheDocument()
+      expect(screen.getByText('Prompt 2')).toBeInTheDocument()
+
+      input.setText('/No Match')
+
+      await waitFor(() => expect(screen.getByText('Prompt 1')).toBeInTheDocument())
+      expect(screen.getByText('Prompt 2')).toBeInTheDocument()
     })
 
     it('does not close a replacement panel opened by a leaf action', async () => {
@@ -563,6 +625,37 @@ describe('QuickPanelView', () => {
 
       await waitFor(() => expect(screen.getByText('Server 1')).toBeInTheDocument())
       expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+    })
+
+    it('updates multi-select rows by item id when rendered items are cloned', async () => {
+      const input = createInputAdapter()
+      const list: QuickPanelListItem[] = [
+        { id: 'first', label: 'Duplicate', filterText: 'duplicate', icon: 'first icon' },
+        { id: 'second', label: 'Duplicate', filterText: 'duplicate', icon: 'second icon' }
+      ]
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount
+              list={list}
+              panelOptions={{
+                multiple: true,
+                sortFn: (items) => items.map((item) => ({ ...item }))
+              }}
+            />
+          </>
+        )
+      )
+
+      const panel = screen.getByTestId('quick-panel')
+      const getRow = (id: string) => panel.querySelector(`[data-id="${id}"]`)
+
+      fireEvent.click(getRow('first')!)
+
+      await waitFor(() => expect(getRow('first')).toHaveAttribute('data-selected'))
+      expect(getRow('second')).not.toHaveAttribute('data-selected')
     })
   })
 })

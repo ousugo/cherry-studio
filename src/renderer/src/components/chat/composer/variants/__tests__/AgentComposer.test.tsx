@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   setFiles: vi.fn(),
   enqueueDraft: vi.fn(),
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
+  derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   runtimeHostProps: undefined as
@@ -69,7 +70,6 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
     useEffect(() => {
       props.onActionsChange?.({
-        resizeTextArea: vi.fn(),
         onTextChange: (updater) => {
           const nextText = typeof updater === 'function' ? updater(props.text) : updater
           props.onTextChange(nextText)
@@ -115,6 +115,18 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
 
 vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
   ComposerToolRuntimeProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ComposerToolDerivedStateProvider: ({
+    children,
+    couldAddImageFile,
+    extensions
+  }: {
+    children: ReactNode
+    couldAddImageFile: boolean
+    extensions: string[]
+  }) => {
+    mocks.derivedToolState = { couldAddImageFile, extensions }
+    return <>{children}</>
+  },
   ComposerToolRuntimeHost: (props: {
     assistant?: { modelId?: string | null }
     model?: Model
@@ -136,7 +148,6 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
   useComposerToolDispatch: () => ({
     setFiles: mocks.setFiles,
     setIsExpanded: vi.fn(),
-    resizeTextArea: vi.fn(),
     addNewTopic: vi.fn(),
     onTextChange: vi.fn(),
     toolsRegistry: {
@@ -146,10 +157,6 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
       getLaunchers: vi.fn(() => []),
       version: 0
     }
-  }),
-  useComposerToolInternalDispatch: () => ({
-    setCouldAddImageFile: vi.fn(),
-    setExtensions: vi.fn()
   }),
   useComposerToolLauncherController: () => ({
     getLaunchers: vi.fn(() => []),
@@ -333,6 +340,7 @@ describe('AgentComposer', () => {
     mocks.enqueueDraft.mockReset()
     mocks.enqueueDraft.mockResolvedValue(undefined)
     mocks.surfaceProps = undefined
+    mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
@@ -368,6 +376,23 @@ describe('AgentComposer', () => {
     expect(mocks.modelLookupId).toBe('anthropic::claude-sonnet-4-5')
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
+  })
+
+  it('passes attachment capabilities through the provider without effect mirroring', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.derivedToolState).toEqual({
+      couldAddImageFile: false,
+      extensions: mocks.surfaceProps?.supportedExts
+    })
   })
 
   it('bridges file tokens into the existing agent session message text protocol', () => {

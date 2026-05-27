@@ -178,8 +178,7 @@ const renderRuntime = (tools: any[], node: ReactNode) => {
     <ComposerToolRuntimeProvider
       actions={{
         addNewTopic: vi.fn(),
-        onTextChange: vi.fn(),
-        resizeTextArea: vi.fn()
+        onTextChange: vi.fn()
       }}>
       <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} />
       {node}
@@ -229,8 +228,7 @@ describe('ComposerToolRuntimeHost', () => {
       <ComposerToolRuntimeProvider
         actions={{
           addNewTopic: vi.fn(),
-          onTextChange: vi.fn(),
-          resizeTextArea: vi.fn()
+          onTextChange: vi.fn()
         }}>
         <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} />
         <LauncherActionReader onRender={onNonReactiveRender} readRef={readLaunchersRef} />
@@ -464,7 +462,7 @@ describe('ComposerToolMenu', () => {
     expect(screen.getByTestId(getMenuItemTestId('PanelTool')).querySelector('svg')).toBeInTheDocument()
   })
 
-  it('renders option submenus with shadcn dropdown sub components', async () => {
+  it('renders only popover submenu items with shadcn dropdown sub components', async () => {
     renderRuntime(
       [
         {
@@ -481,10 +479,19 @@ describe('ComposerToolMenu', () => {
                   sources: ['popover'],
                   submenu: [
                     {
-                      id: 'mode-child-fast',
+                      id: 'mode-child-popover',
                       kind: 'command',
-                      label: 'FastMode',
-                      description: 'Fast mode description',
+                      label: 'PopoverMode',
+                      description: 'Popover mode description',
+                      icon: 'fake',
+                      sources: ['popover'],
+                      action: vi.fn()
+                    },
+                    {
+                      id: 'mode-child-root',
+                      kind: 'command',
+                      label: 'RootMode',
+                      description: 'Root mode description',
                       icon: 'fake',
                       sources: ['root-panel'],
                       action: vi.fn()
@@ -501,8 +508,10 @@ describe('ComposerToolMenu', () => {
 
     expect(await screen.findByTestId('dropdown-menu-sub-trigger-ModeParent')).toBeInTheDocument()
     expect(screen.getByTestId('dropdown-menu-sub-content')).toBeInTheDocument()
-    expect(screen.getByText('FastMode')).toBeInTheDocument()
-    expect(screen.queryByText('Fast mode description')).not.toBeInTheDocument()
+    expect(screen.getByText('PopoverMode')).toBeInTheDocument()
+    expect(screen.queryByText('RootMode')).not.toBeInTheDocument()
+    expect(screen.queryByText('Popover mode description')).not.toBeInTheDocument()
+    expect(screen.queryByText('RootMode')).not.toBeInTheDocument()
   })
 })
 
@@ -577,8 +586,7 @@ describe('ComposerToolLauncher sources', () => {
       <ComposerToolRuntimeProvider
         actions={{
           addNewTopic: vi.fn(),
-          onTextChange: vi.fn(),
-          resizeTextArea: vi.fn()
+          onTextChange: vi.fn()
         }}>
         <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} />
         <LauncherObserver source="root-panel" onSnapshot={onSnapshot} />

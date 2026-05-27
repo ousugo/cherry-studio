@@ -16,9 +16,11 @@ const mocks = vi.hoisted(() => ({
   docDescendants: vi.fn(),
   dispatch: vi.fn(),
   editorPresetOptions: undefined as any,
+  quickPanelClose: vi.fn(),
   quickPanelDispatchKeyDown: vi.fn(),
   quickPanelIsVisible: false,
   quickPanelOpen: vi.fn(),
+  quickPanelSymbol: '',
   selection: { from: 1 } as any,
   transaction: undefined as any
 }))
@@ -55,11 +57,11 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   },
   QuickPanelView: () => null,
   useQuickPanel: () => ({
-    close: vi.fn(),
+    close: mocks.quickPanelClose,
     dispatchKeyDown: mocks.quickPanelDispatchKeyDown,
     isVisible: mocks.quickPanelIsVisible,
     open: mocks.quickPanelOpen,
-    symbol: '',
+    symbol: mocks.quickPanelSymbol,
     updateList: vi.fn()
   })
 }))
@@ -232,9 +234,11 @@ describe('ComposerSurface', () => {
     mocks.docDescendants.mockReset()
     mocks.dispatch.mockReset()
     mocks.editorPresetOptions = undefined
+    mocks.quickPanelClose.mockReset()
     mocks.quickPanelDispatchKeyDown.mockReset()
     mocks.quickPanelIsVisible = false
     mocks.quickPanelOpen.mockReset()
+    mocks.quickPanelSymbol = ''
     mocks.selection = { from: 1 }
     mocks.transaction = {
       doc: {},
@@ -449,6 +453,67 @@ describe('ComposerSurface', () => {
     const event = new KeyboardEvent('keydown', { key: 'Enter' })
     expect(rootSource.onKeyDown({ event })).toBe(false)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+  })
+
+  it('closes the QuickPanel root when the slash suggestion exits', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = 'root'
+
+    render(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const rootSource = mocks.editorPresetOptions.suggestionSources[0]
+    rootSource.onExit({
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn(() => '')
+          }
+        }
+      },
+      range: { from: 1, to: 2 },
+      query: '',
+      text: '/',
+      items: []
+    })
+
+    await waitFor(() => expect(mocks.quickPanelClose).toHaveBeenCalledWith())
+  })
+
+  it('does not close a child panel when the slash suggestion exits', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = 'root'
+
+    const { rerender } = render(
+      <ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const rootSource = mocks.editorPresetOptions.suggestionSources[0]
+    rootSource.onExit({
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn(() => '')
+          }
+        }
+      },
+      range: { from: 1, to: 2 },
+      query: '',
+      text: '/',
+      items: []
+    })
+
+    mocks.quickPanelSymbol = 'mcp-prompts'
+    rerender(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(mocks.quickPanelClose).not.toHaveBeenCalled()
   })
 
   it('lets the visible QuickPanel handle Enter before send-message shortcuts', async () => {

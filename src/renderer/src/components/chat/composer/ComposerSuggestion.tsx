@@ -30,8 +30,6 @@ export interface ComposerSuggestionItem {
   disabled?: boolean
   isMenu?: boolean
   suffix?: ReactNode | string
-  hint?: ReactNode | string
-  children?: ComposerSuggestionItem[]
   query?: string
   command: (options: { editor: Editor; range: Range; item: ComposerSuggestionItem; query: string }) => void
 }
@@ -230,7 +228,7 @@ const ComposerSuggestionList = ({ ref, ...props }: ComposerSuggestionListProps) 
   const visibleItems = useMemo(
     () =>
       itemsWithSelection.flatMap((item, sourceIndex) =>
-        !item.disabled || item.description || item.hint || item.children?.length ? [{ ...item, sourceIndex }] : []
+        !item.disabled || item.description ? [{ ...item, sourceIndex }] : []
       ),
     [itemsWithSelection]
   )

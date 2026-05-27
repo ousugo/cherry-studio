@@ -30,12 +30,10 @@ const getPermissionModeIcon = (mode: PermissionMode): ReactNode => {
   }
 }
 
-const SYMBOL = 'permission-mode'
-
 type PermissionModeContext = ToolRenderContext<readonly [], readonly []>
 
 const usePermissionModeToolController = (context: PermissionModeContext) => {
-  const { t, launcher, session: sessionContext, quickPanelController } = context
+  const { t, launcher, session: sessionContext } = context
   const agentId = sessionContext?.agentId
   const { agent } = useAgent(agentId ?? '')
   const { updateAgent } = useUpdateAgent()
@@ -76,26 +74,6 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     [currentMode, agent, agentId, availableTools, updateAgent]
   )
 
-  const handleClick = useCallback(() => {
-    // Toggle: close if already open with the same symbol
-    if (quickPanelController.isVisible && quickPanelController.symbol === SYMBOL) {
-      quickPanelController.close('esc')
-      return
-    }
-
-    quickPanelController.open({
-      title: t('agent.settings.permissionMode.title', 'Permission Mode'),
-      symbol: SYMBOL,
-      list: permissionModeCards.map((card) => ({
-        label: t(card.titleKey, card.titleFallback),
-        description: t(card.descriptionKey, card.descriptionFallback),
-        icon: getPermissionModeIcon(card.mode),
-        isSelected: card.mode === currentMode,
-        action: () => handleSelectMode(card.mode)
-      }))
-    })
-  }, [quickPanelController, t, currentMode, handleSelectMode])
-
   const modeCard = permissionModeCards.find((card) => card.mode === currentMode)
   const tooltipTitle = modeCard ? t(modeCard.titleKey, modeCard.titleFallback) : ''
   const modeSubmenu = useMemo(
@@ -103,7 +81,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
       permissionModeCards.map((card, index) => ({
         id: `permission-mode-${card.mode}`,
         kind: 'command' as const,
-        sources: ['root-panel'] as const,
+        sources: ['popover'] as const,
         order: 80 + index / 100,
         label: t(card.titleKey, card.titleFallback),
         description: t(card.descriptionKey, card.descriptionFallback),
@@ -125,13 +103,12 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         description: '',
         icon: getPermissionModeIcon(currentMode),
         suffix: tooltipTitle,
-        submenu: modeSubmenu,
-        action: handleClick
+        submenu: modeSubmenu
       }
     ])
-  }, [currentMode, handleClick, launcher, modeSubmenu, t, tooltipTitle])
+  }, [currentMode, launcher, modeSubmenu, t, tooltipTitle])
 
-  return { currentMode, handleClick, tooltipTitle }
+  return { currentMode, tooltipTitle }
 }
 
 const PermissionModeComposerRuntime = ({ context }: { context: PermissionModeContext }) => {

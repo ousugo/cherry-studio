@@ -3,17 +3,14 @@ import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerMessageQueuePanel from '@renderer/components/chat/composer/ComposerMessageQueuePanel'
-import ComposerSurface, {
-  type ComposerSurfaceActions,
-  type ComposerTokenRemoveRequest
-} from '@renderer/components/chat/composer/ComposerSurface'
+import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
   ComposerActiveToolControls,
+  ComposerToolDerivedStateProvider,
   ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
   useComposerToolDispatch,
-  useComposerToolInternalDispatch,
   useComposerToolLauncherActions,
   useComposerToolState
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
@@ -96,7 +93,6 @@ type ProviderActionHandlers = ComposerSurfaceActions & {
 }
 
 const emptyActions: ProviderActionHandlers = {
-  resizeTextArea: () => undefined,
   addNewTopic: () => undefined,
   onTextChange: () => undefined,
   toggleExpanded: () => undefined,
@@ -326,7 +322,6 @@ const ChatComposerRoot = ({
     <ComposerToolRuntimeProvider
       initialState={initialState}
       actions={{
-        resizeTextArea: () => actionsRef.current.resizeTextArea(),
         addNewTopic: () => actionsRef.current.addNewTopic(),
         onTextChange: (updater) => actionsRef.current.onTextChange(updater)
       }}>
@@ -364,7 +359,6 @@ const ChatComposerInner = ({
   const config = getComposerToolConfig(scope)
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
-  const { setCouldAddImageFile, setExtensions } = useComposerToolInternalDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const {
     assistant,
@@ -456,14 +450,6 @@ const ChatComposerInner = ({
     if (canAddTextFile) return [...documentExts, ...textExts]
     return []
   }, [canAddImageFile, canAddTextFile])
-
-  useEffect(() => {
-    setCouldAddImageFile(canAddImageFile)
-  }, [canAddImageFile, setCouldAddImageFile])
-
-  useEffect(() => {
-    setExtensions(supportedExts)
-  }, [setExtensions, supportedExts])
 
   const setText = useCallback((nextText: string) => {
     setTextState(nextText)
@@ -621,13 +607,6 @@ const ChatComposerInner = ({
     setMentionedModelSelectorValue(runtimeModel ? [runtimeModel] : [])
     setMentionedModels([])
   }, [runtimeModel, setMentionedModels])
-
-  const handleTokenRemoveRequest = useCallback(
-    (request: ComposerTokenRemoveRequest) => {
-      actionsRef.current.removeToken(request.tokenId)
-    },
-    [actionsRef]
-  )
 
   const addNewTopic = useCallback(
     (payload?: AddNewTopicPayload) => {
@@ -941,7 +920,7 @@ const ChatComposerInner = ({
   })
 
   return (
-    <>
+    <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
       {assistant && runtimeModel && (
         <ComposerToolRuntimeHost scope={scope} assistant={assistant} model={runtimeModel} />
       )}
@@ -983,7 +962,6 @@ const ChatComposerInner = ({
         narrowMode={narrowMode}
         onFocus={() => setSearching(false)}
         onActionsChange={handleSurfaceActionsChange}
-        onTokenRemoveRequest={handleTokenRemoveRequest}
         getToolLaunchers={() => getLaunchers()}
         queueContent={
           <ComposerMessageQueuePanel
@@ -1002,7 +980,7 @@ const ChatComposerInner = ({
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}
       />
-    </>
+    </ComposerToolDerivedStateProvider>
   )
 }
 

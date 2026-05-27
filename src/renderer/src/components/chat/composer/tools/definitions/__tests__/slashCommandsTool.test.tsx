@@ -15,8 +15,9 @@ describe('slashCommandsTool', () => {
     mockGetBuiltinSlashCommands.mockReset()
   })
 
-  it('keeps slash commands out of the plus popover and groups them in slash suggestions', () => {
+  it('keeps slash commands out of the plus popover submenu while restoring the parent entry', () => {
     mockGetBuiltinSlashCommands.mockReturnValue([{ command: '/clear', description: 'Clear context' }])
+    const quickPanel = { open: vi.fn() }
 
     const launchers = slashCommandsTool.composer?.menuItems?.createItems({
       actions: { onTextChange: vi.fn() },
@@ -28,7 +29,7 @@ describe('slashCommandsTool', () => {
       expect.objectContaining({
         id: 'slash-commands',
         label: 'chat.input.slash_commands.title',
-        sources: ['root-panel'],
+        sources: ['popover'],
         submenu: [
           expect.objectContaining({
             id: 'slash-command:/clear',
@@ -38,6 +39,18 @@ describe('slashCommandsTool', () => {
         ]
       })
     ])
-    expect(launchers?.some((launcher) => launcher.sources?.includes('popover'))).toBe(false)
+    expect(launchers?.[0].submenu?.some((launcher) => launcher.sources?.includes('popover'))).toBe(false)
+
+    launchers?.[0].action?.({
+      quickPanel,
+      source: 'popover'
+    } as any)
+
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: 'slash-commands',
+        list: [expect.objectContaining({ label: '/clear', description: 'Clear context' })]
+      })
+    )
   })
 })

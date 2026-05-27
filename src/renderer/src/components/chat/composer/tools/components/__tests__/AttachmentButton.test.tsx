@@ -4,30 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AttachmentToolRuntime } from '../AttachmentButton'
 
-const mocks = vi.hoisted(() => ({
-  useKnowledgeBases: vi.fn(),
-  useKnowledgeItems: vi.fn(),
-  useQuickPanel: vi.fn()
-}))
-
-vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
-  useKnowledgeBases: (...args: unknown[]) => mocks.useKnowledgeBases(...args)
-}))
-
-vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
-  useKnowledgeItems: (...args: unknown[]) => mocks.useKnowledgeItems(...args)
-}))
-
-vi.mock('@renderer/components/QuickPanel', () => ({
-  QuickPanelReservedSymbol: {
-    File: 'file'
-  },
-  useQuickPanel: (...args: unknown[]) => mocks.useQuickPanel(...args)
-}))
-
 vi.mock('@renderer/utils/file', () => ({
-  filterSupportedFiles: vi.fn(async (files) => files),
-  formatFileSize: vi.fn(() => '1 KB')
+  filterSupportedFiles: vi.fn(async (files) => files)
 }))
 
 vi.mock('react-i18next', () => ({
@@ -55,16 +33,6 @@ const createLauncherApi = (): ToolLauncherApi => ({
 describe('AttachmentToolRuntime', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mocks.useKnowledgeBases.mockReturnValue({ bases: [] })
-    mocks.useKnowledgeItems.mockReturnValue({ items: [], isLoading: false })
-    mocks.useQuickPanel.mockReturnValue({
-      open: vi.fn(),
-      updateList: vi.fn(),
-      isVisible: false,
-      symbol: '',
-      multiple: false
-    })
   })
 
   it('keeps document-only support as a suffix and tooltip instead of a long label', async () => {

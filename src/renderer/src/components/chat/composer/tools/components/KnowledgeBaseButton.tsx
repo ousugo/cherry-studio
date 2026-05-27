@@ -1,11 +1,9 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { ActionIconButton } from '@renderer/components/Buttons'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { FileSearch } from 'lucide-react'
 import type { FC } from 'react'
-import { memo, useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -68,29 +66,9 @@ const useKnowledgeBaseToolController = ({
       disposeLauncher()
     }
   }, [handleToggle, isDisabled, isEnabled, launcher, resolvedDisabledReason, t])
-
-  return { disabled: isDisabled, handleToggle, isEnabled, t }
 }
 
 export const KnowledgeBaseToolRuntime: FC<Props> = (props) => {
   useKnowledgeBaseToolController(props)
   return null
 }
-
-const KnowledgeBaseButton: FC<Props> = (props) => {
-  const { disabled, handleToggle, isEnabled, t } = useKnowledgeBaseToolController(props)
-
-  return (
-    <Tooltip content={t('chat.input.knowledge_base')}>
-      <ActionIconButton
-        onClick={handleToggle}
-        active={isEnabled}
-        disabled={disabled}
-        aria-label={t('chat.input.knowledge_base')}
-        icon={<FileSearch size={18} />}
-      />
-    </Tooltip>
-  )
-}
-
-export default memo(KnowledgeBaseButton)

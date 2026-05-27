@@ -1,6 +1,5 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { ActionIconButton } from '@renderer/components/Buttons'
 import type { ComposerDraftToken } from '@renderer/components/chat/composer/tokens'
+import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
 import type { QuickPanelInputAdapter, QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -8,7 +7,6 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { EventEmitter } from '@renderer/services/EventService'
 import type { AssistantSettings, McpMode, MCPPrompt, MCPResource } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
@@ -17,16 +15,15 @@ import { isGemini3Model, isGeminiModel } from '@shared/utils/model'
 import { isGeminiWebSearchProvider } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { Form, Input } from 'antd'
-import { CircleX, Hammer, Plus, Sparkles } from 'lucide-react'
-import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Hammer, Plus } from 'lucide-react'
+import type { Dispatch, FC, SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
   assistantId: string
   launcher: ToolLauncherApi
-  setInputValue: React.Dispatch<React.SetStateAction<string>>
-  resizeTextArea: () => void
+  setInputValue: Dispatch<SetStateAction<string>>
   disabled?: boolean
   disabledReason?: string
 }
@@ -121,20 +118,9 @@ const extractPromptContent = (response: any): string | null => {
 
 const hammerIcon = <Hammer />
 const plusIcon = <Plus />
-const circleXIcon = <CircleX />
-const sparklesIcon = <Sparkles />
-const hammerIcon18 = <Hammer size={18} />
-const sparklesIcon18 = <Sparkles size={18} />
 const MCP_LAUNCHER_ORDER_BASE = 90
 
-const useMcpToolsController = ({
-  launcher,
-  setInputValue,
-  resizeTextArea,
-  assistantId,
-  disabled,
-  disabledReason
-}: Props) => {
+const useMcpToolsController = ({ launcher, setInputValue, assistantId, disabled, disabledReason }: Props) => {
   const { mcpServers: activedMcpServers } = useMcpServers({ isActive: true })
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
@@ -230,21 +216,12 @@ const useMcpToolsController = ({
     [assistant, mcpServerIds, model, modelProvider, mergeSettings, t, updateAssistant]
   )
 
-  const handleMcpServerSelectRef = useRef(handleMcpServerSelect)
-  handleMcpServerSelectRef.current = handleMcpServerSelect
-
-  useEffect(() => {
-    const handler = (server: MCPServer) => handleMcpServerSelectRef.current(server)
-    EventEmitter.on('mcp-server-select', handler)
-    return () => EventEmitter.off('mcp-server-select', handler)
-  }, [])
-
   const manualModeMenuItems = useMemo(() => {
     const newList: QuickPanelListItem[] = activedMcpServers.map((server) => ({
       label: server.name,
       description: server.description || server.baseUrl,
       icon: hammerIcon,
-      action: () => EventEmitter.emit('mcp-server-select', server),
+      action: () => handleMcpServerSelect(server),
       isSelected: mcpServerIds.has(server.id)
     }))
 
@@ -255,7 +232,7 @@ const useMcpToolsController = ({
     })
 
     return newList
-  }, [activedMcpServers, t, mcpServerIds, navigate])
+  }, [activedMcpServers, handleMcpServerSelect, t, mcpServerIds, navigate])
 
   const openManualModePanel = useCallback(() => {
     quickPanelHook.open({
@@ -274,7 +251,7 @@ const useMcpToolsController = ({
       (['disabled', 'auto', 'manual'] as const).map((mode, index) => ({
         id: `mcp-mode-${mode}`,
         kind: 'command' as const,
-        sources: ['root-panel'] as const,
+        sources: ['popover', 'root-panel'] as const,
         order: MCP_LAUNCHER_ORDER_BASE + index / 100,
         label: modeLabelMap[mode],
         description: t('settings.mcp.title'),
@@ -290,55 +267,6 @@ const useMcpToolsController = ({
     [currentMode, handleModeChange, isDisabled, modeLabelMap, openManualModePanel, resolvedDisabledReason, t]
   )
 
-  const menuItems = useMemo(() => {
-    const newList: QuickPanelListItem[] = []
-
-    newList.push({
-      label: t('assistants.settings.mcp.mode.disabled.label'),
-      description: t('assistants.settings.mcp.mode.disabled.description'),
-      icon: circleXIcon,
-      isSelected: currentMode === 'disabled',
-      action: () => {
-        handleModeChange('disabled')
-        quickPanelHook.close()
-      }
-    })
-
-    newList.push({
-      label: t('assistants.settings.mcp.mode.auto.label'),
-      description: t('assistants.settings.mcp.mode.auto.description'),
-      icon: sparklesIcon,
-      isSelected: currentMode === 'auto',
-      action: () => {
-        handleModeChange('auto')
-        quickPanelHook.close()
-      }
-    })
-
-    newList.push({
-      label: t('assistants.settings.mcp.mode.manual.label'),
-      description: t('assistants.settings.mcp.mode.manual.description'),
-      icon: hammerIcon,
-      isSelected: currentMode === 'manual',
-      isMenu: true,
-      action: () => {
-        handleModeChange('manual')
-        openManualModePanel()
-      }
-    })
-
-    return newList
-  }, [t, currentMode, handleModeChange, quickPanelHook, openManualModePanel])
-
-  const openQuickPanel = useCallback(() => {
-    quickPanelHook.open({
-      title: t('settings.mcp.title'),
-      list: menuItems,
-      symbol: QuickPanelReservedSymbol.Mcp,
-      multiple: false
-    })
-  }, [menuItems, quickPanelHook, t])
-
   const insertPromptContent = useCallback(
     (promptText: string, tokenInput?: McpComposerTokenInput, inputAdapter?: QuickPanelInputAdapter) => {
       if (inputAdapter?.insertToken && tokenInput) {
@@ -352,17 +280,16 @@ const useMcpToolsController = ({
 
       setInputValue((prev) => {
         const separator = prev.length > 0 && !/\s$/.test(prev) ? '\n' : ''
-        requestAnimationFrame(() => {
-          resizeTextArea()
-        })
         return `${prev}${separator}${promptText}`
       })
     },
-    [setInputValue, resizeTextArea]
+    [setInputValue]
   )
 
   const handlePromptSelect = useCallback(
     (prompt: MCPPromptWithArgs, inputAdapter?: QuickPanelInputAdapter) => {
+      if (isDisabled) return
+
       const server = activedMcpServers.find((s) => s.id === prompt.serverId)
       if (!server) return
 
@@ -466,13 +393,19 @@ const useMcpToolsController = ({
         }
       })
     },
-    [activedMcpServers, form, t, insertPromptContent]
+    [activedMcpServers, form, isDisabled, t, insertPromptContent]
   )
 
   const [prompts, setPrompts] = useState<MCPPrompt[]>([])
   const [promptLoadError, setPromptLoadError] = useState<string | undefined>()
 
   useEffect(() => {
+    if (isDisabled) {
+      setPrompts((current) => (current.length === 0 ? current : []))
+      setPromptLoadError(undefined)
+      return
+    }
+
     let cancelled = false
 
     const fetchPrompts = async () => {
@@ -489,7 +422,7 @@ const useMcpToolsController = ({
     return () => {
       cancelled = true
     }
-  }, [activedMcpServers, t])
+  }, [activedMcpServers, isDisabled, t])
 
   const promptList = useMemo<QuickPanelListItem[]>(() => {
     const items: QuickPanelListItem[] = prompts.map((prompt) => ({
@@ -518,6 +451,8 @@ const useMcpToolsController = ({
       queryAnchor?: number,
       triggerInfo?: QuickPanelOpenOptions['triggerInfo']
     ) => {
+      if (isDisabled) return
+
       quickPanelHook.open({
         title: t('settings.mcp.title'),
         list: promptList.map((item) => ({
@@ -533,11 +468,13 @@ const useMcpToolsController = ({
         multiple: true
       })
     },
-    [promptList, quickPanelHook, t]
+    [isDisabled, promptList, quickPanelHook, t]
   )
 
   const handleResourceSelect = useCallback(
     (resource: MCPResource, inputAdapter?: QuickPanelInputAdapter) => {
+      if (isDisabled) return
+
       const server = activedMcpServers.find((s) => s.id === resource.serverId)
       if (!server) return
 
@@ -586,13 +523,19 @@ const useMcpToolsController = ({
         }
       })
     },
-    [activedMcpServers, t, insertPromptContent]
+    [activedMcpServers, isDisabled, t, insertPromptContent]
   )
 
   const [resources, setResources] = useState<MCPResource[]>([])
   const [resourceLoadError, setResourceLoadError] = useState<string | undefined>()
 
   useEffect(() => {
+    if (isDisabled) {
+      setResources((current) => (current.length === 0 ? current : []))
+      setResourceLoadError(undefined)
+      return
+    }
+
     let cancelled = false
 
     const fetchResources = async () => {
@@ -612,7 +555,7 @@ const useMcpToolsController = ({
     return () => {
       cancelled = true
     }
-  }, [activedMcpServers, t])
+  }, [activedMcpServers, isDisabled, t])
 
   const isUnsupportedResource = useCallback((resource: MCPResource) => {
     if (!resource.mimeType) return false
@@ -651,6 +594,8 @@ const useMcpToolsController = ({
       queryAnchor?: number,
       triggerInfo?: QuickPanelOpenOptions['triggerInfo']
     ) => {
+      if (isDisabled) return
+
       quickPanelHook.open({
         title: t('settings.mcp.title'),
         list: resourcesList.map((item) => ({
@@ -666,19 +611,37 @@ const useMcpToolsController = ({
         multiple: true
       })
     },
-    [resourcesList, quickPanelHook, t]
+    [isDisabled, resourcesList, quickPanelHook, t]
   )
 
-  const handleOpenQuickPanel = useCallback(() => {
-    if (isDisabled) return
-    if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.Mcp) {
-      quickPanelHook.close()
-    } else {
-      openQuickPanel()
-    }
-  }, [isDisabled, openQuickPanel, quickPanelHook])
-
   useEffect(() => {
+    const promptResourceLaunchers: ComposerToolLauncher[] = isDisabled
+      ? []
+      : [
+          {
+            id: 'mcp-prompts',
+            kind: 'panel' as const,
+            sources: ['root-panel'] as const,
+            order: MCP_LAUNCHER_ORDER_BASE + 1,
+            label: `MCP ${t('settings.mcp.tabs.prompts')}`,
+            description: '',
+            icon: hammerIcon,
+            action: ({ inputAdapter, parentPanel, queryAnchor, triggerInfo }) =>
+              openPromptList(inputAdapter, parentPanel, queryAnchor, triggerInfo)
+          },
+          {
+            id: 'mcp-resources',
+            kind: 'panel' as const,
+            sources: ['root-panel'] as const,
+            order: MCP_LAUNCHER_ORDER_BASE + 2,
+            label: `MCP ${t('settings.mcp.tabs.resources')}`,
+            description: '',
+            icon: hammerIcon,
+            action: ({ inputAdapter, parentPanel, queryAnchor, triggerInfo }) =>
+              openResourcesList(inputAdapter, parentPanel, queryAnchor, triggerInfo)
+          }
+        ]
+
     const disposeLauncher = launcher.registerLaunchers([
       {
         id: 'mcp-tools',
@@ -695,28 +658,7 @@ const useMcpToolsController = ({
         submenu: modeSubmenu,
         action: cycleMcpMode
       },
-      {
-        id: 'mcp-prompts',
-        kind: 'panel',
-        sources: ['root-panel'],
-        order: MCP_LAUNCHER_ORDER_BASE + 1,
-        label: `MCP ${t('settings.mcp.tabs.prompts')}`,
-        description: '',
-        icon: hammerIcon,
-        action: ({ inputAdapter, parentPanel, queryAnchor, triggerInfo }) =>
-          openPromptList(inputAdapter, parentPanel, queryAnchor, triggerInfo)
-      },
-      {
-        id: 'mcp-resources',
-        kind: 'panel',
-        sources: ['root-panel'],
-        order: MCP_LAUNCHER_ORDER_BASE + 2,
-        label: `MCP ${t('settings.mcp.tabs.resources')}`,
-        description: '',
-        icon: hammerIcon,
-        action: ({ inputAdapter, parentPanel, queryAnchor, triggerInfo }) =>
-          openResourcesList(inputAdapter, parentPanel, queryAnchor, triggerInfo)
-      }
+      ...promptResourceLaunchers
     ])
 
     return () => {
@@ -734,42 +676,9 @@ const useMcpToolsController = ({
     resolvedDisabledReason,
     t
   ])
-
-  const isActive = !isDisabled && currentMode !== 'disabled'
-
-  const getButtonIcon = () => {
-    switch (currentMode) {
-      case 'auto':
-        return sparklesIcon18
-      case 'disabled':
-      case 'manual':
-      default:
-        return hammerIcon18
-    }
-  }
-
-  return { getButtonIcon, handleOpenQuickPanel, isActive, isDisabled, t }
 }
 
 export const McpToolsRuntime: FC<Props> = (props) => {
   useMcpToolsController(props)
   return null
 }
-
-const McpToolsButton: FC<Props> = (props) => {
-  const { getButtonIcon, handleOpenQuickPanel, isActive, isDisabled, t } = useMcpToolsController(props)
-
-  return (
-    <Tooltip content={t('settings.mcp.title')}>
-      <ActionIconButton
-        onClick={handleOpenQuickPanel}
-        active={isActive}
-        disabled={isDisabled}
-        aria-label={t('settings.mcp.title')}
-        icon={getButtonIcon()}
-      />
-    </Tooltip>
-  )
-}
-
-export default React.memo(McpToolsButton)

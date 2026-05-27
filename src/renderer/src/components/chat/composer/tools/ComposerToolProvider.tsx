@@ -52,7 +52,6 @@ export interface ComposerToolDispatch {
   setIsExpanded: React.Dispatch<React.SetStateAction<boolean>>
 
   /** Parent component actions */
-  resizeTextArea: () => void
   addNewTopic: () => void
 
   /** Text manipulation (avoids putting text state in Context) */
@@ -68,6 +67,7 @@ export interface ComposerToolDispatch {
 const ComposerToolStateContext = createContext<ComposerToolState | undefined>(undefined)
 const ComposerToolDispatchContext = createContext<ComposerToolDispatch | undefined>(undefined)
 const ComposerToolLaunchersContext = createContext<ComposerToolLaunchersAPI | undefined>(undefined)
+const EMPTY_EXTENSIONS: string[] = []
 
 /**
  * Get Composer tool state (read-only).
@@ -128,7 +128,6 @@ interface ComposerToolProviderProps {
     extensions: string[]
   }>
   actions: {
-    resizeTextArea: () => void
     addNewTopic: () => void
     onTextChange: (updater: string | ((prev: string) => string)) => void
   }
@@ -143,9 +142,8 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
   )
   const [isExpanded, setIsExpanded] = useState(initialState?.isExpanded || false)
 
-  // Derived state (internal management)
-  const [couldAddImageFile, setCouldAddImageFile] = useState(initialState?.couldAddImageFile || false)
-  const [extensions, setExtensions] = useState<string[]>(initialState?.extensions || [])
+  const couldAddImageFile = initialState?.couldAddImageFile ?? false
+  const extensions = initialState?.extensions ?? EMPTY_EXTENSIONS
 
   // Composer launcher registry (stored in refs to avoid re-renders)
   const launcherRegistryRef = useRef(new Map<string, ComposerToolLauncher[]>())
@@ -178,7 +176,6 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
 
   const stableActions = useMemo(
     () => ({
-      resizeTextArea: () => actionsRef.current.resizeTextArea(),
       addNewTopic: () => actionsRef.current.addNewTopic(),
       onTextChange: (updater: string | ((prev: string) => string)) => actionsRef.current.onTextChange(updater)
     }),
@@ -244,49 +241,35 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
     [stableActions, toolsRegistryAPI, stableTriggersAPI]
   )
 
-  // Internal Dispatch (contains setCouldAddImageFile and setExtensions)
-  // These setters are exposed to Composer but not to tool buttons
-  // Using a separate internal context to avoid polluting the main dispatch context
-  const internalDispatchValue = useMemo(
-    () => ({
-      setCouldAddImageFile,
-      setExtensions
-    }),
-    []
-  )
-
   return (
     <ComposerToolStateContext value={stateValue}>
       <ComposerToolDispatchContext value={dispatchValue}>
-        <ComposerToolLaunchersContext value={triggersAPI}>
-          <ComposerToolInternalDispatchContext value={internalDispatchValue}>
-            {children}
-          </ComposerToolInternalDispatchContext>
-        </ComposerToolLaunchersContext>
+        <ComposerToolLaunchersContext value={triggersAPI}>{children}</ComposerToolLaunchersContext>
       </ComposerToolDispatchContext>
     </ComposerToolStateContext>
   )
 }
 
-/**
- * Internal dispatch interface for Inputbar component only.
- * Used to set derived state (couldAddImageFile, extensions).
- */
-interface ComposerToolProviderInternalDispatch {
-  setCouldAddImageFile: React.Dispatch<React.SetStateAction<boolean>>
-  setExtensions: React.Dispatch<React.SetStateAction<string[]>>
+interface ComposerToolDerivedStateProviderProps {
+  children: React.ReactNode
+  couldAddImageFile: boolean
+  extensions: string[]
 }
 
-const ComposerToolInternalDispatchContext = createContext<ComposerToolProviderInternalDispatch | undefined>(undefined)
+export const ComposerToolDerivedStateProvider: React.FC<ComposerToolDerivedStateProviderProps> = ({
+  children,
+  couldAddImageFile,
+  extensions
+}) => {
+  const state = useComposerToolProviderState()
+  const stateValue = useMemo<ComposerToolState>(
+    () => ({
+      ...state,
+      couldAddImageFile,
+      extensions
+    }),
+    [couldAddImageFile, extensions, state]
+  )
 
-/**
- * Internal hook for Composer component only.
- * Used to set derived state (couldAddImageFile, extensions).
- */
-export const useComposerToolProviderInternalDispatch = (): ComposerToolProviderInternalDispatch => {
-  const context = use(ComposerToolInternalDispatchContext)
-  if (!context) {
-    throw new Error('useComposerToolProviderInternalDispatch must be used within ComposerToolProvider')
-  }
-  return context
+  return <ComposerToolStateContext value={stateValue}>{children}</ComposerToolStateContext>
 }

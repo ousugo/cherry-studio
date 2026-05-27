@@ -1,5 +1,3 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { ActionIconButton } from '@renderer/components/Buttons'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
 import {
   MdiLightbulbAutoOutline,
@@ -24,7 +22,7 @@ import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { ThinkingOption } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
-import type { FC, ReactElement } from 'react'
+import type { FC, SVGProps } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -210,10 +208,6 @@ const useThinkingToolController = ({
     reasoningSubmenu,
     t
   ])
-
-  const ariaLabel = isFixedReasoning ? t('chat.input.thinking.label') : t('assistants.settings.reasoning_effort.label')
-
-  return { ariaLabel, currentReasoningEffort, cycleThinking, isFixedReasoning }
 }
 
 export const ThinkingToolRuntime: FC<Props> = (props) => {
@@ -221,25 +215,8 @@ export const ThinkingToolRuntime: FC<Props> = (props) => {
   return null
 }
 
-const ThinkingButton: FC<Props> = (props): ReactElement => {
-  const { ariaLabel, currentReasoningEffort, cycleThinking, isFixedReasoning } = useThinkingToolController(props)
-
-  return (
-    <Tooltip placement="top" content={ariaLabel}>
-      <ActionIconButton
-        onClick={cycleThinking}
-        active={isFixedReasoning || currentReasoningEffort !== 'none'}
-        aria-label={ariaLabel}
-        aria-pressed={currentReasoningEffort !== 'none'}
-        style={isFixedReasoning ? { cursor: 'default' } : undefined}
-        icon={ThinkingIcon({ option: currentReasoningEffort, isFixedReasoning })}
-      />
-    </Tooltip>
-  )
-}
-
 const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boolean }) => {
-  let IconComponent: React.FC<React.SVGProps<SVGSVGElement>> | null = null
+  let IconComponent: FC<SVGProps<SVGSVGElement>> | null = null
   if (props.isFixedReasoning) {
     IconComponent = MdiLightbulbAutoOutline
   } else {
@@ -274,5 +251,3 @@ const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boole
 
   return <IconComponent className="icon" width={18} height={18} style={{ marginTop: -2 }} />
 }
-
-export default ThinkingButton
