@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isMac, isWin } from '@main/constant'
+import { isMac, isWin } from '@main/core/platform'
 import { generateSignature } from '@main/integration/cherryai'
 import { getIpCountry } from '@main/utils/ipService'
 import {
