@@ -5,6 +5,8 @@ import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type {
   QuickPanelContextType,
   QuickPanelInputAdapter,
+  QuickPanelListItem,
+  QuickPanelOpenOptions,
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -27,7 +29,7 @@ import { useTranslation } from 'react-i18next'
 import { serializeComposerDocument } from './composerDraft'
 import { getComposerPlainTextPasteOverride } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
-import type { ComposerSuggestionItem, ComposerSuggestionSource } from './ComposerSuggestion'
+import type { ComposerSuggestionSource } from './ComposerSuggestion'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import {
   createPromptVariableContent,
@@ -44,6 +46,7 @@ import type { ComposerToolLauncher } from './toolLauncher'
 export interface ComposerSurfaceActions {
   resizeTextArea: () => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
+  toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
 }
 
@@ -89,6 +92,7 @@ export interface ComposerSurfaceProps {
       inputAdapter?: QuickPanelInputAdapter
       quickPanel: QuickPanelContextType
       triggerInfo?: QuickPanelTriggerInfo
+      parentPanel?: QuickPanelOpenOptions
       searchText?: string
     }
   ) => void
@@ -149,19 +153,41 @@ function isComposerSendKeyPressed(event: KeyboardEvent, shortcut: SendMessageSho
   }
 }
 
-function getComposerCursorTextOffset(editor: Editor) {
-  return editor.state.doc.textBetween(0, editor.state.selection.from, '\n', '').length
+function getComposerTextOffset(editor: Editor, position: number) {
+  return editor.state.doc.textBetween(0, position, '\n', '').length
 }
 
-function deleteComposerTextBeforeCursor(editor: Editor, range: { from: number; to: number }) {
-  const length = Math.max(0, range.to - range.from)
-  if (length === 0) return
-  const to = editor.state.selection.from
-  editor
-    .chain()
-    .focus()
-    .deleteRange({ from: Math.max(1, to - length), to })
-    .run()
+function getComposerCursorTextOffset(editor: Editor) {
+  return getComposerTextOffset(editor, editor.state.selection.from)
+}
+
+function getComposerPositionAtTextOffset(editor: Editor, textOffset: number) {
+  const targetOffset = Math.max(0, textOffset)
+  let low = 0
+  let high = editor.state.doc.content.size
+
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2)
+    if (getComposerTextOffset(editor, mid) < targetOffset) {
+      low = mid + 1
+    } else {
+      high = mid
+    }
+  }
+
+  return Math.max(1, Math.min(low, editor.state.doc.content.size))
+}
+
+function deleteComposerTextRange(editor: Editor, range: { from: number; to: number }) {
+  const fromOffset = Math.max(0, Math.min(range.from, range.to))
+  const toOffset = Math.max(fromOffset, range.to)
+  if (fromOffset === toOffset) return
+
+  const from = getComposerPositionAtTextOffset(editor, fromOffset)
+  const to = getComposerPositionAtTextOffset(editor, toOffset)
+  if (to <= from) return
+
+  editor.chain().focus().deleteRange({ from, to }).run()
 }
 
 function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
@@ -186,7 +212,7 @@ function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
         .run()
     },
     deleteTriggerRange: (range) => {
-      deleteComposerTextBeforeCursor(editor, range)
+      deleteComposerTextRange(editor, range)
     },
     focus: () => {
       editor.commands.focus()
@@ -195,7 +221,7 @@ function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
 }
 
 function getLauncherSearchText(launcher: ComposerToolLauncher) {
-  return [launcher.label, launcher.description, launcher.tooltip, launcher.disabledReason]
+  return [launcher.label, launcher.description, launcher.tooltip, launcher.disabledReason, launcher.suffix]
     .map((value) => (typeof value === 'string' ? value : ''))
     .join(' ')
 }
@@ -207,47 +233,164 @@ function getLauncherDescription(launcher: ComposerToolLauncher) {
   return launcher.description
 }
 
-function createRootSuggestionItem(
-  launcher: ComposerToolLauncher,
-  options: {
-    quickPanel: QuickPanelContextType
-    onToolLauncherSelect?: ComposerSurfaceProps['onToolLauncherSelect']
-  }
-): ComposerSuggestionItem {
+function launcherSupportsSource(launcher: ComposerToolLauncher, source: 'root-panel') {
+  return !launcher.sources || launcher.sources.includes(source)
+}
+
+function createQuickPanelWithParent(
+  quickPanel: QuickPanelContextType,
+  parentPanel?: QuickPanelOpenOptions
+): QuickPanelContextType {
+  if (!parentPanel) return quickPanel
+
   return {
-    id: launcher.id,
-    label: launcher.label,
-    description: getLauncherDescription(launcher),
-    icon: launcher.icon,
-    filterText: getLauncherSearchText(launcher),
-    disabled: launcher.disabled,
-    isMenu: launcher.kind === 'panel' || launcher.kind === 'group',
-    command: ({ editor, query }) => {
-      options.onToolLauncherSelect?.(launcher, {
-        source: 'root-panel',
-        inputAdapter: createComposerInputAdapter(editor),
-        quickPanel: options.quickPanel,
-        triggerInfo: { type: 'button' },
-        searchText: query
+    ...quickPanel,
+    open: (options) => {
+      quickPanel.open({
+        ...options,
+        parentPanel: options.parentPanel ?? parentPanel
       })
     }
   }
 }
 
-function filterSuggestionItems(items: readonly ComposerSuggestionItem[], query: string) {
-  const normalizedQuery = query.trim().toLowerCase()
-  if (!normalizedQuery) return [...items]
+function createRootPanelActionOptions(options: {
+  inputAdapter?: QuickPanelInputAdapter
+  quickPanel: QuickPanelContextType
+  onToolLauncherSelect?: ComposerSurfaceProps['onToolLauncherSelect']
+  parentPanel?: QuickPanelOpenOptions
+  queryAnchor?: number
+  searchText?: string
+  triggerInfo?: QuickPanelTriggerInfo
+}) {
+  return {
+    source: 'root-panel' as const,
+    inputAdapter: options.inputAdapter,
+    quickPanel: createQuickPanelWithParent(options.quickPanel, options.parentPanel),
+    triggerInfo: options.triggerInfo ?? options.quickPanel.triggerInfo ?? { type: 'button' as const },
+    parentPanel: options.parentPanel,
+    queryAnchor: options.queryAnchor,
+    searchText: options.searchText
+  }
+}
 
-  const queryTerms = normalizedQuery.split(/\s+/).filter(Boolean)
+function getRootPanelChildren(launcher: ComposerToolLauncher) {
+  return (launcher.submenu ?? []).filter((item) => !item.hidden && launcherSupportsSource(item, 'root-panel'))
+}
 
-  return items.filter((item) => {
-    const searchableText = [item.label, item.description, item.filterText]
-      .map((value) => (typeof value === 'string' ? value.toLowerCase() : ''))
-      .join(' ')
-    const compactSearchableText = searchableText.replace(/\s+/g, '')
+function getLauncherTreeSearchText(launcher: ComposerToolLauncher): string {
+  const childText = getRootPanelChildren(launcher).map(getLauncherTreeSearchText)
+  return [getLauncherSearchText(launcher), ...childText].filter(Boolean).join(' ')
+}
 
-    return queryTerms.every((term) => searchableText.includes(term) || compactSearchableText.includes(term))
+function createRootPanelListItem(
+  launcher: ComposerToolLauncher,
+  options: {
+    inputAdapter?: QuickPanelInputAdapter
+    quickPanel: QuickPanelContextType
+    onToolLauncherSelect?: ComposerSurfaceProps['onToolLauncherSelect']
+    getRootPanelOptions?: () => QuickPanelOpenOptions
+  }
+): QuickPanelListItem {
+  const rootChildren = getRootPanelChildren(launcher)
+
+  return {
+    label: launcher.label,
+    description: getLauncherDescription(launcher),
+    icon: launcher.icon,
+    suffix: launcher.suffix,
+    isSelected: launcher.active,
+    isMenu: launcher.kind === 'panel' || launcher.kind === 'group' || rootChildren.length > 0,
+    disabled: launcher.disabled,
+    filterText: getLauncherTreeSearchText(launcher),
+    action: ({ context, parentPanel: actionParentPanel, queryAnchor, searchText }) => {
+      const parentPanel = actionParentPanel ?? options.getRootPanelOptions?.()
+      const triggerInfo = context.triggerInfo ?? options.quickPanel.triggerInfo
+
+      if (rootChildren.length > 0) {
+        openRootPanelSubmenu(launcher, { ...options, parentPanel, queryAnchor, searchText, triggerInfo })
+        return
+      }
+
+      options.onToolLauncherSelect?.(
+        launcher,
+        createRootPanelActionOptions({
+          ...options,
+          parentPanel,
+          queryAnchor,
+          searchText,
+          triggerInfo
+        })
+      )
+    }
+  }
+}
+
+function openRootPanelSubmenu(
+  launcher: ComposerToolLauncher,
+  options: {
+    inputAdapter?: QuickPanelInputAdapter
+    quickPanel: QuickPanelContextType
+    onToolLauncherSelect?: ComposerSurfaceProps['onToolLauncherSelect']
+    getRootPanelOptions?: () => QuickPanelOpenOptions
+    parentPanel?: QuickPanelOpenOptions
+    queryAnchor?: number
+    searchText?: string
+    triggerInfo?: QuickPanelTriggerInfo
+  }
+) {
+  const childItems = getRootPanelChildren(launcher).map((child) => createRootPanelListItem(child, options))
+
+  options.quickPanel.open({
+    title: typeof launcher.label === 'string' ? launcher.label : undefined,
+    list: childItems,
+    symbol: launcher.id,
+    parentPanel: options.parentPanel,
+    queryAnchor: options.queryAnchor,
+    triggerInfo: options.triggerInfo ?? { type: 'button' }
   })
+}
+
+function createRootQuickPanelOpenOptions(
+  launchers: readonly ComposerToolLauncher[],
+  options: {
+    inputAdapter?: QuickPanelInputAdapter
+    quickPanel: QuickPanelContextType
+    onToolLauncherSelect?: ComposerSurfaceProps['onToolLauncherSelect']
+    title?: string
+    queryAnchor?: number
+    triggerInfo?: QuickPanelTriggerInfo
+  }
+): QuickPanelOpenOptions {
+  const getRootPanelOptions = () =>
+    createRootQuickPanelOpenOptions(launchers, {
+      ...options
+    })
+
+  return {
+    title: options.title,
+    list: launchers
+      .filter((launcher) => !launcher.hidden)
+      .flatMap((launcher) => {
+        const rootChildren = getRootPanelChildren(launcher)
+        const supportsRootPanel = launcherSupportsSource(launcher, 'root-panel')
+
+        if (!supportsRootPanel && rootChildren.length === 0) return []
+
+        return [
+          createRootPanelListItem(
+            { ...launcher, submenu: rootChildren },
+            {
+              ...options,
+              getRootPanelOptions
+            }
+          )
+        ]
+      }),
+    symbol: QuickPanelReservedSymbol.Root,
+    queryAnchor: options.queryAnchor,
+    triggerInfo: options.triggerInfo ?? { type: 'button' }
+  }
 }
 
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
@@ -431,9 +574,10 @@ export default function ComposerSurface({
     onActionsChange?.({
       resizeTextArea: () => undefined,
       onTextChange: handleTextChangeFromTool,
+      toggleExpanded: handleToggleExpanded,
       removeToken
     })
-  }, [handleTextChangeFromTool, onActionsChange, removeToken])
+  }, [handleTextChangeFromTool, handleToggleExpanded, onActionsChange, removeToken])
 
   const rootSuggestionStateRef = useRef({ getToolLaunchers, onToolLauncherSelect, quickPanel })
   rootSuggestionStateRef.current = { getToolLaunchers, onToolLauncherSelect, quickPanel }
@@ -442,16 +586,36 @@ export default function ComposerSurface({
     () => ({
       pluginKey: 'composer-root-suggestion',
       char: QuickPanelReservedSymbol.Root,
+      title: t('settings.quickPanel.title'),
+      renderMode: 'headless',
       allowedPrefixes: [' ', '\n'],
-      items: ({ query }) => {
+      items: () => [],
+      onActiveChange: ({ editor, query, range, text }) => {
         const { getToolLaunchers, onToolLauncherSelect, quickPanel } = rootSuggestionStateRef.current
-        const items = (getToolLaunchers?.() ?? [])
-          .filter((launcher) => !launcher.hidden)
-          .map((launcher) => createRootSuggestionItem(launcher, { onToolLauncherSelect, quickPanel }))
-        return filterSuggestionItems(items, query)
+        const launchers = getToolLaunchers?.() ?? []
+        const queryAnchor = getComposerTextOffset(editor, range.from)
+        const triggerInfo: QuickPanelTriggerInfo = {
+          type: 'input',
+          position: queryAnchor,
+          originalText: text || `${QuickPanelReservedSymbol.Root}${query}`
+        }
+
+        quickPanel.open(
+          createRootQuickPanelOpenOptions(launchers, {
+            onToolLauncherSelect,
+            inputAdapter: createComposerInputAdapter(editor),
+            quickPanel,
+            title: t('settings.quickPanel.title'),
+            queryAnchor,
+            triggerInfo
+          })
+        )
+      },
+      onKeyDown: ({ event }) => {
+        return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
       }
     }),
-    []
+    [t]
   )
 
   const activeSuggestionSources = useMemo(
@@ -479,6 +643,17 @@ export default function ComposerSurface({
         style: getComposerEditorStyle(fontSize, isExpanded)
       },
       handleKeyDown: (_view, event) => {
+        if (
+          quickPanel.isVisible &&
+          ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
+        ) {
+          const handled = quickPanel.dispatchKeyDown(event)
+          if (handled) return true
+          if (event.key === 'Enter' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            return false
+          }
+        }
+
         if (event.key === 'Escape' && isExpanded) {
           event.stopPropagation()
           handleToggleExpanded(false)
@@ -684,7 +859,7 @@ export default function ComposerSurface({
           .run()
       },
       deleteTriggerRange: (range) => {
-        deleteComposerTextBeforeCursor(editor, range)
+        deleteComposerTextRange(editor, range)
       },
       focus: () => {
         editor.commands.focus()
@@ -723,9 +898,7 @@ export default function ComposerSurface({
     [applyComposerText]
   )
 
-  const quickPanelElement = quickPanelEnabled ? (
-    <QuickPanelView setInputText={setText} inputAdapter={inputAdapter} />
-  ) : null
+  const quickPanelElement = quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled
   const belowControls = renderBelowControls?.(inputAdapter)
   const inputbarElement = (

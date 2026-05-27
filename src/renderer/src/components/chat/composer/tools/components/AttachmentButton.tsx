@@ -1,7 +1,11 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type {
+  QuickPanelCallBackOptions,
+  QuickPanelListItem,
+  QuickPanelOpenOptions
+} from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
@@ -106,7 +110,12 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
   )
 
   const openKnowledgeFileList = useCallback(
-    (base: KnowledgeBase) => {
+    (
+      base: KnowledgeBase,
+      parentPanel?: QuickPanelOpenOptions,
+      queryAnchor?: number,
+      triggerInfo?: QuickPanelOpenOptions['triggerInfo']
+    ) => {
       setSelectedKnowledgeBaseId(base.id)
       openQuickPanelPanel({
         title: base.name,
@@ -119,6 +128,9 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
           }
         ],
         symbol: QuickPanelReservedSymbol.File,
+        parentPanel,
+        queryAnchor,
+        triggerInfo,
         multiple: true
       })
     },
@@ -190,7 +202,8 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
           icon: <FileSearch />,
           disabled: base.status !== 'completed',
           isMenu: true,
-          action: () => openKnowledgeFileList(base)
+          action: ({ parentPanel, queryAnchor, context }: QuickPanelCallBackOptions) =>
+            openKnowledgeFileList(base, parentPanel, queryAnchor, context.triggerInfo)
         }
       })
     ]

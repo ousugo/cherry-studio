@@ -182,6 +182,7 @@ const emptyActions: ProviderActionHandlers = {
   resizeTextArea: () => undefined,
   addNewTopic: () => undefined,
   onTextChange: () => undefined,
+  toggleExpanded: () => undefined,
   removeToken: () => undefined
 }
 
@@ -875,6 +876,7 @@ const AgentComposerInner = ({
     () => ({
       pluginKey: 'agent-resource-mention-suggestion',
       char: '@',
+      title: t('chat.input.resource_panel.title'),
       allowedPrefixes: [' ', '\n'],
       items: async ({ query }) => {
         const { accessiblePaths, files, setFiles, t } = resourceSuggestionStateRef.current
@@ -954,7 +956,7 @@ const AgentComposerInner = ({
         })
       }
     }),
-    []
+    [t]
   )
 
   const suggestionSources = useMemo(
@@ -1008,7 +1010,7 @@ const AgentComposerInner = ({
         fontSize={fontSize}
         narrowMode={narrowMode}
         onActionsChange={handleSurfaceActionsChange}
-        getToolLaunchers={() => getLaunchers('root-panel')}
+        getToolLaunchers={() => getLaunchers()}
         suggestionSources={suggestionSources}
         queueContent={
           <ComposerMessageQueuePanel

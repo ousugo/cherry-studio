@@ -8,8 +8,7 @@ import {
   type QuickPanelCallBackOptions,
   type QuickPanelListItem,
   type QuickPanelOpenOptions,
-  QuickPanelReservedSymbol,
-  type QuickPanelTriggerInfo
+  QuickPanelReservedSymbol
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -18,8 +17,6 @@ import type { Prompt } from '@shared/data/types/prompt'
 import { Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { computeQuickPhraseInsertResult } from './quickPhraseInsert'
 
 interface Props {
   launcher: ToolLauncherApi
@@ -40,9 +37,6 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue, resizeTextArea
     updateList: updateQuickPanelList
   } = useQuickPanel()
   const { setTimeoutTimer } = useTimer()
-  const triggerInfoRef = useRef<
-    (QuickPanelTriggerInfo & { symbol?: QuickPanelReservedSymbol; searchText?: string }) | undefined
-  >(undefined)
 
   const { data: promptsRaw, isLoading: isPromptsLoading, error: promptsError } = useQuery('/prompts')
 
@@ -60,15 +54,8 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue, resizeTextArea
     (text: string, options?: QuickPanelCallBackOptions) => {
       const inputAdapter = options?.inputAdapter
       if (inputAdapter) {
-        const triggerInfo = triggerInfoRef.current
-        if (triggerInfo?.type === 'input' && triggerInfo.position !== undefined) {
-          const to =
-            inputAdapter.getCursorOffset?.() ?? triggerInfo.position + 1 + (triggerInfo.searchText?.length ?? 0)
-          inputAdapter.deleteTriggerRange({ from: triggerInfo.position, to })
-        }
         inputAdapter.insertText(text)
         inputAdapter.focus()
-        triggerInfoRef.current = undefined
         return
       }
 
@@ -76,18 +63,6 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue, resizeTextArea
         'handlePhraseSelect_1',
         () => {
           setInputValue((prev) => {
-            const triggerInfo = triggerInfoRef.current
-
-            const result = computeQuickPhraseInsertResult({
-              currentValue: prev,
-              insertText: text,
-              rootSymbol: QuickPanelReservedSymbol.Root,
-              triggerInfo,
-              selectionStart: prev.length,
-              selectionEnd: prev.length
-            })
-            triggerInfoRef.current = undefined
-
             setTimeoutTimer(
               'handlePhraseSelect_2',
               () => {
@@ -95,7 +70,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue, resizeTextArea
               },
               10
             )
-            return result.value
+            return `${prev}${text}`
           })
         },
         10
@@ -184,26 +159,13 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue, resizeTextArea
     }
   }, [isQuickPanelVisible, phraseItems, quickPanelSymbol, updateQuickPanelList])
 
-  type QuickPhraseTrigger =
-    | (QuickPanelTriggerInfo & { symbol?: QuickPanelReservedSymbol; searchText?: string })
-    | undefined
-
   const openQuickPanel = useCallback(
-    (triggerInfo?: QuickPhraseTrigger) => {
-      triggerInfoRef.current = triggerInfo
+    (parentPanel?: QuickPanelOpenOptions, queryAnchor?: number, triggerInfo?: QuickPanelOpenOptions['triggerInfo']) => {
       openQuickPanelContext({
         ...quickPanelOpenOptionsRef.current,
-        triggerInfo:
-          triggerInfo && triggerInfo.type === 'input'
-            ? {
-                type: triggerInfo.type,
-                position: triggerInfo.position,
-                originalText: triggerInfo.originalText
-              }
-            : triggerInfo,
-        onClose: () => {
-          triggerInfoRef.current = undefined
-        }
+        parentPanel,
+        queryAnchor,
+        triggerInfo
       })
     },
     [openQuickPanelContext]
@@ -227,18 +189,13 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue, resizeTextArea
         label: t('settings.prompts.title'),
         description: '',
         icon: <Zap />,
-        action: ({ quickPanel: context, searchText }) => {
-          const rootTrigger =
-            context.triggerInfo && context.triggerInfo.type === 'input'
-              ? {
-                  ...context.triggerInfo,
-                  symbol: QuickPanelReservedSymbol.Root,
-                  searchText: searchText ?? ''
-                }
-              : undefined
-
+        action: ({ parentPanel, queryAnchor, quickPanel: context }) => {
           context.close('select')
-          setTimeoutTimer('openQuickPhrasesRootMenu', () => openQuickPanel(rootTrigger), 0)
+          setTimeoutTimer(
+            'openQuickPhrasesRootMenu',
+            () => openQuickPanel(parentPanel, queryAnchor, context.triggerInfo),
+            0
+          )
         }
       }
     ])

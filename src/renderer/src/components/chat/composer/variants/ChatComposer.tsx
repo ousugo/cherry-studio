@@ -99,6 +99,7 @@ const emptyActions: ProviderActionHandlers = {
   resizeTextArea: () => undefined,
   addNewTopic: () => undefined,
   onTextChange: () => undefined,
+  toggleExpanded: () => undefined,
   removeToken: () => undefined
 }
 
@@ -983,7 +984,7 @@ const ChatComposerInner = ({
         onFocus={() => setSearching(false)}
         onActionsChange={handleSurfaceActionsChange}
         onTokenRemoveRequest={handleTokenRemoveRequest}
-        getToolLaunchers={() => getLaunchers('root-panel')}
+        getToolLaunchers={() => getLaunchers()}
         queueContent={
           <ComposerMessageQueuePanel
             draftItems={messageQueue.draftItems}

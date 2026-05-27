@@ -1,11 +1,10 @@
 import { configureStore } from '@reduxjs/toolkit'
-import { fireEvent, render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import React, { useEffect } from 'react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import React, { useEffect, useRef } from 'react'
 import { Provider } from 'react-redux'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { QuickPanelListItem } from '../QuickPanel'
+import type { QuickPanelInputAdapter, QuickPanelListItem, QuickPanelOpenOptions } from '../QuickPanel'
 import { QuickPanelProvider, QuickPanelView, useQuickPanel } from '../QuickPanel'
 
 // Mock the DynamicVirtualList component
@@ -58,17 +57,100 @@ type KeyStep = {
 
 const PAGE_SIZE = 7
 
+function createInputAdapter(initialText = '', initialCursor = initialText.length) {
+  let text = initialText
+  let cursor = initialCursor
+  const listeners = new Set<Parameters<NonNullable<QuickPanelInputAdapter['subscribeInput']>>[0]>()
+
+  const adapter: QuickPanelInputAdapter = {
+    getText: () => text,
+    getCursorOffset: () => cursor,
+    insertText: vi.fn((insertedText: string) => {
+      text = `${text.slice(0, cursor)}${insertedText}${text.slice(cursor)}`
+      cursor += insertedText.length
+      listeners.forEach((listener) => listener())
+    }),
+    deleteTriggerRange: vi.fn(({ from, to }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursor = cursor <= from ? cursor : Math.max(from, cursor - (to - from))
+      listeners.forEach((listener) => listener())
+    }),
+    focus: vi.fn(),
+    subscribeInput: (listener) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    }
+  }
+
+  return {
+    adapter,
+    setText: (nextText: string, nextCursor = nextText.length) => {
+      text = nextText
+      cursor = nextCursor
+      listeners.forEach((listener) => listener())
+    }
+  }
+}
+
 // 用于测试 open 行为的组件
-function OpenPanelOnMount({ list }: { list: QuickPanelListItem[] }) {
+function OpenPanelOnMount({
+  list,
+  parentPanel,
+  queryAnchor = 0,
+  symbol = 'test',
+  triggerInfo
+}: {
+  list: QuickPanelListItem[]
+  parentPanel?: QuickPanelOpenOptions
+  queryAnchor?: number
+  symbol?: string
+  triggerInfo?: QuickPanelOpenOptions['triggerInfo']
+}) {
   const quickPanel = useQuickPanel()
+  const didOpenRef = useRef(false)
   useEffect(() => {
+    if (didOpenRef.current) return
+    didOpenRef.current = true
+
     quickPanel.open({
       title: 'Test Panel',
       list,
-      symbol: 'test',
-      pageSize: PAGE_SIZE
+      symbol,
+      pageSize: PAGE_SIZE,
+      parentPanel,
+      queryAnchor,
+      triggerInfo: triggerInfo ?? { type: 'input', position: queryAnchor, originalText: '' }
     })
-  }, [list, quickPanel])
+  }, [list, parentPanel, queryAnchor, quickPanel, symbol, triggerInfo])
+  return null
+}
+
+function OpenChildPanelWithParentOnMount() {
+  const quickPanel = useQuickPanel()
+  const didOpenRef = useRef(false)
+
+  useEffect(() => {
+    if (didOpenRef.current) return
+    didOpenRef.current = true
+
+    quickPanel.open({
+      title: 'Child Panel',
+      list: createList(1, 'Child'),
+      symbol: 'child',
+      pageSize: PAGE_SIZE,
+      queryAnchor: 0,
+      parentPanel: {
+        title: 'Slash Panel',
+        list: createList(1, 'Root'),
+        symbol: '/',
+        pageSize: PAGE_SIZE,
+        queryAnchor: 0
+      }
+    })
+  }, [quickPanel])
+
   return null
 }
 
@@ -98,7 +180,7 @@ describe('QuickPanelView', () => {
 
   describe('rendering', () => {
     it('should render without crashing when wrapped in QuickPanelProvider', () => {
-      render(wrapWithProviders(<QuickPanelView setInputText={vi.fn()} />))
+      render(wrapWithProviders(<QuickPanelView inputAdapter={createInputAdapter().adapter} />))
 
       // 检查面板容器是否存在且初始不可见
       const panel = screen.getByTestId('quick-panel')
@@ -107,11 +189,12 @@ describe('QuickPanelView', () => {
 
     it('should render list after open', async () => {
       const list = createList(100)
+      const input = createInputAdapter()
 
       render(
         wrapWithProviders(
           <>
-            <QuickPanelView setInputText={vi.fn()} />
+            <QuickPanelView inputAdapter={input.adapter} />
             <OpenPanelOnMount list={list} />
           </>
         )
@@ -124,45 +207,160 @@ describe('QuickPanelView', () => {
       expect(screen.getByText('Item 1')).toBeInTheDocument()
     })
 
-    it('filters from the panel search input instead of scanning the composer textarea', async () => {
-      const list = createList(3, 'Item')
-      const user = userEvent.setup()
+    it('uses the same horizontal width as the inputbar stack', () => {
+      const list = createList(1)
+      const input = createInputAdapter()
 
       render(
         wrapWithProviders(
           <>
-            <QuickPanelView setInputText={vi.fn()} />
+            <QuickPanelView inputAdapter={input.adapter} />
             <OpenPanelOnMount list={list} />
           </>
         )
       )
 
       const panel = screen.getByTestId('quick-panel')
-      const textarea = document.querySelector<HTMLTextAreaElement>('[data-testid="composer-textarea"]')!
-      textarea.value = '/Item 3'
-      fireEvent.input(textarea)
+      expect(panel).toHaveClass('right-0', 'left-0', 'w-full')
+      expect(panel.className).not.toContain('px-[35px]')
+    })
+
+    it('renders the panel body with a clear rounded border', () => {
+      const list = createList(1)
+      const input = createInputAdapter()
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount list={list} />
+          </>
+        )
+      )
+
+      const panelBody = screen.getByTestId('quick-panel-body')
+      expect(panelBody).toHaveClass('rounded-xl', 'border', 'border-border/80', 'bg-background')
+      expect(panelBody.className).not.toContain('bg-popover')
+      expect(panelBody.className).not.toContain('shadow')
+    })
+
+    it('uses neutral selected item styling instead of theme-primary styling', () => {
+      const list = createList(1, 'Selected', { isSelected: true })
+      const input = createInputAdapter()
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount list={list} />
+          </>
+        )
+      )
+
+      const selectedRow = screen.getByText('Selected 1').closest('[data-id="0"]')
+      expect(selectedRow).toHaveClass('bg-accent')
+      expect(selectedRow?.className).not.toContain('primary')
+    })
+
+    it('filters from the composer input adapter instead of rendering an internal search input', async () => {
+      const list = createList(3, 'Item')
+      const input = createInputAdapter('/Item 1')
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount list={list} />
+          </>
+        )
+      )
+
+      const panel = screen.getByTestId('quick-panel')
+      expect(within(panel).queryByRole('textbox')).not.toBeInTheDocument()
       expect(screen.getByText('Item 1')).toBeInTheDocument()
-      expect(screen.getByText('Item 3')).toBeInTheDocument()
 
-      const searchInput = within(panel).getByRole('textbox')
-      await user.clear(searchInput)
-      await user.type(searchInput, 'Item 2')
-
-      expect(screen.getByText('Item 2')).toBeInTheDocument()
+      input.setText('/Item 2')
+      await waitFor(() => expect(screen.getByText('Item 2')).toBeInTheDocument())
       expect(screen.queryByText('Item 1')).not.toBeInTheDocument()
+      expect(input.adapter.focus).toHaveBeenCalled()
+    })
+
+    it('auto-selects the first composer-query match', async () => {
+      const list = createList(3, 'Item')
+      const input = createInputAdapter('/Item 3')
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount list={list} />
+          </>
+        )
+      )
+
+      const panel = screen.getByTestId('quick-panel')
+
+      expect(screen.getByText('Item 3')).toBeInTheDocument()
+      expect(screen.queryByText('Item 1')).not.toBeInTheDocument()
+      await waitFor(() => {
+        const focused = panel.querySelectorAll('.focused')
+        expect(focused.length).toBe(1)
+        expect(focused[0].textContent).toContain('Item 3')
+      })
+    })
+
+    it('closes when the input trigger slash is deleted', async () => {
+      const list = createList(3, 'Item')
+      const input = createInputAdapter('/Item 1')
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount
+              list={list}
+              symbol="/"
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Item 1' }}
+            />
+          </>
+        )
+      )
+
+      expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+
+      input.setText('Item 1')
+
+      await waitFor(() => expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible'))
+    })
+
+    it('does not navigate back to the parent panel from a child panel', async () => {
+      const input = createInputAdapter()
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenChildPanelWithParentOnMount />
+          </>
+        )
+      )
+
+      expect(screen.getByText('Child 1')).toBeInTheDocument()
+
+      fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'ArrowLeft', ctrlKey: true })
+
+      expect(screen.getByText('Child 1')).toBeInTheDocument()
+      expect(screen.queryByText('Root 1')).not.toBeInTheDocument()
+      expect(screen.queryByText('settings.quickPanel.back')).not.toBeInTheDocument()
     })
   })
 
   describe('focusing', () => {
     // 执行一系列按键，检查 focused item 是否正确
     async function runKeySequenceAndCheck(panel: HTMLElement, sequence: KeyStep[]) {
-      const user = userEvent.setup()
       for (const { key, ctrlKey, expected } of sequence) {
-        let keyString = ''
-        if (ctrlKey) keyString += '{Control>}'
-        keyString += key.length === 1 ? key : `{${key}}`
-        if (ctrlKey) keyString += '{/Control}'
-        await user.keyboard(keyString)
+        fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key, ctrlKey })
+        fireEvent.keyUp(screen.getByTestId('quick-panel-body'), { key, ctrlKey: false })
 
         // 检查是否只有一个 focused item
         const focused = panel.querySelectorAll('.focused')
@@ -177,48 +375,44 @@ describe('QuickPanelView', () => {
       }
     }
 
-    it('should not focus on any item after panel open by default', () => {
+    it('should focus on the first selectable item after panel open by default', () => {
       const list = createList(100)
+      const input = createInputAdapter()
 
       render(
         wrapWithProviders(
           <>
-            <QuickPanelView setInputText={vi.fn()} />
+            <QuickPanelView inputAdapter={input.adapter} />
             <OpenPanelOnMount list={list} />
           </>
         )
       )
 
-      // 检查是否没有任何 focused item
       const panel = screen.getByTestId('quick-panel')
       const focused = panel.querySelectorAll('.focused')
-      expect(focused.length).toBe(0)
-
-      // 检查第一个 item 存在但没有 focused 类
-      const item1 = screen.getByText('Item 1')
-      expect(item1).toBeInTheDocument()
-      const focusedItem1 = item1.closest('.focused')
-      expect(focusedItem1).toBeNull()
+      expect(focused.length).toBe(1)
+      expect(focused[0].textContent).toContain('Item 1')
     })
 
     it('should focus on the right item using ArrowUp, ArrowDown', async () => {
       const list = createList(100, 'Item')
+      const input = createInputAdapter()
 
       render(
         wrapWithProviders(
           <>
-            <QuickPanelView setInputText={vi.fn()} />
+            <QuickPanelView inputAdapter={input.adapter} />
             <OpenPanelOnMount list={list} />
           </>
         )
       )
 
       const keySequence = [
-        { key: 'ArrowDown', expected: 'Item 1' }, // 从未选中状态按 ArrowDown 会选中第一个
-        { key: 'ArrowUp', expected: 'Item 100' }, // 从第一个按 ArrowUp 会循环到最后一个
-        { key: 'ArrowUp', expected: 'Item 99' },
-        { key: 'ArrowDown', expected: 'Item 100' },
-        { key: 'ArrowDown', expected: 'Item 1' } // 从最后一个按 ArrowDown 会循环到第一个
+        { key: 'ArrowDown', expected: 'Item 2' },
+        { key: 'ArrowUp', expected: 'Item 1' },
+        { key: 'ArrowUp', expected: 'Item 100' },
+        { key: 'ArrowDown', expected: 'Item 1' },
+        { key: 'ArrowDown', expected: 'Item 2' }
       ]
 
       await runKeySequenceAndCheck(screen.getByTestId('quick-panel'), keySequence)
@@ -226,18 +420,19 @@ describe('QuickPanelView', () => {
 
     it('should focus on the right item using PageUp, PageDown', async () => {
       const list = createList(100, 'Item')
+      const input = createInputAdapter()
 
       render(
         wrapWithProviders(
           <>
-            <QuickPanelView setInputText={vi.fn()} />
+            <QuickPanelView inputAdapter={input.adapter} />
             <OpenPanelOnMount list={list} />
           </>
         )
       )
 
       const keySequence = [
-        { key: 'PageDown', expected: `Item ${PAGE_SIZE}` }, // 从未选中状态按 PageDown 会选中第 pageSize 个项目
+        { key: 'PageDown', expected: `Item ${PAGE_SIZE + 1}` },
         { key: 'PageUp', expected: 'Item 1' }, // PageUp 会选中第一个
         { key: 'ArrowUp', expected: 'Item 100' }, // 从第一个按 ArrowUp 会到最后一个
         { key: 'PageDown', expected: 'Item 100' }, // 从最后一个按 PageDown 仍然是最后一个
@@ -249,25 +444,125 @@ describe('QuickPanelView', () => {
 
     it('should focus on the right item using Ctrl+ArrowUp, Ctrl+ArrowDown', async () => {
       const list = createList(100, 'Item')
+      const input = createInputAdapter()
 
       render(
         wrapWithProviders(
           <>
-            <QuickPanelView setInputText={vi.fn()} />
+            <QuickPanelView inputAdapter={input.adapter} />
             <OpenPanelOnMount list={list} />
           </>
         )
       )
 
       const keySequence = [
-        { key: 'ArrowDown', ctrlKey: true, expected: 'Item 1' }, // 从未选中状态按 Ctrl+ArrowDown 会选中第一个
-        { key: 'ArrowDown', ctrlKey: true, expected: `Item ${PAGE_SIZE + 1}` }, // Ctrl+ArrowDown 会跳转 pageSize 个位置
-        { key: 'ArrowUp', ctrlKey: true, expected: 'Item 1' }, // Ctrl+ArrowUp 会跳转回去
+        { key: 'ArrowDown', ctrlKey: true, expected: `Item ${PAGE_SIZE + 1}` },
+        { key: 'ArrowDown', ctrlKey: true, expected: `Item ${PAGE_SIZE * 2 + 1}` },
+        { key: 'ArrowUp', ctrlKey: true, expected: `Item ${PAGE_SIZE + 1}` },
+        { key: 'ArrowUp', ctrlKey: true, expected: 'Item 1' },
         { key: 'ArrowUp', ctrlKey: true, expected: 'Item 100' }, // 从第一个位置再按 Ctrl+ArrowUp 会循环到最后
         { key: 'ArrowDown', ctrlKey: true, expected: 'Item 1' } // 从最后位置按 Ctrl+ArrowDown 会循环到第一个
       ]
 
       await runKeySequenceAndCheck(screen.getByTestId('quick-panel'), keySequence)
+    })
+
+    it('consumes the composer query before executing a leaf item with Enter', () => {
+      const action = vi.fn()
+      const input = createInputAdapter('/Item 1')
+      const list = createList(1, 'Item', { action })
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount list={list} />
+          </>
+        )
+      )
+
+      fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
+
+      expect(input.adapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 7 })
+      expect(action).toHaveBeenCalledWith(expect.objectContaining({ action: 'enter', searchText: 'Item 1' }))
+    })
+
+    it('removes the trigger slash when opening a child panel and keeps filtering with the remaining query', async () => {
+      const input = createInputAdapter('/Child')
+      const childAction = vi.fn()
+      const rootItem: QuickPanelListItem = {
+        label: 'Root',
+        filterText: 'Root Child',
+        icon: 'root',
+        isMenu: true,
+        action: ({ context, parentPanel, queryAnchor }) => {
+          context.open({
+            title: 'Child Panel',
+            list: createList(1, 'Child', { action: childAction }),
+            symbol: 'child',
+            parentPanel,
+            queryAnchor,
+            triggerInfo: context.triggerInfo
+          })
+        }
+      }
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount
+              list={[rootItem]}
+              symbol="/"
+              triggerInfo={{ type: 'input', position: 0, originalText: '/Child' }}
+            />
+          </>
+        )
+      )
+
+      fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
+
+      expect(input.adapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 1 })
+      await waitFor(() => expect(screen.getByText('Child 1')).toBeInTheDocument())
+
+      fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
+
+      expect(input.adapter.deleteTriggerRange).toHaveBeenLastCalledWith({ from: 0, to: 5 })
+      expect(childAction).toHaveBeenCalledWith(expect.objectContaining({ action: 'enter', searchText: 'Child' }))
+    })
+
+    it('does not close a replacement panel opened by a leaf action', async () => {
+      const input = createInputAdapter('/manual')
+      const rootItem: QuickPanelListItem = {
+        label: 'Manual',
+        filterText: 'Manual',
+        icon: 'manual',
+        action: ({ context, parentPanel, queryAnchor }) => {
+          context.open({
+            title: 'Manual Panel',
+            list: createList(1, 'Server'),
+            symbol: 'mcp',
+            parentPanel,
+            queryAnchor,
+            triggerInfo: context.triggerInfo,
+            multiple: true
+          })
+        }
+      }
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={input.adapter} />
+            <OpenPanelOnMount list={[rootItem]} />
+          </>
+        )
+      )
+
+      fireEvent.keyDown(screen.getByTestId('quick-panel-body'), { key: 'Enter' })
+
+      await waitFor(() => expect(screen.getByText('Server 1')).toBeInTheDocument())
+      expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
     })
   })
 })

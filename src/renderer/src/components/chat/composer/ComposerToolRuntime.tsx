@@ -271,6 +271,8 @@ export function useComposerToolLauncherController() {
         quickPanel: options.quickPanel ?? quickPanel,
         inputAdapter: options.inputAdapter,
         triggerInfo: options.triggerInfo,
+        parentPanel: options.parentPanel,
+        queryAnchor: options.queryAnchor,
         searchText: options.searchText,
         source: options.source
       })

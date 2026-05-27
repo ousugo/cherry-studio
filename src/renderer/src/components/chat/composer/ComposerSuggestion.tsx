@@ -3,10 +3,12 @@ import { loggerService } from '@logger'
 import {
   firstQuickPanelSelectableIndex,
   moveQuickPanelSelectableIndex,
+  QuickPanelFooter,
   QuickPanelFrame,
   QuickPanelList,
   toggleQuickPanelSelectedId
 } from '@renderer/components/QuickPanel/list'
+import { isMac } from '@renderer/config/constant'
 import type { Editor, Range } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
 import { PluginKey } from '@tiptap/pm/state'
@@ -27,6 +29,9 @@ export interface ComposerSuggestionItem {
   selected?: boolean
   disabled?: boolean
   isMenu?: boolean
+  suffix?: ReactNode | string
+  hint?: ReactNode | string
+  children?: ComposerSuggestionItem[]
   query?: string
   command: (options: { editor: Editor; range: Range; item: ComposerSuggestionItem; query: string }) => void
 }
@@ -37,16 +42,30 @@ export interface ComposerSuggestionSource {
   allowSpaces?: boolean
   allowedPrefixes?: string[] | null
   startOfLine?: boolean
+  renderMode?: 'list' | 'headless'
   multiple?: boolean
   pageSize?: number
+  title?: ReactNode | string
   keepOpenOnSelect?: boolean
+  onActiveChange?: (options: ComposerSuggestionActiveChangeOptions) => void
+  onExit?: (options: ComposerSuggestionActiveChangeOptions) => void
+  onKeyDown?: (props: SuggestionKeyDownProps) => boolean
   items: (options: { query: string; editor: Editor }) => ComposerSuggestionItem[] | Promise<ComposerSuggestionItem[]>
+}
+
+export interface ComposerSuggestionActiveChangeOptions {
+  editor: Editor
+  range: Range
+  query: string
+  text: string
+  items: ComposerSuggestionItem[]
 }
 
 interface ComposerSuggestionListProps extends SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem> {
   ref?: React.RefObject<ComposerSuggestionListRef | null>
   multiple?: boolean
   pageSize?: number
+  title?: ReactNode | string
   keepOpenOnSelect?: boolean
   onStickyOpenChange?: (open: boolean) => void
   onRequestClose?: () => void
@@ -67,7 +86,8 @@ const ComposerSuggestionList = ({ ref, ...props }: ComposerSuggestionListProps) 
     onStickyOpenChange,
     pageSize = 7,
     query,
-    range
+    range,
+    title
   } = props
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerClearedRef = useRef(false)
@@ -81,20 +101,8 @@ const ComposerSuggestionList = ({ ref, ...props }: ComposerSuggestionListProps) 
   )
   const [selectedIndex, setSelectedIndex] = useState(() => firstQuickPanelSelectableIndex(itemsWithSelection))
 
-  useEffect(() => {
-    setSelectedIds(new Set(items.filter((item) => item.selected).map((item) => item.id)))
-    setSelectedIndex(firstQuickPanelSelectableIndex(items))
-  }, [items])
-
-  const closeStickyPanel = useCallback(() => {
-    setIsStickyOpen(false)
-    onStickyOpenChange?.(false)
-    onRequestClose?.()
-  }, [onRequestClose, onStickyOpenChange])
-
-  const selectItem = useCallback(
-    (index: number) => {
-      const item = itemsWithSelection[index]
+  const selectDirectItem = useCallback(
+    (item: ComposerSuggestionItem) => {
       if (!item || item.disabled) return false
 
       if (multiple && keepOpenOnSelect) {
@@ -116,7 +124,28 @@ const ComposerSuggestionList = ({ ref, ...props }: ComposerSuggestionListProps) 
       runSuggestionCommand(item)
       return true
     },
-    [editor, itemsWithSelection, keepOpenOnSelect, multiple, onStickyOpenChange, query, range, runSuggestionCommand]
+    [editor, keepOpenOnSelect, multiple, onStickyOpenChange, query, range, runSuggestionCommand]
+  )
+
+  useEffect(() => {
+    setSelectedIds(new Set(items.filter((item) => item.selected).map((item) => item.id)))
+    setSelectedIndex(firstQuickPanelSelectableIndex(items))
+  }, [items])
+
+  const closeStickyPanel = useCallback(() => {
+    setIsStickyOpen(false)
+    onStickyOpenChange?.(false)
+    onRequestClose?.()
+  }, [onRequestClose, onStickyOpenChange])
+
+  const selectItem = useCallback(
+    (index: number) => {
+      const item = itemsWithSelection[index]
+      if (!item || item.disabled) return false
+
+      return selectDirectItem(item)
+    },
+    [itemsWithSelection, selectDirectItem]
   )
 
   const handleKeyDown = useCallback(
@@ -201,7 +230,7 @@ const ComposerSuggestionList = ({ ref, ...props }: ComposerSuggestionListProps) 
   const visibleItems = useMemo(
     () =>
       itemsWithSelection.flatMap((item, sourceIndex) =>
-        !item.disabled || item.description ? [{ ...item, sourceIndex }] : []
+        !item.disabled || item.description || item.hint || item.children?.length ? [{ ...item, sourceIndex }] : []
       ),
     [itemsWithSelection]
   )
@@ -217,6 +246,12 @@ const ComposerSuggestionList = ({ ref, ...props }: ComposerSuggestionListProps) 
           onSelect={(item) => {
             selectItem(item.sourceIndex)
           }}
+        />
+        <QuickPanelFooter
+          title={title}
+          assistiveKey={isMac ? '⌘' : 'Ctrl'}
+          showPageHint={visibleItems.length > pageSize}
+          confirmLabel={multiple ? t('settings.quickPanel.multiple') : undefined}
         />
       </QuickPanelFrame>
     </div>
@@ -265,6 +300,33 @@ function updateSuggestionPosition(
 }
 
 function createSuggestionRender(source: ComposerSuggestionSource) {
+  if (source.renderMode === 'headless') {
+    const notifyActiveChange = (props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>) => {
+      source.onActiveChange?.({
+        editor: props.editor,
+        range: props.range,
+        query: props.query,
+        text: props.text,
+        items: props.items
+      })
+    }
+
+    return {
+      onStart: notifyActiveChange,
+      onUpdate: notifyActiveChange,
+      onExit: (props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>) => {
+        source.onExit?.({
+          editor: props.editor,
+          range: props.range,
+          query: props.query,
+          text: props.text,
+          items: props.items
+        })
+      },
+      onKeyDown: (props: SuggestionKeyDownProps) => source.onKeyDown?.(props) ?? false
+    }
+  }
+
   let component: ReactRenderer<ComposerSuggestionListRef, ComposerSuggestionListProps> | undefined
   let cleanup: (() => void) | undefined
   let stickyOpen = false
@@ -276,6 +338,7 @@ function createSuggestionRender(source: ComposerSuggestionSource) {
     keepOpenOnSelect: source.keepOpenOnSelect,
     multiple: source.multiple,
     pageSize: source.pageSize,
+    title: source.title,
     onStickyOpenChange: (open) => {
       stickyOpen = open
       if (open && cleanup) {

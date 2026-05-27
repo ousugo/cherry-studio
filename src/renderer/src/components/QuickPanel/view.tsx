@@ -1,4 +1,3 @@
-import { Flex, Input } from '@cherrystudio/ui'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
@@ -7,11 +6,13 @@ import { Check, ChevronRight } from 'lucide-react'
 import React, { use, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { defaultFilterFn, defaultSortFn } from './defaultStrategies'
+import { QuickPanelFooter } from './list'
 import { QuickPanelContext } from './provider'
 import type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
   QuickPanelInputAdapter,
+  QuickPanelKeyDownEvent,
   QuickPanelListItem,
   QuickPanelOpenOptions,
   QuickPanelScrollTrigger
@@ -19,8 +20,10 @@ import type {
 
 const ITEM_HEIGHT = 31
 
+const firstSelectableIndex = (items: readonly QuickPanelListItem[]) => items.findIndex((item) => !item.disabled)
+const INPUT_TRIGGER_SYMBOLS = new Set(['/', '@'])
+
 interface Props {
-  setInputText: React.Dispatch<React.SetStateAction<string>>
   inputAdapter?: QuickPanelInputAdapter
 }
 
@@ -29,14 +32,16 @@ interface Props {
  * 请不要往这里添加入参，避免耦合;
  * 这里只读取来自上下文QuickPanelContext的数据
  */
-export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) => {
+export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const ctx = use(QuickPanelContext)
-  void setInputText
-  void inputAdapter
 
   if (!ctx) {
     throw new Error('QuickPanel must be used within a QuickPanelProvider')
   }
+
+  const closePanel = ctx.close
+  const isPanelVisible = ctx.isVisible
+  const registerKeyDownHandler = ctx.registerKeyDownHandler
 
   const ASSISTIVE_KEY = isMac ? '⌘' : 'Ctrl'
   const [isAssistiveKeyPressed, setIsAssistiveKeyPressed] = useState(false)
@@ -47,15 +52,15 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
   const scrollTriggerRef = useRef<QuickPanelScrollTrigger>('initial')
   const [_index, setIndex] = useState(-1)
   const index = useDeferredValue(_index)
-  const [historyPanel, setHistoryPanel] = useState<QuickPanelOpenOptions[]>([])
 
   const bodyRef = useRef<HTMLDivElement>(null)
-  const searchInputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<DynamicVirtualListRef>(null)
   const footerRef = useRef<HTMLDivElement>(null)
 
-  const [_searchText, setSearchText] = useState('')
-  const searchText = useDeferredValue(_searchText)
+  const [inputSearchText, setInputSearchText] = useState('')
+  const searchText = useDeferredValue(inputSearchText)
+  const queryAnchorRef = useRef<number | undefined>(undefined)
+  const inputTriggerConsumedRef = useRef(false)
 
   // 缓存：按 item 缓存拼音文本，避免重复转换
   const pinyinCacheRef = useRef<WeakMap<QuickPanelListItem, string>>(new WeakMap())
@@ -73,6 +78,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
     if (!ctx.isVisible && !ctx.symbol) {
       prevSymbolRef.current = ''
       prevSearchTextRef.current = ''
+      queryAnchorRef.current = undefined
+      inputTriggerConsumedRef.current = false
       setIndex(-1)
       return []
     }
@@ -83,10 +90,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
       const combinedLength = baseList.length
       const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
       if (isSymbolChanged) {
-        const maxIndex = combinedLength > 0 ? combinedLength - 1 : -1
-        const desiredIndex =
-          typeof ctx.defaultIndex === 'number' ? Math.min(Math.max(ctx.defaultIndex, -1), maxIndex) : -1
-        setIndex(desiredIndex)
+        setIndex(firstSelectableIndex(baseList))
       } else {
         setIndex((prevIndex) => {
           if (prevIndex >= combinedLength) {
@@ -127,15 +131,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
     const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
 
     if (isSearchChanged || isSymbolChanged) {
-      const combinedLength = pinnedItems.length + sortedNormalItems.length
-      if (isSymbolChanged) {
-        const maxIndex = combinedLength > 0 ? combinedLength - 1 : -1
-        const desiredIndex =
-          typeof ctx.defaultIndex === 'number' ? Math.min(Math.max(ctx.defaultIndex, -1), maxIndex) : -1
-        setIndex(desiredIndex)
-      } else {
-        setIndex(-1) // 搜索文本变化时不默认高亮
-      }
+      setIndex(firstSelectableIndex([...pinnedItems, ...sortedNormalItems]))
     } else {
       // 如果当前index超出范围，调整到有效范围内
       setIndex((prevIndex) => {
@@ -152,25 +148,77 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
 
     // 固定项置顶 + 排序后的普通项
     return [...pinnedItems, ...sortedNormalItems]
-  }, [ctx.isVisible, ctx.symbol, ctx.manageListExternally, ctx.list, ctx.defaultIndex, searchText, filterFn, sortFn])
-
-  const canForwardAndBackward = useMemo(() => {
-    return list.some((item) => item.isMenu) || historyPanel.length > 0
-  }, [list, historyPanel])
+  }, [ctx.isVisible, ctx.symbol, ctx.manageListExternally, ctx.list, searchText, filterFn, sortFn])
 
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
       const cleanSearchText = searchText.trim()
       ctx.close(action, cleanSearchText)
-      setHistoryPanel([])
       scrollTriggerRef.current = 'initial'
     },
     [ctx, searchText]
   )
 
+  const getCurrentPanelOptions = useCallback(
+    (defaultIndex?: number): QuickPanelOpenOptions => ({
+      title: ctx.title,
+      list: ctx.list,
+      symbol: ctx.symbol,
+      multiple: ctx.multiple,
+      defaultIndex,
+      pageSize: ctx.pageSize,
+      queryAnchor: queryAnchorRef.current ?? ctx.queryAnchor,
+      parentPanel: ctx.parentPanel,
+      triggerInfo: ctx.triggerInfo,
+      beforeAction: ctx.beforeAction,
+      afterAction: ctx.afterAction,
+      onClose: ctx.onClose,
+      manageListExternally: ctx.manageListExternally,
+      filterFn: ctx.filterFn,
+      sortFn: ctx.sortFn
+    }),
+    [ctx]
+  )
+
+  const consumeInputQuery = useCallback(() => {
+    if (!inputAdapter) return
+
+    const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
+    if (queryAnchor === undefined) return
+
+    const text = inputAdapter.getText()
+    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    if (cursorOffset < queryAnchor) return
+
+    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
+  }, [ctx.queryAnchor, inputAdapter])
+
+  const consumeInputTriggerSymbol = useCallback(() => {
+    if (!inputAdapter) return
+
+    const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
+    if (queryAnchor === undefined) return
+
+    const text = inputAdapter.getText()
+    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    if (cursorOffset <= queryAnchor) return
+
+    const triggerSymbol = text.slice(queryAnchor, queryAnchor + 1)
+    if (triggerSymbol !== '/' && triggerSymbol !== '@') return
+
+    inputTriggerConsumedRef.current = true
+    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: queryAnchor + 1 })
+    queryAnchorRef.current = queryAnchor
+    setInputSearchText(text.slice(queryAnchor + 1, cursorOffset))
+  }, [ctx.queryAnchor, inputAdapter])
+
   const handleItemAction = useCallback(
     (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
       if (item.disabled) return
+      const cleanSearchText = searchText.replace(/^[/@]/, '')
+      const parentPanel = getCurrentPanelOptions(index)
+      const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
+      const panelGenerationBeforeAction = ctx.getPanelGeneration()
 
       // 在多选模式下，先更新选中状态
       if (ctx.multiple && !item.isMenu) {
@@ -183,13 +231,18 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
           context: ctx,
           action,
           item: updatedItem,
-          searchText: searchText,
+          parentPanel,
+          queryAnchor,
+          searchText: cleanSearchText,
           inputAdapter
         }
 
+        consumeInputQuery()
         ctx.beforeAction?.(quickPanelCallBackOptions)
         item?.action?.(quickPanelCallBackOptions)
         ctx.afterAction?.(quickPanelCallBackOptions)
+        queryAnchorRef.current = inputAdapter?.getCursorOffset?.() ?? queryAnchor
+        setInputSearchText('')
         return
       }
 
@@ -197,77 +250,127 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
         context: ctx,
         action,
         item,
-        searchText: searchText,
+        parentPanel,
+        queryAnchor,
+        searchText: cleanSearchText,
         inputAdapter
       }
 
+      if (item.isMenu) {
+        consumeInputTriggerSymbol()
+      } else {
+        consumeInputQuery()
+      }
       ctx.beforeAction?.(quickPanelCallBackOptions)
       item?.action?.(quickPanelCallBackOptions)
       ctx.afterAction?.(quickPanelCallBackOptions)
 
       if (item.isMenu) {
-        // 保存上一个打开的选项，用于回退
-        setHistoryPanel((prev) => [
-          ...(prev || []),
-          {
-            title: ctx.title,
-            list: ctx.list,
-            symbol: ctx.symbol,
-            multiple: ctx.multiple,
-            defaultIndex: index,
-            pageSize: ctx.pageSize,
-            onClose: ctx.onClose,
-            beforeAction: ctx.beforeAction,
-            afterAction: ctx.afterAction
-          }
-        ])
-        setSearchText('')
         return
       }
 
       // 多选模式下不关闭面板
       if (ctx.multiple) return
 
+      if (ctx.getPanelGeneration() !== panelGenerationBeforeAction) {
+        return
+      }
+
       handleClose(action)
     },
-    [ctx, searchText, handleClose, index, inputAdapter]
+    [
+      ctx,
+      searchText,
+      getCurrentPanelOptions,
+      index,
+      consumeInputTriggerSymbol,
+      consumeInputQuery,
+      inputAdapter,
+      handleClose
+    ]
   )
 
-  const prevSearchCallbackTextRef = useRef('')
-  const onSearchChangeRef = useRef(ctx.onSearchChange)
+  const updateSearchFromInput = useCallback(() => {
+    if (!isPanelVisible || !inputAdapter) return
 
-  useEffect(() => {
-    onSearchChangeRef.current = ctx.onSearchChange
-  }, [ctx.onSearchChange])
+    const queryAnchor = queryAnchorRef.current
+    if (queryAnchor === undefined) return
 
-  useEffect(() => {
-    if (!ctx.isVisible) {
-      prevSearchCallbackTextRef.current = ''
-    }
-  }, [ctx.isVisible])
+    const text = inputAdapter.getText()
+    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    const triggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
+    const shouldRequireInputTrigger =
+      ctx.triggerInfo?.type === 'input' && triggerSymbol !== undefined && INPUT_TRIGGER_SYMBOLS.has(triggerSymbol)
 
-  const triggerSearchChange = useCallback((searchText: string) => {
-    const cleanSearchText = searchText.trim()
-
-    if (cleanSearchText === prevSearchCallbackTextRef.current) {
+    if (cursorOffset < queryAnchor) {
+      closePanel('input_session_invalid')
       return
     }
 
-    prevSearchCallbackTextRef.current = cleanSearchText
-    onSearchChangeRef.current?.(cleanSearchText)
-  }, [])
+    if (
+      shouldRequireInputTrigger &&
+      !inputTriggerConsumedRef.current &&
+      text.slice(queryAnchor, queryAnchor + 1) !== triggerSymbol
+    ) {
+      closePanel('input_trigger_removed')
+      return
+    }
+
+    setInputSearchText(text.slice(queryAnchor, cursorOffset))
+  }, [closePanel, ctx.triggerInfo?.originalText, ctx.triggerInfo?.type, inputAdapter, isPanelVisible])
 
   useEffect(() => {
-    if (ctx.isVisible) {
-      searchInputRef.current?.focus()
+    if (!ctx.isVisible) return
+
+    if (!inputAdapter) {
+      queryAnchorRef.current = undefined
+      setInputSearchText('')
+      return
     }
-  }, [ctx.isVisible])
+
+    const text = inputAdapter.getText()
+    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    const queryAnchor = Math.max(
+      0,
+      Math.min(ctx.queryAnchor ?? ctx.triggerInfo?.position ?? cursorOffset, cursorOffset)
+    )
+    const triggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
+
+    if (
+      ctx.triggerInfo?.type === 'input' &&
+      triggerSymbol !== undefined &&
+      INPUT_TRIGGER_SYMBOLS.has(triggerSymbol) &&
+      text.slice(queryAnchor, queryAnchor + 1) === triggerSymbol
+    ) {
+      inputTriggerConsumedRef.current = false
+    }
+
+    queryAnchorRef.current = queryAnchor
+    setInputSearchText(text.slice(queryAnchor, cursorOffset))
+    inputAdapter.focus()
+
+    return inputAdapter.subscribeInput?.((event) => {
+      if (event?.isComposing) return
+      updateSearchFromInput()
+    })
+  }, [
+    ctx.isVisible,
+    ctx.queryAnchor,
+    ctx.symbol,
+    ctx.triggerInfo?.originalText,
+    ctx.triggerInfo?.position,
+    ctx.triggerInfo?.type,
+    inputAdapter,
+    updateSearchFromInput
+  ])
 
   useEffect(() => {
     if (ctx.isVisible) return
 
     const timer = setTimeout(() => {
-      setSearchText('')
+      setInputSearchText('')
+      queryAnchorRef.current = undefined
+      inputTriggerConsumedRef.current = false
     }, 200)
 
     return () => clearTimeout(timer)
@@ -283,8 +386,10 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
   }, [index])
 
   const handlePanelKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (isMac ? e.metaKey : e.ctrlKey) {
+    (e: QuickPanelKeyDownEvent) => {
+      const assistivePressed = isMac ? e.metaKey : e.ctrlKey
+
+      if (assistivePressed) {
         setIsAssistiveKeyPressed(true)
       }
 
@@ -293,7 +398,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
         e.stopPropagation()
         setIsMouseOver(false)
       }
-      if (['ArrowLeft', 'ArrowRight'].includes(e.key) && isAssistiveKeyPressed) {
+      if (e.key === 'ArrowRight' && assistivePressed) {
         e.preventDefault()
         e.stopPropagation()
         setIsMouseOver(false)
@@ -302,7 +407,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
       switch (e.key) {
         case 'ArrowUp':
           scrollTriggerRef.current = 'keyboard'
-          if (isAssistiveKeyPressed) {
+          if (assistivePressed) {
             setIndex((prev) => {
               if (prev === -1) return list.length > 0 ? list.length - 1 : -1
               const newIndex = prev - ctx.pageSize
@@ -315,11 +420,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
               return prev > 0 ? prev - 1 : list.length - 1
             })
           }
-          break
+          return true
 
         case 'ArrowDown':
           scrollTriggerRef.current = 'keyboard'
-          if (isAssistiveKeyPressed) {
+          if (assistivePressed) {
             setIndex((prev) => {
               if (prev === -1) return list.length > 0 ? 0 : -1
               const newIndex = prev + ctx.pageSize
@@ -332,7 +437,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
               return prev < list.length - 1 ? prev + 1 : 0
             })
           }
-          break
+          return true
 
         case 'PageUp':
           scrollTriggerRef.current = 'keyboard'
@@ -341,7 +446,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
             const newIndex = prev - ctx.pageSize
             return newIndex < 0 ? 0 : newIndex
           })
-          break
+          return true
 
         case 'PageDown':
           scrollTriggerRef.current = 'keyboard'
@@ -350,52 +455,43 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
             const newIndex = prev + ctx.pageSize
             return newIndex >= list.length ? list.length - 1 : newIndex
           })
-          break
-
-        case 'ArrowLeft':
-          if (!isAssistiveKeyPressed) return
-          if (!historyPanel.length) return
-          scrollTriggerRef.current = 'initial'
-          setSearchText('')
-          if (historyPanel.length > 0) {
-            const lastPanel = historyPanel.pop()
-            if (lastPanel) {
-              ctx.open(lastPanel)
-            }
-          }
-          break
+          return true
 
         case 'ArrowRight':
-          if (!isAssistiveKeyPressed) return
-          if (!list?.[index]?.isMenu) return
+          if (!assistivePressed) return false
+          if (!list?.[index]?.isMenu) return false
           scrollTriggerRef.current = 'initial'
-          setSearchText('')
           handleItemAction(list[index], 'enter')
-          break
+          return true
 
         case 'Enter':
         case 'NumpadEnter': {
-          if (e.nativeEvent.isComposing) return
+          const isComposing = 'nativeEvent' in e ? e.nativeEvent.isComposing : e.isComposing
+          if (isComposing) return false
 
-          // 折叠/软隐藏时不拦截，让输入框处理（用于发送消息）
+          if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            setIsMouseOver(false)
+            return false
+          }
+
+          // 折叠/软隐藏时也要拦截，避免把查询输入当作发送消息。
           const hasSearch = searchText.length > 0
           const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
           const isCollapsed = hasSearch && nonPinnedCount === 0
-          if (isCollapsed) return
+          if (isCollapsed) {
+            e.preventDefault()
+            e.stopPropagation()
+            setIsMouseOver(false)
+            return true
+          }
 
           // 面板可见且未折叠时：拦截所有 Enter 变体；
           // 纯 Enter 选择项，带修饰键仅拦截不处理
-          if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            // Don't prevent default or stop propagation - let it create a newline
-            setIsMouseOver(false)
-            break
-          }
-
           if (e.ctrlKey || e.metaKey || e.altKey) {
             e.preventDefault()
             e.stopPropagation()
             setIsMouseOver(false)
-            break
+            return true
           }
 
           if (list?.[index]) {
@@ -405,18 +501,27 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
 
             handleItemAction(list[index], 'enter')
           } else {
-            handleClose('enter_empty')
+            e.preventDefault()
+            e.stopPropagation()
           }
-          break
+          return true
         }
         case 'Escape':
+          e.preventDefault()
           e.stopPropagation()
           handleClose('esc')
-          break
+          return true
       }
+
+      return false
     },
-    [index, isAssistiveKeyPressed, historyPanel, ctx, list, handleItemAction, handleClose, searchText]
+    [index, ctx, list, handleItemAction, handleClose, searchText]
   )
+
+  useEffect(() => {
+    if (!isPanelVisible) return
+    return registerKeyDownHandler(handlePanelKeyDown)
+  }, [isPanelVisible, registerKeyDownHandler, handlePanelKeyDown])
 
   const handlePanelKeyUp = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (isMac ? !e.metaKey : !e.ctrlKey) {
@@ -456,15 +561,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
     return () => window.removeEventListener('resize', handleResize)
   }, [ctx.isVisible])
 
-  const handleSearchTextChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const nextSearchText = event.target.value
-      setSearchText(nextSearchText)
-      triggerSearchChange(nextSearchText)
-    },
-    [triggerSearchChange]
-  )
-
   const listHeight = useMemo(() => {
     return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
   }, [ctx.pageSize, list.length])
@@ -472,6 +568,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
   // 折叠仅依据“非固定项”的匹配数；仅剩固定项（如“清除”）时仍视为无匹配，保持折叠
   const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
   const collapsed = !ctx.manageListExternally && hasSearchText && visibleNonPinnedCount === 0
+  const panelMaxHeight = ctx.isVisible ? (collapsed ? 98 : ctx.pageSize * ITEM_HEIGHT + 98) : 0
 
   const estimateSize = useCallback(() => ITEM_HEIGHT, [])
 
@@ -484,9 +581,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
           className={classNames(
             'mx-[5px] mb-px flex h-[30px] items-center justify-between gap-5 rounded-md p-[5px] transition-colors duration-100',
             item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer hover:bg-accent',
-            item.isSelected && 'bg-primary/15',
-            item.isSelected && itemIndex === index && 'bg-primary/20',
-            item.isSelected && !item.disabled && 'hover:bg-primary/20',
+            item.isSelected && 'bg-muted',
+            item.isSelected && itemIndex === index && 'bg-accent',
+            item.isSelected && !item.disabled && 'hover:bg-accent',
             !item.isSelected && itemIndex === index && 'bg-accent',
             {
               focused: itemIndex === index,
@@ -530,16 +627,17 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
 
   return (
     <div
-      style={{ maxHeight: ctx.isVisible && !collapsed ? ctx.pageSize * ITEM_HEIGHT + 138 : 0 }}
+      style={{ maxHeight: panelMaxHeight }}
       className={classNames(
-        '-translate-y-full pointer-events-none absolute top-px right-0 left-0 w-full origin-bottom overflow-hidden px-[35px] transition-[max-height] duration-200 ease-in-out',
+        '-translate-y-full pointer-events-none absolute top-px right-0 left-0 w-full origin-bottom overflow-hidden transition-[max-height] duration-200 ease-in-out',
         ctx.isVisible && 'visible',
-        ctx.isVisible && !collapsed && 'pointer-events-auto'
+        ctx.isVisible && 'pointer-events-auto'
       )}
       data-testid="quick-panel">
       <div
         ref={bodyRef}
-        className="before:-z-10 relative isolate rounded-t-lg border-border/60 border-x-[0.5px] border-t-[0.5px] py-[5px] before:absolute before:inset-0 before:rounded-[inherit] before:bg-popover/80 before:backdrop-blur-[35px] before:backdrop-saturate-150 before:content-[''] [&::-webkit-scrollbar]:w-[3px]"
+        data-testid="quick-panel-body"
+        className="relative isolate rounded-xl border border-border/80 bg-background py-[5px] [&::-webkit-scrollbar]:w-[3px]"
         onKeyDown={handlePanelKeyDown}
         onKeyUp={handlePanelKeyUp}
         onMouseMove={() =>
@@ -548,15 +646,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
             return prev ? prev : true
           })
         }>
-        <div className="px-2 pb-1">
-          <Input
-            ref={searchInputRef}
-            value={_searchText}
-            placeholder={t('common.search')}
-            className="h-8 rounded-md border-border/60 bg-background/70 text-xs shadow-none focus-visible:ring-1"
-            onChange={handleSearchTextChange}
-          />
-        </div>
         {collapsed ? (
           <div className="p-4 text-center text-[13px] text-muted-foreground">
             {t('settings.quickPanel.noResult', 'No results')}
@@ -574,38 +663,14 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText, inputAdapter }) 
             {rowRenderer}
           </DynamicVirtualList>
         )}
-        <div ref={footerRef} className="flex w-full items-center justify-between gap-4 px-3 pt-2 pb-[5px]">
-          <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-muted-foreground">
-            {ctx.title || ''}
-          </div>
-          <div className="flex shrink-0 items-center justify-end gap-4 text-[12px] text-muted-foreground">
-            <span>ESC {t('settings.quickPanel.close')}</span>
-
-            <Flex className="items-center gap-1">▲▼ {t('settings.quickPanel.select')}</Flex>
-
-            {footerWidth >= 500 && (
-              <>
-                <Flex className="items-center gap-1">
-                  <span className={isAssistiveKeyPressed ? 'text-primary' : 'text-muted-foreground'}>
-                    {ASSISTIVE_KEY}
-                  </span>
-                  + ▲▼ {t('settings.quickPanel.page')}
-                </Flex>
-
-                {canForwardAndBackward && (
-                  <Flex className="items-center gap-1">
-                    <span className={isAssistiveKeyPressed ? 'text-primary' : 'text-muted-foreground'}>
-                      {ASSISTIVE_KEY}
-                    </span>
-                    + ◀︎▶︎ {t('settings.quickPanel.back')}/{t('settings.quickPanel.forward')}
-                  </Flex>
-                )}
-              </>
-            )}
-
-            <Flex className="items-center gap-1">↩︎ {t('settings.quickPanel.confirm')}</Flex>
-          </div>
-        </div>
+        <QuickPanelFooter
+          containerRef={footerRef}
+          title={ctx.title}
+          assistiveKey={footerWidth >= 500 ? ASSISTIVE_KEY : undefined}
+          assistiveKeyActive={isAssistiveKeyPressed}
+          showPageHint
+          confirmLabel={ctx.multiple ? t('settings.quickPanel.multiple') : undefined}
+        />
       </div>
     </div>
   )

@@ -2,7 +2,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { ComposerDraftToken } from '@renderer/components/chat/composer/tokens'
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
-import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type { QuickPanelInputAdapter, QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
@@ -125,6 +125,7 @@ const circleXIcon = <CircleX />
 const sparklesIcon = <Sparkles />
 const hammerIcon18 = <Hammer size={18} />
 const sparklesIcon18 = <Sparkles size={18} />
+const MCP_LAUNCHER_ORDER_BASE = 90
 
 const useMcpToolsController = ({
   launcher,
@@ -274,7 +275,7 @@ const useMcpToolsController = ({
         id: `mcp-mode-${mode}`,
         kind: 'command' as const,
         sources: ['root-panel'] as const,
-        order: 50 + index / 100,
+        order: MCP_LAUNCHER_ORDER_BASE + index / 100,
         label: modeLabelMap[mode],
         description: t('settings.mcp.title'),
         icon: hammerIcon,
@@ -511,7 +512,12 @@ const useMcpToolsController = ({
   }, [prompts, promptLoadError, handlePromptSelect])
 
   const openPromptList = useCallback(
-    (inputAdapter?: QuickPanelInputAdapter) => {
+    (
+      inputAdapter?: QuickPanelInputAdapter,
+      parentPanel?: QuickPanelOpenOptions,
+      queryAnchor?: number,
+      triggerInfo?: QuickPanelOpenOptions['triggerInfo']
+    ) => {
       quickPanelHook.open({
         title: t('settings.mcp.title'),
         list: promptList.map((item) => ({
@@ -521,6 +527,9 @@ const useMcpToolsController = ({
             : undefined
         })),
         symbol: QuickPanelReservedSymbol.McpPrompt,
+        parentPanel,
+        queryAnchor,
+        triggerInfo,
         multiple: true
       })
     },
@@ -636,7 +645,12 @@ const useMcpToolsController = ({
   }, [resources, resourceLoadError, handleResourceSelect, isUnsupportedResource, t])
 
   const openResourcesList = useCallback(
-    async (inputAdapter?: QuickPanelInputAdapter) => {
+    async (
+      inputAdapter?: QuickPanelInputAdapter,
+      parentPanel?: QuickPanelOpenOptions,
+      queryAnchor?: number,
+      triggerInfo?: QuickPanelOpenOptions['triggerInfo']
+    ) => {
       quickPanelHook.open({
         title: t('settings.mcp.title'),
         list: resourcesList.map((item) => ({
@@ -646,6 +660,9 @@ const useMcpToolsController = ({
             : undefined
         })),
         symbol: QuickPanelReservedSymbol.McpResource,
+        parentPanel,
+        queryAnchor,
+        triggerInfo,
         multiple: true
       })
     },
@@ -667,7 +684,7 @@ const useMcpToolsController = ({
         id: 'mcp-tools',
         kind: 'group',
         sources: ['popover'],
-        order: 50,
+        order: MCP_LAUNCHER_ORDER_BASE,
         label: t('settings.mcp.title'),
         description: resolvedDisabledReason ?? '',
         disabledReason: resolvedDisabledReason,
@@ -682,21 +699,23 @@ const useMcpToolsController = ({
         id: 'mcp-prompts',
         kind: 'panel',
         sources: ['root-panel'],
-        order: 51,
+        order: MCP_LAUNCHER_ORDER_BASE + 1,
         label: `MCP ${t('settings.mcp.tabs.prompts')}`,
         description: '',
         icon: hammerIcon,
-        action: ({ inputAdapter }) => openPromptList(inputAdapter)
+        action: ({ inputAdapter, parentPanel, queryAnchor, triggerInfo }) =>
+          openPromptList(inputAdapter, parentPanel, queryAnchor, triggerInfo)
       },
       {
         id: 'mcp-resources',
         kind: 'panel',
         sources: ['root-panel'],
-        order: 52,
+        order: MCP_LAUNCHER_ORDER_BASE + 2,
         label: `MCP ${t('settings.mcp.tabs.resources')}`,
         description: '',
         icon: hammerIcon,
-        action: ({ inputAdapter }) => openResourcesList(inputAdapter)
+        action: ({ inputAdapter, parentPanel, queryAnchor, triggerInfo }) =>
+          openResourcesList(inputAdapter, parentPanel, queryAnchor, triggerInfo)
       }
     ])
 

@@ -113,16 +113,22 @@ describe('McpToolsRuntime', () => {
 
     const launchers = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     const modeLauncher = launchers.find((item) => item.id === 'mcp-tools')
+    const promptLauncher = launchers.find((item) => item.id === 'mcp-prompts')
+    const resourceLauncher = launchers.find((item) => item.id === 'mcp-resources')
 
     expect(modeLauncher?.sources).toEqual(['popover'])
+    expect(modeLauncher?.order).toBe(90)
     expect(modeLauncher?.submenu?.map((item) => item.id)).toEqual([
       'mcp-mode-disabled',
       'mcp-mode-auto',
       'mcp-mode-manual'
     ])
+    expect(modeLauncher?.submenu?.map((item) => item.order)).toEqual([90, 90.01, 90.02])
     expect(modeLauncher?.submenu?.every((item) => item.sources?.includes('root-panel'))).toBe(true)
-    expect(launchers.find((item) => item.id === 'mcp-prompts')?.sources).toEqual(['root-panel'])
-    expect(launchers.find((item) => item.id === 'mcp-resources')?.sources).toEqual(['root-panel'])
+    expect(promptLauncher?.sources).toEqual(['root-panel'])
+    expect(promptLauncher?.order).toBe(91)
+    expect(resourceLauncher?.sources).toEqual(['root-panel'])
+    expect(resourceLauncher?.order).toBe(92)
   })
 
   it('opens the manual server picker from the plus-menu manual mode item', async () => {

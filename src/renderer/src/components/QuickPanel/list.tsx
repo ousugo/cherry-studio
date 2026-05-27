@@ -1,6 +1,8 @@
+import { Flex } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { t } from 'i18next'
 import { Check, ChevronRight } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { useEffect, useRef } from 'react'
 
 export interface QuickPanelCandidateItem {
@@ -24,6 +26,16 @@ interface QuickPanelListProps<T extends QuickPanelCandidateItem> {
   activeIndex: number
   emptyLabel: ReactNode
   onSelect: (item: T, index: number) => void
+}
+
+interface QuickPanelFooterProps {
+  title?: ReactNode
+  showPageHint?: boolean
+  assistiveKey?: string
+  assistiveKeyActive?: boolean
+  confirmLabel?: ReactNode
+  className?: string
+  containerRef?: Ref<HTMLDivElement>
 }
 
 export function firstQuickPanelSelectableIndex(items: readonly QuickPanelCandidateItem[]) {
@@ -81,6 +93,40 @@ export function QuickPanelFrame({ children, className }: QuickPanelFrameProps) {
   )
 }
 
+export function QuickPanelFooter({
+  assistiveKey,
+  assistiveKeyActive = false,
+  className,
+  confirmLabel,
+  containerRef,
+  showPageHint = false,
+  title
+}: QuickPanelFooterProps) {
+  return (
+    <div
+      ref={containerRef}
+      className={cn('flex w-full items-center justify-between gap-4 px-3 pt-2 pb-[5px]', className)}>
+      <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-muted-foreground">
+        {title || ''}
+      </div>
+      <div className="flex shrink-0 items-center justify-end gap-4 text-[12px] text-muted-foreground">
+        <span>ESC {t('settings.quickPanel.close')}</span>
+
+        <Flex className="items-center gap-1">▲▼ {t('settings.quickPanel.select')}</Flex>
+
+        {assistiveKey && showPageHint ? (
+          <Flex className="items-center gap-1">
+            <span className={assistiveKeyActive ? 'text-foreground' : 'text-muted-foreground'}>{assistiveKey}</span>+ ▲▼{' '}
+            {t('settings.quickPanel.page')}
+          </Flex>
+        ) : null}
+
+        <Flex className="items-center gap-1">↩︎ {confirmLabel ?? t('settings.quickPanel.confirm')}</Flex>
+      </div>
+    </div>
+  )
+}
+
 export function QuickPanelList<T extends QuickPanelCandidateItem>({
   activeIndex,
   emptyLabel,
@@ -111,9 +157,9 @@ export function QuickPanelList<T extends QuickPanelCandidateItem>({
             className={cn(
               'mx-[5px] mb-px flex h-[30px] items-center justify-between gap-5 rounded-md p-[5px] transition-colors duration-100',
               item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer hover:bg-accent',
-              item.selected && 'bg-primary/15',
-              item.selected && itemIndex === activeIndex && 'bg-primary/20',
-              item.selected && !item.disabled && 'hover:bg-primary/20',
+              item.selected && 'bg-muted',
+              item.selected && itemIndex === activeIndex && 'bg-accent',
+              item.selected && !item.disabled && 'hover:bg-accent',
               !item.selected && itemIndex === activeIndex && 'bg-accent'
             )}
             data-active={itemIndex === activeIndex}

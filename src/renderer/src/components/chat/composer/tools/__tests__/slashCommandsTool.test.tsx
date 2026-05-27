@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { insertSlashCommand } from '../definitions/slashCommandsTool'
 
 describe('slash command tool', () => {
-  it('uses the rich composer input adapter when replacing a typed slash command', () => {
+  it('inserts through the rich composer input adapter after QuickPanel consumes the query', () => {
     const inputAdapter: QuickPanelInputAdapter = {
       getText: () => '/cl',
       getCursorOffset: () => 3,
@@ -14,9 +14,9 @@ describe('slash command tool', () => {
     }
     const onTextChange = vi.fn()
 
-    insertSlashCommand('/clear', onTextChange, true, inputAdapter)
+    insertSlashCommand('/clear', onTextChange, inputAdapter)
 
-    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 3 })
+    expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
     expect(inputAdapter.insertText).toHaveBeenCalledWith('/clear ')
     expect(inputAdapter.focus).toHaveBeenCalled()
     expect(onTextChange).not.toHaveBeenCalled()
@@ -31,7 +31,7 @@ describe('slash command tool', () => {
       focus: vi.fn()
     }
 
-    insertSlashCommand('/clear', vi.fn(), false, inputAdapter)
+    insertSlashCommand('/clear', vi.fn(), inputAdapter)
 
     expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
     expect(inputAdapter.insertText).toHaveBeenCalledWith('/clear ')

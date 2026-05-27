@@ -35,9 +35,14 @@ export type QuickPanelCallBackOptions = {
   context: QuickPanelContextType
   action: QuickPanelCloseAction
   item: QuickPanelListItem
+  parentPanel?: QuickPanelOpenOptions
+  queryAnchor?: number
   searchText?: string
   inputAdapter?: QuickPanelInputAdapter
 }
+
+export type QuickPanelKeyDownEvent = KeyboardEvent | React.KeyboardEvent<HTMLElement>
+export type QuickPanelKeyDownHandler = (event: QuickPanelKeyDownEvent) => boolean
 
 /**
  * Filter function type
@@ -80,11 +85,13 @@ export type QuickPanelOpenOptions = {
   symbol: string
   /** 触发信息，记录面板是如何被打开的 */
   triggerInfo?: QuickPanelTriggerInfo
+  /** Input text offset where the current composer-driven query starts. */
+  queryAnchor?: number
   beforeAction?: (options: QuickPanelCallBackOptions) => void
   afterAction?: (options: QuickPanelCallBackOptions) => void
   onClose?: (options: QuickPanelCallBackOptions) => void
-  /** Callback when search text changes (called with debounced search text) */
-  onSearchChange?: (searchText: string) => void
+  /** Panel to show when navigating back from this panel. */
+  parentPanel?: QuickPanelOpenOptions
   /** Tool manages list + collapse behavior externally (skip filtering/auto-close) */
   manageListExternally?: boolean
   /** Custom filter function for items (follows open-closed principle) */
@@ -131,15 +138,19 @@ export interface QuickPanelContextType {
   readonly pageSize: number
   readonly multiple: boolean
   readonly triggerInfo?: QuickPanelTriggerInfo
+  readonly queryAnchor?: number
+  readonly parentPanel?: QuickPanelOpenOptions
   readonly manageListExternally?: boolean
   readonly lastCloseAction?: QuickPanelCloseAction
   readonly filterFn?: QuickPanelFilterFn
   readonly sortFn?: QuickPanelSortFn
 
+  readonly dispatchKeyDown: (event: QuickPanelKeyDownEvent) => boolean
+  readonly getPanelGeneration: () => number
+  readonly registerKeyDownHandler: (handler: QuickPanelKeyDownHandler | undefined) => () => void
   readonly onClose?: (Options: QuickPanelCallBackOptions) => void
   readonly beforeAction?: (Options: QuickPanelCallBackOptions) => void
   readonly afterAction?: (Options: QuickPanelCallBackOptions) => void
-  readonly onSearchChange?: (searchText: string) => void
 }
 
 export type QuickPanelScrollTrigger = 'initial' | 'keyboard' | 'none'

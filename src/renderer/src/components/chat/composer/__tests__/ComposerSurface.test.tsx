@@ -16,6 +16,9 @@ const mocks = vi.hoisted(() => ({
   docDescendants: vi.fn(),
   dispatch: vi.fn(),
   editorPresetOptions: undefined as any,
+  quickPanelDispatchKeyDown: vi.fn(),
+  quickPanelIsVisible: false,
+  quickPanelOpen: vi.fn(),
   selection: { from: 1 } as any,
   transaction: undefined as any
 }))
@@ -53,8 +56,9 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelView: () => null,
   useQuickPanel: () => ({
     close: vi.fn(),
-    isVisible: false,
-    open: vi.fn(),
+    dispatchKeyDown: mocks.quickPanelDispatchKeyDown,
+    isVisible: mocks.quickPanelIsVisible,
+    open: mocks.quickPanelOpen,
     symbol: '',
     updateList: vi.fn()
   })
@@ -228,6 +232,9 @@ describe('ComposerSurface', () => {
     mocks.docDescendants.mockReset()
     mocks.dispatch.mockReset()
     mocks.editorPresetOptions = undefined
+    mocks.quickPanelDispatchKeyDown.mockReset()
+    mocks.quickPanelIsVisible = false
+    mocks.quickPanelOpen.mockReset()
     mocks.selection = { from: 1 }
     mocks.transaction = {
       doc: {},
@@ -381,7 +388,7 @@ describe('ComposerSurface', () => {
     expect(mocks.transaction.setNodeMarkup).toHaveBeenCalledTimes(1)
   })
 
-  it('uses disabled reason as the root suggestion description', async () => {
+  it('opens the QuickPanel root from the slash suggestion bridge', async () => {
     render(
       <ComposerSurface
         {...baseProps}
@@ -403,13 +410,171 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
 
     const rootSource = mocks.editorPresetOptions.suggestionSources[0]
-    const [item] = rootSource.items({ query: '' })
+    expect(rootSource.renderMode).toBe('headless')
+    expect(rootSource.items({ query: 'image' })).toEqual([])
 
-    expect(item).toMatchObject({
-      id: 'generate-image',
-      label: 'Generate image',
-      description: 'The model does not support generating images.',
-      disabled: true
+    rootSource.onActiveChange({
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn(() => '')
+          }
+        }
+      },
+      range: { from: 1, to: 6 },
+      query: 'image',
+      text: '/image',
+      items: []
     })
+
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({
+      title: 'settings.quickPanel.title',
+      list: [
+        expect.objectContaining({
+          label: 'Generate image',
+          description: 'The model does not support generating images.',
+          disabled: true,
+          filterText: expect.stringContaining('The model does not support generating images.')
+        })
+      ],
+      symbol: 'root',
+      queryAnchor: 0,
+      triggerInfo: {
+        type: 'input',
+        position: 0,
+        originalText: '/image'
+      }
+    })
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter' })
+    expect(rootSource.onKeyDown({ event })).toBe(false)
+    expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+  })
+
+  it('lets the visible QuickPanel handle Enter before send-message shortcuts', async () => {
+    const onSendDraft = vi.fn()
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelDispatchKeyDown.mockReturnValue(true)
+
+    render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter' })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
+    expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+    expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it('keeps the QuickPanel root as the parent when opening child panels from slash', async () => {
+    const onToolLauncherSelect = vi.fn()
+    render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        enableQuickPanelTriggers
+        onToolLauncherSelect={onToolLauncherSelect}
+        getToolLaunchers={() => [
+          {
+            id: 'thinking',
+            kind: 'group',
+            label: 'Thinking',
+            description: 'Reasoning controls',
+            icon: 'brain',
+            sources: ['popover'],
+            submenu: [
+              {
+                id: 'thinking-low',
+                kind: 'command',
+                label: 'Low',
+                description: 'Use low reasoning',
+                icon: 'low',
+                sources: ['root-panel']
+              }
+            ]
+          },
+          {
+            id: 'knowledge-base',
+            kind: 'command',
+            label: 'Knowledge Base',
+            description: 'Use configured knowledge',
+            icon: 'kb',
+            sources: ['root-panel']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const rootSource = mocks.editorPresetOptions.suggestionSources[0]
+    rootSource.onActiveChange({
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn(() => '')
+          }
+        }
+      },
+      range: { from: 1, to: 4 },
+      query: 'low',
+      text: '/low',
+      items: []
+    })
+
+    const rootPanelOptions = mocks.quickPanelOpen.mock.calls[0][0]
+    expect(rootPanelOptions).toMatchObject({
+      title: 'settings.quickPanel.title',
+      symbol: 'root',
+      queryAnchor: 0,
+      triggerInfo: {
+        type: 'input',
+        position: 0,
+        originalText: '/low'
+      }
+    })
+    expect(rootPanelOptions.list).toEqual([
+      expect.objectContaining({
+        label: 'Thinking',
+        isMenu: true,
+        filterText: expect.stringContaining('Low')
+      }),
+      expect.objectContaining({
+        label: 'Knowledge Base'
+      })
+    ])
+
+    rootPanelOptions.list[0].action({
+      action: 'enter',
+      context: rootPanelOptions,
+      item: rootPanelOptions.list[0],
+      parentPanel: rootPanelOptions,
+      queryAnchor: 0,
+      searchText: 'low'
+    })
+
+    expect(onToolLauncherSelect).not.toHaveBeenCalled()
+    expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        title: 'Thinking',
+        symbol: 'thinking',
+        queryAnchor: 0,
+        parentPanel: expect.objectContaining({
+          title: 'settings.quickPanel.title',
+          symbol: 'root',
+          queryAnchor: 0,
+          triggerInfo: {
+            type: 'input',
+            position: 0,
+            originalText: '/low'
+          },
+          list: expect.arrayContaining([
+            expect.objectContaining({ label: 'Thinking' }),
+            expect.objectContaining({ label: 'Knowledge Base' })
+          ])
+        }),
+        list: [expect.objectContaining({ label: 'Low', filterText: expect.stringContaining('Low') })]
+      })
+    )
   })
 })

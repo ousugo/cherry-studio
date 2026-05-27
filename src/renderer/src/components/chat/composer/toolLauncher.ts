@@ -1,6 +1,7 @@
 import type {
   QuickPanelContextType,
   QuickPanelInputAdapter,
+  QuickPanelOpenOptions,
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
 import type { ReactNode } from 'react'
@@ -13,6 +14,8 @@ export interface ComposerToolLauncherActionOptions {
   quickPanel: QuickPanelContextType
   inputAdapter?: QuickPanelInputAdapter
   triggerInfo?: QuickPanelTriggerInfo
+  parentPanel?: QuickPanelOpenOptions
+  queryAnchor?: number
   searchText?: string
   source: ComposerToolLauncherSource
 }
