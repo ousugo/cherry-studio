@@ -1,5 +1,5 @@
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -101,6 +101,7 @@ describe('useChatWithHistory', () => {
       ...originalApi,
       ai: {
         ...originalApi.ai,
+        streamAbort: vi.fn().mockResolvedValue(undefined),
         onStreamDone: vi.fn((cb: (data: { topicId: string; executionId?: string; isTopicDone?: boolean }) => void) => {
           doneListeners.push(cb)
           return () => {
@@ -192,6 +193,22 @@ describe('useChatWithHistory', () => {
     // Idempotent on re-render at the same terminal status.
     rerender()
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+  })
+
+  it('stop() fires streamAbort IPC even on reconnected streams', async () => {
+    // The AI SDK's `ChatTransport.reconnectToStream` contract doesn't carry an
+    // abortSignal, so streams produced by reconnect lack the listener that
+    // normally fans `chat.stop()` out as `streamAbort`. The hook wraps `stop`
+    // to fire the IPC directly; this test guards against regression.
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
+
+    await act(async () => {
+      await result.current.stop()
+    })
+
+    expect((window as any).api.ai.streamAbort).toHaveBeenCalledWith({ topicId: 'topic-abort' })
+    expect(stop).toHaveBeenCalledTimes(1)
   })
 
   it('refreshes on streaming → aborted and → error transitions', async () => {
