@@ -53,6 +53,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { app } from 'electron'
 
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
@@ -430,7 +431,7 @@ async function buildToolPermissions(
         type: 'tool-approval-request',
         approvalId,
         toolCallId: namespacedToolCallId,
-        providerMetadata: { cherry: { transport: 'claude-agent', toolName } }
+        providerMetadata: { cherry: { transport: 'claude-agent', toolName } satisfies CherryToolMeta }
       })
     })
   }

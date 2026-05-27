@@ -1,5 +1,7 @@
 import type { BaseTool, MCPTool, MCPToolResponse, MCPToolResponseStatus, NormalToolResponse } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CherryToolMeta } from '@shared/data/types/uiParts'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { UIMessagePart } from 'ai'
 import { isToolUIPart } from 'ai'
 
@@ -90,16 +92,11 @@ function extractOutputMetadata(part: ToolPart): { response: unknown; metadata?: 
   return { response: output }
 }
 
-function extractCherryToolMetadata(part: ToolPart): ToolMetadata | undefined {
-  if (!isRecord(part.providerMetadata)) return undefined
-  const cherry = isRecord(part.providerMetadata.cherry) ? part.providerMetadata.cherry : undefined
-  const tool = cherry && isRecord(cherry.tool) ? cherry.tool : undefined
-  if (!tool) return undefined
-  return {
-    serverId: typeof tool.serverId === 'string' ? tool.serverId : undefined,
-    serverName: typeof tool.serverName === 'string' ? tool.serverName : undefined,
-    type: isToolType(tool.type) ? tool.type : undefined
-  }
+function extractCherryToolMetadata(part: CherryMessagePart): ToolMetadata | undefined {
+  // readCherryMeta(part) returns the union of all per-part-type cherry shapes;
+  // schemaForPart already restricts validation to tool parts here.
+  const meta = readCherryMeta(part) as CherryToolMeta | undefined
+  return meta?.tool
 }
 
 function resolveToolType(part: ToolPart, toolName: string, metadata?: ToolMetadata): ToolType {
@@ -149,7 +146,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId: s
   const status = mapPartStateToStatus(toolPart.state)
 
   const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart)
-  const cherryMetadata = extractCherryToolMetadata(toolPart)
+  const cherryMetadata = extractCherryToolMetadata(part)
   const metadata = outputMetadata ?? cherryMetadata
   const toolType = resolveToolType(toolPart, toolName, metadata)
   const response = status === 'error' ? normalizeErrorOutput(toolPart) : rawResponse
@@ -219,16 +216,16 @@ export function findToolPartByCallId(
         state?: string
         input?: unknown
         approval?: { id?: string }
-        providerMetadata?: { cherry?: { transport?: string } }
       }
       if (p.toolCallId !== toolCallId) continue
+      const cherry = readCherryMeta(part) as CherryToolMeta | undefined
       return {
         part,
         state: p.state ?? '',
         toolCallId,
         messageId,
         approvalId: p.approval?.id,
-        transport: p.providerMetadata?.cherry?.transport,
+        transport: cherry?.transport,
         input: p.input
       }
     }

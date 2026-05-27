@@ -17,7 +17,7 @@ import type {
 } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { CherryProviderMetadata } from '@shared/data/types/uiParts'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
 function syntheticBase(
   messageId: string,
@@ -29,13 +29,6 @@ function syntheticBase(
     createdAt: '',
     status: MessageBlockStatus.SUCCESS
   }
-}
-
-function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefined {
-  if ('providerMetadata' in part && part.providerMetadata) {
-    return (part.providerMetadata as { cherry?: CherryProviderMetadata }).cherry
-  }
-  return undefined
 }
 
 function getParts(message: Message): CherryMessagePart[] {
@@ -59,14 +52,16 @@ export const findAllBlocks = (message: Message): MessageBlock[] => {
           content: (part as { text?: string }).text ?? ''
         } as MainTextMessageBlock)
         break
-      case 'reasoning':
+      case 'reasoning': {
+        const reasoningPart = part as Extract<CherryMessagePart, { type: 'reasoning' }>
         out.push({
           ...base,
           type: MessageBlockType.THINKING,
-          content: (part as { text?: string }).text ?? '',
-          thinking_millsec: getCherryMeta(part)?.thinkingMs ?? 0
+          content: reasoningPart.text ?? '',
+          thinking_millsec: readCherryMeta(reasoningPart)?.thinkingMs ?? 0
         } as ThinkingMessageBlock)
         break
+      }
       case 'file': {
         const filePart = part as { mediaType?: string; url?: string; filename?: string }
         if (filePart.mediaType?.startsWith('image/')) {
@@ -122,7 +117,7 @@ export const findThinkingBlocks = (message: Message): ThinkingMessageBlock[] => 
       ...syntheticBase(message.id, i),
       type: MessageBlockType.THINKING,
       content: part.text ?? '',
-      thinking_millsec: getCherryMeta(part)?.thinkingMs ?? 0
+      thinking_millsec: readCherryMeta(part)?.thinkingMs ?? 0
     })
   })
   return out
@@ -187,7 +182,7 @@ export const getCitationContent = (message: Message): string => {
   const lines: string[] = []
   for (const part of getParts(message)) {
     if (part.type !== 'text') continue
-    const refs = (getCherryMeta(part)?.references ?? []) as Array<{
+    const refs = (readCherryMeta(part)?.references ?? []) as Array<{
       category?: string
       number?: number
       title?: string

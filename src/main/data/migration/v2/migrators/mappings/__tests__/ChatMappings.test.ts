@@ -5,6 +5,7 @@ import type {
   ReasoningUIPart,
   TextUIPart
 } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -209,11 +210,13 @@ describe('transformBlocksToParts', () => {
     expect(part.type).toBe('text')
     expect(part.text).toBe('Hello world')
     expect(part.state).toBe('done')
-    expect(part.providerMetadata?.cherry).toBeDefined()
+    // Text parts only carry cherry meta when citations merge in via transformMessage;
+    // standalone text blocks have no providerMetadata.
+    expect(part.providerMetadata).toBeUndefined()
     expect(searchableText).toBe('Hello world')
   })
 
-  it('transforms thinking to ReasoningUIPart', () => {
+  it('transforms thinking to ReasoningUIPart with thinkingMs', () => {
     const { parts } = transformBlocksToParts([
       block('thinking', { content: 'Let me think...', thinking_millsec: 5000 })
     ])
@@ -223,7 +226,7 @@ describe('transformBlocksToParts', () => {
     expect(part.type).toBe('reasoning')
     expect(part.text).toBe('Let me think...')
     expect(part.state).toBe('done')
-    expect(part.providerMetadata?.cherry.thinkingMs).toBe(5000)
+    expect(readCherryMeta(part)?.thinkingMs).toBe(5000)
   })
 
   it('transforms tool with rawMcpToolResponse to DynamicToolUIPart', () => {
@@ -566,6 +569,38 @@ describe('transformMessage', () => {
     )
 
     expect(result.traceId).toBeNull()
+  })
+
+  it('does not stamp block-level createdAt/updatedAt/metadata/error onto part.providerMetadata.cherry', () => {
+    const blocks: OldBlock[] = [
+      {
+        ...mainTextBlock('b1', 'm1', 'hello'),
+        createdAt: '2025-02-02T00:00:00.000Z',
+        updatedAt: '2025-02-03T00:00:00.000Z',
+        metadata: { legacy: 'value' },
+        error: { name: 'OldErr', message: 'old' }
+      } as OldMainTextBlockType
+    ]
+    const result = transformMessage(msg('m1', 'assistant'), null, 0, blocks, 't1')
+    const part = result.data.parts?.[0] as TextUIPart
+    expect(part.providerMetadata).toBeUndefined()
+  })
+
+  it('writes citation references onto the first TextUIPart via withCherryMeta', () => {
+    const citationBlock: OldCitationBlock = {
+      ...block('citation'),
+      type: 'citation',
+      response: {
+        results: [{ title: 'Ex', url: 'https://ex.com', content: 'snippet' }],
+        source: 'websearch'
+      }
+    } as OldCitationBlock
+    const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'cited [1]'), citationBlock]
+    const result = transformMessage(msg('m1', 'assistant'), null, 0, blocks, 't1')
+    const textPart = result.data.parts?.find((p) => p.type === 'text') as TextUIPart
+    const meta = readCherryMeta(textPart)
+    expect(meta?.references).toBeDefined()
+    expect((meta?.references as { category: string }[])[0].category).toBe('citation')
   })
 })
 

@@ -22,6 +22,7 @@ const VALID_STATUS: ReadonlySet<MessageStatus> = new Set(['pending', 'success', 
 function toUIMessage(row: AgentSessionMessageEntity): CherryUIMessage | null {
   const metadata: CherryUIMessage['metadata'] = {}
   if (row.createdAt) metadata.createdAt = row.createdAt
+  if (row.updatedAt) metadata.updatedAt = row.updatedAt
   if (row.modelId) metadata.modelId = row.modelId
   if (row.modelSnapshot) metadata.modelSnapshot = row.modelSnapshot
   if (row.traceId) metadata.traceId = row.traceId

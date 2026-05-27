@@ -139,6 +139,8 @@ export interface CherryUIMessageMetadata {
 
   /** Creation timestamp (ISO). */
   createdAt?: string
+  /** Last modification timestamp (ISO). Mirrors v1 Message.updatedAt during migration. */
+  updatedAt?: string
 
   // ── Token stats. First four duplicate fields on `stats` so call-sites
   //    that only need a single counter can skip the nested object.

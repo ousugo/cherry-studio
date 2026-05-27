@@ -19,7 +19,8 @@ import { FILE_TYPE } from '@renderer/types/file'
 import type { Message } from '@renderer/types/newMessage'
 import { convertReferencesToCitations, convertReferencesToLegacyCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ErrorPartData } from '@shared/data/types/uiParts'
+import type { ErrorPartData } from '@shared/data/types/uiParts'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 
@@ -176,14 +177,6 @@ function groupSimilarParts(parts: CherryMessagePart[]): GroupedEntry[] {
 // Render helpers — Batch 1 stable components
 // ============================================================================
 
-/** Extract CherryProviderMetadata from a part. */
-function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefined {
-  if ('providerMetadata' in part && part.providerMetadata) {
-    return part.providerMetadata.cherry as CherryProviderMetadata | undefined
-  }
-  return undefined
-}
-
 /**
  * Memoized adapter from `ErrorPartData` (with optional name/message/stack) to
  * the normalized `SerializedError` shape `ErrorBlock` consumes. Lives here —
@@ -231,7 +224,7 @@ function renderPart(
   switch (partType) {
     case 'reasoning': {
       const reasoningPart = part
-      const cherryMeta = getCherryMeta(part)
+      const cherryMeta = readCherryMeta(part)
       const metadataBlock =
         'providerMetadata' in part && part.providerMetadata
           ? ((part.providerMetadata as Record<string, unknown>).metadata as Record<string, unknown> | undefined)
@@ -268,7 +261,7 @@ function renderPart(
     }
 
     case 'text': {
-      const cherryMeta = getCherryMeta(part)
+      const cherryMeta = readCherryMeta(part)
       const citations = cherryMeta?.references
         ? convertReferencesToCitations(cherryMeta.references as ContentReference[])
         : []
