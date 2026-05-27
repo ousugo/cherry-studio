@@ -7,9 +7,7 @@ export type InputBarToolType =
   | 'web_search'
   | 'url_context'
   | 'knowledge_base'
-  | 'mcp_tools'
   | 'generate_image'
-  | 'mention_models'
   | 'quick_phrases'
   // Agent Session tools
   | 'create_session'

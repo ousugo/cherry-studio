@@ -1357,7 +1357,7 @@
       "new_topic": "New Topic {{Command}}",
       "paste_text_file": "Paste into input",
       "pause": "Pause",
-      "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
+      "placeholder": "Type your message here, press {{key}} to send - / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "resource_panel": {
         "categories": {

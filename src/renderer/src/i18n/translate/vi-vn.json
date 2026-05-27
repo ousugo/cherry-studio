@@ -1355,7 +1355,7 @@
       "new_topic": "Chủ đề mới {{Command}}",
       "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Tạm dừng",
-      "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
+      "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - / để Bao gồm Công cụ",
       "placeholder_without_triggers": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi",
       "resource_panel": {
         "categories": {

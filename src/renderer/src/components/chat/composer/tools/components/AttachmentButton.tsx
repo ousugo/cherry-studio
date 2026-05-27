@@ -64,7 +64,7 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
       {
         id: 'attachment',
         kind: 'dialog',
-        sources: ['popover', 'root-panel'],
+        sources: ['popover'],
         order: 10,
         label: t('chat.input.upload.attachment'),
         description: '',

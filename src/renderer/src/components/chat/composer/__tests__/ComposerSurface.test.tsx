@@ -579,7 +579,7 @@ describe('ComposerSurface', () => {
       items: []
     })
 
-    mocks.quickPanelSymbol = 'mcp-prompts'
+    mocks.quickPanelSymbol = 'child-panel'
     rerender(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
 
     await act(async () => {

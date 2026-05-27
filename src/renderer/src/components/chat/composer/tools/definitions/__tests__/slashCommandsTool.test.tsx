@@ -15,7 +15,7 @@ describe('slashCommandsTool', () => {
     mockGetBuiltinSlashCommands.mockReset()
   })
 
-  it('keeps slash commands out of the plus popover submenu while restoring the parent entry', () => {
+  it('keeps slash commands out of the plus popover menu while preserving root-panel commands', () => {
     mockGetBuiltinSlashCommands.mockReturnValue([{ command: '/clear', description: 'Clear context' }])
     const quickPanel = { open: vi.fn() }
 
@@ -29,7 +29,7 @@ describe('slashCommandsTool', () => {
       expect.objectContaining({
         id: 'slash-commands',
         label: 'chat.input.slash_commands.title',
-        sources: ['popover'],
+        sources: [],
         submenu: [
           expect.objectContaining({
             id: 'slash-command:/clear',

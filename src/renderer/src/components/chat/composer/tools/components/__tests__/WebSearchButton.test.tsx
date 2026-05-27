@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -148,5 +148,17 @@ describe('WebSearchButton', () => {
       })
     )
     expect(updateAssistantMock).not.toHaveBeenCalled()
+  })
+
+  it('registers web search only for the plus menu', async () => {
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
+
+    const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls[0][0]
+    expect(webSearchLauncher).toMatchObject({
+      id: 'web-search',
+      sources: ['popover']
+    })
   })
 })

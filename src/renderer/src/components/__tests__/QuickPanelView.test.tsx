@@ -678,7 +678,7 @@ describe('QuickPanelView', () => {
             <QuickPanelView inputAdapter={input.adapter} />
             <OpenPanelOnMount
               list={list}
-              symbol="mcp-prompt"
+              symbol="multi-select-panel"
               panelOptions={{ multiple: true }}
               triggerInfo={{ type: 'input', position: 0, originalText: '/Alpha' }}
             />
@@ -723,7 +723,7 @@ describe('QuickPanelView', () => {
             <QuickPanelView inputAdapter={input.adapter} />
             <OpenPanelOnMount
               list={list}
-              symbol="mcp-prompt"
+              symbol="multi-select-panel"
               panelOptions={{ multiple: true }}
               triggerInfo={{ type: 'input', position: 0, originalText: '/Prompt' }}
             />

@@ -54,6 +54,7 @@ describe('AttachmentToolRuntime', () => {
 
     expect(attachmentLauncher).toMatchObject({
       id: 'attachment',
+      sources: ['popover'],
       label: 'Upload attachment',
       suffix: 'Documents only',
       tooltip: 'This model does not support image uploads. Documents only.'

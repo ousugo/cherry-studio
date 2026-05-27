@@ -21,7 +21,7 @@ import {
 const ITEM_HEIGHT = 31
 
 const firstSelectableIndex = (items: readonly QuickPanelListItem[]) => items.findIndex((item) => !item.disabled)
-const INPUT_TRIGGER_SYMBOLS = new Set(['/', '@'])
+const INPUT_TRIGGER_SYMBOLS = new Set(['/'])
 const ROOT_INPUT_QUERY_TERMINATOR_REGEX = /\s/
 
 function isRootInputQueryAnchorAllowed(text: string, queryAnchor: number) {
@@ -103,7 +103,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return baseList
     }
 
-    const _searchText = activeSearchText.replace(/^[/@]/, '')
+    const _searchText = activeSearchText.replace(/^\//, '')
     const lowerSearchText = _searchText.toLowerCase()
     const fuzzyPattern = lowerSearchText
       .split('')
@@ -244,7 +244,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     if (cursorOffset <= queryAnchor) return
 
     const triggerSymbol = text.slice(queryAnchor, queryAnchor + 1)
-    if (triggerSymbol !== '/' && triggerSymbol !== '@') return
+    if (triggerSymbol !== '/') return
 
     inputTriggerConsumedRef.current = true
     inputAdapter.deleteTriggerRange({ from: queryAnchor, to: queryAnchor + 1 })
@@ -255,7 +255,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const handleItemAction = useCallback(
     (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
       if (item.disabled) return
-      const cleanSearchText = activeSearchText.replace(/^[/@]/, '')
+      const cleanSearchText = activeSearchText.replace(/^\//, '')
       const parentPanel = getCurrentPanelOptions(activeIndex)
       const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
       const panelGenerationBeforeAction = ctx.getPanelGeneration()

@@ -127,7 +127,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       {
         id: 'web-search',
         kind: 'command',
-        sources: ['popover', 'root-panel'],
+        sources: ['popover'],
         order: 30,
         label: t('chat.input.web_search.label'),
         description: '',

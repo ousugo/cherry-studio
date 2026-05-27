@@ -4,13 +4,9 @@ export enum QuickPanelReservedSymbol {
   Root = '/',
   File = 'file',
   KnowledgeBase = '#',
-  MentionModels = '@',
   QuickPhrases = 'quick-phrases',
   Thinking = 'thinking',
   WebSearch = '?',
-  Mcp = 'mcp',
-  McpPrompt = 'mcp-prompt',
-  McpResource = 'mcp-resource',
   SlashCommands = 'slash-commands'
 }
 
@@ -80,7 +76,7 @@ export type QuickPanelOpenOptions = {
   multiple?: boolean
   /**
    * 用于标识是哪个快捷面板，不是用于触发显示
-   * 可以是/@#符号，也可以是其他字符串
+   * 可以是 /、# 符号，也可以是其他字符串
    */
   symbol: string
   /** 触发信息，记录面板是如何被打开的 */
