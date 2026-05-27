@@ -1,23 +1,28 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import PromptEditDialog from '@renderer/components/PromptEditDialog'
+import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
 import type { Tag } from '@shared/data/types/tag'
-import { useNavigate, useSearch } from '@tanstack/react-router'
-import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAgentMutations } from './adapters/agentAdapter'
 import { useAssistantMutations } from './adapters/assistantAdapter'
 import { usePromptMutations, usePromptMutationsById } from './adapters/promptAdapter'
 import { DEFAULT_TAG_COLOR, getRandomTagColor, RESOURCE_TYPE_ORDER } from './constants'
 import SkillDetailDialog from './detail/skill/SkillDetailDialog'
-import AgentConfigPage from './editor/agent/AgentConfigPage'
-import AssistantConfigPage from './editor/assistant/AssistantConfigPage'
-import { serializeAssistantForExport } from './editor/assistant/transfer'
+import {
+  AgentEditDialog,
+  AssistantEditDialog,
+  ResourceCreateDialog,
+  type ResourceCreateDialogKind,
+  type ResourceCreateDialogValues
+} from './dialogs'
+import { isSelectableAssistantModel } from './dialogs/form/assistantModelFilter'
 import { AssistantPresetPreviewDialog } from './list/AssistantPresetPreviewDialog'
 import { DeleteConfirmDialog } from './list/DeleteConfirmDialog'
 import { ImportAssistantDialog } from './list/ImportAssistantDialog'
@@ -31,15 +36,10 @@ import {
   useAssistantPresetCatalog
 } from './list/useAssistantPresetCatalog'
 import { useResourceLibrary } from './list/useResourceLibrary'
-import { buildLibraryListSearch, LIBRARY_ROUTE, parseLibraryRouteSearch } from './routeSearch'
 import type { AgentDetail, LibrarySidebarFilter, ResourceItem, ResourceType, TagItem } from './types'
+import { serializeAssistantForExport } from './utils/assistantTransfer'
 
-type ConfigView =
-  | { type: 'list' }
-  | { type: 'assistant-create' }
-  | { type: 'assistant-edit'; assistant: Assistant }
-  | { type: 'agent-edit'; agent: AgentDetail }
-  | { type: 'agent-create' }
+type EditDialogState = { kind: 'assistant'; resource: Assistant } | { kind: 'agent'; resource: AgentDetail }
 
 type PromptDialogState = { prompt: Prompt | null } | null
 
@@ -70,18 +70,15 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
 
 export default function LibraryPage() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
-  const routeSearch = parseLibraryRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
-  const routeResourceType = routeSearch.resourceType
-  const routeAction = routeSearch.action
-  const routeResourceId = routeSearch.id
   const [sidebarFilter, setSidebarFilter] = useState<LibrarySidebarFilter>(() => ({
-    resourceType: routeResourceType ?? DEFAULT_RESOURCE_TYPE
+    resourceType: DEFAULT_RESOURCE_TYPE
   }))
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
-  const [configView, setConfigView] = useState<ConfigView>({ type: 'list' })
+  const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateDialogKind | null>(null)
+  const [editDialog, setEditDialog] = useState<EditDialogState | null>(null)
+  const [creatingResource, setCreatingResource] = useState(false)
   const [promptDialog, setPromptDialog] = useState<PromptDialogState>(null)
   const [selectedSkill, setSelectedSkill] = useState<InstalledSkill | null>(null)
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
@@ -117,11 +114,13 @@ export default function LibraryPage() {
   const assistantTagUiEnabled = isAssistantLibrary && isAssistantCatalogMine
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
+  const { createAgent } = useAgentMutations()
+  const agentModelFilter = useAgentModelFilter('claude-code')
   const { createPrompt } = usePromptMutations()
   const promptDialogPrompt = promptDialog?.prompt ?? null
   const { updatePrompt } = usePromptMutationsById(promptDialogPrompt?.id ?? '')
   // The add-tag control uses ensureTags idempotently: existing names are reused,
-  // and missing names are created before the card menu / editor binds them.
+  // and missing names are created before the card menu / dialog binds them.
   const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
   // Single source of truth for "what tags exist anywhere" — backs the selection
   // pools (card menu / BasicSection) and feeds chip colors. Revalidated by the
@@ -142,30 +141,9 @@ export default function LibraryPage() {
   )
 
   const noop = useCallback(() => {}, [])
-  const clearRouteActionSearch = useCallback(() => {
-    if (!routeAction && !routeResourceType) return
-
-    void navigate({
-      to: LIBRARY_ROUTE,
-      search: buildLibraryListSearch(routeResourceType ?? sidebarFilter.resourceType),
-      replace: true
-    })
-  }, [navigate, routeAction, routeResourceType, sidebarFilter.resourceType])
-
-  const handleBackToList = useCallback(() => {
-    setConfigView({ type: 'list' })
-    clearRouteActionSearch()
-  }, [clearRouteActionSearch])
-  const handleCreated = useCallback(() => {
-    refetch()
-    setConfigView({ type: 'list' })
-    clearRouteActionSearch()
-  }, [clearRouteActionSearch, refetch])
-
   const handleClosePromptDialog = useCallback(() => {
     setPromptDialog(null)
-    clearRouteActionSearch()
-  }, [clearRouteActionSearch])
+  }, [])
 
   const handlePromptDialogSave = useCallback(
     async (data: { title: string; content: string }) => {
@@ -180,7 +158,6 @@ export default function LibraryPage() {
 
         refetch()
         setPromptDialog(null)
-        clearRouteActionSearch()
       } catch (error) {
         window.toast.error(
           formatErrorMessageWithPrefix(
@@ -191,18 +168,8 @@ export default function LibraryPage() {
         throw error
       }
     },
-    [clearRouteActionSearch, createPrompt, promptDialogPrompt, refetch, t, updatePrompt]
+    [createPrompt, promptDialogPrompt, refetch, t, updatePrompt]
   )
-
-  useEffect(() => {
-    if (!routeResourceType) return
-
-    setSidebarFilter((prev) => (prev.resourceType === routeResourceType ? prev : { resourceType: routeResourceType }))
-    setActiveTag(null)
-    if (routeResourceType !== 'assistant') {
-      setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
-    }
-  }, [routeResourceType])
 
   useEffect(() => {
     if (!isAssistantLibrary) return
@@ -212,49 +179,11 @@ export default function LibraryPage() {
     setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
   }, [activeAssistantCatalogTab, assistantCatalog.tabs, isAssistantLibrary])
 
-  useEffect(() => {
-    if (routeAction !== 'create' || !routeResourceType) return
-
-    if (routeResourceType === 'assistant') {
-      setConfigView((prev) => (prev.type === 'assistant-create' ? prev : { type: 'assistant-create' }))
-    } else if (routeResourceType === 'agent') {
-      setConfigView((prev) => (prev.type === 'agent-create' ? prev : { type: 'agent-create' }))
-    } else if (routeResourceType === 'prompt') {
-      setConfigView({ type: 'list' })
-      setPromptDialog((prev) => (prev && !prev.prompt ? prev : { prompt: null }))
-    }
-  }, [routeAction, routeResourceType])
-
-  useEffect(() => {
-    if (routeAction !== 'edit' || !routeResourceType || !routeResourceId) return
-
-    const resource = allResources.find((r) => r.type === routeResourceType && r.id === routeResourceId)
-    if (!resource) return
-
-    if (resource.type === 'assistant') {
-      const assistant = resource.raw
-      setConfigView((prev) =>
-        prev.type === 'assistant-edit' && prev.assistant.id === assistant.id
-          ? prev
-          : { type: 'assistant-edit', assistant }
-      )
-    } else if (resource.type === 'agent') {
-      const agent = resource.raw
-      setConfigView((prev) =>
-        prev.type === 'agent-edit' && prev.agent.id === agent.id ? prev : { type: 'agent-edit', agent }
-      )
-    } else if (resource.type === 'prompt') {
-      const prompt = resource.raw
-      setConfigView({ type: 'list' })
-      setPromptDialog((prev) => (prev?.prompt?.id === prompt.id ? prev : { prompt }))
-    }
-  }, [allResources, routeAction, routeResourceId, routeResourceType])
-
   const handleOpenResource = useCallback((r: ResourceItem) => {
     if (r.type === 'assistant') {
-      setConfigView({ type: 'assistant-edit', assistant: r.raw })
+      setEditDialog({ kind: 'assistant', resource: r.raw })
     } else if (r.type === 'agent') {
-      setConfigView({ type: 'agent-edit', agent: r.raw })
+      setEditDialog({ kind: 'agent', resource: r.raw })
     } else if (r.type === 'skill') {
       setSelectedSkill(r.raw)
     } else if (r.type === 'prompt') {
@@ -344,13 +273,9 @@ export default function LibraryPage() {
 
   const handleCreate = useCallback((type: ResourceType) => {
     if (type === 'assistant') {
-      // Mirror the agent create flow: enter the form first, then POST only
-      // after the user fills the required fields and clicks Save.
-      setConfigView({ type: 'assistant-create' })
+      setCreateDialogKind('assistant')
     } else if (type === 'agent') {
-      // Defer DB write until the user saves in the config page. This
-      // avoids leaving half-configured agent rows behind if the user navigates away.
-      setConfigView({ type: 'agent-create' })
+      setCreateDialogKind('agent')
     } else if (type === 'skill') {
       // Skill install lives in a dialog (mirrors ImportAssistantDialog) so the
       // ZIP / directory / marketplace flows from Settings → Skills can be exposed
@@ -360,6 +285,56 @@ export default function LibraryPage() {
       setPromptDialog({ prompt: null })
     }
   }, [])
+
+  const handleCreateDialogOpenChange = useCallback(
+    (open: boolean) => {
+      if (open || creatingResource) return
+      setCreateDialogKind(null)
+    },
+    [creatingResource]
+  )
+
+  const handleSubmitCreateResource = useCallback(
+    async (values: ResourceCreateDialogValues) => {
+      const kind = createDialogKind
+      if (!kind || creatingResource) return
+
+      setCreatingResource(true)
+      try {
+        if (kind === 'assistant') {
+          await createAssistant({
+            name: values.name,
+            emoji: values.avatar,
+            modelId: values.modelId,
+            description: values.description
+          })
+        } else {
+          await createAgent({
+            type: 'claude-code',
+            name: values.name,
+            model: values.modelId,
+            description: values.description,
+            configuration: { avatar: values.avatar }
+          })
+        }
+
+        setCreateDialogKind(null)
+        refetch()
+      } finally {
+        setCreatingResource(false)
+      }
+    },
+    [createAgent, createAssistant, createDialogKind, creatingResource, refetch]
+  )
+
+  const handleEditDialogOpenChange = useCallback((open: boolean) => {
+    if (open) return
+    setEditDialog(null)
+  }, [])
+
+  const handleEditSaved = useCallback(() => {
+    refetch()
+  }, [refetch])
 
   const handleAssistantTabChange = useCallback((tabId: string) => {
     setActiveAssistantCatalogTab(tabId)
@@ -389,66 +364,6 @@ export default function LibraryPage() {
     ]
   )
 
-  if (configView.type === 'assistant-create') {
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key="assistant-create"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="flex min-h-0 flex-1 flex-col bg-background">
-          <AssistantConfigPage onBack={handleBackToList} onCreated={handleCreated} />
-        </motion.div>
-      </AnimatePresence>
-    )
-  }
-
-  if (configView.type === 'assistant-edit') {
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`edit-${configView.assistant.id}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="flex min-h-0 flex-1 flex-col bg-background">
-          <AssistantConfigPage assistant={configView.assistant} onBack={handleBackToList} />
-        </motion.div>
-      </AnimatePresence>
-    )
-  }
-
-  if (configView.type === 'agent-edit') {
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`agent-edit-${configView.agent.id}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="flex min-h-0 flex-1 flex-col bg-background">
-          <AgentConfigPage agent={configView.agent} onBack={handleBackToList} />
-        </motion.div>
-      </AnimatePresence>
-    )
-  }
-
-  if (configView.type === 'agent-create') {
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key="agent-create"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="flex min-h-0 flex-1 flex-col bg-background">
-          <AgentConfigPage onBack={handleBackToList} onCreated={handleCreated} />
-        </motion.div>
-      </AnimatePresence>
-    )
-  }
-
   return (
     <div className="flex min-h-0 flex-1 bg-background">
       <LibrarySidebar
@@ -458,9 +373,6 @@ export default function LibraryPage() {
           setActiveTag(null)
           if (f.resourceType !== 'assistant') {
             setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
-          }
-          if (routeAction || routeResourceType) {
-            void navigate({ to: LIBRARY_ROUTE, search: buildLibraryListSearch(f.resourceType), replace: true })
           }
         }}
         typeCounts={typeCounts}
@@ -501,7 +413,7 @@ export default function LibraryPage() {
             onTagFilter={setActiveTag}
             onAddTag={async (tagName) => {
               // Idempotent: ensureTags reuses existing names or creates missing
-              // rows; binding stays inside card/editor tag hooks.
+              // rows; binding stays inside card/dialog tag hooks.
               await ensureTags([tagName])
             }}
             onUpdateResourceTags={noop /* binding is executed inside FixedCardMenu via the tag hooks */}
@@ -528,6 +440,32 @@ export default function LibraryPage() {
       />
       <ImportAssistantDialog open={assistantImportOpen} onOpenChange={setAssistantImportOpen} onImported={refetch} />
       <ImportSkillDialog open={skillImportOpen} onOpenChange={setSkillImportOpen} onInstalled={refetch} />
+      <ResourceCreateDialog
+        kind={createDialogKind ?? 'assistant'}
+        open={createDialogKind !== null}
+        isSubmitting={creatingResource}
+        modelFilter={createDialogKind === 'agent' ? agentModelFilter : isSelectableAssistantModel}
+        onOpenChange={handleCreateDialogOpenChange}
+        onSubmit={handleSubmitCreateResource}
+      />
+      {editDialog?.kind === 'assistant' ? (
+        <AssistantEditDialog
+          open
+          resource={editDialog.resource}
+          modelFilter={isSelectableAssistantModel}
+          onOpenChange={handleEditDialogOpenChange}
+          onSaved={handleEditSaved}
+        />
+      ) : null}
+      {editDialog?.kind === 'agent' ? (
+        <AgentEditDialog
+          open
+          resource={editDialog.resource}
+          modelFilter={agentModelFilter}
+          onOpenChange={handleEditDialogOpenChange}
+          onSaved={handleEditSaved}
+        />
+      ) : null}
       <PromptEditDialog
         open={promptDialog !== null}
         prompt={promptDialogPrompt}

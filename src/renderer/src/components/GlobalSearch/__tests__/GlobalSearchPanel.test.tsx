@@ -159,6 +159,11 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
+vi.mock('@renderer/pages/library/dialogs', () => ({
+  ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
+    target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
+}))
+
 vi.mock('@renderer/components/Icons/SvgIcon', () => ({
   OpenClawIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />,
   OpenClawSidebarIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />
@@ -1498,7 +1503,7 @@ describe('GlobalSearchPanel', () => {
     expect(highlights).toHaveLength(2)
   })
 
-  it('opens the active assistant result with Enter', async () => {
+  it('opens the active assistant result in the edit dialog with Enter', async () => {
     const user = userEvent.setup()
     mocks.queryResult = {
       query: 'assistant',
@@ -1524,10 +1529,13 @@ describe('GlobalSearchPanel', () => {
     await screen.findByRole('option', { name: /Writing Assistant/ })
     await user.keyboard('{Enter}')
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/library?resourceType=assistant&action=edit&id=assistant-1', {
-      forceNew: true
-    })
-    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-kind', 'assistant')
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-id', 'assistant-1')
+    expect(mocks.openTab).not.toHaveBeenCalledWith(
+      '/app/library?resourceType=assistant&action=edit&id=assistant-1',
+      expect.anything()
+    )
+    expect(mocks.onClose).not.toHaveBeenCalled()
   })
 
   it('does not open the active result when Enter confirms an IME candidate', async () => {

@@ -2711,7 +2711,8 @@
           },
           "env_vars": {
             "help": "One KEY=VALUE per line",
-            "label": "Environment variables"
+            "label": "Environment variables",
+            "placeholder": "KEY=value\nANOTHER_KEY=another_value"
           },
           "heartbeat_enabled": {
             "label": "Heartbeat check"
@@ -2736,7 +2737,7 @@
           "model": {
             "help": "UniqueModelId; will switch to a picker backed by /models later",
             "hint": "Main reasoning and execution",
-            "label": "Primary model (required)"
+            "label": "Primary model"
           },
           "name": {
             "hint": "Shown in the library and session lists",
@@ -2744,7 +2745,6 @@
             "placeholder": "Give the agent a name"
           },
           "permission_mode": {
-            "help": "Switching to bypassPermissions is equivalent to enabling Soul mode",
             "label": "Permission mode",
             "option": {
               "acceptEdits": "Accept edits",
@@ -2755,11 +2755,11 @@
           },
           "plan_model": {
             "hint": "Task decomposition and planning",
-            "label": "Plan model (optional)"
+            "label": "Plan model"
           },
           "small_model": {
             "hint": "Lightweight checks and formatting",
-            "label": "Small model (optional)"
+            "label": "Small model"
           },
           "soul_enabled": {
             "help": "When enabled, automatically grants bypassPermissions",
@@ -2865,7 +2865,7 @@
         "model": "Default model",
         "model_clear": "Clear",
         "model_not_found": "Model not found (may have been removed): {{id}}",
-        "model_pick": "+ Pick model",
+        "model_pick": "Pick model",
         "pick_avatar": "Pick avatar",
         "precise": "Precise",
         "stream_output": "Stream output",
@@ -2883,6 +2883,34 @@
         "unlimited": "Unlimited"
       },
       "breadcrumb": "Library",
+      "dialogs": {
+        "create": {
+          "agent_title": "New Agent",
+          "assistant_title": "New Assistant",
+          "avatar_aria": "Choose avatar",
+          "description_placeholder": "Describe what it is for...",
+          "dialog_description": "Create a lightweight assistant or agent.",
+          "model_placeholder": "Select a model",
+          "model_required": "Please select a model",
+          "name_placeholder": "Enter a name",
+          "name_required": "Please enter a name",
+          "submit": "Create",
+          "submit_failed": "Create failed"
+        },
+        "edit": {
+          "advanced_tab": "Advanced",
+          "agent_description": "Quickly adjust this agent's essentials.",
+          "agent_title": "Edit Agent",
+          "assistant_description": "Quickly adjust this assistant's essentials.",
+          "assistant_title": "Edit Assistant",
+          "basic_tab": "Basic",
+          "knowledge_tab": "Knowledge",
+          "permission_tab": "Permission",
+          "prompt_tab": "Prompt",
+          "save_failed": "Save failed",
+          "tools_tab": "Tools"
+        }
+      },
       "knowledge": {
         "add": "Add knowledge base",
         "desc": "Link one or more knowledge bases; relevant snippets will be retrieved during chat",
@@ -2956,7 +2984,7 @@
       },
       "tools": {
         "add_mcp": "Add MCP server",
-        "added": "Added MCP servers",
+        "added": "MCP services",
         "added_hint": "Manual mode exposes only the servers in this list",
         "desc": "Configure the MCP servers this assistant can call during chat",
         "empty_desc": "Once added, the assistant can invoke external tools",
@@ -5018,18 +5046,10 @@
       "unpin": "Unpin"
     },
     "create_dialog": {
-      "agent_title": "New Agent",
-      "assistant_title": "New Assistant",
-      "avatar_aria": "Choose avatar",
-      "create": "Create",
-      "description_placeholder": "Describe what it is for...",
-      "dialog_description": "Create a lightweight resource from the selector.",
-      "model_placeholder": "Select a model",
-      "model_required": "Please select a model",
-      "name_placeholder": "Enter a name",
-      "name_required": "Please enter a name",
-      "refresh_failed": "Created, but failed to refresh the list",
-      "submit_failed": "Create failed"
+      "refresh_failed": "Created, but failed to refresh the list"
+    },
+    "edit_dialog": {
+      "refresh_failed": "Saved, but failed to refresh the list"
     },
     "workspace": {
       "empty_text": "No workspaces yet",
@@ -6183,6 +6203,13 @@
         "size": "Size",
         "text": "Text",
         "uri": "URI"
+      },
+      "runtimeStatus": {
+        "connected": "Connected",
+        "connecting": "Connecting",
+        "disabled": "Disabled",
+        "error": "Error",
+        "unavailable": "Unavailable"
       },
       "search": {
         "placeholder": "Search MCP servers...",

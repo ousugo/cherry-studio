@@ -1,6 +1,5 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
@@ -34,7 +33,7 @@ import type {
 } from '@renderer/pages/home/Tabs/components/topicContextMenuActions'
 import { sortTopicsForDisplayGroups } from '@renderer/pages/home/Tabs/components/Topics.helpers'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/home/Tabs/components/useTopicMenuActions'
-import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
+import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/pages/library/dialogs'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic as RendererTopic } from '@renderer/types'
@@ -169,13 +168,13 @@ const AssistantHistoryRecordsContent = ({
   onRecordSelect
 }: AssistantHistoryRecordsContentProps) => {
   const { t } = useTranslation()
-  const tabs = useOptionalTabsContext()
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [searchText, setSearchText] = useState('')
   const [groupNow] = useState(() => new Date())
+  const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
   const { topics: rawTopics, isLoading: isTopicsLoading } = useTopics({ loadAll: true })
-  const { assistants } = useAssistants()
+  const { assistants, refetch: refetchAssistants } = useAssistants()
   const [renamingTopics] = useCache('topic.renaming')
   const { notesPath } = useNotesSettings()
   const { updateTopic: patchTopic, deleteTopic: deleteTopicById } = useTopicMutations()
@@ -364,14 +363,11 @@ const AssistantHistoryRecordsContent = ({
     },
     [rendererTopicById, t, updateTopic]
   )
-  const handleEditAssistant = useCallback(
-    (topic: RendererTopic) => {
-      if (topic.assistantId) {
-        tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('assistant', topic.assistantId)), { forceNew: true })
-      }
-    },
-    [tabs]
-  )
+  const handleEditAssistant = useCallback((topic: RendererTopic) => {
+    if (topic.assistantId) {
+      setEditDialogTarget({ kind: 'assistant', id: topic.assistantId })
+    }
+  }, [])
 
   const getTopicActionContext = useCallback(
     (apiTopic: ApiTopic): TopicActionContext => {
@@ -434,17 +430,24 @@ const AssistantHistoryRecordsContent = ({
         onTopicRename={handleRenameTopic}
         onTopicSelect={handleTopicSelect}
       />
+      <ResourceEditDialogHost
+        target={editDialogTarget}
+        onOpenChange={(open) => {
+          if (!open) setEditDialogTarget(null)
+        }}
+        onSaved={refetchAssistants}
+      />
     </HistoryRecordsLayout>
   )
 }
 
 const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }: AgentHistoryRecordsContentProps) => {
   const { t } = useTranslation()
-  const tabs = useOptionalTabsContext()
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
   const [searchText, setSearchText] = useState('')
   const [groupNow] = useState(() => new Date())
+  const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
   const {
     sessions,
@@ -457,7 +460,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     pageSize: 50
   })
   const { data: workspaces } = useQuery('/workspaces')
-  const { agents } = useAgents()
+  const { agents, refetch: refetchAgents } = useAgents()
   const isSessionPinned = useCallback((sessionId: string) => pinIdBySessionId.has(sessionId), [pinIdBySessionId])
   const sessionItems = useMemo<SessionListItem[]>(
     () => sessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
@@ -566,14 +569,11 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     },
     [sessions, t, updateSession]
   )
-  const handleEditAgent = useCallback(
-    (session: AgentSessionEntity) => {
-      if (session.agentId) {
-        tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('agent', session.agentId)), { forceNew: true })
-      }
-    },
-    [tabs]
-  )
+  const handleEditAgent = useCallback((session: AgentSessionEntity) => {
+    if (session.agentId) {
+      setEditDialogTarget({ kind: 'agent', id: session.agentId })
+    }
+  }, [])
 
   const getSessionActionContext = useCallback(
     (session: AgentSessionEntity): SessionActionContext =>
@@ -628,6 +628,13 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
         sessionMenuPreset={sessionMenuPreset}
         onSessionRename={handleRenameSession}
         onSessionSelect={handleSessionSelect}
+      />
+      <ResourceEditDialogHost
+        target={editDialogTarget}
+        onOpenChange={(open) => {
+          if (!open) setEditDialogTarget(null)
+        }}
+        onSaved={refetchAgents}
       />
     </HistoryRecordsLayout>
   )

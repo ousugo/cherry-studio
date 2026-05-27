@@ -101,6 +101,11 @@ vi.mock('@renderer/context/TabsContext', () => ({
   })
 }))
 
+vi.mock('@renderer/pages/library/dialogs', () => ({
+  ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
+    target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
+}))
+
 const topicDataMocks = vi.hoisted(() => ({
   deleteTopic: vi.fn().mockResolvedValue(undefined),
   refreshTopics: vi.fn().mockResolvedValue(undefined),
@@ -1439,17 +1444,17 @@ describe('Topics', () => {
     })
 
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Edit Assistant' }))
-    expect(tabsContextMocks.openTab).not.toHaveBeenCalled()
-
     await vi.waitFor(() => expect(animationFrameCallbacks).toHaveLength(1))
     act(() => {
       for (const callback of animationFrameCallbacks.splice(0)) {
         callback(0)
       }
     })
-    expect(tabsContextMocks.openTab).toHaveBeenCalledWith(
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-kind', 'assistant')
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-id', 'assistant-1')
+    expect(tabsContextMocks.openTab).not.toHaveBeenCalledWith(
       '/app/library?resourceType=assistant&action=edit&id=assistant-1',
-      { forceNew: true }
+      expect.anything()
     )
     requestAnimationFrameSpy.mockRestore()
 

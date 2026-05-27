@@ -8,7 +8,9 @@ const {
   createAgentMock,
   refetchAgentsMock,
   refetchPinsMock,
+  toggleSkillMock,
   togglePinMock,
+  updateAgentMock,
   useMutationMock,
   usePinsMock,
   useProvidersMock,
@@ -17,7 +19,9 @@ const {
   createAgentMock: vi.fn(),
   refetchAgentsMock: vi.fn(),
   refetchPinsMock: vi.fn(),
+  toggleSkillMock: vi.fn(),
   togglePinMock: vi.fn(),
+  updateAgentMock: vi.fn(),
   useMutationMock: vi.fn(),
   usePinsMock: vi.fn(),
   useProvidersMock: vi.fn(),
@@ -70,7 +74,32 @@ vi.mock('@renderer/hooks/usePins', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviderDisplayName: () => (providerId: string) => providerId,
   useProviders: useProvidersMock
+}))
+
+vi.mock('@renderer/hooks/agents/useAgentTools', () => ({
+  useAgentTools: () => ({ tools: [], isLoading: false, error: undefined })
+}))
+
+vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
+  useMcpRuntimeStatusMap: () => ({})
+}))
+
+vi.mock('@renderer/hooks/useSkills', () => ({
+  useInstalledSkills: () => ({
+    skills: [],
+    loading: false,
+    toggle: toggleSkillMock
+  })
+}))
+
+vi.mock('@renderer/hooks/usePromptProcessor', () => ({
+  usePromptProcessor: ({ prompt }: { prompt: string }) => prompt
+}))
+
+vi.mock('@renderer/services/ApiService', () => ({
+  fetchGenerate: vi.fn()
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -84,23 +113,55 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.description': 'Description',
           'common.model': 'Model',
           'common.name': 'Name',
+          'common.required_field': 'Required',
+          'common.save': 'Save',
+          'agent.cherryClaw.heartbeat.enabledHelper': 'Send heartbeat messages.',
+          'agent.cherryClaw.heartbeat.intervalHelper': 'Heartbeat interval.',
+          'agent.edit.title': 'Edit agent',
+          'library.config.agent.field.description.hint': 'Short agent summary.',
+          'library.config.agent.field.description.label': 'Description',
+          'library.config.agent.field.description.placeholder': 'Describe this agent',
+          'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
+          'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
+          'library.config.agent.field.instructions.label': 'Instructions',
+          'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
+          'library.config.agent.field.model.hint': 'Primary agent model.',
+          'library.config.agent.field.model.label': 'Model',
+          'library.config.agent.field.name.hint': 'Shown in the selector.',
+          'library.config.agent.field.name.label': 'Name',
+          'library.config.agent.field.name.placeholder': 'Name this agent',
+          'library.config.agent.field.plan_model.hint': 'Plan model.',
+          'library.config.agent.field.plan_model.label': 'Plan model',
+          'library.config.agent.field.small_model.hint': 'Small model.',
+          'library.config.agent.field.small_model.label': 'Small model',
+          'library.config.agent.field.soul_enabled.help': 'Use soul.md.',
+          'library.config.agent.field.soul_enabled.label': 'Soul',
+          'library.config.basic.model_clear': 'Clear',
+          'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
+          'library.config.basic.model_pick': 'Pick model',
           'selector.agent.create_new': 'Create agent',
           'selector.agent.empty_text': 'No agents',
           'selector.agent.search_placeholder': 'Search agents',
           'selector.common.pin': 'Pin',
           'selector.common.pinned_title': 'Pinned',
           'selector.common.unpin': 'Unpin',
-          'selector.create_dialog.agent_title': 'New Agent',
-          'selector.create_dialog.avatar_aria': 'Pick avatar',
-          'selector.create_dialog.create': 'Create',
-          'selector.create_dialog.dialog_description': 'Create a lightweight resource from the selector.',
-          'selector.create_dialog.description_placeholder': 'Describe this resource',
-          'selector.create_dialog.model_placeholder': 'Select a model',
-          'selector.create_dialog.model_required': 'Please select a model',
-          'selector.create_dialog.name_placeholder': 'Name this resource',
-          'selector.create_dialog.name_required': 'Please enter a name',
+          'library.config.dialogs.create.agent_title': 'New Agent',
+          'library.config.dialogs.create.avatar_aria': 'Pick avatar',
+          'library.config.dialogs.create.dialog_description': 'Create a lightweight resource from the selector.',
+          'library.config.dialogs.create.description_placeholder': 'Describe this resource',
+          'library.config.dialogs.create.model_placeholder': 'Select a model',
+          'library.config.dialogs.create.model_required': 'Please select a model',
+          'library.config.dialogs.create.name_placeholder': 'Name this resource',
+          'library.config.dialogs.create.name_required': 'Please enter a name',
+          'library.config.dialogs.create.submit': 'Create',
+          'library.config.dialogs.create.submit_failed': 'Create failed',
+          'library.config.dialogs.edit.agent_description': 'Edit the essentials for this agent.',
+          'library.config.dialogs.edit.agent_title': 'Edit Agent',
+          'library.config.dialogs.edit.basic_tab': 'Basic',
+          'library.config.dialogs.edit.prompt_tab': 'Prompt',
+          'library.config.dialogs.edit.save_failed': 'Save failed',
           'selector.create_dialog.refresh_failed': 'Created, but refresh failed',
-          'selector.create_dialog.submit_failed': 'Create failed'
+          'selector.edit_dialog.refresh_failed': 'Saved, but refresh failed'
         })[key] ?? key
     })
   }
@@ -118,7 +179,20 @@ const AGENTS_RESPONSE = {
       type: 'claude-code',
       name: 'Alpha Agent',
       description: 'First test agent',
-      model: 'claude-3-5-sonnet',
+      instructions: 'Original alpha instructions',
+      model: 'provider::old-model',
+      planModel: null,
+      smallModel: null,
+      mcps: [],
+      allowedTools: [],
+      configuration: {
+        avatar: '🤖',
+        soul_enabled: false,
+        heartbeat_enabled: true,
+        heartbeat_interval: 30
+      },
+      orderKey: 'a0',
+      modelName: 'Old Model',
       createdAt: '2024-01-01T00:00:00.000Z',
       updatedAt: '2024-01-01T00:00:00.000Z'
     },
@@ -127,7 +201,20 @@ const AGENTS_RESPONSE = {
       type: 'claude-code',
       name: 'Beta Agent',
       description: 'Second test agent',
-      model: 'claude-3-5-sonnet',
+      instructions: 'Original beta instructions',
+      model: 'provider::old-model',
+      planModel: null,
+      smallModel: null,
+      mcps: [],
+      allowedTools: [],
+      configuration: {
+        avatar: '🤖',
+        soul_enabled: false,
+        heartbeat_enabled: true,
+        heartbeat_interval: 30
+      },
+      orderKey: 'a1',
+      modelName: 'Old Model',
       createdAt: '2024-01-02T00:00:00.000Z',
       updatedAt: '2024-01-02T00:00:00.000Z'
     }
@@ -166,10 +253,19 @@ beforeEach(() => {
     refetch: refetchAgentsMock,
     mutate: vi.fn()
   })
-  useMutationMock.mockReturnValue({
-    trigger: createAgentMock,
-    isLoading: false,
-    error: undefined
+  useMutationMock.mockImplementation((method: string, path: string) => {
+    if (method === 'PATCH' && path.startsWith('/agents/')) {
+      return {
+        trigger: updateAgentMock,
+        isLoading: false,
+        error: undefined
+      }
+    }
+    return {
+      trigger: createAgentMock,
+      isLoading: false,
+      error: undefined
+    }
   })
   createAgentMock.mockResolvedValue({
     id: 'created-agent',
@@ -178,6 +274,10 @@ beforeEach(() => {
     description: 'Created from selector',
     accessiblePaths: [],
     model: MODEL.id
+  })
+  updateAgentMock.mockResolvedValue({
+    ...AGENTS_RESPONSE.items[0],
+    name: 'Renamed Agent'
   })
   usePinsMock.mockReturnValue({
     isLoading: false,
@@ -260,7 +360,8 @@ describe('AgentSelector', () => {
     expect(onChange).toHaveBeenCalledWith({
       id: ALPHA_AGENT_ID,
       name: 'Alpha Agent',
-      description: 'First test agent'
+      description: 'First test agent',
+      emoji: '🤖'
     })
   })
 
@@ -334,6 +435,22 @@ describe('AgentSelector', () => {
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
 
     expect(toastErrorMock).toHaveBeenCalledWith('Created, but refresh failed')
+    await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
+  })
+
+  it('opens the edit dialog from a row action', async () => {
+    renderSelector()
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
+
+    expect(await screen.findByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
+    await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
   })
 

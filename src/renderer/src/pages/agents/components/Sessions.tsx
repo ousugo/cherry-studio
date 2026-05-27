@@ -35,7 +35,7 @@ import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { usePins } from '@renderer/hooks/usePins'
 import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
-import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
+import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/pages/library/dialogs'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
@@ -383,6 +383,7 @@ const Sessions = ({
     name: string
     workspaceId: string
   } | null>(null)
+  const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
   const { data: channels } = useQuery('/channels')
   const channelTypeMap = useMemo(() => {
@@ -790,12 +791,9 @@ const Sessions = ({
     [t]
   )
 
-  const openAgentEditor = useCallback(
-    (agentId: string) => {
-      tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('agent', agentId)), { forceNew: true })
-    },
-    [tabs]
-  )
+  const openAgentEditor = useCallback((agentId: string) => {
+    setEditDialogTarget({ kind: 'agent', id: agentId })
+  }, [])
   const openSessionInNewTab = useCallback(
     (session: AgentSessionEntity) => {
       tabs?.openTab(buildAgentSessionMessageRouteUrl(session.id), {
@@ -1326,6 +1324,13 @@ const Sessions = ({
         onOpenChange={(open) => {
           if (!open) setRenamingWorkspaceGroup(null)
         }}
+      />
+      <ResourceEditDialogHost
+        target={editDialogTarget}
+        onOpenChange={(open) => {
+          if (!open) setEditDialogTarget(null)
+        }}
+        onSaved={refetchAgents}
       />
     </SessionResourceList>
   )

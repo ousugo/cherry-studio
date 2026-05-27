@@ -9,6 +9,7 @@ const {
   refetchAssistantsMock,
   refetchPinsMock,
   togglePinMock,
+  updateAssistantMock,
   useMutationMock,
   usePinsMock,
   useQueryMock
@@ -17,6 +18,7 @@ const {
   refetchAssistantsMock: vi.fn(),
   refetchPinsMock: vi.fn(),
   togglePinMock: vi.fn(),
+  updateAssistantMock: vi.fn(),
   useMutationMock: vi.fn(),
   usePinsMock: vi.fn(),
   useQueryMock: vi.fn()
@@ -77,6 +79,23 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.description': 'Description',
           'common.model': 'Model',
           'common.name': 'Name',
+          'common.required_field': 'Required',
+          'common.save': 'Save',
+          'assistants.edit.title': 'Edit assistant',
+          'library.config.basic.field.description.hint': 'Short assistant summary.',
+          'library.config.basic.field.description.placeholder': 'Describe this assistant',
+          'library.config.basic.field.model.hint': 'Default chat model.',
+          'library.config.basic.field.name.hint': 'Shown in the selector.',
+          'library.config.basic.field.name.placeholder': 'Name this assistant',
+          'library.config.basic.field.tags.hint': 'Group related assistants.',
+          'library.config.basic.model_clear': 'Clear',
+          'library.config.basic.model_pick': 'Pick model',
+          'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
+          'library.config.basic.tag_empty': 'No tags',
+          'library.config.basic.tag_placeholder': 'Select tags',
+          'library.config.basic.tag_search': 'Search tags',
+          'library.config.prompt.label': 'Prompt',
+          'library.config.prompt.placeholder': 'Tell this assistant how to respond',
           'selector.assistant.create_new': 'Create assistant',
           'selector.assistant.empty_text': 'No assistants',
           'selector.assistant.multi_hint': 'Select multiple assistants',
@@ -85,17 +104,23 @@ vi.mock('react-i18next', async (importOriginal) => {
           'selector.common.pin': 'Pin',
           'selector.common.pinned_title': 'Pinned',
           'selector.common.unpin': 'Unpin',
-          'selector.create_dialog.avatar_aria': 'Pick avatar',
-          'selector.create_dialog.assistant_title': 'New Assistant',
-          'selector.create_dialog.create': 'Create',
-          'selector.create_dialog.dialog_description': 'Create a lightweight resource from the selector.',
-          'selector.create_dialog.description_placeholder': 'Describe this resource',
-          'selector.create_dialog.model_placeholder': 'Select a model',
-          'selector.create_dialog.model_required': 'Please select a model',
-          'selector.create_dialog.name_placeholder': 'Name this resource',
-          'selector.create_dialog.name_required': 'Please enter a name',
+          'library.config.dialogs.create.assistant_title': 'New Assistant',
+          'library.config.dialogs.create.avatar_aria': 'Pick avatar',
+          'library.config.dialogs.create.dialog_description': 'Create a lightweight resource from the selector.',
+          'library.config.dialogs.create.description_placeholder': 'Describe this resource',
+          'library.config.dialogs.create.model_placeholder': 'Select a model',
+          'library.config.dialogs.create.model_required': 'Please select a model',
+          'library.config.dialogs.create.name_placeholder': 'Name this resource',
+          'library.config.dialogs.create.name_required': 'Please enter a name',
+          'library.config.dialogs.create.submit': 'Create',
+          'library.config.dialogs.create.submit_failed': 'Create failed',
+          'library.config.dialogs.edit.assistant_description': 'Edit the essentials for this assistant.',
+          'library.config.dialogs.edit.assistant_title': 'Edit Assistant',
+          'library.config.dialogs.edit.basic_tab': 'Basic',
+          'library.config.dialogs.edit.prompt_tab': 'Prompt',
+          'library.config.dialogs.edit.save_failed': 'Save failed',
           'selector.create_dialog.refresh_failed': 'Created, but refresh failed',
-          'selector.create_dialog.submit_failed': 'Create failed'
+          'selector.edit_dialog.refresh_failed': 'Saved, but refresh failed'
         })[key] ?? key
     })
   }
@@ -112,8 +137,29 @@ const ASSISTANTS_RESPONSE = {
     {
       id: ALPHA_ASSISTANT_ID,
       name: 'Alpha Assistant',
+      prompt: 'Original alpha prompt',
       emoji: 'A',
       description: 'First test assistant',
+      settings: {
+        temperature: 1,
+        enableTemperature: false,
+        topP: 1,
+        enableTopP: false,
+        maxTokens: 4096,
+        enableMaxTokens: false,
+        streamOutput: true,
+        reasoning_effort: 'default',
+        mcpMode: 'auto',
+        toolUseMode: 'function',
+        maxToolCalls: 20,
+        enableMaxToolCalls: true,
+        enableWebSearch: false,
+        customParameters: []
+      },
+      modelId: 'provider::old-model',
+      orderKey: 'a0',
+      mcpServerIds: [],
+      knowledgeBaseIds: [],
       createdAt: '2024-01-01T00:00:00.000Z',
       updatedAt: '2024-01-01T00:00:00.000Z',
       tags: [
@@ -124,13 +170,35 @@ const ASSISTANTS_RESPONSE = {
           createdAt: TAG_TIMESTAMP,
           updatedAt: TAG_TIMESTAMP
         }
-      ]
+      ],
+      modelName: 'Old Model'
     },
     {
       id: BETA_ASSISTANT_ID,
       name: 'Beta Assistant',
+      prompt: 'Original beta prompt',
       emoji: 'B',
       description: 'Second test assistant',
+      settings: {
+        temperature: 1,
+        enableTemperature: false,
+        topP: 1,
+        enableTopP: false,
+        maxTokens: 4096,
+        enableMaxTokens: false,
+        streamOutput: true,
+        reasoning_effort: 'default',
+        mcpMode: 'auto',
+        toolUseMode: 'function',
+        maxToolCalls: 20,
+        enableMaxToolCalls: true,
+        enableWebSearch: false,
+        customParameters: []
+      },
+      modelId: 'provider::old-model',
+      orderKey: 'a1',
+      mcpServerIds: [],
+      knowledgeBaseIds: [],
       createdAt: '2024-01-02T00:00:00.000Z',
       updatedAt: '2024-01-02T00:00:00.000Z',
       tags: [
@@ -141,7 +209,8 @@ const ASSISTANTS_RESPONSE = {
           createdAt: TAG_TIMESTAMP,
           updatedAt: TAG_TIMESTAMP
         }
-      ]
+      ],
+      modelName: 'Old Model'
     }
   ],
   total: 2,
@@ -178,10 +247,19 @@ beforeEach(() => {
     refetch: refetchAssistantsMock,
     mutate: vi.fn()
   })
-  useMutationMock.mockReturnValue({
-    trigger: createAssistantMock,
-    isLoading: false,
-    error: undefined
+  useMutationMock.mockImplementation((method: string, path: string) => {
+    if (method === 'PATCH' && path.startsWith('/assistants/')) {
+      return {
+        trigger: updateAssistantMock,
+        isLoading: false,
+        error: undefined
+      }
+    }
+    return {
+      trigger: createAssistantMock,
+      isLoading: false,
+      error: undefined
+    }
   })
   createAssistantMock.mockResolvedValue({
     id: 'created-assistant',
@@ -189,6 +267,10 @@ beforeEach(() => {
     emoji: '💬',
     description: 'Created from selector',
     tags: []
+  })
+  updateAssistantMock.mockResolvedValue({
+    ...ASSISTANTS_RESPONSE.items[0],
+    name: 'Renamed Assistant'
   })
   usePinsMock.mockReturnValue({
     isLoading: false,
@@ -303,6 +385,22 @@ describe('AssistantSelector', () => {
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
 
     expect(toastErrorMock).toHaveBeenCalledWith('Created, but refresh failed')
+    await waitFor(() => expect(screen.getByPlaceholderText('Search assistants')).toBeInTheDocument())
+  })
+
+  it('opens the edit dialog from a row action', async () => {
+    renderSelector()
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
+
+    expect(await screen.findByRole('heading', { name: 'Edit Assistant' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Assistant' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
+    await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(screen.getByPlaceholderText('Search assistants')).toBeInTheDocument())
   })
 })

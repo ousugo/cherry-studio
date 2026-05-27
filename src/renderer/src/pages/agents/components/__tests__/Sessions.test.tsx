@@ -294,6 +294,11 @@ vi.mock('@renderer/context/TabsContext', () => ({
   useOptionalTabsContext: () => tabsContextMocks
 }))
 
+vi.mock('@renderer/pages/library/dialogs', () => ({
+  ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
+    target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
+}))
+
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => [
     preferenceMocks.values.get(key),
@@ -1701,9 +1706,12 @@ describe('Sessions', () => {
     expect(editMenuItem).toBeDefined()
     fireEvent.click(editMenuItem as HTMLElement)
     await vi.waitFor(() =>
-      expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/library?resourceType=agent&action=edit&id=agent-a', {
-        forceNew: true
-      })
+      expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-kind', 'agent')
+    )
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-id', 'agent-a')
+    expect(tabsContextMocks.openTab).not.toHaveBeenCalledWith(
+      '/app/library?resourceType=agent&action=edit&id=agent-a',
+      expect.anything()
     )
 
     fireEvent.pointerDown(moreButton)

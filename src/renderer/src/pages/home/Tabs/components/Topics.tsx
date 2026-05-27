@@ -46,7 +46,7 @@ import {
   useTopics
 } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
+import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/pages/library/dialogs'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types'
@@ -354,6 +354,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   const listRef = useRef<HTMLDivElement>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
+  const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
   const apiBackedTopics = useMemo(
     () =>
@@ -663,12 +664,9 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     (isAssistantDisplayMode && (isAssistantsLoading || isAssistantPinsLoading))
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
-  const openAssistantEditor = useCallback(
-    (assistantId: string) => {
-      tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('assistant', assistantId)), { forceNew: true })
-    },
-    [tabs]
-  )
+  const openAssistantEditor = useCallback((assistantId: string) => {
+    setEditDialogTarget({ kind: 'assistant', id: assistantId })
+  }, [])
   const openTopicInNewTab = useCallback(
     (topic: Topic) => {
       tabs?.openTab(buildChatMessageRouteUrl(topic.id), {
@@ -1171,6 +1169,13 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         setActiveTopic={setActiveTopic}
         manageState={manageState}
         filteredTopics={filteredTopics}
+      />
+      <ResourceEditDialogHost
+        target={editDialogTarget}
+        onOpenChange={(open) => {
+          if (!open) setEditDialogTarget(null)
+        }}
+        onSaved={refreshAssistants}
       />
     </>
   )

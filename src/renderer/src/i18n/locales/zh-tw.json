@@ -2711,7 +2711,8 @@
           },
           "env_vars": {
             "help": "[to be translated]:One KEY=VALUE per line",
-            "label": "[to be translated]:Environment variables"
+            "label": "[to be translated]:Environment variables",
+            "placeholder": "KEY=value\nANOTHER_KEY=another_value"
           },
           "heartbeat_enabled": {
             "label": "[to be translated]:Heartbeat check"
@@ -2736,7 +2737,7 @@
           "model": {
             "help": "[to be translated]:UniqueModelId; will switch to a picker backed by /models later",
             "hint": "[to be translated]:Main reasoning and execution",
-            "label": "[to be translated]:Primary model (required)"
+            "label": "[to be translated]:Primary model"
           },
           "name": {
             "hint": "[to be translated]:Shown in the library and session lists",
@@ -2744,7 +2745,6 @@
             "placeholder": "[to be translated]:Give the agent a name"
           },
           "permission_mode": {
-            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
             "label": "[to be translated]:Permission mode",
             "option": {
               "acceptEdits": "[to be translated]:Accept edits",
@@ -2755,11 +2755,11 @@
           },
           "plan_model": {
             "hint": "[to be translated]:Task decomposition and planning",
-            "label": "[to be translated]:Plan model (optional)"
+            "label": "[to be translated]:Plan model"
           },
           "small_model": {
             "hint": "[to be translated]:Lightweight checks and formatting",
-            "label": "[to be translated]:Small model (optional)"
+            "label": "[to be translated]:Small model"
           },
           "soul_enabled": {
             "help": "[to be translated]:When enabled, automatically grants bypassPermissions",
@@ -2865,7 +2865,7 @@
         "model": "[to be translated]:Default model",
         "model_clear": "[to be translated]:Clear",
         "model_not_found": "[to be translated]:Model not found (may have been removed): {{id}}",
-        "model_pick": "[to be translated]:+ Pick model",
+        "model_pick": "[to be translated]:Pick model",
         "pick_avatar": "[to be translated]:Pick avatar",
         "precise": "[to be translated]:Precise",
         "stream_output": "[to be translated]:Stream output",
@@ -2883,6 +2883,34 @@
         "unlimited": "[to be translated]:Unlimited"
       },
       "breadcrumb": "[to be translated]:Library",
+      "dialogs": {
+        "create": {
+          "agent_title": "新建智能體",
+          "assistant_title": "新建助手",
+          "avatar_aria": "選擇頭像",
+          "description_placeholder": "描述它的用途...",
+          "dialog_description": "輕量新建助手或智能體。",
+          "model_placeholder": "選擇模型",
+          "model_required": "請選擇模型",
+          "name_placeholder": "輸入名稱",
+          "name_required": "請輸入名稱",
+          "submit": "新建",
+          "submit_failed": "新建失敗"
+        },
+        "edit": {
+          "advanced_tab": "[to be translated]:Advanced",
+          "agent_description": "快速調整智能體的核心資訊。",
+          "agent_title": "編輯智能體",
+          "assistant_description": "快速調整助手的核心資訊。",
+          "assistant_title": "編輯助手",
+          "basic_tab": "基礎",
+          "knowledge_tab": "[to be translated]:Knowledge",
+          "permission_tab": "[to be translated]:Permission",
+          "prompt_tab": "提示詞",
+          "save_failed": "儲存失敗",
+          "tools_tab": "[to be translated]:Tools"
+        }
+      },
       "knowledge": {
         "add": "[to be translated]:Add knowledge base",
         "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
@@ -5018,18 +5046,10 @@
       "unpin": "取消固定"
     },
     "create_dialog": {
-      "agent_title": "新建智能體",
-      "assistant_title": "新建助手",
-      "avatar_aria": "選擇頭像",
-      "create": "新建",
-      "description_placeholder": "描述它的用途...",
-      "dialog_description": "在選擇器中輕量新建資源。",
-      "model_placeholder": "選擇模型",
-      "model_required": "請選擇模型",
-      "name_placeholder": "輸入名稱",
-      "name_required": "請輸入名稱",
-      "refresh_failed": "已新建，但列表刷新失敗",
-      "submit_failed": "新建失敗"
+      "refresh_failed": "已新建，但列表刷新失敗"
+    },
+    "edit_dialog": {
+      "refresh_failed": "已儲存，但列表刷新失敗"
     },
     "workspace": {
       "empty_text": "暫無工作區",
@@ -6183,6 +6203,13 @@
         "size": "大小",
         "text": "文字",
         "uri": "URI"
+      },
+      "runtimeStatus": {
+        "connected": "已連線",
+        "connecting": "連線中",
+        "disabled": "已停用",
+        "error": "錯誤",
+        "unavailable": "不可用"
       },
       "search": {
         "placeholder": "搜尋 MCP 伺服器...",

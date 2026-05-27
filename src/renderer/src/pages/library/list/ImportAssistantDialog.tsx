@@ -20,7 +20,7 @@ import { sanitizeUrl } from 'strict-url-sanitise'
 
 import { useAssistantMutations } from '../adapters/assistantAdapter'
 import { getRandomTagColor } from '../constants'
-import { AssistantTransferError, parseAssistantImportContent } from '../editor/assistant/transfer'
+import { AssistantTransferError, parseAssistantImportContent } from '../utils/assistantTransfer'
 
 const ALLOWED_FETCH_PROTOCOLS = new Set(['http:', 'https:'])
 const ALLOWED_FETCH_HOSTS = new Set(['gist.githubusercontent.com', 'raw.githubusercontent.com'])

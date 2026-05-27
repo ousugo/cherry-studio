@@ -1,19 +1,26 @@
 import { loggerService } from '@logger'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { usePins } from '@renderer/hooks/usePins'
-import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
+import {
+  ResourceCreateDialog,
+  type ResourceCreateDialogValues
+} from '@renderer/pages/library/dialogs/ResourceCreateDialog'
+import type { AgentDetail } from '@renderer/pages/library/types'
 import { Bot } from 'lucide-react'
-import { type ReactElement, useCallback, useMemo, useState } from 'react'
+import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { SelectorShellMountStrategy, SelectorShellProps } from '../shell/SelectorShell'
-import { ResourceCreateDialog, type ResourceCreateDialogValues } from './ResourceCreateDialog'
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AgentSelector')
 const AGENT_FALLBACK_ICON = <Bot className="size-4 text-muted-foreground/70" />
+const AgentEditDialog = lazy(() =>
+  import('@renderer/pages/library/dialogs/edit/AgentEditDialog').then((module) => ({
+    default: module.AgentEditDialog
+  }))
+)
 
 export type AgentSelectorItem = ResourceSelectorShellItem
 
@@ -44,10 +51,11 @@ export type AgentSelectorProps = AgentSelectorSingleIdProps | AgentSelectorSingl
 export function AgentSelector(props: AgentSelectorProps) {
   const { trigger, open, onOpenChange, side, align, sideOffset, mountStrategy } = props
   const { t } = useTranslation()
-  const tabs = useOptionalTabsContext()
   const modelFilter = useAgentModelFilter('claude-code')
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingAgent, setEditingAgent] = useState<AgentDetail | null>(null)
   const selectorOpen = open ?? internalOpen
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -99,10 +107,21 @@ export function AgentSelector(props: AgentSelectorProps) {
 
   const handleEditItem = useCallback(
     (item: AgentSelectorItem) => {
-      tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('agent', item.id)), { forceNew: true })
+      const agent = data?.items.find((candidate) => candidate.id === item.id)
+      if (!agent) return
+
+      setEditingAgent(agent)
+      setEditDialogOpen(true)
     },
-    [tabs]
+    [data?.items]
   )
+
+  const handleEditDialogOpenChange = useCallback((nextOpen: boolean) => {
+    setEditDialogOpen(nextOpen)
+    if (!nextOpen) {
+      setEditingAgent(null)
+    }
+  }, [])
 
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateDialogValues) => {
@@ -133,6 +152,18 @@ export function AgentSelector(props: AgentSelectorProps) {
     [createAgent, handleSelectorOpenChange, refetch, t]
   )
 
+  const handleEditSaved = useCallback(async () => {
+    setEditDialogOpen(false)
+    setEditingAgent(null)
+    try {
+      await refetch()
+    } catch (error) {
+      logger.warn('Failed to refresh agents after selector edit', { error })
+      window.toast?.error(t('selector.edit_dialog.refresh_failed'))
+    }
+    handleSelectorOpenChange(true)
+  }, [handleSelectorOpenChange, refetch, t])
+
   const createDialog = (
     <ResourceCreateDialog
       kind="agent"
@@ -143,6 +174,19 @@ export function AgentSelector(props: AgentSelectorProps) {
       modelFilter={modelFilter}
     />
   )
+
+  const editDialog =
+    editDialogOpen || editingAgent ? (
+      <Suspense fallback={null}>
+        <AgentEditDialog
+          open={editDialogOpen}
+          resource={editingAgent}
+          onOpenChange={handleEditDialogOpenChange}
+          onSaved={handleEditSaved}
+          modelFilter={modelFilter}
+        />
+      </Suspense>
+    ) : null
 
   const shared = {
     trigger,
@@ -159,7 +203,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     emptyState: { preset: 'no-agent' as const },
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
-    ...(tabs ? { onEditItem: handleEditItem } : {}),
+    onEditItem: handleEditItem,
     onCreateNew: () => setCreateDialogOpen(true),
     loading: isLoading || isPinnedLoading,
     labels: {
@@ -178,6 +222,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       <>
         <ResourceSelectorShell {...shared} selectionType="item" value={props.value} onChange={props.onChange} />
         {createDialog}
+        {editDialog}
       </>
     )
   }
@@ -186,6 +231,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     <>
       <ResourceSelectorShell {...shared} value={props.value} onChange={props.onChange} />
       {createDialog}
+      {editDialog}
     </>
   )
 }

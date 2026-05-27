@@ -1,6 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentProps, ComponentType, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { RESOURCE_TYPE_ORDER } from '../constants'
@@ -9,12 +8,12 @@ import LibraryPage from '../LibraryPage'
 const {
   allResourcesMock,
   assistantCatalogMock,
+  createAgentMock,
+  createAssistantMock,
   createPromptMock,
   duplicateAssistantMock,
-  navigateMock,
   refetchSpy,
   resourceLibraryOptionsMock,
-  routeSearchMock,
   toastErrorMock,
   updatePromptMock
 } = vi.hoisted(() => ({
@@ -27,12 +26,12 @@ const {
     }>,
     presets: [] as any[]
   },
+  createAgentMock: vi.fn(),
+  createAssistantMock: vi.fn(),
   createPromptMock: vi.fn(),
   duplicateAssistantMock: vi.fn(),
-  navigateMock: vi.fn(),
   refetchSpy: vi.fn(),
   resourceLibraryOptionsMock: [] as any[],
-  routeSearchMock: vi.fn(() => ({})),
   toastErrorMock: vi.fn(),
   updatePromptMock: vi.fn()
 }))
@@ -47,24 +46,21 @@ vi.mock('react-i18next', () => ({
   }
 }))
 
-vi.mock('motion/react', () => ({
-  AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
-  motion: {
-    div: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
-    create: (Component: ComponentType<Record<string, unknown>>) => Component
-  }
-}))
-
-vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => navigateMock,
-  useSearch: () => routeSearchMock()
-}))
-
 vi.mock('../adapters/assistantAdapter', () => ({
   useAssistantMutations: () => ({
-    createAssistant: vi.fn(),
+    createAssistant: createAssistantMock,
     duplicateAssistant: duplicateAssistantMock
   })
+}))
+
+vi.mock('../adapters/agentAdapter', () => ({
+  useAgentMutations: () => ({
+    createAgent: createAgentMock
+  })
+}))
+
+vi.mock('@renderer/hooks/agents/useAgentModelFilter', () => ({
+  useAgentModelFilter: () => vi.fn(() => true)
 }))
 
 vi.mock('../adapters/promptAdapter', () => ({
@@ -112,7 +108,16 @@ vi.mock('../list/useResourceLibrary', () => ({
 }))
 
 vi.mock('../list/LibrarySidebar', () => ({
-  LibrarySidebar: () => <div data-testid="library-sidebar" />
+  LibrarySidebar: ({ onFilterChange }: { onFilterChange: (filter: { resourceType: string }) => void }) => (
+    <div data-testid="library-sidebar">
+      <button type="button" onClick={() => onFilterChange({ resourceType: 'assistant' })}>
+        select assistant type
+      </button>
+      <button type="button" onClick={() => onFilterChange({ resourceType: 'skill' })}>
+        select skill type
+      </button>
+    </div>
+  )
 }))
 
 vi.mock('../list/DeleteConfirmDialog', () => ({
@@ -146,6 +151,81 @@ vi.mock('@renderer/components/PromptEditDialog', () => ({
         </button>
         <button type="button" onClick={onCancel}>
           close prompt dialog
+        </button>
+      </div>
+    ) : null
+}))
+
+vi.mock('../dialogs', () => ({
+  ResourceCreateDialog: ({
+    kind,
+    open,
+    onSubmit,
+    onOpenChange
+  }: {
+    kind: 'assistant' | 'agent'
+    open: boolean
+    onSubmit: (values: { avatar: string; name: string; modelId: string; description: string }) => Promise<void>
+    onOpenChange: (open: boolean) => void
+  }) =>
+    open ? (
+      <div role="dialog" data-testid={`${kind}-create-dialog`}>
+        <button
+          type="button"
+          onClick={() =>
+            void onSubmit({
+              avatar: kind === 'assistant' ? '💬' : '🤖',
+              name: `${kind} name`,
+              modelId: 'provider::model',
+              description: `${kind} description`
+            })
+          }>
+          finish {kind} create
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          close {kind} create
+        </button>
+      </div>
+    ) : null,
+  AgentEditDialog: ({
+    open,
+    resource,
+    onSaved,
+    onOpenChange
+  }: {
+    open: boolean
+    resource: { id: string } | null
+    onSaved: (resource: { id: string }) => Promise<void> | void
+    onOpenChange: (open: boolean) => void
+  }) =>
+    open && resource ? (
+      <div role="dialog" data-testid="agent-edit-dialog">
+        <button type="button" onClick={() => void onSaved(resource)}>
+          finish agent edit
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          close agent edit
+        </button>
+      </div>
+    ) : null,
+  AssistantEditDialog: ({
+    open,
+    resource,
+    onSaved,
+    onOpenChange
+  }: {
+    open: boolean
+    resource: { id: string } | null
+    onSaved: (resource: { id: string }) => Promise<void> | void
+    onOpenChange: (open: boolean) => void
+  }) =>
+    open && resource ? (
+      <div role="dialog" data-testid="assistant-edit-dialog">
+        <button type="button" onClick={() => void onSaved(resource)}>
+          finish assistant edit
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          close assistant edit
         </button>
       </div>
     ) : null
@@ -219,45 +299,20 @@ vi.mock('../list/ResourceGrid', () => ({
   )
 }))
 
-vi.mock('../editor/assistant/AssistantConfigPage', () => ({
-  default: ({
-    assistant,
-    onCreated
-  }: {
-    assistant?: { id: string }
-    onCreated?: (created: { id: string }) => void
-  }) => (
-    <div data-testid={assistant ? 'assistant-edit-page' : 'assistant-create-page'}>
-      <button type="button" onClick={() => onCreated?.({ id: 'assistant-created' })}>
-        finish assistant create
-      </button>
-    </div>
-  )
-}))
-
-vi.mock('../editor/agent/AgentConfigPage', () => ({
-  default: ({ agent, onCreated }: { agent?: { id: string }; onCreated?: (created: { id: string }) => void }) => (
-    <div data-testid={agent ? 'agent-edit-page' : 'agent-create-page'}>
-      <button type="button" onClick={() => onCreated?.({ id: 'agent-created' })}>
-        finish agent create
-      </button>
-    </div>
-  )
-}))
-
 describe('LibraryPage create flow', () => {
   beforeEach(() => {
     allResourcesMock.length = 0
     assistantCatalogMock.tabs = [{ id: '__mine__', label: 'library.assistant_catalog.mine', count: 0 }]
     assistantCatalogMock.presets = []
+    createAgentMock.mockReset()
+    createAgentMock.mockResolvedValue({ id: 'agent-created' })
+    createAssistantMock.mockReset()
+    createAssistantMock.mockResolvedValue({ id: 'assistant-created' })
     createPromptMock.mockReset()
     createPromptMock.mockResolvedValue({ id: 'prompt-created' })
     duplicateAssistantMock.mockReset()
-    navigateMock.mockReset()
     refetchSpy.mockReset()
     resourceLibraryOptionsMock.length = 0
-    routeSearchMock.mockReset()
-    routeSearchMock.mockReturnValue({})
     toastErrorMock.mockReset()
     updatePromptMock.mockReset()
     updatePromptMock.mockResolvedValue({ id: 'prompt-updated' })
@@ -275,37 +330,50 @@ describe('LibraryPage create flow', () => {
     expect(screen.getByTestId('resource-grid')).toHaveAttribute('data-resource-type', RESOURCE_TYPE_ORDER[0])
   })
 
-  it('returns to the list and refetches after assistant creation succeeds', async () => {
+  it('creates an assistant in a dialog while keeping the list visible', async () => {
     const user = userEvent.setup()
 
     render(<LibraryPage />)
 
     await user.click(screen.getByRole('button', { name: 'create assistant' }))
-    expect(screen.getByTestId('assistant-create-page')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+    expect(screen.getByTestId('assistant-create-dialog')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'finish assistant create' }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+      expect(screen.queryByTestId('assistant-create-dialog')).not.toBeInTheDocument()
     })
-    expect(screen.queryByTestId('assistant-edit-page')).not.toBeInTheDocument()
+    expect(createAssistantMock).toHaveBeenCalledWith({
+      name: 'assistant name',
+      emoji: '💬',
+      modelId: 'provider::model',
+      description: 'assistant description'
+    })
     expect(refetchSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('returns to the list and refetches after agent creation succeeds', async () => {
+  it('creates an agent in a dialog while keeping the list visible', async () => {
     const user = userEvent.setup()
 
     render(<LibraryPage />)
 
     await user.click(screen.getByRole('button', { name: 'create agent' }))
-    expect(screen.getByTestId('agent-create-page')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-create-dialog')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'finish agent create' }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+      expect(screen.queryByTestId('agent-create-dialog')).not.toBeInTheDocument()
     })
-    expect(screen.queryByTestId('agent-edit-page')).not.toBeInTheDocument()
+    expect(createAgentMock).toHaveBeenCalledWith({
+      type: 'claude-code',
+      name: 'agent name',
+      model: 'provider::model',
+      description: 'agent description',
+      configuration: { avatar: '🤖' }
+    })
     expect(refetchSpy).toHaveBeenCalledTimes(1)
   })
 
@@ -354,7 +422,6 @@ describe('LibraryPage create flow', () => {
 
   it('resets a stale assistant catalog tab before keeping assistant filters disabled', async () => {
     const user = userEvent.setup()
-    routeSearchMock.mockReturnValue({ resourceType: 'assistant' })
     assistantCatalogMock.tabs = [
       { id: '__mine__', label: 'library.assistant_catalog.mine', count: 0 },
       { id: 'custom', label: 'Custom', count: 1 }
@@ -362,6 +429,7 @@ describe('LibraryPage create flow', () => {
 
     const { rerender } = render(<LibraryPage />)
 
+    await user.click(screen.getByRole('button', { name: 'select assistant type' }))
     await user.type(screen.getByLabelText('library search'), 'needle')
     expect(resourceLibraryOptionsMock.at(-1)?.search).toBe('needle')
 
@@ -379,24 +447,8 @@ describe('LibraryPage create flow', () => {
     })
   })
 
-  it('opens the assistant create page from route search', () => {
-    routeSearchMock.mockReturnValue({ resourceType: 'assistant', action: 'create' })
-
-    render(<LibraryPage />)
-
-    expect(screen.getByTestId('assistant-create-page')).toBeInTheDocument()
-  })
-
-  it('opens the prompt create dialog from route search', () => {
-    routeSearchMock.mockReturnValue({ resourceType: 'prompt', action: 'create' })
-
-    render(<LibraryPage />)
-
-    expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
-    expect(screen.getByTestId('prompt-create-dialog')).toBeInTheDocument()
-  })
-
-  it('opens the agent editor from route search after resources load', () => {
+  it('opens the agent edit dialog from the grid while keeping the list visible', async () => {
+    const user = userEvent.setup()
     allResourcesMock.push({
       id: 'agent-from-selector',
       type: 'agent',
@@ -408,14 +460,17 @@ describe('LibraryPage create flow', () => {
       updatedAt: '2024-01-01T00:00:00.000Z',
       raw: { id: 'agent-from-selector' }
     })
-    routeSearchMock.mockReturnValue({ resourceType: 'agent', action: 'edit', id: 'agent-from-selector' })
 
     render(<LibraryPage />)
 
-    expect(screen.getByTestId('agent-edit-page')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'open first' }))
+
+    expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-edit-dialog')).toBeInTheDocument()
   })
 
-  it('opens the assistant editor from route search after resources load', () => {
+  it('opens the assistant edit dialog from the grid while keeping the list visible', async () => {
+    const user = userEvent.setup()
     allResourcesMock.push({
       id: 'assistant-from-selector',
       type: 'assistant',
@@ -427,31 +482,13 @@ describe('LibraryPage create flow', () => {
       updatedAt: '2024-01-01T00:00:00.000Z',
       raw: { id: 'assistant-from-selector' }
     })
-    routeSearchMock.mockReturnValue({ resourceType: 'assistant', action: 'edit', id: 'assistant-from-selector' })
 
     render(<LibraryPage />)
 
-    expect(screen.getByTestId('assistant-edit-page')).toBeInTheDocument()
-  })
-
-  it('opens the prompt edit dialog from route search after resources load', () => {
-    allResourcesMock.push({
-      id: 'prompt-from-selector',
-      type: 'prompt',
-      name: 'Selector Prompt',
-      description: '',
-      avatar: 'Aa',
-      tags: [],
-      createdAt: '2024-01-01T00:00:00.000Z',
-      updatedAt: '2024-01-01T00:00:00.000Z',
-      raw: { id: 'prompt-from-selector' }
-    })
-    routeSearchMock.mockReturnValue({ resourceType: 'prompt', action: 'edit', id: 'prompt-from-selector' })
-
-    render(<LibraryPage />)
+    await user.click(screen.getByRole('button', { name: 'open first' }))
 
     expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
-    expect(screen.getByTestId('prompt-edit-dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('assistant-edit-dialog')).toBeInTheDocument()
   })
 
   it('updates a prompt in a dialog while keeping the list visible', async () => {
@@ -496,7 +533,6 @@ describe('LibraryPage create flow', () => {
       updatedAt: '2024-01-01T00:00:00.000Z',
       raw: { id: 'skill-from-grid', name: 'Grid Skill' }
     })
-    routeSearchMock.mockReturnValue({ resourceType: 'skill' })
 
     render(<LibraryPage />)
 

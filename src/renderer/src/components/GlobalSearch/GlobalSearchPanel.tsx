@@ -18,7 +18,7 @@ import { GroupedVirtualList } from '@renderer/components/VirtualList'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
-import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
+import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/pages/library/dialogs'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import type { GlobalSearchItem } from '@shared/data/api/schemas/globalSearch'
@@ -192,6 +192,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   )
   const [expandedMessageParentIds, setExpandedMessageParentIds] = useState<ReadonlySet<string>>(() => new Set())
   const [messagePreviewTarget, setMessagePreviewTarget] = useState<GlobalSearchMessagePreviewTarget | null>(null)
+  const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const [recentItems] = usePersistCache('ui.global_search.recent_items')
   const [userName] = usePreference('app.user.name')
   const {
@@ -449,15 +450,13 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           case 'assistant': {
             const assistantId = getAssistantTargetId(result.target)
             if (!assistantId) return
-            openTab(buildLibraryRouteUrl(buildLibraryEditSearch('assistant', assistantId)), { forceNew: true })
-            onClose()
+            setEditDialogTarget({ kind: 'assistant', id: assistantId })
             return
           }
           case 'agent': {
             const agentId = getAgentTargetId(result.target)
             if (!agentId) return
-            openTab(buildLibraryRouteUrl(buildLibraryEditSearch('agent', agentId)), { forceNew: true })
-            onClose()
+            setEditDialogTarget({ kind: 'agent', id: agentId })
             return
           }
           case 'topic': {
@@ -841,6 +840,12 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           </KbdGroup>
         </div>
       )}
+      <ResourceEditDialogHost
+        target={editDialogTarget}
+        onOpenChange={(open) => {
+          if (!open) setEditDialogTarget(null)
+        }}
+      />
     </div>
   )
 }

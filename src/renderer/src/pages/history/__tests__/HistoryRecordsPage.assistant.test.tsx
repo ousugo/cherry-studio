@@ -129,6 +129,11 @@ vi.mock('@renderer/components/VirtualList', () => ({
   )
 }))
 
+vi.mock('@renderer/pages/library/dialogs', () => ({
+  ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
+    target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
+}))
+
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: hookMocks.useCache
 }))

@@ -1,14 +1,16 @@
 import { loggerService } from '@logger'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
-import { isSelectableAssistantModel } from '@renderer/pages/library/editor/assistant/modelFilter'
-import { buildLibraryEditSearch, buildLibraryRouteUrl } from '@renderer/pages/library/routeSearch'
-import { type ReactElement, useCallback, useMemo, useState } from 'react'
+import { isSelectableAssistantModel } from '@renderer/pages/library/dialogs/form/assistantModelFilter'
+import {
+  ResourceCreateDialog,
+  type ResourceCreateDialogValues
+} from '@renderer/pages/library/dialogs/ResourceCreateDialog'
+import type { Assistant } from '@shared/data/types/assistant'
+import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { SelectorShellMountStrategy, SelectorShellProps } from '../shell/SelectorShell'
-import { ResourceCreateDialog, type ResourceCreateDialogValues } from './ResourceCreateDialog'
 import {
   ResourceSelectorShell,
   type ResourceSelectorShellItem,
@@ -16,6 +18,11 @@ import {
 } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AssistantSelector')
+const AssistantEditDialog = lazy(() =>
+  import('@renderer/pages/library/dialogs/edit/AssistantEditDialog').then((module) => ({
+    default: module.AssistantEditDialog
+  }))
+)
 
 /**
  * Row shape the selector operates on — derived from the Assistant DTO. `selectionType: 'item'`
@@ -72,9 +79,10 @@ export type AssistantSelectorProps =
 export function AssistantSelector(props: AssistantSelectorProps) {
   const { trigger, open, onOpenChange, side, align, sideOffset, mountStrategy } = props
   const { t } = useTranslation()
-  const tabs = useOptionalTabsContext()
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editingAssistant, setEditingAssistant] = useState<Assistant | null>(null)
   const selectorOpen = open ?? internalOpen
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -142,10 +150,21 @@ export function AssistantSelector(props: AssistantSelectorProps) {
 
   const handleEditItem = useCallback(
     (item: AssistantSelectorItem) => {
-      tabs?.openTab(buildLibraryRouteUrl(buildLibraryEditSearch('assistant', item.id)), { forceNew: true })
+      const assistant = data?.items.find((candidate) => candidate.id === item.id)
+      if (!assistant) return
+
+      setEditingAssistant(assistant)
+      setEditDialogOpen(true)
     },
-    [tabs]
+    [data?.items]
   )
+
+  const handleEditDialogOpenChange = useCallback((nextOpen: boolean) => {
+    setEditDialogOpen(nextOpen)
+    if (!nextOpen) {
+      setEditingAssistant(null)
+    }
+  }, [])
 
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateDialogValues) => {
@@ -175,6 +194,18 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [createAssistant, handleSelectorOpenChange, refetch, t]
   )
 
+  const handleEditSaved = useCallback(async () => {
+    setEditDialogOpen(false)
+    setEditingAssistant(null)
+    try {
+      await refetch()
+    } catch (error) {
+      logger.warn('Failed to refresh assistants after selector edit', { error })
+      window.toast?.error(t('selector.edit_dialog.refresh_failed'))
+    }
+    handleSelectorOpenChange(true)
+  }, [handleSelectorOpenChange, refetch, t])
+
   const createDialog = (
     <ResourceCreateDialog
       kind="assistant"
@@ -185,6 +216,19 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       modelFilter={isSelectableAssistantModel}
     />
   )
+
+  const editDialog =
+    editDialogOpen || editingAssistant ? (
+      <Suspense fallback={null}>
+        <AssistantEditDialog
+          open={editDialogOpen}
+          resource={editingAssistant}
+          onOpenChange={handleEditDialogOpenChange}
+          onSaved={handleEditSaved}
+          modelFilter={isSelectableAssistantModel}
+        />
+      </Suspense>
+    ) : null
 
   const shared = {
     trigger,
@@ -202,7 +246,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     emptyState: { preset: 'no-assistant' as const },
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
-    ...(tabs ? { onEditItem: handleEditItem } : {}),
+    onEditItem: handleEditItem,
     onCreateNew: () => setCreateDialogOpen(true),
     labels: {
       searchPlaceholder: t('selector.assistant.search_placeholder'),
@@ -234,6 +278,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
           multiToggleHint={multiToggleHint}
         />
         {createDialog}
+        {editDialog}
       </>
     )
   }
@@ -249,6 +294,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
           multiToggleHint={multiToggleHint}
         />
         {createDialog}
+        {editDialog}
       </>
     )
   }
@@ -257,6 +303,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       <>
         <ResourceSelectorShell {...shared} selectionType="item" value={props.value} onChange={props.onChange} />
         {createDialog}
+        {editDialog}
       </>
     )
   }
@@ -264,6 +311,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     <>
       <ResourceSelectorShell {...shared} value={props.value} onChange={props.onChange} />
       {createDialog}
+      {editDialog}
     </>
   )
 }
