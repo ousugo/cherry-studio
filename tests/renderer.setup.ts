@@ -576,7 +576,7 @@ vi.mock('@cherrystudio/ui', () => {
           )
         )
       ),
-    Tooltip: ({ children, title, content, mouseEnterDelay, ...props }) => {
+    Tooltip: ({ children, title, content, mouseEnterDelay, classNames, ...props }) => {
       // Support both old (title) and new (content) API
       const tooltipText = content || title
       return React.createElement(
@@ -585,7 +585,8 @@ vi.mock('@cherrystudio/ui', () => {
           ...props,
           'data-testid': 'tooltip',
           ...(tooltipText && { 'data-title': tooltipText }),
-          'data-mouse-enter-delay': mouseEnterDelay
+          'data-mouse-enter-delay': mouseEnterDelay,
+          className: classNames?.placeholder
         },
         children,
         tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null

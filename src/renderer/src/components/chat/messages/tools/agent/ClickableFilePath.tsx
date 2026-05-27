@@ -74,7 +74,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
 
   return (
     <span className="inline-flex items-center gap-0.5">
-      <Tooltip content={normalizedPath} delay={500}>
+      <Tooltip content={normalizedPath} delay={500} classNames={{ placeholder: 'flex flex-row items-center' }}>
         <span
           role={openArtifactFile ? 'link' : undefined}
           tabIndex={openArtifactFile ? 0 : undefined}
@@ -94,7 +94,10 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
               onClick={(e) => e.stopPropagation()}
               className="inline-flex cursor-pointer items-center rounded px-0.5 text-primary opacity-60 hover:bg-black/10 hover:opacity-100"
               aria-label={t('common.more')}>
-              <Tooltip content={t('common.more')} delay={500}>
+              <Tooltip
+                content={t('common.more')}
+                delay={500}
+                classNames={{ placeholder: 'flex flex-row items-center' }}>
                 <MoreHorizontal size={14} />
               </Tooltip>
             </button>
