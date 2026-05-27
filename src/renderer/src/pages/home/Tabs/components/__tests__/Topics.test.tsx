@@ -283,7 +283,26 @@ import {
 } from '../../../../../../../../tests/__mocks__/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '../../../../../../../../tests/__mocks__/renderer/usePreference'
 import { Topics } from '../Topics'
-import { applyOptimisticTopicDisplayMove } from '../Topics.helpers'
+import {
+  applyOptimisticTopicDisplayMove,
+  TOPIC_ASSISTANT_SECTION_ID,
+  TOPIC_PINNED_GROUP_ID,
+  TOPIC_PINNED_SECTION_ID,
+  TOPIC_UNLINKED_ASSISTANT_GROUP_ID
+} from '../Topics.helpers'
+
+const DEFAULT_EXPANDED_TOPIC_GROUP_IDS = [
+  TOPIC_PINNED_SECTION_ID,
+  TOPIC_ASSISTANT_SECTION_ID,
+  TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
+  TOPIC_PINNED_GROUP_ID,
+  'topic:assistant:assistant-1',
+  'topic:assistant:assistant-2',
+  'topic:time:today',
+  'topic:time:yesterday',
+  'topic:time:this-week',
+  'topic:time:earlier'
+]
 
 function createApiTopic(overrides: Partial<ApiTopic> = {}) {
   return {
@@ -448,7 +467,7 @@ describe('Topics', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'topic.tab.display_mode': 'assistant',
-      'topic.tab.collapsed_group_ids': [],
+      'topic.tab.collapsed_group_ids': DEFAULT_EXPANDED_TOPIC_GROUP_IDS,
       'data.export.menus.docx': true,
       'data.export.menus.image': true,
       'data.export.menus.joplin': true,
@@ -979,23 +998,23 @@ describe('Topics', () => {
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
   })
 
-  it('restores and persists collapsed topic groups from preference', () => {
+  it('restores and persists expanded topic groups from preference', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, ['topic:time:today'])
 
     const { rerenderTopicList } = renderTopicList()
 
-    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toHaveClass(
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).not.toHaveClass(
       '-rotate-90'
     )
-    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
-    expect(screen.getByText('Beta pinned')).toBeInTheDocument()
+    expect(screen.getByText('Alpha topic')).toBeInTheDocument()
+    expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Today' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([])
     rerenderTopicList()
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).not.toHaveClass(
+    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toHaveClass(
       '-rotate-90'
     )
 
@@ -1003,6 +1022,8 @@ describe('Topics', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
       'topic:pinned'
     ])
+    rerenderTopicList()
+    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('renders the topic header controls and persists display mode selection', () => {
@@ -1103,7 +1124,7 @@ describe('Topics', () => {
 
   it('reveals a history-selected topic hidden by manage search, a collapsed group, and show-more', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, ['topic:time:today'])
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, [])
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -1143,7 +1164,9 @@ describe('Topics', () => {
     expect(revealedRow!).toHaveClass('animation-resource-list-reveal-focus')
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([])
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
+      'topic:time:today'
+    ])
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
   })
 
@@ -1305,6 +1328,7 @@ describe('Topics', () => {
 
   it('renders assistant groups and creates topics with the selected assistant payload', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, [])
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
         return {
@@ -1407,9 +1431,28 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toBeInTheDocument()
+    const assistantSectionButton = screen
+      .getAllByRole('button', { name: 'Assistant' })
+      .find((button) => button.hasAttribute('aria-expanded'))
+    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
+    expect(assistantSectionButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByText('Pinned unknown')).toBeInTheDocument()
+    expect(screen.queryByText('Known alpha')).not.toBeInTheDocument()
+    expect(screen.queryByText('Known beta')).not.toBeInTheDocument()
+    expect(screen.queryByText('Default topic')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')).toHaveTextContent('🧪')
     expect(screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')).toHaveTextContent('✍️')
 
+    fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
+      TOPIC_PINNED_SECTION_ID,
+      TOPIC_ASSISTANT_SECTION_ID,
+      'topic:assistant:assistant-1'
+    ])
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     expect(assistantHeader).toBeInTheDocument()
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
@@ -1505,7 +1548,7 @@ describe('Topics', () => {
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
     expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never) ?? []).not.toContain(
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never) ?? []).toContain(
       'topic:assistant:assistant-2'
     )
 
@@ -1519,7 +1562,7 @@ describe('Topics', () => {
     expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
 
     fireEvent.click(selectedBetaGroupButton)
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toContain(
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).not.toContain(
       'topic:assistant:assistant-2'
     )
 
@@ -1600,10 +1643,10 @@ describe('Topics', () => {
     })
   })
 
-  it('persists assistant group collapse state without affecting time groups', () => {
+  it('persists assistant group expansion state without affecting time groups', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'topic.tab.display_mode': 'assistant',
-      'topic.tab.collapsed_group_ids': ['topic:time:today', 'topic:assistant:assistant-1']
+      'topic.tab.collapsed_group_ids': ['topic:assistant:assistant-2']
     })
 
     renderTopicList()
@@ -1614,9 +1657,9 @@ describe('Topics', () => {
     expect(screen.getByText('Gamma topic')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
-      'topic:time:today'
-    ])
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual(
+      expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
+    )
   })
 
   it('persists assistant group reorder and applies the assistant order optimistically', async () => {

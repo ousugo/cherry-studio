@@ -1180,6 +1180,42 @@ describe('ResourceList', () => {
     })
   })
 
+  it('selects the first item before expanding a collapsed controlled group header', () => {
+    const onGroupHeaderSelectItem = vi.fn()
+    const onCollapsedGroupIdsChange = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        groupHeaderClickBehavior="select-first-then-toggle"
+        collapsedGroupIds={[]}
+        onCollapsedGroupIdsChange={onCollapsedGroupIdsChange}
+        onGroupHeaderSelectItem={onGroupHeaderSelectItem}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const sessionGroupButton = screen.getByRole('button', { name: 'session' })
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(sessionGroupButton)
+
+    expect(onGroupHeaderSelectItem).toHaveBeenCalledWith('alpha')
+    expect(onCollapsedGroupIdsChange).not.toHaveBeenCalled()
+    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
+  })
+
   it('keeps group header action buttons compact on the right side', () => {
     const Provider = ResourceList.Provider<TestItem>
 
@@ -1440,7 +1476,7 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
   })
 
-  it('supports controlled collapsed group ids', () => {
+  it('supports controlled expanded group ids', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 2 }, (_, index) => ({
       id: `topic-${index + 1}`,
@@ -1448,7 +1484,7 @@ describe('ResourceList', () => {
       kind: 'topic' as const,
       updatedAt: index
     }))
-    let collapsedGroupIds = ['topics']
+    let collapsedGroupIds: string[] = []
     const onCollapsedGroupIdsChange = vi.fn((nextIds: string[]) => {
       collapsedGroupIds = nextIds
     })
@@ -1476,7 +1512,7 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Topics' }))
 
-    expect(onCollapsedGroupIdsChange).toHaveBeenCalledWith([])
+    expect(onCollapsedGroupIdsChange).toHaveBeenCalledWith(['topics'])
 
     view.rerender(
       <Provider
@@ -1509,7 +1545,7 @@ describe('ResourceList', () => {
     ]
 
     function SectionHarness({ requestId }: { requestId?: number }) {
-      const [collapsedIds, setCollapsedIds] = useState(['pinned', 'section:assistants', 'topic'])
+      const [collapsedIds, setCollapsedIds] = useState(['section:pinned'])
 
       return (
         <Provider
@@ -1549,7 +1585,7 @@ describe('ResourceList', () => {
     expect(screen.queryByText('Beta')).not.toBeInTheDocument()
     expect(screen.queryByText('gamma')).not.toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
-      collapsedGroups: ['pinned', 'section:assistants', 'topic'],
+      collapsedGroups: ['section:pinned'],
       sections: ['section:pinned', 'section:assistants']
     })
 
@@ -1565,7 +1601,7 @@ describe('ResourceList', () => {
     ).not.toHaveClass('pl-4')
     expect(screen.getByText('Gamma').closest('[role="option"]')).toHaveAttribute('data-reveal-focus', 'true')
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
-      collapsedGroups: ['pinned'],
+      collapsedGroups: expect.arrayContaining(['section:pinned', 'section:assistants', 'topic']),
       sections: ['section:pinned', 'section:assistants'],
       visibleNames: expect.arrayContaining(['Gamma'])
     })
@@ -1582,7 +1618,7 @@ describe('ResourceList', () => {
     }))
 
     function RevealHarness({ requestId }: { requestId?: number }) {
-      const [collapsedGroupIds, setCollapsedGroupIds] = useState(['topics'])
+      const [collapsedGroupIds, setCollapsedGroupIds] = useState<string[]>([])
 
       return (
         <Provider
@@ -1625,7 +1661,7 @@ describe('ResourceList', () => {
 
     expect(screen.getByPlaceholderText('Search resources')).toHaveValue('missing')
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
-      collapsedGroups: ['topics']
+      collapsedGroups: []
     })
     expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
 
@@ -1640,7 +1676,7 @@ describe('ResourceList', () => {
     expect(screen.getByPlaceholderText('Search resources')).toHaveValue('')
     expect(screen.getByRole('button', { name: 'Topics' })).toHaveAttribute('aria-expanded', 'true')
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
-      collapsedGroups: [],
+      collapsedGroups: ['topics'],
       filters: [],
       visibleNames: expect.arrayContaining(['Topic 6'])
     })

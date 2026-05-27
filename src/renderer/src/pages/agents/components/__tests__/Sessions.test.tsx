@@ -486,9 +486,30 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import {
+  SESSION_AGENT_SECTION_ID,
+  SESSION_NO_PROJECT_SECTION_ID,
+  SESSION_PINNED_SECTION_ID,
+  SESSION_WORKDIR_SECTION_ID
+} from '../SessionList.helpers'
 import Sessions from '../Sessions'
 
 const CURRENT_SESSION_ISO = new Date().toISOString()
+const DEFAULT_EXPANDED_SESSION_GROUP_IDS = [
+  SESSION_PINNED_SECTION_ID,
+  SESSION_AGENT_SECTION_ID,
+  SESSION_WORKDIR_SECTION_ID,
+  SESSION_NO_PROJECT_SECTION_ID,
+  'session:agent:agent-a',
+  'session:agent:agent-b',
+  'session:workspace:ws-a',
+  'session:workspace:ws-b',
+  'session:pinned',
+  'session:time:today',
+  'session:time:yesterday',
+  'session:time:this-week',
+  'session:time:earlier'
+]
 
 function makeWorkspace(path: string, overrides: Partial<WorkspaceEntity> = {}): WorkspaceEntity {
   return {
@@ -592,7 +613,7 @@ describe('Sessions', () => {
   beforeEach(() => {
     preferenceMocks.values.clear()
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
-    preferenceMocks.values.set('agent.session.collapsed_group_ids', [])
+    preferenceMocks.values.set('agent.session.collapsed_group_ids', DEFAULT_EXPANDED_SESSION_GROUP_IDS)
     preferenceMocks.values.set('topic.tab.show', true)
     dataApiMocks.workspaces = [
       makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'a' }),
@@ -651,19 +672,29 @@ describe('Sessions', () => {
     vi.useRealTimers()
   })
 
-  it('loads all sessions and renders workspace groups with drag by default', () => {
+  it('loads all sessions and renders collapsed workspace groups with drag by default', () => {
+    preferenceMocks.values.set('agent.session.collapsed_group_ids', [])
+
     render(<Sessions />)
 
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 200 })
     expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Project A Workspace' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Project' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: 'project-a' })).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Project A Workspace' }).querySelector('.lucide-folder-open')
     ).toBeInTheDocument()
-    expect(screen.getByText('Alpha session')).toHaveClass('font-normal', 'text-sidebar-foreground/70')
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Project A Workspace' }))
+
+    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids')).toEqual([
+      SESSION_WORKDIR_SECTION_ID,
+      'session:workspace:ws-a'
+    ])
   })
 
   it('renders no-project sessions in a bottom chats section', () => {
@@ -745,6 +776,7 @@ describe('Sessions', () => {
 
   it('renders agent groups in agent display mode', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.collapsed_group_ids', [])
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
         { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } },
@@ -760,16 +792,35 @@ describe('Sessions', () => {
       ]
     })
 
-    render(<Sessions />)
+    const view = render(<Sessions />)
 
     const betaGroup = screen.getByRole('button', { name: 'Beta agent' })
     const alphaGroup = screen.getByRole('button', { name: 'Alpha agent' })
     expect(betaGroup.compareDocumentPosition(alphaGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Agent' })).toHaveAttribute('aria-expanded', 'true')
+    expect(betaGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(alphaGroup).toHaveAttribute('aria-expanded', 'false')
     expect(betaGroup).toHaveTextContent('B')
     expect(alphaGroup).toHaveTextContent('A')
-    expect(screen.getByText('Beta session')).toBeInTheDocument()
-    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
+
+    fireEvent.click(betaGroup)
+
+    expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith('session-b')
+    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids')).toEqual([])
+    expect(betaGroup).toHaveAttribute('aria-expanded', 'false')
+
+    cacheMocks.state.activeSessionId = 'session-b'
+    view.rerender(<Sessions key="selected-session-b" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Beta agent' }))
+
+    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids')).toEqual([
+      SESSION_AGENT_SECTION_ID,
+      'session:agent:agent-b'
+    ])
   })
 
   it('keeps system workspace sessions inside agent groups in agent display mode', () => {
@@ -833,7 +884,7 @@ describe('Sessions', () => {
 
     expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith('session-b')
     expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
-    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids') ?? []).not.toContain('session:agent:agent-b')
+    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids') ?? []).toContain('session:agent:agent-b')
 
     cacheMocks.state.activeSessionId = 'session-b'
     view.rerender(<Sessions key="selected-session-b" />)
@@ -843,7 +894,7 @@ describe('Sessions', () => {
     expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
 
     fireEvent.click(selectedBetaGroupButton)
-    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids')).toContain('session:agent:agent-b')
+    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids')).not.toContain('session:agent:agent-b')
 
     view.rerender(<Sessions key="collapsed-session-b" />)
     expect(screen.getByRole('button', { name: 'Beta agent' })).toHaveAttribute('aria-expanded', 'false')
@@ -1257,7 +1308,7 @@ describe('Sessions', () => {
 
   it('subscribes stream status only for visible session rows', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
-    preferenceMocks.values.set('agent.session.collapsed_group_ids', ['session:workdir:%2FUsers%2Fjd%2Fproject-a'])
+    preferenceMocks.values.set('agent.session.collapsed_group_ids', [])
 
     render(<Sessions />)
 
