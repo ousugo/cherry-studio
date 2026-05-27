@@ -36,6 +36,7 @@ import type { AddNewTopicPayload } from '@renderer/pages/home/types'
 import type { FileMetadata, Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
+import { formatQuotedText } from '@renderer/utils/formats'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerQueuedMessagePayload, ComposerQueueItem, StreamPendingQueueItem } from '@shared/ai/transport'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
@@ -43,6 +44,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { IpcChannel } from '@shared/IpcChannel'
 import { isNonChatModel, isWebSearchModel } from '@shared/utils/model'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -613,6 +615,17 @@ const ChatComposerInner = ({
     [onNewTopic]
   )
 
+  const handleQuote = useCallback(
+    (selectedText: string) => {
+      if (!selectedText) return
+
+      const quotedText = formatQuotedText(selectedText)
+      actionsRef.current.onTextChange((prevText) => (prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`))
+      actionsRef.current.toggleExpanded(isExpanded)
+    },
+    [actionsRef, isExpanded]
+  )
+
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
       Object.assign(actionsRef.current, actions)
@@ -623,6 +636,12 @@ const ChatComposerInner = ({
   useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
+
+  useEffect(() => {
+    return window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, selectedText: string) => {
+      handleQuote(selectedText)
+    })
+  }, [handleQuote])
 
   useShortcut(
     'topic.new',
