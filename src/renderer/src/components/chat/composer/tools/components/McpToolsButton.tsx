@@ -27,6 +27,8 @@ interface Props {
   launcher: ToolLauncherApi
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
+  disabled?: boolean
+  disabledReason?: string
 }
 
 interface PromptArgument {
@@ -124,7 +126,14 @@ const sparklesIcon = <Sparkles />
 const hammerIcon18 = <Hammer size={18} />
 const sparklesIcon18 = <Sparkles size={18} />
 
-const useMcpToolsController = ({ launcher, setInputValue, resizeTextArea, assistantId }: Props) => {
+const useMcpToolsController = ({
+  launcher,
+  setInputValue,
+  resizeTextArea,
+  assistantId,
+  disabled,
+  disabledReason
+}: Props) => {
   const { mcpServers: activedMcpServers } = useMcpServers({ isActive: true })
   const { t } = useTranslation()
   const quickPanelHook = useQuickPanel()
@@ -144,6 +153,10 @@ const useMcpToolsController = ({ launcher, setInputValue, resizeTextArea, assist
   }, [])
 
   const currentMode = useMemo(() => (assistant ? getEffectiveMcpMode(assistant) : 'disabled'), [assistant])
+  const isDisabled = disabled || !assistant
+  const resolvedDisabledReason = isDisabled
+    ? (disabledReason ?? t('assistants.settings.mcp.mode.disabled.description'))
+    : undefined
 
   const modeLabelMap = useMemo(
     () => ({
@@ -179,11 +192,12 @@ const useMcpToolsController = ({ launcher, setInputValue, resizeTextArea, assist
   )
 
   const cycleMcpMode = useCallback(() => {
+    if (isDisabled) return
     const modes: McpMode[] = ['disabled', 'auto', 'manual']
     const currentIndex = modes.indexOf(currentMode)
     const nextMode = modes[(currentIndex + 1) % modes.length]
     handleModeChange(nextMode)
-  }, [currentMode, handleModeChange])
+  }, [currentMode, handleModeChange, isDisabled])
 
   const handleMcpServerSelect = useCallback(
     (server: MCPServer) => {
@@ -253,6 +267,27 @@ const useMcpToolsController = ({ launcher, setInputValue, resizeTextArea, assist
       }
     })
   }, [manualModeMenuItems, quickPanelHook, t])
+
+  const modeSubmenu = useMemo(
+    () =>
+      (['disabled', 'auto', 'manual'] as const).map((mode, index) => ({
+        id: `mcp-mode-${mode}`,
+        kind: 'command' as const,
+        sources: ['root-panel'] as const,
+        order: 50 + index / 100,
+        label: modeLabelMap[mode],
+        description: t('settings.mcp.title'),
+        icon: hammerIcon,
+        active: currentMode === mode,
+        disabled: isDisabled,
+        disabledReason: resolvedDisabledReason,
+        action: () => {
+          handleModeChange(mode)
+          if (mode === 'manual') openManualModePanel()
+        }
+      })),
+    [currentMode, handleModeChange, isDisabled, modeLabelMap, openManualModePanel, resolvedDisabledReason, t]
+  )
 
   const menuItems = useMemo(() => {
     const newList: QuickPanelListItem[] = []
@@ -618,25 +653,29 @@ const useMcpToolsController = ({ launcher, setInputValue, resizeTextArea, assist
   )
 
   const handleOpenQuickPanel = useCallback(() => {
+    if (isDisabled) return
     if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.Mcp) {
       quickPanelHook.close()
     } else {
       openQuickPanel()
     }
-  }, [openQuickPanel, quickPanelHook])
+  }, [isDisabled, openQuickPanel, quickPanelHook])
 
   useEffect(() => {
     const disposeLauncher = launcher.registerLaunchers([
       {
         id: 'mcp-tools',
-        kind: 'command',
-        sources: ['popover', 'root-panel'],
+        kind: 'group',
+        sources: ['popover'],
         order: 50,
         label: t('settings.mcp.title'),
-        description: '',
+        description: resolvedDisabledReason ?? '',
+        disabledReason: resolvedDisabledReason,
         icon: hammerIcon,
-        active: currentMode !== 'disabled',
+        active: !isDisabled && currentMode !== 'disabled',
+        disabled: isDisabled,
         suffix: modeLabelMap[currentMode],
+        submenu: modeSubmenu,
         action: cycleMcpMode
       },
       {
@@ -664,9 +703,20 @@ const useMcpToolsController = ({ launcher, setInputValue, resizeTextArea, assist
     return () => {
       disposeLauncher()
     }
-  }, [currentMode, cycleMcpMode, launcher, modeLabelMap, openPromptList, openResourcesList, t])
+  }, [
+    currentMode,
+    cycleMcpMode,
+    isDisabled,
+    launcher,
+    modeLabelMap,
+    modeSubmenu,
+    openPromptList,
+    openResourcesList,
+    resolvedDisabledReason,
+    t
+  ])
 
-  const isActive = currentMode !== 'disabled'
+  const isActive = !isDisabled && currentMode !== 'disabled'
 
   const getButtonIcon = () => {
     switch (currentMode) {
@@ -679,7 +729,7 @@ const useMcpToolsController = ({ launcher, setInputValue, resizeTextArea, assist
     }
   }
 
-  return { getButtonIcon, handleOpenQuickPanel, isActive, t }
+  return { getButtonIcon, handleOpenQuickPanel, isActive, isDisabled, t }
 }
 
 export const McpToolsRuntime: FC<Props> = (props) => {
@@ -688,13 +738,14 @@ export const McpToolsRuntime: FC<Props> = (props) => {
 }
 
 const McpToolsButton: FC<Props> = (props) => {
-  const { getButtonIcon, handleOpenQuickPanel, isActive, t } = useMcpToolsController(props)
+  const { getButtonIcon, handleOpenQuickPanel, isActive, isDisabled, t } = useMcpToolsController(props)
 
   return (
     <Tooltip content={t('settings.mcp.title')}>
       <ActionIconButton
         onClick={handleOpenQuickPanel}
         active={isActive}
+        disabled={isDisabled}
         aria-label={t('settings.mcp.title')}
         icon={getButtonIcon()}
       />

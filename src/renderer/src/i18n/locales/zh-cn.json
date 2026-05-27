@@ -1347,6 +1347,9 @@
       "generate_image": "生成图片",
       "generate_image_not_supported": "模型不支持生成图片",
       "knowledge_base": "知识库",
+      "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
+      "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
+      "mcp_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
       "new": {
         "context": "清除上下文 {{Command}}"
       },
@@ -1382,6 +1385,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "思考预算超过最大 Token 数",
+        "fixed_model": "该模型的推理强度固定",
         "label": "思考",
         "mode": {
           "custom": {
@@ -1395,7 +1399,8 @@
           "tokens": {
             "tip": "设置思考的 Token 数"
           }
-        }
+        },
+        "unsupported_model": "当前模型不支持调整推理强度"
       },
       "tools": {
         "collapse": "折叠",
@@ -1412,7 +1417,9 @@
       "translating": "翻译中...",
       "upload": {
         "attachment": "上传附件",
-        "document": "上传文档（模型不支持图片）",
+        "document": "上传文档",
+        "document_only": "仅文档",
+        "image_not_supported": "当前模型不支持图片上传，仅可上传文档",
         "image_or_document": "上传图片或文档",
         "upload_from_local": "上传本地文件..."
       },

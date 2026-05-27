@@ -182,7 +182,6 @@ const emptyActions: ProviderActionHandlers = {
   resizeTextArea: () => undefined,
   addNewTopic: () => undefined,
   onTextChange: () => undefined,
-  toggleExpanded: () => undefined,
   removeToken: () => undefined
 }
 
@@ -241,8 +240,7 @@ const AgentComposerRoot = ({
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         addNewTopic: () => {
           void onNewSessionDraft?.()
-        },
-        toggleExpanded: (next) => actionsRef.current.toggleExpanded(next)
+        }
       }}>
       <AgentComposerInner
         model={sessionModel}

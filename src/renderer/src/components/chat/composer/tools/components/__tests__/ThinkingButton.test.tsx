@@ -17,6 +17,7 @@ const mockIsFixedReasoningModel = vi.fn()
 const mockIsGPT5SeriesReasoningModel = vi.fn()
 const mockIsOpenAIWebSearchModel = vi.fn()
 const mockIsDoubaoThinkingAutoModel = vi.fn()
+const mockIsReasoningModel = vi.fn()
 
 // Global toast mock
 const mockToastWarning = vi.fn()
@@ -45,6 +46,7 @@ vi.mock('@renderer/config/models', () => ({
   isFixedReasoningModel: (...args: any[]) => mockIsFixedReasoningModel(...args),
   isGPT5SeriesReasoningModel: (...args: any[]) => mockIsGPT5SeriesReasoningModel(...args),
   isOpenAIWebSearchModel: (...args: any[]) => mockIsOpenAIWebSearchModel(...args),
+  isReasoningModel: (...args: any[]) => mockIsReasoningModel(...args),
   isDoubaoThinkingAutoModel: (...args: any[]) => mockIsDoubaoThinkingAutoModel(...args),
   MODEL_SUPPORTED_OPTIONS: {
     default: ['default', 'none', 'low', 'medium', 'high'],
@@ -261,6 +263,7 @@ const renderComponent = (
     isFixedReasoning?: boolean
     isOpenAIWebSearchModel?: boolean
     isGPT5SeriesReasoningModel?: boolean
+    isReasoningModel?: boolean
     reasoningEffort?: ThinkingOption
     enableWebSearch?: boolean
     isDoubaoThinkingAutoModel?: boolean
@@ -277,6 +280,7 @@ const renderComponent = (
     isFixedReasoning = false,
     isOpenAIWebSearchModel = false,
     isGPT5SeriesReasoningModel = false,
+    isReasoningModel = true,
     reasoningEffort = 'none',
     enableWebSearch = false,
     isDoubaoThinkingAutoModel = false
@@ -303,6 +307,7 @@ const renderComponent = (
   mockIsFixedReasoningModel.mockReturnValue(isFixedReasoning)
   mockIsOpenAIWebSearchModel.mockReturnValue(isOpenAIWebSearchModel)
   mockIsGPT5SeriesReasoningModel.mockReturnValue(isGPT5SeriesReasoningModel)
+  mockIsReasoningModel.mockReturnValue(isReasoningModel)
   mockIsDoubaoThinkingAutoModel.mockReturnValue(isDoubaoThinkingAutoModel)
 
   // Setup global toast mock
@@ -329,6 +334,7 @@ describe('ThinkingButton', () => {
     mockIsFixedReasoningModel.mockReturnValue(false)
     mockIsGPT5SeriesReasoningModel.mockReturnValue(false)
     mockIsOpenAIWebSearchModel.mockReturnValue(false)
+    mockIsReasoningModel.mockReturnValue(true)
     mockIsDoubaoThinkingAutoModel.mockReturnValue(false)
 
     ;(global.window as any).toast = { warning: mockToastWarning }
@@ -645,6 +651,71 @@ describe('ThinkingButton', () => {
       })
 
       expect(getActionIconButton()).toBeInTheDocument()
+    })
+
+    it('registers unsupported reasoning models as disabled launchers', () => {
+      const launcherApi = createLauncherApi()
+
+      renderComponent({
+        launcherApi,
+        isReasoningModel: false,
+        reasoningEffort: 'none'
+      })
+
+      expect(launcherApi.registerLaunchers).toHaveBeenCalledWith([
+        expect.objectContaining({
+          id: 'thinking',
+          disabled: true,
+          disabledReason: 'chat.input.thinking.unsupported_model'
+        })
+      ])
+    })
+
+    it('registers configurable reasoning levels as submenu entries for the slash panel', () => {
+      const launcherApi = createLauncherApi()
+
+      renderComponent({
+        launcherApi,
+        modelType: 'gpt5',
+        reasoningEffort: 'low'
+      })
+
+      const [launcher] = vi.mocked(launcherApi.registerLaunchers).mock.calls[0][0]
+
+      expect(launcher).toMatchObject({
+        id: 'thinking',
+        kind: 'group',
+        sources: ['popover'],
+        suffix: 'Low'
+      })
+      expect(launcher.submenu?.map((item) => item.id)).toEqual([
+        'thinking-minimal',
+        'thinking-low',
+        'thinking-medium',
+        'thinking-high'
+      ])
+      expect(launcher.submenu?.every((item) => item.sources?.includes('root-panel'))).toBe(true)
+      expect(launcher.submenu?.find((item) => item.id === 'thinking-low')).toMatchObject({ active: true })
+    })
+
+    it('does not mark fixed reasoning models as active composer launchers', () => {
+      const launcherApi = createLauncherApi()
+
+      renderComponent({
+        launcherApi,
+        isFixedReasoning: true,
+        model: modelPresets.fixedReasoning(),
+        reasoningEffort: 'none'
+      })
+
+      const [launcher] = vi.mocked(launcherApi.registerLaunchers).mock.calls[0][0]
+
+      expect(launcher).toMatchObject({
+        id: 'thinking',
+        active: false,
+        disabled: true,
+        disabledReason: 'chat.input.thinking.fixed_model'
+      })
     })
   })
 })

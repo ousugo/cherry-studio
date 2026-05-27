@@ -1347,6 +1347,9 @@
       "generate_image": "Generate image",
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",
+      "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
+      "knowledge_base_unavailable": "Select a tool-capable model or enable prompt tool use",
+      "mcp_unavailable": "Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "Clear Context {{Command}}"
       },
@@ -1382,6 +1385,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "Thinking budget exceeds the maximum token number",
+        "fixed_model": "Reasoning is fixed for this model",
         "label": "Thinking",
         "mode": {
           "custom": {
@@ -1395,7 +1399,8 @@
           "tokens": {
             "tip": "Set the number of thinking tokens to use."
           }
-        }
+        },
+        "unsupported_model": "Current model does not support adjustable reasoning"
       },
       "tools": {
         "collapse": "Collapse",
@@ -1412,7 +1417,9 @@
       "translating": "Translating...",
       "upload": {
         "attachment": "Upload attachment",
-        "document": "Upload document file (model does not support images)",
+        "document": "Upload document",
+        "document_only": "Documents only",
+        "image_not_supported": "This model does not support image uploads. Documents only.",
         "image_or_document": "Upload image or document file",
         "upload_from_local": "Upload local file..."
       },

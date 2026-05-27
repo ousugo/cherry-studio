@@ -37,7 +37,7 @@ export const DEFAULT_TOOL_ORDER: ToolOrder = {
     'generate_image',
     'mention_models'
   ],
-  hidden: ['quick_phrases', 'toggle_expand']
+  hidden: ['quick_phrases']
 }
 
 // Default tool order per scope

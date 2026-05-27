@@ -1,5 +1,5 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,11 +15,22 @@ const mocks = vi.hoisted(() => ({
   chainRun: vi.fn(),
   docDescendants: vi.fn(),
   dispatch: vi.fn(),
+  editorPresetOptions: undefined as any,
   selection: { from: 1 } as any,
   transaction: undefined as any
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    children,
+    size: _size,
+    variant: _variant,
+    ...props
+  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -160,7 +171,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../composerPreset', () => ({
-  createComposerEditorPreset: () => []
+  createComposerEditorPreset: (options: any) => {
+    mocks.editorPresetOptions = options
+    return []
+  }
 }))
 
 const baseProps: ComposerSurfaceProps = {
@@ -213,6 +227,7 @@ describe('ComposerSurface', () => {
     mocks.chainRun.mockReset()
     mocks.docDescendants.mockReset()
     mocks.dispatch.mockReset()
+    mocks.editorPresetOptions = undefined
     mocks.selection = { from: 1 }
     mocks.transaction = {
       doc: {},
@@ -236,10 +251,7 @@ describe('ComposerSurface', () => {
     expect(editor.className).not.toContain('max-h-[max(220px,50vh)]')
     expect(editor.className).not.toContain('max-h-[500px]')
 
-    await waitFor(() => expect(mocks.actions).toBeDefined())
-    act(() => {
-      mocks.actions?.toggleExpanded(true)
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.expand' }))
 
     expect(editorContainer).toHaveStyle({ height: 'max(220px, 50vh)', overflow: 'hidden' })
     expect(editorContent).toHaveStyle({ height: '100%' })
@@ -250,6 +262,19 @@ describe('ComposerSurface', () => {
     )
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('height: 100%')
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('overflow-y: auto')
+  })
+
+  it('renders the expand control immediately before translate', () => {
+    render(<Harness />)
+
+    const expandButton = screen.getByRole('button', { name: 'chat.input.expand' })
+    const translateButton = screen.getByRole('button', { name: 'translate' })
+
+    expect(expandButton.nextElementSibling).toBe(translateButton)
+
+    fireEvent.click(expandButton)
+
+    expect(screen.getByRole('button', { name: 'chat.input.collapse' })).toBeInTheDocument()
   })
 
   it('sets quick phrase text as prompt variable token content', async () => {
@@ -354,5 +379,37 @@ describe('ComposerSurface', () => {
 
     expect(mocks.editorOptions.editorProps.handleTextInput(null, 5, 6, '上海')).toBe(true)
     expect(mocks.transaction.setNodeMarkup).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses disabled reason as the root suggestion description', async () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        enableQuickPanelTriggers
+        getToolLaunchers={() => [
+          {
+            id: 'generate-image',
+            kind: 'command',
+            label: 'Generate image',
+            disabled: true,
+            disabledReason: 'The model does not support generating images.',
+            icon: 'image'
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const rootSource = mocks.editorPresetOptions.suggestionSources[0]
+    const [item] = rootSource.items({ query: '' })
+
+    expect(item).toMatchObject({
+      id: 'generate-image',
+      label: 'Generate image',
+      description: 'The model does not support generating images.',
+      disabled: true
+    })
   })
 })

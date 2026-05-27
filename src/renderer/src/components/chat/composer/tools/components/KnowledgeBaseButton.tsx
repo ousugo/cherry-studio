@@ -14,6 +14,7 @@ interface Props {
   selectedBases?: KnowledgeBase[]
   onSelect: (bases: KnowledgeBase[]) => void
   disabled?: boolean
+  disabledReason?: string
 }
 
 const useKnowledgeBaseToolController = ({
@@ -21,7 +22,8 @@ const useKnowledgeBaseToolController = ({
   configuredKnowledgeBaseIds,
   selectedBases,
   onSelect,
-  disabled
+  disabled,
+  disabledReason
 }: Props) => {
   const { t } = useTranslation()
   const { bases: knowledgeBases } = useKnowledgeBases()
@@ -34,6 +36,10 @@ const useKnowledgeBaseToolController = ({
 
   const isEnabled = (selectedBases?.length ?? 0) > 0
   const isDisabled = disabled || configuredBases.length === 0
+  const fallbackDisabledReason = disabled
+    ? t('chat.input.knowledge_base_disabled_by_files')
+    : t('chat.save.knowledge.empty.no_knowledge_base')
+  const resolvedDisabledReason = isDisabled ? (disabledReason ?? fallbackDisabledReason) : undefined
 
   const handleToggle = useCallback(() => {
     if (isDisabled) return
@@ -48,7 +54,8 @@ const useKnowledgeBaseToolController = ({
         sources: ['popover', 'root-panel'],
         order: 40,
         label: t('chat.input.knowledge_base'),
-        description: '',
+        description: resolvedDisabledReason ?? '',
+        disabledReason: resolvedDisabledReason,
         icon: <FileSearch />,
         active: isEnabled,
         disabled: isDisabled,
@@ -60,7 +67,7 @@ const useKnowledgeBaseToolController = ({
     return () => {
       disposeLauncher()
     }
-  }, [handleToggle, isDisabled, isEnabled, launcher, t])
+  }, [handleToggle, isDisabled, isEnabled, launcher, resolvedDisabledReason, t])
 
   return { disabled: isDisabled, handleToggle, isEnabled, t }
 }

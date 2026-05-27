@@ -6,10 +6,12 @@ import { useCallback, useEffect, useState } from 'react'
 const useGenerateImageToolController = (context) => {
   const { model, launcher, t } = context
   const [enabled, setEnabled] = useState(false)
+  const isSupported = isGenerateImageModel(model)
 
   const handleToggle = useCallback(() => {
+    if (!isSupported) return
     setEnabled((prev) => !prev)
-  }, [])
+  }, [isSupported])
 
   useEffect(() => {
     return launcher.registerLaunchers([
@@ -20,13 +22,14 @@ const useGenerateImageToolController = (context) => {
         order: 20,
         label: t('chat.input.generate_image'),
         description: '',
+        disabledReason: t('chat.input.generate_image_not_supported'),
         icon: <Image size={18} />,
-        active: enabled,
-        disabled: !isGenerateImageModel(model),
+        active: enabled && isSupported,
+        disabled: !isSupported,
         action: handleToggle
       }
     ])
-  }, [enabled, handleToggle, launcher, model, t])
+  }, [enabled, handleToggle, isSupported, launcher, t])
 
   return { enabled, handleToggle }
 }
@@ -40,7 +43,6 @@ const generateImageTool = defineTool({
   key: 'generate_image',
   label: (t) => t('chat.input.generate_image'),
   visibleInScopes: [TopicType.Chat],
-  condition: ({ model }) => isGenerateImageModel(model),
   composer: {
     runtime: ({ context }) => <GenerateImageComposerRuntime context={context} />
   }

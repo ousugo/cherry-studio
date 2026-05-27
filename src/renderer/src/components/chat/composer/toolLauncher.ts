@@ -28,10 +28,13 @@ export interface ComposerToolLauncher {
   order?: number
   label: ReactNode | string
   description?: ReactNode | string
+  tooltip?: ReactNode | string
+  disabledReason?: ReactNode | string
   icon: ReactNode | string
   suffix?: ReactNode | string
   active?: boolean
   disabled?: boolean
   hidden?: boolean
+  submenu?: ComposerToolLauncher[]
   action?: (options: ComposerToolLauncherActionOptions) => void
 }

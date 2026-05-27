@@ -1,4 +1,4 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
@@ -20,7 +20,7 @@ import type { FileMetadata } from '@renderer/types'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { Editor } from '@tiptap/react'
 import { EditorContent } from '@tiptap/react'
-import { CirclePause } from 'lucide-react'
+import { CirclePause, Maximize, Minimize } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -44,7 +44,6 @@ import type { ComposerToolLauncher } from './toolLauncher'
 export interface ComposerSurfaceActions {
   resizeTextArea: () => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
-  toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
 }
 
@@ -196,7 +195,16 @@ function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
 }
 
 function getLauncherSearchText(launcher: ComposerToolLauncher) {
-  return [launcher.label, launcher.description].map((value) => (typeof value === 'string' ? value : '')).join(' ')
+  return [launcher.label, launcher.description, launcher.tooltip, launcher.disabledReason]
+    .map((value) => (typeof value === 'string' ? value : ''))
+    .join(' ')
+}
+
+function getLauncherDescription(launcher: ComposerToolLauncher) {
+  if (launcher.disabled && launcher.disabledReason) {
+    return launcher.disabledReason
+  }
+  return launcher.description
 }
 
 function createRootSuggestionItem(
@@ -209,7 +217,7 @@ function createRootSuggestionItem(
   return {
     id: launcher.id,
     label: launcher.label,
-    description: launcher.description,
+    description: getLauncherDescription(launcher),
     icon: launcher.icon,
     filterText: getLauncherSearchText(launcher),
     disabled: launcher.disabled,
@@ -423,10 +431,9 @@ export default function ComposerSurface({
     onActionsChange?.({
       resizeTextArea: () => undefined,
       onTextChange: handleTextChangeFromTool,
-      toggleExpanded: handleToggleExpanded,
       removeToken
     })
-  }, [handleTextChangeFromTool, handleToggleExpanded, onActionsChange, removeToken])
+  }, [handleTextChangeFromTool, onActionsChange, removeToken])
 
   const rootSuggestionStateRef = useRef({ getToolLaunchers, onToolLauncherSelect, quickPanel })
   rootSuggestionStateRef.current = { getToolLaunchers, onToolLauncherSelect, quickPanel }
@@ -751,6 +758,16 @@ export default function ComposerSurface({
       <div className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">{renderLeftControls?.(inputAdapter)}</div>
         <div className="flex flex-row items-center gap-1.5">
+          <Tooltip content={isExpanded ? t('chat.input.collapse') : t('chat.input.expand')}>
+            <Button
+              onClick={() => handleToggleExpanded()}
+              variant="ghost"
+              size="icon-sm"
+              className="rounded-full"
+              aria-label={isExpanded ? t('chat.input.collapse') : t('chat.input.expand')}>
+              {isExpanded ? <Minimize size={18} /> : <Maximize size={18} />}
+            </Button>
+          </Tooltip>
           <TranslateButton text={text} disabled={sendDisabled} onTranslated={onTranslated} />
           {showPauseButton ? (
             <Tooltip content={t('chat.input.pause')} placement="top">

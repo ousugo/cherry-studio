@@ -29,6 +29,8 @@ const useKnowledgeBaseSelect = (context: KnowledgeBaseToolContext) => {
 const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolContext }) => {
   const { state, launcher } = context
   const handleSelect = useKnowledgeBaseSelect(context)
+  const isToolUseAvailable =
+    !!context.assistant && (isSupportedToolUse(context.assistant, context.model) || isPromptToolUse(context.assistant))
 
   return (
     <KnowledgeBaseToolRuntime
@@ -36,7 +38,8 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
       configuredKnowledgeBaseIds={context.assistant?.knowledgeBaseIds ?? []}
       selectedBases={state.selectedKnowledgeBases}
       onSelect={handleSelect}
-      disabled={Array.isArray(state.files) && state.files.length > 0}
+      disabled={!isToolUseAvailable || (Array.isArray(state.files) && state.files.length > 0)}
+      disabledReason={isToolUseAvailable ? undefined : context.t('chat.input.knowledge_base_unavailable')}
     />
   )
 }
@@ -51,8 +54,6 @@ const knowledgeBaseTool = defineTool({
   key: 'knowledge_base',
   label: (t) => t('chat.input.knowledge_base'),
   visibleInScopes: [TopicType.Chat],
-  condition: ({ assistant, model }) =>
-    !!assistant && (isSupportedToolUse(assistant, model) || isPromptToolUse(assistant)),
 
   dependencies: {
     state: ['selectedKnowledgeBases', 'files'] as const,

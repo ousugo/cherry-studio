@@ -8,7 +8,6 @@ import './definitions/webSearchTool'
 import './definitions/knowledgeBaseTool'
 import './definitions/mcpToolsTool'
 import './definitions/generateImageTool'
-import './definitions/toggleExpandTool'
 import './definitions/slashCommandsTool'
 import './definitions/permissionModeTool'
 

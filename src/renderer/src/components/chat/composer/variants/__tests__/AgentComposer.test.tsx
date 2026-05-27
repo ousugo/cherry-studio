@@ -139,7 +139,6 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
     resizeTextArea: vi.fn(),
     addNewTopic: vi.fn(),
     onTextChange: vi.fn(),
-    toggleExpanded: vi.fn(),
     toolsRegistry: {
       registerLaunchers: vi.fn(() => vi.fn())
     },

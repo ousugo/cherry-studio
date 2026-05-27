@@ -1347,6 +1347,9 @@
       "generate_image": "產生圖片",
       "generate_image_not_supported": "模型不支援產生圖片",
       "knowledge_base": "知識庫",
+      "knowledge_base_disabled_by_files": "移除附件後可使用知識庫",
+      "knowledge_base_unavailable": "請選擇支援工具呼叫的模型，或啟用提示詞工具呼叫",
+      "mcp_unavailable": "請選擇支援工具呼叫的模型，或啟用提示詞工具呼叫",
       "new": {
         "context": "清除上下文 {{Command}}"
       },
@@ -1382,6 +1385,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "思考預算超過最大 Token 數",
+        "fixed_model": "該模型的推理強度固定",
         "label": "思考",
         "mode": {
           "custom": {
@@ -1395,7 +1399,8 @@
           "tokens": {
             "tip": "設定思考的 Token 數"
           }
-        }
+        },
+        "unsupported_model": "目前模型不支援調整推理強度"
       },
       "tools": {
         "collapse": "折疊",
@@ -1412,7 +1417,9 @@
       "translating": "翻譯中...",
       "upload": {
         "attachment": "上傳附件",
-        "document": "上傳檔案（模型不支援圖片）",
+        "document": "上傳檔案",
+        "document_only": "僅檔案",
+        "image_not_supported": "目前模型不支援圖片上傳，僅可上傳檔案",
         "image_or_document": "上傳圖片或檔案",
         "upload_from_local": "上傳本機檔案..."
       },

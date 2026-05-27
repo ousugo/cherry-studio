@@ -7,20 +7,26 @@ const mcpToolsTool = defineTool({
   key: 'mcp_tools',
   label: (t) => t('settings.mcp.title'),
   visibleInScopes: [TopicType.Chat],
-  condition: ({ assistant, model }) =>
-    !!assistant && (isSupportedToolUse(assistant, model) || isPromptToolUse(assistant)),
   dependencies: {
     actions: ['onTextChange', 'resizeTextArea'] as const
   },
   composer: {
-    runtime: ({ context: { assistant, actions, launcher } }) => (
-      <McpToolsRuntime
-        assistantId={assistant!.id}
-        launcher={launcher}
-        setInputValue={actions.onTextChange}
-        resizeTextArea={actions.resizeTextArea}
-      />
-    )
+    runtime: ({ context: { assistant, actions, launcher, model, t } }) => {
+      if (!assistant) return null
+
+      const isToolUseAvailable = isSupportedToolUse(assistant, model) || isPromptToolUse(assistant)
+
+      return (
+        <McpToolsRuntime
+          assistantId={assistant.id}
+          launcher={launcher}
+          setInputValue={actions.onTextChange}
+          resizeTextArea={actions.resizeTextArea}
+          disabled={!isToolUseAvailable}
+          disabledReason={isToolUseAvailable ? undefined : t('chat.input.mcp_unavailable')}
+        />
+      )
+    }
   }
 })
 

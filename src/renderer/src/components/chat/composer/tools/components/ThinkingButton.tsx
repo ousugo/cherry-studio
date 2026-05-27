@@ -17,6 +17,7 @@ import {
   isFixedReasoningModel,
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
+  isReasoningModel,
   MODEL_SUPPORTED_OPTIONS
 } from '@renderer/config/models'
 import { cacheService } from '@renderer/data/CacheService'
@@ -55,6 +56,7 @@ const useThinkingToolController = ({
   // 确定当前模型支持的选项类型
   const modelType = useMemo(() => getThinkModelType(model), [model])
 
+  const supportsReasoning = isReasoningModel(model)
   const isFixedReasoning = isFixedReasoningModel(model)
 
   // 获取当前模型支持的选项
@@ -109,16 +111,20 @@ const useThinkingToolController = ({
     ]
   )
 
-  const reasoningEffortOptionLabelMap = {
-    default: t('assistants.settings.reasoning_effort.default'),
-    none: t('assistants.settings.reasoning_effort.off'),
-    minimal: t('assistants.settings.reasoning_effort.minimal'),
-    high: t('assistants.settings.reasoning_effort.high'),
-    low: t('assistants.settings.reasoning_effort.low'),
-    medium: t('assistants.settings.reasoning_effort.medium'),
-    auto: t('assistants.settings.reasoning_effort.auto'),
-    xhigh: t('assistants.settings.reasoning_effort.xhigh')
-  } as const satisfies Record<ThinkingOption, string>
+  const reasoningEffortOptionLabelMap = useMemo(
+    () =>
+      ({
+        default: t('assistants.settings.reasoning_effort.default'),
+        none: t('assistants.settings.reasoning_effort.off'),
+        minimal: t('assistants.settings.reasoning_effort.minimal'),
+        high: t('assistants.settings.reasoning_effort.high'),
+        low: t('assistants.settings.reasoning_effort.low'),
+        medium: t('assistants.settings.reasoning_effort.medium'),
+        auto: t('assistants.settings.reasoning_effort.auto'),
+        xhigh: t('assistants.settings.reasoning_effort.xhigh')
+      }) as const satisfies Record<ThinkingOption, string>,
+    [t]
+  )
 
   const currentReasoningEffortLabel = reasoningEffortOptionLabelMap[currentReasoningEffort]
 
@@ -130,30 +136,61 @@ const useThinkingToolController = ({
     [supportedOptions]
   )
 
+  const isReasoningConfigurable = supportsReasoning && !isFixedReasoning && cycleOptions.length > 0
+
+  const disabledReason = useMemo(() => {
+    if (!supportsReasoning) {
+      return t('chat.input.thinking.unsupported_model')
+    }
+    if (isFixedReasoning) {
+      return t('chat.input.thinking.fixed_model')
+    }
+    return undefined
+  }, [isFixedReasoning, supportsReasoning, t])
+
   const cycleThinking = useCallback(() => {
-    if (isFixedReasoning || cycleOptions.length === 0) return
+    if (!isReasoningConfigurable) return
 
     const currentIndex = cycleOptions.indexOf(currentReasoningEffort)
     if (cycleOptions.length === 1 && currentIndex === 0) return
 
     const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % cycleOptions.length
     onThinkingChange(cycleOptions[nextIndex])
-  }, [currentReasoningEffort, cycleOptions, isFixedReasoning, onThinkingChange])
+  }, [currentReasoningEffort, cycleOptions, isReasoningConfigurable, onThinkingChange])
+
+  const reasoningSubmenu = useMemo(
+    () =>
+      isReasoningConfigurable
+        ? cycleOptions.map((option, index) => ({
+            id: `thinking-${option}`,
+            kind: 'command' as const,
+            sources: ['root-panel'] as const,
+            order: 60 + index / 100,
+            label: reasoningEffortOptionLabelMap[option],
+            description: t('assistants.settings.reasoning_effort.label'),
+            icon: ThinkingIcon({ option }),
+            active: currentReasoningEffort === option,
+            action: () => onThinkingChange(option)
+          }))
+        : [],
+    [currentReasoningEffort, cycleOptions, isReasoningConfigurable, onThinkingChange, reasoningEffortOptionLabelMap, t]
+  )
 
   useEffect(() => {
-    if (isFixedReasoning) return
-
     const disposeLauncher = launcher.registerLaunchers([
       {
         id: 'thinking',
-        kind: 'command',
-        sources: ['popover', 'root-panel'],
+        kind: 'group',
+        sources: ['popover'],
         order: 60,
         label: t('assistants.settings.reasoning_effort.label'),
         description: '',
+        disabledReason,
         icon: ThinkingIcon({ option: currentReasoningEffort }),
-        active: isThinkingEnabled,
+        active: isReasoningConfigurable && isThinkingEnabled,
+        disabled: !isReasoningConfigurable,
         suffix: currentReasoningEffortLabel,
+        submenu: reasoningSubmenu,
         action: cycleThinking
       }
     ])
@@ -165,9 +202,12 @@ const useThinkingToolController = ({
     currentReasoningEffort,
     currentReasoningEffortLabel,
     cycleThinking,
+    disabledReason,
     isFixedReasoning,
+    isReasoningConfigurable,
     isThinkingEnabled,
     launcher,
+    reasoningSubmenu,
     t
   ])
 

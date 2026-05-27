@@ -99,7 +99,6 @@ const emptyActions: ProviderActionHandlers = {
   resizeTextArea: () => undefined,
   addNewTopic: () => undefined,
   onTextChange: () => undefined,
-  toggleExpanded: () => undefined,
   removeToken: () => undefined
 }
 
@@ -328,8 +327,7 @@ const ChatComposerRoot = ({
       actions={{
         resizeTextArea: () => actionsRef.current.resizeTextArea(),
         addNewTopic: () => actionsRef.current.addNewTopic(),
-        onTextChange: (updater) => actionsRef.current.onTextChange(updater),
-        toggleExpanded: (next) => actionsRef.current.toggleExpanded(next)
+        onTextChange: (updater) => actionsRef.current.onTextChange(updater)
       }}>
       <ChatComposerInner
         topic={topic}

@@ -1,6 +1,17 @@
 import '@renderer/components/chat/composer/tools'
 
-import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import {
+  ContextMenuItemContent,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   ComposerToolProvider,
   useComposerToolProviderDispatch,
@@ -35,7 +46,6 @@ interface ComposerToolRuntimeActions {
   resizeTextArea: () => void
   addNewTopic: () => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
-  toggleExpanded: (nextState?: boolean) => void
 }
 
 interface ComposerToolRuntimeProviderProps {
@@ -83,10 +93,8 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
     onTextChange,
     resizeTextArea,
     setFiles,
-    setIsExpanded,
     setMentionedModels,
     setSelectedKnowledgeBases,
-    toggleExpanded,
     toolsRegistry
   } = useComposerToolProviderDispatch()
   const quickPanelContext = useQuickPanel()
@@ -99,21 +107,10 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
       onTextChange,
       resizeTextArea,
       setFiles,
-      setIsExpanded,
       setMentionedModels,
-      setSelectedKnowledgeBases,
-      toggleExpanded
+      setSelectedKnowledgeBases
     }),
-    [
-      addNewTopic,
-      onTextChange,
-      resizeTextArea,
-      setFiles,
-      setIsExpanded,
-      setMentionedModels,
-      setSelectedKnowledgeBases,
-      toggleExpanded
-    ]
+    [addNewTopic, onTextChange, resizeTextArea, setFiles, setMentionedModels, setSelectedKnowledgeBases]
   )
 
   const availableTools = useMemo(() => {
@@ -226,12 +223,21 @@ const getSortedLaunchers = (
   triggers: ReturnType<typeof useComposerToolProviderLaunchers>,
   source?: ComposerToolLauncherActionOptions['source']
 ) => {
-  return [
-    ...triggers
-      .getLaunchers()
-      .filter((launcher) => !launcher.hidden)
-      .filter((launcher) => !source || !launcher.sources || launcher.sources.includes(source))
-  ].sort((left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER))
+  const launchers = triggers.getLaunchers().flatMap((launcher) => {
+    if (launcher.hidden) return []
+
+    const matchesSource = !source || !launcher.sources || launcher.sources.includes(source)
+    const nestedRootPanelItems =
+      source === 'root-panel'
+        ? (launcher.submenu ?? []).filter((item) => !item.hidden && (!item.sources || item.sources.includes(source)))
+        : []
+
+    return matchesSource ? [launcher, ...nestedRootPanelItems] : nestedRootPanelItems
+  })
+
+  return launchers.sort(
+    (left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER)
+  )
 }
 
 type ComposerToolMenuEntry = {
@@ -241,18 +247,8 @@ type ComposerToolMenuEntry = {
 
 const getToolMenuEntries = (triggers: ReturnType<typeof useComposerToolProviderLaunchers>) => {
   const popoverLaunchers = getSortedLaunchers(triggers, 'popover')
-  const popoverIds = new Set(popoverLaunchers.map((launcher) => launcher.id))
-  const rootOnlyLaunchers = getSortedLaunchers(triggers, 'root-panel').filter(
-    (launcher) => !popoverIds.has(launcher.id)
-  )
 
-  return [
-    ...popoverLaunchers.map((launcher): ComposerToolMenuEntry => ({ launcher, source: 'popover' })),
-    ...rootOnlyLaunchers.map((launcher): ComposerToolMenuEntry => ({ launcher, source: 'root-panel' }))
-  ].sort(
-    (left, right) =>
-      (left.launcher.order ?? Number.MAX_SAFE_INTEGER) - (right.launcher.order ?? Number.MAX_SAFE_INTEGER)
-  )
+  return popoverLaunchers.map((launcher): ComposerToolMenuEntry => ({ launcher, source: 'popover' }))
 }
 
 export function useComposerToolLauncherController() {
@@ -307,7 +303,7 @@ interface ComposerToolMenuProps {
 export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuProps) => {
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const activeLaunchers = useMemo(
-    () => getLaunchers('popover').filter((launcher) => launcher.active && !launcher.hidden),
+    () => getLaunchers('popover').filter((launcher) => launcher.active && !launcher.disabled && !launcher.hidden),
     [getLaunchers]
   )
 
@@ -336,57 +332,155 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const { dispatchLauncher } = useComposerToolLauncherController()
-  const { triggers } = useComposerToolProviderDispatch()
+  const triggers = useComposerToolProviderLaunchers()
   const [open, setOpen] = useState(false)
-  const [entries, setEntries] = useState(() => getToolMenuEntries(triggers))
-
-  const refreshLaunchers = useCallback(() => {
-    setEntries(getToolMenuEntries(triggers))
-  }, [triggers])
-
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      setOpen(nextOpen)
-      if (nextOpen) refreshLaunchers()
-    },
-    [refreshLaunchers]
-  )
+  const [activeTooltipId, setActiveTooltipId] = useState<string | null>(null)
+  const entries = useMemo(() => getToolMenuEntries(triggers), [triggers])
 
   const visibleEntries = useMemo(() => entries.filter(({ launcher }) => !launcher.hidden), [entries])
 
+  const handleOpenChange = useCallback((nextOpen: boolean) => {
+    setOpen(nextOpen)
+    if (nextOpen) return
+    setActiveTooltipId(null)
+  }, [])
+
+  if (visibleEntries.length === 0) return null
+
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+      <DropdownMenuTrigger asChild>
         <button
           type="button"
           className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground"
           aria-label={t('common.add')}>
           <Plus size={18} />
         </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" side="top" sideOffset={10} className="w-64 rounded-[20px] p-2 shadow-xl">
-        <MenuList className="gap-1">
-          {visibleEntries.map(({ launcher, source }) => (
-            <MenuItem
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top" sideOffset={4} className="w-52">
+        {visibleEntries.map(({ launcher, source }) => {
+          const tooltipContent = launcher.disabled
+            ? (launcher.disabledReason ?? launcher.tooltip ?? launcher.description)
+            : launcher.tooltip
+          const submenuItems = (launcher.submenu ?? []).filter((item) => !item.hidden)
+          const hasSubmenu = !launcher.disabled && submenuItems.length > 0
+          const itemClassName = cn(
+            !launcher.disabled && launcher.active && 'bg-accent text-accent-foreground',
+            tooltipContent && 'data-[disabled]:pointer-events-auto'
+          )
+          const suffixBadge = launcher.suffix ? (
+            <span className="max-w-20 truncate text-muted-foreground text-xs">{launcher.suffix}</span>
+          ) : undefined
+
+          if (hasSubmenu) {
+            return (
+              <DropdownMenuSub key={launcher.id}>
+                <DropdownMenuSubTrigger
+                  aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}
+                  className={cn(!launcher.disabled && launcher.active && 'bg-accent text-accent-foreground')}>
+                  <ContextMenuItemContent icon={launcher.icon} badge={suffixBadge}>
+                    {launcher.label}
+                  </ContextMenuItemContent>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-44">
+                  {submenuItems.map((item) => {
+                    const tooltipId = `${launcher.id}:${item.id}`
+                    const itemTooltipContent = item.disabled
+                      ? (item.disabledReason ?? item.tooltip ?? item.description)
+                      : item.tooltip
+                    const itemSuffixBadge = item.suffix ? (
+                      <span className="max-w-20 truncate text-muted-foreground text-xs">{item.suffix}</span>
+                    ) : undefined
+                    const submenuItem = (
+                      <DropdownMenuItem
+                        key={item.id}
+                        aria-label={typeof item.label === 'string' ? item.label : undefined}
+                        disabled={item.disabled}
+                        className={cn(
+                          !item.disabled && item.active && 'bg-accent text-accent-foreground',
+                          itemTooltipContent && 'data-[disabled]:pointer-events-auto'
+                        )}
+                        onMouseMove={() => setActiveTooltipId(itemTooltipContent ? tooltipId : null)}
+                        onMouseLeave={() => {
+                          if (activeTooltipId === tooltipId) setActiveTooltipId(null)
+                        }}
+                        onSelect={(event) => {
+                          event.stopPropagation()
+                          dispatchLauncher(item, { source: 'popover', inputAdapter, quickPanel })
+                          setOpen(false)
+                        }}>
+                        <ContextMenuItemContent icon={item.icon} badge={itemSuffixBadge}>
+                          {item.label}
+                        </ContextMenuItemContent>
+                      </DropdownMenuItem>
+                    )
+
+                    if (!itemTooltipContent) return submenuItem
+
+                    return (
+                      <Tooltip
+                        key={item.id}
+                        content={itemTooltipContent}
+                        placement="right"
+                        sideOffset={8}
+                        isOpen={activeTooltipId === tooltipId}
+                        onOpenChange={(nextOpen) => {
+                          if (!nextOpen && activeTooltipId === tooltipId) setActiveTooltipId(null)
+                        }}
+                        classNames={{ placeholder: 'block' }}
+                        showArrow>
+                        {submenuItem}
+                      </Tooltip>
+                    )
+                  })}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )
+          }
+
+          const menuItem = (
+            <DropdownMenuItem
               key={launcher.id}
-              icon={<span className="text-foreground-muted [&_svg]:size-5">{launcher.icon}</span>}
-              label={String(launcher.label)}
+              aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}
               disabled={launcher.disabled}
-              suffix={
-                launcher.suffix ??
-                (launcher.kind === 'panel' || launcher.kind === 'group' ? (
-                  <span className="text-foreground-muted">›</span>
-                ) : undefined)
-              }
-              active={launcher.active}
-              onClick={() => {
+              className={itemClassName}
+              onMouseMove={() => setActiveTooltipId(tooltipContent ? launcher.id : null)}
+              onMouseLeave={() => {
+                if (activeTooltipId === launcher.id) setActiveTooltipId(null)
+              }}
+              onSelect={(event) => {
+                event.stopPropagation()
                 dispatchLauncher(launcher, { source, inputAdapter, quickPanel })
                 setOpen(false)
+              }}>
+              <ContextMenuItemContent
+                icon={launcher.icon}
+                badge={suffixBadge}
+                hasSubmenu={launcher.kind === 'panel' ? true : undefined}>
+                {launcher.label}
+              </ContextMenuItemContent>
+            </DropdownMenuItem>
+          )
+
+          if (!tooltipContent) return menuItem
+
+          return (
+            <Tooltip
+              key={launcher.id}
+              content={tooltipContent}
+              placement="right"
+              sideOffset={8}
+              isOpen={activeTooltipId === launcher.id}
+              onOpenChange={(nextOpen) => {
+                if (!nextOpen && activeTooltipId === launcher.id) setActiveTooltipId(null)
               }}
-            />
-          ))}
-        </MenuList>
-      </PopoverContent>
-    </Popover>
+              classNames={{ placeholder: 'block' }}
+              showArrow>
+              {menuItem}
+            </Tooltip>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

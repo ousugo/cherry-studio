@@ -205,15 +205,18 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
   }, [items, openQuickPanelPanel, t])
 
   useEffect(() => {
+    const isDocumentOnly = !couldAddImageFile
     const disposeLauncher = launcher.registerLaunchers([
       {
         id: 'attachment',
         kind: 'dialog',
         sources: ['popover', 'root-panel'],
         order: 10,
-        label: couldAddImageFile ? t('chat.input.upload.attachment') : t('chat.input.upload.document'),
+        label: t('chat.input.upload.attachment'),
         description: '',
+        tooltip: isDocumentOnly ? t('chat.input.upload.image_not_supported') : undefined,
         icon: <Paperclip />,
+        suffix: isDocumentOnly ? t('chat.input.upload.document_only') : undefined,
         disabled,
         action: () => {
           void openFileSelectDialog()

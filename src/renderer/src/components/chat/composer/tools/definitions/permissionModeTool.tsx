@@ -98,21 +98,38 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
 
   const modeCard = permissionModeCards.find((card) => card.mode === currentMode)
   const tooltipTitle = modeCard ? t(modeCard.titleKey, modeCard.titleFallback) : ''
+  const modeSubmenu = useMemo(
+    () =>
+      permissionModeCards.map((card, index) => ({
+        id: `permission-mode-${card.mode}`,
+        kind: 'command' as const,
+        sources: ['root-panel'] as const,
+        order: 80 + index / 100,
+        label: t(card.titleKey, card.titleFallback),
+        description: t(card.descriptionKey, card.descriptionFallback),
+        icon: getPermissionModeIcon(card.mode),
+        active: card.mode === currentMode,
+        action: () => handleSelectMode(card.mode)
+      })),
+    [currentMode, handleSelectMode, t]
+  )
 
   useEffect(() => {
     return launcher.registerLaunchers([
       {
         id: 'permission-mode',
-        kind: 'panel',
-        sources: ['popover', 'root-panel'],
+        kind: 'group',
+        sources: ['popover'],
         order: 80,
         label: t('agent.settings.permissionMode.title', 'Permission Mode'),
-        description: tooltipTitle,
+        description: '',
         icon: getPermissionModeIcon(currentMode),
+        suffix: tooltipTitle,
+        submenu: modeSubmenu,
         action: handleClick
       }
     ])
-  }, [currentMode, handleClick, launcher, t, tooltipTitle])
+  }, [currentMode, handleClick, launcher, modeSubmenu, t, tooltipTitle])
 
   return { currentMode, handleClick, tooltipTitle }
 }

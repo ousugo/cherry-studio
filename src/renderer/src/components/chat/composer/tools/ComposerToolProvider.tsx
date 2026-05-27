@@ -54,7 +54,6 @@ export interface ComposerToolDispatch {
   /** Parent component actions */
   resizeTextArea: () => void
   addNewTopic: () => void
-  toggleExpanded: (nextState?: boolean) => void
 
   /** Text manipulation (avoids putting text state in Context) */
   onTextChange: (updater: string | ((prev: string) => string)) => void
@@ -132,7 +131,6 @@ interface ComposerToolProviderProps {
     resizeTextArea: () => void
     addNewTopic: () => void
     onTextChange: (updater: string | ((prev: string) => string)) => void
-    toggleExpanded: (nextState?: boolean) => void
   }
 }
 
@@ -182,8 +180,7 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
     () => ({
       resizeTextArea: () => actionsRef.current.resizeTextArea(),
       addNewTopic: () => actionsRef.current.addNewTopic(),
-      onTextChange: (updater: string | ((prev: string) => string)) => actionsRef.current.onTextChange(updater),
-      toggleExpanded: (nextState?: boolean) => actionsRef.current.toggleExpanded(nextState)
+      onTextChange: (updater: string | ((prev: string) => string)) => actionsRef.current.onTextChange(updater)
     }),
     []
   )

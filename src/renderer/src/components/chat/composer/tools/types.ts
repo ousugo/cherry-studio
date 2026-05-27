@@ -36,8 +36,8 @@ type ActionKeys<T> = {
 }[keyof T]
 
 // 工具按钮不应该访问这些内部 API
-type ExcludedStateKeys = never // 没有需要排除的 state
-type ExcludedActionKeys = 'toolsRegistry' | 'triggers' // 这些 API 由工具系统内部管理
+type ExcludedStateKeys = 'isExpanded'
+type ExcludedActionKeys = 'setIsExpanded' | 'toolsRegistry' | 'triggers' // 这些 API 由工具系统内部管理
 
 type ToolStateKeys = Exclude<ReadableKeys<ComposerToolContextValue>, ExcludedStateKeys>
 type ToolActionKeys = Exclude<ActionKeys<ComposerToolContextValue>, ExcludedActionKeys>
