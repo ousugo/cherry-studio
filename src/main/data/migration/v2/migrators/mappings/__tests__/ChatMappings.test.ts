@@ -1,4 +1,4 @@
-import type { DbType } from '@data/db/types'
+import { fileEntryTable } from '@data/db/schemas/file'
 import type {
   CherryMessagePart,
   DynamicToolUIPart,
@@ -7,35 +7,30 @@ import type {
   TextUIPart
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
 
-// Stub the side effects of base64 → file_entry promotion so the unit
-// tests can stay in-memory: fs writes become no-ops, `application.getPath`
-// returns a deterministic path, and `db.insert(...).values(...)` captures
-// the inserted row.
-vi.mock('node:fs/promises', async () => {
-  const { createNodeFsPromisesMock } = await import('@test-helpers/mocks/nodeFsPromisesMock')
-  return createNodeFsPromisesMock()
-})
-
+// Use the repo-wide application mock; the default `getPath` already
+// returns deterministic `/mock/<key>/<filename>` paths.
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
 
-/** Build a stub DbType that captures `db.insert(table).values(row)` calls. */
-function stubDb(): { db: DbType; inserts: Array<{ table: unknown; values: unknown }> } {
-  const inserts: Array<{ table: unknown; values: unknown }> = []
-  const db = {
-    insert: (table: unknown) => ({
-      values: async (values: unknown) => {
-        inserts.push({ table, values })
-        return undefined
-      }
-    })
-  } as unknown as DbType
-  return { db, inserts }
-}
+// Neutralize fs writes for the base64-promotion path — the unit tests
+// assert on the real DB row produced by setupTestDatabase, not on the
+// physical bytes. Keep the rest of node:fs/promises real for unrelated
+// imports.
+vi.mock('node:fs/promises', async () => {
+  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+  const stub = {
+    ...actual,
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    writeFile: vi.fn().mockResolvedValue(undefined),
+    unlink: vi.fn().mockResolvedValue(undefined)
+  }
+  return { ...stub, default: stub }
+})
 
 import {
   buildMessageTree,
@@ -388,87 +383,104 @@ describe('transformBlocksToParts', () => {
     expect(part.filename).toBe('photo.jpg')
   })
 
-  it('passes inline data: URL through unchanged when no db dep is provided', async () => {
-    const dataUrl = 'data:image/png;base64,iVBORw0KGgo'
-    const { parts } = await transformBlocksToParts([block('image', { url: dataUrl })])
+  describe('base64 → file_entry promotion', () => {
+    const dbh = setupTestDatabase()
 
-    expect(parts).toHaveLength(1)
-    const part = parts[0] as FileUIPart
-    expect(part.url).toBe(dataUrl)
-    expect(part.mediaType).toBe('image/png')
-    // No fileEntryId — not promoted to v2 entry
-    expect(part.providerMetadata?.cherry).toBeUndefined()
-  })
+    it('passes inline data: URL through unchanged when no db dep is provided', async () => {
+      const dataUrl = 'data:image/png;base64,iVBORw0KGgo'
+      const { parts } = await transformBlocksToParts([block('image', { url: dataUrl })])
 
-  it('promotes inline data: URL to v2 file_entry when db dep is provided', async () => {
-    const dataUrl = 'data:image/png;base64,iVBORw0KGgo='
-    const { db, inserts } = stubDb()
-    const { parts } = await transformBlocksToParts([block('image', { url: dataUrl })], { db })
-
-    expect(parts).toHaveLength(1)
-    const part = parts[0] as FileUIPart
-    // mockApplicationFactory returns `/mock/<key>/<filename>` for getPath.
-    expect(part.url).toMatch(/^file:\/\/\/mock\/feature\.files\.data\/.+\.png$/)
-    expect(part.mediaType).toBe('image/png')
-    expect(readCherryMeta(part)?.fileEntryId).toBeTruthy()
-    // One file_entry row inserted
-    expect(inserts).toHaveLength(1)
-    expect(inserts[0].values).toMatchObject({
-      origin: 'internal',
-      name: 'migrated-image',
-      ext: 'png',
-      externalPath: null
+      expect(parts).toHaveLength(1)
+      const part = parts[0] as FileUIPart
+      expect(part.url).toBe(dataUrl)
+      expect(part.mediaType).toBe('image/png')
+      // No fileEntryId — not promoted to v2 entry
+      expect(part.providerMetadata?.cherry).toBeUndefined()
     })
-  })
 
-  it('promotes each image in metadata.generateImageResponse.images to its own file_entry', async () => {
-    const img1 = 'data:image/png;base64,AAA='
-    const img2 = 'BBB=' // raw base64, no data: prefix — helper should wrap
-    const { db, inserts } = stubDb()
-    const { parts } = await transformBlocksToParts(
-      [
-        block('image', {
-          metadata: { generateImageResponse: { type: 'base64', images: [img1, img2] } }
-        })
-      ],
-      { db }
-    )
+    it('promotes inline data: URL to v2 file_entry when db dep is provided', async () => {
+      const dataUrl = 'data:image/png;base64,iVBORw0KGgo='
+      const { parts } = await transformBlocksToParts([block('image', { url: dataUrl })], { db: dbh.db })
 
-    expect(parts).toHaveLength(2)
-    expect(readCherryMeta(parts[0] as FileUIPart)?.fileEntryId).toBeTruthy()
-    expect(readCherryMeta(parts[1] as FileUIPart)?.fileEntryId).toBeTruthy()
-    expect(inserts).toHaveLength(2)
-    expect(inserts[0].values).toMatchObject({ origin: 'internal', ext: 'png' })
-    expect(inserts[1].values).toMatchObject({ origin: 'internal', ext: 'png' })
-  })
+      expect(parts).toHaveLength(1)
+      const part = parts[0] as FileUIPart
+      // mockApplicationFactory returns `/mock/<key>/<filename>` for getPath.
+      expect(part.url).toMatch(/^file:\/\/\/mock\/feature\.files\.data\/.+\.png$/)
+      expect(part.mediaType).toBe('image/png')
+      const fileEntryId = readCherryMeta(part)?.fileEntryId
+      expect(fileEntryId).toBeTruthy()
 
-  it('drops metadata.generateImageResponse base64 images when no db dep is provided (parity with pre-helper behavior)', async () => {
-    const { parts } = await transformBlocksToParts([
-      block('image', {
-        metadata: { generateImageResponse: { type: 'base64', images: ['AAA='] } }
+      // Real file_entry row written
+      const rows = await dbh.db.select().from(fileEntryTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        id: fileEntryId,
+        origin: 'internal',
+        name: 'migrated-image',
+        ext: 'png',
+        externalPath: null
       })
-    ])
+    })
 
-    expect(parts).toHaveLength(0)
-  })
+    it('promotes each image in metadata.generateImageResponse.images to its own file_entry', async () => {
+      const img1 = 'data:image/png;base64,AAA='
+      const img2 = 'BBB=' // raw base64, no data: prefix — helper should wrap
+      const { parts } = await transformBlocksToParts(
+        [
+          block('image', {
+            metadata: { generateImageResponse: { type: 'base64', images: [img1, img2] } }
+          })
+        ],
+        { db: dbh.db }
+      )
 
-  it('ignores metadata.generateImageResponse when type is url (remote URLs, not base64)', async () => {
-    const { db, inserts } = stubDb()
-    const { parts } = await transformBlocksToParts(
-      [
+      expect(parts).toHaveLength(2)
+      const id1 = readCherryMeta(parts[0] as FileUIPart)?.fileEntryId
+      const id2 = readCherryMeta(parts[1] as FileUIPart)?.fileEntryId
+      expect(id1).toBeTruthy()
+      expect(id2).toBeTruthy()
+      expect(id1).not.toBe(id2)
+
+      const rows = await dbh.db.select().from(fileEntryTable)
+      expect(rows).toHaveLength(2)
+      const idSet = new Set(rows.map((r) => r.id))
+      expect(idSet.has(id1!)).toBe(true)
+      expect(idSet.has(id2!)).toBe(true)
+      for (const row of rows) {
+        expect(row.origin).toBe('internal')
+        expect(row.ext).toBe('png')
+      }
+    })
+
+    it('drops metadata.generateImageResponse base64 images when no db dep is provided (parity with pre-helper behavior)', async () => {
+      const { parts } = await transformBlocksToParts([
         block('image', {
-          metadata: {
-            generateImageResponse: { type: 'url', images: ['https://example.com/a.png'] }
-          }
+          metadata: { generateImageResponse: { type: 'base64', images: ['AAA='] } }
         })
-      ],
-      { db }
-    )
+      ])
 
-    // The remote URL is in generateImageResponse, not block.url — so no part for now;
-    // promotion only triggers when type === 'base64'.
-    expect(parts).toHaveLength(0)
-    expect(inserts).toHaveLength(0)
+      expect(parts).toHaveLength(0)
+    })
+
+    it('ignores metadata.generateImageResponse when type is url (remote URLs, not base64)', async () => {
+      const { parts } = await transformBlocksToParts(
+        [
+          block('image', {
+            metadata: {
+              generateImageResponse: { type: 'url', images: ['https://example.com/a.png'] }
+            }
+          })
+        ],
+        { db: dbh.db }
+      )
+
+      // The remote URL is in generateImageResponse, not block.url — so no part for now;
+      // promotion only triggers when type === 'base64'.
+      expect(parts).toHaveLength(0)
+      // No file_entry rows written.
+      const rows = await dbh.db.select().from(fileEntryTable)
+      expect(rows).toHaveLength(0)
+    })
   })
 
   it('transforms file to FileUIPart with path and inferred mediaType', async () => {
