@@ -39,6 +39,8 @@
  * @since v2.0.0
  */
 
+import { loggerService } from '@logger'
+import type { IFileManager } from '@main/services/file/FileManager'
 import type {
   CherryMessagePart,
   CitationReference,
@@ -57,10 +59,28 @@ import type {
 } from '@shared/data/types/message'
 import type { CherryDataPartTypes } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
+import type { Base64String } from '@shared/file/types/common'
 import type { FileMetadata } from '@types'
 import type { SourceUrlUIPart } from 'ai'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
+
+const logger = loggerService.withContext('ChatMappings')
+
+/**
+ * Optional dependencies threaded through the mapper. Currently only used by
+ * the image case to promote v1 inline base64 (either `block.url = 'data:...'`
+ * or `block.metadata.generateImageResponse.images[]` from upgraded legacy
+ * data) into v2 `file_entry` rows so the bytes leave the message JSON blob
+ * and gain `fileEntryId` / path-resilience.
+ *
+ * When omitted, inline base64 is left in place: `block.url = data:` becomes
+ * `FileUIPart.url = data:` (functional via fileProcessor's pass-through);
+ * `metadata.generateImageResponse.images` is dropped (current behavior).
+ */
+export interface ChatMappingDeps {
+  fileManager: IFileManager
+}
 
 // ============================================================================
 // Old Type Definitions (Source Data Structures)
@@ -493,15 +513,16 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
  * - askId (replaced by parentId)
  * - foldSelected (replaced by siblingsGroupId)
  */
-export function transformMessage(
+export async function transformMessage(
   oldMessage: OldMessage,
   parentId: string | null,
   siblingsGroupId: number,
   blocks: OldBlock[],
-  correctTopicId: string
-): NewMessage {
+  correctTopicId: string,
+  deps?: ChatMappingDeps
+): Promise<NewMessage> {
   // Transform blocks to AI SDK UIMessage.parts format
-  const { parts, citationReferences, searchableText } = transformBlocksToParts(blocks)
+  const { parts, citationReferences, searchableText } = await transformBlocksToParts(blocks, deps)
 
   // Mentions are NOT migrated. In the new tree-based architecture, which models
   // responded to a user message can be derived from sibling response messages'
@@ -655,17 +676,20 @@ export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats
  * | citation (kb)  | (merged into TextPart)  | Knowledge/memory → providerMetadata refs  |
  * | unknown        | (skipped)               | Placeholder blocks are dropped            |
  */
-export function transformBlocksToParts(oldBlocks: OldBlock[]): {
+export async function transformBlocksToParts(
+  oldBlocks: OldBlock[],
+  deps?: ChatMappingDeps
+): Promise<{
   parts: CherryMessagePart[]
   citationReferences: ContentReference[]
   searchableText: string
-} {
+}> {
   const parts: CherryMessagePart[] = []
   const citationReferences: ContentReference[] = []
   const searchableTexts: string[] = []
 
   for (const oldBlock of oldBlocks) {
-    const result = transformSingleBlockToPart(oldBlock)
+    const result = await transformSingleBlockToPart(oldBlock, deps)
 
     if (result.part) {
       parts.push(result.part)
@@ -696,12 +720,15 @@ export function transformBlocksToParts(oldBlocks: OldBlock[]): {
  * Most blocks produce a single part, but citation blocks may produce multiple
  * (SourceUrlUIPart for web results + DataUIPart for knowledge/memory).
  */
-function transformSingleBlockToPart(oldBlock: OldBlock): {
+async function transformSingleBlockToPart(
+  oldBlock: OldBlock,
+  deps?: ChatMappingDeps
+): Promise<{
   part: CherryMessagePart | null
   extraParts: CherryMessagePart[] | null
   citations: ContentReference[] | null
   searchableText: string | null
-} {
+}> {
   switch (oldBlock.type) {
     case 'main_text': {
       const block = oldBlock as OldMainTextBlock
@@ -747,14 +774,10 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
 
     case 'image': {
       const block = oldBlock as OldImageBlock
-      const basePart: FileUIPart = {
-        type: 'file',
-        mediaType: inferMediaType(block.file?.ext, 'image/png'),
-        url: block.url || (block.file?.path ? `file://${block.file.path}` : ''),
-        ...(block.file?.origin_name ? { filename: block.file.origin_name } : {})
-      }
-      const part = block.file?.id ? withCherryMeta(basePart, { fileEntryId: block.file.id }) : basePart
-      return { part, extraParts: null, citations: null, searchableText: null }
+      const fileParts = await collectImageFileParts(block, deps)
+      const part = fileParts[0] ?? null
+      const extraParts = fileParts.length > 1 ? fileParts.slice(1) : null
+      return { part, extraParts, citations: null, searchableText: null }
     }
 
     case 'file': {
@@ -842,6 +865,134 @@ function transformSingleBlockToPart(oldBlock: OldBlock): {
     default:
       return { part: null, extraParts: null, citations: null, searchableText: null }
   }
+}
+
+const BASE64_DATA_URL_RE = /^data:([^;,]+);base64,(.+)$/
+const MIGRATED_IMAGE_NAME = 'migrated-image'
+
+/**
+ * Verify a string actually conforms to the `Base64String` template literal:
+ * `data:<mime>;base64,<payload>`. This excludes `data:text/plain,Hello`
+ * (non-base64 data URL) and `data:` with no payload.
+ */
+function isBase64DataUrl(s: string): s is Base64String {
+  return BASE64_DATA_URL_RE.test(s)
+}
+
+/** Wrap a raw base64 payload into a canonical data URL, or pass through if already one. */
+function toBase64DataUrl(raw: string, mimeFallback: string): Base64String {
+  if (isBase64DataUrl(raw)) return raw
+  return `data:${mimeFallback};base64,${raw}`
+}
+
+/** Best-effort MIME inference from a data URL prefix; falls back to image/png. */
+function mediaTypeFromDataUrl(dataUrl: Base64String): string {
+  const match = BASE64_DATA_URL_RE.exec(dataUrl)
+  return match?.[1] ?? 'image/png'
+}
+
+async function promoteBase64ToFileEntry(
+  fileManager: IFileManager,
+  dataUrl: Base64String,
+  blockId: string
+): Promise<FileUIPart | null> {
+  try {
+    const entry = await fileManager.createInternalEntry({
+      source: 'base64',
+      data: dataUrl,
+      name: MIGRATED_IMAGE_NAME
+    })
+    const url = await fileManager.getUrl(entry.id)
+    const basePart: FileUIPart = {
+      type: 'file',
+      mediaType: mediaTypeFromDataUrl(dataUrl),
+      url,
+      filename: entry.ext ? `${entry.name}.${entry.ext}` : entry.name
+    }
+    return withCherryMeta(basePart, { fileEntryId: entry.id })
+  } catch (error) {
+    logger.warn('Failed to promote v1 base64 image to v2 file_entry; dropping image', {
+      blockId,
+      error: error instanceof Error ? error.message : String(error)
+    })
+    return null
+  }
+}
+
+/**
+ * Collect FileUIParts for a v1 OldImageBlock. v1 stored image bytes in any of:
+ *
+ *  1. `block.file` — file already on disk; we already have a v1 FileEntryId.
+ *     v2 keeps the id and points `url` at the disk path.
+ *  2. `block.url = file://...` or `https://...` — remote / local URL; passes
+ *     through as-is (no fileEntryId because we don't own it).
+ *  3. `block.url = data:...;base64,...` — inline base64; **promoted** via
+ *     `createInternalEntry({source:'base64'})` so the bytes leave the message
+ *     JSON and gain a v2 fileEntryId. Falls back to inline data URL if no
+ *     FileManager dep is provided.
+ *  4. `block.metadata.generateImageResponse.images` with `type === 'base64'`
+ *     — array of base64 images from upgraded legacy data (`upgrades.ts:211`
+ *     created this shape when migrating older `oldMessage.metadata.generateImage`).
+ *     Each image **promoted** to its own FileUIPart.
+ *
+ * When `deps` is omitted, the base64 cases degrade gracefully (data URL on
+ * `block.url` stays inline; `generateImageResponse.images` is dropped, same
+ * as before this helper existed) so unrelated tests don't need to mock
+ * FileManager.
+ */
+async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDeps): Promise<FileUIPart[]> {
+  const parts: FileUIPart[] = []
+
+  // (1) Disk-backed file (canonical for modern v1) — never has inline base64.
+  if (block.file) {
+    const basePart: FileUIPart = {
+      type: 'file',
+      mediaType: inferMediaType(block.file.ext, 'image/png'),
+      url: block.file.path ? `file://${block.file.path}` : '',
+      ...(block.file.origin_name ? { filename: block.file.origin_name } : {})
+    }
+    parts.push(block.file.id ? withCherryMeta(basePart, { fileEntryId: block.file.id }) : basePart)
+  } else if (block.url) {
+    // (2)+(3) URL-only image (no disk file).
+    if (isBase64DataUrl(block.url)) {
+      // `block.url` is now narrowed to `Base64String`; no `as` cast.
+      if (deps?.fileManager) {
+        const promoted = await promoteBase64ToFileEntry(deps.fileManager, block.url, block.id)
+        if (promoted) parts.push(promoted)
+      } else {
+        // No promoter → keep inline (fileProcessor passes data: through unchanged).
+        parts.push({ type: 'file', mediaType: mediaTypeFromDataUrl(block.url), url: block.url })
+      }
+    } else {
+      // Remote / file:// URL, or a non-base64 data: URL — keep as-is.
+      parts.push({ type: 'file', mediaType: 'image/png', url: block.url })
+    }
+  }
+
+  // (4) Legacy `metadata.generateImageResponse.images` (upgraded older v1).
+  const generated = (block.metadata as { generateImageResponse?: { type?: string; images?: unknown } } | undefined)
+    ?.generateImageResponse
+  const isBase64Mode = generated?.type === 'base64'
+  const rawImages = Array.isArray(generated?.images) ? generated.images.filter((x) => typeof x === 'string') : []
+  if (isBase64Mode && rawImages.length > 0) {
+    if (deps?.fileManager) {
+      for (const raw of rawImages) {
+        const dataUrl = toBase64DataUrl(raw, 'image/png')
+        const promoted = await promoteBase64ToFileEntry(deps.fileManager, dataUrl, block.id)
+        if (promoted) parts.push(promoted)
+      }
+    } else {
+      logger.warn(
+        'OldImageBlock carries metadata.generateImageResponse.images but no FileManager dep was provided; dropping legacy base64 images',
+        {
+          blockId: block.id,
+          imageCount: rawImages.length
+        }
+      )
+    }
+  }
+
+  return parts
 }
 
 /**

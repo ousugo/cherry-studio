@@ -61,6 +61,7 @@
  * @since v2.0.0
  */
 
+import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
@@ -80,6 +81,7 @@ import { BaseMigrator } from './BaseMigrator'
 import {
   buildBlockLookup,
   buildMessageTree,
+  type ChatMappingDeps,
   findActiveNodeId,
   type NewMessage,
   type NewTopic,
@@ -394,6 +396,11 @@ export class ChatMigrator extends BaseMigrator {
         ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
         : null
 
+      // FileManager promotes any v1 inline base64 (block.url=data: or
+      // legacy metadata.generateImageResponse.images) into v2 file_entry
+      // rows during transformMessage. Same instance reused across batches.
+      const mappingDeps: ChatMappingDeps = { fileManager: application.get('FileManager') }
+
       // Buffer all topics first; orderKey is stamped post-stream because per-batch
       // keys would collide across batches sharing a `groupId` partition.
       await topicReader.readInBatches<OldTopic>(TOPIC_BATCH_SIZE, async (topics, batchIndex) => {
@@ -401,7 +408,7 @@ export class ChatMigrator extends BaseMigrator {
 
         for (const oldTopic of topics) {
           try {
-            const prepared = this.prepareTopicData(oldTopic)
+            const prepared = await this.prepareTopicData(oldTopic, mappingDeps)
             if (prepared) {
               this.stagedTopics.push(prepared)
             } else {
@@ -734,7 +741,7 @@ export class ChatMigrator extends BaseMigrator {
    * source layout (Dexie topic rows + Redux topic metadata + defaultAssistant slot)
    * and the merge contract.
    */
-  private prepareTopicData(oldTopic: OldTopic): PreparedTopicData | null {
+  private async prepareTopicData(oldTopic: OldTopic, deps: ChatMappingDeps): Promise<PreparedTopicData | null> {
     // Validate required fields
     if (!oldTopic.id) {
       logger.error('Topic missing id, skipping', new Error('missing topic id'), {
@@ -900,12 +907,13 @@ export class ChatMigrator extends BaseMigrator {
         // Resolve parentId through any skipped messages
         const resolvedParentId = resolveParentId(treeInfo.parentId)
 
-        const newMsg = transformMessage(
+        const newMsg = await transformMessage(
           oldMsg,
           resolvedParentId, // Use resolved parent instead of original
           treeInfo.siblingsGroupId,
           blocks,
-          oldTopic.id
+          oldTopic.id,
+          deps
         )
 
         newMessages.push(newMsg)

@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { jobScheduleTable } from '@data/db/schemas/job'
@@ -23,7 +24,7 @@ import {
   getTotalAgentsRowCount,
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
-import { normalizeStatus, transformBlocksToParts } from './mappings/ChatMappings'
+import { type ChatMappingDeps, normalizeStatus, transformBlocksToParts } from './mappings/ChatMappings'
 import { remapAgentPrefixIds } from './remapAgentPrefixIds'
 
 type V1ScheduledTaskRow = {
@@ -158,7 +159,9 @@ export class AgentsMigrator extends BaseMigrator {
       //   2. importLegacySessionMessages — generates UUID message ids instead
       //      of preserving legacy integer row ids, and writes final `data.parts`.
       await backfillAgentOrderKeys(ctx.db)
-      await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo)
+      await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
+        fileManager: application.get('FileManager')
+      })
 
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true
@@ -790,7 +793,11 @@ function normalizeLegacyRole(value: string | null): MessageRole {
   return value === 'user' || value === 'assistant' || value === 'system' ? value : 'assistant'
 }
 
-function normalizeLegacySessionMessage(content: unknown, fallbackRole: string | null): NormalizedLegacySessionMessage {
+async function normalizeLegacySessionMessage(
+  content: unknown,
+  fallbackRole: string | null,
+  deps?: ChatMappingDeps
+): Promise<NormalizedLegacySessionMessage> {
   const parsed = typeof content === 'string' ? JSON.parse(content) : content
   const directParts = parsed && typeof parsed === 'object' && Array.isArray(parsed.parts) ? parsed.parts : null
   if (directParts) {
@@ -813,7 +820,7 @@ function normalizeLegacySessionMessage(content: unknown, fallbackRole: string | 
     }
   }
 
-  const transformed = blocks.length > 0 ? transformBlocksToParts(blocks) : null
+  const transformed = blocks.length > 0 ? await transformBlocksToParts(blocks, deps) : null
   const parts = transformed?.parts ?? (Array.isArray(message.data?.parts) ? message.data.parts : [])
   return {
     role: normalizeLegacyRole(typeof message.role === 'string' ? message.role : fallbackRole),
@@ -839,7 +846,11 @@ async function resolveUserModelId(
   return resolved
 }
 
-export async function importLegacySessionMessages(db: DbType, schemaInfo: AgentsSchemaInfo): Promise<number> {
+export async function importLegacySessionMessages(
+  db: DbType,
+  schemaInfo: AgentsSchemaInfo,
+  deps?: ChatMappingDeps
+): Promise<number> {
   if (!schemaInfo.session_messages.exists) return 0
 
   const selectColumns = [
@@ -873,7 +884,7 @@ export async function importLegacySessionMessages(db: DbType, schemaInfo: Agents
     if (!row.sessionId) continue
     let normalized: NormalizedLegacySessionMessage
     try {
-      normalized = normalizeLegacySessionMessage(row.content, row.role)
+      normalized = await normalizeLegacySessionMessage(row.content, row.role, deps)
     } catch (error) {
       normalized = {
         role: normalizeLegacyRole(row.role),

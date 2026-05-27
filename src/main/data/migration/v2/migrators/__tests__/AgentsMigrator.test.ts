@@ -11,6 +11,17 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  // AgentsMigrator passes FileManager to importLegacySessionMessages so it can
+  // promote v1 inline base64 images. Tests don't exercise that path — a stub
+  // suffices.
+  const overrides = {
+    FileManager: { createInternalEntry: vi.fn(), getUrl: vi.fn() }
+  } as Parameters<typeof mockApplicationFactory>[0]
+  return mockApplicationFactory(overrides)
+})
+
 import { LegacyAgentsDbReader } from '../../utils/LegacyAgentsDbReader'
 import { AgentsMigrator } from '../AgentsMigrator'
 import { AGENTS_TABLE_MIGRATION_SPECS } from '../mappings/AgentsDbMappings'
