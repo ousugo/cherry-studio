@@ -1,5 +1,4 @@
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { InputHTMLAttributes, ReactNode } from 'react'
@@ -288,19 +287,6 @@ function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace'
   }
 }
 
-function makeWorkspaceEntity(path: string, overrides: Partial<WorkspaceEntity> = {}): WorkspaceEntity {
-  return {
-    id: `ws-${path}`,
-    name: path,
-    path,
-    type: 'user',
-    orderKey: 'a',
-    createdAt: '2026-05-13T08:00:00.000Z',
-    updatedAt: '2026-05-14T08:00:00.000Z',
-    ...overrides
-  }
-}
-
 function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
   return {
     id: 'session-alpha',
@@ -457,36 +443,30 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(screen.queryByText('消息')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     expect(screen.getByText('Planning notes')).toBeInTheDocument()
-    expect(screen.getByText('Project')).toBeInTheDocument()
-    expect(screen.getByText('Agent')).toBeInTheDocument()
-    expect(screen.getByText('project-a')).toBeInTheDocument()
-    expect(screen.getByText('Alpha agent')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Agent' })).toBeInTheDocument()
+    expect(screen.getAllByText('Alpha agent').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Beta session')).toBeInTheDocument()
-    expect(screen.getByText('project-b')).toBeInTheDocument()
-    expect(screen.getByText('Beta agent')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Gamma agent 0/ })).not.toBeInTheDocument()
+    expect(screen.getAllByText('Beta agent').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole('button', { name: /Gamma agent 0/ })).toBeInTheDocument()
     expect(screen.queryByText('Agent placeholder')).not.toBeInTheDocument()
   })
 
-  it('filters sessions by selected workspace source', () => {
+  it('filters sessions by selected agent source', () => {
     setupAgentHistory()
 
-    fireEvent.click(screen.getByRole('button', { name: /project-b/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Beta agent 1/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
   })
 
-  it('orders workspace sources and selected workspace rows by workspace order', () => {
-    hookMocks.useDataApiQuery.mockReturnValue({
-      data: [
-        makeWorkspaceEntity('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'a' }),
-        makeWorkspaceEntity('/Users/jd/project-b', { id: 'ws-b', name: 'Project B Workspace', orderKey: 'b' })
-      ],
-      error: undefined,
-      isLoading: false
-    })
+  it('orders agent sources and selected agent rows by agent order', () => {
     setupAgentHistory({
+      agents: [
+        createAgent({ id: 'agent-beta', name: 'Beta agent', configuration: { avatar: 'B' } }),
+        createAgent({ id: 'agent-alpha', name: 'Alpha agent', configuration: { avatar: 'A' } }),
+        createAgent({ id: 'agent-gamma', name: 'Gamma agent', configuration: { avatar: 'G' } })
+      ],
       sessions: [
         createSession({
           id: 'session-beta',
@@ -513,10 +493,10 @@ describe('HistoryRecordsPage agent mode', () => {
       ]
     })
 
-    expect(hookMocks.useDataApiQuery).toHaveBeenCalledWith('/workspaces')
-    const alphaSource = screen.getByRole('button', { name: /Project A Workspace 2/ })
-    const betaSource = screen.getByRole('button', { name: /Project B Workspace 1/ })
-    expect(Boolean(alphaSource.compareDocumentPosition(betaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(hookMocks.useDataApiQuery).not.toHaveBeenCalled()
+    const betaSource = screen.getByRole('button', { name: /Beta agent 1/ })
+    const alphaSource = screen.getByRole('button', { name: /Alpha agent 2/ })
+    expect(Boolean(betaSource.compareDocumentPosition(alphaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
 
     fireEvent.click(alphaSource)
 

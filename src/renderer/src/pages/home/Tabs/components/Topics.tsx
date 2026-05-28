@@ -21,6 +21,8 @@ import { ResourceListActionContextMenu } from '@renderer/components/chat/actions
 import {
   RESOURCE_LIST_SELECTED_ROW_CLASS,
   ResourceList,
+  type ResourceListGroup,
+  type ResourceListGroupSeed,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
@@ -87,6 +89,7 @@ import {
   createTopicDisplayGroupResolver,
   filterTopicsForManageMode,
   getAssistantIdFromTopicGroupId,
+  getTopicAssistantGroupId,
   moveAssistantGroupAfterDrop,
   normalizeTopicCollapsedGroupIds,
   normalizeTopicDropPayload,
@@ -603,6 +606,21 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     }
   }, [isAssistantDisplayMode, t])
 
+  const topicGroupSeeds = useMemo<readonly ResourceListGroupSeed[]>(
+    () =>
+      isAssistantDisplayMode
+        ? orderedAssistants.map((assistant) => ({
+            id: getTopicAssistantGroupId(assistant.id),
+            label: assistant.name,
+            section: {
+              id: TOPIC_ASSISTANT_SECTION_ID,
+              label: t('chat.topics.display.assistant')
+            }
+          }))
+        : [],
+    [isAssistantDisplayMode, orderedAssistants, t]
+  )
+
   const baseGroupedTopics = useMemo(
     () =>
       sortTopicsForDisplayGroups(topics, {
@@ -647,6 +665,19 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       }
     },
     [activeTopic?.id, filteredTopics, setActiveTopic]
+  )
+  const handleEmptyGroupHeaderClick = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'assistant' || isManageMode || group.id === TOPIC_PINNED_GROUP_ID) return false
+
+      const assistantId = getAssistantIdFromTopicGroupId(group.id)
+      if (!assistantId || !assistantById.has(assistantId)) return false
+      if (!onNewTopic) return false
+
+      void onNewTopic({ assistantId })
+      return true
+    },
+    [assistantById, displayMode, isManageMode, onNewTopic]
   )
   const getGroupHeaderClickBehavior = useCallback(
     (group: { id: string }) =>
@@ -761,7 +792,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         if (!assistantGroupId) return null
       }
 
-      const payload = getCreateTopicPayloadForGroup(group.id)
+      const payload =
+        getCreateTopicPayloadForGroup(group.id) ?? (assistantGroupId ? { assistantId: assistantGroupId } : undefined)
       if (!payload && !assistantGroupId) return null
 
       return (
@@ -1107,6 +1139,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         status={listStatus}
         selectedId={isManageMode ? null : activeTopic?.id}
         groupBy={topicGroupBy}
+        groupSeeds={topicGroupSeeds}
         sectionBy={topicSectionBy}
         collapsedGroupIds={effectiveCollapsedTopicGroupIds}
         revealRequest={revealRequest}
@@ -1132,6 +1165,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         groupCollapseLabel={t('chat.topics.group.collapse')}
         onRenameItem={handleRenameTopic}
         onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
+        onEmptyGroupHeaderClick={handleEmptyGroupHeaderClick}
         onReorder={handleTopicReorder}
         onCollapsedGroupIdsChange={handleCollapsedTopicGroupIdsChange}>
         <ResourceList.Header className="gap-1 px-1.5 pb-0">

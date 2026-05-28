@@ -906,7 +906,8 @@ describe('Sessions', () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
         { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' },
+        { id: 'agent-c', model: 'model-c', name: 'Gamma agent' }
       ],
       isLoading: false,
       error: undefined
@@ -953,6 +954,34 @@ describe('Sessions', () => {
         agentId: 'agent-b',
         name: 'Untitled',
         workspaceId: 'ws-c'
+      })
+    )
+
+    const emptyAgentGroup = screen
+      .getByRole('button', { name: 'Gamma agent' })
+      .closest('[data-resource-list-group-context-menu-id="session:agent:agent-c"]')
+    expect(emptyAgentGroup).not.toBeNull()
+    const emptyAgentCreateButton = within(emptyAgentGroup as HTMLElement).getByRole('button', {
+      name: 'chat.conversation.new'
+    })
+    await vi.waitFor(() => expect(emptyAgentCreateButton).not.toBeDisabled())
+    fireEvent.click(emptyAgentCreateButton)
+
+    await vi.waitFor(() =>
+      expect(onStartTemporarySession).toHaveBeenCalledWith({
+        agentId: 'agent-c',
+        name: 'Untitled'
+      })
+    )
+
+    await vi.waitFor(() => expect(emptyAgentCreateButton).not.toBeDisabled())
+    onStartTemporarySession.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Gamma agent' }))
+
+    await vi.waitFor(() =>
+      expect(onStartTemporarySession).toHaveBeenCalledWith({
+        agentId: 'agent-c',
+        name: 'Untitled'
       })
     )
   })

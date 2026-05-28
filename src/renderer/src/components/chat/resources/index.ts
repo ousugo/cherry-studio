@@ -5,6 +5,7 @@ export type {
   ResourceListFilterOption,
   ResourceListGroup,
   ResourceListGroupReorderPayload,
+  ResourceListGroupSeed,
   ResourceListItemAccessors,
   ResourceListItemBase,
   ResourceListItemReorderPayload,

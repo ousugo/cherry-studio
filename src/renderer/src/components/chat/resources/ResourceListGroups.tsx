@@ -175,12 +175,17 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       const firstItem = groupItems[0]
       if (firstItem) {
         actions.selectGroupHeaderItem(meta.getItemId(firstItem))
+        return
       }
-      return
+
+      if (meta.onEmptyGroupHeaderClick) {
+        const handled = meta.onEmptyGroupHeaderClick(group)
+        if (handled !== false) return
+      }
     }
 
     actions.toggleGroup(group.id)
-  }, [actions, clickBehavior, group.id, groupItems, meta, selected])
+  }, [actions, clickBehavior, group, group.id, groupItems, meta, selected])
 
   if (!group.label) return null
   const header = (

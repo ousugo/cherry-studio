@@ -1453,9 +1453,16 @@ describe('Topics', () => {
                 emoji: '✍️',
                 createdAt: '2026-01-01T00:00:00.000Z',
                 updatedAt: '2026-01-01T00:00:00.000Z'
+              },
+              {
+                id: 'assistant-3',
+                name: 'Gamma Assistant',
+                emoji: '🧭',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z'
               }
             ],
-            total: 2
+            total: 3
           },
           isLoading: false,
           isRefreshing: false,
@@ -1526,6 +1533,7 @@ describe('Topics', () => {
     expect(screen.queryByRole('button', { name: 'Default Assistant' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Gamma Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toBeInTheDocument()
     const assistantSectionButton = screen
       .getAllByRole('button', { name: 'Assistant' })
@@ -1534,6 +1542,7 @@ describe('Topics', () => {
     expect(assistantSectionButton).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Gamma Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByText('Pinned unknown')).toBeInTheDocument()
     expect(screen.queryByText('Known alpha')).not.toBeInTheDocument()
@@ -1541,6 +1550,7 @@ describe('Topics', () => {
     expect(screen.queryByText('Default topic')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')).toHaveTextContent('🧪')
     expect(screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')).toHaveTextContent('✍️')
+    expect(screen.getByRole('button', { name: 'Gamma Assistant' }).closest('div')).toHaveTextContent('🧭')
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
 
@@ -1553,6 +1563,15 @@ describe('Topics', () => {
     expect(assistantHeader).toBeInTheDocument()
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+
+    const emptyAssistantHeader = screen.getByRole('button', { name: 'Gamma Assistant' }).closest('div')
+    expect(emptyAssistantHeader).toBeInTheDocument()
+    fireEvent.click(within(emptyAssistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-3' })
+
+    onNewTopic.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Gamma Assistant' }))
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-3' })
 
     for (const groupName of ['Pinned', 'Unlinked Assistant'] as const) {
       const header = screen.getByRole('button', { name: groupName }).closest('div')

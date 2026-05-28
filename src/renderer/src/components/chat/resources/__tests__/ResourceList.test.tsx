@@ -294,6 +294,122 @@ describe('ResourceList', () => {
     expect(ITEMS.map((item) => item.id).join(',')).toBe(originalOrder)
   })
 
+  it('renders seeded empty groups without showing the empty state', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={[]}
+        groupSeeds={[
+          {
+            id: 'assistant-empty',
+            label: 'Empty Assistant'
+          }
+        ]}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}>
+        <ResourceList.Frame>
+          <Inspector />
+          <ResourceList.Body<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByRole('button', { name: 'Empty Assistant' })).toBeInTheDocument()
+    expect(screen.queryByText('No Resources')).not.toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      names: [],
+      visibleNames: [],
+      groups: ['assistant-empty']
+    })
+  })
+
+  it('keeps seeded groups before item-derived groups and toggles empty select-first groups', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const onGroupHeaderSelectItem = vi.fn()
+    const onCollapsedGroupIdsChange = vi.fn()
+
+    render(
+      <Provider
+        items={[ITEMS[0]]}
+        groupSeeds={[
+          {
+            id: 'empty-topic',
+            label: 'Empty Topic'
+          }
+        ]}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        groupHeaderClickBehavior="select-first-then-toggle"
+        collapsedGroupIds={['empty-topic', 'session']}
+        onGroupHeaderSelectItem={onGroupHeaderSelectItem}
+        onCollapsedGroupIdsChange={onCollapsedGroupIdsChange}>
+        <ResourceList.Frame>
+          <Inspector />
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      groups: ['empty-topic', 'session']
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Empty Topic' }))
+
+    expect(onGroupHeaderSelectItem).not.toHaveBeenCalled()
+    expect(onCollapsedGroupIdsChange).toHaveBeenCalledWith(['session'])
+  })
+
+  it('lets callers handle empty select-first group clicks', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const onEmptyGroupHeaderClick = vi.fn()
+    const onCollapsedGroupIdsChange = vi.fn()
+
+    render(
+      <Provider
+        items={[ITEMS[0]]}
+        groupSeeds={[
+          {
+            id: 'empty-topic',
+            label: 'Empty Topic'
+          }
+        ]}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        groupHeaderClickBehavior="select-first-then-toggle"
+        collapsedGroupIds={['empty-topic', 'session']}
+        onEmptyGroupHeaderClick={onEmptyGroupHeaderClick}
+        onCollapsedGroupIdsChange={onCollapsedGroupIdsChange}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Empty Topic' }))
+
+    expect(onEmptyGroupHeaderClick).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'empty-topic', label: 'Empty Topic' })
+    )
+    expect(onCollapsedGroupIdsChange).not.toHaveBeenCalled()
+  })
+
   it('keeps resource actions stable when local filter state changes', () => {
     const actionRefs: unknown[] = []
     const Provider = ResourceList.Provider<TestItem>
@@ -1242,7 +1358,7 @@ describe('ResourceList', () => {
       'min-w-6',
       'rounded-md',
       'p-0',
-      '[&_svg]:!size-3'
+      '[&_svg]:size-3!'
     )
     expect(screen.getAllByRole('button', { name: 'Group more' })[0]).not.toHaveClass('min-h-7.5')
   })

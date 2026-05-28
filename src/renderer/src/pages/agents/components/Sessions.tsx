@@ -19,6 +19,7 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import {
   ResourceList,
   type ResourceListGroup,
+  type ResourceListGroupSeed,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
@@ -61,6 +62,7 @@ import {
   createSessionDisplayGroupResolver,
   createSessionWorkdirDisplayMaps,
   getAgentIdFromSessionGroupId,
+  getSessionAgentGroupId,
   getWorkdirPathFromSessionGroupId,
   isSystemWorkspaceSession,
   moveSessionAgentGroupAfterDrop,
@@ -565,6 +567,21 @@ const Sessions = ({
     }
   }, [displayMode, t])
 
+  const sessionGroupSeeds = useMemo<readonly ResourceListGroupSeed[]>(
+    () =>
+      displayMode === 'agent'
+        ? agentsForDisplay.map((agent) => ({
+            id: getSessionAgentGroupId(agent.id),
+            label: agent.name,
+            section: {
+              id: SESSION_AGENT_SECTION_ID,
+              label: t(SESSION_DISPLAY_LABEL_KEYS.agent)
+            }
+          }))
+        : [],
+    [agentsForDisplay, displayMode, t]
+  )
+
   const effectiveCollapsedSessionGroupIds = useMemo(() => {
     const normalizedCollapsedGroupIds = normalizeSessionCollapsedGroupIds(collapsedSessionGroupIds, displayMode)
 
@@ -585,9 +602,14 @@ const Sessions = ({
     [setCollapsedSessionGroupIds]
   )
   const getCreateSessionSeedForGroup = useCallback(
-    (groupId: string) =>
-      findLatestCreateSessionSeed(groupedSessions, (session) => sessionGroupBy(session)?.id === groupId),
-    [groupedSessions, sessionGroupBy]
+    (groupId: string) => {
+      const seed = findLatestCreateSessionSeed(groupedSessions, (session) => sessionGroupBy(session)?.id === groupId)
+      if (seed || displayMode !== 'agent') return seed
+
+      const agentId = getAgentIdFromSessionGroupId(groupId)
+      return agentId && agentById.has(agentId) ? { agentId } : null
+    },
+    [agentById, displayMode, groupedSessions, sessionGroupBy]
   )
   const handleOpenHistoryOrToggleSidebar = useCallback(
     (origin?: DOMRectReadOnly) => {
@@ -830,6 +852,27 @@ const Sessions = ({
     (group: ResourceListGroup) =>
       displayMode === 'agent' && group.id !== SESSION_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
     [displayMode]
+  )
+  const handleEmptyGroupHeaderClick = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'agent' || group.id === SESSION_PINNED_GROUP_ID) return false
+      if (!onStartTemporarySession) return false
+      if (creatingSession) return true
+
+      const createSessionSeed = getCreateSessionSeedForGroup(group.id)
+      if (createSessionSeed === null || !agentById.has(createSessionSeed.agentId)) return false
+
+      void createSessionFromSeed(createSessionSeed)
+      return true
+    },
+    [
+      agentById,
+      createSessionFromSeed,
+      creatingSession,
+      displayMode,
+      getCreateSessionSeedForGroup,
+      onStartTemporarySession
+    ]
   )
 
   const canDragSessionItem = useCallback(
@@ -1263,6 +1306,7 @@ const Sessions = ({
       status={listStatus}
       selectedId={activeSessionId}
       groupBy={sessionGroupBy}
+      groupSeeds={sessionGroupSeeds}
       sectionBy={sessionSectionBy}
       collapsedGroupIds={effectiveCollapsedSessionGroupIds}
       revealRequest={revealRequest}
@@ -1289,6 +1333,7 @@ const Sessions = ({
       groupCollapseLabel={t('agent.session.group.collapse')}
       onRenameItem={handleRenameSession}
       onGroupHeaderSelectItem={handleSelectSession}
+      onEmptyGroupHeaderClick={handleEmptyGroupHeaderClick}
       onReorder={handleSessionReorder}
       onCollapsedGroupIdsChange={handleCollapsedSessionGroupIdsChange}>
       <ResourceList.Header className="gap-1 px-1.5 pb-0">

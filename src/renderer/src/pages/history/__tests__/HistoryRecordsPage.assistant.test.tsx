@@ -272,6 +272,8 @@ vi.mock('react-i18next', () => ({
         'common.required_field': 'Required field',
         'common.save': 'Save',
         'history.records.assistantSubtitle': '{{count}} topics',
+        'history.records.empty.description': 'No topics for the current filters.',
+        'history.records.empty.title': 'No topics',
         'history.records.resultCount': '{{count}} results',
         'history.records.searchTopic': 'Search topics...',
         'history.records.shortTitle': 'History',
@@ -457,20 +459,33 @@ describe('HistoryRecordsPage assistant mode', () => {
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({
-      assistants: [createAssistant(), createAssistant({ id: 'assistant-beta', name: 'Beta assistant', emoji: 'B' })]
+      assistants: [
+        createAssistant(),
+        createAssistant({ id: 'assistant-beta', name: 'Beta assistant', emoji: 'B' }),
+        createAssistant({ id: 'assistant-gamma', name: 'Gamma assistant', emoji: 'G' })
+      ]
     })
 
     render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
     const alphaSource = screen.getByRole('button', { name: /Alpha assistant 2/ })
     const betaSource = screen.getByRole('button', { name: /Beta assistant 1/ })
+    const gammaSource = screen.getByRole('button', { name: /Gamma assistant 0/ })
     expect(Boolean(alphaSource.compareDocumentPosition(betaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(Boolean(betaSource.compareDocumentPosition(gammaSource) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
 
     fireEvent.click(alphaSource)
 
     const alphaA = screen.getByText('Alpha A').closest('[role="option"]') as HTMLElement
     const alphaB = screen.getByText('Alpha B').closest('[role="option"]') as HTMLElement
     expect(Boolean(alphaA.compareDocumentPosition(alphaB) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+
+    fireEvent.click(gammaSource)
+
+    expect(screen.queryByText('Alpha A')).not.toBeInTheDocument()
+    expect(screen.queryByText('Alpha B')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta topic')).not.toBeInTheDocument()
+    expect(screen.getByText('No topics')).toBeInTheDocument()
   })
 
   it('groups empty and missing assistant topics under one unlinked source', () => {

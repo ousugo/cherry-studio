@@ -35,6 +35,7 @@ export type {
   ResourceListFilterOption,
   ResourceListGroup,
   ResourceListGroupHeaderClickBehavior,
+  ResourceListGroupSeed,
   ResourceListItemAccessors,
   ResourceListItemBase,
   ResourceListMeta,
@@ -520,7 +521,7 @@ function Body<T extends ResourceListItemBase>({
     return errorFallback ?? <ErrorState />
   }
 
-  if (view.items.length === 0) {
+  if (view.items.length === 0 && view.groups.length === 0 && view.sections.length === 0) {
     return emptyFallback ?? <EmptyState />
   }
 
