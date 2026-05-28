@@ -215,7 +215,6 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.group.collapse') return 'Collapse topics'
       if (key === 'chat.topics.search.placeholder') return 'Search topics'
       if (key === 'chat.topics.search.title') return 'Search topics'
-      if (key === 'chat.topics.manage.title') return 'Manage topics'
       if (key === 'chat.topics.pin') return 'Pin Topic'
       if (key === 'chat.topics.unpin') return 'Unpin Topic'
       if (key === 'chat.topics.auto_rename') return 'Generate topic name'
@@ -402,11 +401,6 @@ function renderTopicList({
 function openTopicListOptions() {
   fireEvent.click(screen.getByLabelText('Display mode'))
   return screen.getAllByTestId('popover-content').find((element) => element.className.includes('w-32'))
-}
-
-function enterTopicManageMode() {
-  openTopicListOptions()
-  fireEvent.click(screen.getByRole('button', { name: 'Manage topics' }))
 }
 
 function getTopicRow(topicName: string) {
@@ -1141,7 +1135,9 @@ describe('Topics', () => {
     )
     expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).toBeInTheDocument()
     expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
-    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Manage topics' })).toBeInTheDocument()
+    expect(
+      within(displayModeContent as HTMLElement).queryByRole('button', { name: 'Manage topics' })
+    ).not.toBeInTheDocument()
 
     fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
@@ -1218,9 +1214,9 @@ describe('Topics', () => {
     expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 
-  it('reveals a history-selected topic hidden by manage search, a collapsed group, and show-more', async () => {
+  it('reveals a history-selected topic hidden by show-more', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, [])
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, ['topic:time:today'])
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -1239,16 +1235,7 @@ describe('Topics', () => {
 
     const { rerenderTopicList } = renderTopicList()
 
-    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
-
-    enterTopicManageMode()
-    const manageSearchButton = document.querySelector('[data-title="Search topics"] button')
-    expect(manageSearchButton).toBeInTheDocument()
-    fireEvent.click(manageSearchButton as HTMLElement)
-    const manageSearch = screen.getAllByPlaceholderText('Search topics').at(-1)
-    expect(manageSearch).toBeInTheDocument()
-    fireEvent.change(manageSearch as HTMLElement, { target: { value: 'missing' } })
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
 
     rerenderTopicList({ itemId: 'topic-6', requestId: 1, clearFilters: true, clearQuery: true })
@@ -1260,9 +1247,6 @@ describe('Topics', () => {
     expect(revealedRow!).toHaveClass('animation-resource-list-reveal-focus')
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
-      'topic:time:today'
-    ])
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
   })
 
@@ -1383,42 +1367,6 @@ describe('Topics', () => {
     expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
     dndMocks.onDragEnd?.({ active: { id: 'topic-a' }, over: { id: 'topic-c' } })
 
-    expect(patchSpy).not.toHaveBeenCalled()
-  })
-
-  it('deletes from a filtered manage view without persisting topic order', async () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
-    const confirm = vi.fn().mockResolvedValue(true)
-    const toast = {
-      error: vi.fn(),
-      success: vi.fn(),
-      warning: vi.fn()
-    }
-    Object.assign(window, { modal: { confirm }, toast })
-
-    renderTopicList()
-
-    enterTopicManageMode()
-    const manageSearchButton = document.querySelector('[data-title="Search topics"] button')
-    expect(manageSearchButton).toBeInTheDocument()
-    fireEvent.click(manageSearchButton as HTMLElement)
-    const manageSearch = screen.getAllByPlaceholderText('Search topics').at(-1)
-    expect(manageSearch).toBeInTheDocument()
-    fireEvent.change(manageSearch as HTMLElement, { target: { value: 'gamma' } })
-
-    await vi.waitFor(() => {
-      expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
-      expect(screen.getByText('Gamma topic')).toBeInTheDocument()
-    })
-
-    fireEvent.click(getTopicRow('Gamma topic'))
-
-    const deleteButton = screen.getAllByRole('button', { name: 'Delete' }).at(-1)
-    expect(deleteButton).toBeInTheDocument()
-
-    fireEvent.click(deleteButton as HTMLElement, { ctrlKey: true })
-
-    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-c'))
     expect(patchSpy).not.toHaveBeenCalled()
   })
 
@@ -1986,50 +1934,6 @@ describe('Topics', () => {
     })
 
     expect(patchSpy).not.toHaveBeenCalled()
-  })
-
-  it('disables assistant group reorder in manage mode', () => {
-    const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-
-    renderTopicList()
-
-    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
-    enterTopicManageMode()
-
-    expect(screen.queryByTestId('dnd-context')).not.toBeInTheDocument()
-    expect(patchSpy).not.toHaveBeenCalled()
-  })
-
-  it('selects all selectable topics in an assistant group from the manage-mode group checkbox', () => {
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-
-    renderTopicList()
-
-    enterTopicManageMode()
-
-    const betaHeader = screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')
-    expect(betaHeader).toBeInTheDocument()
-
-    fireEvent.click(within(betaHeader as HTMLElement).getByRole('button', { name: 'Select All Beta Assistant' }))
-
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'true')
-    expect(getTopicRow('Gamma topic')).toHaveClass('bg-sidebar-accent')
-    expect(getTopicRow('Epsilon yesterday')).toHaveClass('bg-sidebar-accent')
-    expect(getTopicRow('Delta archive')).toHaveClass('bg-sidebar-accent')
-    expect(getTopicRow('Alpha topic')).not.toHaveClass('bg-sidebar-accent')
-    expect(screen.getByText('3')).toBeInTheDocument()
-
-    fireEvent.click(within(betaHeader as HTMLElement).getByRole('button', { name: 'Deselect All Beta Assistant' }))
-
-    expect(getTopicRow('Gamma topic')).not.toHaveClass('bg-sidebar-accent')
-    expect(getTopicRow('Epsilon yesterday')).not.toHaveClass('bg-sidebar-accent')
-    expect(getTopicRow('Delta archive')).not.toHaveClass('bg-sidebar-accent')
-
-    const pinnedHeader = screen.getByRole('button', { name: 'Pinned' }).closest('div')
-    expect(
-      within(pinnedHeader as HTMLElement).queryByRole('button', { name: 'Select All Pinned' })
-    ).not.toBeInTheDocument()
   })
 
   it('moves only the active topic in the optimistic display overlay without rewriting order keys', () => {
