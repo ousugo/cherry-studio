@@ -390,7 +390,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
               ? dataApiMocks.updateWorkspace
               : method === 'DELETE' && path === '/workspaces/:workspaceId'
                 ? dataApiMocks.deleteWorkspace
-                : method === 'POST' && path === '/agents/:agentId/sessions:delete'
+                : method === 'DELETE' && path === '/agents/:agentId/sessions'
                   ? dataApiMocks.deleteAgentSessions
                   : dataApiMocks.findOrCreateWorkspace,
       isLoading: false,
@@ -1897,7 +1897,7 @@ describe('Sessions', () => {
         title: 'Delete agent chats'
       })
     )
-    expect(dataApiMocks.mutationOptions.get('POST /agents/:agentId/sessions:delete')?.refresh).toEqual([
+    expect(dataApiMocks.mutationOptions.get('DELETE /agents/:agentId/sessions')?.refresh).toEqual([
       '/sessions',
       '/workspaces',
       '/pins',

@@ -11,7 +11,6 @@ import { agentSessionMessageService as sessionMessageService } from '@data/servi
 import { sessionService } from '@data/services/SessionService'
 import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
-import { SuccessStatus } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateSessionSchema,
@@ -77,10 +76,9 @@ export const sessionHandlers: HandlersFor<SessionSchemas> = {
     }
   },
 
-  '/agents/:agentId/sessions:delete': {
-    POST: async ({ params }) => {
-      const result = await sessionService.deleteByAgentId(params.agentId)
-      return { data: result, status: SuccessStatus.OK }
+  '/agents/:agentId/sessions': {
+    DELETE: async ({ params }) => {
+      return await sessionService.deleteByAgentId(params.agentId)
     }
   },
 

@@ -175,11 +175,11 @@ export type TopicSchemas = {
   /**
    * Delete all topics currently linked to an assistant.
    *
-   * This is an explicit group action. It does not change
+   * This is an explicit scoped collection delete. It does not change
    * `DELETE /assistants/:id`, which only deletes the assistant itself.
    */
-  '/assistants/:assistantId/topics:delete': {
-    POST: {
+  '/assistants/:assistantId/topics': {
+    DELETE: {
       params: { assistantId: string }
       response: DeleteTopicsResult
     }

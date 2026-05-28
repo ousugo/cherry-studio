@@ -1,4 +1,3 @@
-import { SuccessStatus } from '@shared/data/api/apiTypes'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -50,16 +49,16 @@ describe('topicHandlers', () => {
     vi.clearAllMocks()
   })
 
-  describe('/assistants/:assistantId/topics:delete', () => {
+  describe('/assistants/:assistantId/topics', () => {
     it('delegates assistant-scoped topic delete to TopicService', async () => {
       const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
       deleteByAssistantIdMock.mockResolvedValueOnce(result)
 
       await expect(
-        topicHandlers['/assistants/:assistantId/topics:delete'].POST({
+        topicHandlers['/assistants/:assistantId/topics'].DELETE({
           params: { assistantId: 'assistant-1' }
         } as never)
-      ).resolves.toEqual({ data: result, status: SuccessStatus.OK })
+      ).resolves.toEqual(result)
 
       expect(deleteByAssistantIdMock).toHaveBeenCalledWith('assistant-1')
       expect(deleteMock).not.toHaveBeenCalled()

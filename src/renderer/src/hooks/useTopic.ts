@@ -286,7 +286,7 @@ export function useTopicMutations() {
     // would trigger a fetch that 404s and caches an error in SWR.
     refresh: ['/topics']
   })
-  const { trigger: deleteByAssistantTrigger } = useMutation('POST', '/assistants/:assistantId/topics:delete', {
+  const { trigger: deleteByAssistantTrigger } = useMutation('DELETE', '/assistants/:assistantId/topics', {
     refresh: ['/topics', '/pins']
   })
 

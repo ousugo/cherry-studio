@@ -222,12 +222,12 @@ export type SessionSchemas = {
   /**
    * Delete all sessions currently linked to an agent.
    *
-   * This is an explicit group action. It does not change
+   * This is an explicit scoped collection delete. It does not change
    * `DELETE /agents/:agentId`, which deletes only the agent entity and leaves
    * sessions detached by FK.
    */
-  '/agents/:agentId/sessions:delete': {
-    POST: {
+  '/agents/:agentId/sessions': {
+    DELETE: {
       params: { agentId: string }
       response: DeleteSessionsResult
     }

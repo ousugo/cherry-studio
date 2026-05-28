@@ -35,8 +35,8 @@ type OldTopicHandlers = {
 // path/method/param invariants, not response types, so short-circuit via cast.
 const ok = async (): Promise<any> => ({}) as any
 const assistantTopicsDeleteHandler = {
-  '/assistants/:assistantId/topics:delete': { POST: ok }
-} satisfies Pick<HandlersFor<TopicSchemas>, '/assistants/:assistantId/topics:delete'>
+  '/assistants/:assistantId/topics': { DELETE: ok }
+} satisfies Pick<HandlersFor<TopicSchemas>, '/assistants/:assistantId/topics'>
 
 // ============================================================================
 // P1 — POSITIVE: a fully-covered, correctly-typed handler compiles under both

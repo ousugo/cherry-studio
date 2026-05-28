@@ -1,4 +1,3 @@
-import { SuccessStatus } from '@shared/data/api/apiTypes'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -111,18 +110,18 @@ describe('sessionHandlers', () => {
     })
   })
 
-  describe('/agents/:agentId/sessions:delete', () => {
+  describe('/agents/:agentId/sessions', () => {
     it('delegates agent-scoped session delete to SessionService', async () => {
       const response = { deletedIds: ['session-a'], deletedCount: 1 }
       deleteByAgentIdMock.mockResolvedValueOnce(response)
 
-      const result = await sessionHandlers['/agents/:agentId/sessions:delete'].POST({
+      const result = await sessionHandlers['/agents/:agentId/sessions'].DELETE({
         params: { agentId: 'agent-1' }
       } as never)
 
       expect(deleteByAgentIdMock).toHaveBeenCalledWith('agent-1')
       expect(deleteMock).not.toHaveBeenCalled()
-      expect(result).toEqual({ data: response, status: SuccessStatus.OK })
+      expect(result).toEqual(response)
     })
   })
 })

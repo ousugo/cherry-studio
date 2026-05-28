@@ -682,7 +682,7 @@ const Sessions = ({
   const { trigger: deleteWorkspace } = useMutation('DELETE', '/workspaces/:workspaceId', {
     refresh: ['/sessions', '/workspaces', '/pins', '/channels']
   })
-  const { trigger: deleteAgentSessions } = useMutation('POST', '/agents/:agentId/sessions:delete', {
+  const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
     refresh: ['/sessions', '/workspaces', '/pins', '/channels']
   })
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/workspaces/:id/order')
