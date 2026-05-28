@@ -357,7 +357,7 @@
       "items_other": "{{count}} 个项目",
       "maximize": "最大化",
       "minimize": "最小化",
-      "no_search_results": "[to be translated]:No files match your search.",
+      "no_search_results": "没有文件符合你的搜索",
       "preview": "预览",
       "refresh": "刷新",
       "search_placeholder": "搜索文件",

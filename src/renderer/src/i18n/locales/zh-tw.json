@@ -357,7 +357,7 @@
       "items_other": "{{count}} 個項目",
       "maximize": "最大化",
       "minimize": "最小化",
-      "no_search_results": "[to be translated]:No files match your search.",
+      "no_search_results": "沒有檔案符合你的搜尋",
       "preview": "預覽",
       "refresh": "重新整理",
       "search_placeholder": "[to be translated]:Search files...",
