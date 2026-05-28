@@ -34,6 +34,9 @@ type OldTopicHandlers = {
 // Response shapes are complex zod-inferred types; the matrix tests
 // path/method/param invariants, not response types, so short-circuit via cast.
 const ok = async (): Promise<any> => ({}) as any
+const assistantTopicsDeleteHandler = {
+  '/assistants/:assistantId/topics:delete': { POST: ok }
+} satisfies Pick<HandlersFor<TopicSchemas>, '/assistants/:assistantId/topics:delete'>
 
 // ============================================================================
 // P1 — POSITIVE: a fully-covered, correctly-typed handler compiles under both
@@ -46,7 +49,8 @@ const _p1_new: HandlersFor<TopicSchemas> = {
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined }
+  '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler
 }
 
 const _p1_old: OldTopicHandlers = {
@@ -54,7 +58,8 @@ const _p1_old: OldTopicHandlers = {
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined }
+  '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler
 }
 
 // ============================================================================
@@ -82,7 +87,8 @@ const _n2_new: HandlersFor<TopicSchemas> = {
   '/topics/:id': { GET: ok, PATCH: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined }
+  '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler
 }
 
 const _n2_old: OldTopicHandlers = {
@@ -91,7 +97,8 @@ const _n2_old: OldTopicHandlers = {
   '/topics/:id': { GET: ok, PATCH: ok },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined }
+  '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler
 }
 
 // ============================================================================
@@ -105,6 +112,7 @@ const _n3_new: HandlersFor<TopicSchemas> = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler,
   // @ts-expect-error - '/tpoic' is a typo; not in TopicSchemas
   '/tpoic': { GET: ok }
 }
@@ -115,6 +123,7 @@ const _n3_old: OldTopicHandlers = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler,
   // @ts-expect-error - '/tpoic' is a typo; not in TopicSchemas
   '/tpoic': { GET: ok }
 }
@@ -131,6 +140,7 @@ const _n4_new: HandlersFor<TopicSchemas> = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler,
   // @ts-expect-error - '/messages/:id' belongs to MessageSchemas, not TopicSchemas
   '/messages/:id': { GET: ok }
 }
@@ -141,6 +151,7 @@ const _n4_old: OldTopicHandlers = {
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
   '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler,
   // @ts-expect-error - '/messages/:id' belongs to MessageSchemas, not TopicSchemas
   '/messages/:id': { GET: ok }
 }
@@ -161,7 +172,8 @@ const _n5_new: HandlersFor<TopicSchemas> = {
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined }
+  '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler
 }
 
 const _n5_old: OldTopicHandlers = {
@@ -174,7 +186,8 @@ const _n5_old: OldTopicHandlers = {
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined }
+  '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler
 }
 
 // ============================================================================
@@ -195,7 +208,8 @@ const _n6_new: HandlersFor<TopicSchemas> = {
   },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined }
+  '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler
 }
 
 const _n6_old: OldTopicHandlers = {
@@ -211,7 +225,8 @@ const _n6_old: OldTopicHandlers = {
   },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined }
+  '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler
 }
 
 // ============================================================================
@@ -232,7 +247,8 @@ const _n7_new: HandlersFor<TopicSchemas> = {
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined }
+  '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler
 }
 
 const _n7_old: OldTopicHandlers = {
@@ -247,7 +263,8 @@ const _n7_old: OldTopicHandlers = {
   '/topics/:id': { GET: ok, PATCH: ok, DELETE: async () => undefined },
   '/topics/:id/active-node': { PUT: ok },
   '/topics/:id/order': { PATCH: async () => undefined },
-  '/topics/order:batch': { PATCH: async () => undefined }
+  '/topics/order:batch': { PATCH: async () => undefined },
+  ...assistantTopicsDeleteHandler
 }
 
 // Prevent "declared but never used" diagnostics — these are type-level probes.

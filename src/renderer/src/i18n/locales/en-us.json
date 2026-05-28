@@ -425,6 +425,16 @@
       "add": {
         "title": "Add a session"
       },
+      "agent": {
+        "delete": {
+          "content": "Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "Failed to delete agent chats"
+          },
+          "title": "Delete agent chats",
+          "trigger": "Delete agent chats"
+        }
+      },
       "allowed_tools": {
         "empty": "No tools available for this agent.",
         "helper": "Pre-approved tools run without manual approval. Unselected tools require approval before use.",

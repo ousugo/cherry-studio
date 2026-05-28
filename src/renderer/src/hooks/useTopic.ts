@@ -28,7 +28,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Message, Topic as RendererTopic } from '@renderer/types'
 import { statsToMetrics, statsToUsage } from '@renderer/utils/messageStats'
 import { ErrorCode } from '@shared/data/api/apiErrors'
-import type { CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
+import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -286,6 +286,9 @@ export function useTopicMutations() {
     // would trigger a fetch that 404s and caches an error in SWR.
     refresh: ['/topics']
   })
+  const { trigger: deleteByAssistantTrigger } = useMutation('POST', '/assistants/:assistantId/topics:delete', {
+    refresh: ['/topics', '/pins']
+  })
 
   const refreshTopics = useCallback(() => invalidate('/topics'), [invalidate])
 
@@ -315,6 +318,15 @@ export function useTopicMutations() {
     [deleteTrigger]
   )
 
+  const deleteTopicsByAssistantId = useCallback(
+    async (assistantId: string): Promise<DeleteTopicsResult> => {
+      const result = await deleteByAssistantTrigger({ params: { assistantId } })
+      logger.info('Deleted assistant topics', { assistantId, count: result.deletedCount })
+      return result
+    },
+    [deleteByAssistantTrigger]
+  )
+
   const batchUpdateTopics = useCallback(
     async (topics: Array<{ id: string; dto: UpdateTopicDto }>): Promise<void> => {
       await Promise.allSettled(topics.map(({ id, dto }) => dataApiService.patch(`/topics/${id}`, { body: dto })))
@@ -327,6 +339,7 @@ export function useTopicMutations() {
     createTopic,
     updateTopic,
     deleteTopic,
+    deleteTopicsByAssistantId,
     batchUpdateTopics,
     refreshTopics,
     isCreating,

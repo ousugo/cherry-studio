@@ -205,20 +205,26 @@ function GroupMoreDropdownMenuContent<TAction extends ResolvedAction>({
 
 function AgentGroupMoreMenu({
   agentId,
+  deleteSessionsDisabled,
   pinDisabled,
   pinned,
+  onDeleteSessions,
   onEdit,
   onTogglePin
 }: {
   agentId: string
+  deleteSessionsDisabled?: boolean
   pinDisabled?: boolean
   pinned: boolean
+  onDeleteSessions: (agentId: string) => void | Promise<void>
   onEdit: (agentId: string) => void
   onTogglePin: (agentId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
   const actionContext: AgentGroupActionContext = {
     agentId,
+    deleteSessionsDisabled,
+    onDeleteSessions,
     onEdit,
     onTogglePin,
     pinDisabled,
@@ -380,6 +386,8 @@ const Sessions = ({
   const [optimisticAgentOrderIds, setOptimisticAgentOrderIds] = useState<string[] | null>(null)
   const [optimisticWorkspaceOrderIds, setOptimisticWorkspaceOrderIds] = useState<string[] | null>(null)
   const [creatingSession, setCreatingSession] = useState(false)
+  const [deletingAgentGroupId, setDeletingAgentGroupId] = useState<string | null>(null)
+  const deletingAgentGroupIdRef = useRef<string | null>(null)
   const [deletingWorkspaceGroupId, setDeletingWorkspaceGroupId] = useState<string | null>(null)
   const [renamingWorkspaceGroup, setRenamingWorkspaceGroup] = useState<{
     name: string
@@ -413,6 +421,16 @@ const Sessions = ({
     () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
     [pinIdBySessionId, sessions]
   )
+  const sessionItemsRef = useRef(sessionItems)
+  const activeSessionIdRef = useRef(activeSessionId)
+
+  useEffect(() => {
+    sessionItemsRef.current = sessionItems
+  }, [sessionItems])
+
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId
+  }, [activeSessionId])
 
   const { updateSession } = useUpdateSession()
 
@@ -664,6 +682,9 @@ const Sessions = ({
   const { trigger: deleteWorkspace } = useMutation('DELETE', '/workspaces/:workspaceId', {
     refresh: ['/sessions', '/workspaces', '/pins', '/channels']
   })
+  const { trigger: deleteAgentSessions } = useMutation('POST', '/agents/:agentId/sessions:delete', {
+    refresh: ['/sessions', '/workspaces', '/pins', '/channels']
+  })
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
 
@@ -712,6 +733,54 @@ const Sessions = ({
       await refetchWorkspaces()
     }
   }, [displayMode, refetchWorkspaces, reload])
+
+  const handleDeleteAgentSessions = useCallback(
+    async (agentId: string) => {
+      if (deletingAgentGroupIdRef.current) return
+
+      const sessionIds = sessionItemsRef.current
+        .filter((session) => session.agentId === agentId)
+        .map((session) => session.id)
+      if (sessionIds.length === 0) return
+
+      deletingAgentGroupIdRef.current = agentId
+      setDeletingAgentGroupId(agentId)
+
+      try {
+        const confirmed = await window.modal.confirm({
+          title: t('agent.session.agent.delete.title'),
+          content: t('agent.session.agent.delete.content'),
+          okText: t('common.delete'),
+          cancelText: t('common.cancel'),
+          centered: true,
+          okButtonProps: {
+            danger: true
+          }
+        })
+        if (!confirmed) return
+
+        const result = await deleteAgentSessions({ params: { agentId } })
+        const affectedSessionIds = new Set(result.deletedIds)
+        const currentActiveSessionId = activeSessionIdRef.current
+
+        if (currentActiveSessionId && affectedSessionIds.has(currentActiveSessionId)) {
+          const remaining = sessionItemsRef.current.find((session) => !affectedSessionIds.has(session.id))
+          setActiveSessionId(remaining?.id ?? null)
+        }
+
+        await reload()
+        await refetchWorkspaces()
+        window.toast.success(t('common.delete_success'))
+      } catch (err) {
+        logger.error('Failed to delete agent sessions', { agentId, err, sessionIds })
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.agent.delete.error.failed')))
+      } finally {
+        deletingAgentGroupIdRef.current = null
+        setDeletingAgentGroupId(null)
+      }
+    },
+    [deleteAgentSessions, refetchWorkspaces, reload, setActiveSessionId, t]
+  )
 
   const handleDeleteWorkdirGroup = useCallback(
     async (group: ResourceListGroup) => {
@@ -1067,6 +1136,7 @@ const Sessions = ({
       const createSessionSeed = getCreateSessionSeedForGroup(group.id)
       const canCreateSession = createSessionSeed !== null && agentById.has(createSessionSeed.agentId)
       const canManageAgentGroup = !!agentGroupId && agentById.has(agentGroupId)
+      const hasAgentSessions = !!agentGroupId && sessionItems.some((session) => session.agentId === agentGroupId)
 
       if (!canCreateSession && !workdirPath && !canManageAgentGroup) return null
 
@@ -1076,8 +1146,10 @@ const Sessions = ({
             <Tooltip title={t('common.more')} delay={500}>
               <AgentGroupMoreMenu
                 agentId={agentGroupId}
+                deleteSessionsDisabled={!!deletingAgentGroupId || !hasAgentSessions}
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
+                onDeleteSessions={handleDeleteAgentSessions}
                 onEdit={openAgentEditor}
                 onTogglePin={handleToggleAgentPin}
               />
@@ -1120,9 +1192,11 @@ const Sessions = ({
       agentPinnedIdSet,
       createSessionFromSeed,
       creatingSession,
+      deletingAgentGroupId,
       deletingWorkspaceGroupId,
       displayMode,
       getCreateSessionSeedForGroup,
+      handleDeleteAgentSessions,
       handleToggleAgentPin,
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
@@ -1130,6 +1204,7 @@ const Sessions = ({
       isAgentPinActionDisabled,
       isUpdatingWorkspace,
       openAgentEditor,
+      sessionItems,
       t,
       workdirDisplay
     ]
@@ -1225,6 +1300,9 @@ const Sessions = ({
 
         const actionContext: AgentGroupActionContext = {
           agentId,
+          deleteSessionsDisabled:
+            !!deletingAgentGroupId || !sessionItems.some((session) => session.agentId === agentId),
+          onDeleteSessions: handleDeleteAgentSessions,
           onEdit: openAgentEditor,
           onTogglePin: handleToggleAgentPin,
           pinDisabled: isAgentPinActionDisabled,
@@ -1274,8 +1352,10 @@ const Sessions = ({
     [
       agentById,
       agentPinnedIdSet,
+      deletingAgentGroupId,
       deletingWorkspaceGroupId,
       displayMode,
+      handleDeleteAgentSessions,
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,
@@ -1283,6 +1363,7 @@ const Sessions = ({
       isAgentPinActionDisabled,
       isUpdatingWorkspace,
       openAgentEditor,
+      sessionItems,
       t,
       workdirDisplay
     ]

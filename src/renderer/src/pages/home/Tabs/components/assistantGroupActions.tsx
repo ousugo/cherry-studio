@@ -5,6 +5,7 @@ import { Edit3, PinIcon, PinOffIcon, Trash2 } from 'lucide-react'
 
 export interface AssistantGroupActionContext {
   assistantId: string
+  deleteTopicsDisabled?: boolean
   disabled?: boolean
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
   onEdit: (assistantId: string) => void
@@ -32,6 +33,7 @@ assistantGroupActionRegistry.registerCommand({
 
 assistantGroupActionRegistry.registerCommand({
   id: 'assistant-group.delete-topics',
+  availability: ({ deleteTopicsDisabled }) => ({ enabled: !deleteTopicsDisabled }),
   run: ({ assistantId, onDeleteAllTopics }) => onDeleteAllTopics(assistantId)
 })
 

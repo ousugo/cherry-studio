@@ -311,6 +311,139 @@ describe('TopicService', () => {
 
       expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
     })
+
+    it('deletes active topics for one assistant without deleting the assistant', async () => {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'asst-1',
+          name: 'A',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'asst-2',
+          name: 'B',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-a', name: 'A', assistantId: 'asst-1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'topic-b', name: 'B', assistantId: 'asst-1', orderKey: 'a1', createdAt: 1, updatedAt: 1 },
+        { id: 'topic-other', name: 'Other', assistantId: 'asst-2', orderKey: 'a2', createdAt: 1, updatedAt: 1 },
+        {
+          id: 'topic-soft-deleted',
+          name: 'Soft deleted',
+          assistantId: 'asst-1',
+          orderKey: 'a3',
+          deletedAt: 999,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+      await dbh.db.insert(messageTable).values([
+        {
+          topicId: 'topic-a',
+          role: 'user',
+          data: { parts: [] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          topicId: 'topic-other',
+          role: 'user',
+          data: { parts: [] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+      await dbh.db.insert(tagTable).values({ id: 'tag-1', name: 'work', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'topic',
+        entityId: 'topic-a',
+        tagId: 'tag-1',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db
+        .insert(pinTable)
+        .values({ id: 'pin-1', entityType: 'topic', entityId: 'topic-b', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+
+      const result = await topicService.deleteByAssistantId('asst-1')
+
+      expect(result).toEqual({ deletedIds: expect.arrayContaining(['topic-a', 'topic-b']), deletedCount: 2 })
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(2)
+      const remainingTopics = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.id))
+      expect(remainingTopics.map((row) => row.id)).toEqual(['topic-other', 'topic-soft-deleted'])
+      const remainingMessages = await dbh.db.select({ topicId: messageTable.topicId }).from(messageTable)
+      expect(remainingMessages.map((row) => row.topicId)).toEqual(['topic-other'])
+      expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
+    })
+
+    it('returns an empty result for an active assistant with no topics', async () => {
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-empty',
+        name: 'Empty',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      await expect(topicService.deleteByAssistantId('asst-empty')).resolves.toEqual({
+        deletedIds: [],
+        deletedCount: 0
+      })
+    })
+
+    it('throws not found when deleting topics for a missing assistant', async () => {
+      await expect(topicService.deleteByAssistantId('missing-assistant')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('throws not found when deleting topics for a soft-deleted assistant', async () => {
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-soft-deleted',
+        name: 'Soft Deleted',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0',
+        deletedAt: 1,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-soft-assistant',
+        name: 'Should remain',
+        assistantId: 'asst-soft-deleted',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      await expect(topicService.deleteByAssistantId('asst-soft-deleted')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+
+      const [topic] = await dbh.db
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(eq(topicTable.id, 'topic-soft-assistant'))
+      expect(topic).toEqual({ id: 'topic-soft-assistant' })
+    })
   })
 
   describe('reorder', () => {

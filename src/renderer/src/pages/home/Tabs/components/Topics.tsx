@@ -227,6 +227,7 @@ function TopicListOptionsMenu({
 
 function AssistantGroupMoreMenu({
   assistantId,
+  deleteTopicsDisabled,
   disabled,
   pinned,
   onDeleteAllTopics,
@@ -234,6 +235,7 @@ function AssistantGroupMoreMenu({
   onTogglePin
 }: {
   assistantId: string
+  deleteTopicsDisabled?: boolean
   disabled?: boolean
   pinned: boolean
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
@@ -243,6 +245,7 @@ function AssistantGroupMoreMenu({
   const { t } = useTranslation()
   const actionContext: AssistantGroupActionContext = {
     assistantId,
+    deleteTopicsDisabled,
     disabled,
     onDeleteAllTopics,
     onEdit,
@@ -277,7 +280,12 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   const tabs = useOptionalTabsContext()
   const [groupNow] = useState(() => dayjs())
   const { notesPath } = useNotesSettings()
-  const { updateTopic: patchTopic, deleteTopic: deleteTopicById, refreshTopics } = useTopicMutations()
+  const {
+    updateTopic: patchTopic,
+    deleteTopic: deleteTopicById,
+    deleteTopicsByAssistantId,
+    refreshTopics
+  } = useTopicMutations()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [collapsedTopicGroupIds, setCollapsedTopicGroupIds] = usePreference('topic.tab.collapsed_group_ids')
   const [renamingTopics] = useCache('topic.renaming')
@@ -330,6 +338,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   const listRef = useRef<HTMLDivElement>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
+  const [deletingAssistantGroupId, setDeletingAssistantGroupId] = useState<string | null>(null)
+  const deletingAssistantGroupIdRef = useRef<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
   const apiBackedTopics = useMemo(
@@ -352,6 +362,16 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     [apiBackedTopics]
   )
   const topics = apiBackedTopics
+  const topicsRef = useRef(topics)
+  const activeTopicIdRef = useRef(activeTopic.id)
+
+  useEffect(() => {
+    topicsRef.current = topics
+  }, [topics])
+
+  useEffect(() => {
+    activeTopicIdRef.current = activeTopic.id
+  }, [activeTopic.id])
 
   useEffect(() => {
     setOptimisticMove(null)
@@ -676,56 +696,63 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
 
   const handleDeleteAssistantTopics = useCallback(
     async (assistantId: string) => {
-      const targetTopics = topics.filter((topic) => topic.assistantId === assistantId)
+      if (deletingAssistantGroupIdRef.current) return
+
+      const targetTopics = topicsRef.current.filter((topic) => topic.assistantId === assistantId)
       if (targetTopics.length === 0) return
 
       const targetTopicIds = new Set(targetTopics.map((topic) => topic.id))
-      const remainingTopics = topics.filter((topic) => !targetTopicIds.has(topic.id))
+      const remainingTopics = topicsRef.current.filter((topic) => !targetTopicIds.has(topic.id))
       if (remainingTopics.length === 0) {
         window.toast.error(t('chat.topics.manage.error.at_least_one'))
         return
       }
 
-      const confirmed = await window.modal.confirm({
-        title: t('assistants.clear.title'),
-        content: t('assistants.clear.content'),
-        okText: t('common.delete'),
-        cancelText: t('common.cancel'),
-        centered: true,
-        okButtonProps: {
-          danger: true
-        }
-      })
-      if (!confirmed) return
+      deletingAssistantGroupIdRef.current = assistantId
+      setDeletingAssistantGroupId(assistantId)
 
-      const results = await Promise.allSettled(targetTopics.map((topic) => removeTopic(topic).then(() => topic.id)))
-      const successfulIds = new Set(
-        results
-          .filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled')
-          .map((result) => result.value)
-      )
+      try {
+        const confirmed = await window.modal.confirm({
+          title: t('assistants.clear.title'),
+          content: t('assistants.clear.content'),
+          okText: t('common.delete'),
+          cancelText: t('common.cancel'),
+          centered: true,
+          okButtonProps: {
+            danger: true
+          }
+        })
+        if (!confirmed) return
 
-      const actualRemainingTopics = topics.filter((topic) => !successfulIds.has(topic.id))
-      if (successfulIds.has(activeTopic.id) && actualRemainingTopics.length > 0) {
-        setActiveTopic(actualRemainingTopics[0])
-      }
-
-      if (successfulIds.size === targetTopics.length) {
-        window.toast.success(t('chat.topics.manage.delete.success', { count: successfulIds.size }))
-      } else if (successfulIds.size > 0) {
-        window.toast.warning(
-          t('chat.topics.manage.delete.partial_success', {
-            failedCount: targetTopics.length - successfulIds.size,
-            successCount: successfulIds.size
-          })
+        const latestTargetTopicIds = new Set(
+          topicsRef.current.filter((topic) => topic.assistantId === assistantId).map((topic) => topic.id)
         )
-      } else {
-        window.toast.error(t('chat.topics.manage.delete.error'))
-      }
+        if (latestTargetTopicIds.size === 0) return
 
-      await refreshTopics()
+        const latestRemainingTopics = topicsRef.current.filter((topic) => !latestTargetTopicIds.has(topic.id))
+        if (latestRemainingTopics.length === 0) {
+          window.toast.error(t('chat.topics.manage.error.at_least_one'))
+          return
+        }
+
+        const result = await deleteTopicsByAssistantId(assistantId)
+        const successfulIds = new Set(result.deletedIds)
+        const actualRemainingTopics = topicsRef.current.filter((topic) => !successfulIds.has(topic.id))
+        if (successfulIds.has(activeTopicIdRef.current) && actualRemainingTopics.length > 0) {
+          setActiveTopic(actualRemainingTopics[0])
+        }
+
+        window.toast.success(t('chat.topics.manage.delete.success', { count: result.deletedCount }))
+        await refreshTopics()
+      } catch (err) {
+        logger.error('Failed to delete assistant topics', { assistantId, err })
+        window.toast.error(t('chat.topics.manage.delete.error'))
+      } finally {
+        deletingAssistantGroupIdRef.current = null
+        setDeletingAssistantGroupId(null)
+      }
     },
-    [activeTopic.id, refreshTopics, removeTopic, setActiveTopic, t, topics]
+    [deleteTopicsByAssistantId, refreshTopics, setActiveTopic, t]
   )
 
   const getGroupHeaderAction = useCallback(
@@ -753,6 +780,9 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
             <Tooltip title={t('common.more')} delay={500}>
               <AssistantGroupMoreMenu
                 assistantId={assistantGroupId}
+                deleteTopicsDisabled={
+                  deletingAssistantGroupId !== null || !topics.some((topic) => topic.assistantId === assistantGroupId)
+                }
                 disabled={isAssistantPinActionDisabled}
                 pinned={assistantPinnedIdSet.has(assistantGroupId)}
                 onDeleteAllTopics={handleDeleteAssistantTopics}
@@ -780,6 +810,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     [
       assistantById,
       assistantPinnedIdSet,
+      deletingAssistantGroupId,
       displayMode,
       getCreateTopicPayloadForGroup,
       handleDeleteAssistantTopics,
@@ -787,7 +818,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       isAssistantPinActionDisabled,
       onNewTopic,
       openAssistantEditor,
-      t
+      t,
+      topics
     ]
   )
 
@@ -815,6 +847,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
 
       const actionContext: AssistantGroupActionContext = {
         assistantId,
+        deleteTopicsDisabled:
+          deletingAssistantGroupId !== null || !topics.some((topic) => topic.assistantId === assistantId),
         disabled: isAssistantPinActionDisabled,
         onDeleteAllTopics: handleDeleteAssistantTopics,
         onEdit: openAssistantEditor,
@@ -836,12 +870,14 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     [
       assistantById,
       assistantPinnedIdSet,
+      deletingAssistantGroupId,
       displayMode,
       handleDeleteAssistantTopics,
       handleToggleAssistantPin,
       isAssistantPinActionDisabled,
       openAssistantEditor,
-      t
+      t,
+      topics
     ]
   )
 

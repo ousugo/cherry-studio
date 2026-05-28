@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 const virtualMocks = vi.hoisted(() => ({
   useVirtualizer: vi.fn((options: { count: number; estimateSize: (index: number) => number }) => ({
@@ -107,6 +107,7 @@ vi.mock('@renderer/pages/library/dialogs', () => ({
 }))
 
 const topicDataMocks = vi.hoisted(() => ({
+  deleteTopicsByAssistantId: vi.fn().mockResolvedValue({ deletedIds: [] as string[], deletedCount: 0 }),
   deleteTopic: vi.fn().mockResolvedValue(undefined),
   refreshTopics: vi.fn().mockResolvedValue(undefined),
   updateTopic: vi.fn().mockResolvedValue(undefined)
@@ -132,6 +133,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
     useTopicMutations: () => ({
       updateTopic: topicDataMocks.updateTopic,
       deleteTopic: topicDataMocks.deleteTopic,
+      deleteTopicsByAssistantId: topicDataMocks.deleteTopicsByAssistantId,
       refreshTopics: topicDataMocks.refreshTopics
     })
   }
@@ -367,6 +369,8 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
   }
 }
 
+type OnNewTopicMock = Mock<(payload?: { assistantId?: string | null }) => void>
+
 function renderTopicList({
   activeTopic = createRendererTopic(),
   onNewTopic = vi.fn(),
@@ -374,7 +378,7 @@ function renderTopicList({
   revealRequest
 }: {
   activeTopic?: Topic
-  onNewTopic?: (payload?: { assistantId?: string | null }) => void
+  onNewTopic?: OnNewTopicMock
   onOpenHistory?: () => void
   revealRequest?: ResourceListRevealRequest
 } = {}) {
@@ -476,6 +480,7 @@ describe('Topics', () => {
     })
     pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
     pinMutationMocks.deletePin.mockResolvedValue(undefined)
+    topicDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
     tabsContextMocks.openTab.mockClear()
     mockUseMutation.mockImplementation((method, path) => {
       if (method === 'POST' && path === '/pins') {
@@ -1577,6 +1582,10 @@ describe('Topics', () => {
       name: 'Delete all assistant chats'
     })
     expect(deleteAssistantChatsButton.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
+    topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
+      deletedIds: ['topic-a', 'topic-b'],
+      deletedCount: 2
+    })
     fireEvent.click(deleteAssistantChatsButton)
 
     await vi.waitFor(() =>
@@ -1587,17 +1596,58 @@ describe('Topics', () => {
         })
       )
     )
-    await vi.waitFor(() => {
-      expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a')
-      expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-b')
-    })
-    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalledWith('topic-c')
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
+    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
     expect(onNewTopic).not.toHaveBeenCalled()
 
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+  })
+
+  it('blocks concurrent assistant group delete confirmations', async () => {
+    let resolveConfirm!: (value: boolean) => void
+    const confirmPromise = new Promise<boolean>((resolve) => {
+      resolveConfirm = resolve
+    })
+    const confirm = vi.fn().mockReturnValue(confirmPromise)
+    Object.assign(window, {
+      modal: { confirm }
+    })
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
+      deletedIds: ['topic-a', 'topic-b'],
+      deletedCount: 2
+    })
+
+    renderTopicList()
+
+    const alphaHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    const betaHeader = screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')
+    expect(alphaHeader).toBeInTheDocument()
+    expect(betaHeader).toBeInTheDocument()
+    fireEvent.click(within(alphaHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(within(alphaHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant chats' }))
+
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    fireEvent.click(within(betaHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    const betaDeleteButton = within(betaHeader as HTMLElement).getByRole('button', {
+      name: 'Delete all assistant chats'
+    })
+    await vi.waitFor(() => expect(betaDeleteButton).toBeDisabled())
+    fireEvent.click(betaDeleteButton)
+
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(topicDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveConfirm(true)
+      await confirmPromise
+    })
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledTimes(1))
+    expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1')
   })
 
   it('selects the first topic from an assistant group before toggling that selected group', () => {
@@ -1692,6 +1742,7 @@ describe('Topics', () => {
     expect(window.toast.error).toHaveBeenCalledWith('At least one topic must be kept')
     expect(window.modal.confirm).not.toHaveBeenCalled()
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
+    expect(topicDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
     expect(topicDataMocks.refreshTopics).not.toHaveBeenCalled()
   })
 

@@ -425,6 +425,16 @@
       "add": {
         "title": "Добавить сеанс"
       },
+      "agent": {
+        "delete": {
+          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete agent chats"
+          },
+          "title": "[to be translated]:Delete agent chats",
+          "trigger": "[to be translated]:Delete agent chats"
+        }
+      },
       "allowed_tools": {
         "empty": "Для этого агента нет доступных инструментов.",
         "helper": "Выберите инструменты с предварительным допуском. Неотмеченные инструменты потребуют подтверждения перед использованием.",

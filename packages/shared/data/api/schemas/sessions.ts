@@ -160,6 +160,11 @@ export const ListSessionsQuerySchema = z.strictObject({
 export type ListSessionsQueryParams = z.input<typeof ListSessionsQuerySchema>
 export type ListSessionsQuery = z.output<typeof ListSessionsQuerySchema>
 
+export interface DeleteSessionsResult {
+  deletedIds: string[]
+  deletedCount: number
+}
+
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -211,6 +216,20 @@ export type SessionSchemas = {
     DELETE: {
       params: { sessionId: string; messageId: string }
       response: void
+    }
+  }
+
+  /**
+   * Delete all sessions currently linked to an agent.
+   *
+   * This is an explicit group action. It does not change
+   * `DELETE /agents/:agentId`, which deletes only the agent entity and leaves
+   * sessions detached by FK.
+   */
+  '/agents/:agentId/sessions:delete': {
+    POST: {
+      params: { agentId: string }
+      response: DeleteSessionsResult
     }
   }
 } & OrderEndpoints<'/sessions'>

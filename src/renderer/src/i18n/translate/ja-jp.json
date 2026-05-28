@@ -425,6 +425,16 @@
       "add": {
         "title": "セッションを追加"
       },
+      "agent": {
+        "delete": {
+          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete agent chats"
+          },
+          "title": "[to be translated]:Delete agent chats",
+          "trigger": "[to be translated]:Delete agent chats"
+        }
+      },
       "allowed_tools": {
         "empty": "このエージェントが利用できるツールはありません。",
         "helper": "事前承認済みのツールを選択します。未選択のツールは使用時に承認が必要になります。",

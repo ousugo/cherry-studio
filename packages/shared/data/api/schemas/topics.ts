@@ -89,6 +89,11 @@ export interface ActiveNodeResponse {
   activeNodeId: string
 }
 
+export interface DeleteTopicsResult {
+  deletedIds: string[]
+  deletedCount: number
+}
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -164,6 +169,19 @@ export type TopicSchemas = {
       params: { id: string }
       body: SetActiveNodeDto
       response: ActiveNodeResponse
+    }
+  }
+
+  /**
+   * Delete all topics currently linked to an assistant.
+   *
+   * This is an explicit group action. It does not change
+   * `DELETE /assistants/:id`, which only deletes the assistant itself.
+   */
+  '/assistants/:assistantId/topics:delete': {
+    POST: {
+      params: { assistantId: string }
+      response: DeleteTopicsResult
     }
   }
 } & OrderEndpoints<'/topics'>

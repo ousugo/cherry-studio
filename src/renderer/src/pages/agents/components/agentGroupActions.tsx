@@ -1,11 +1,13 @@
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { TFunction } from 'i18next'
-import { Pin, PinOff, SquarePen } from 'lucide-react'
+import { Pin, PinOff, SquarePen, Trash2 } from 'lucide-react'
 
 export interface AgentGroupActionContext {
   agentId: string
+  deleteSessionsDisabled?: boolean
   onEdit: (agentId: string) => void
+  onDeleteSessions: (agentId: string) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
   pinDisabled?: boolean
   pinned: boolean
@@ -29,6 +31,12 @@ agentGroupActionRegistry.registerCommand({
   run: ({ agentId, onTogglePin }) => onTogglePin(agentId)
 })
 
+agentGroupActionRegistry.registerCommand({
+  id: 'agent-group.delete-sessions',
+  availability: ({ deleteSessionsDisabled }) => ({ enabled: !deleteSessionsDisabled }),
+  run: ({ agentId, onDeleteSessions }) => onDeleteSessions(agentId)
+})
+
 agentGroupActionRegistry.registerAction({
   id: 'agent-group.edit',
   commandId: 'agent-group.edit',
@@ -45,6 +53,17 @@ agentGroupActionRegistry.registerAction({
   icon: ({ pinned }) => (pinned ? <PinOff size={14} /> : <Pin size={14} />),
   order: 20,
   surface: 'menu'
+})
+
+agentGroupActionRegistry.registerAction({
+  id: 'agent-group.delete-sessions',
+  commandId: 'agent-group.delete-sessions',
+  label: ({ t }) => t('agent.session.agent.delete.trigger'),
+  icon: () => <Trash2 size={14} className="lucide-custom text-destructive" />,
+  group: 'danger',
+  order: 30,
+  surface: 'menu',
+  danger: true
 })
 
 export function resolveAgentGroupActions(context: AgentGroupActionContext): AgentGroupAction[] {

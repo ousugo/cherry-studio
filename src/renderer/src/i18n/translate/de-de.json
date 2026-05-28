@@ -425,6 +425,16 @@
       "add": {
         "title": "Sitzung hinzufügen"
       },
+      "agent": {
+        "delete": {
+          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete agent chats"
+          },
+          "title": "[to be translated]:Delete agent chats",
+          "trigger": "[to be translated]:Delete agent chats"
+        }
+      },
       "allowed_tools": {
         "empty": "Für diesen Agent sind derzeit keine Tools verfügbar.",
         "helper": "Wählen Sie vorab autorisierte Tools aus. Nicht ausgewählte Tools erfordern bei der Verwendung eine manuelle Genehmigung.",
