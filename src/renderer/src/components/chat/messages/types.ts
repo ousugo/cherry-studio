@@ -59,6 +59,7 @@ export interface MessageActivityState {
 export interface MessageEditorCapabilities {
   canAddImageFile: boolean
   canAddTextFile: boolean
+  canForkAndResend?: boolean
 }
 
 export interface MessageEditorPasteInput {

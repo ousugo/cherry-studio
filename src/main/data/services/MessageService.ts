@@ -355,7 +355,10 @@ export class MessageService {
         .select()
         .from(messageTable)
         .where(and(inArray(messageTable.id, missingActivePathIds), isNull(messageTable.deletedAt)))
-      treeRows.push(...additionalRows.map((r) => ({ ...r, treeDepth: maxDepth + 1 })))
+      for (const row of additionalRows) {
+        treeRows.push({ ...row, treeDepth: maxDepth + 1 })
+        treeNodeIds.add(row.id)
+      }
     }
 
     // Also need children of active path nodes for proper tree building
@@ -430,20 +433,21 @@ export class MessageService {
       const hasChildren = children.length > 0
 
       // Check if this message is part of a siblings group
-      if (message.siblingsGroupId !== 0) {
+      if (message.siblingsGroupId !== 0 && message.parentId !== null) {
         const groupKey = `${message.parentId}-${message.siblingsGroupId}`
         if (!visitedGroups.has(groupKey)) {
           visitedGroups.add(groupKey)
 
           // Find all siblings in this group
-          const parentChildren = childrenMap.get(message.parentId || 'root') || []
+          const parentChildren = childrenMap.get(message.parentId) || []
           const groupMembers = parentChildren
             .map((id) => messagesById.get(id)!)
             .filter((m) => m && m.siblingsGroupId === message.siblingsGroupId)
+            .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
 
           if (groupMembers.length > 1) {
             siblingsGroups.push({
-              parentId: message.parentId!,
+              parentId: message.parentId,
               siblingsGroupId: message.siblingsGroupId,
               nodes: groupMembers.map((m) => {
                 const memberChildren = childrenMap.get(m.id) || []
@@ -573,15 +577,13 @@ export class MessageService {
 
     if (includeSiblings) {
       // Collect unique (parentId, siblingsGroupId) pairs that need siblings.
-      // `parentId` may be null for root siblings (multi-root branches created
-      // by forking the first user message), so `null` is a valid group key.
+      // Root messages are not valid sibling sources because topics are single-root.
       const uniqueGroups = new Set<string>()
-      const groupsToQuery: Array<{ parentId: string | null; siblingsGroupId: number }> = []
-      const groupKeyFor = (parentId: string | null, siblingsGroupId: number) =>
-        `${parentId ?? '__root__'}-${siblingsGroupId}`
+      const groupsToQuery: Array<{ parentId: string; siblingsGroupId: number }> = []
+      const groupKeyFor = (parentId: string, siblingsGroupId: number) => `${parentId}-${siblingsGroupId}`
 
       for (const msg of paginatedPath) {
-        if (msg.siblingsGroupId && msg.siblingsGroupId !== 0) {
+        if (msg.siblingsGroupId && msg.siblingsGroupId !== 0 && msg.parentId !== null) {
           const key = groupKeyFor(msg.parentId, msg.siblingsGroupId)
           if (!uniqueGroups.has(key)) {
             uniqueGroups.add(key)
@@ -594,12 +596,8 @@ export class MessageService {
       const siblingsMap = new Map<string, Message[]>()
 
       if (groupsToQuery.length > 0) {
-        // `eq(col, null)` never matches in SQL — use `isNull` for root siblings.
         const orConditions = groupsToQuery.map((g) =>
-          and(
-            g.parentId === null ? isNull(messageTable.parentId) : eq(messageTable.parentId, g.parentId),
-            eq(messageTable.siblingsGroupId, g.siblingsGroupId)
-          )
+          and(eq(messageTable.parentId, g.parentId), eq(messageTable.siblingsGroupId, g.siblingsGroupId))
         )
 
         const siblingsRows = await db
@@ -608,6 +606,7 @@ export class MessageService {
           .where(and(isNull(messageTable.deletedAt), or(...orConditions)))
 
         for (const row of siblingsRows) {
+          if (row.parentId === null) continue
           const key = groupKeyFor(row.parentId, row.siblingsGroupId ?? 0)
           if (!siblingsMap.has(key)) siblingsMap.set(key, [])
           siblingsMap.get(key)!.push(rowToMessage(row))
@@ -619,7 +618,7 @@ export class MessageService {
         const message = rowToMessage(msg)
         let siblingsGroup: Message[] | undefined
 
-        if (msg.siblingsGroupId != null && msg.siblingsGroupId !== 0) {
+        if (msg.siblingsGroupId != null && msg.siblingsGroupId !== 0 && msg.parentId !== null) {
           const key = groupKeyFor(msg.parentId, msg.siblingsGroupId)
           const group = siblingsMap.get(key)
           if (group && group.length > 1) {
@@ -790,18 +789,21 @@ export class MessageService {
    *   still ungrouped (`= 0`); otherwise joins the source's existing group.
    * - The new message inherits the source's `role` and `topicId`, hangs off
    *   the same `parentId`, and always becomes the topic's active node.
-   * - Root messages (`parentId = null`) are allowed: the single-root rule in
-   *   `create()` exists for plain creation ergonomics, but a topic can carry
-   *   multiple roots as long as they share a `siblingsGroupId`. This is how
-   *   we let the user branch the *first* user message.
+   * - Edited user siblings are already complete (`success`); assistant siblings
+   *   stay `pending` until their response stream resolves.
+   * - Root messages (`parentId = null`) cannot create siblings because topics
+   *   keep a single-root tree.
    */
   async createSibling(sourceId: string, data: MessageData): Promise<Message> {
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
 
-    return await db.transaction(async (tx) => {
+    return await dbService.withWriteTx(async (tx) => {
       const [source] = await tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1)
       if (!source) {
         throw DataApiErrorFactory.notFound('Message', sourceId)
+      }
+      if (source.parentId === null) {
+        throw DataApiErrorFactory.invalidOperation('create sibling message', 'Root message cannot be resent')
       }
 
       let siblingsGroupId = source.siblingsGroupId ?? 0
@@ -817,7 +819,7 @@ export class MessageService {
           parentId: source.parentId,
           role: source.role,
           data,
-          status: 'pending',
+          status: source.role === 'user' ? 'success' : 'pending',
           siblingsGroupId
         })
         .returning()

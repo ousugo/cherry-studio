@@ -8,6 +8,7 @@ import { DataApiError } from '@shared/data/api'
 import type { MessageData } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -516,6 +517,88 @@ describe('MessageService', () => {
       const result = await messageService.getTree('topic-preview', { depth: -1 })
 
       expect(result.nodes.find((node) => node.id === 'm-preview')?.preview).toContain('v2 parts payload')
+    })
+  })
+
+  describe('createSibling', () => {
+    it('rejects root message siblings to preserve the single-root topic tree', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-root-sibling', activeNodeId: 'u-root', orderKey: 's0' })
+      await dbh.db.insert(messageTable).values({
+        id: 'u-root',
+        topicId: 'topic-root-sibling',
+        parentId: null,
+        role: 'user',
+        data: mainText('root prompt'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      })
+
+      const beforeWriteTx = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
+
+      await expect(messageService.createSibling('u-root', mainText('edited root prompt'))).rejects.toBeInstanceOf(
+        DataApiError
+      )
+
+      const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-root-sibling'))
+      expect(messages).toHaveLength(1)
+      expect(messages[0].siblingsGroupId).toBe(0)
+
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-root-sibling')).limit(1)
+      expect(topic.activeNodeId).toBe('u-root')
+      expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx).toBe(beforeWriteTx + 1)
+    })
+
+    it('marks edited non-root user siblings as success so branch flow does not show the user node as loading', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-sibling-status', activeNodeId: 'u-follow', orderKey: 's0' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'u-root',
+          topicId: 'topic-sibling-status',
+          parentId: null,
+          role: 'user',
+          data: mainText('original prompt'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'a-root',
+          topicId: 'topic-sibling-status',
+          parentId: 'u-root',
+          role: 'assistant',
+          data: mainText('original answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'u-follow',
+          topicId: 'topic-sibling-status',
+          parentId: 'a-root',
+          role: 'user',
+          data: mainText('follow up'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const beforeWriteTx = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
+
+      const sibling = await messageService.createSibling('u-follow', mainText('edited follow up'))
+
+      expect(sibling.role).toBe('user')
+      expect(sibling.parentId).toBe('a-root')
+      expect(sibling.status).toBe('success')
+      expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx).toBe(beforeWriteTx + 1)
+
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-sibling-status')).limit(1)
+      expect(topic.activeNodeId).toBe(sibling.id)
     })
   })
 
