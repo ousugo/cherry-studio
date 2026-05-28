@@ -78,7 +78,7 @@ export const SelectedModelsTrigger = ({
 }: SelectedModelsTriggerProps & { ref?: React.RefObject<HTMLButtonElement | null> }) => {
   const { t } = useTranslation()
   const [popoverOpen, setPopoverOpen] = useState(false)
-  const closeTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const closeTimerRef = useRef<number | null>(null)
   const singleModel = models.length === 1 ? models[0] : undefined
   const singleProviderName = singleModel ? getProviderName(singleModel, providers) : undefined
   const singleModelLabel = singleModel

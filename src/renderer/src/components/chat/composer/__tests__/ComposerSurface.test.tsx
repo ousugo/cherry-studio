@@ -32,11 +32,16 @@ vi.mock('@cherrystudio/ui', () => ({
     size: _size,
     variant: _variant,
     ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
+  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => {
+    void _size
+    void _variant
+
+    return (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    )
+  },
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -689,6 +694,20 @@ describe('ComposerSurface', () => {
     expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
     expect(onSendDraft).not.toHaveBeenCalled()
+  })
+
+  it('lets the visible QuickPanel handle Tab before prompt-variable navigation', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelDispatchKeyDown.mockReturnValue(true)
+
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Tab' })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
+    expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+    expect(mocks.setNodeSelection).not.toHaveBeenCalled()
   })
 
   it('keeps the QuickPanel root as the parent when opening child panels from slash', async () => {

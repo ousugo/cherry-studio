@@ -137,7 +137,7 @@ export function QuickPanelFooter({
           </Flex>
         ) : null}
 
-        <Flex className="items-center gap-1">↩︎ {confirmLabel ?? t('settings.quickPanel.confirm')}</Flex>
+        <Flex className="items-center gap-1">Tab/↩︎ {confirmLabel ?? t('settings.quickPanel.confirm')}</Flex>
       </div>
     </div>
   )

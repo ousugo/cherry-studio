@@ -547,6 +547,23 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           handleItemAction(list[activeIndex], 'enter')
           return true
 
+        case 'Tab': {
+          const isComposing = 'nativeEvent' in e ? e.nativeEvent.isComposing : e.isComposing
+          if (isComposing || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return false
+
+          e.preventDefault()
+          e.stopPropagation()
+          setIsMouseOver(false)
+
+          const hasSearch = activeSearchText.length > 0
+          const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
+          const isCollapsed = hasSearch && nonPinnedCount === 0
+          if (!isCollapsed && list?.[activeIndex]) {
+            handleItemAction(list[activeIndex], 'enter')
+          }
+          return true
+        }
+
         case 'Enter':
         case 'NumpadEnter': {
           const isComposing = 'nativeEvent' in e ? e.nativeEvent.isComposing : e.isComposing
