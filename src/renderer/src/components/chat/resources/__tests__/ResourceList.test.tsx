@@ -1440,6 +1440,68 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
   })
 
+  it('collapses groups in a section without collapsing the section', () => {
+    const Provider = ResourceList.Provider<TestItem & { groupId: string }>
+    const items = [
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `alpha-${index + 1}`,
+        name: `Alpha ${index + 1}`,
+        kind: 'topic' as const,
+        updatedAt: index,
+        groupId: 'alpha'
+      })),
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `beta-${index + 1}`,
+        name: `Beta ${index + 1}`,
+        kind: 'topic' as const,
+        updatedAt: index,
+        groupId: 'beta'
+      }))
+    ]
+
+    render(
+      <Provider
+        items={items}
+        groupBy={(item) => ({
+          id: item.groupId,
+          label: item.groupId === 'alpha' ? 'Alpha' : 'Beta'
+        })}
+        sectionBy={() => ({ id: 'assistants', label: 'Assistants' })}
+        getSectionHeaderAction={(section) => (
+          <ResourceList.SectionCollapseActionButton alwaysVisible sectionId={section.id} label="Collapse display" />
+        )}
+        defaultGroupVisibleCount={5}
+        groupShowMoreLabel="Show more"
+        groupCollapseLabel="Collapse">
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem & { groupId: string }>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const sectionHeader = screen.getByRole('button', { name: 'Assistants' }).closest('div')
+    expect(sectionHeader).not.toBeNull()
+
+    expect(screen.getByText('Alpha 1')).toBeInTheDocument()
+    expect(screen.getByText('Beta 1')).toBeInTheDocument()
+
+    fireEvent.click(within(sectionHeader as HTMLElement).getByRole('button', { name: 'Collapse display' }))
+
+    expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Alpha' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Beta' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha 1')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta 1')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
+    expect(within(sectionHeader as HTMLElement).getByRole('button', { name: 'Collapse display' })).toBeDisabled()
+  })
+
   it('collapses grouped rows without showing group counts', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 6 }, (_, index) => ({

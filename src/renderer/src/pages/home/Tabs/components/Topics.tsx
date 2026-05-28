@@ -808,6 +808,21 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     ]
   )
 
+  const getSectionHeaderAction = useCallback(
+    (section: ResourceListSection) => {
+      if (section.id !== TOPIC_ASSISTANT_SECTION_ID) return null
+
+      return (
+        <ResourceList.SectionCollapseActionButton
+          alwaysVisible
+          sectionId={section.id}
+          label={t('chat.topics.group.collapse')}
+        />
+      )
+    },
+    [t]
+  )
+
   const getGroupHeaderContextMenu = useCallback(
     (group: { id: string }) => {
       if (displayMode !== 'assistant') return null
@@ -1097,6 +1112,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         revealRequest={revealRequest}
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
+        getSectionHeaderAction={getSectionHeaderAction}
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}

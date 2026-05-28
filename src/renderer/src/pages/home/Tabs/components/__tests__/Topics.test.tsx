@@ -921,6 +921,102 @@ describe('Topics', () => {
     expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
   })
 
+  it('collapses assistant groups from the assistant section action', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            ...Array.from({ length: 6 }, (_, index) =>
+              createApiTopic({
+                id: `assistant-1-topic-${index + 1}`,
+                name: `Alpha topic ${index + 1}`,
+                assistantId: 'assistant-1',
+                orderKey: String(index + 1).padStart(3, '0')
+              })
+            ),
+            ...Array.from({ length: 6 }, (_, index) =>
+              createApiTopic({
+                id: `assistant-2-topic-${index + 1}`,
+                name: `Beta topic ${index + 1}`,
+                assistantId: 'assistant-2',
+                orderKey: String(index + 1).padStart(3, '0')
+              })
+            )
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { rerenderTopicList } = renderTopicList({
+      activeTopic: createRendererTopic({
+        id: 'assistant-1-topic-1',
+        assistantId: 'assistant-1',
+        name: 'Alpha topic 1'
+      })
+    })
+
+    const assistantSectionButton = screen
+      .getAllByRole('button', { name: 'Assistant' })
+      .find((button) => button.hasAttribute('aria-expanded'))
+    expect(assistantSectionButton).toBeDefined()
+    const assistantSection = assistantSectionButton?.closest('div')
+    expect(assistantSection).not.toBeNull()
+    expect(screen.getByText('Alpha topic 1')).toBeInTheDocument()
+    expect(screen.getByText('Beta topic 1')).toBeInTheDocument()
+
+    fireEvent.click(within(assistantSection as HTMLElement).getByRole('button', { name: 'Collapse topics' }))
+    rerenderTopicList()
+
+    const collapsedAssistantSectionButton = screen
+      .getAllByRole('button', { name: 'Assistant' })
+      .find((button) => button.hasAttribute('aria-expanded'))
+    expect(collapsedAssistantSectionButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha topic 1')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta topic 1')).not.toBeInTheDocument()
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual(
+      expect.arrayContaining([TOPIC_ASSISTANT_SECTION_ID])
+    )
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).not.toEqual(
+      expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
+    )
+    expect(within(assistantSection as HTMLElement).getByRole('button', { name: 'Collapse topics' })).toBeDisabled()
+  })
+
+  it('does not show the assistant section collapse action in time display mode', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: createTopicPageItems(6) }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more topics' }))
+
+    expect(
+      screen.getAllByRole('button', { name: 'Assistant' }).some((button) => button.hasAttribute('aria-expanded'))
+    ).toBe(false)
+    expect(screen.getByRole('button', { name: 'Collapse topics' })).toHaveTextContent('Collapse topics')
+  })
+
   it('subscribes topic stream status only for rows visible in the ResourceList view', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     mockUseQuery.mockImplementation((path) => {

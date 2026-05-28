@@ -1557,6 +1557,46 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(window.api.file.openPath).toHaveBeenCalledWith('/Users/jd/project-a'))
   })
 
+  it('collapses workspace groups from the project section action', async () => {
+    setupSessions({
+      sessions: Array.from({ length: 6 }, (_, index) =>
+        createSession({
+          id: index === 0 ? 'session-a' : `workspace-session-${index + 1}`,
+          name: `Workspace session ${index + 1}`,
+          workspaceId: 'ws-a',
+          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
+          orderKey: String(index + 1).padStart(3, '0')
+        })
+      )
+    })
+
+    const view = render(<Sessions />)
+
+    const projectSection = screen.getByRole('button', { name: 'Project' }).closest('div')
+    expect(projectSection).not.toBeNull()
+
+    expect(screen.getByText('Workspace session 1')).toBeInTheDocument()
+
+    fireEvent.click(within(projectSection as HTMLElement).getByRole('button', { name: 'Collapse display' }))
+    const collapsedGroupIds = preferenceMocks.values.get('agent.session.collapsed_group_ids') as string[]
+    expect(collapsedGroupIds).toContain(SESSION_WORKDIR_SECTION_ID)
+    expect(collapsedGroupIds).toContain('session:workspace:ws-b')
+    expect(collapsedGroupIds).not.toContain('session:workspace:ws-a')
+    view.rerender(<Sessions key="collapsed-project-groups" />)
+
+    expect(screen.getByRole('button', { name: 'Project' })).toHaveAttribute('aria-expanded', 'true')
+    await vi.waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'false')
+    )
+    await vi.waitFor(() => expect(screen.queryByText('Workspace session 1')).not.toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Expand display' })).not.toBeInTheDocument()
+    const collapsedProjectSection = screen.getByRole('button', { name: 'Project' }).closest('div')
+    expect(collapsedProjectSection).not.toBeNull()
+    expect(
+      within(collapsedProjectSection as HTMLElement).getByRole('button', { name: 'Collapse display' })
+    ).toBeDisabled()
+  })
+
   it('opens the workspace group more menu from the group header context menu', () => {
     render(<Sessions />)
 
@@ -1774,6 +1814,46 @@ describe('Sessions', () => {
 
     await vi.waitFor(() => expect(toggleAgentPin).toHaveBeenCalledWith('agent-a'))
     await vi.waitFor(() => expect(dataApiMocks.refetchAgents).toHaveBeenCalled())
+  })
+
+  it('collapses agent groups from the agent section action', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions({
+      sessions: Array.from({ length: 6 }, (_, index) =>
+        createSession({
+          id: index === 0 ? 'session-a' : `agent-session-${index + 1}`,
+          name: `Agent session ${index + 1}`,
+          agentId: 'agent-a',
+          orderKey: String(index + 1).padStart(3, '0')
+        })
+      )
+    })
+
+    const view = render(<Sessions />)
+
+    const agentSection = screen.getByRole('button', { name: 'Agent' }).closest('div')
+    expect(agentSection).not.toBeNull()
+
+    expect(screen.getByText('Agent session 1')).toBeInTheDocument()
+
+    fireEvent.click(within(agentSection as HTMLElement).getByRole('button', { name: 'Collapse display' }))
+    const collapsedGroupIds = preferenceMocks.values.get('agent.session.collapsed_group_ids') as string[]
+    expect(collapsedGroupIds).toContain(SESSION_AGENT_SECTION_ID)
+    expect(collapsedGroupIds).toContain('session:agent:agent-b')
+    expect(collapsedGroupIds).not.toContain('session:agent:agent-a')
+    view.rerender(<Sessions key="collapsed-agent-groups" />)
+
+    expect(screen.getByRole('button', { name: 'Agent' })).toHaveAttribute('aria-expanded', 'true')
+    await vi.waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Alpha agent' })).toHaveAttribute('aria-expanded', 'false')
+    )
+    await vi.waitFor(() => expect(screen.queryByText('Agent session 1')).not.toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Expand display' })).not.toBeInTheDocument()
+    const collapsedAgentSection = screen.getByRole('button', { name: 'Agent' }).closest('div')
+    expect(collapsedAgentSection).not.toBeNull()
+    expect(
+      within(collapsedAgentSection as HTMLElement).getByRole('button', { name: 'Collapse display' })
+    ).toBeDisabled()
   })
 
   it('opens the agent group more menu from the group header context menu', async () => {

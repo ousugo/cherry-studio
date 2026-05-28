@@ -361,6 +361,7 @@ type ProviderAction =
   | { type: 'cancelRename' }
   | { type: 'showMoreInGroup'; groupId: string }
   | { type: 'collapseGroupItems'; groupId: string; defaultCount: number }
+  | { type: 'collapseGroups'; groupIds: readonly string[] }
   | { type: 'toggleGroup'; groupId: string }
   | {
       type: 'revealItem'
@@ -418,6 +419,13 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
           [action.groupId]: action.defaultCount
         }
       }
+    case 'collapseGroups': {
+      const collapsedGroups = new Set(state.collapsedGroups)
+      for (const groupId of action.groupIds) {
+        collapsedGroups.add(groupId)
+      }
+      return { ...state, collapsedGroups: [...collapsedGroups] }
+    }
     case 'toggleGroup': {
       const collapsedGroups = state.collapsedGroups.includes(action.groupId)
         ? state.collapsedGroups.filter((groupId) => groupId !== action.groupId)
@@ -752,6 +760,18 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       showMoreInGroup: (groupId: string) => dispatch({ type: 'showMoreInGroup', groupId }),
       collapseGroupItems: (groupId: string) =>
         dispatch({ type: 'collapseGroupItems', groupId, defaultCount: defaultGroupVisibleCount }),
+      collapseGroups: (groupIds: readonly string[]) => {
+        if (collapsedGroupIds !== undefined) {
+          const nextExpandedGroupIds = new Set(effectiveGroupStateIds)
+          for (const groupId of groupIds) {
+            nextExpandedGroupIds.delete(groupId)
+          }
+          onCollapsedGroupIdsChange?.([...nextExpandedGroupIds])
+          return
+        }
+
+        dispatch({ type: 'collapseGroups', groupIds })
+      },
       toggleGroup: (groupId: string) => {
         if (collapsedGroupIds !== undefined) {
           const nextExpandedGroupIds = new Set(getExpandedGroupIds(stateGroupsRef.current))
@@ -771,6 +791,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     [
       collapsedGroupIds,
       defaultGroupVisibleCount,
+      effectiveGroupStateIds,
       isSelectedControlled,
       onCollapsedGroupIdsChange,
       onGroupHeaderSelectItem,

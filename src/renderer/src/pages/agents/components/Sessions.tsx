@@ -1094,6 +1094,16 @@ const Sessions = ({
 
   const getSectionHeaderAction = useCallback(
     (section: ResourceListSection) => {
+      if (section.id === SESSION_AGENT_SECTION_ID || section.id === SESSION_WORKDIR_SECTION_ID) {
+        return (
+          <ResourceList.SectionCollapseActionButton
+            alwaysVisible
+            sectionId={section.id}
+            label={t('agent.session.group.collapse')}
+          />
+        )
+      }
+
       if (section.id !== SESSION_NO_PROJECT_SECTION_ID) return null
 
       const createSessionSeed = findLatestCreateSessionSeed(groupedSessions, isSystemWorkspaceSession)
