@@ -101,6 +101,7 @@ function OpenPanelOnMount({
   parentPanel,
   queryAnchor = 0,
   symbol = 'test',
+  trackInputQuery,
   triggerInfo
 }: {
   list: QuickPanelListItem[]
@@ -108,6 +109,7 @@ function OpenPanelOnMount({
   parentPanel?: QuickPanelOpenOptions
   queryAnchor?: number
   symbol?: string
+  trackInputQuery?: boolean
   triggerInfo?: QuickPanelOpenOptions['triggerInfo']
 }) {
   const quickPanel = useQuickPanel()
@@ -123,10 +125,11 @@ function OpenPanelOnMount({
       pageSize: PAGE_SIZE,
       parentPanel,
       queryAnchor,
+      trackInputQuery,
       triggerInfo: triggerInfo ?? { type: 'input', position: queryAnchor, originalText: '' },
       ...panelOptions
     })
-  }, [list, panelOptions, parentPanel, queryAnchor, quickPanel, symbol, triggerInfo])
+  }, [list, panelOptions, parentPanel, queryAnchor, quickPanel, symbol, trackInputQuery, triggerInfo])
   return null
 }
 
@@ -292,6 +295,7 @@ describe('QuickPanelView', () => {
             <OpenPanelOnMount
               list={list}
               symbol="/"
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 0, originalText: '/Item3' }}
             />
           </>
@@ -319,6 +323,7 @@ describe('QuickPanelView', () => {
             <OpenPanelOnMount
               list={list}
               symbol="/"
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 0, originalText: '/Item1' }}
             />
           </>
@@ -347,6 +352,7 @@ describe('QuickPanelView', () => {
             <OpenPanelOnMount
               list={list}
               symbol="/"
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 0, originalText: '/Item1' }}
             />
           </>
@@ -510,6 +516,7 @@ describe('QuickPanelView', () => {
             <OpenPanelOnMount
               list={list}
               symbol="/"
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 0, originalText: '/Item1' }}
             />
           </>
@@ -573,6 +580,7 @@ describe('QuickPanelView', () => {
               list={createList(1)}
               symbol="/"
               queryAnchor={5}
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 5, originalText: '/' }}
             />
           </>
@@ -593,6 +601,7 @@ describe('QuickPanelView', () => {
               list={createList(1)}
               symbol="/"
               queryAnchor={6}
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 6, originalText: '/image' }}
             />
           </>
@@ -615,6 +624,7 @@ describe('QuickPanelView', () => {
               list={createList(1)}
               symbol="/"
               queryAnchor={6}
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 6, originalText: '/image' }}
             />
           </>
