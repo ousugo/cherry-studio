@@ -239,7 +239,7 @@ describe('ComposerSurface', () => {
     mocks.quickPanelIsVisible = false
     mocks.quickPanelOpen.mockReset()
     mocks.quickPanelSymbol = ''
-    mocks.selection = { from: 1 }
+    mocks.selection = { from: 1, to: 1, $to: {} }
     mocks.transaction = {
       doc: {},
       setNodeMarkup: vi.fn(() => mocks.transaction),
@@ -454,6 +454,59 @@ describe('ComposerSurface', () => {
     const event = new KeyboardEvent('keydown', { key: 'Enter' })
     expect(rootSource.onKeyDown({ event })).toBe(false)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+  })
+
+  it('appends additional items at the end of the QuickPanel root list', async () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        enableQuickPanelTriggers
+        getToolLaunchers={() => [
+          {
+            id: 'generate-image',
+            kind: 'command',
+            label: 'Generate image',
+            description: 'Generate an image',
+            icon: 'image'
+          }
+        ]}
+        rootPanelAdditionalItems={[
+          {
+            id: 'skill:pdf',
+            label: 'pdf',
+            description: 'Read PDFs',
+            icon: 'sparkles'
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const rootSource = mocks.editorPresetOptions.suggestionSources[0]
+    rootSource.onActiveChange({
+      editor: {
+        state: {
+          doc: {
+            textBetween: vi.fn(() => '')
+          }
+        }
+      },
+      range: { from: 1, to: 2 },
+      query: '',
+      text: '/',
+      items: []
+    })
+
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        list: [
+          expect.objectContaining({ label: 'Generate image' }),
+          expect.objectContaining({ id: 'skill:pdf', label: 'pdf', description: 'Read PDFs' })
+        ]
+      })
+    )
   })
 
   it('opens the QuickPanel root when slash follows whitespace', async () => {

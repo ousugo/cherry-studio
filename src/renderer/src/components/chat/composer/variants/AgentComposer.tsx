@@ -16,7 +16,7 @@ import {
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
 import { getComposerToolConfig } from '@renderer/components/chat/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/chat/composer/tools/types'
-import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { AgentSelector, ModelSelector, WorkspaceSelector } from '@renderer/components/Selector'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -26,10 +26,11 @@ import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useSession, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { AgentLabel } from '@renderer/pages/agents/components/AgentLabel'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { FILE_TYPE, type FileMetadata, type ThinkingOption } from '@renderer/types'
+import { FILE_TYPE, type FileMetadata, type LocalSkill, type ThinkingOption } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -44,7 +45,7 @@ import { getFileTypeByExt } from '@shared/file/types'
 import type { PathStatus } from '@shared/file/types/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { TFunction } from 'i18next'
-import { Bot, ChevronDown, CircleSlash, Folder, TriangleAlert } from 'lucide-react'
+import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -151,6 +152,28 @@ const getRelativePath = (filePath: string, accessiblePaths: readonly string[]) =
   }
 
   return filePath
+}
+
+const createSkillPromptText = (skill: LocalSkill) => `Use the ${skill.name} skill. `
+
+const createSkillQuickPanelItems = (
+  skills: readonly LocalSkill[],
+  options: {
+    skillLabel: string
+    onInsertSkill: (skill: LocalSkill, inputAdapter?: QuickPanelInputAdapter) => void
+  }
+): QuickPanelListItem[] => {
+  return skills.map((skill) => ({
+    id: `skill:${skill.filename}`,
+    label: skill.name,
+    description: skill.description ?? undefined,
+    icon: <Sparkles size={16} />,
+    suffix: options.skillLabel,
+    filterText: `${skill.name} ${skill.description ?? ''} ${options.skillLabel}`,
+    action: ({ inputAdapter }) => {
+      options.onInsertSkill(skill, inputAdapter)
+    }
+  }))
 }
 
 type Props = {
@@ -557,6 +580,7 @@ const AgentComposerInner = ({
   const autoDispatchingQueueRef = useRef(false)
   const accessiblePaths = sessionData?.accessiblePaths ?? []
   const enableMentionModelTrigger = accessiblePaths.length > 0
+  const { skills: availableSkills } = useAvailableSkills(agentId, workspace?.path)
 
   const isVisionAssistant = useMemo(() => (model ? isVisionModel(model) : false), [model])
   const isGenerateImageAssistant = useMemo(() => (model ? isGenerateImageModel(model) : false), [model])
@@ -616,6 +640,22 @@ const AgentComposerInner = ({
       Object.assign(actionsRef.current, actions)
     },
     [actionsRef]
+  )
+
+  const insertSkillPrompt = useCallback((skill: LocalSkill, inputAdapter?: QuickPanelInputAdapter) => {
+    if (!inputAdapter) return
+
+    inputAdapter.insertText(createSkillPromptText(skill))
+    inputAdapter.focus()
+  }, [])
+
+  const rootPanelSkillItems = useMemo(
+    () =>
+      createSkillQuickPanelItems(availableSkills, {
+        skillLabel: t('plugins.skills'),
+        onInsertSkill: insertSkillPrompt
+      }),
+    [availableSkills, insertSkillPrompt, t]
   )
 
   const handleQuote = useCallback(
@@ -1001,6 +1041,7 @@ const AgentComposerInner = ({
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
         suggestionSources={suggestionSources}
+        rootPanelAdditionalItems={rootPanelSkillItems}
         queueContent={
           <ComposerMessageQueuePanel
             draftItems={messageQueue.draftItems}

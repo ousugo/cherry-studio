@@ -1,5 +1,5 @@
 import { cacheService } from '@data/CacheService'
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata, LocalSkill } from '@renderer/types'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   updateSession: vi.fn(),
   setFiles: vi.fn(),
   enqueueDraft: vi.fn(),
+  availableSkills: [] as LocalSkill[],
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
@@ -219,6 +220,15 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderDisplayName: () => 'Anthropic'
 }))
 
+vi.mock('@renderer/hooks/useSkills', () => ({
+  useAvailableSkills: () => ({
+    skills: mocks.availableSkills,
+    loading: false,
+    error: null,
+    refresh: vi.fn()
+  })
+}))
+
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <span data-testid="model-avatar" />
 }))
@@ -339,6 +349,7 @@ describe('AgentComposer', () => {
     mocks.setFiles.mockReset()
     mocks.enqueueDraft.mockReset()
     mocks.enqueueDraft.mockResolvedValue(undefined)
+    mocks.availableSkills = []
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
@@ -393,6 +404,126 @@ describe('AgentComposer', () => {
       couldAddImageFile: false,
       extensions: mocks.surfaceProps?.supportedExts
     })
+  })
+
+  it('passes available skills as additional slash panel rows', () => {
+    mocks.availableSkills = [
+      {
+        name: 'pdf',
+        description: 'Read and analyze PDFs',
+        filename: 'pdf'
+      }
+    ]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const skillItem = mocks.surfaceProps?.rootPanelAdditionalItems?.[0]
+    expect(skillItem).toEqual(
+      expect.objectContaining({
+        id: 'skill:pdf',
+        label: 'pdf',
+        description: 'Read and analyze PDFs',
+        suffix: 'plugins.skills',
+        filterText: expect.stringContaining('pdf Read and analyze PDFs plugins.skills')
+      })
+    )
+
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      insertToken: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+    skillItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: skillItem,
+      inputAdapter
+    })
+
+    expect(inputAdapter.insertText).toHaveBeenCalledWith('Use the pdf skill. ')
+    expect(inputAdapter.insertToken).not.toHaveBeenCalled()
+    expect(inputAdapter.focus).toHaveBeenCalled()
+  })
+
+  it('inserts skill prompt text without token support', () => {
+    mocks.availableSkills = [
+      {
+        name: 'pdf',
+        description: 'Read and analyze PDFs',
+        filename: 'pdf'
+      }
+    ]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const skillItem = mocks.surfaceProps?.rootPanelAdditionalItems?.[0]
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+    skillItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: skillItem,
+      inputAdapter
+    })
+
+    expect(inputAdapter.insertText).toHaveBeenCalledWith('Use the pdf skill. ')
+    expect(inputAdapter.focus).toHaveBeenCalled()
+  })
+
+  it('sends a draft that only contains skill prompt text', () => {
+    mocks.draftText = 'Use the pdf skill.'
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'Use the pdf skill.' },
+      {
+        body: {
+          agentId: 'agent-1',
+          sessionId: 'session-1',
+          userMessageParts: [
+            expect.objectContaining({
+              type: 'text',
+              text: 'Use the pdf skill.'
+            })
+          ]
+        }
+      }
+    )
+    expect(mocks.sendMessage.mock.calls[0][1].body.userMessageParts[0]).not.toHaveProperty('providerMetadata')
+    expect(mocks.enqueueDraft).not.toHaveBeenCalled()
   })
 
   it('bridges file tokens into the existing agent session message text protocol', () => {

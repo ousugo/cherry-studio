@@ -78,6 +78,7 @@ export interface ComposerSurfaceProps {
   getToolLaunchers?: () => ComposerToolLauncher[]
   suggestionSources?: readonly ComposerSuggestionSource[]
   queueContent?: React.ReactNode
+  rootPanelAdditionalItems?: readonly QuickPanelListItem[]
   onToolLauncherSelect?: (
     launcher: ComposerToolLauncher,
     options: {
@@ -358,6 +359,7 @@ function createRootQuickPanelOpenOptions(
     quickPanel: QuickPanelContextType
     onToolLauncherSelect?: ComposerSurfaceProps['onToolLauncherSelect']
     title?: string
+    additionalItems?: readonly QuickPanelListItem[]
     queryAnchor?: number
     triggerInfo?: QuickPanelTriggerInfo
   }
@@ -369,24 +371,27 @@ function createRootQuickPanelOpenOptions(
 
   return {
     title: options.title,
-    list: launchers
-      .filter((launcher) => !launcher.hidden)
-      .flatMap((launcher) => {
-        const rootChildren = getRootPanelChildren(launcher)
-        const supportsRootPanel = launcherSupportsSource(launcher, 'root-panel')
+    list: [
+      ...launchers
+        .filter((launcher) => !launcher.hidden)
+        .flatMap((launcher) => {
+          const rootChildren = getRootPanelChildren(launcher)
+          const supportsRootPanel = launcherSupportsSource(launcher, 'root-panel')
 
-        if (!supportsRootPanel && rootChildren.length === 0) return []
+          if (!supportsRootPanel && rootChildren.length === 0) return []
 
-        return [
-          createRootPanelListItem(
-            { ...launcher, submenu: rootChildren },
-            {
-              ...options,
-              getRootPanelOptions
-            }
-          )
-        ]
-      }),
+          return [
+            createRootPanelListItem(
+              { ...launcher, submenu: rootChildren },
+              {
+                ...options,
+                getRootPanelOptions
+              }
+            )
+          ]
+        }),
+      ...(options.additionalItems ?? [])
+    ],
     symbol: QuickPanelReservedSymbol.Root,
     queryAnchor: options.queryAnchor,
     triggerInfo: options.triggerInfo ?? { type: 'button' }
@@ -448,6 +453,7 @@ export default function ComposerSurface({
   getToolLaunchers,
   suggestionSources = [],
   queueContent,
+  rootPanelAdditionalItems,
   onToolLauncherSelect,
   renderLeftControls,
   renderBelowControls
@@ -575,8 +581,13 @@ export default function ComposerSurface({
     })
   }, [handleTextChangeFromTool, handleToggleExpanded, onActionsChange, removeToken])
 
-  const rootSuggestionStateRef = useRef({ getToolLaunchers, onToolLauncherSelect, quickPanel })
-  rootSuggestionStateRef.current = { getToolLaunchers, onToolLauncherSelect, quickPanel }
+  const rootSuggestionStateRef = useRef({
+    getToolLaunchers,
+    onToolLauncherSelect,
+    quickPanel,
+    rootPanelAdditionalItems
+  })
+  rootSuggestionStateRef.current = { getToolLaunchers, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems }
 
   const rootSuggestionSource = useMemo<ComposerSuggestionSource>(
     () => ({
@@ -587,7 +598,8 @@ export default function ComposerSurface({
       allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
       items: () => [],
       onActiveChange: ({ editor, query, range, text }) => {
-        const { getToolLaunchers, onToolLauncherSelect, quickPanel } = rootSuggestionStateRef.current
+        const { getToolLaunchers, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems } =
+          rootSuggestionStateRef.current
         const launchers = getToolLaunchers?.() ?? []
         const textBeforeTrigger = editor.state.doc.textBetween(0, range.from, '\n', '')
         const queryAnchor = textBeforeTrigger.length
@@ -615,6 +627,7 @@ export default function ComposerSurface({
             inputAdapter: createComposerInputAdapter(editor),
             quickPanel,
             title: t('settings.quickPanel.title'),
+            additionalItems: rootPanelAdditionalItems,
             queryAnchor,
             triggerInfo
           })
