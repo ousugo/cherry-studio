@@ -73,7 +73,7 @@ interface ComposerSuggestionListRef {
   onKeyDown: (event: KeyboardEvent) => boolean
 }
 
-const ComposerSuggestionList = ({ ref, ...props }: ComposerSuggestionListProps) => {
+export const ComposerSuggestionList = ({ ref, ...props }: ComposerSuggestionListProps) => {
   const {
     command: runSuggestionCommand,
     editor,
@@ -171,9 +171,10 @@ const ComposerSuggestionList = ({ ref, ...props }: ComposerSuggestionListProps) 
             moveQuickPanelSelectableIndex(itemsWithSelection, current, pageSize, { wrap: false })
           )
           return true
-        case 'Tab':
         case 'Enter':
-          if (event.key === 'Enter' && event.shiftKey) return false
+        case 'NumpadEnter':
+        case 'Tab':
+          if ((event.key === 'Enter' || event.key === 'NumpadEnter') && event.shiftKey) return false
           event.preventDefault()
           event.stopPropagation()
           selectItem(selectedIndex)
@@ -193,6 +194,25 @@ const ComposerSuggestionList = ({ ref, ...props }: ComposerSuggestionListProps) 
   )
 
   useImperativeHandle(ref, () => ({ onKeyDown: handleKeyDown }), [handleKeyDown])
+
+  useEffect(() => {
+    if (isStickyOpen) return
+
+    const handleDocumentSelectionKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab' && event.key !== 'Enter' && event.key !== 'NumpadEnter') return
+
+      const handled = handleKeyDown(event)
+      if (handled) {
+        event.stopPropagation()
+      }
+    }
+
+    document.addEventListener('keydown', handleDocumentSelectionKeyDown, true)
+
+    return () => {
+      document.removeEventListener('keydown', handleDocumentSelectionKeyDown, true)
+    }
+  }, [handleKeyDown, isStickyOpen])
 
   useEffect(() => {
     if (!isStickyOpen) return
