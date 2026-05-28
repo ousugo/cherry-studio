@@ -55,11 +55,17 @@ function createKeyDownEvent(key: string) {
 function PanelHarness({
   captureDispatch,
   inputAdapter,
-  items
+  items,
+  manageListExternally,
+  symbol = QuickPanelReservedSymbol.Root,
+  trackInputQuery
 }: {
   captureDispatch: (dispatch: QuickPanelContextType['dispatchKeyDown']) => void
   inputAdapter?: QuickPanelInputAdapter
   items: QuickPanelListItem[]
+  manageListExternally?: boolean
+  symbol?: string
+  trackInputQuery?: boolean
 }) {
   const { dispatchKeyDown, open } = useQuickPanel()
 
@@ -70,13 +76,15 @@ function PanelHarness({
   useEffect(() => {
     open({
       list: items,
-      symbol: QuickPanelReservedSymbol.Root,
+      symbol,
       title: 'Actions',
       triggerInfo: inputAdapter
         ? ({ type: 'input', position: 0, originalText: inputAdapter.getText() } satisfies QuickPanelTriggerInfo)
-        : { type: 'button' }
+        : { type: 'button' },
+      manageListExternally,
+      trackInputQuery: trackInputQuery ?? Boolean(inputAdapter)
     })
-  }, [inputAdapter, items, open])
+  }, [inputAdapter, items, manageListExternally, open, symbol, trackInputQuery])
 
   return <QuickPanelView inputAdapter={inputAdapter} />
 }
@@ -150,5 +158,161 @@ describe('QuickPanelView', () => {
 
     expect(handled).toBe(true)
     expect(action).not.toHaveBeenCalled()
+  })
+
+  it('tracks non-slash input queries and consumes the trigger range on selection', async () => {
+    const action = vi.fn()
+    const captureDispatch = vi.fn()
+    const deleteTriggerRange = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange,
+      focus: vi.fn(),
+      getCursorOffset: () => 6,
+      getText: () => '@notes',
+      insertText: vi.fn()
+    }
+    const items: QuickPanelListItem[] = [{ id: 'notes', label: 'notes.md', icon: 'file', action }]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} inputAdapter={inputAdapter} items={items} symbol="@" />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('notes.md')
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    const { event } = createKeyDownEvent('Enter')
+
+    let handled = false
+    act(() => {
+      handled = dispatchKeyDown(event)
+    })
+
+    expect(handled).toBe(true)
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
+    expect(action).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'enter',
+        searchText: 'notes'
+      })
+    )
+  })
+
+  it('resets the active item when a tracked externally managed list is reopened', async () => {
+    const captureDispatch = vi.fn()
+    let inputText = '@a'
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => inputText.length,
+      getText: () => inputText,
+      insertText: vi.fn()
+    }
+    const initialItems: QuickPanelListItem[] = [
+      { id: 'alpha', label: 'alpha.md', icon: 'file', action: vi.fn() },
+      { id: 'beta', label: 'beta.md', icon: 'file', action: vi.fn() }
+    ]
+    const nextItems: QuickPanelListItem[] = [
+      { id: 'alpine', label: 'alpine.md', icon: 'file', action: vi.fn() },
+      { id: 'archived', label: 'archived.md', icon: 'file', disabled: true, action: vi.fn() }
+    ]
+
+    const { rerender } = render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={initialItems}
+          manageListExternally
+          symbol="@"
+        />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('alpha.md').closest('[data-id="alpha"]')?.getAttribute('data-active')).toBe('true')
+    })
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('ArrowDown').event)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('beta.md').closest('[data-id="beta"]')?.getAttribute('data-active')).toBe('true')
+    })
+
+    inputText = '@al'
+    rerender(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={nextItems}
+          manageListExternally
+          symbol="@"
+        />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('alpine.md').closest('[data-id="alpine"]')?.getAttribute('data-active')).toBe('true')
+    })
+    expect(screen.getByText('archived.md').closest('[data-id="archived"]')?.getAttribute('data-active')).not.toBe(
+      'true'
+    )
+  })
+
+  it('closes a tracked non-slash input panel when whitespace terminates the query', async () => {
+    const captureDispatch = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 7,
+      getText: () => '@notes ',
+      insertText: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'notes', label: 'notes.md', icon: 'file', action: vi.fn() }]}
+          symbol="@"
+        />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
+    })
+  })
+
+  it('closes a tracked non-slash input panel when the cursor leaves the query end', async () => {
+    const captureDispatch = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 3,
+      getText: () => '@notes',
+      insertText: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'notes', label: 'notes.md', icon: 'file', action: vi.fn() }]}
+          symbol="@"
+        />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
+    })
   })
 })

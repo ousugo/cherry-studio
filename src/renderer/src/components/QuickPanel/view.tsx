@@ -14,28 +14,31 @@ import {
   type QuickPanelKeyDownEvent,
   type QuickPanelListItem,
   type QuickPanelOpenOptions,
-  QuickPanelReservedSymbol,
   type QuickPanelScrollTrigger
 } from './types'
 
 const ITEM_HEIGHT = 31
 
 const firstSelectableIndex = (items: readonly QuickPanelListItem[]) => items.findIndex((item) => !item.disabled)
-const INPUT_TRIGGER_SYMBOLS = new Set(['/'])
-const ROOT_INPUT_QUERY_TERMINATOR_REGEX = /\s/
+const INPUT_QUERY_TERMINATOR_REGEX = /\s/
 
-function isRootInputQueryAnchorAllowed(text: string, queryAnchor: number) {
+function isInputQueryAnchorAllowed(text: string, queryAnchor: number) {
   if (queryAnchor === 0) return true
   return /\s/.test(text.slice(queryAnchor - 1, queryAnchor))
 }
 
-function isRootInputQueryTerminated(searchText: string) {
-  return ROOT_INPUT_QUERY_TERMINATOR_REGEX.test(searchText.slice(1))
+function isInputQueryTerminated(searchText: string) {
+  return INPUT_QUERY_TERMINATOR_REGEX.test(searchText.slice(1))
 }
 
-function isRootInputQueryCursorAtEnd(text: string, cursorOffset: number) {
+function isInputQueryCursorAtEnd(text: string, cursorOffset: number) {
   const nextChar = text.slice(cursorOffset, cursorOffset + 1)
   return nextChar.length === 0 || /\s/.test(nextChar)
+}
+
+function getInputQueryText(searchText: string, triggerSymbol?: string) {
+  if (!triggerSymbol) return searchText
+  return searchText.startsWith(triggerSymbol) ? searchText.slice(triggerSymbol.length) : searchText
 }
 
 interface Props {
@@ -77,8 +80,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const inputTriggerConsumedRef = useRef(false)
   const inputQueryConsumedRef = useRef(false)
   const prevPanelGenerationRef = useRef<number | undefined>(undefined)
-  const isRootInputPanel = ctx.symbol === QuickPanelReservedSymbol.Root && ctx.triggerInfo?.type === 'input'
-  const activeSearchText = isRootInputPanel ? inputSearchText : ''
+  const inputTriggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
+  const isTrackedInputPanel = Boolean(ctx.trackInputQuery && ctx.triggerInfo?.type === 'input')
+  const activeSearchText = isTrackedInputPanel ? inputSearchText : ''
+  const activeSearchQuery = getInputQueryText(activeSearchText, inputTriggerSymbol)
 
   // 缓存：按 item 缓存拼音文本，避免重复转换
   const pinyinCacheRef = useRef<WeakMap<QuickPanelListItem, string>>(new WeakMap())
@@ -99,11 +104,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     const baseList = (ctx.list || []).filter((item) => !item.hidden)
 
-    if (ctx.manageListExternally || !isRootInputPanel) {
+    if (ctx.manageListExternally || !isTrackedInputPanel) {
       return baseList
     }
 
-    const _searchText = activeSearchText.replace(/^\//, '')
+    const _searchText = activeSearchQuery
     const lowerSearchText = _searchText.toLowerCase()
     const fuzzyPattern = lowerSearchText
       .split('')
@@ -130,8 +135,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     ctx.symbol,
     ctx.manageListExternally,
     ctx.list,
-    isRootInputPanel,
-    activeSearchText,
+    isTrackedInputPanel,
+    activeSearchQuery,
     filterFn,
     sortFn
   ])
@@ -151,26 +156,28 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     if (!ctx.isVisible) return
 
     const panelGeneration = getPanelGeneration()
-    if (prevPanelGenerationRef.current !== panelGeneration) {
+    const isPanelGenerationChanged = prevPanelGenerationRef.current !== panelGeneration
+    if (isPanelGenerationChanged) {
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = panelGeneration
     }
 
     if (ctx.manageListExternally) {
+      const isSearchChanged = prevSearchTextRef.current !== activeSearchQuery
       const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
-      if (isSymbolChanged) {
+      if (isSymbolChanged || (ctx.trackInputQuery && (isSearchChanged || isPanelGenerationChanged))) {
         setActiveIndex(firstSelectableIndex(list))
       } else {
         setActiveIndex((prevIndex) => (prevIndex >= list.length ? (list.length > 0 ? list.length - 1 : -1) : prevIndex))
       }
 
-      prevSearchTextRef.current = ''
+      prevSearchTextRef.current = activeSearchQuery
       prevSymbolRef.current = ctx.symbol
       return
     }
 
     // 只有在搜索文本变化或面板符号变化时才重置index
-    const isSearchChanged = prevSearchTextRef.current !== activeSearchText
+    const isSearchChanged = prevSearchTextRef.current !== activeSearchQuery
     const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
 
     if (isSearchChanged || isSymbolChanged) {
@@ -180,17 +187,25 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       setActiveIndex((prevIndex) => (prevIndex >= list.length ? (list.length > 0 ? list.length - 1 : -1) : prevIndex))
     }
 
-    prevSearchTextRef.current = activeSearchText
+    prevSearchTextRef.current = activeSearchQuery
     prevSymbolRef.current = ctx.symbol
-  }, [ctx.isVisible, ctx.manageListExternally, ctx.symbol, getPanelGeneration, activeSearchText, list])
+  }, [
+    ctx.isVisible,
+    ctx.manageListExternally,
+    ctx.symbol,
+    ctx.trackInputQuery,
+    getPanelGeneration,
+    activeSearchQuery,
+    list
+  ])
 
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
-      const cleanSearchText = activeSearchText.trim()
+      const cleanSearchText = activeSearchQuery.trim()
       ctx.close(action, cleanSearchText)
       scrollTriggerRef.current = 'initial'
     },
-    [ctx, activeSearchText]
+    [ctx, activeSearchQuery]
   )
 
   const getCurrentPanelOptions = useCallback(
@@ -204,6 +219,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       queryAnchor: queryAnchorRef.current ?? ctx.queryAnchor,
       parentPanel: ctx.parentPanel,
       triggerInfo: ctx.triggerInfo,
+      trackInputQuery: ctx.trackInputQuery,
       beforeAction: ctx.beforeAction,
       afterAction: ctx.afterAction,
       onClose: ctx.onClose,
@@ -243,19 +259,21 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
     if (cursorOffset <= queryAnchor) return
 
-    const triggerSymbol = text.slice(queryAnchor, queryAnchor + 1)
-    if (triggerSymbol !== '/') return
+    if (!inputTriggerSymbol) return
+
+    const triggerSymbol = text.slice(queryAnchor, queryAnchor + inputTriggerSymbol.length)
+    if (triggerSymbol !== inputTriggerSymbol) return
 
     inputTriggerConsumedRef.current = true
-    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: queryAnchor + 1 })
+    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: queryAnchor + inputTriggerSymbol.length })
     queryAnchorRef.current = queryAnchor
-    setInputSearchText(text.slice(queryAnchor + 1, cursorOffset))
-  }, [ctx.queryAnchor, inputAdapter])
+    setInputSearchText(text.slice(queryAnchor + inputTriggerSymbol.length, cursorOffset))
+  }, [ctx.queryAnchor, inputAdapter, inputTriggerSymbol])
 
   const handleItemAction = useCallback(
     (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
       if (item.disabled) return
-      const cleanSearchText = activeSearchText.replace(/^\//, '')
+      const cleanSearchText = activeSearchQuery
       const parentPanel = getCurrentPanelOptions(activeIndex)
       const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
       const panelGenerationBeforeAction = ctx.getPanelGeneration()
@@ -320,7 +338,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     },
     [
       ctx,
-      activeSearchText,
+      activeSearchQuery,
       getCurrentPanelOptions,
       activeIndex,
       consumeInputTriggerSymbol,
@@ -332,23 +350,21 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   )
 
   const updateSearchFromInput = useCallback(() => {
-    if (!isPanelVisible || !inputAdapter || !isRootInputPanel) return
+    if (!isPanelVisible || !inputAdapter || !isTrackedInputPanel) return
 
     const queryAnchor = queryAnchorRef.current
     if (queryAnchor === undefined) return
 
     const text = inputAdapter.getText()
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
-    const triggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
-    const shouldRequireInputTrigger =
-      ctx.triggerInfo?.type === 'input' && triggerSymbol !== undefined && INPUT_TRIGGER_SYMBOLS.has(triggerSymbol)
+    const shouldRequireInputTrigger = ctx.triggerInfo?.type === 'input' && inputTriggerSymbol !== undefined
 
     if (cursorOffset < queryAnchor) {
       closePanel('input_session_invalid')
       return
     }
 
-    if (!isRootInputQueryAnchorAllowed(text, queryAnchor)) {
+    if (!isInputQueryAnchorAllowed(text, queryAnchor)) {
       closePanel('input_prefix_invalid')
       return
     }
@@ -356,25 +372,25 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     if (
       shouldRequireInputTrigger &&
       !inputTriggerConsumedRef.current &&
-      text.slice(queryAnchor, queryAnchor + 1) !== triggerSymbol
+      text.slice(queryAnchor, queryAnchor + inputTriggerSymbol.length) !== inputTriggerSymbol
     ) {
       closePanel('input_trigger_removed')
       return
     }
 
     const nextSearchText = text.slice(queryAnchor, cursorOffset)
-    if (isRootInputQueryTerminated(nextSearchText)) {
+    if (isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
     }
 
-    if (!isRootInputQueryCursorAtEnd(text, cursorOffset)) {
+    if (!isInputQueryCursorAtEnd(text, cursorOffset)) {
       closePanel('input_cursor_invalid')
       return
     }
 
     setInputSearchText(nextSearchText)
-  }, [closePanel, ctx.triggerInfo?.originalText, ctx.triggerInfo?.type, inputAdapter, isPanelVisible, isRootInputPanel])
+  }, [closePanel, ctx.triggerInfo?.type, inputAdapter, inputTriggerSymbol, isPanelVisible, isTrackedInputPanel])
 
   useEffect(() => {
     if (!ctx.isVisible) return
@@ -391,36 +407,35 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       0,
       Math.min(ctx.queryAnchor ?? ctx.triggerInfo?.position ?? cursorOffset, cursorOffset)
     )
-    const triggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
 
-    if (
-      ctx.triggerInfo?.type === 'input' &&
-      triggerSymbol !== undefined &&
-      INPUT_TRIGGER_SYMBOLS.has(triggerSymbol) &&
-      text.slice(queryAnchor, queryAnchor + 1) === triggerSymbol
-    ) {
+    if (ctx.triggerInfo?.type === 'input' && inputTriggerSymbol !== undefined) {
       inputTriggerConsumedRef.current = false
     }
 
     queryAnchorRef.current = queryAnchor
-    if (!isRootInputPanel) {
+    if (!isTrackedInputPanel) {
       setInputSearchText('')
       inputAdapter.focus()
       return
     }
 
-    if (!isRootInputQueryAnchorAllowed(text, queryAnchor)) {
+    if (!isInputQueryAnchorAllowed(text, queryAnchor)) {
       closePanel('input_prefix_invalid')
       return
     }
 
+    if (inputTriggerSymbol && text.slice(queryAnchor, queryAnchor + inputTriggerSymbol.length) !== inputTriggerSymbol) {
+      closePanel('input_trigger_removed')
+      return
+    }
+
     const nextSearchText = text.slice(queryAnchor, cursorOffset)
-    if (isRootInputQueryTerminated(nextSearchText)) {
+    if (isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
     }
 
-    if (!isRootInputQueryCursorAtEnd(text, cursorOffset)) {
+    if (!isInputQueryCursorAtEnd(text, cursorOffset)) {
       closePanel('input_cursor_invalid')
       return
     }
@@ -439,9 +454,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     ctx.triggerInfo?.originalText,
     ctx.triggerInfo?.position,
     ctx.triggerInfo?.type,
+    ctx.trackInputQuery,
     closePanel,
     inputAdapter,
-    isRootInputPanel,
+    inputTriggerSymbol,
+    isTrackedInputPanel,
     updateSearchFromInput
   ])
 
@@ -555,7 +572,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           e.stopPropagation()
           setIsMouseOver(false)
 
-          const hasSearch = activeSearchText.length > 0
+          const hasSearch = activeSearchQuery.length > 0
           const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
           const isCollapsed = hasSearch && nonPinnedCount === 0
           if (!isCollapsed && list?.[activeIndex]) {
@@ -575,7 +592,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           }
 
           // 折叠/软隐藏时也要拦截，避免把查询输入当作发送消息。
-          const hasSearch = activeSearchText.length > 0
+          const hasSearch = activeSearchQuery.length > 0
           const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
           const isCollapsed = hasSearch && nonPinnedCount === 0
           if (isCollapsed) {
@@ -615,7 +632,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
       return false
     },
-    [activeIndex, ctx, list, handleItemAction, handleClose, activeSearchText]
+    [activeIndex, ctx, list, handleItemAction, handleClose, activeSearchQuery]
   )
 
   useEffect(() => {
@@ -692,7 +709,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const listHeight = useMemo(() => {
     return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
   }, [ctx.pageSize, list.length])
-  const hasSearchText = useMemo(() => activeSearchText.length > 0, [activeSearchText])
+  const hasSearchText = useMemo(() => activeSearchQuery.length > 0, [activeSearchQuery])
   // 折叠仅依据“非固定项”的匹配数；仅剩固定项（如“清除”）时仍视为无匹配，保持折叠
   const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
   const collapsed = !ctx.manageListExternally && hasSearchText && visibleNonPinnedCount === 0

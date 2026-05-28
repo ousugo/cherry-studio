@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   stop: vi.fn(),
   getPathStatus: vi.fn(),
+  listDirectory: vi.fn(),
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
@@ -305,7 +306,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'app.spell_check.enabled': true,
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
-      'chat.input.send_message_shortcut': 'Enter'
+      'chat.input.send_message_shortcut': 'Enter',
+      'chat.input.quick_panel.triggers_enabled': true
     }
     return [values[key]]
   }
@@ -372,11 +374,14 @@ describe('AgentComposer', () => {
     mocks.stop.mockResolvedValue(undefined)
     mocks.getPathStatus.mockReset()
     mocks.getPathStatus.mockImplementation(() => new Promise(() => undefined))
+    mocks.listDirectory.mockReset()
+    mocks.listDirectory.mockResolvedValue([])
     window.api = {
       ...window.api,
       file: {
         ...window.api.file,
-        getPathStatus: mocks.getPathStatus
+        getPathStatus: mocks.getPathStatus,
+        listDirectory: mocks.listDirectory
       }
     }
     mocks.updateModel.mockReset()
@@ -439,6 +444,107 @@ describe('AgentComposer', () => {
       couldAddImageFile: false,
       extensions: mocks.surfaceProps?.supportedExts
     })
+  })
+
+  it('provides workspace resources through the mention suggestion source', async () => {
+    mocks.listDirectory.mockResolvedValue(['/workspace/docs/notes.md', '/workspace/docs/notes.md'])
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const resourceSource = mocks.surfaceProps?.suggestionSources?.[0]
+    expect(resourceSource).toEqual(
+      expect.objectContaining({
+        char: '@',
+        pluginKey: 'agent-resource-mention-suggestion'
+      })
+    )
+
+    const items = await resourceSource?.items({ query: 'notes', editor: {} as any })
+    expect(mocks.listDirectory).toHaveBeenCalledWith(
+      '/workspace',
+      expect.objectContaining({
+        recursive: true,
+        searchPattern: 'notes'
+      })
+    )
+    expect(items).toHaveLength(1)
+    expect(items?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'file:/workspace/docs/notes.md',
+        label: 'docs/notes.md',
+        description: '/workspace/docs/notes.md',
+        disabled: false
+      })
+    )
+
+    const run = vi.fn()
+    const insertContent = vi.fn(() => ({ run }))
+    const insertComposerToken = vi.fn(() => ({ insertContent }))
+    const editor = {
+      getJSON: () => ({ type: 'doc', content: [] }),
+      chain: () => ({
+        focus: () => ({
+          insertComposerToken
+        })
+      })
+    }
+
+    items?.[0]?.command({ editor: editor as any, range: { from: 1, to: 7 }, item: items[0], query: 'notes' })
+
+    expect(insertComposerToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'file:/workspace/docs/notes.md',
+        kind: 'file',
+        label: 'notes.md'
+      })
+    )
+    expect(insertContent).toHaveBeenCalledWith(' ')
+    expect(run).toHaveBeenCalled()
+
+    const setFilesUpdater = mocks.setFiles.mock.calls.at(-1)?.[0]
+    expect(typeof setFilesUpdater).toBe('function')
+    const selectedFile = { id: '/workspace/docs/notes.md', path: '/workspace/docs/notes.md' } as FileMetadata
+    expect(setFilesUpdater([])).toEqual([expect.objectContaining({ path: '/workspace/docs/notes.md' })])
+    expect(setFilesUpdater([selectedFile])).toBeInstanceOf(Array)
+    expect(setFilesUpdater([selectedFile])).toHaveLength(1)
+  })
+
+  it('marks already selected workspace resources as disabled', async () => {
+    mocks.files = [
+      {
+        id: '/workspace/docs/notes.md',
+        name: 'notes.md',
+        origin_name: 'notes.md',
+        path: '/workspace/docs/notes.md'
+      } as FileMetadata
+    ]
+    mocks.listDirectory.mockResolvedValue(['/workspace/docs/notes.md'])
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const items = await mocks.surfaceProps?.suggestionSources?.[0]?.items({ query: 'notes', editor: {} as any })
+    expect(items?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'file:/workspace/docs/notes.md',
+        disabled: true
+      })
+    )
   })
 
   it('passes available skills as additional slash panel rows', () => {

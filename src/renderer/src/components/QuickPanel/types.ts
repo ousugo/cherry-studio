@@ -83,6 +83,8 @@ export type QuickPanelOpenOptions = {
   triggerInfo?: QuickPanelTriggerInfo
   /** Input text offset where the current composer-driven query starts. */
   queryAnchor?: number
+  /** Whether this panel tracks and consumes an input trigger query such as `/foo` or `@file`. */
+  trackInputQuery?: boolean
   beforeAction?: (options: QuickPanelCallBackOptions) => void
   afterAction?: (options: QuickPanelCallBackOptions) => void
   onClose?: (options: QuickPanelCallBackOptions) => void
@@ -137,6 +139,7 @@ export interface QuickPanelContextType {
   readonly multiple: boolean
   readonly triggerInfo?: QuickPanelTriggerInfo
   readonly queryAnchor?: number
+  readonly trackInputQuery?: boolean
   readonly parentPanel?: QuickPanelOpenOptions
   readonly manageListExternally?: boolean
   readonly lastCloseAction?: QuickPanelCloseAction

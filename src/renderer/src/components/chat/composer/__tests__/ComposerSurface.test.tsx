@@ -464,12 +464,109 @@ describe('ComposerSurface', () => {
         type: 'input',
         position: 0,
         originalText: '/image'
-      }
+      },
+      trackInputQuery: true
     })
 
     const event = new KeyboardEvent('keydown', { key: 'Enter' })
     expect(rootSource.onKeyDown({ event })).toBe(false)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+  })
+
+  it('bridges external suggestion sources into QuickPanel items', async () => {
+    const command = vi.fn()
+    const sourceOnKeyDown = vi.fn(() => false)
+    const suggestionItem = {
+      id: 'file:notes',
+      label: 'notes.md',
+      description: '/workspace/notes.md',
+      icon: 'file',
+      command
+    }
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        enableQuickPanelTriggers
+        suggestionSources={[
+          {
+            pluginKey: 'resource-suggestion',
+            char: '@',
+            title: 'Resources',
+            pageSize: 5,
+            allowedPrefixes: [' ', '\n'],
+            onKeyDown: sourceOnKeyDown,
+            items: () => [suggestionItem]
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const resourceSource = mocks.editorPresetOptions.suggestionSources[1]
+    expect(resourceSource.renderMode).toBe('headless')
+
+    const editor = {
+      state: {
+        doc: {
+          textBetween: vi.fn((_from: number, to: number) => (to === 1 ? '' : '@doc'))
+        },
+        selection: {
+          from: 5
+        }
+      }
+    }
+    const range = { from: 1, to: 5 }
+
+    resourceSource.onActiveChange({
+      editor,
+      range,
+      query: 'doc',
+      text: '@doc',
+      items: [suggestionItem]
+    })
+
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Resources',
+        symbol: '@',
+        pageSize: 5,
+        queryAnchor: 0,
+        manageListExternally: true,
+        trackInputQuery: true,
+        triggerInfo: {
+          type: 'input',
+          position: 0,
+          originalText: '@doc'
+        },
+        list: [
+          expect.objectContaining({
+            id: 'file:notes',
+            label: 'notes.md',
+            description: '/workspace/notes.md',
+            icon: 'file'
+          })
+        ]
+      })
+    )
+
+    const openOptions = mocks.quickPanelOpen.mock.calls[0][0]
+    openOptions.list[0].action({ action: 'enter', item: openOptions.list[0], context: openOptions })
+
+    expect(command).toHaveBeenCalledWith({
+      editor,
+      range,
+      item: suggestionItem,
+      query: 'doc'
+    })
+
+    mocks.quickPanelDispatchKeyDown.mockReturnValue(true)
+    const event = new KeyboardEvent('keydown', { key: 'Enter' })
+    expect(resourceSource.onKeyDown({ event })).toBe(true)
+    expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+    expect(sourceOnKeyDown).not.toHaveBeenCalled()
   })
 
   it('appends additional items at the end of the QuickPanel root list', async () => {

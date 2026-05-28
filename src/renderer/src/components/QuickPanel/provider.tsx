@@ -26,6 +26,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [manageListExternally, setManageListExternally] = useState<boolean>(false)
   const [triggerInfo, setTriggerInfo] = useState<QuickPanelTriggerInfo | undefined>()
   const [queryAnchor, setQueryAnchor] = useState<number | undefined>()
+  const [trackInputQuery, setTrackInputQuery] = useState<boolean>(false)
   const [parentPanel, setParentPanel] = useState<QuickPanelOpenOptions | undefined>()
   const [filterFn, setFilterFn] = useState<QuickPanelFilterFn | undefined>()
   const [sortFn, setSortFn] = useState<QuickPanelSortFn | undefined>()
@@ -103,6 +104,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       setSymbol(options.symbol)
       setTriggerInfo(options.triggerInfo)
       setQueryAnchor(options.queryAnchor ?? options.triggerInfo?.position)
+      setTrackInputQuery(options.trackInputQuery ?? false)
       setParentPanel(options.parentPanel)
 
       setOnClose(() => options.onClose)
@@ -120,6 +122,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     (action?: QuickPanelCloseAction, searchText?: string) => {
       setIsVisible(false)
       setManageListExternally(false)
+      setTrackInputQuery(false)
       setLastCloseAction(action)
       onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: this })
 
@@ -134,6 +137,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setSymbol('')
         setTriggerInfo(undefined)
         setQueryAnchor(undefined)
+        setTrackInputQuery(false)
         setParentPanel(undefined)
         setManageListExternally(false)
       }, 200)
@@ -184,6 +188,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       manageListExternally,
       triggerInfo,
       queryAnchor,
+      trackInputQuery,
       parentPanel,
       lastCloseAction,
       filterFn,
@@ -213,6 +218,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       manageListExternally,
       triggerInfo,
       queryAnchor,
+      trackInputQuery,
       parentPanel,
       lastCloseAction,
       filterFn,

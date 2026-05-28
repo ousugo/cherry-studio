@@ -50,7 +50,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { createComposerUserMessageParts, serializeComposerDocument } from '../composerDraft'
-import type { ComposerSuggestionSource } from '../ComposerSuggestion'
+import type { ComposerSuggestionSource } from '../quickPanel'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { useComposerMessageQueue } from '../useComposerMessageQueue'
 import {

@@ -8,8 +8,8 @@ import {
   ComposerText,
   ComposerUndoRedo
 } from './composerSchema'
-import { type ComposerSuggestionSource, createComposerSuggestionExtension } from './ComposerSuggestion'
 import { ComposerTokenNode, type ComposerTokenRenderer } from './ComposerTokenNode'
+import { type ComposerSuggestionSource, createComposerSuggestionExtension } from './quickPanel'
 
 export interface ComposerEditorPresetOptions {
   placeholder?: string
