@@ -179,6 +179,7 @@ vi.mock('../SelectedModelsTrigger', () => ({
     fallbackLabel,
     iconOnly,
     className,
+    suppressSelectionPopover,
     onModelsChange,
     onRestore
   }: any) => (
@@ -186,7 +187,8 @@ vi.mock('../SelectedModelsTrigger', () => ({
       data-testid="selected-models-trigger"
       className={className}
       data-assistant-model-id={assistantModel?.id ?? ''}
-      data-model-count={String(models.length)}>
+      data-model-count={String(models.length)}
+      data-suppress-selection-popover={String(Boolean(suppressSelectionPopover))}>
       <span className={iconOnly ? 'sr-only' : undefined}>
         {models.length === 0 ? fallbackLabel : `${models[0].name} | Provider`}
       </span>
@@ -222,6 +224,8 @@ vi.mock('@renderer/components/Selector', () => ({
     onSelect,
     trigger,
     multiple,
+    open,
+    onOpenChange,
     value,
     defaultMultiSelectMode,
     multiSelectMode,
@@ -230,10 +234,21 @@ vi.mock('@renderer/components/Selector', () => ({
     <div
       data-testid="model-selector"
       data-multiple={String(multiple)}
+      data-open={String(Boolean(open))}
       data-default-multi-select={String(Boolean(defaultMultiSelectMode))}
       data-multi-select-mode={String(Boolean(multiSelectMode))}
       data-value-count={Array.isArray(value) ? String(value.length) : ''}>
       {trigger}
+      {onOpenChange ? (
+        <>
+          <button type="button" onClick={() => onOpenChange(true)}>
+            open model selector popup
+          </button>
+          <button type="button" onClick={() => onOpenChange(false)}>
+            close model selector popup
+          </button>
+        </>
+      ) : null}
       <button
         type="button"
         onClick={() => {
@@ -567,6 +582,23 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([model, modelB])
     expect(mocks.setModel).not.toHaveBeenCalled()
+  })
+
+  it('suppresses the selected-model trigger popover while the mentioned-model selector is open', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-suppress-selection-popover', 'false')
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-open', 'false')
+
+    fireEvent.click(screen.getByText('open model selector popup'))
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-suppress-selection-popover', 'true')
+
+    fireEvent.click(screen.getByText('close model selector popup'))
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-suppress-selection-popover', 'false')
   })
 
   it('updates the assistant model from the home model selector in single-select mode', () => {

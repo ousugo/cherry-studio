@@ -261,9 +261,19 @@ vi.mock('@renderer/components/Selector', () => ({
       </button>
     </div>
   ),
-  ModelSelector: ({ onSelect, trigger }: any) => (
-    <div>
+  ModelSelector: ({ onSelect, trigger, open, onOpenChange }: any) => (
+    <div data-testid="agent-model-selector" data-open={String(Boolean(open))}>
       {trigger}
+      {onOpenChange ? (
+        <>
+          <button type="button" onClick={() => onOpenChange(true)}>
+            open agent model selector popup
+          </button>
+          <button type="button" onClick={() => onOpenChange(false)}>
+            close agent model selector popup
+          </button>
+        </>
+      ) : null}
       <button type="button" onClick={() => onSelect({ id: 'anthropic::claude-opus-4', name: 'Claude Opus 4' })}>
         select model 2
       </button>
@@ -877,6 +887,28 @@ describe('AgentComposer', () => {
     expect(mocks.updateModel).toHaveBeenCalledWith('agent-1', 'anthropic::claude-opus-4', {
       showSuccessToast: false
     })
+  })
+
+  it('controls the agent model selector popup open state from the composer toolbar', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-open', 'false')
+
+    fireEvent.click(screen.getByText('open agent model selector popup'))
+
+    expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-open', 'true')
+
+    fireEvent.click(screen.getByText('close agent model selector popup'))
+
+    expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-open', 'false')
   })
 
   it('shows only icons in the input bottom toolbar when it is narrow', async () => {

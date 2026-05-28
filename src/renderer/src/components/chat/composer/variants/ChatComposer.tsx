@@ -157,6 +157,7 @@ const ChatComposerContextControls = ({
     ? `${model.name}${modelProviderName ? ` | ${modelProviderName}` : ''}`
     : selectModelLabel
   const modelLabel = assistantModelLabel
+  const [mentionedModelSelectorOpen, setMentionedModelSelectorOpen] = useState(false)
   const handleMentionedModelSelect = useCallback(
     (nextModels: Model[]) => {
       onMentionedModelsSelect(nextModels)
@@ -196,6 +197,8 @@ const ChatComposerContextControls = ({
           multiple
           value={mentionedModelSelectorValue}
           onSelect={handleMentionedModelSelect}
+          open={mentionedModelSelectorOpen}
+          onOpenChange={setMentionedModelSelectorOpen}
           multiSelectMode={mentionedModelMultiSelectMode}
           onMultiSelectModeChange={handleMentionedModelMultiSelectModeChange}
           filter={CHAT_MODEL_FILTER}
@@ -212,6 +215,7 @@ const ChatComposerContextControls = ({
               assistantModel={model}
               providers={providers}
               fallbackLabel={selectModelLabel}
+              suppressSelectionPopover={mentionedModelSelectorOpen}
               onModelsChange={handleMentionedModelSelect}
               onRestore={onMentionedModelSelectorRestore}
             />

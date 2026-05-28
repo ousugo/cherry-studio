@@ -13,7 +13,9 @@ import {
   type MouseEvent,
   type PointerEvent,
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,6 +26,7 @@ interface SelectedModelsTriggerProps extends Omit<ComponentPropsWithoutRef<typeo
   providers: Provider[]
   fallbackLabel: string
   iconOnly?: boolean
+  suppressSelectionPopover?: boolean
   onModelsChange: (models: Model[]) => void
   onRestore: () => void
 }
@@ -62,6 +65,7 @@ export const SelectedModelsTrigger = ({
   providers,
   fallbackLabel,
   iconOnly = false,
+  suppressSelectionPopover = false,
   onModelsChange,
   onRestore,
   className,
@@ -69,10 +73,12 @@ export const SelectedModelsTrigger = ({
   onClick,
   onFocus,
   onPointerEnter,
+  onPointerLeave,
   ...buttonProps
 }: SelectedModelsTriggerProps & { ref?: React.RefObject<HTMLButtonElement | null> }) => {
   const { t } = useTranslation()
   const [popoverOpen, setPopoverOpen] = useState(false)
+  const closeTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
   const singleModel = models.length === 1 ? models[0] : undefined
   const singleProviderName = singleModel ? getProviderName(singleModel, providers) : undefined
   const singleModelLabel = singleModel
@@ -80,15 +86,56 @@ export const SelectedModelsTrigger = ({
     : fallbackLabel
   const selectedModelsLabel = t('models.selection.selected_models')
   const hasSelectionPopover = models.length !== 1
+  const canShowSelectionPopover = hasSelectionPopover && !suppressSelectionPopover
   const hasVisibleTriggerIcon = models.length > 0
 
   const modelProviderNames = useMemo(() => {
     return new Map(models.map((model) => [model.id, getProviderName(model, providers)]))
   }, [models, providers])
 
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+  }, [])
+
+  const closeSelectionPopover = useCallback(() => {
+    clearCloseTimer()
+    setPopoverOpen(false)
+  }, [clearCloseTimer])
+
   const openSelectionPopover = useCallback(() => {
-    if (hasSelectionPopover) setPopoverOpen(true)
-  }, [hasSelectionPopover])
+    clearCloseTimer()
+    if (canShowSelectionPopover) setPopoverOpen(true)
+  }, [canShowSelectionPopover, clearCloseTimer])
+
+  const scheduleSelectionPopoverClose = useCallback(() => {
+    clearCloseTimer()
+    if (!canShowSelectionPopover) return
+
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null
+      setPopoverOpen(false)
+    }, 100)
+  }, [canShowSelectionPopover, clearCloseTimer])
+
+  const handlePopoverOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen) {
+        openSelectionPopover()
+      } else {
+        closeSelectionPopover()
+      }
+    },
+    [closeSelectionPopover, openSelectionPopover]
+  )
+
+  useEffect(() => {
+    if (!canShowSelectionPopover) closeSelectionPopover()
+  }, [canShowSelectionPopover, closeSelectionPopover])
+
+  useEffect(() => clearCloseTimer, [clearCloseTimer])
 
   const handleRemove = useCallback(
     (model: Model) => (event: MouseEvent<HTMLButtonElement>) => {
@@ -110,10 +157,10 @@ export const SelectedModelsTrigger = ({
 
   const handleTriggerClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
-      setPopoverOpen(false)
+      closeSelectionPopover()
       onClick?.(event)
     },
-    [onClick]
+    [closeSelectionPopover, onClick]
   )
 
   const handleTriggerFocus = useCallback(
@@ -130,6 +177,14 @@ export const SelectedModelsTrigger = ({
       openSelectionPopover()
     },
     [onPointerEnter, openSelectionPopover]
+  )
+
+  const handleTriggerPointerLeave = useCallback(
+    (event: PointerEvent<HTMLButtonElement>) => {
+      onPointerLeave?.(event)
+      scheduleSelectionPopoverClose()
+    },
+    [onPointerLeave, scheduleSelectionPopoverClose]
   )
 
   const content = (
@@ -208,7 +263,7 @@ export const SelectedModelsTrigger = ({
   )
 
   return (
-    <Popover open={hasSelectionPopover ? popoverOpen : false} onOpenChange={setPopoverOpen}>
+    <Popover open={canShowSelectionPopover ? popoverOpen : false} onOpenChange={handlePopoverOpenChange}>
       <PopoverAnchor asChild>
         <Button
           ref={ref}
@@ -219,7 +274,8 @@ export const SelectedModelsTrigger = ({
           {...buttonProps}
           onClick={handleTriggerClick}
           onFocus={handleTriggerFocus}
-          onPointerEnter={handleTriggerPointerEnter}>
+          onPointerEnter={handleTriggerPointerEnter}
+          onPointerLeave={handleTriggerPointerLeave}>
           {models.length > 1 ? (
             <span className="flex shrink-0 items-center gap-1" data-testid="selected-models-trigger-icons">
               {models.map((model) => (
@@ -236,7 +292,7 @@ export const SelectedModelsTrigger = ({
           )}
         </Button>
       </PopoverAnchor>
-      {hasSelectionPopover ? (
+      {canShowSelectionPopover ? (
         <PopoverContent
           align="start"
           side="bottom"
@@ -244,7 +300,8 @@ export const SelectedModelsTrigger = ({
           className="w-auto max-w-none overflow-hidden rounded-lg border-border bg-popover p-0 text-popover-foreground shadow-lg"
           onOpenAutoFocus={(event) => event.preventDefault()}
           onCloseAutoFocus={(event) => event.preventDefault()}
-          onPointerLeave={() => setPopoverOpen(false)}>
+          onPointerEnter={clearCloseTimer}
+          onPointerLeave={closeSelectionPopover}>
           {content}
         </PopoverContent>
       ) : null}

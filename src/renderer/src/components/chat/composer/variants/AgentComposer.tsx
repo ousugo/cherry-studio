@@ -357,6 +357,7 @@ const AgentComposerContextControls = ({
   )
   const modelLabelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const modelChevronClassName = cn('text-muted-foreground', iconOnly && model && 'hidden')
+  const [agentModelSelectorOpen, setAgentModelSelectorOpen] = useState(false)
 
   return (
     <>
@@ -392,6 +393,8 @@ const AgentComposerContextControls = ({
           multiple={false}
           value={model}
           onSelect={onModelSelect}
+          open={agentModelSelectorOpen}
+          onOpenChange={setAgentModelSelectorOpen}
           filter={modelFilter}
           side={side}
           align="start"
