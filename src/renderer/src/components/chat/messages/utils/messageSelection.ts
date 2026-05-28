@@ -1,5 +1,5 @@
 import type { MessageExportView } from '@renderer/types/messageExport'
-import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
+import { getComposerTextFromParts } from '@renderer/utils/messageUtils/composerTokens'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { MessageListItem } from '../types'
@@ -40,7 +40,7 @@ export function getSelectedMessagesPlainText(
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): string {
   return getOrderedSelectedMessageIds(messageIds, orderedMessages)
-    .map((messageId) => getTextFromParts(partsByMessageId[messageId] ?? []))
+    .map((messageId) => getComposerTextFromParts(partsByMessageId[messageId] ?? []))
     .filter(Boolean)
     .join('\n\n---\n\n')
 }

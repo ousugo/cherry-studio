@@ -3,7 +3,8 @@ import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenuBarConfig } from '@rendere
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import type { Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { getTextFromParts, hasTextParts, hasTranslationParts } from '@renderer/utils/messageUtils/partsHelpers'
+import { getComposerTextFromParts } from '@renderer/utils/messageUtils/composerTokens'
+import { hasTextParts, hasTranslationParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { FC } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -61,7 +62,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   const renderConfig = useMessageRenderConfig()
   const menuConfig = messageUi.menuConfig ?? defaultMessageMenuConfig
   const [copied, setCopied] = useTemporaryValue(false, 2000)
-  const translateLanguages = messageUi.translationLanguages ?? []
+  const translateLanguages = useMemo(() => messageUi.translationLanguages ?? [], [messageUi.translationLanguages])
   const isBubbleStyle = renderConfig.messageStyle === 'bubble'
 
   const isUserMessage = message.role === 'user'
@@ -69,7 +70,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   const messageParts = useMessageParts(message.id)
   const messageForExport = useMemo(() => createMessageExportView(message, messageParts), [message, messageParts])
 
-  const mainTextContent = useMemo(() => getTextFromParts(messageParts), [messageParts])
+  const mainTextContent = useMemo(() => getComposerTextFromParts(messageParts), [messageParts])
 
   const isTranslating = useMemo(
     () =>

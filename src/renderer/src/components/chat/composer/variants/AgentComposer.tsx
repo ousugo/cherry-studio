@@ -621,15 +621,41 @@ const AgentComposerInner = ({
     () => [...files.map(agentFileToComposerToken), ...selectedSkills.map(agentSkillToComposerToken)],
     [files, selectedSkills]
   )
+  const resolveSkillMarker = useCallback(
+    (marker: string): ComposerDraftToken | null => {
+      const skill = availableSkills.find((candidate) => candidate.filename === marker)
+      return skill ? agentSkillToComposerToken(skill) : null
+    },
+    [availableSkills]
+  )
 
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
       const fileTokenIds = getAgentComposerTokenIds(draftTokens, 'file')
       const skillTokenIds = getAgentComposerTokenIds(draftTokens, 'skill')
+      const skillTokens = draftTokens.filter((token) => token.kind === 'skill')
       setFiles((prev) => prev.filter((file) => fileTokenIds.has(agentComposerTokenId.file(file))))
-      setSelectedSkills((prev) => prev.filter((skill) => skillTokenIds.has(agentComposerTokenId.skill(skill))))
+      setSelectedSkills((prev) => {
+        const next = prev.filter((skill) => skillTokenIds.has(agentComposerTokenId.skill(skill)))
+        const nextIds = new Set(next.map(agentComposerTokenId.skill))
+
+        for (const token of skillTokens) {
+          const skill = availableSkills.find((candidate) => {
+            const candidateId = agentComposerTokenId.skill(candidate)
+            return candidateId === token.id || candidate.name === token.label || candidate.filename === token.label
+          })
+          if (!skill) continue
+
+          const skillId = agentComposerTokenId.skill(skill)
+          if (nextIds.has(skillId)) continue
+          next.push(skill)
+          nextIds.add(skillId)
+        }
+
+        return next
+      })
     },
-    [setFiles]
+    [availableSkills, setFiles]
   )
 
   useEffect(() => {
@@ -1044,6 +1070,7 @@ const AgentComposerInner = ({
         tokens={tokens}
         managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
+        resolveSkillMarker={resolveSkillMarker}
         placeholder={placeholderText}
         sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)}
         sendBlockedReason={sendDisabled ? t('common.loading') : undefined}

@@ -183,9 +183,16 @@ export function createMarkdownSanitizeSchema(schema: any) {
 
   return {
     ...schema,
-    tagNames: [...(schema.tagNames || []), 'style', ...SVG_ELEMENTS],
+    tagNames: [...(schema.tagNames || []), 'style', 'span', ...SVG_ELEMENTS],
     attributes: {
       ...schema.attributes,
+      span: [
+        ...(schema.attributes?.span || []),
+        'data-composer-token-index',
+        'dataComposerTokenIndex',
+        'data-composer-token-block',
+        'dataComposerTokenBlock'
+      ],
       sup: [...(schema.attributes?.sup || []), 'data-citation'],
       ...svgAttributes
     },

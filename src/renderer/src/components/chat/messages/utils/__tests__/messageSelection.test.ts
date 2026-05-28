@@ -47,4 +47,35 @@ describe('messageSelection', () => {
 
     expect(getSelectedMessagesPlainText(['b', 'a'], messages, partsByMessageId)).toBe('first\n\n---\n\nsecond')
   })
+
+  it('copies composer skill tokens as pasteable markers instead of hidden prompt text', () => {
+    const messages = [createMessage('a', 'user')]
+    const partsByMessageId: Record<string, CherryMessagePart[]> = {
+      a: [
+        {
+          type: 'text',
+          text: 'Use the pdf skill. hello',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'skill:pdf',
+                    kind: 'skill',
+                    label: 'pdf',
+                    index: 0,
+                    textOffset: 0,
+                    promptText: 'Use the pdf skill.'
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+
+    expect(getSelectedMessagesPlainText(['a'], messages, partsByMessageId)).toBe('/pdf/ hello')
+  })
 })

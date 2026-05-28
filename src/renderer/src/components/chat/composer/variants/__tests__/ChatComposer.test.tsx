@@ -503,6 +503,12 @@ describe('ChatComposer', () => {
     expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
   })
 
+  it('does not enable skill marker paste handling', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.resolveSkillMarker).toBeUndefined()
+  })
+
   it('shows only icons in the input bottom toolbar when it is narrow', async () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 

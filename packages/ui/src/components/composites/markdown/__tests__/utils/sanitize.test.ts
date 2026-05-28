@@ -58,4 +58,20 @@ describe('Markdown sanitize schema', () => {
 
     expect(output).toContain('<h1 id="user-content-location">Title</h1>')
   })
+
+  it('preserves composer token placeholders without allowing unsafe span attributes', async () => {
+    const { sanitize } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+
+    const output = String(
+      await unified()
+        .use(rehypeParse, { fragment: true })
+        .use(sanitizeFn, createMarkdownSanitizeSchema(schema))
+        .use(rehypeStringify)
+        .process('<span data-composer-token-index="0" data-composer-token-block="block-1" onclick="alert(1)"></span>')
+    )
+
+    expect(output).toContain('<span data-composer-token-index="0" data-composer-token-block="block-1"></span>')
+    expect(output).not.toContain('onclick')
+  })
 })

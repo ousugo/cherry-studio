@@ -36,11 +36,32 @@ vi.mock('@renderer/utils/citation', () => ({
 // Mock Markdown component
 vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
   __esModule: true,
-  default: ({ block, postProcess }: any) => {
+  default: ({ block, postProcess, components }: any) => {
     const content = postProcess ? postProcess(block.content) : block.content
+    const tokenPlaceholderPattern =
+      /<span data-composer-token-index="(\d+)" data-composer-token-block="([^"]+)"><\/span>/g
+    const nodes: any[] = []
+    let cursor = 0
+    for (const match of content.matchAll(tokenPlaceholderPattern)) {
+      const index = match.index ?? 0
+      if (index > cursor) nodes.push(content.slice(cursor, index))
+      const tokenIndex = match[1]
+      const tokenBlock = match[2]
+      nodes.push(
+        components?.span?.({
+          key: `token-${tokenIndex}`,
+          dataComposerTokenIndex: tokenIndex,
+          dataComposerTokenBlock: tokenBlock,
+          children: null
+        }) ?? match[0]
+      )
+      cursor = index + match[0].length
+    }
+    if (cursor < content.length) nodes.push(content.slice(cursor))
+
     return (
       <div data-testid="mock-markdown" data-content={content}>
-        Markdown: {content}
+        Markdown: {nodes}
       </div>
     )
   }
@@ -190,6 +211,37 @@ describe('MainTextBlock', () => {
       expect(token).toBeInTheDocument()
       expect(token).toHaveClass('border-0', 'bg-transparent', 'text-primary')
       expect(token?.querySelector('svg')).toHaveClass('text-primary')
+    })
+
+    it('should render composer tokens while preserving markdown for user text segments', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({
+        content: 'Use the find-skills skill. **hello**',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'skill:find-skills',
+              kind: 'skill',
+              label: 'find-skills',
+              index: 0,
+              textOffset: 0,
+              promptText: 'Use the find-skills skill.'
+            }
+          ]
+        }
+      })
+
+      const markdown = getRenderedMarkdown()!
+      expect(markdown).toBeInTheDocument()
+      expect(markdown).toHaveAttribute(
+        'data-content',
+        '<span data-composer-token-index="0" data-composer-token-block="test-block-1"></span> **hello**'
+      )
+      expect(markdown).toHaveTextContent('Markdown: find-skills **hello**')
+      expect(markdown).not.toHaveTextContent('Use the find-skills skill.')
+      expect(markdown.querySelector('[data-composer-token-kind="skill"]')).toBeInTheDocument()
     })
 
     it('should ignore legacy model composer tokens in user messages', () => {

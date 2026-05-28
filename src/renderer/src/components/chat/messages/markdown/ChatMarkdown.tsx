@@ -7,6 +7,7 @@ import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
 import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { Components } from 'streamdown'
 
 import { useChatMarkdownComponents } from './useChatMarkdownComponents'
 
@@ -14,11 +15,13 @@ interface Props {
   block: MarkdownSource
   /** Pre-process the markdown content (e.g. citation tag injection). */
   postProcess?: (text: string) => string
+  className?: string
+  components?: Partial<Components>
 }
 
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
 
-const ChatMarkdown: FC<Props> = ({ block, postProcess }) => {
+const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) => {
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useMessageRenderConfig()
   const isStreaming = block.status === 'streaming'
@@ -35,19 +38,28 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess }) => {
   }, [block.status, block.content, postProcess, t])
 
   const hasStyleElement = STYLE_ELEMENT_REGEX.test(content)
-  const components = useChatMarkdownComponents({ blockId: block.id, hasStyleElement })
+  const chatComponents = useChatMarkdownComponents({ blockId: block.id, hasStyleElement })
+  const mergedComponents = useMemo(
+    () => (components ? { ...chatComponents, ...components } : chatComponents),
+    [chatComponents, components]
+  )
 
   const footnoteLabel = t('common.footnotes')
 
   if (isStreaming) {
     return (
-      <StreamingMarkdown id={block.id} plugins={plugins} components={components} footnoteLabel={footnoteLabel}>
+      <StreamingMarkdown id={block.id} plugins={plugins} components={mergedComponents} footnoteLabel={footnoteLabel}>
         {content}
       </StreamingMarkdown>
     )
   }
   return (
-    <Markdown id={block.id} plugins={plugins} components={components} footnoteLabel={footnoteLabel}>
+    <Markdown
+      id={block.id}
+      plugins={plugins}
+      components={mergedComponents}
+      className={className}
+      footnoteLabel={footnoteLabel}>
       {content}
     </Markdown>
   )

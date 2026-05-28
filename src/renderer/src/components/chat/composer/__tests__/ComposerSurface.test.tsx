@@ -571,6 +571,221 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith(expect.objectContaining({ queryAnchor: 6, symbol: 'root' }))
   })
 
+  it('uses input-layer text for slash queries after skill tokens', async () => {
+    const onToolLauncherSelect = vi.fn()
+    render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        enableQuickPanelTriggers
+        onToolLauncherSelect={onToolLauncherSelect}
+        getToolLaunchers={() => [
+          {
+            id: 'test-command',
+            kind: 'command',
+            label: 'Test command',
+            icon: 'test',
+            sources: ['root-panel']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const inputText = '21 21  /'
+    const rootSource = mocks.editorPresetOptions.suggestionSources[0]
+    rootSource.onActiveChange({
+      editor: {
+        getJSON: () => ({
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: '21 21 ' },
+                {
+                  type: 'composerToken',
+                  attrs: {
+                    id: 'skill:find-skills',
+                    kind: 'skill',
+                    label: 'find-skills',
+                    promptText: 'Use the find-skills skill.'
+                  }
+                },
+                { type: 'text', text: ' /' }
+              ]
+            }
+          ]
+        }),
+        state: {
+          doc: {
+            content: { size: 10 },
+            textBetween: vi.fn((_from: number, to: number) => (to === 9 ? '21 21  ' : inputText))
+          },
+          selection: {
+            from: 10
+          }
+        }
+      },
+      range: { from: 9, to: 10 },
+      query: '',
+      text: '/',
+      items: []
+    })
+
+    const openOptions = mocks.quickPanelOpen.mock.calls[0][0]
+    expect(openOptions.queryAnchor).toBe(7)
+    openOptions.list[0].action({
+      action: 'enter',
+      context: openOptions,
+      item: openOptions.list[0],
+      parentPanel: openOptions,
+      queryAnchor: openOptions.queryAnchor,
+      searchText: ''
+    })
+
+    const actionOptions = onToolLauncherSelect.mock.calls[0][1]
+    expect(actionOptions.inputAdapter.getText()).toBe(inputText)
+    expect(actionOptions.inputAdapter.getCursorOffset()).toBe(inputText.length)
+  })
+
+  it('restores copied skill markers as composer tokens on paste', async () => {
+    const resolveSkillMarker = vi.fn((marker: string) => {
+      if (marker === 'find-skills') {
+        return {
+          id: 'skill:find-skills',
+          kind: 'skill' as const,
+          label: 'Find Skills',
+          promptText: 'Use the Find Skills skill.'
+        }
+      }
+      if (marker === 'pdf') {
+        return {
+          id: 'skill:pdf',
+          kind: 'skill' as const,
+          label: 'PDF',
+          promptText: 'Use the PDF skill.'
+        }
+      }
+      return null
+    })
+    render(<ComposerSurface {...baseProps} resolveSkillMarker={resolveSkillMarker} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const preventDefault = vi.fn()
+    const event = {
+      preventDefault,
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? '/find-skills/ /pdf/ 你好' : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(preventDefault).toHaveBeenCalled()
+    expect(mocks.insertContent).toHaveBeenCalledWith([
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'skill:find-skills',
+          kind: 'skill',
+          label: 'Find Skills',
+          promptText: 'Use the Find Skills skill.'
+        }
+      },
+      { type: 'text', text: ' ' },
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF',
+          promptText: 'Use the PDF skill.'
+        }
+      },
+      { type: 'text', text: ' 你好' }
+    ])
+    expect(resolveSkillMarker).toHaveBeenCalledWith('find-skills')
+    expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
+  })
+
+  it('does not reapply serialized skill prompt text as visible editor content', async () => {
+    const onTextChange = vi.fn()
+    const skillToken = {
+      id: 'skill:find-skills',
+      kind: 'skill' as const,
+      label: 'find-skills',
+      promptText: 'Use the find-skills skill.'
+    }
+    const serializedText = 'Use the find-skills skill. '
+    const tokenDocument = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: skillToken
+            },
+            { type: 'text', text: ' ' }
+          ]
+        }
+      ]
+    }
+    const { rerender } = render(
+      <ComposerSurface {...baseProps} onTextChange={onTextChange} managedTokenKinds={['skill']} tokens={[]} />
+    )
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    act(() => {
+      mocks.editorOptions.onUpdate({
+        editor: {
+          getJSON: () => tokenDocument,
+          state: {
+            doc: {
+              descendants: vi.fn()
+            },
+            tr: mocks.transaction
+          },
+          view: {
+            composing: false
+          }
+        }
+      })
+    })
+
+    expect(onTextChange).toHaveBeenCalledWith(serializedText)
+    mocks.setContent.mockClear()
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        text={serializedText}
+        onTextChange={onTextChange}
+        managedTokenKinds={['skill']}
+        tokens={[skillToken]}
+      />
+    )
+
+    expect(mocks.setContent).not.toHaveBeenCalled()
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        text={serializedText}
+        onTextChange={onTextChange}
+        managedTokenKinds={['skill']}
+        tokens={[skillToken]}
+      />
+    )
+
+    expect(mocks.setContent).toHaveBeenCalledWith(expect.any(Object), { emitUpdate: false })
+  })
+
   it('does not open the QuickPanel root when slash is attached to previous text', async () => {
     render(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
 

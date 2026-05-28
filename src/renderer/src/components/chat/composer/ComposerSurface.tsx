@@ -20,6 +20,7 @@ import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import PasteService from '@renderer/services/PasteService'
 import type { FileMetadata } from '@renderer/types'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import type { Editor } from '@tiptap/react'
 import { EditorContent } from '@tiptap/react'
 import { CirclePause, Maximize, Minimize } from 'lucide-react'
@@ -76,6 +77,7 @@ export interface ComposerSurfaceProps {
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   getToolLaunchers?: () => ComposerToolLauncher[]
+  resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
   suggestionSources?: readonly ComposerSuggestionSource[]
   queueContent?: React.ReactNode
   rootPanelAdditionalItems?: readonly QuickPanelListItem[]
@@ -147,8 +149,17 @@ function isComposerSendKeyPressed(event: KeyboardEvent, shortcut: SendMessageSho
   }
 }
 
+function getComposerInputLeafText(node: ProseMirrorNode) {
+  if (node.type.name === 'hardBreak') return '\n'
+  return ''
+}
+
+function getComposerInputText(editor: Editor) {
+  return editor.state.doc.textBetween(0, editor.state.doc.content.size, '\n', getComposerInputLeafText)
+}
+
 function getComposerTextOffset(editor: Editor, position: number) {
-  return editor.state.doc.textBetween(0, position, '\n', '').length
+  return editor.state.doc.textBetween(0, position, '\n', getComposerInputLeafText).length
 }
 
 const ROOT_QUICK_PANEL_ALLOWED_PREFIXES = [' ', '\n', '\t']
@@ -193,7 +204,7 @@ function deleteComposerTextRange(editor: Editor, range: { from: number; to: numb
 
 function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
   return {
-    getText: () => serializeComposerDocument(editor).text,
+    getText: () => getComposerInputText(editor),
     getCursorOffset: () => getComposerCursorTextOffset(editor),
     insertText: (insertedText) => {
       editor
@@ -451,6 +462,7 @@ export default function ComposerSurface({
   onFocus,
   onActionsChange,
   getToolLaunchers,
+  resolveSkillMarker,
   suggestionSources = [],
   queueContent,
   rootPanelAdditionalItems,
@@ -468,6 +480,7 @@ export default function ComposerSurface({
   const editorMinHeight = getComposerEditorMinHeight(fontSize)
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
+  const pendingLocalTextEchoRef = useRef<string | null>(null)
   const inputListenersRef = useRef(new Set<(event?: { isComposing?: boolean }) => void>())
   const isSyncingTokensRef = useRef(false)
   const sendDisabledRef = useRef(sendDisabled)
@@ -503,6 +516,7 @@ export default function ComposerSurface({
   const applyComposerText = useCallback(
     (nextText: string) => {
       textRef.current = nextText
+      pendingLocalTextEchoRef.current = nextText
       onTextChange(nextText)
       editorRef.current?.commands.setContent(createPromptVariableContent(nextText), { emitUpdate: false })
     },
@@ -601,7 +615,7 @@ export default function ComposerSurface({
         const { getToolLaunchers, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems } =
           rootSuggestionStateRef.current
         const launchers = getToolLaunchers?.() ?? []
-        const textBeforeTrigger = editor.state.doc.textBetween(0, range.from, '\n', '')
+        const textBeforeTrigger = editor.state.doc.textBetween(0, range.from, '\n', getComposerInputLeafText)
         const queryAnchor = textBeforeTrigger.length
         const cursorOffset = editor.state.selection?.from
           ? getComposerCursorTextOffset(editor)
@@ -805,7 +819,8 @@ export default function ComposerSurface({
 
       const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, {
         pasteLongTextAsFile,
-        pasteLongTextThreshold
+        pasteLongTextThreshold,
+        resolveSkillMarker
       })
 
       if (plainTextOverride !== null) {
@@ -823,6 +838,7 @@ export default function ComposerSurface({
       const draft = serializeComposerDocument(updatedEditor)
       const nextText = draft.text
       textRef.current = nextText
+      pendingLocalTextEchoRef.current = nextText
       onTextChange(nextText)
       inputListenersRef.current.forEach((listener) => listener({ isComposing: updatedEditor.view.composing }))
 
@@ -843,7 +859,15 @@ export default function ComposerSurface({
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
     const currentText = serializeComposerDocument(editor).text
-    if (currentText === text) return
+    if (currentText === text) {
+      pendingLocalTextEchoRef.current = null
+      return
+    }
+    if (pendingLocalTextEchoRef.current === text) {
+      pendingLocalTextEchoRef.current = null
+      return
+    }
+    pendingLocalTextEchoRef.current = null
     editor.commands.setContent(createPromptVariableContent(text), { emitUpdate: false })
   }, [editor, text])
 
@@ -868,7 +892,7 @@ export default function ComposerSurface({
     if (!editor) return undefined
 
     return {
-      getText: () => serializeComposerDocument(editor).text,
+      getText: () => getComposerInputText(editor),
       getCursorOffset: () => getComposerCursorTextOffset(editor),
       insertText: (insertedText) => {
         editor

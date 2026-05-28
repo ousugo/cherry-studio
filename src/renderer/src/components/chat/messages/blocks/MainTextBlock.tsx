@@ -4,12 +4,14 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation, Model } from '@renderer/types'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
+import { getRenderableComposerTokens } from '@renderer/utils/messageUtils/composerTokens'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 import { Bot, Boxes, Code2, FileText, Globe2, Monitor, Wrench, Zap } from 'lucide-react'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import type { Components } from 'streamdown'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
@@ -39,6 +41,8 @@ const composerTokenIcon = {
 } satisfies Record<ComposerMessageToken['kind'], React.ComponentType<{ size?: number; className?: string }>>
 
 const skillComposerTokenClassName = 'border-0 bg-transparent text-primary'
+const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
+const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
 
 function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
   const Icon = composerTokenIcon[token.kind]
@@ -59,9 +63,7 @@ function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
 }
 
 function renderComposerMessageContent(content: string, composer: ComposerMessageSnapshot) {
-  const tokens = composer.tokens
-    .filter((token) => token.kind !== 'model' && token.label && token.kind in composerTokenIcon)
-    .sort((a, b) => a.textOffset - b.textOffset || a.index - b.index)
+  const tokens = getRenderableComposerTokens(composer)
   const nodes: React.ReactNode[] = []
   let cursor = 0
 
@@ -86,6 +88,40 @@ function renderComposerMessageContent(content: string, composer: ComposerMessage
   return nodes
 }
 
+function escapeHtmlAttribute(value: string) {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function getComposerMarkdownTokenPlaceholder(index: number, blockId: string) {
+  return `<span ${COMPOSER_TOKEN_MARKDOWN_ATTR}="${index}" ${COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR}="${escapeHtmlAttribute(blockId)}"></span>`
+}
+
+function buildComposerMessageMarkdownContent(content: string, composer: ComposerMessageSnapshot, blockId: string) {
+  const tokens = getRenderableComposerTokens(composer)
+  let markdown = ''
+  let cursor = 0
+
+  tokens.forEach((token, index) => {
+    const offset = Math.max(0, Math.min(content.length, token.textOffset))
+    if (offset > cursor) {
+      markdown += content.slice(cursor, offset)
+      cursor = offset
+    }
+
+    markdown += getComposerMarkdownTokenPlaceholder(index, blockId)
+
+    if (token.promptText && content.slice(offset, offset + token.promptText.length) === token.promptText) {
+      cursor = Math.max(cursor, offset + token.promptText.length)
+    }
+  })
+
+  if (cursor < content.length) {
+    markdown += content.slice(cursor)
+  }
+
+  return { markdown, tokens }
+}
+
 const MainTextBlock: React.FC<Props> = ({
   id,
   content,
@@ -97,6 +133,7 @@ const MainTextBlock: React.FC<Props> = ({
   composer
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
+  const shouldRenderComposerTokens = role === 'user' && !!composer?.tokens.length
 
   const [smoothedContent, setSmoothedContent] = useState(content)
   const { update: updateSmoothStream } = useSmoothStream({
@@ -122,6 +159,26 @@ const MainTextBlock: React.FC<Props> = ({
     },
     [citationReferences, citations]
   )
+  const composerMarkdownContent = useMemo(() => {
+    if (!shouldRenderComposerTokens || !renderInputMessageAsMarkdown || !composer) return undefined
+    return buildComposerMessageMarkdownContent(content, composer, id)
+  }, [composer, content, id, renderInputMessageAsMarkdown, shouldRenderComposerTokens])
+  const composerMarkdownComponents = useMemo<Partial<Components>>(
+    () => ({
+      span: ({ children, ...props }) => {
+        const rawProps = props as Record<string, unknown>
+        const rawIndex = rawProps[COMPOSER_TOKEN_MARKDOWN_ATTR] ?? rawProps.dataComposerTokenIndex
+        const rawBlock = rawProps[COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR] ?? rawProps.dataComposerTokenBlock
+        const tokenIndex = typeof rawIndex === 'string' ? Number.parseInt(rawIndex, 10) : NaN
+        const token =
+          rawBlock === id && Number.isFinite(tokenIndex) ? composerMarkdownContent?.tokens[tokenIndex] : undefined
+        if (token) return <ComposerMessageTokenChip token={token} />
+
+        return <span {...props}>{children}</span>
+      }
+    }),
+    [composerMarkdownContent?.tokens, id]
+  )
 
   return (
     <>
@@ -135,9 +192,15 @@ const MainTextBlock: React.FC<Props> = ({
           ))}
         </Flex>
       )}
-      {role === 'user' && !renderInputMessageAsMarkdown ? (
+      {composerMarkdownContent ? (
+        <ChatMarkdown
+          block={{ ...block, content: composerMarkdownContent.markdown }}
+          components={composerMarkdownComponents}
+          postProcess={processContent}
+        />
+      ) : role === 'user' && (shouldRenderComposerTokens || !renderInputMessageAsMarkdown) ? (
         <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
-          {composer?.tokens.length ? renderComposerMessageContent(content, composer) : content}
+          {shouldRenderComposerTokens ? renderComposerMessageContent(content, composer) : content}
         </p>
       ) : (
         <ChatMarkdown block={block} postProcess={processContent} />

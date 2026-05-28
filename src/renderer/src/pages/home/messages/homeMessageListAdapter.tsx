@@ -48,7 +48,7 @@ import type { Topic, TranslateLangCode } from '@renderer/types'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { updateCodeBlock } from '@renderer/utils/markdown'
-import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
+import { getComposerTextFromParts } from '@renderer/utils/messageUtils/composerTokens'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import {
   createUniqueModelId,
@@ -190,7 +190,7 @@ export function useHomeMessageListProviderValue({
     const lastMessage = last(messageItems)
     if (lastMessage) {
       const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
-      const text = getTextFromParts(parts)
+      const text = getComposerTextFromParts(parts)
       void navigator.clipboard
         .writeText(text)
         .then(() => window.toast.success(t('message.copy.success')))

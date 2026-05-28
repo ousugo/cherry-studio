@@ -11,6 +11,7 @@ import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
+import { getComposerTextFromMessage } from '@renderer/utils/messageUtils/composerTokens'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
@@ -287,7 +288,7 @@ const createBaseMarkdown = async (
     }
   }
 
-  const content = getMainTextContent(message)
+  const content = getComposerTextFromMessage(message, getMainTextContent(message))
   let citation = excludeCitations ? '' : getCitationContent(message)
 
   let processedContent = forceDollarMathInMarkdown ? convertMathFormula(content) : content
@@ -348,13 +349,13 @@ export const messagesToMarkdown = async (
 
 const formatMessageAsPlainText = (message: ExportableMessage): string => {
   const roleText = message.role === 'user' ? 'User:' : 'Assistant:'
-  const content = getMainTextContent(message)
+  const content = getComposerTextFromMessage(message, getMainTextContent(message))
   const plainTextContent = markdownToPlainText(content).trim()
   return `${roleText}\n${plainTextContent}`
 }
 
 export const messageToPlainText = (message: ExportableMessage): string => {
-  const content = getMainTextContent(message)
+  const content = getComposerTextFromMessage(message, getMainTextContent(message))
   return markdownToPlainText(content).trim()
 }
 

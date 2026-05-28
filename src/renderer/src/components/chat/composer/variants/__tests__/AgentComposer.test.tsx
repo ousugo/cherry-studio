@@ -67,6 +67,11 @@ const pdfSkill = {
   description: 'Read and analyze PDFs',
   filename: 'pdf'
 } satisfies LocalSkill
+const reviewSkill = {
+  name: 'Review (fast)',
+  description: 'Review changed files',
+  filename: 'review-fast'
+} satisfies LocalSkill
 
 const pdfSkillToken = {
   id: 'skill:pdf',
@@ -593,6 +598,61 @@ describe('AgentComposer', () => {
 
     await waitFor(() => {
       expect(mocks.surfaceProps?.tokens).not.toContainEqual(pdfSkillToken)
+    })
+  })
+
+  it('restores selected skill state when pasted marker inserts a skill token', async () => {
+    mocks.availableSkills = [pdfSkill]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      mocks.surfaceProps?.onTokensChange([
+        {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'pdf',
+          promptText: 'Use the pdf skill.',
+          index: 0,
+          textOffset: 0
+        }
+      ])
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken)
+    })
+  })
+
+  it('resolves slash skill markers by filename', async () => {
+    mocks.availableSkills = [reviewSkill]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.resolveSkillMarker?.('Review (fast)')).toBeNull()
+    expect(mocks.surfaceProps?.resolveSkillMarker?.('review-fast')).toEqual({
+      id: 'skill:review-fast',
+      kind: 'skill',
+      label: 'Review (fast)',
+      description: 'Review changed files',
+      promptText: 'Use the Review (fast) skill.',
+      payload: reviewSkill
     })
   })
 
