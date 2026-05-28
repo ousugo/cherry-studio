@@ -1,5 +1,6 @@
 import { Flex } from '@cherrystudio/ui'
 import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation, Model } from '@renderer/types'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
@@ -7,7 +8,7 @@ import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
-import { Bot, Boxes, Code2, FileText, Globe2, Monitor, Wrench } from 'lucide-react'
+import { Bot, Boxes, Code2, FileText, Globe2, Monitor, Wrench, Zap } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
@@ -34,18 +35,24 @@ const composerTokenIcon = {
   mcpResource: Globe2,
   model: Bot,
   reference: Globe2,
-  skill: Wrench
+  skill: Zap
 } satisfies Record<ComposerMessageToken['kind'], React.ComponentType<{ size?: number; className?: string }>>
+
+const skillComposerTokenClassName = 'border-0 bg-transparent text-primary'
 
 function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
   const Icon = composerTokenIcon[token.kind]
+  const isSkill = token.kind === 'skill'
 
   return (
     <span
-      className="mx-0.5 inline-flex max-w-52 select-none items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 align-baseline text-foreground text-sm leading-5"
+      className={cn(
+        'mx-0.5 inline-flex max-w-52 select-none items-center gap-1 rounded-md border px-1.5 py-0.5 align-baseline text-sm leading-5',
+        isSkill ? skillComposerTokenClassName : 'border-border bg-muted text-foreground'
+      )}
       data-composer-token-kind={token.kind}
       title={token.description ?? token.label}>
-      <Icon size={14} className="shrink-0 text-foreground-muted" />
+      <Icon size={14} className={cn('shrink-0', isSkill ? 'text-primary' : 'text-foreground-muted')} />
       <span className="truncate">{token.label}</span>
     </span>
   )

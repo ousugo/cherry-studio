@@ -165,6 +165,33 @@ describe('MainTextBlock', () => {
       expect(textElement.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
     })
 
+    it('should render skill composer tokens with their own visual treatment', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = false
+      renderMainTextBlock({
+        content: 'Use the pdf skill.',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'skill:pdf',
+              kind: 'skill',
+              label: 'pdf',
+              description: 'Read and analyze PDFs',
+              index: 0,
+              textOffset: 0,
+              promptText: 'Use the pdf skill.'
+            }
+          ]
+        }
+      })
+
+      const token = getRenderedPlainText()!.querySelector('[data-composer-token-kind="skill"]')
+      expect(token).toBeInTheDocument()
+      expect(token).toHaveClass('border-0', 'bg-transparent', 'text-primary')
+      expect(token?.querySelector('svg')).toHaveClass('text-primary')
+    })
+
     it('should ignore legacy model composer tokens in user messages', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = false
       renderMainTextBlock({

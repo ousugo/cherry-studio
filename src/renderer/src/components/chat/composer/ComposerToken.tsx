@@ -1,11 +1,11 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { Bot, Boxes, Braces, Code2, FileText, Globe2, Monitor, Wrench } from 'lucide-react'
+import { Bot, Boxes, Braces, Code2, FileText, Globe2, Monitor, Wrench, Zap } from 'lucide-react'
 import type { MouseEventHandler, ReactNode } from 'react'
 
 import type { ComposerDraftToken, ComposerDraftTokenKind } from './tokens'
 
 const tokenIconByKind: Record<ComposerDraftTokenKind, ReactNode> = {
-  skill: <Wrench size={14} />,
+  skill: <Zap size={14} className="text-primary" />,
   file: <FileText size={14} />,
   command: <Code2 size={14} />,
   model: <Bot size={14} />,
@@ -16,6 +16,8 @@ const tokenIconByKind: Record<ComposerDraftTokenKind, ReactNode> = {
   environment: <Monitor size={14} />,
   promptVariable: <Braces size={14} />
 }
+
+const skillTokenClassName = 'border-0 bg-transparent text-primary shadow-none'
 
 export interface ComposerTokenProps {
   token: ComposerDraftToken
@@ -46,13 +48,18 @@ export function ComposerToken({
   }
 
   const isPromptVariable = token.kind === 'promptVariable'
+  const isSkill = token.kind === 'skill'
 
   return (
     <span
       className={cn(
         'mx-0.5 inline-flex select-none items-center gap-1 rounded-md border px-1.5 py-0.5 align-baseline text-sm leading-5',
         maxWidthClassName,
-        isPromptVariable ? 'border-info/30 bg-info/10 text-info' : 'border-border bg-muted text-foreground shadow-none',
+        isPromptVariable
+          ? 'border-info/30 bg-info/10 text-info'
+          : isSkill
+            ? skillTokenClassName
+            : 'border-border bg-muted text-foreground shadow-none',
         selected && 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30',
         className
       )}

@@ -56,6 +56,15 @@ describe('ComposerToken', () => {
     expect(screen.queryByRole('textbox')).toBeNull()
   })
 
+  it('renders skill tokens with their own visual treatment', () => {
+    const { container } = render(<ComposerToken token={{ id: 'skill:pdf', kind: 'skill', label: 'pdf' }} />)
+
+    const token = container.querySelector('[data-composer-token-kind="skill"]')
+    expect(token).toBeInTheDocument()
+    expect(token).toHaveClass('border-0', 'bg-transparent', 'text-primary')
+    expect(token?.querySelector('svg')).toHaveClass('text-primary')
+  })
+
   it('does not render a prompt variable input unless the token is editing', () => {
     const onPromptVariableEditRequest = vi.fn()
 
