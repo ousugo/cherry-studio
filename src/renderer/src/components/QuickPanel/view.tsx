@@ -784,7 +784,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       <div
         ref={bodyRef}
         data-testid="quick-panel-body"
-        className="relative isolate rounded-xl border border-border/80 bg-background py-[5px] [&::-webkit-scrollbar]:w-[3px]"
+        className="relative isolate rounded-xl border border-border/80 bg-popover py-[5px] text-popover-foreground [&::-webkit-scrollbar]:w-[3px]"
         onKeyDown={handlePanelKeyDown}
         onKeyUp={handlePanelKeyUp}
         onMouseMove={() =>
