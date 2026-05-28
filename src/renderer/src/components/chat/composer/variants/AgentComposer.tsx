@@ -53,7 +53,12 @@ import { createComposerUserMessageParts, serializeComposerDocument } from '../co
 import type { ComposerSuggestionSource } from '../ComposerSuggestion'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { useComposerMessageQueue } from '../useComposerMessageQueue'
-import { agentComposerTokenId, agentFileToComposerToken, getAgentComposerTokenIds } from './agentComposerTokens'
+import {
+  agentComposerTokenId,
+  agentFileToComposerToken,
+  agentSkillToComposerToken,
+  getAgentComposerTokenIds
+} from './agentComposerTokens'
 import { useComposerBottomToolbarIconOnly } from './useComposerBottomToolbarIconOnly'
 
 const logger = loggerService.withContext('AgentComposer')
@@ -105,7 +110,7 @@ function formatWorkspacePathWarning(
   }
 }
 
-const AGENT_MANAGED_TOKEN_KINDS = ['file'] as const satisfies readonly ComposerDraftToken['kind'][]
+const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
 const COMPOSER_TOOLBAR_CLASS = 'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden'
 const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
 const COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS = 'w-8 justify-center px-0'
@@ -154,8 +159,6 @@ const getRelativePath = (filePath: string, accessiblePaths: readonly string[]) =
   return filePath
 }
 
-const createSkillPromptText = (skill: LocalSkill) => `Use the ${skill.name} skill. `
-
 const createSkillQuickPanelItems = (
   skills: readonly LocalSkill[],
   options: {
@@ -164,7 +167,7 @@ const createSkillQuickPanelItems = (
   }
 ): QuickPanelListItem[] => {
   return skills.map((skill) => ({
-    id: `skill:${skill.filename}`,
+    id: agentComposerTokenId.skill(skill),
     label: skill.name,
     description: skill.description ?? undefined,
     icon: <Sparkles size={16} />,
@@ -571,6 +574,7 @@ const AgentComposerInner = ({
   const workspacePathStatus = useWorkspacePathStatus(workspace?.path)
   const workspaceWarning = formatWorkspacePathWarning(t, workspacePathStatus, workspace?.path)
   const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
+  const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>([])
   const modelFilter = useAgentModelFilter(agentBase?.type)
   const providerName = useProviderDisplayName(model?.providerId)
   const draftCacheKey = getAgentDraftCacheKey(agentId)
@@ -610,12 +614,17 @@ const AgentComposerInner = ({
     [draftCacheKey]
   )
 
-  const tokens = useMemo(() => files.map(agentFileToComposerToken), [files])
+  const tokens = useMemo(
+    () => [...files.map(agentFileToComposerToken), ...selectedSkills.map(agentSkillToComposerToken)],
+    [files, selectedSkills]
+  )
 
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
       const fileTokenIds = getAgentComposerTokenIds(draftTokens, 'file')
+      const skillTokenIds = getAgentComposerTokenIds(draftTokens, 'skill')
       setFiles((prev) => prev.filter((file) => fileTokenIds.has(agentComposerTokenId.file(file))))
+      setSelectedSkills((prev) => prev.filter((skill) => skillTokenIds.has(agentComposerTokenId.skill(skill))))
     },
     [setFiles]
   )
@@ -642,20 +651,30 @@ const AgentComposerInner = ({
     [actionsRef]
   )
 
-  const insertSkillPrompt = useCallback((skill: LocalSkill, inputAdapter?: QuickPanelInputAdapter) => {
-    if (!inputAdapter) return
+  const insertSkillToken = useCallback(
+    (skill: LocalSkill, inputAdapter?: QuickPanelInputAdapter) => {
+      if (!inputAdapter?.insertToken) return
 
-    inputAdapter.insertText(createSkillPromptText(skill))
-    inputAdapter.focus()
-  }, [])
+      const token = agentSkillToComposerToken(skill)
+      const exists = selectedSkills.some((selectedSkill) => agentComposerTokenId.skill(selectedSkill) === token.id)
+      if (!exists) {
+        inputAdapter.insertToken(token)
+        setSelectedSkills((prev) =>
+          prev.some((selectedSkill) => agentComposerTokenId.skill(selectedSkill) === token.id) ? prev : [...prev, skill]
+        )
+      }
+      inputAdapter.focus()
+    },
+    [selectedSkills]
+  )
 
   const rootPanelSkillItems = useMemo(
     () =>
       createSkillQuickPanelItems(availableSkills, {
         skillLabel: t('plugins.skills'),
-        onInsertSkill: insertSkillPrompt
+        onInsertSkill: insertSkillToken
       }),
-    [availableSkills, insertSkillPrompt, t]
+    [availableSkills, insertSkillToken, t]
   )
 
   const handleQuote = useCallback(
@@ -748,6 +767,7 @@ const AgentComposerInner = ({
   const clearCurrentDraft = useCallback(() => {
     setText('')
     setFiles([])
+    setSelectedSkills([])
     setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
   }, [setFiles, setText, setTimeoutTimer])
 
@@ -1022,7 +1042,7 @@ const AgentComposerInner = ({
         managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
         placeholder={placeholderText}
-        sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0)}
+        sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)}
         sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
         isLoading={isStreaming}
         onSendDraft={handleSendDraft}

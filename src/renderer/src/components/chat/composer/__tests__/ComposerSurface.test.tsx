@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   actions: undefined as ComposerSurfaceActions | undefined,
   editorViewComposing: false,
   insertContent: vi.fn(),
+  insertComposerToken: vi.fn(),
   setContent: vi.fn(),
   setNodeSelection: vi.fn(),
   chainRun: vi.fn(),
@@ -86,7 +87,16 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
             mocks.insertContent(...args)
             return { run: vi.fn() }
           },
-          insertComposerToken: () => ({ insertContent: () => ({ run: vi.fn() }) })
+          insertComposerToken: (...args: unknown[]) => {
+            mocks.insertComposerToken(...args)
+            return {
+              insertContent: (...contentArgs: unknown[]) => {
+                mocks.insertContent(...contentArgs)
+                return { run: mocks.chainRun }
+              },
+              run: mocks.chainRun
+            }
+          }
         })
       }),
       view: {
@@ -228,6 +238,7 @@ describe('ComposerSurface', () => {
     mocks.actions = undefined
     mocks.editorViewComposing = false
     mocks.insertContent.mockReset()
+    mocks.insertComposerToken.mockReset()
     mocks.setContent.mockReset()
     mocks.setNodeSelection.mockReset()
     mocks.chainRun.mockReset()
@@ -507,6 +518,29 @@ describe('ComposerSurface', () => {
         ]
       })
     )
+  })
+
+  it('syncs external managed file and skill tokens into the editor document', async () => {
+    const fileToken = {
+      id: 'file:file-1',
+      kind: 'file' as const,
+      label: 'notes.md'
+    }
+    const skillToken = {
+      id: 'skill:pdf',
+      kind: 'skill' as const,
+      label: 'pdf',
+      promptText: 'Use the pdf skill.'
+    }
+
+    render(<ComposerSurface {...baseProps} tokens={[fileToken, skillToken]} managedTokenKinds={['file', 'skill']} />)
+
+    await waitFor(() => {
+      expect(mocks.insertComposerToken).toHaveBeenCalledWith(fileToken)
+      expect(mocks.insertComposerToken).toHaveBeenCalledWith(skillToken)
+    })
+    expect(mocks.insertContent).toHaveBeenCalledWith(' ')
+    expect(mocks.insertContent).toHaveBeenCalledTimes(2)
   })
 
   it('opens the QuickPanel root when slash follows whitespace', async () => {
