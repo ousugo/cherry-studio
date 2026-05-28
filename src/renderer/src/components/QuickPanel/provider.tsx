@@ -23,6 +23,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [defaultIndex, setDefaultIndex] = useState<number>(-1)
   const [pageSize, setPageSize] = useState<number>(7)
   const [multiple, setMultiple] = useState<boolean>(false)
+  const [readOnly, setReadOnly] = useState<boolean>(false)
   const [manageListExternally, setManageListExternally] = useState<boolean>(false)
   const [triggerInfo, setTriggerInfo] = useState<QuickPanelTriggerInfo | undefined>()
   const [queryAnchor, setQueryAnchor] = useState<number | undefined>()
@@ -100,6 +101,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       setDefaultIndex(nextDefaultIndex)
       setPageSize(options.pageSize ?? 7)
       setMultiple(options.multiple ?? false)
+      setReadOnly(options.readOnly ?? false)
       setManageListExternally(options.manageListExternally ?? false)
       setSymbol(options.symbol)
       setTriggerInfo(options.triggerInfo)
@@ -123,6 +125,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       setIsVisible(false)
       setManageListExternally(false)
       setTrackInputQuery(false)
+      setReadOnly(false)
       setLastCloseAction(action)
       onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: this })
 
@@ -140,6 +143,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setTrackInputQuery(false)
         setParentPanel(undefined)
         setManageListExternally(false)
+        setReadOnly(false)
       }, 200)
     },
     [onClose]
@@ -185,6 +189,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       defaultIndex,
       pageSize,
       multiple,
+      readOnly,
       manageListExternally,
       triggerInfo,
       queryAnchor,
@@ -215,6 +220,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       defaultIndex,
       pageSize,
       multiple,
+      readOnly,
       manageListExternally,
       triggerInfo,
       queryAnchor,

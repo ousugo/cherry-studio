@@ -7049,6 +7049,14 @@
       "close": "關閉",
       "confirm": "確認",
       "forward": "前進",
+      "mcp": {
+        "agentEmpty": "目前代理未設定 MCP 伺服器",
+        "assistantEmpty": "目前助手未設定 MCP 伺服器",
+        "autoEmpty": "目前沒有已啟用的 MCP 伺服器",
+        "description": "查看目前 MCP 伺服器狀態",
+        "disabled": "目前助手已停用 MCP",
+        "unknownServer": "未知 MCP 伺服器"
+      },
       "multiple": "多選",
       "noResult": "未找到結果",
       "page": "翻頁",

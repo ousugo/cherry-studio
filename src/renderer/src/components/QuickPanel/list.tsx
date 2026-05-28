@@ -42,6 +42,11 @@ interface QuickPanelFooterProps {
   containerRef?: Ref<HTMLDivElement>
 }
 
+interface QuickPanelReadOnlyHeaderProps {
+  title?: ReactNode
+  onClose: () => void
+}
+
 interface QuickPanelRowProps<T extends QuickPanelRowData> {
   active: boolean
   className?: string
@@ -50,6 +55,7 @@ interface QuickPanelRowProps<T extends QuickPanelRowData> {
   item: T
   onSelect: () => void
   reserveIconSlot?: boolean
+  readOnly?: boolean
   rowRef?: Ref<HTMLDivElement>
   selected?: boolean
 }
@@ -143,6 +149,25 @@ export function QuickPanelFooter({
   )
 }
 
+export function QuickPanelReadOnlyHeader({ onClose, title }: QuickPanelReadOnlyHeaderProps) {
+  return (
+    <div className="flex w-full items-center justify-between gap-4 px-3 pt-2 pb-[7px]">
+      <div className="overflow-hidden text-ellipsis whitespace-nowrap font-medium text-[13px] text-foreground">
+        {title || ''}
+      </div>
+      <button
+        type="button"
+        className="shrink-0 rounded-md px-1.5 py-0.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        onClick={(event) => {
+          event.stopPropagation()
+          onClose()
+        }}>
+        {t('settings.quickPanel.close')}
+      </button>
+    </div>
+  )
+}
+
 export function QuickPanelRow<T extends QuickPanelRowData>({
   active,
   className,
@@ -151,6 +176,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
   item,
   onSelect,
   reserveIconSlot = false,
+  readOnly = false,
   rowRef,
   selected = false
 }: QuickPanelRowProps<T>) {
@@ -159,11 +185,15 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
       ref={rowRef}
       className={cn(
         'mx-[5px] mb-px flex h-[30px] items-center justify-between gap-5 rounded-md p-[5px] transition-colors duration-100',
-        item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer hover:bg-accent',
-        selected && 'bg-muted',
-        selected && active && 'bg-accent',
-        selected && !item.disabled && 'hover:bg-accent',
-        !selected && active && 'bg-accent',
+        readOnly
+          ? 'cursor-default'
+          : item.disabled
+            ? 'cursor-not-allowed opacity-40'
+            : 'cursor-pointer hover:bg-accent',
+        !readOnly && selected && 'bg-muted',
+        !readOnly && selected && active && 'bg-accent',
+        !readOnly && selected && !item.disabled && 'hover:bg-accent',
+        !readOnly && !selected && active && 'bg-accent',
         className
       )}
       data-active={active}
@@ -171,6 +201,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
       data-selected={selected ? '' : undefined}
       onClick={(event) => {
         event.stopPropagation()
+        if (readOnly) return
         onSelect()
       }}>
       <div className={cn('flex flex-1 shrink-0 items-center gap-[5px]', contentClassName)}>
@@ -192,7 +223,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
             item.suffix
           ) : selected ? (
             <Check />
-          ) : item.isMenu && !item.disabled ? (
+          ) : item.isMenu && !item.disabled && !readOnly ? (
             <ChevronRight size={14} />
           ) : null}
         </span>

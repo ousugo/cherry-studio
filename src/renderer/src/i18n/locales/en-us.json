@@ -7049,6 +7049,14 @@
       "close": "Close",
       "confirm": "Confirm",
       "forward": "Forward",
+      "mcp": {
+        "agentEmpty": "No MCP servers configured for this agent",
+        "assistantEmpty": "No MCP servers configured for this assistant",
+        "autoEmpty": "No enabled MCP servers",
+        "description": "View current MCP server status",
+        "disabled": "MCP is disabled for this assistant",
+        "unknownServer": "Unknown MCP server"
+      },
       "multiple": "Multiple Select",
       "noResult": "No results found",
       "page": "Page",

@@ -5,7 +5,7 @@ import { t } from 'i18next'
 import React, { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { defaultFilterFn, defaultSortFn } from './defaultStrategies'
-import { QuickPanelFooter, QuickPanelRow } from './list'
+import { QuickPanelFooter, QuickPanelReadOnlyHeader, QuickPanelRow } from './list'
 import { QuickPanelContext } from './provider'
 import {
   type QuickPanelCallBackOptions,
@@ -162,6 +162,13 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       prevPanelGenerationRef.current = panelGeneration
     }
 
+    if (ctx.readOnly) {
+      setActiveIndex(-1)
+      prevSearchTextRef.current = activeSearchQuery
+      prevSymbolRef.current = ctx.symbol
+      return
+    }
+
     if (ctx.manageListExternally) {
       const isSearchChanged = prevSearchTextRef.current !== activeSearchQuery
       const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
@@ -192,6 +199,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   }, [
     ctx.isVisible,
     ctx.manageListExternally,
+    ctx.readOnly,
     ctx.symbol,
     ctx.trackInputQuery,
     getPanelGeneration,
@@ -214,6 +222,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       list: ctx.list,
       symbol: ctx.symbol,
       multiple: ctx.multiple,
+      readOnly: ctx.readOnly,
       defaultIndex,
       pageSize: ctx.pageSize,
       queryAnchor: queryAnchorRef.current ?? ctx.queryAnchor,
@@ -272,6 +281,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const handleItemAction = useCallback(
     (item: QuickPanelListItem, action?: QuickPanelCloseAction) => {
+      if (ctx.readOnly) return
       if (item.disabled) return
       const cleanSearchText = activeSearchQuery
       const parentPanel = getCurrentPanelOptions(activeIndex)
@@ -503,6 +513,21 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         e.stopPropagation()
         setIsMouseOver(false)
       }
+      if (
+        ctx.readOnly &&
+        ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter'].includes(e.key)
+      ) {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsMouseOver(false)
+        return true
+      }
+      if (ctx.readOnly && e.key === 'ArrowRight' && assistivePressed) {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsMouseOver(false)
+        return true
+      }
 
       switch (e.key) {
         case 'ArrowUp':
@@ -713,7 +738,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   // 折叠仅依据“非固定项”的匹配数；仅剩固定项（如“清除”）时仍视为无匹配，保持折叠
   const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
   const collapsed = !ctx.manageListExternally && hasSearchText && visibleNonPinnedCount === 0
-  const panelMaxHeight = ctx.isVisible ? (collapsed ? 98 : ctx.pageSize * ITEM_HEIGHT + 98) : 0
+  const panelChromeHeight = ctx.readOnly ? 50 : 98
+  const panelMaxHeight = ctx.isVisible
+    ? collapsed
+      ? panelChromeHeight
+      : ctx.pageSize * ITEM_HEIGHT + panelChromeHeight
+    : 0
 
   const estimateSize = useCallback(() => ITEM_HEIGHT, [])
 
@@ -724,21 +754,22 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return (
         <QuickPanelRow
           className={classNames({
-            focused: itemIndex === activeIndex,
-            selected: item.isSelected,
+            focused: !ctx.readOnly && itemIndex === activeIndex,
+            selected: !ctx.readOnly && item.isSelected,
             disabled: item.disabled
           })}
-          active={itemIndex === activeIndex}
+          active={!ctx.readOnly && itemIndex === activeIndex}
           contentClassName="max-w-[60%]"
           dataId={item.id}
           item={item}
+          readOnly={ctx.readOnly}
           reserveIconSlot
-          selected={item.isSelected}
+          selected={!ctx.readOnly && item.isSelected}
           onSelect={() => handleItemAction(item, 'click')}
         />
       )
     },
-    [activeIndex, handleItemAction]
+    [activeIndex, ctx.readOnly, handleItemAction]
   )
 
   return (
@@ -762,6 +793,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             return prev ? prev : true
           })
         }>
+        {ctx.readOnly ? <QuickPanelReadOnlyHeader title={ctx.title} onClose={() => handleClose('click')} /> : null}
         {collapsed ? (
           <div className="p-4 text-center text-[13px] text-muted-foreground">
             {t('settings.quickPanel.noResult', 'No results')}
@@ -779,14 +811,16 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             {rowRenderer}
           </DynamicVirtualList>
         )}
-        <QuickPanelFooter
-          containerRef={footerRef}
-          title={ctx.title}
-          assistiveKey={footerWidth >= 500 ? ASSISTIVE_KEY : undefined}
-          assistiveKeyActive={isAssistiveKeyPressed}
-          showPageHint
-          confirmLabel={ctx.multiple ? t('settings.quickPanel.multiple') : undefined}
-        />
+        {!ctx.readOnly ? (
+          <QuickPanelFooter
+            containerRef={footerRef}
+            title={ctx.title}
+            assistiveKey={footerWidth >= 500 ? ASSISTIVE_KEY : undefined}
+            assistiveKeyActive={isAssistiveKeyPressed}
+            showPageHint
+            confirmLabel={ctx.multiple ? t('settings.quickPanel.multiple') : undefined}
+          />
+        ) : null}
       </div>
     </div>
   )

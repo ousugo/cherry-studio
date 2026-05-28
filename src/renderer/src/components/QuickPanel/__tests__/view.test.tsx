@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React, { useEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -57,14 +57,18 @@ function PanelHarness({
   inputAdapter,
   items,
   manageListExternally,
+  readOnly,
   symbol = QuickPanelReservedSymbol.Root,
+  title = 'Actions',
   trackInputQuery
 }: {
   captureDispatch: (dispatch: QuickPanelContextType['dispatchKeyDown']) => void
   inputAdapter?: QuickPanelInputAdapter
   items: QuickPanelListItem[]
   manageListExternally?: boolean
+  readOnly?: boolean
   symbol?: string
+  title?: string
   trackInputQuery?: boolean
 }) {
   const { dispatchKeyDown, open } = useQuickPanel()
@@ -76,20 +80,68 @@ function PanelHarness({
   useEffect(() => {
     open({
       list: items,
+      readOnly,
       symbol,
-      title: 'Actions',
+      title,
       triggerInfo: inputAdapter
         ? ({ type: 'input', position: 0, originalText: inputAdapter.getText() } satisfies QuickPanelTriggerInfo)
         : { type: 'button' },
       manageListExternally,
       trackInputQuery: trackInputQuery ?? Boolean(inputAdapter)
     })
-  }, [inputAdapter, items, manageListExternally, open, symbol, trackInputQuery])
+  }, [inputAdapter, items, manageListExternally, open, readOnly, symbol, title, trackInputQuery])
 
   return <QuickPanelView inputAdapter={inputAdapter} />
 }
 
 describe('QuickPanelView', () => {
+  it('renders read-only panels without row selection or confirm footer actions', async () => {
+    const action = vi.fn()
+    const captureDispatch = vi.fn()
+    const items: QuickPanelListItem[] = [
+      { id: 'server', label: 'filesystem', description: 'Connected', icon: 'mcp', isSelected: true, action }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} items={items} readOnly title="MCP" />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('filesystem')
+    const row = screen.getByText('filesystem').closest('[data-id="server"]')
+    expect(row?.getAttribute('data-active')).toBe('false')
+    expect(row).not.toHaveAttribute('data-selected')
+
+    fireEvent.click(row!)
+    expect(action).not.toHaveBeenCalled()
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+
+    for (const key of ['Enter', 'Tab']) {
+      const { event, preventDefault, stopPropagation } = createKeyDownEvent(key)
+      let handled = false
+      act(() => {
+        handled = dispatchKeyDown(event)
+      })
+      expect(handled).toBe(true)
+      expect(preventDefault).toHaveBeenCalled()
+      expect(stopPropagation).toHaveBeenCalled()
+      expect(action).not.toHaveBeenCalled()
+      expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+    }
+
+    expect(screen.getByText('MCP')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.quickPanel.close' })).toBeInTheDocument()
+    expect(screen.queryByText((content) => content.includes('Tab/↩︎'))).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.quickPanel.close' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
+    })
+  })
+
   it('selects the active item with Tab', async () => {
     const action = vi.fn()
     const captureDispatch = vi.fn()
