@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
     'chat.message.font': 'system',
     'chat.message.show_prompt': true,
     'chat.message.confirm_delete': true,
-    'chat.message.confirm_regenerate': true,
     'chat.input.translate.show_confirm': true,
     'chat.input.quick_panel.triggers_enabled': false,
     'chat.message.navigation_mode': 'none',

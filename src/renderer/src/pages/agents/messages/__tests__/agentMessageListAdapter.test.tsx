@@ -121,7 +121,6 @@ vi.mock('@renderer/pages/shared/messages/hooks/useMessageEditorCapabilities', ()
 vi.mock('@renderer/pages/shared/messages/hooks/useMessageMenuConfig', () => ({
   useMessageMenuConfig: () => ({
     confirmDeleteMessage: false,
-    confirmRegenerateMessage: false,
     enableDeveloperMode: false,
     exportMenuOptions: {
       image: false,

@@ -317,7 +317,8 @@ export function useHomeMessageListProviderValue({
 
       return {
         canAddImageFile: editorModel ? isVisionModel(editorModel) : false,
-        canAddTextFile: true
+        canAddTextFile: true,
+        canForkAndResend: message.role === 'user' ? message.parentId != null : true
       }
     },
     [model]

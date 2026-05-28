@@ -46,7 +46,6 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
   const [showPrompt, setShowPrompt] = usePreference('chat.message.show_prompt')
   const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
-  const [confirmRegenerateMessage, setConfirmRegenerateMessage] = usePreference('chat.message.confirm_regenerate')
   const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const [enableQuickPanelTriggers, setEnableQuickPanelTriggers] = usePreference(
     'chat.input.quick_panel.triggers_enabled'
@@ -256,14 +255,6 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
               checked={confirmDeleteMessage}
               onCheckedChange={setConfirmDeleteMessage}
               label={t('settings.messages.input.confirm_delete_message')}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingSwitch
-              checked={confirmRegenerateMessage}
-              onCheckedChange={setConfirmRegenerateMessage}
-              label={t('settings.messages.input.confirm_regenerate_message')}
             />
           </SettingRow>
           <SettingDivider />

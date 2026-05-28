@@ -56,11 +56,14 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
 
   const editorCapabilities = messageUi.getMessageEditorCapabilities?.(message) ?? {
     canAddImageFile: false,
-    canAddTextFile: true
+    canAddTextFile: true,
+    canForkAndResend: true
   }
   const canUploadEditorFiles = !!actions.uploadEditorFiles
   const couldAddImageFile = canUploadEditorFiles && editorCapabilities.canAddImageFile
   const couldAddTextFile = canUploadEditorFiles && editorCapabilities.canAddTextFile
+  const canForkAndResend =
+    isUserMessage && !!actions.forkAndResendMessage && (editorCapabilities.canForkAndResend ?? true)
 
   const extensions = useMemo(() => {
     if (couldAddImageFile && couldAddTextFile) {
@@ -219,7 +222,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   }
 
   const handleResend = async () => {
-    if (isProcessing) return
+    if (isProcessing || !canForkAndResend) return
     setIsProcessing(true)
     try {
       const finalParts = await buildFinalParts()
@@ -233,13 +236,13 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (message.role !== 'user') {
-      return
-    }
-
     if (event.key === 'Escape') {
       event.preventDefault()
       onCancel()
+      return
+    }
+
+    if (!canForkAndResend) {
       return
     }
 
@@ -326,7 +329,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
           <Tooltip content={t('common.save')}>
             <ActionIconButton onClick={handleSave} icon={<Save size={16} />} disabled={isProcessing} />
           </Tooltip>
-          {message.role === 'user' && (
+          {canForkAndResend && (
             <Tooltip content={t('chat.resend')}>
               <ActionIconButton onClick={handleResend} icon={<Send size={16} />} disabled={isProcessing} />
             </Tooltip>

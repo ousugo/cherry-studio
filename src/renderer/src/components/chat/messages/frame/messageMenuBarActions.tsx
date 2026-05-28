@@ -308,13 +308,6 @@ registerToolbarAction({
   commandId: 'message.regenerate',
   label: ({ t }) => t('common.regenerate'),
   icon: <RefreshIcon size={15} />,
-  confirm: ({ menuConfig, t }) =>
-    menuConfig.confirmRegenerateMessage
-      ? {
-          title: t('message.regenerate.confirm'),
-          destructive: true
-        }
-      : undefined,
   availability: toolbarAvailability(
     'assistant-regenerate',
     ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.regenerateMessage

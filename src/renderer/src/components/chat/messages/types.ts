@@ -59,6 +59,7 @@ export interface MessageActivityState {
 export interface MessageEditorCapabilities {
   canAddImageFile: boolean
   canAddTextFile: boolean
+  canForkAndResend?: boolean
 }
 
 export interface MessageEditorPasteInput {
@@ -100,7 +101,6 @@ export interface MessageMenuExportOptions {
 
 export interface MessageMenuConfig {
   confirmDeleteMessage: boolean
-  confirmRegenerateMessage: boolean
   enableDeveloperMode: boolean
   exportMenuOptions: MessageMenuExportOptions
 }
@@ -120,7 +120,6 @@ export const defaultMessageMenuExportOptions: MessageMenuExportOptions = {
 
 export const defaultMessageMenuConfig: MessageMenuConfig = {
   confirmDeleteMessage: false,
-  confirmRegenerateMessage: false,
   enableDeveloperMode: false,
   exportMenuOptions: defaultMessageMenuExportOptions
 }

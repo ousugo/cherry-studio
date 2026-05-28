@@ -587,7 +587,7 @@ describe('ChatContent', () => {
       role: 'user',
       data: { parts: editedParts },
       searchableText: '',
-      status: 'pending',
+      status: 'success',
       siblingsGroupId: 17,
       modelId: null,
       modelSnapshot: null,
@@ -606,7 +606,7 @@ describe('ChatContent', () => {
         metadata: {
           parentId: 'branch-a',
           siblingsGroupId: 17,
-          status: 'pending',
+          status: 'success',
           createdAt: '2026-01-01T00:00:03.000Z'
         }
       } as CherryUIMessage
@@ -665,7 +665,7 @@ describe('ChatContent', () => {
               parentId: 'branch-a',
               role: 'user',
               preview: 'edited branch prompt',
-              status: 'pending',
+              status: 'success',
               siblingsGroupId: 17
             })
           ])
@@ -697,6 +697,25 @@ describe('ChatContent', () => {
       expect(refresh).toHaveBeenCalledTimes(2)
       expect(onBranchLiveStateChange).toHaveBeenLastCalledWith(null)
     })
+  })
+
+  it('configures message writes to refresh the branch tree cache', () => {
+    render(<ChatContent topic={topic} />)
+
+    expect(mockUseMutation).toHaveBeenCalledWith(
+      'PATCH',
+      '/messages/:id',
+      expect.objectContaining({
+        refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
+      })
+    )
+    expect(mockUseMutation).toHaveBeenCalledWith(
+      'POST',
+      '/messages/:id/siblings',
+      expect.objectContaining({
+        refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
+      })
+    )
   })
 
   it('clears branch live state after all multi-model executions finish in the same tick', async () => {
