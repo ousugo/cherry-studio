@@ -1366,20 +1366,10 @@
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - / để Bao gồm Công cụ",
       "placeholder_without_triggers": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi",
       "resource_panel": {
-        "categories": {
-          "agents": "Đặc vụ",
-          "files": "Tệp tin",
-          "skills": "Kỹ năng"
-        },
-        "description": "Chọn từ tệp, tác nhân hoặc kỹ năng",
         "loading": "Đang tải...",
         "no_file_found": {
           "description": "Không có tệp nào có sẵn trong các thư mục có thể truy cập",
           "label": "Không tìm thấy tệp"
-        },
-        "no_items_found": {
-          "description": "Không có tệp nào, đại lý hoặc kỹ năng nào có sẵn",
-          "label": "Không tìm thấy mục nào"
         },
         "title": "Tài nguyên"
       },

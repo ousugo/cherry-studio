@@ -1366,20 +1366,10 @@
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
       "resource_panel": {
-        "categories": {
-          "agents": "Agentes",
-          "files": "Arquivos",
-          "skills": "Habilidades"
-        },
-        "description": "Selecione entre arquivos, agentes ou habilidades",
         "loading": "Carregando...",
         "no_file_found": {
           "description": "Nenhum arquivo disponível em diretórios acessíveis",
           "label": "Nenhum Arquivo Encontrado"
-        },
-        "no_items_found": {
-          "description": "Nenhum arquivo, agente ou habilidade disponível",
-          "label": "Nenhum item encontrado"
         },
         "title": "Recursos"
       },

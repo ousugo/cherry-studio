@@ -936,8 +936,8 @@ const AgentComposerInner = ({
           return [
             {
               id: 'agent-resource:no-paths',
-              label: t('chat.input.resource_panel.no_items_found.label'),
-              description: t('chat.input.resource_panel.no_items_found.description'),
+              label: t('chat.input.resource_panel.no_file_found.label'),
+              description: t('chat.input.resource_panel.no_file_found.description'),
               disabled: true,
               command: () => undefined
             }
@@ -971,7 +971,7 @@ const AgentComposerInner = ({
             {
               id: 'agent-resource:error',
               label: t('common.error'),
-              description: t('chat.input.resource_panel.no_items_found.description'),
+              description: t('chat.input.resource_panel.no_file_found.description'),
               disabled: true,
               command: () => undefined
             }

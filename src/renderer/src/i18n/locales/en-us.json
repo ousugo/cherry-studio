@@ -1366,20 +1366,10 @@
       "placeholder": "Type your message here, press {{key}} to send - / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "resource_panel": {
-        "categories": {
-          "agents": "Agents",
-          "files": "Files",
-          "skills": "Skills"
-        },
-        "description": "Select from files, agents, or skills",
         "loading": "Loading...",
         "no_file_found": {
           "description": "No files available in accessible directories",
           "label": "No File Found"
-        },
-        "no_items_found": {
-          "description": "No files, agents, or skills available",
-          "label": "No Items Found"
         },
         "title": "Resources"
       },

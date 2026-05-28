@@ -1366,20 +1366,10 @@
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
       "resource_panel": {
-        "categories": {
-          "agents": "エージェント",
-          "files": "ファイル",
-          "skills": "スキル"
-        },
-        "description": "ファイル、エージェント、またはスキルから選択",
         "loading": "読み込み中...",
         "no_file_found": {
           "description": "アクセス可能なディレクトリに利用可能なファイルがありません",
           "label": "ファイルが見つかりません"
-        },
-        "no_items_found": {
-          "description": "ファイル、エージェント、スキルは利用できません",
-          "label": "アイテムが見つかりません"
         },
         "title": "リソース"
       },

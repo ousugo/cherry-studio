@@ -1366,20 +1366,10 @@
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
       "resource_panel": {
-        "categories": {
-          "agents": "Agenten",
-          "files": "Dateien",
-          "skills": "Fähigkeiten"
-        },
-        "description": "Wählen Sie aus Dateien, Agenten oder Fähigkeiten",
         "loading": "Laden...",
         "no_file_found": {
           "description": "Keine Dateien in zugänglichen Verzeichnissen verfügbar",
           "label": "Keine Datei gefunden"
-        },
-        "no_items_found": {
-          "description": "Keine Dateien, Agenten oder Fähigkeiten verfügbar",
-          "label": "Keine Artikel gefunden"
         },
         "title": "Ressourcen"
       },

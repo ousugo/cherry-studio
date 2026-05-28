@@ -1366,20 +1366,10 @@
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - / 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "resource_panel": {
-        "categories": {
-          "agents": "智能體",
-          "files": "檔案",
-          "skills": "技能"
-        },
-        "description": "從檔案、智能體或技能中選擇",
         "loading": "載入中...",
         "no_file_found": {
           "description": "可存取目錄中無可用檔案",
           "label": "找不到檔案"
-        },
-        "no_items_found": {
-          "description": "沒有可用的檔案、智能體或技能",
-          "label": "未找到項目"
         },
         "title": "資源"
       },

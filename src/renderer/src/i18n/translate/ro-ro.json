@@ -1366,20 +1366,10 @@
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - / pentru a include instrumente",
       "placeholder_without_triggers": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite",
       "resource_panel": {
-        "categories": {
-          "agents": "Agenți",
-          "files": "Fișiere",
-          "skills": "Abilități"
-        },
-        "description": "Selectați din fișiere, agenți sau competențe",
         "loading": "Se încarcă...",
         "no_file_found": {
           "description": "Nicio fișier disponibil în directoare accesibile",
           "label": "Niciun fișier găsit"
-        },
-        "no_items_found": {
-          "description": "Niciun fișier, agent sau abilitate disponibilă",
-          "label": "Niciun element găsit"
         },
         "title": "Resurse"
       },

@@ -1366,20 +1366,10 @@
       "placeholder": "在这里输入消息，按 {{key}} 发送 - / 选择工具",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
       "resource_panel": {
-        "categories": {
-          "agents": "Agents",
-          "files": "文件",
-          "skills": "Skills"
-        },
-        "description": "从文件、Agents 或 Skills 中选择",
         "loading": "加载中...",
         "no_file_found": {
           "description": "可访问目录中没有可用文件",
           "label": "未找到文件"
-        },
-        "no_items_found": {
-          "description": "没有可用的文件、Agents 或 Skills",
-          "label": "未找到项目"
         },
         "title": "资源"
       },
