@@ -136,6 +136,18 @@ describe('messageMenuBarActions', () => {
     expect(typeof toolbarActions.find((action) => action.id === 'more-menu')?.renderToolbar).toBe('function')
   })
 
+  it('does not require confirmation before regenerating an assistant message', () => {
+    const toolbarActions = resolveMessageMenuBarToolbarActions(
+      createContext({
+        actions: {
+          regenerateMessage: vi.fn()
+        } as MessageListActions
+      })
+    )
+
+    expect(toolbarActions.find((action) => action.id === 'assistant-regenerate')?.confirm).toBeUndefined()
+  })
+
   it('renders mention-model picker with a direct button trigger', () => {
     const renderRegenerateModelPicker = vi.fn(({ trigger }) => <div data-testid="model-picker">{trigger}</div>)
     const context = createContext({

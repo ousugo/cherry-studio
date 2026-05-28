@@ -19,19 +19,17 @@ const MESSAGE_EXPORT_MENU_PREFERENCE_KEYS = {
 export function useMessageMenuConfig(): MessageMenuConfig {
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
   const [confirmDeleteMessage] = usePreference('chat.message.confirm_delete')
-  const [confirmRegenerateMessage] = usePreference('chat.message.confirm_regenerate')
   const [exportMenuOptions] = useMultiplePreferences(MESSAGE_EXPORT_MENU_PREFERENCE_KEYS)
 
   return useMemo(
     () => ({
       confirmDeleteMessage,
-      confirmRegenerateMessage,
       enableDeveloperMode,
       exportMenuOptions: {
         ...defaultMessageMenuExportOptions,
         ...exportMenuOptions
       }
     }),
-    [confirmDeleteMessage, confirmRegenerateMessage, enableDeveloperMode, exportMenuOptions]
+    [confirmDeleteMessage, enableDeveloperMode, exportMenuOptions]
   )
 }
