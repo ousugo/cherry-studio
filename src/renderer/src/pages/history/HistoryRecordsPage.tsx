@@ -41,7 +41,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
-import HistoryQueryForm from './components/HistoryQueryForm'
+import HistoryQueryForm, { type HistoryBulkMoveTarget } from './components/HistoryQueryForm'
 import HistoryResultList from './components/HistoryResultList'
 import HistorySourceSidebar, {
   type HistorySourceItem,
@@ -164,6 +164,7 @@ const AssistantHistoryRecordsContent = ({
   const { t } = useTranslation()
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [searchText, setSearchText] = useState('')
+  const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([])
   const [groupNow] = useState(() => new Date())
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
@@ -171,7 +172,7 @@ const AssistantHistoryRecordsContent = ({
   const { assistants, refetch: refetchAssistants } = useAssistants()
   const [renamingTopics] = useCache('topic.renaming')
   const { notesPath } = useNotesSettings()
-  const { updateTopic: patchTopic, deleteTopic: deleteTopicById } = useTopicMutations()
+  const { updateTopic: patchTopic, deleteTopic: deleteTopicById, deleteTopics } = useTopicMutations()
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
     image: 'data.export.menus.image',
@@ -248,6 +249,15 @@ const AssistantHistoryRecordsContent = ({
     () => buildAssistantSources(topics, assistantById, assistantRankById, unlinkedAssistantLabel, t),
     [assistantById, assistantRankById, t, topics, unlinkedAssistantLabel]
   )
+  const bulkMoveTargets = useMemo<HistoryBulkMoveTarget[]>(
+    () =>
+      assistants.map((assistant) => ({
+        id: assistant.id,
+        label: assistant.name || t('common.unnamed', '未命名'),
+        icon: assistant.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={14} />
+      })),
+    [assistants, t]
+  )
 
   const filteredTopics = useMemo(() => {
     const sortedTopics = selectedSourceId === ALL_SOURCE_ID ? timeSortedTopics : assistantSortedTopics
@@ -265,6 +275,11 @@ const AssistantHistoryRecordsContent = ({
       return topicName.toLowerCase().includes(keywords)
     })
   }, [filteredTopics, searchText, t])
+
+  useEffect(() => {
+    const visibleTopicIds = new Set(searchedTopics.map((topic) => topic.id))
+    setSelectedTopicIds((ids) => ids.filter((id) => visibleTopicIds.has(id)))
+  }, [searchedTopics])
 
   useEffect(() => {
     if (selectedSourceId === ALL_SOURCE_ID) return
@@ -320,6 +335,54 @@ const AssistantHistoryRecordsContent = ({
       }
     },
     [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, t, timeSortedTopics]
+  )
+
+  const handleBulkDeleteTopics = useCallback(async () => {
+    const ids = selectedTopicIds.filter((id) => topics.some((topic) => topic.id === id))
+    if (ids.length === 0) return
+
+    try {
+      const result = await deleteTopics(ids)
+      setSelectedTopicIds([])
+
+      if (activeRecordId && result.deletedIds.includes(activeRecordId)) {
+        const nextTopic = findAdjacentHistoryRecordAfterBulkDelete(
+          timeSortedTopics,
+          result.deletedIds,
+          activeRecordId,
+          (candidate) => candidate.id
+        )
+        if (nextTopic) {
+          onRecordSelect?.(getRendererTopic(nextTopic))
+        }
+      }
+    } catch (err) {
+      logger.error('Failed to bulk delete topics from history records', { ids, err })
+      const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
+      window.toast.error(message)
+    }
+  }, [activeRecordId, deleteTopics, getRendererTopic, onRecordSelect, selectedTopicIds, t, timeSortedTopics, topics])
+
+  const handleBulkMoveTopics = useCallback(
+    async (targetAssistantId: string) => {
+      const ids = selectedTopicIds.filter((id) => topics.some((topic) => topic.id === id))
+      if (ids.length === 0) return
+
+      try {
+        for (const id of ids) {
+          await patchTopic(id, { assistantId: targetAssistantId })
+        }
+        setSelectedTopicIds([])
+        window.toast.success(
+          t('history.records.bulkMoveTopics.success', '已移动 {{count}} 个话题', { count: ids.length })
+        )
+      } catch (err) {
+        logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, err })
+        const message = err instanceof Error ? err.message : t('history.records.bulkMoveTopics.error', '移动话题失败')
+        window.toast.error(message)
+      }
+    },
+    [patchTopic, selectedTopicIds, t, topics]
   )
 
   const handleClearMessages = useCallback((topic: RendererTopic) => {
@@ -408,6 +471,10 @@ const AssistantHistoryRecordsContent = ({
       subtitle={t('history.records.assistantSubtitle', '{{count}} 个话题', { count: topics.length })}
       resultCount={searchedTopics.length}
       searchText={searchText}
+      selectedCount={selectedTopicIds.length}
+      bulkMoveTargets={bulkMoveTargets}
+      onBulkDelete={handleBulkDeleteTopics}
+      onBulkMove={handleBulkMoveTopics}
       onSearchTextChange={setSearchText}
       onSourceSelect={setSelectedSourceId}>
       <HistoryResultList
@@ -419,7 +486,9 @@ const AssistantHistoryRecordsContent = ({
         unlinkedAssistantLabel={unlinkedAssistantLabel}
         isLoading={isTopicsLoading}
         isTopicPinned={isTopicPinned}
+        selectedTopicIds={selectedTopicIds}
         onToggleTopicPin={handlePinTopic}
+        onSelectedTopicIdsChange={setSelectedTopicIds}
         topicMenuPreset={topicMenuPreset}
         onTopicRename={handleRenameTopic}
         onTopicSelect={handleTopicSelect}
@@ -440,6 +509,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
   const [selectedSourceId, setSelectedSourceId] = useState(ALL_SOURCE_ID)
   const [selectedStatus, setSelectedStatus] = useState<HistorySourceStatus>(ALL_SOURCE_ID)
   const [searchText, setSearchText] = useState('')
+  const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([])
   const [groupNow] = useState(() => new Date())
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
@@ -448,6 +518,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     pinIdBySessionId,
     isLoading: isSessionsLoading,
     deleteSession,
+    deleteSessions,
     togglePin
   } = useSessions(undefined, {
     loadAll: true,
@@ -516,6 +587,11 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
   const { updateSession } = useUpdateSession()
 
   useEffect(() => {
+    const visibleSessionIds = new Set(searchedSessions.map((session) => session.id))
+    setSelectedSessionIds((ids) => ids.filter((id) => visibleSessionIds.has(id)))
+  }, [searchedSessions])
+
+  useEffect(() => {
     if (selectedSourceId === ALL_SOURCE_ID) return
     if (agentSources.some((source) => source.id === selectedSourceId)) return
 
@@ -540,6 +616,27 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     },
     [activeRecordId, deleteSession, onRecordSelect, timeSortedSessions]
   )
+
+  const handleBulkDeleteSessions = useCallback(async () => {
+    const sessionIdSet = new Set(sessionItems.map((session) => session.id))
+    const ids = selectedSessionIds.filter((id) => sessionIdSet.has(id))
+    if (ids.length === 0) return
+
+    const result = await deleteSessions(ids)
+    if (!result) return
+
+    setSelectedSessionIds([])
+
+    if (activeRecordId && result.deletedIds.includes(activeRecordId)) {
+      const nextSession = findAdjacentHistoryRecordAfterBulkDelete(
+        timeSortedSessions,
+        result.deletedIds,
+        activeRecordId,
+        (session) => session.id
+      )
+      onRecordSelect?.(nextSession?.id ?? null)
+    }
+  }, [activeRecordId, deleteSessions, onRecordSelect, selectedSessionIds, sessionItems, timeSortedSessions])
 
   const handleRenameSession = useCallback(
     async (id: string, name: string) => {
@@ -602,6 +699,8 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
       subtitle={t('history.records.agentSubtitle', '{{count}} 个会话', { count: sessions.length })}
       resultCount={searchedSessions.length}
       searchText={searchText}
+      selectedCount={selectedSessionIds.length}
+      onBulkDelete={handleBulkDeleteSessions}
       onSearchTextChange={setSearchText}
       onSourceSelect={setSelectedSourceId}
       onStatusSelect={setSelectedStatus}>
@@ -614,7 +713,9 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
         unlinkedAssistantLabel=""
         isLoading={isSessionsLoading}
         isSessionPinned={isSessionPinned}
+        selectedSessionIds={selectedSessionIds}
         onToggleSessionPin={handleToggleSessionPin}
+        onSelectedSessionIdsChange={setSelectedSessionIds}
         sessionMenuPreset={sessionMenuPreset}
         onSessionRename={handleRenameSession}
         onSessionSelect={handleSessionSelect}
@@ -636,11 +737,15 @@ interface HistoryRecordsLayoutProps {
   sources: HistorySourceItem[]
   selectedSourceId: string
   selectedStatus?: HistorySourceStatus
+  selectedCount?: number
   statusItems?: HistoryStatusItem[]
   subtitle: string
   resultCount: number
   searchText: string
+  bulkMoveTargets?: readonly HistoryBulkMoveTarget[]
   children: ReactNode
+  onBulkDelete?: () => void | Promise<void>
+  onBulkMove?: (targetId: string) => void | Promise<void>
   onSearchTextChange: (value: string) => void
   onSourceSelect: (sourceId: string) => void
   onStatusSelect?: (status: HistorySourceStatus) => void
@@ -652,11 +757,15 @@ const HistoryRecordsLayout = ({
   sources,
   selectedSourceId,
   selectedStatus,
+  selectedCount = 0,
   statusItems,
   subtitle,
   resultCount,
   searchText,
+  bulkMoveTargets,
   children,
+  onBulkDelete,
+  onBulkMove,
   onSearchTextChange,
   onSourceSelect,
   onStatusSelect
@@ -698,8 +807,12 @@ const HistoryRecordsLayout = ({
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <HistoryQueryForm
             mode={mode}
+            bulkMoveTargets={bulkMoveTargets}
             resultCount={resultCount}
             searchText={searchText}
+            selectedCount={selectedCount}
+            onBulkDelete={onBulkDelete}
+            onBulkMove={onBulkMove}
             onSearchTextChange={onSearchTextChange}
           />
           {children}
@@ -742,6 +855,27 @@ function findAdjacentHistoryRecord<T>(
   if (index < 0) return undefined
 
   return items[index + 1 === items.length ? index - 1 : index + 1]
+}
+
+function findAdjacentHistoryRecordAfterBulkDelete<T>(
+  items: readonly T[],
+  deletedIds: readonly string[],
+  activeId: string,
+  getId: (item: T) => string
+): T | undefined {
+  const deletedIdSet = new Set(deletedIds)
+  const activeIndex = items.findIndex((item) => getId(item) === activeId)
+  if (activeIndex < 0) return undefined
+
+  for (let index = activeIndex + 1; index < items.length; index += 1) {
+    if (!deletedIdSet.has(getId(items[index]))) return items[index]
+  }
+
+  for (let index = activeIndex - 1; index >= 0; index -= 1) {
+    if (!deletedIdSet.has(getId(items[index]))) return items[index]
+  }
+
+  return undefined
 }
 
 function buildAgentStatusItems(

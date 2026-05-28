@@ -23,7 +23,12 @@ import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { getErrorMessage } from '@renderer/utils/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { AgentSessionEntity, CreateSessionDto, UpdateSessionDto } from '@shared/data/api/schemas/sessions'
+import type {
+  AgentSessionEntity,
+  CreateSessionDto,
+  DeleteSessionsResult,
+  UpdateSessionDto
+} from '@shared/data/api/schemas/sessions'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -155,6 +160,9 @@ export const useSessions = (
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/sessions/:sessionId', { refresh: ['/sessions'] })
+  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/sessions', {
+    refresh: ['/sessions', '/workspaces', '/pins', '/channels']
+  })
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
       try {
@@ -166,6 +174,18 @@ export const useSessions = (
       }
     },
     [deleteTrigger, t]
+  )
+
+  const deleteSessions = useCallback(
+    async (ids: string[]): Promise<DeleteSessionsResult | null> => {
+      try {
+        return await deleteManyTrigger({ body: { ids } })
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
+        return null
+      }
+    },
+    [deleteManyTrigger, t]
   )
 
   const reorderSessions = useCallback(
@@ -228,6 +248,7 @@ export const useSessions = (
     loadMore,
     createSession,
     deleteSession,
+    deleteSessions,
     reorderSession,
     reorderSessions,
     togglePin,

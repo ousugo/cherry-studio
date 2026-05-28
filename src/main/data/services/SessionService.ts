@@ -269,6 +269,59 @@ export class SessionService {
     await this.deleteByIdsTx(tx, [id], { requireAll: true })
   }
 
+  async deleteByIds(ids: string[]): Promise<DeleteSessionsResult> {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return { deletedIds: [], deletedCount: 0 }
+
+    const systemWorkspacePaths: string[] = []
+    const dbService = application.get('DbService')
+    const deletedIds = await dbService.withWriteTx(async (tx) => {
+      const rows = await tx
+        .select({ session: sessionsTable, workspace: workspaceTable })
+        .from(sessionsTable)
+        .leftJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
+        .where(inArray(sessionsTable.id, uniqueIds))
+
+      if (rows.length !== uniqueIds.length) {
+        const foundIds = new Set(rows.map((row) => row.session.id))
+        const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
+        throw DataApiErrorFactory.notFound('Session', missingId)
+      }
+
+      const normalSessionIds: string[] = []
+      const systemWorkspacePathById = new Map<string, string>()
+      for (const row of rows) {
+        if (row.workspace?.type === 'system') {
+          workspaceService.assertSystemWorkspacePath(row.workspace.path)
+          systemWorkspacePathById.set(row.workspace.id, row.workspace.path)
+          continue
+        }
+
+        normalSessionIds.push(row.session.id)
+      }
+
+      const deleted = new Set(await this.deleteByIdsTx(tx, normalSessionIds))
+      for (const [workspaceId, workspacePath] of systemWorkspacePathById) {
+        const workspaceSessionIds = await this.deleteByWorkspaceTx(tx, workspaceId)
+        for (const id of workspaceSessionIds) {
+          deleted.add(id)
+        }
+        await workspaceService.deleteByIdTx(tx, workspaceId)
+        systemWorkspacePaths.push(workspacePath)
+      }
+
+      return Array.from(deleted)
+    })
+
+    for (const path of systemWorkspacePaths) {
+      workspaceService.deleteSystemWorkspaceDirectoryAfterCommit(path)
+    }
+
+    logger.info('Deleted sessions', { count: deletedIds.length })
+
+    return { deletedIds, deletedCount: deletedIds.length }
+  }
+
   async deleteByWorkspaceTx(tx: SessionDeleteTx, workspaceId: string): Promise<string[]> {
     const deletedSessions = await tx
       .delete(sessionsTable)

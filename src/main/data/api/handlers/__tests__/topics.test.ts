@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   createMock,
   deleteByAssistantIdMock,
+  deleteByIdsMock,
   deleteMock,
   getByIdMock,
   listByCursorMock,
@@ -13,6 +14,7 @@ const {
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
   deleteByAssistantIdMock: vi.fn(),
+  deleteByIdsMock: vi.fn(),
   deleteMock: vi.fn(),
   getByIdMock: vi.fn(),
   listByCursorMock: vi.fn(),
@@ -27,6 +29,7 @@ vi.mock('@data/services/TopicService', () => ({
     create: createMock,
     delete: deleteMock,
     deleteByAssistantId: deleteByAssistantIdMock,
+    deleteByIds: deleteByIdsMock,
     getById: getByIdMock,
     listByCursor: listByCursorMock,
     reorder: reorderMock,
@@ -61,6 +64,22 @@ describe('topicHandlers', () => {
       ).resolves.toEqual(result)
 
       expect(deleteByAssistantIdMock).toHaveBeenCalledWith('assistant-1')
+      expect(deleteMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/topics', () => {
+    it('delegates selected topic delete to TopicService', async () => {
+      const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
+      deleteByIdsMock.mockResolvedValueOnce(result)
+
+      await expect(
+        topicHandlers['/topics'].DELETE({
+          body: { ids: ['topic-a', 'topic-b'] }
+        } as never)
+      ).resolves.toEqual(result)
+
+      expect(deleteByIdsMock).toHaveBeenCalledWith(['topic-a', 'topic-b'])
       expect(deleteMock).not.toHaveBeenCalled()
     })
   })

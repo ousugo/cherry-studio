@@ -94,6 +94,11 @@ export interface DeleteTopicsResult {
   deletedCount: number
 }
 
+export const DeleteTopicsSchema = z.strictObject({
+  ids: z.array(z.string().min(1)).min(1)
+})
+export type DeleteTopicsDto = z.infer<typeof DeleteTopicsSchema>
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -111,6 +116,7 @@ export type TopicSchemas = {
    * @example GET /topics?limit=50
    * @example GET /topics?cursor=...&q=search
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
+   * @example DELETE /topics { "ids": ["topic_1", "topic_2"] }
    */
   '/topics': {
     /**
@@ -130,6 +136,15 @@ export type TopicSchemas = {
     POST: {
       body: CreateTopicDto
       response: Topic
+    }
+    /**
+     * Delete an explicit set of topics.
+     *
+     * Used by multi-select table flows where the selection can span assistants.
+     */
+    DELETE: {
+      body: DeleteTopicsDto
+      response: DeleteTopicsResult
     }
   }
 

@@ -207,6 +207,15 @@ export class TopicService {
     logger.info('Deleted topic', { id })
   }
 
+  async deleteByIds(ids: string[]): Promise<DeleteTopicsResult> {
+    const dbService = application.get('DbService')
+    const deletedIds = await dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
+
+    logger.info('Deleted topics', { count: deletedIds.length })
+
+    return { deletedIds, deletedCount: deletedIds.length }
+  }
+
   async deleteByAssistantId(assistantId: string): Promise<DeleteTopicsResult> {
     const dbService = application.get('DbService')
     const deletedIds = await dbService.withWriteTx(async (tx) => {

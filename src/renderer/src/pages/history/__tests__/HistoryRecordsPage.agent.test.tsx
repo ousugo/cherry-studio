@@ -11,6 +11,7 @@ const hookMocks = vi.hoisted(() => ({
   cacheSet: vi.fn(),
   cacheSubscribe: vi.fn(),
   deleteSession: vi.fn(),
+  deleteSessions: vi.fn(),
   promptShow: vi.fn(),
   togglePin: vi.fn(),
   updateSession: vi.fn(),
@@ -40,9 +41,22 @@ vi.mock('@cherrystudio/ui', async () => {
         {children}
       </button>
     ),
+    Checkbox: ({ checked, onCheckedChange, ...props }: any) => (
+      <button
+        {...props}
+        type="button"
+        role="checkbox"
+        aria-checked={checked === 'indeterminate' ? 'mixed' : Boolean(checked)}
+        onClick={(event) => {
+          props.onClick?.(event)
+          onCheckedChange?.(!checked)
+        }}
+      />
+    ),
     ConfirmDialog: ({
       cancelText,
       confirmText,
+      content,
       contentClassName,
       description,
       onConfirm,
@@ -54,6 +68,7 @@ vi.mock('@cherrystudio/ui', async () => {
         <div role="dialog" className={contentClassName} data-overlay-class={overlayClassName}>
           <h2>{title}</h2>
           {description && <p>{description}</p>}
+          {content}
           <button type="button">{cancelText ?? 'Cancel'}</button>
           <button type="button" onClick={onConfirm}>
             {confirmText ?? 'Confirm'}
@@ -103,6 +118,21 @@ vi.mock('@cherrystudio/ui', async () => {
     FieldError: ({ children, ...props }: { children?: ReactNode }) => <p {...props}>{children}</p>,
     Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,
+    SelectDropdown: ({ items, onSelect, renderItem, renderSelected, selectedId, placeholder }: any) => {
+      const selected = items.find((item: { id: string }) => item.id === selectedId)
+      return (
+        <div>
+          <button type="button" aria-label={placeholder}>
+            {selected ? renderSelected(selected) : placeholder}
+          </button>
+          {items.map((item: { id: string }) => (
+            <button type="button" key={item.id} onClick={() => onSelect(item.id)}>
+              {renderItem(item, item.id === selectedId)}
+            </button>
+          ))}
+        </div>
+      )
+    },
     Skeleton: (props: Record<string, unknown>) => <div {...props} />
   }
 })
@@ -118,8 +148,19 @@ vi.mock('@data/CacheService', () => ({
 }))
 
 vi.mock('@renderer/components/VirtualList', () => ({
-  DynamicVirtualList: <T,>({ children, list }: { children: (item: T, index: number) => ReactNode; list: T[] }) => (
-    <div>
+  DynamicVirtualList: <T,>({
+    children,
+    header,
+    list,
+    role
+  }: {
+    children: (item: T, index: number) => ReactNode
+    header?: ReactNode
+    list: T[]
+    role?: string
+  }) => (
+    <div data-testid="history-virtual-list" role={role}>
+      {header}
       {list.map((item, index) => (
         <div key={(item as { id?: string }).id ?? index}>{children(item, index)}</div>
       ))}
@@ -238,12 +279,16 @@ vi.mock('react-i18next', () => ({
         'common.cancel': 'Cancel',
         'common.close': 'Close',
         'common.delete': 'Delete',
+        'common.more': 'More',
         'common.name': 'Name',
         'common.rename': 'Rename',
         'common.required_field': 'Required field',
         'common.save': 'Save',
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
+        'history.records.bulkDelete': 'Batch Delete',
+        'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected session(s)?',
+        'history.records.bulkDeleteSessions.title': 'Delete selected sessions',
         'history.records.agentSubtitle': '{{count}} sessions',
         'history.records.agentTitle': 'Agent history',
         'history.records.empty.sessionsDescription': 'No sessions for the current filters.',
@@ -257,6 +302,7 @@ vi.mock('react-i18next', () => ({
         'history.records.status.completed': 'Completed',
         'history.records.status.failed': 'Failed',
         'history.records.status.running': 'Running',
+        'history.records.table.actions': 'Actions',
         'history.records.table.session': 'Session',
         'history.records.table.time': 'Time',
         'selector.common.pin': 'Pin',
@@ -349,6 +395,7 @@ function setupAgentHistory({
     error: undefined,
     isLoading: false,
     deleteSession: hookMocks.deleteSession,
+    deleteSessions: hookMocks.deleteSessions,
     togglePin: hookMocks.togglePin
   })
 
@@ -388,6 +435,8 @@ describe('HistoryRecordsPage agent mode', () => {
     hookMocks.cacheSubscribe.mockReturnValue(() => undefined)
     hookMocks.deleteSession.mockReset()
     hookMocks.deleteSession.mockResolvedValue(true)
+    hookMocks.deleteSessions.mockReset()
+    hookMocks.deleteSessions.mockResolvedValue({ deletedIds: ['session-alpha'], deletedCount: 1 })
     hookMocks.promptShow.mockReset()
     hookMocks.togglePin.mockReset()
     hookMocks.togglePin.mockResolvedValue(undefined)
@@ -431,6 +480,8 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(hookMocks.useAssistants).not.toHaveBeenCalled()
     expect(screen.getByText('History')).toBeInTheDocument()
     expect(screen.getByText('2 sessions')).toBeInTheDocument()
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByTestId('history-virtual-list')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     const pinButton = screen.getAllByTestId('history-pin-button')[0]
@@ -445,10 +496,20 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(screen.getByText('Planning notes')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Agent' })).toBeInTheDocument()
     expect(screen.getAllByText('Alpha agent').length).toBeGreaterThanOrEqual(1)
+    const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
+    const alphaCells = within(alphaRow).getAllByRole('cell')
+    expect(within(alphaCells[1]).queryByText('A')).not.toBeInTheDocument()
+    expect(within(alphaCells[2]).getByText('A')).toBeInTheDocument()
+    expect(within(alphaCells[2]).getByText('Alpha agent')).toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
     expect(screen.getAllByText('Beta agent').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole('button', { name: /Gamma agent 0/ })).toBeInTheDocument()
     expect(screen.queryByText('Agent placeholder')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByTestId('history-open-button')[0])
+
+    expect(onRecordSelect).toHaveBeenCalledWith('session-alpha')
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('filters sessions by selected agent source', () => {
@@ -500,8 +561,8 @@ describe('HistoryRecordsPage agent mode', () => {
 
     fireEvent.click(alphaSource)
 
-    const alphaA = screen.getByText('Alpha A').closest('[role="option"]') as HTMLElement
-    const alphaB = screen.getByText('Alpha B').closest('[role="option"]') as HTMLElement
+    const alphaA = screen.getByText('Alpha A').closest('[role="row"]') as HTMLElement
+    const alphaB = screen.getByText('Alpha B').closest('[role="row"]') as HTMLElement
     expect(Boolean(alphaA.compareDocumentPosition(alphaB) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
   })
 
@@ -538,13 +599,72 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
 
-  it('activates the selected session and closes history', () => {
+  it('does not activate a session when the history row is clicked', () => {
     const { onClose, onRecordSelect } = setupAgentHistory()
 
     fireEvent.click(screen.getByText('Beta session'))
 
-    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('does not activate a session when the selection checkbox is clicked', () => {
+    const { onClose, onRecordSelect } = setupAgentHistory()
+    const betaRow = screen.getByText('Beta session').closest('[role="row"]')
+
+    expect(betaRow).not.toBeNull()
+    fireEvent.click(within(betaRow as HTMLElement).getByRole('checkbox'))
+
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('bulk deletes selected sessions from the query toolbar', async () => {
+    hookMocks.deleteSessions.mockResolvedValueOnce({
+      deletedIds: ['session-alpha', 'session-beta'],
+      deletedCount: 2
+    })
+    const { onClose, onRecordSelect } = setupAgentHistory({
+      activeRecordId: 'session-alpha',
+      sessions: [
+        createSession(),
+        createSession({
+          id: 'session-beta',
+          agentId: 'agent-beta',
+          name: 'Beta session',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b'),
+          orderKey: 'b'
+        }),
+        createSession({
+          id: 'session-gamma',
+          agentId: 'agent-gamma',
+          name: 'Gamma session',
+          workspaceId: 'ws-c',
+          workspace: makeWorkspace('/Users/jd/project-c'),
+          orderKey: 'c'
+        })
+      ]
+    })
+
+    const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
+    const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Batch Delete' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete selected sessions')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete 2 selected session(s)?')
+    expect(hookMocks.deleteSessions).not.toHaveBeenCalled()
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    })
+
+    expect(hookMocks.deleteSessions).toHaveBeenCalledWith(['session-alpha', 'session-beta'])
+    expect(onRecordSelect).toHaveBeenCalledWith('session-gamma')
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('renders an empty state when there are no sessions', () => {
@@ -612,6 +732,26 @@ describe('HistoryRecordsPage agent mode', () => {
     })
 
     await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha'))
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('deletes a session from the history row action column without selecting the row', async () => {
+    const { onClose, onRecordSelect } = setupAgentHistory()
+    const alphaRow = screen.getByText('Alpha session').closest('[role="row"]')
+
+    expect(alphaRow).not.toBeNull()
+    fireEvent.click(within(alphaRow as HTMLElement).getByTestId('history-delete-button'))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete session')
+    expect(hookMocks.deleteSession).not.toHaveBeenCalled()
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await flushAnimationFrame()
+    })
+
+    await vi.waitFor(() => expect(hookMocks.deleteSession).toHaveBeenCalledWith('session-alpha'))
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })

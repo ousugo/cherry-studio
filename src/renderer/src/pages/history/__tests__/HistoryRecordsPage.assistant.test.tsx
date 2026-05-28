@@ -19,6 +19,7 @@ import viVN from '../../../i18n/translate/vi-vn.json'
 
 const hookMocks = vi.hoisted(() => ({
   deleteTopic: vi.fn(),
+  deleteTopics: vi.fn(),
   finishTopicRenaming: vi.fn(),
   getTopicMessages: vi.fn(),
   promptShow: vi.fn(),
@@ -52,9 +53,22 @@ vi.mock('@cherrystudio/ui', async () => {
         {children}
       </button>
     ),
+    Checkbox: ({ checked, onCheckedChange, ...props }: any) => (
+      <button
+        {...props}
+        type="button"
+        role="checkbox"
+        aria-checked={checked === 'indeterminate' ? 'mixed' : Boolean(checked)}
+        onClick={(event) => {
+          props.onClick?.(event)
+          onCheckedChange?.(!checked)
+        }}
+      />
+    ),
     ConfirmDialog: ({
       cancelText,
       confirmText,
+      content,
       contentClassName,
       description,
       onConfirm,
@@ -66,6 +80,7 @@ vi.mock('@cherrystudio/ui', async () => {
         <div role="dialog" className={contentClassName} data-overlay-class={overlayClassName}>
           <h2>{title}</h2>
           {description && <p>{description}</p>}
+          {content}
           <button type="button">{cancelText ?? 'Cancel'}</button>
           <button type="button" onClick={onConfirm}>
             {confirmText ?? 'Confirm'}
@@ -115,13 +130,39 @@ vi.mock('@cherrystudio/ui', async () => {
     FieldError: ({ children, ...props }: { children?: ReactNode }) => <p {...props}>{children}</p>,
     Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,
+    SelectDropdown: ({ items, onSelect, renderItem, renderSelected, selectedId, placeholder }: any) => {
+      const selected = items.find((item: { id: string }) => item.id === selectedId)
+      return (
+        <div>
+          <button type="button" aria-label={placeholder}>
+            {selected ? renderSelected(selected) : placeholder}
+          </button>
+          {items.map((item: { id: string }) => (
+            <button type="button" key={item.id} onClick={() => onSelect(item.id)}>
+              {renderItem(item, item.id === selectedId)}
+            </button>
+          ))}
+        </div>
+      )
+    },
     Skeleton: (props: Record<string, unknown>) => <div {...props} />
   }
 })
 
 vi.mock('@renderer/components/VirtualList', () => ({
-  DynamicVirtualList: <T,>({ children, list }: { children: (item: T, index: number) => ReactNode; list: T[] }) => (
-    <div>
+  DynamicVirtualList: <T,>({
+    children,
+    header,
+    list,
+    role
+  }: {
+    children: (item: T, index: number) => ReactNode
+    header?: ReactNode
+    list: T[]
+    role?: string
+  }) => (
+    <div data-testid="history-virtual-list" role={role}>
+      {header}
       {list.map((item, index) => (
         <div key={(item as { id?: string }).id ?? index}>{children(item, index)}</div>
       ))}
@@ -180,6 +221,7 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   useTopics: hookMocks.useTopics,
   useTopicMutations: () => ({
     deleteTopic: hookMocks.deleteTopic,
+    deleteTopics: hookMocks.deleteTopics,
     updateTopic: hookMocks.updateTopic
   }),
   startTopicRenaming: hookMocks.startTopicRenaming
@@ -268,9 +310,23 @@ vi.mock('react-i18next', () => ({
         'common.cancel': 'Cancel',
         'common.close': 'Close',
         'common.delete': 'Delete',
+        'common.more': 'More',
         'common.name': 'Name',
         'common.required_field': 'Required field',
         'common.save': 'Save',
+        'common.unnamed': 'Untitled',
+        'history.records.bulkDelete': 'Batch Delete',
+        'history.records.bulkDeleteTopics.description': 'Delete {{count}} selected topic(s)?',
+        'history.records.bulkDeleteTopics.title': 'Delete selected topics',
+        'history.records.bulkMove': 'Batch Move',
+        'history.records.bulkMoveTopics.confirm': 'Move',
+        'history.records.bulkMoveTopics.description': 'Move {{count}} selected topic(s) to the target assistant.',
+        'history.records.bulkMoveTopics.empty': 'No assistants available',
+        'history.records.bulkMoveTopics.error': 'Failed to move topics',
+        'history.records.bulkMoveTopics.placeholder': 'Select assistant',
+        'history.records.bulkMoveTopics.success': 'Moved {{count}} topic(s)',
+        'history.records.bulkMoveTopics.target': 'Target assistant',
+        'history.records.bulkMoveTopics.title': 'Move selected topics',
         'history.records.assistantSubtitle': '{{count}} topics',
         'history.records.empty.description': 'No topics for the current filters.',
         'history.records.empty.title': 'No topics',
@@ -278,6 +334,7 @@ vi.mock('react-i18next', () => ({
         'history.records.searchTopic': 'Search topics...',
         'history.records.shortTitle': 'History',
         'history.records.sidebar.unknownAssistant': 'Unlinked assistant',
+        'history.records.table.actions': 'Actions',
         'history.records.table.emptyValue': '-',
         'history.records.table.time': 'Time',
         'history.records.table.title': 'Title',
@@ -375,6 +432,8 @@ describe('HistoryRecordsPage assistant mode', () => {
     ])
     hookMocks.deleteTopic.mockReset()
     hookMocks.deleteTopic.mockResolvedValue(undefined)
+    hookMocks.deleteTopics.mockReset()
+    hookMocks.deleteTopics.mockResolvedValue({ deletedIds: ['topic-alpha'], deletedCount: 1 })
     hookMocks.finishTopicRenaming.mockReset()
     hookMocks.getTopicMessages.mockReset()
     hookMocks.getTopicMessages.mockResolvedValue([])
@@ -391,7 +450,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useUpdateSession.mockReset()
   })
 
-  it('selects the clicked topic and closes history', () => {
+  it('does not select a topic when the history row is clicked', () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-alpha'], togglePin: hookMocks.togglePin })
@@ -403,6 +462,8 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     expect(screen.getByText('History')).toBeInTheDocument()
     expect(screen.getByText('1 topics')).toBeInTheDocument()
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByTestId('history-virtual-list')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     const pinButton = screen.getByTestId('history-pin-button')
@@ -414,19 +475,130 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(screen.queryByText('Messages')).not.toBeInTheDocument()
     expect(screen.queryByText('消息')).not.toBeInTheDocument()
 
+    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
+    const alphaCells = within(alphaRow).getAllByRole('cell')
+    expect(within(alphaCells[1]).queryByText('A')).not.toBeInTheDocument()
+    expect(within(alphaCells[2]).getByText('A')).toBeInTheDocument()
+    expect(within(alphaCells[2]).getByText('Alpha assistant')).toBeInTheDocument()
+
     fireEvent.click(screen.getByText('Alpha topic'))
 
-    expect(onRecordSelect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'topic-alpha',
-        name: 'Alpha topic',
-        messages: [],
-        pinned: true
-      })
-    )
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTestId('history-open-button'))
+
+    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha', name: 'Alpha topic' }))
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(hookMocks.useSessions).not.toHaveBeenCalled()
     expect(hookMocks.useAgents).not.toHaveBeenCalled()
+  })
+
+  it('does not select a topic when the selection checkbox is clicked', () => {
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    const onClose = vi.fn()
+    const onRecordSelect = vi.fn()
+
+    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+
+    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]')
+    expect(alphaRow).not.toBeNull()
+    fireEvent.click(within(alphaRow as HTMLElement).getByRole('checkbox'))
+
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('bulk deletes selected topics from the query toolbar', async () => {
+    hookMocks.useTopics.mockReturnValue({
+      topics: [
+        createTopic(),
+        createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' }),
+        createTopic({ id: 'topic-gamma', name: 'Gamma topic', orderKey: 'c' })
+      ],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.deleteTopics.mockResolvedValueOnce({
+      deletedIds: ['topic-alpha', 'topic-beta'],
+      deletedCount: 2
+    })
+    const onClose = vi.fn()
+    const onRecordSelect = vi.fn()
+
+    render(
+      <HistoryRecordsPage
+        mode="assistant"
+        open
+        activeRecordId="topic-alpha"
+        onClose={onClose}
+        onRecordSelect={onRecordSelect}
+      />
+    )
+
+    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
+    const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Batch Delete' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete selected topics')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete 2 selected topic(s)?')
+    expect(hookMocks.deleteTopics).not.toHaveBeenCalled()
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    })
+
+    expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha', 'topic-beta'])
+    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-gamma' }))
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('bulk moves selected topics to another assistant from the query toolbar', async () => {
+    hookMocks.useTopics.mockReturnValue({
+      topics: [
+        createTopic(),
+        createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' }),
+        createTopic({ id: 'topic-gamma', name: 'Gamma topic', orderKey: 'c' })
+      ],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({
+      assistants: [createAssistant(), createAssistant({ id: 'assistant-beta', name: 'Beta assistant', emoji: 'B' })]
+    })
+    const onClose = vi.fn()
+    const onRecordSelect = vi.fn()
+
+    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+
+    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
+    const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Batch Move' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Move selected topics')
+    expect(dialog).toHaveTextContent('Move 2 selected topic(s) to the target assistant.')
+    expect(hookMocks.updateTopic).not.toHaveBeenCalled()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /Beta assistant/ }))
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Move' }))
+    })
+
+    expect(hookMocks.updateTopic).toHaveBeenCalledTimes(2)
+    expect(hookMocks.updateTopic).toHaveBeenNthCalledWith(1, 'topic-alpha', { assistantId: 'assistant-beta' })
+    expect(hookMocks.updateTopic).toHaveBeenNthCalledWith(2, 'topic-beta', { assistantId: 'assistant-beta' })
+    expect(window.toast.success).toHaveBeenCalledWith('Moved 2 topic(s)')
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('renders the overlay shell without transition animation', () => {
@@ -448,7 +620,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(overlay).not.toHaveStyle({ willChange: 'clip-path' })
   })
 
-  it('matches external assistant ResourceList source and selected-source order', () => {
+  it('matches external assistant source and selected-source order', () => {
     hookMocks.useTopics.mockReturnValue({
       topics: [
         createTopic({ id: 'topic-beta', assistantId: 'assistant-beta', name: 'Beta topic', orderKey: 'a' }),
@@ -476,8 +648,8 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     fireEvent.click(alphaSource)
 
-    const alphaA = screen.getByText('Alpha A').closest('[role="option"]') as HTMLElement
-    const alphaB = screen.getByText('Alpha B').closest('[role="option"]') as HTMLElement
+    const alphaA = screen.getByText('Alpha A').closest('[role="row"]') as HTMLElement
+    const alphaB = screen.getByText('Alpha B').closest('[role="row"]') as HTMLElement
     expect(Boolean(alphaA.compareDocumentPosition(alphaB) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
 
     fireEvent.click(gammaSource)
@@ -583,6 +755,35 @@ describe('HistoryRecordsPage assistant mode', () => {
     })
 
     expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('deletes a topic from the history row action column without selecting the row', async () => {
+    hookMocks.useTopics.mockReturnValue({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
+      error: undefined,
+      isLoading: false
+    })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    const onClose = vi.fn()
+    const onRecordSelect = vi.fn()
+
+    render(<HistoryRecordsPage mode="assistant" open onClose={onClose} onRecordSelect={onRecordSelect} />)
+
+    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]')
+    expect(alphaRow).not.toBeNull()
+    fireEvent.click(within(alphaRow as HTMLElement).getByTestId('history-delete-button'))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete Topics')
+    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await flushAnimationFrame()
+    })
+
+    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha')
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -799,6 +1000,15 @@ describe('HistoryRecordsPage locale resources', () => {
       'agentSubtitle',
       'agentTitle',
       'assistantSubtitle',
+      'bulkMove',
+      'bulkMoveTopics.confirm',
+      'bulkMoveTopics.description',
+      'bulkMoveTopics.empty',
+      'bulkMoveTopics.error',
+      'bulkMoveTopics.placeholder',
+      'bulkMoveTopics.success',
+      'bulkMoveTopics.target',
+      'bulkMoveTopics.title',
       'empty.description',
       'empty.sessionsDescription',
       'empty.sessionsTitle',
@@ -819,6 +1029,7 @@ describe('HistoryRecordsPage locale resources', () => {
       'status.running',
       'table.emptyValue',
       'table.messages',
+      'table.actions',
       'table.session',
       'table.time',
       'table.title',

@@ -165,6 +165,11 @@ export interface DeleteSessionsResult {
   deletedCount: number
 }
 
+export const DeleteSessionsSchema = z.strictObject({
+  ids: z.array(z.string().min(1)).min(1)
+})
+export type DeleteSessionsDto = z.infer<typeof DeleteSessionsSchema>
+
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -178,6 +183,15 @@ export type SessionSchemas = {
     POST: {
       body: CreateSessionDto
       response: AgentSessionEntity
+    }
+    /**
+     * Delete an explicit set of sessions.
+     *
+     * Used by multi-select table flows where the selection can span agents.
+     */
+    DELETE: {
+      body: DeleteSessionsDto
+      response: DeleteSessionsResult
     }
   }
 

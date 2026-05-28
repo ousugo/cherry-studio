@@ -289,6 +289,9 @@ export function useTopicMutations() {
   const { trigger: deleteByAssistantTrigger } = useMutation('DELETE', '/assistants/:assistantId/topics', {
     refresh: ['/topics', '/pins']
   })
+  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/topics', {
+    refresh: ['/topics', '/pins']
+  })
 
   const refreshTopics = useCallback(() => invalidate('/topics'), [invalidate])
 
@@ -327,6 +330,15 @@ export function useTopicMutations() {
     [deleteByAssistantTrigger]
   )
 
+  const deleteTopics = useCallback(
+    async (ids: string[]): Promise<DeleteTopicsResult> => {
+      const result = await deleteManyTrigger({ body: { ids } })
+      logger.info('Deleted topics', { count: result.deletedCount })
+      return result
+    },
+    [deleteManyTrigger]
+  )
+
   const batchUpdateTopics = useCallback(
     async (topics: Array<{ id: string; dto: UpdateTopicDto }>): Promise<void> => {
       await Promise.allSettled(topics.map(({ id, dto }) => dataApiService.patch(`/topics/${id}`, { body: dto })))
@@ -339,6 +351,7 @@ export function useTopicMutations() {
     createTopic,
     updateTopic,
     deleteTopic,
+    deleteTopics,
     deleteTopicsByAssistantId,
     batchUpdateTopics,
     refreshTopics,

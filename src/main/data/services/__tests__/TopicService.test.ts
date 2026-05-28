@@ -312,6 +312,45 @@ describe('TopicService', () => {
       expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
     })
 
+    it('deletes selected topics by ids', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-a', name: 'A', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'topic-b', name: 'B', orderKey: 'a1', createdAt: 1, updatedAt: 1 },
+        { id: 'topic-c', name: 'C', orderKey: 'a2', createdAt: 1, updatedAt: 1 }
+      ])
+      await dbh.db.insert(messageTable).values({
+        topicId: 'topic-a',
+        role: 'user',
+        data: { parts: [] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db
+        .insert(pinTable)
+        .values({ id: 'pin-b', entityType: 'topic', entityId: 'topic-b', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+
+      const result = await topicService.deleteByIds(['topic-a', 'topic-b'])
+
+      expect(result).toEqual({ deletedIds: expect.arrayContaining(['topic-a', 'topic-b']), deletedCount: 2 })
+      const remainingTopics = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.id))
+      expect(remainingTopics.map((row) => row.id)).toEqual(['topic-c'])
+      expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
+    })
+
+    it('throws not found when deleting selected topics with a missing id', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-a', name: 'A', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+
+      await expect(topicService.deleteByIds(['topic-a', 'missing-topic'])).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+
+      const remainingTopics = await dbh.db.select({ id: topicTable.id }).from(topicTable)
+      expect(remainingTopics).toEqual([{ id: 'topic-a' }])
+    })
+
     it('deletes active topics for one assistant without deleting the assistant', async () => {
       await dbh.db.insert(assistantTable).values([
         {

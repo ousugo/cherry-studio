@@ -318,6 +318,56 @@ describe('SessionService', () => {
     expect(session).toEqual({ id: 'soft-deleted-agent-session' })
   })
 
+  it('deletes selected sessions by ids', async () => {
+    const first = await createSession('First')
+    const second = await createSession('Second')
+    const third = await createSession('Third')
+    await dbh.db.insert(pinTable).values({
+      id: 'pin-second',
+      entityType: 'session',
+      entityId: second.id,
+      orderKey: 'a0',
+      createdAt: 1,
+      updatedAt: 1
+    })
+
+    const result = await sessionService.deleteByIds([first.id, second.id])
+
+    expect(result).toEqual({ deletedIds: expect.arrayContaining([first.id, second.id]), deletedCount: 2 })
+    await expect(sessionService.getById(first.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(sessionService.getById(second.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(sessionService.getById(third.id)).resolves.toMatchObject({ id: third.id })
+    expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
+  })
+
+  it('throws not found when deleting selected sessions with a missing id', async () => {
+    const first = await createSession('First')
+
+    await expect(sessionService.deleteByIds([first.id, 'missing-session'])).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+
+    await expect(sessionService.getById(first.id)).resolves.toMatchObject({ id: first.id })
+  })
+
+  it('deletes selected system workspace sessions and their workspace directories by ids', async () => {
+    const systemSession = await sessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'Bulk system workspace',
+      workspaceMode: 'system'
+    })
+    const normalSession = await createSession('Normal session')
+    const workspacePath = systemSession.workspace!.path
+
+    const result = await sessionService.deleteByIds([systemSession.id])
+
+    expect(result).toEqual({ deletedIds: [systemSession.id], deletedCount: 1 })
+    await expect(sessionService.getById(systemSession.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(sessionService.getById(normalSession.id)).resolves.toMatchObject({ id: normalSession.id })
+    expect(await dbh.db.select().from(workspaceTable)).toHaveLength(1)
+    await expect(stat(workspacePath)).rejects.toThrow()
+  })
+
   it('deletes system workspace directories when deleting agent sessions', async () => {
     const session = await sessionService.createSession({
       agentId: 'agent-session-test',

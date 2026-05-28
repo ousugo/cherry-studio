@@ -2308,6 +2308,26 @@
       "agentSubtitle": "{{count}} sessions",
       "agentTitle": "Agent History",
       "assistantSubtitle": "{{count}} topics",
+      "bulkDelete": "Batch Delete",
+      "bulkDeleteSessions": {
+        "description": "Delete {{count}} selected session(s)?",
+        "title": "Delete selected sessions"
+      },
+      "bulkDeleteTopics": {
+        "description": "Delete {{count}} selected topic(s)?",
+        "title": "Delete selected topics"
+      },
+      "bulkMove": "Batch Move",
+      "bulkMoveTopics": {
+        "confirm": "Move",
+        "description": "Move {{count}} selected topic(s) to the target assistant.",
+        "empty": "No assistants available",
+        "error": "Failed to move topics",
+        "placeholder": "Select assistant",
+        "success": "Moved {{count}} topic(s)",
+        "target": "Target assistant",
+        "title": "Move selected topics"
+      },
       "empty": {
         "description": "No topics for the current filters.",
         "sessionsDescription": "No sessions for the current filters.",
@@ -2335,6 +2355,7 @@
         "running": "Running"
       },
       "table": {
+        "actions": "Actions",
         "emptyValue": "—",
         "messages": "Messages",
         "session": "Session",

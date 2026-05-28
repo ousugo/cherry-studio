@@ -2308,6 +2308,26 @@
       "agentSubtitle": "{{count}} 個會話",
       "agentTitle": "智能體歷史記錄",
       "assistantSubtitle": "{{count}} 個話題",
+      "bulkDelete": "批量刪除",
+      "bulkDeleteSessions": {
+        "description": "將刪除選中的 {{count}} 個會話。",
+        "title": "刪除選中的會話"
+      },
+      "bulkDeleteTopics": {
+        "description": "將刪除選中的 {{count}} 個話題。",
+        "title": "刪除選中的話題"
+      },
+      "bulkMove": "批量移動",
+      "bulkMoveTopics": {
+        "confirm": "移動",
+        "description": "將選中的 {{count}} 個話題移動到目標助手下。",
+        "empty": "暫無可移動到的助手",
+        "error": "移動話題失敗",
+        "placeholder": "選擇助手",
+        "success": "已移動 {{count}} 個話題",
+        "target": "目標助手",
+        "title": "移動選中的話題"
+      },
       "empty": {
         "description": "目前篩選下沒有可顯示的話題。",
         "sessionsDescription": "目前篩選下沒有可顯示的會話。",
@@ -2335,6 +2355,7 @@
         "running": "運行中"
       },
       "table": {
+        "actions": "操作",
         "emptyValue": "—",
         "messages": "訊息",
         "session": "會話",
