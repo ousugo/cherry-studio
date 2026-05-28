@@ -110,8 +110,9 @@ const message = {
   updatedAt: '2026-01-01T00:01:00.000Z'
 }
 
-function renderNode() {
-  const props = { data: nodeData, id: 'message-1', selected: false } as ComponentProps<typeof TopicMessageFlowNode>
+function renderNode(overrides: Partial<TopicMessageFlowNodeData> = {}) {
+  const data = { ...nodeData, ...overrides }
+  const props = { data, id: data.messageId, selected: false } as ComponentProps<typeof TopicMessageFlowNode>
   return render(<TopicMessageFlowNode {...props} />)
 }
 
@@ -141,6 +142,16 @@ describe('TopicMessageFlowNode', () => {
   afterEach(() => {
     vi.clearAllTimers()
     vi.useRealTimers()
+  })
+
+  it.each([
+    ['user', 'user-message', 'User preview', 'border-success/35', 'bg-success/8'],
+    ['assistant', 'assistant-message', 'Assistant preview', 'border-info/35', 'bg-info/8'],
+    ['system', 'system-message', 'System preview', 'border-border', 'bg-muted/45']
+  ] as const)('keeps the %s role background color on canvas nodes', (role, messageId, preview, border, background) => {
+    renderNode({ messageId, preview, role })
+
+    expect(screen.getByText(preview).closest(`[data-message-id="${messageId}"]`)).toHaveClass(border, background)
   })
 
   it('fetches the message preview only after hovering the node for 300ms', async () => {

@@ -23,9 +23,9 @@ const bodyXsTypographyClassName = 'text-[length:var(--font-size-body-xs)] leadin
 const bodySmTypographyClassName = 'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)]'
 
 const roleClassNames: Record<MessageRole, string> = {
-  user: 'border-border bg-card',
-  assistant: 'border-border bg-card',
-  system: 'border-border bg-muted'
+  user: 'border-success/35 bg-success/8',
+  assistant: 'border-info/35 bg-info/8',
+  system: 'border-border bg-muted/45'
 }
 
 const statusDotClassNames: Record<MessageStatus, string> = {
