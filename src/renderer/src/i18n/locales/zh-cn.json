@@ -333,7 +333,7 @@
       "welcome_title": "今天想聊点什么？"
     },
     "input": {
-      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令",
+      "placeholder": "在这里输入消息，按 {{key}} 发送，@ 选择路径，/ 选择命令",
       "soul_placeholder": "帮我连接微信"
     },
     "list": {
@@ -1363,7 +1363,7 @@
       "new_topic": "新话题 {{Command}}",
       "paste_text_file": "粘贴到输入框",
       "pause": "暂停",
-      "placeholder": "在这里输入消息，按 {{key}} 发送 - / 选择工具",
+      "placeholder": "在这里输入消息，按 {{key}} 发送，/ 选择工具",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
       "resource_panel": {
         "loading": "加载中...",

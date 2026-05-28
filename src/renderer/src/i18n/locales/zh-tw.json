@@ -333,7 +333,7 @@
       "welcome_title": "今天想聊點什麼？"
     },
     "input": {
-      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令",
+      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送，@ 選擇路徑，/ 選擇命令",
       "soul_placeholder": "幫我連接微信"
     },
     "list": {
@@ -1363,7 +1363,7 @@
       "new_topic": "新話題 {{Command}}",
       "paste_text_file": "貼到輸入框",
       "pause": "暫停",
-      "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - / 包含工具",
+      "placeholder": "在此輸入您的訊息，按 {{key}} 傳送，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "resource_panel": {
         "loading": "載入中...",
