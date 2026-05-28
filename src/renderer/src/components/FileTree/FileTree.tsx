@@ -122,7 +122,7 @@ export function FileTree(props: FileTreeProps) {
           className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-4 text-muted-foreground"
         />
         <Input
-          type="search"
+          type="text"
           value={searchKeyword}
           onChange={(e) => onSearchKeywordChange?.(e.target.value)}
           placeholder={searchPlaceholder}

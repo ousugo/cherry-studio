@@ -357,8 +357,10 @@
       "items_other": "{{count}} 个项目",
       "maximize": "最大化",
       "minimize": "最小化",
+      "no_search_results": "[to be translated]:No files match your search.",
       "preview": "预览",
       "refresh": "刷新",
+      "search_placeholder": "搜索文件",
       "select_file": "选择文件以预览",
       "toggle": "显示预览面板",
       "too_large": {

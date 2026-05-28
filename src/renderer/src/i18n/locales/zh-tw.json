@@ -357,8 +357,10 @@
       "items_other": "{{count}} 個項目",
       "maximize": "最大化",
       "minimize": "最小化",
+      "no_search_results": "[to be translated]:No files match your search.",
       "preview": "預覽",
       "refresh": "重新整理",
+      "search_placeholder": "[to be translated]:Search files...",
       "select_file": "選擇檔案以預覽",
       "toggle": "顯示預覽面板",
       "too_large": {

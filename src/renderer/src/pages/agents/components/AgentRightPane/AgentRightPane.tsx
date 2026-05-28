@@ -291,6 +291,7 @@ function AgentRightPaneFilesPanel() {
       selectedFile={state.selectedFile}
       onSelectedFileChange={actions.setSelectedFile}
       pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
+      enableFileSearch
     />
   )
 }
@@ -518,8 +519,10 @@ function AgentRightPaneSurface() {
   return (
     <Shell.Tabs>
       <Shell.TabList>
-        <Shell.Tab value="files" icon={<FolderOpen className="size-3.5" />}>
-          {t('agent.right_pane.tabs.files')}
+        <Shell.Tab
+          value="files"
+          icon={state.selectedFile ? <FileText className="size-3.5" /> : <FolderOpen className="size-3.5" />}>
+          {state.selectedFile ? getFilePreviewTitle(state.selectedFile) : t('agent.right_pane.tabs.files')}
         </Shell.Tab>
         {state.filePreview && (
           <Shell.Tab

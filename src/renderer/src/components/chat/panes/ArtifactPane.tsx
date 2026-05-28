@@ -44,6 +44,8 @@ export interface ArtifactPaneProps {
   selectedFile?: string | null
   onSelectedFileChange?: (file: string | null) => void
   onToggleMaximized?: () => void
+  /** Show a search input inside the file tree that filters nodes by name. */
+  enableFileSearch?: boolean
 }
 
 export interface ArtifactPaneFileSelection {
@@ -546,7 +548,8 @@ const ArtifactPane = ({
   pdfLayoutRefreshKey = 0,
   selectedFile: selectedFileProp,
   onSelectedFileChange,
-  onToggleMaximized
+  onToggleMaximized,
+  enableFileSearch = false
 }: ArtifactPaneProps) => {
   const { t } = useTranslation()
   const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(workspacePath)
@@ -562,6 +565,7 @@ const ArtifactPane = ({
   const [internalSelectedFile, setInternalSelectedFile] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
+  const [fileSearchKeyword, setFileSearchKeyword] = useState('')
   const previousWorkspacePathRef = useRef(workspacePath)
   const selectedFileControlled = selectedFileProp !== undefined
   const selectedFile = selectedFileControlled ? selectedFileProp : internalSelectedFile
@@ -585,6 +589,45 @@ const ArtifactPane = ({
     return result
   }, [tree])
 
+  const trimmedFileSearch = enableFileSearch ? fileSearchKeyword.trim() : ''
+
+  const filteredTree = useMemo<FileTreeNode[]>(() => {
+    if (!trimmedFileSearch) return tree
+    const needle = trimmedFileSearch.toLowerCase()
+    const filterNodes = (nodes: readonly FileTreeNode[]): FileTreeNode[] => {
+      const out: FileTreeNode[] = []
+      for (const node of nodes) {
+        if (node.kind === 'folder') {
+          const filteredChildren = filterNodes(node.children ?? [])
+          if (filteredChildren.length > 0 || node.name.toLowerCase().includes(needle)) {
+            out.push({ ...node, children: filteredChildren })
+          }
+        } else if (node.name.toLowerCase().includes(needle)) {
+          out.push(node)
+        }
+      }
+      return out
+    }
+    return filterNodes(tree)
+  }, [tree, trimmedFileSearch])
+
+  // While searching, expand every visible folder so matches stay reachable —
+  // user-toggled `expandedIds` resumes after the keyword clears.
+  const effectiveExpandedIds = useMemo<ReadonlySet<string>>(() => {
+    if (!trimmedFileSearch) return expandedIds
+    const expanded = new Set<string>()
+    const visit = (nodes: readonly FileTreeNode[]) => {
+      for (const node of nodes) {
+        if (node.kind === 'folder') {
+          expanded.add(node.id)
+          if (node.children?.length) visit(node.children)
+        }
+      }
+    }
+    visit(filteredTree)
+    return expanded
+  }, [expandedIds, trimmedFileSearch, filteredTree])
+
   // Reset transient state when the workspace changes.
   useEffect(() => {
     if (previousWorkspacePathRef.current !== workspacePath) {
@@ -593,6 +636,7 @@ const ArtifactPane = ({
     previousWorkspacePathRef.current = workspacePath
     setExpandedIds(workspacePath ? new Set([WORKSPACE_ROOT_ID]) : new Set())
     setContentRefreshToken(0)
+    setFileSearchKeyword('')
   }, [selectedFileControlled, setSelectedFile, workspacePath])
 
   useEffect(() => {
@@ -693,18 +737,24 @@ const ArtifactPane = ({
                     <LoadingState variant="skeleton" rows={4} />
                   ) : (
                     <FileTree
-                      nodes={tree}
-                      expandedIds={expandedIds}
+                      nodes={filteredTree}
+                      expandedIds={effectiveExpandedIds}
                       onExpandedChange={setExpandedIds}
                       selectedId={selectedFile}
                       onSelectedChange={handleSelectedChange}
+                      showSearch={enableFileSearch}
+                      searchKeyword={fileSearchKeyword}
+                      onSearchKeywordChange={setFileSearchKeyword}
+                      searchPlaceholder={t('agent.preview_pane.search_placeholder')}
                       emptyState={
                         <div className="px-2 py-3 text-muted-foreground text-xs">
                           {error
                             ? t('common.error')
-                            : workspacePath
-                              ? t('agent.preview_pane.empty.title')
-                              : t('agent.preview_pane.empty.description')}
+                            : trimmedFileSearch
+                              ? t('agent.preview_pane.no_search_results')
+                              : workspacePath
+                                ? t('agent.preview_pane.empty.title')
+                                : t('agent.preview_pane.empty.description')}
                         </div>
                       }
                     />

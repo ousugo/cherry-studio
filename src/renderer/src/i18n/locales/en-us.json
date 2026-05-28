@@ -357,8 +357,10 @@
       "items_other": "{{count}} items",
       "maximize": "Maximize",
       "minimize": "Minimize",
+      "no_search_results": "No files match your search.",
       "preview": "Preview",
       "refresh": "Refresh",
+      "search_placeholder": "Search files...",
       "select_file": "Select a file to preview",
       "toggle": "Show preview panel",
       "too_large": {

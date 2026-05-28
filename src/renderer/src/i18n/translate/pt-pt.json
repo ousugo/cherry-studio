@@ -357,10 +357,16 @@
       "items_other": "[to be translated]:{{count}} items",
       "maximize": "[to be translated]:Maximize",
       "minimize": "[to be translated]:Minimize",
+      "no_search_results": "[to be translated]:No files match your search.",
       "preview": "[to be translated]:Preview",
       "refresh": "[to be translated]:Refresh",
+      "search_placeholder": "[to be translated]:Search files...",
       "select_file": "[to be translated]:Select a file to preview",
-      "toggle": "[to be translated]:Show preview panel"
+      "toggle": "[to be translated]:Show preview panel",
+      "too_large": {
+        "description": "[to be translated]:File exceeds the {{limit}} preview limit.",
+        "title": "[to be translated]:File too large to preview"
+      }
     },
     "reorder": {
       "error": {
@@ -369,7 +375,6 @@
     },
     "right_pane": {
       "close": "[to be translated]:Close",
-      "files_toggle": "[to be translated]:Show files",
       "flow": {
         "empty": {
           "description": "[to be translated]:Select an agent tool call to inspect its child message flow.",
@@ -1348,6 +1353,9 @@
       "generate_image": "Gerar imagem",
       "generate_image_not_supported": "Modelo não suporta geração de imagem",
       "knowledge_base": "Base de conhecimento",
+      "knowledge_base_disabled_by_files": "[to be translated]:Remove attached files to use Knowledge Base",
+      "knowledge_base_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
+      "mcp_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "Limpar contexto {{Command}}"
       },
@@ -1383,6 +1391,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "Orçamento de pensamento excede o número máximo de tokens",
+        "fixed_model": "[to be translated]:Reasoning is fixed for this model",
         "label": "Pensando",
         "mode": {
           "custom": {
@@ -1396,7 +1405,8 @@
           "tokens": {
             "tip": "Definir o número de tokens para raciocínio"
           }
-        }
+        },
+        "unsupported_model": "[to be translated]:Current model does not support adjustable reasoning"
       },
       "tools": {
         "collapse": "Recolher",
@@ -1414,6 +1424,8 @@
       "upload": {
         "attachment": "Carregar anexo",
         "document": "Carregar documento (o modelo não suporta imagens)",
+        "document_only": "[to be translated]:Documents only",
+        "image_not_supported": "[to be translated]:This model does not support image uploads. Documents only.",
         "image_or_document": "Carregar imagem ou documento",
         "upload_from_local": "Fazer upload de arquivo local..."
       },
@@ -1884,6 +1896,7 @@
     "clear_all": "Limpar Tudo",
     "click_to_replace": "Clique para substituir",
     "close": "Fechar",
+    "close_sidebar": "[to be translated]:Close sidebar",
     "collapse": "Recolher",
     "completed": "Concluído",
     "confirm": "Confirmar",
@@ -1949,6 +1962,7 @@
     "open": "Abrir",
     "open_in": "Abrir em {{name}}",
     "open_in_new_tab": "[to be translated]:Open in new tab",
+    "open_sidebar": "[to be translated]:Open sidebar",
     "paste": "Colar",
     "placeholders": {
       "select": {
@@ -7511,7 +7525,8 @@
         "too_large": "Arquivo muito grande",
         "unknown": "Falha ao ler o conteúdo do arquivo"
       },
-      "reading": "Lendo o conteúdo do arquivo..."
+      "reading": "Lendo o conteúdo do arquivo...",
+      "upload": "[to be translated]:Drop or click to upload image/document"
     },
     "history": {
       "back": "[to be translated]:Back to list",
