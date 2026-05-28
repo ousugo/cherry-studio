@@ -15,6 +15,7 @@ import {
   useComposerToolState
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
 import { getComposerToolConfig } from '@renderer/components/chat/composer/tools/registry'
+import { formatQuoteTokenPromptText } from '@renderer/components/chat/utils/quoteToken'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { AssistantSelector, ModelSelector } from '@renderer/components/Selector'
@@ -33,7 +34,6 @@ import type { AddNewTopicPayload } from '@renderer/pages/home/types'
 import type { FileMetadata, Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn, getLeadingEmoji } from '@renderer/utils'
-import { formatQuotedText } from '@renderer/utils/formats'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerQueuedMessagePayload, ComposerQueueItem, StreamPendingQueueItem } from '@shared/ai/transport'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
@@ -96,8 +96,17 @@ const emptyActions: ProviderActionHandlers = {
   addNewTopic: () => undefined,
   onTextChange: () => undefined,
   toggleExpanded: () => undefined,
-  removeToken: () => undefined
+  removeToken: () => undefined,
+  insertToken: () => undefined
 }
+
+const createQuoteToken = (selectedText: string, label: string): ComposerDraftToken => ({
+  id: `quote:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+  kind: 'quote',
+  label,
+  description: selectedText,
+  promptText: formatQuoteTokenPromptText(selectedText)
+})
 
 interface ChatComposerContextControlsProps {
   assistantId: string | null
@@ -623,11 +632,10 @@ const ChatComposerInner = ({
     (selectedText: string) => {
       if (!selectedText) return
 
-      const quotedText = formatQuotedText(selectedText)
-      actionsRef.current.onTextChange((prevText) => (prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`))
+      actionsRef.current.insertToken(createQuoteToken(selectedText, t('selection.action.builtin.quote')))
       actionsRef.current.toggleExpanded(isExpanded)
     },
-    [actionsRef, isExpanded]
+    [actionsRef, isExpanded, t]
   )
 
   const handleSurfaceActionsChange = useCallback(

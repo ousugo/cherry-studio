@@ -1,5 +1,11 @@
+import { NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { Bot, Boxes, Braces, Code2, FileText, Globe2, Monitor, Wrench, Zap } from 'lucide-react'
+import {
+  getQuoteTooltipContent,
+  QUOTE_TOOLTIP_BODY_CLASS_NAME,
+  QUOTE_TOOLTIP_CONTENT_CLASS_NAME
+} from '@renderer/components/chat/utils/quoteToken'
+import { Bot, Boxes, Braces, Code2, FileText, Globe2, Monitor, TextQuote, Wrench, Zap } from 'lucide-react'
 import type { MouseEventHandler, ReactNode } from 'react'
 
 import type { ComposerDraftToken, ComposerDraftTokenKind } from './tokens'
@@ -13,6 +19,7 @@ const tokenIconByKind: Record<ComposerDraftTokenKind, ReactNode> = {
   mcpPrompt: <Wrench size={14} />,
   mcpResource: <Globe2 size={14} />,
   reference: <Globe2 size={14} />,
+  quote: <TextQuote size={14} />,
   environment: <Monitor size={14} />,
   promptVariable: <Braces size={14} />
 }
@@ -48,9 +55,12 @@ export function ComposerToken({
   }
 
   const isPromptVariable = token.kind === 'promptVariable'
+  const quoteTooltipContent =
+    token.kind === 'quote' ? getQuoteTooltipContent(token.description, token.promptText) : undefined
+  const title = token.kind === 'quote' ? undefined : (token.description ?? token.promptText ?? token.label)
   const isSkill = token.kind === 'skill'
 
-  return (
+  const tokenElement = (
     <span
       className={cn(
         'mx-0.5 inline-flex select-none items-center gap-1 rounded-md border px-1.5 py-0.5 align-baseline text-sm leading-5',
@@ -63,7 +73,7 @@ export function ComposerToken({
         selected && 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30',
         className
       )}
-      title={token.description ?? token.promptText ?? token.label}
+      title={title}
       data-composer-token-kind={token.kind}
       onMouseDown={onMouseDown}>
       <span className="flex size-3.5 shrink-0 items-center justify-center text-current">
@@ -71,5 +81,18 @@ export function ComposerToken({
       </span>
       {children ?? <span className="min-w-0 truncate">{token.label}</span>}
     </span>
+  )
+
+  if (!quoteTooltipContent) return tokenElement
+
+  return (
+    <NormalTooltip
+      content={<div className={QUOTE_TOOLTIP_BODY_CLASS_NAME}>{quoteTooltipContent}</div>}
+      side="top"
+      sideOffset={6}
+      delayDuration={300}
+      contentProps={{ className: QUOTE_TOOLTIP_CONTENT_CLASS_NAME }}>
+      {tokenElement}
+    </NormalTooltip>
   )
 }

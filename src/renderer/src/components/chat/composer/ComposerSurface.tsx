@@ -52,6 +52,7 @@ export interface ComposerSurfaceActions {
   onTextChange: (updater: string | ((prev: string) => string)) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
+  insertToken: (token: ComposerDraftToken) => void
 }
 
 export interface ComposerSurfaceProps {
@@ -120,11 +121,20 @@ function addMissingToken(
   existingTokens: readonly ComposerSerializedToken[]
 ) {
   if (existingTokens.some((existing) => existing.id === token.id)) return
+  insertComposerTokenAtCursor(editor, token, { insertSeparator: token.kind !== 'model' })
+}
+
+function insertComposerTokenAtCursor(
+  editor: Editor,
+  token: ComposerDraftToken,
+  options: { insertSeparator?: boolean } = {}
+) {
   const chain = editor.chain().focus().insertComposerToken(token)
-  if (token.kind === 'model') {
+  if (options.insertSeparator === false) {
     chain.run()
     return
   }
+
   chain.insertContent(' ').run()
 }
 
@@ -169,12 +179,7 @@ function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
         .run()
     },
     insertToken: (token) => {
-      editor
-        .chain()
-        .focus()
-        .insertComposerToken(token as ComposerDraftToken)
-        .insertContent(' ')
-        .run()
+      insertComposerTokenAtCursor(editor, token as ComposerDraftToken)
     },
     deleteTriggerRange: (range) => {
       deleteComposerTextRange(editor, range)
@@ -363,13 +368,21 @@ export default function ComposerSurface({
     editor.commands.focus()
   }, [])
 
+  const insertToken = useCallback((token: ComposerDraftToken) => {
+    const editor = editorRef.current
+    if (!editor || editor.isDestroyed) return
+
+    insertComposerTokenAtCursor(editor, token)
+  }, [])
+
   useEffect(() => {
     onActionsChange?.({
       onTextChange: handleTextChangeFromTool,
       toggleExpanded: handleToggleExpanded,
-      removeToken
+      removeToken,
+      insertToken
     })
-  }, [handleTextChangeFromTool, handleToggleExpanded, onActionsChange, removeToken])
+  }, [handleTextChangeFromTool, handleToggleExpanded, insertToken, onActionsChange, removeToken])
 
   const rootSuggestionStateRef = useRef({
     getToolLaunchers,
@@ -759,12 +772,7 @@ export default function ComposerSurface({
           .run()
       },
       insertToken: (token) => {
-        editor
-          .chain()
-          .focus()
-          .insertComposerToken(token as ComposerDraftToken)
-          .insertContent(' ')
-          .run()
+        insertComposerTokenAtCursor(editor, token as ComposerDraftToken)
       },
       deleteTriggerRange: (range) => {
         deleteComposerTextRange(editor, range)

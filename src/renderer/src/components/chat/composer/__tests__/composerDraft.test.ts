@@ -2,6 +2,7 @@ import type { JSONContent } from '@tiptap/core'
 import { describe, expect, it } from 'vitest'
 
 import {
+  createComposerDocumentContent,
   createComposerMessageSnapshot,
   createComposerUserMessageParts,
   serializeComposerDocument
@@ -113,6 +114,111 @@ describe('composer draft serialization', () => {
         }
       ]
     })
+  })
+
+  it('serializes quote tokens as blockquote prompt text and persists quote metadata', () => {
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Follow up on ' },
+            tokenNode({
+              id: 'quote-1',
+              kind: 'quote',
+              label: 'Quote',
+              description: 'Selected message text',
+              promptText: '<blockquote>\n\nSelected message text\n</blockquote>\n'
+            })
+          ]
+        }
+      ]
+    })
+
+    expect(draft.text).toBe('Follow up on <blockquote>\n\nSelected message text\n</blockquote>')
+    expect(createComposerMessageSnapshot(draft)).toEqual({
+      version: 1,
+      tokens: [
+        {
+          id: 'quote-1',
+          kind: 'quote',
+          label: 'Quote',
+          description: 'Selected message text',
+          index: 0,
+          textOffset: 13,
+          promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
+        }
+      ]
+    })
+  })
+
+  it('restores quote tokens from persisted composer metadata without leaking prompt text or separator whitespace', () => {
+    const content = createComposerDocumentContent('<blockquote>\n\nSelected message text\n</blockquote> Reply', {
+      version: 1,
+      tokens: [
+        {
+          id: 'quote-1',
+          kind: 'quote',
+          label: 'Quote',
+          description: 'Selected message text',
+          index: 0,
+          textOffset: 0,
+          promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
+        }
+      ]
+    })
+
+    expect(content).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            tokenNode({
+              id: 'quote-1',
+              kind: 'quote',
+              label: 'Quote',
+              description: 'Selected message text',
+              promptText: '<blockquote>\n\nSelected message text\n</blockquote>',
+              payload: { restoredTextSuffix: ' ' }
+            }),
+            { type: 'text', text: 'Reply' }
+          ]
+        }
+      ]
+    })
+
+    expect(serializeComposerDocument(content).text).toBe('<blockquote>\n\nSelected message text\n</blockquote> Reply')
+  })
+
+  it('drops stale token metadata when composer prompt metadata no longer matches', () => {
+    const content = createComposerDocumentContent('Edited selected message Reply', {
+      version: 1,
+      tokens: [
+        {
+          id: 'quote-1',
+          kind: 'quote',
+          label: 'Quote',
+          description: 'Selected message text',
+          index: 0,
+          textOffset: 0,
+          promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
+        }
+      ]
+    })
+
+    expect(content).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Edited selected message Reply' }]
+        }
+      ]
+    })
+
+    expect(serializeComposerDocument(content)).toEqual({ text: 'Edited selected message Reply', tokens: [] })
   })
 
   it('filters model tokens out of persisted composer metadata', () => {

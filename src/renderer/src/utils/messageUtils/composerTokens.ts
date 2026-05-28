@@ -12,6 +12,10 @@ const RENDERABLE_COMPOSER_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
   'reference',
   'skill'
 ])
+const DISPLAY_COMPOSER_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
+  ...RENDERABLE_COMPOSER_TOKEN_KINDS,
+  'quote'
+])
 const SKILL_TOKEN_ID_PREFIX = 'skill:'
 
 function isTextPart(part: CherryMessagePart): part is Extract<CherryMessagePart, { type: 'text' }> {
@@ -23,10 +27,21 @@ function getMessageParts(message: ExportableMessage): CherryMessagePart[] {
   return Array.isArray(parts) ? (parts as CherryMessagePart[]) : []
 }
 
-export function getRenderableComposerTokens(composer: ComposerMessageSnapshot): ComposerMessageToken[] {
+function getSortedComposerTokens(
+  composer: ComposerMessageSnapshot,
+  allowedKinds: ReadonlySet<ComposerMessageToken['kind']>
+): ComposerMessageToken[] {
   return composer.tokens
-    .filter((token) => RENDERABLE_COMPOSER_TOKEN_KINDS.has(token.kind) && token.label)
+    .filter((token) => allowedKinds.has(token.kind) && token.label)
     .sort((a, b) => a.textOffset - b.textOffset || a.index - b.index)
+}
+
+export function getRenderableComposerTokens(composer: ComposerMessageSnapshot): ComposerMessageToken[] {
+  return getSortedComposerTokens(composer, RENDERABLE_COMPOSER_TOKEN_KINDS)
+}
+
+export function getDisplayComposerTokens(composer: ComposerMessageSnapshot): ComposerMessageToken[] {
+  return getSortedComposerTokens(composer, DISPLAY_COMPOSER_TOKEN_KINDS)
 }
 
 export function getComposerTokenClipboardText(token: ComposerMessageToken): string {

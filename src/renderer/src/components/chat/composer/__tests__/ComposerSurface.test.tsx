@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   setNodeSelection: vi.fn(),
   chainRun: vi.fn(),
   docDescendants: vi.fn(),
+  getJSON: vi.fn(),
   dispatch: vi.fn(),
   editorPresetOptions: undefined as any,
   quickPanelClose: vi.fn(),
@@ -77,6 +78,7 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
     mocks.editorOptions = options
     return {
       isDestroyed: false,
+      getJSON: mocks.getJSON,
       commands: {
         focus: vi.fn(),
         setContent: mocks.setContent,
@@ -90,7 +92,7 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
           },
           insertContent: (...args: unknown[]) => {
             mocks.insertContent(...args)
-            return { run: vi.fn() }
+            return { run: mocks.chainRun }
           },
           insertComposerToken: (...args: unknown[]) => {
             mocks.insertComposerToken(...args)
@@ -248,6 +250,8 @@ describe('ComposerSurface', () => {
     mocks.setNodeSelection.mockReset()
     mocks.chainRun.mockReset()
     mocks.docDescendants.mockReset()
+    mocks.getJSON.mockReset()
+    mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
     mocks.dispatch.mockReset()
     mocks.editorPresetOptions = undefined
     mocks.quickPanelClose.mockReset()
@@ -334,6 +338,34 @@ describe('ComposerSurface', () => {
       },
       { emitUpdate: false }
     )
+  })
+
+  it('inserts composer tokens using the same spacing as attachment tokens', async () => {
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Existing draft' }] }]
+    })
+    render(<Harness />)
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    const token = {
+      id: 'quote-1',
+      kind: 'quote' as const,
+      label: 'Quote',
+      description: 'Selected message text',
+      promptText: '<blockquote>\n\nSelected message text\n</blockquote>\n'
+    }
+
+    act(() => {
+      mocks.actions?.insertToken(token)
+    })
+
+    expect(mocks.insertComposerToken).toHaveBeenCalledWith(token)
+    expect(mocks.insertContent).toHaveBeenCalledWith(' ')
+    expect(mocks.insertContent).not.toHaveBeenCalledWith(
+      expect.arrayContaining([{ type: 'hardBreak' }, { type: 'composerToken', attrs: token }])
+    )
+    expect(mocks.chainRun).toHaveBeenCalled()
   })
 
   it('uses Tab to select the next prompt variable token', async () => {

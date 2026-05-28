@@ -16,6 +16,7 @@ import {
 } from '@renderer/components/chat/composer/ComposerToolRuntime'
 import { getComposerToolConfig } from '@renderer/components/chat/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/chat/composer/tools/types'
+import { formatQuoteTokenPromptText } from '@renderer/components/chat/utils/quoteToken'
 import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { AgentSelector, ModelSelector, WorkspaceSelector } from '@renderer/components/Selector'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
@@ -34,7 +35,6 @@ import { FILE_TYPE, type FileMetadata, type LocalSkill, type ThinkingOption } fr
 import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { formatQuotedText } from '@renderer/utils/formats'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerQueuedMessagePayload, ComposerQueueItem, StreamPendingQueueItem } from '@shared/ai/transport'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
@@ -208,8 +208,17 @@ const emptyActions: ProviderActionHandlers = {
   addNewTopic: () => undefined,
   onTextChange: () => undefined,
   toggleExpanded: () => undefined,
-  removeToken: () => undefined
+  removeToken: () => undefined,
+  insertToken: () => undefined
 }
+
+const createQuoteToken = (selectedText: string, label: string): ComposerDraftToken => ({
+  id: `quote:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+  kind: 'quote',
+  label,
+  description: selectedText,
+  promptText: formatQuoteTokenPromptText(selectedText)
+})
 
 const AgentComposerRoot = ({
   agentId,
@@ -710,11 +719,10 @@ const AgentComposerInner = ({
     (selectedText: string) => {
       if (!selectedText) return
 
-      const quotedText = formatQuotedText(selectedText)
-      actionsRef.current.onTextChange((prevText) => (prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`))
+      actionsRef.current.insertToken(createQuoteToken(selectedText, t('selection.action.builtin.quote')))
       actionsRef.current.toggleExpanded(isExpanded)
     },
-    [actionsRef, isExpanded]
+    [actionsRef, isExpanded, t]
   )
 
   useEffect(() => {

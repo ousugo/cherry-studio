@@ -1,3 +1,5 @@
+import { normalizeQuoteTokenPromptText } from '@renderer/components/chat/utils/quoteToken'
+
 export const COMPOSER_DRAFT_TOKEN_KINDS = [
   'skill',
   'file',
@@ -7,6 +9,7 @@ export const COMPOSER_DRAFT_TOKEN_KINDS = [
   'mcpPrompt',
   'mcpResource',
   'reference',
+  'quote',
   'environment',
   'promptVariable'
 ] as const
@@ -45,18 +48,27 @@ function readPayload(value: unknown): unknown | undefined {
   return value == null ? undefined : value
 }
 
+function normalizePromptText(kind: ComposerDraftTokenKind, value: unknown): string | undefined {
+  const promptText = readString(value)
+  if (!promptText) return undefined
+  if (kind === 'quote') return normalizeQuoteTokenPromptText(promptText)
+  return promptText
+}
+
 export function normalizeComposerTokenAttrs(attrs: Record<string, unknown>): ComposerDraftToken {
   const kindValue = attrs.kind
+  const kind = isComposerDraftTokenKind(kindValue) ? kindValue : 'reference'
   const label = readString(attrs.label) ?? ''
   const payload = readPayload(attrs.payload)
+  const promptText = normalizePromptText(kind, attrs.promptText)
 
   return {
     id: readString(attrs.id) ?? label,
-    kind: isComposerDraftTokenKind(kindValue) ? kindValue : 'reference',
+    kind,
     label,
     ...(readString(attrs.icon) && { icon: readString(attrs.icon) }),
     ...(readString(attrs.description) && { description: readString(attrs.description) }),
-    ...(readString(attrs.promptText) && { promptText: readString(attrs.promptText) }),
+    ...(promptText && { promptText }),
     ...(payload !== undefined && { payload })
   }
 }

@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   updateSession: vi.fn(),
   setFiles: vi.fn(),
   enqueueDraft: vi.fn(),
+  insertToken: vi.fn(),
   availableSkills: [] as LocalSkill[],
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
@@ -99,7 +100,8 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
           props.onTextChange(nextText)
         },
         toggleExpanded: vi.fn(),
-        removeToken: vi.fn()
+        removeToken: vi.fn(),
+        insertToken: mocks.insertToken
       })
     }, [props])
 
@@ -389,6 +391,7 @@ describe('AgentComposer', () => {
     mocks.setFiles.mockReset()
     mocks.enqueueDraft.mockReset()
     mocks.enqueueDraft.mockResolvedValue(undefined)
+    mocks.insertToken.mockReset()
     mocks.availableSkills = []
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
@@ -972,7 +975,7 @@ describe('AgentComposer', () => {
     expect(mocks.enqueueDraft).toHaveBeenCalledWith(expect.objectContaining({ text: 'hello' }))
   })
 
-  it('appends quoted selected text from the main-window quote IPC', async () => {
+  it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
     vi.mocked(cacheService.getCasual).mockReturnValue('Existing draft')
 
     render(
@@ -993,9 +996,15 @@ describe('AgentComposer', () => {
       mocks.ipcListeners.get(IpcChannel.App_QuoteToMain)?.({}, 'Selected message text')
     })
 
-    await waitFor(() => {
-      expect(mocks.surfaceProps?.text).toBe('Existing draft\n<blockquote>\n\nSelected message text\n</blockquote>\n\n')
-    })
+    expect(mocks.insertToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'quote',
+        label: 'selection.action.builtin.quote',
+        description: 'Selected message text',
+        promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
+      })
+    )
+    expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 
   it('updates the active session agent from the composer toolbar', () => {

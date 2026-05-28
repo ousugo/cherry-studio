@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   setIsExpanded: vi.fn(),
   updateAssistant: vi.fn(),
   toastError: vi.fn(),
+  insertToken: vi.fn(),
   shortcutHandlers: new Map<string, () => void>(),
   mentionedModels: undefined as Model[] | undefined,
   assistant: undefined as any,
@@ -89,7 +90,8 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
           props.onTextChange(nextText)
         },
         toggleExpanded: vi.fn(),
-        removeToken: vi.fn()
+        removeToken: vi.fn(),
+        insertToken: mocks.insertToken
       })
     }, [props])
 
@@ -447,6 +449,7 @@ describe('ChatComposer', () => {
     mocks.setIsExpanded.mockReset()
     mocks.updateAssistant.mockReset()
     mocks.toastError.mockReset()
+    mocks.insertToken.mockReset()
     mocks.shortcutHandlers.clear()
     mocks.mentionedModels = undefined
     mocks.assistant = {
@@ -541,7 +544,7 @@ describe('ChatComposer', () => {
     })
   })
 
-  it('appends quoted selected text from the main-window quote IPC', async () => {
+  it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
     vi.mocked(cacheService.getCasual).mockReturnValue('Existing draft')
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
@@ -554,9 +557,15 @@ describe('ChatComposer', () => {
       mocks.ipcListeners.get(IpcChannel.App_QuoteToMain)?.({}, 'Selected message text')
     })
 
-    await waitFor(() => {
-      expect(mocks.surfaceProps?.text).toBe('Existing draft\n<blockquote>\n\nSelected message text\n</blockquote>\n\n')
-    })
+    expect(mocks.insertToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'quote',
+        label: 'selection.action.builtin.quote',
+        description: 'Selected message text',
+        promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
+      })
+    )
+    expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 
   it('updates the topic assistant from the composer toolbar', () => {

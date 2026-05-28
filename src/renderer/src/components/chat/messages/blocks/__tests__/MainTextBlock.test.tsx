@@ -1,7 +1,9 @@
+import type * as CherryUI from '@cherrystudio/ui'
 import type { Citation, Model } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
 import { render, screen } from '@testing-library/react'
+import { Fragment, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MainTextBlock from '../MainTextBlock'
@@ -15,6 +17,33 @@ vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => mockRenderConfig,
   useOptionalMessageListActions: () => undefined
 }))
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryUI>()
+  const { createPortal } = await import('react-dom')
+  return {
+    ...actual,
+    Flex: ({ children, className }: { children: ReactNode; className?: string }) => (
+      <div className={className}>{children}</div>
+    ),
+    NormalTooltip: ({
+      children,
+      content,
+      contentProps
+    }: {
+      children: ReactNode
+      content: ReactNode
+      contentProps?: { className?: string }
+    }) => (
+      <>
+        <span data-content-class-name={contentProps?.className} data-testid="composer-message-token-tooltip">
+          {children}
+        </span>
+        {createPortal(<span data-testid="composer-message-token-tooltip-content">{content}</span>, document.body)}
+      </>
+    )
+  }
+})
 
 // Mock citation utilities
 vi.mock('@renderer/utils/citation', () => ({
@@ -48,12 +77,13 @@ vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
       const tokenIndex = match[1]
       const tokenBlock = match[2]
       nodes.push(
-        components?.span?.({
-          key: `token-${tokenIndex}`,
-          dataComposerTokenIndex: tokenIndex,
-          dataComposerTokenBlock: tokenBlock,
-          children: null
-        }) ?? match[0]
+        <Fragment key={`token-${tokenIndex}-${index}`}>
+          {components?.span?.({
+            dataComposerTokenIndex: tokenIndex,
+            dataComposerTokenBlock: tokenBlock,
+            children: null
+          }) ?? match[0]}
+        </Fragment>
       )
       cursor = index + match[0].length
     }
@@ -136,6 +166,90 @@ describe('MainTextBlock', () => {
 
       expect(getRenderedMarkdown()).toBeInTheDocument()
       expect(screen.getByText('Markdown: User **bold** content')).toBeInTheDocument()
+    })
+
+    it('should preserve composer token rendering when markdown rendering is enabled for user messages', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({
+        content: '> quoted line\n\nReply',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'quote-1',
+              kind: 'quote',
+              label: 'Quote',
+              description: 'quoted line',
+              index: 0,
+              textOffset: 0,
+              promptText: '> quoted line'
+            }
+          ]
+        }
+      })
+
+      const markdown = getRenderedMarkdown()!
+      expect(markdown).toBeInTheDocument()
+      expect(markdown).toHaveAttribute(
+        'data-content',
+        '<span data-composer-token-index="0" data-composer-token-block="test-block-1"></span>\n\nReply'
+      )
+      expect(markdown).toHaveTextContent('Quote')
+      expect(markdown).toHaveTextContent('Reply')
+      expect(markdown).not.toHaveTextContent('> quoted line')
+      expect(markdown.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument()
+    })
+
+    it('should render stale quote composer metadata as plain text in markdown mode', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({
+        content: 'Edited quoted line\n\nReply',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'quote-1',
+              kind: 'quote',
+              label: 'Quote',
+              description: 'quoted line',
+              index: 0,
+              textOffset: 0,
+              promptText: '> quoted line'
+            }
+          ]
+        }
+      })
+
+      const markdown = getRenderedMarkdown()!
+      expect(markdown).toHaveAttribute('data-content', 'Edited quoted line\n\nReply')
+      expect(markdown.querySelector('[data-composer-token-kind="quote"]')).not.toBeInTheDocument()
+    })
+
+    it('should render stale quote composer metadata as plain text in plain text mode', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = false
+      renderMainTextBlock({
+        content: 'Edited quoted line\n\nReply',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'quote-1',
+              kind: 'quote',
+              label: 'Quote',
+              description: 'quoted line',
+              index: 0,
+              textOffset: 0,
+              promptText: '> quoted line'
+            }
+          ]
+        }
+      })
+
+      expect(screen.getByText('Edited quoted line Reply')).toBeInTheDocument()
+      expect(document.querySelector('[data-composer-token-kind="quote"]')).not.toBeInTheDocument()
     })
 
     it('should preserve complex formatting in plain text mode', () => {

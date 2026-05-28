@@ -1,11 +1,21 @@
-import { Textarea, Tooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import {
+  createComposerDocumentContent,
+  createComposerMessageSnapshot,
+  serializeComposerDocument
+} from '@renderer/components/chat/composer/composerDraft'
+import { createComposerEditorPreset } from '@renderer/components/chat/composer/composerPreset'
+import type { ComposerSerializedDraft } from '@renderer/components/chat/composer/tokens'
+import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import type { FileMetadata } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { readCherryMeta, withCherryMeta, withoutCherryMeta } from '@shared/data/types/uiParts'
+import { EditorContent } from '@tiptap/react'
 import { Languages, Loader2, Save, Send, X } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -25,6 +35,20 @@ interface Props {
 }
 
 const logger = loggerService.withContext('MessageEditor')
+type TextMessagePart = Extract<CherryMessagePart, { type: 'text' }>
+
+function updateTextPartFromDraft(part: TextMessagePart, draft: ComposerSerializedDraft): TextMessagePart {
+  return updateTextPartContent(part, draft.text, createComposerMessageSnapshot(draft))
+}
+
+function updateTextPartContent(
+  part: TextMessagePart,
+  text: string,
+  composer?: ReturnType<typeof createComposerMessageSnapshot>
+): TextMessagePart {
+  const nextPart = { ...part, text } as TextMessagePart
+  return composer ? withCherryMeta(nextPart, { composer }) : withoutCherryMeta(nextPart, 'composer')
+}
 
 const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const messageParts = useMessageParts(message.id)
@@ -43,8 +67,8 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } =
     messageUi.editorConfig ?? defaultMessageEditorConfig
   const { t } = useTranslation()
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const isUserMessage = message.role === 'user'
+  const firstTextPartIndex = useMemo(() => editedParts.findIndex((part) => part.type === 'text'), [editedParts])
   const editableText = useMemo(
     () =>
       editedParts
@@ -83,18 +107,6 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     }
   }, [])
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (textareaRef.current) {
-        const textLength = textareaRef.current.value.length
-        textareaRef.current.focus()
-        textareaRef.current.setSelectionRange(textLength, textLength)
-      }
-    }, 0)
-
-    return () => clearTimeout(timer)
-  }, [])
-
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
       if (!handleEditorPasteAction) return false
@@ -114,21 +126,21 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     return bindEditorPasteHandler?.(onPaste)
   }, [bindEditorPasteHandler, onPaste])
 
-  const handleTextChange = (index: number, text: string) => {
+  const handleTextPartDraftChange = useCallback((index: number, draft: ComposerSerializedDraft) => {
     setEditedParts((prev) =>
       prev.map((part, i) => {
         if (i !== index || part.type !== 'text') return part
-        return { ...part, text }
+        return updateTextPartFromDraft(part, draft)
       })
     )
-  }
+  }, [])
 
   const onTranslated = useCallback((translatedText: string) => {
     setEditedParts((prev) => {
       const textIndex = prev.findIndex((part) => part.type === 'text')
       if (textIndex < 0) return prev
       return prev.map((part, index) =>
-        index === textIndex && part.type === 'text' ? { ...part, text: translatedText } : part
+        index === textIndex && part.type === 'text' ? updateTextPartContent(part, translatedText, undefined) : part
       )
     })
   }, [])
@@ -148,7 +160,7 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     } finally {
       setIsTranslating(false)
     }
-  }, [actions.notifyError, actions.translateEditorText, editableText, isTranslating, onTranslated, t])
+  }, [actions, editableText, isTranslating, onTranslated, t])
 
   const handlePartRemove = (index: number) => {
     setEditedParts((prev) => prev.filter((_, i) => i !== index))
@@ -198,16 +210,16 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     }
   }
 
-  const buildFinalParts = async (): Promise<CherryMessagePart[]> => {
+  const buildFinalParts = useCallback(async (): Promise<CherryMessagePart[]> => {
     const finalParts = [...editedParts]
     if (files.length > 0) {
       const uploadedParts = await actions.uploadEditorFiles?.(files)
       if (uploadedParts?.length) finalParts.push(...uploadedParts)
     }
     return finalParts
-  }
+  }, [actions, editedParts, files])
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (isProcessing) return
     setIsProcessing(true)
     try {
@@ -219,9 +231,9 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     } finally {
       setIsProcessing(false)
     }
-  }
+  }, [actions, buildFinalParts, isProcessing, onSave, t])
 
-  const handleResend = async () => {
+  const handleResend = useCallback(async () => {
     if (isProcessing || !canForkAndResend) return
     setIsProcessing(true)
     try {
@@ -233,27 +245,32 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
     } finally {
       setIsProcessing(false)
     }
-  }
+  }, [actions, buildFinalParts, canForkAndResend, isProcessing, onResend, t])
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      onCancel()
-      return
-    }
-
-    if (!canForkAndResend) {
-      return
-    }
-
-    const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
-    if (isEnterPressed) {
-      if (isEditorSendShortcutPressed(event, sendMessageShortcut)) {
-        void handleResend()
-        return event.preventDefault()
+  const handleEditorKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCancel()
+        return true
       }
-    }
-  }
+
+      if (!canForkAndResend) {
+        return false
+      }
+
+      const isEnterPressed = event.key === 'Enter' && !event.isComposing
+      if (isEnterPressed) {
+        if (isEditorSendShortcutPressed(event, sendMessageShortcut)) {
+          void handleResend()
+          event.preventDefault()
+          return true
+        }
+      }
+      return false
+    },
+    [canForkAndResend, handleResend, onCancel, sendMessageShortcut]
+  )
 
   return (
     <EditorContainer
@@ -272,22 +289,18 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
       <EditorInputArea>
         {editedParts
           .map((part, index) => ({ part, index }))
-          .filter(({ part }) => part.type === 'text')
+          .filter((entry): entry is { part: TextMessagePart; index: number } => entry.part.type === 'text')
           .map(({ part, index }) => (
-            <Textarea.Input
-              className="editing-message"
+            <MessageTextPartEditor
               key={`part-${index}`}
-              ref={textareaRef}
-              value={(part as { text: string }).text}
-              onChange={(e) => handleTextChange(index, e.target.value)}
-              onKeyDown={handleKeyDown}
-              autoFocus
-              spellCheck={enableSpellCheck}
-              onPaste={(e) => onPaste(e.nativeEvent)}
+              part={part}
+              fontSize={fontSize}
+              enableSpellCheck={enableSpellCheck}
+              autoFocus={index === firstTextPartIndex}
+              onDraftChange={(draft) => handleTextPartDraftChange(index, draft)}
+              onKeyDown={handleEditorKeyDown}
+              onPaste={onPaste}
               onFocus={() => focusEditorPasteTarget?.()}
-              onContextMenu={(e) => e.stopPropagation()}
-              rows={1}
-              style={{ fontSize }}
             />
           ))}
       </EditorInputArea>
@@ -350,10 +363,111 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   )
 }
 
+interface MessageTextPartEditorProps {
+  part: TextMessagePart
+  fontSize: number
+  enableSpellCheck: boolean
+  autoFocus: boolean
+  onDraftChange: (draft: ComposerSerializedDraft) => void
+  onKeyDown: (event: KeyboardEvent) => boolean
+  onPaste: (event: ClipboardEvent) => void | Promise<boolean>
+  onFocus: () => void
+}
+
+const MessageTextPartEditor = memo(function MessageTextPartEditor({
+  part,
+  fontSize,
+  enableSpellCheck,
+  autoFocus,
+  onDraftChange,
+  onKeyDown,
+  onPaste,
+  onFocus
+}: MessageTextPartEditorProps) {
+  const localTextEchoRef = useRef<string | null>(null)
+  const [initialContent] = useState(() => createComposerDocumentContent(part.text, readCherryMeta(part)?.composer))
+  const editorExtensions = useMemo(() => createComposerEditorPreset({ enableUndoRedo: false }), [])
+  const editor = useRichTextEditorKernel({
+    extensions: editorExtensions,
+    content: initialContent,
+    enableSpellCheck,
+    editorProps: {
+      attributes: {
+        class: 'composer-tiptap editing-message',
+        role: 'textbox',
+        'aria-multiline': 'true',
+        style: [
+          '--composer-editor-padding: 14px 16px',
+          '--composer-editor-min-height: 72px',
+          `--composer-editor-font-size: ${fontSize}px`,
+          '--composer-editor-line-height: 1.5'
+        ].join('; ')
+      },
+      handleKeyDown: (_view, event) => onKeyDown(event),
+      handleDOMEvents: {
+        focus: () => {
+          onFocus()
+          return false
+        },
+        contextmenu: (_view, event) => {
+          event.stopPropagation()
+          return false
+        }
+      }
+    },
+    handlePaste: (_view, event) => {
+      void onPaste(event)
+      return false
+    },
+    onUpdate: ({ editor: updatedEditor }) => {
+      const draft = serializeComposerDocument(updatedEditor)
+      localTextEchoRef.current = draft.text
+      onDraftChange(draft)
+    },
+    shouldRerenderOnTransaction: true
+  })
+
+  useEffect(() => {
+    if (!autoFocus || !editor || editor.isDestroyed) return
+
+    const timer = window.setTimeout(() => {
+      if (editor.isDestroyed) return
+      try {
+        editor.commands.focus('end', { scrollIntoView: false })
+      } catch {
+        // The Tiptap view can still be attaching in tests and during fast unmounts.
+      }
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [autoFocus, editor])
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+
+    const currentText = serializeComposerDocument(editor).text
+    if (currentText === part.text) {
+      localTextEchoRef.current = null
+      return
+    }
+    if (localTextEchoRef.current === part.text) {
+      localTextEchoRef.current = null
+      return
+    }
+
+    localTextEchoRef.current = null
+    editor.commands.setContent(createComposerDocumentContent(part.text, readCherryMeta(part)?.composer), {
+      emitUpdate: false
+    })
+  }, [editor, part])
+
+  return <EditorContent editor={editor} />
+})
+
 const EditorContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
     className={[
-      '[&_.editing-message]:resize-none! relative my-3 ml-0 flex w-full flex-col overflow-hidden rounded-[14px] border border-border bg-background shadow-sm transition-all duration-200 ease-in-out focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/15 [&.file-dragging]:border-[#2ecc71] [&.file-dragging]:border-dashed [&.file-dragging]:bg-[#2ecc71]/5 [&_.editing-message]:box-border [&_.editing-message]:max-h-[480px] [&_.editing-message]:min-h-[72px] [&_.editing-message]:w-full [&_.editing-message]:flex-1 [&_.editing-message]:overflow-auto [&_.editing-message]:rounded-none [&_.editing-message]:border-0 [&_.editing-message]:bg-transparent [&_.editing-message]:px-4 [&_.editing-message]:py-3.5 [&_.editing-message]:font-[Ubuntu] [&_.editing-message]:leading-[1.5] [&_.editing-message]:shadow-none [&_.editing-message]:outline-none [&_.editing-message]:ring-0',
+      '[&_.editing-message]:resize-none! relative my-3 ml-0 flex w-full flex-col overflow-hidden rounded-[14px] border border-border bg-background shadow-sm transition-all duration-200 ease-in-out focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/15 [&.file-dragging]:border-[#2ecc71] [&.file-dragging]:border-dashed [&.file-dragging]:bg-[#2ecc71]/5 [&_.editing-message]:box-border [&_.editing-message]:max-h-[480px] [&_.editing-message]:min-h-[72px] [&_.editing-message]:w-full [&_.editing-message]:flex-1 [&_.editing-message]:overflow-auto [&_.editing-message]:rounded-none [&_.editing-message]:border-0 [&_.editing-message]:bg-transparent [&_.editing-message]:px-4 [&_.editing-message]:py-3.5 [&_.editing-message]:font-[Ubuntu] [&_.editing-message]:leading-[1.5] [&_.editing-message]:shadow-none [&_.editing-message]:outline-none [&_.editing-message]:ring-0 [&_.editing-message_p]:m-0',
       className
     ]
       .filter(Boolean)
@@ -384,7 +498,7 @@ const ActionBarRight = ({ className, ...props }: ComponentPropsWithoutRef<'div'>
 )
 
 function isEditorSendShortcutPressed(
-  event: React.KeyboardEvent<HTMLTextAreaElement>,
+  event: Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'>,
   shortcut: SendMessageShortcut
 ): boolean {
   switch (shortcut) {

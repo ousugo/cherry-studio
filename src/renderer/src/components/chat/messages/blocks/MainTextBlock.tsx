@@ -1,15 +1,20 @@
-import { Flex } from '@cherrystudio/ui'
+import { Flex, NormalTooltip } from '@cherrystudio/ui'
 import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import {
+  getQuoteTooltipContent,
+  QUOTE_TOOLTIP_BODY_CLASS_NAME,
+  QUOTE_TOOLTIP_CONTENT_CLASS_NAME
+} from '@renderer/components/chat/utils/quoteToken'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation, Model } from '@renderer/types'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
-import { getRenderableComposerTokens } from '@renderer/utils/messageUtils/composerTokens'
+import { getDisplayComposerTokens } from '@renderer/utils/messageUtils/composerTokens'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
-import { Bot, Boxes, Code2, FileText, Globe2, Monitor, Wrench, Zap } from 'lucide-react'
+import { Bot, Boxes, Code2, FileText, Globe2, Monitor, TextQuote, Wrench, Zap } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Components } from 'streamdown'
 
@@ -36,6 +41,7 @@ const composerTokenIcon = {
   mcpPrompt: Wrench,
   mcpResource: Globe2,
   model: Bot,
+  quote: TextQuote,
   reference: Globe2,
   skill: Zap
 } satisfies Record<ComposerMessageToken['kind'], React.ComponentType<{ size?: number; className?: string }>>
@@ -46,29 +52,49 @@ const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
 
 function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
   const Icon = composerTokenIcon[token.kind]
+  const title = token.kind === 'quote' ? undefined : (token.description ?? token.label)
   const isSkill = token.kind === 'skill'
 
-  return (
+  const chip = (
     <span
       className={cn(
         'mx-0.5 inline-flex max-w-52 select-none items-center gap-1 rounded-md border px-1.5 py-0.5 align-baseline text-sm leading-5',
         isSkill ? skillComposerTokenClassName : 'border-border bg-muted text-foreground'
       )}
       data-composer-token-kind={token.kind}
-      title={token.description ?? token.label}>
+      title={title}>
       <Icon size={14} className={cn('shrink-0', isSkill ? 'text-primary' : 'text-foreground-muted')} />
       <span className="truncate">{token.label}</span>
     </span>
   )
+  const quoteTooltipContent =
+    token.kind === 'quote' ? getQuoteTooltipContent(token.description, token.promptText) : undefined
+
+  if (!quoteTooltipContent) return chip
+
+  return (
+    <NormalTooltip
+      content={<div className={QUOTE_TOOLTIP_BODY_CLASS_NAME}>{quoteTooltipContent}</div>}
+      side="top"
+      sideOffset={6}
+      delayDuration={300}
+      contentProps={{ className: QUOTE_TOOLTIP_CONTENT_CLASS_NAME }}>
+      {chip}
+    </NormalTooltip>
+  )
 }
 
 function renderComposerMessageContent(content: string, composer: ComposerMessageSnapshot) {
-  const tokens = getRenderableComposerTokens(composer)
+  const tokens = getDisplayComposerTokens(composer)
   const nodes: React.ReactNode[] = []
   let cursor = 0
 
   tokens.forEach((token) => {
     const offset = Math.max(0, Math.min(content.length, token.textOffset))
+    const promptText = token.promptText
+    const promptTextMatches = !!promptText && content.slice(offset, offset + promptText.length) === promptText
+    if (promptText && !promptTextMatches) return
+
     if (offset > cursor) {
       nodes.push(content.slice(cursor, offset))
       cursor = offset
@@ -76,8 +102,8 @@ function renderComposerMessageContent(content: string, composer: ComposerMessage
 
     nodes.push(<ComposerMessageTokenChip key={`${token.id}:${token.index}`} token={token} />)
 
-    if (token.promptText && content.slice(offset, offset + token.promptText.length) === token.promptText) {
-      cursor = Math.max(cursor, offset + token.promptText.length)
+    if (promptTextMatches) {
+      cursor = Math.max(cursor, offset + promptText.length)
     }
   })
 
@@ -97,12 +123,16 @@ function getComposerMarkdownTokenPlaceholder(index: number, blockId: string) {
 }
 
 function buildComposerMessageMarkdownContent(content: string, composer: ComposerMessageSnapshot, blockId: string) {
-  const tokens = getRenderableComposerTokens(composer)
+  const tokens = getDisplayComposerTokens(composer)
   let markdown = ''
   let cursor = 0
 
   tokens.forEach((token, index) => {
     const offset = Math.max(0, Math.min(content.length, token.textOffset))
+    const promptText = token.promptText
+    const promptTextMatches = !!promptText && content.slice(offset, offset + promptText.length) === promptText
+    if (promptText && !promptTextMatches) return
+
     if (offset > cursor) {
       markdown += content.slice(cursor, offset)
       cursor = offset
@@ -110,8 +140,8 @@ function buildComposerMessageMarkdownContent(content: string, composer: Composer
 
     markdown += getComposerMarkdownTokenPlaceholder(index, blockId)
 
-    if (token.promptText && content.slice(offset, offset + token.promptText.length) === token.promptText) {
-      cursor = Math.max(cursor, offset + token.promptText.length)
+    if (promptTextMatches) {
+      cursor = Math.max(cursor, offset + promptText.length)
     }
   })
 

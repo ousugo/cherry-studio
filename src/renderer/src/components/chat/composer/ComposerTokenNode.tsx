@@ -1,5 +1,5 @@
-import { mergeAttributes, Node } from '@tiptap/core'
-import { AllSelection } from '@tiptap/pm/state'
+import { type Editor, mergeAttributes, Node } from '@tiptap/core'
+import { AllSelection, NodeSelection } from '@tiptap/pm/state'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { type ReactNode, useCallback, useLayoutEffect, useState } from 'react'
@@ -42,6 +42,27 @@ export type ComposerTokenRenderer = (
 
 interface ComposerTokenNodeOptions {
   renderToken?: ComposerTokenRenderer
+}
+
+function deleteComposerTokenRange(editor: Editor, from: number, to: number) {
+  editor.view.dispatch(editor.state.tr.delete(from, to).scrollIntoView())
+  return true
+}
+
+function deleteComposerTokenNearSelection(editor: Editor, nodeName: string, direction: -1 | 1) {
+  const { selection } = editor.state
+
+  if (selection instanceof NodeSelection && selection.node.type.name === nodeName) {
+    return deleteComposerTokenRange(editor, selection.from, selection.to)
+  }
+
+  if (!selection.empty) return false
+
+  const adjacentNode = direction < 0 ? selection.$from.nodeBefore : selection.$from.nodeAfter
+  if (!adjacentNode || adjacentNode.type.name !== nodeName) return false
+
+  const from = direction < 0 ? selection.from - adjacentNode.nodeSize : selection.from
+  return deleteComposerTokenRange(editor, from, from + adjacentNode.nodeSize)
 }
 
 declare module '@tiptap/core' {
@@ -266,6 +287,13 @@ export const ComposerTokenNode = Node.create<ComposerTokenNodeOptions>({
           requestComposerPromptVariableEdit(editor.view.dom, tokenId, position)
           return true
         }
+    }
+  },
+
+  addKeyboardShortcuts() {
+    return {
+      Backspace: () => deleteComposerTokenNearSelection(this.editor, this.name, -1),
+      Delete: () => deleteComposerTokenNearSelection(this.editor, this.name, 1)
     }
   },
 

@@ -198,6 +198,7 @@ export type ComposerMessageTokenKind =
   | 'mcpPrompt'
   | 'mcpResource'
   | 'reference'
+  | 'quote'
   | 'environment'
 
 export interface ComposerMessageToken {
@@ -251,4 +252,34 @@ export function withCherryMeta<P extends CherryMessagePart>(
       cherry: { ...existingCherry, ...(patch as Record<string, unknown>) }
     }
   } as P
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function withoutCherryMeta<P extends CherryMessagePart>(
+  part: P,
+  key: keyof CherryMetaForPartType<P['type']>
+): P {
+  const existingMeta = (part as { providerMetadata?: Record<string, unknown> }).providerMetadata
+  if (!existingMeta) return part
+
+  const existingCherry = existingMeta.cherry
+  if (!isPlainRecord(existingCherry)) return part
+
+  const nextCherry = { ...existingCherry }
+  delete nextCherry[key as string]
+
+  const nextProviderMetadata: Record<string, unknown> = { ...existingMeta }
+  delete nextProviderMetadata.cherry
+  if (Object.keys(nextCherry).length > 0) {
+    nextProviderMetadata.cherry = nextCherry
+  }
+
+  const nextPart = { ...part } as P & { providerMetadata?: Record<string, unknown> }
+  delete nextPart.providerMetadata
+
+  if (Object.keys(nextProviderMetadata).length === 0) return nextPart
+  return { ...nextPart, providerMetadata: nextProviderMetadata } as P
 }

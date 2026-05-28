@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Editor } from '@tiptap/core'
-import { AllSelection } from '@tiptap/pm/state'
+import { AllSelection, NodeSelection, Selection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { useEffect } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { serializeComposerDocument } from '../composerDraft'
@@ -12,6 +12,23 @@ import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
 import { createPromptVariableContent, selectPromptVariableToken } from '../promptVariables'
 import { PromptVariableToken } from '../PromptVariableToken'
 import type { ComposerDraftToken } from '../tokens'
+
+vi.mock('@cherrystudio/ui', () => ({
+  NormalTooltip: ({
+    children,
+    content,
+    contentProps
+  }: {
+    children: ReactNode
+    content: ReactNode
+    contentProps?: { className?: string }
+  }) => (
+    <span data-content-class-name={contentProps?.className} data-testid="composer-token-tooltip">
+      {children}
+      <span data-testid="composer-token-tooltip-content">{content}</span>
+    </span>
+  )
+}))
 
 const promptVariableToken: ComposerDraftToken = {
   id: 'prompt-variable:0:city',
@@ -54,6 +71,84 @@ describe('ComposerToken', () => {
 
     expect(screen.getByText('notes.md')).toBeInTheDocument()
     expect(screen.queryByRole('textbox')).toBeNull()
+    expect(screen.queryByTestId('composer-token-tooltip')).toBeNull()
+  })
+
+  it('shows quoted content in a tooltip for quote tokens', () => {
+    render(
+      <ComposerToken
+        token={{
+          id: 'quote:1',
+          kind: 'quote',
+          label: 'Quote',
+          description: 'first line\nsecond line',
+          promptText: '> first line\n> second line'
+        }}
+      />
+    )
+
+    expect(screen.getByText('Quote')).toBeInTheDocument()
+    expect(screen.getByText('Quote').closest('[data-composer-token-kind="quote"]')).not.toHaveAttribute('title')
+    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('first line second line')
+    expect(screen.getByTestId('composer-token-tooltip-content')).not.toHaveTextContent('...')
+    const tooltipBody = screen.getByTestId('composer-token-tooltip-content').firstElementChild as HTMLElement
+    expect(tooltipBody).toHaveClass('whitespace-pre-wrap', 'text-left', 'overflow-hidden')
+    expect(tooltipBody.className).toContain('[-webkit-line-clamp:4]')
+  })
+
+  it('unwraps prompt text before showing a quote tooltip fallback', () => {
+    render(
+      <ComposerToken
+        token={{
+          id: 'quote:1',
+          kind: 'quote',
+          label: 'Quote',
+          promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
+        }}
+      />
+    )
+
+    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('Selected message text')
+    expect(screen.getByTestId('composer-token-tooltip-content')).not.toHaveTextContent('<blockquote>')
+  })
+
+  it('keeps native title for non-quote tokens', () => {
+    render(
+      <ComposerToken
+        token={{
+          id: 'file:1',
+          kind: 'file',
+          label: 'notes.md',
+          description: 'Project notes'
+        }}
+      />
+    )
+
+    expect(screen.getByText('notes.md').closest('[data-composer-token-kind="file"]')).toHaveAttribute(
+      'title',
+      'Project notes'
+    )
+  })
+
+  it('keeps long quoted tooltip content and clamps it visually', () => {
+    const quotedContent = `${'a'.repeat(199)}😀tail`
+
+    render(
+      <ComposerToken
+        token={{
+          id: 'quote:1',
+          kind: 'quote',
+          label: 'Quote',
+          description: quotedContent,
+          promptText: quotedContent
+        }}
+      />
+    )
+
+    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent(quotedContent)
+    expect(screen.getByTestId('composer-token-tooltip-content')).not.toHaveTextContent(`${'a'.repeat(199)}😀...`)
+    const tooltipBody = screen.getByTestId('composer-token-tooltip-content').firstElementChild as HTMLElement
+    expect(tooltipBody.className).toContain('[-webkit-line-clamp:4]')
   })
 
   it('renders skill tokens with their own visual treatment', () => {
@@ -217,6 +312,175 @@ describe('ComposerToken', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('${from}')))
     const previousInput = screen.getByLabelText('${from}') as HTMLInputElement
     expect(previousInput.value).toBe('上海')
+  })
+
+  it('removes an inserted quote token with Backspace without leaving quote newlines', async () => {
+    const quoteToken: ComposerDraftToken = {
+      id: 'quote:1',
+      kind: 'quote',
+      label: 'Quote',
+      description: 'Selected message text',
+      promptText: '<blockquote>\n\nSelected message text\n</blockquote>\n'
+    }
+    let editor: Editor | null = null
+    render(<ComposerEditorHarness text="Reply" onEditor={(nextEditor) => (editor = nextEditor)} />)
+
+    await waitFor(() => expect(editor).not.toBeNull())
+
+    act(() => {
+      editor!.chain().focus().setTextSelection(1).insertComposerToken(quoteToken).insertContent(' ').run()
+    })
+
+    const quotePosition = findComposerTokenPosition(editor!)
+    expect(serializeComposerDocument(editor!).text).toBe('<blockquote>\n\nSelected message text\n</blockquote> Reply')
+
+    act(() => {
+      editor!
+        .chain()
+        .focus()
+        .command(({ tr, dispatch }) => {
+          dispatch?.(tr.setSelection(NodeSelection.create(tr.doc, quotePosition)))
+          return true
+        })
+        .run()
+      editor!.commands.keyboardShortcut('Backspace')
+    })
+
+    expect(serializeComposerDocument(editor!).text).toBe(' Reply')
+  })
+
+  it('keeps normal token Backspace behavior on the shared insertion path', async () => {
+    const fileToken: ComposerDraftToken = {
+      id: 'file:1',
+      kind: 'file',
+      label: 'notes.md',
+      promptText: 'notes.md'
+    }
+    let editor: Editor | null = null
+    render(<ComposerEditorHarness text="Reply" onEditor={(nextEditor) => (editor = nextEditor)} />)
+
+    await waitFor(() => expect(editor).not.toBeNull())
+
+    act(() => {
+      editor!.chain().focus().setTextSelection(1).insertComposerToken(fileToken).insertContent(' ').run()
+    })
+
+    const filePosition = findComposerTokenPosition(editor!)
+    expect(serializeComposerDocument(editor!).text).toBe('notes.md Reply')
+
+    act(() => {
+      editor!
+        .chain()
+        .focus()
+        .command(({ tr, dispatch }) => {
+          dispatch?.(tr.setSelection(NodeSelection.create(tr.doc, filePosition)))
+          return true
+        })
+        .run()
+      editor!.commands.keyboardShortcut('Backspace')
+    })
+
+    expect(serializeComposerDocument(editor!).text).toBe(' Reply')
+  })
+
+  it('does not expose a trailing quote newline after Backspace removes the inserted separator', async () => {
+    const quoteToken: ComposerDraftToken = {
+      id: 'quote:1',
+      kind: 'quote',
+      label: 'Quote',
+      description: 'Selected message text',
+      promptText: '<blockquote>\n\nSelected message text\n</blockquote>\n'
+    }
+    let editor: Editor | null = null
+    render(<ComposerEditorHarness text="" onEditor={(nextEditor) => (editor = nextEditor)} />)
+
+    await waitFor(() => expect(editor).not.toBeNull())
+
+    act(() => {
+      editor!.chain().focus().insertComposerToken(quoteToken).insertContent(' ').run()
+    })
+
+    expect(serializeComposerDocument(editor!).text).toBe('<blockquote>\n\nSelected message text\n</blockquote> ')
+
+    act(() => {
+      editor!
+        .chain()
+        .focus()
+        .command(({ tr, dispatch }) => {
+          dispatch?.(tr.setSelection(Selection.atEnd(tr.doc)))
+          return true
+        })
+        .run()
+      const cursor = editor!.state.selection.from
+      editor!
+        .chain()
+        .focus()
+        .deleteRange({ from: cursor - 1, to: cursor })
+        .run()
+    })
+
+    expect(serializeComposerDocument(editor!).text).toBe('<blockquote>\n\nSelected message text\n</blockquote>')
+  })
+
+  it('removes a quote token with Backspace when the cursor is after the token', async () => {
+    const quoteToken: ComposerDraftToken = {
+      id: 'quote:1',
+      kind: 'quote',
+      label: 'Quote',
+      description: 'Selected message text',
+      promptText: '<blockquote>\n\nSelected message text\n</blockquote>\n'
+    }
+    let editor: Editor | null = null
+    render(<ComposerEditorHarness text="" onEditor={(nextEditor) => (editor = nextEditor)} />)
+
+    await waitFor(() => expect(editor).not.toBeNull())
+
+    act(() => {
+      editor!.chain().focus().insertComposerToken(quoteToken).run()
+    })
+
+    const quotePosition = findComposerTokenPosition(editor!)
+    const quoteNode = editor!.state.doc.nodeAt(quotePosition)!
+    expect(serializeComposerDocument(editor!).text).toBe('<blockquote>\n\nSelected message text\n</blockquote>')
+
+    act(() => {
+      editor!
+        .chain()
+        .focus()
+        .setTextSelection(quotePosition + quoteNode.nodeSize)
+        .run()
+      editor!.commands.keyboardShortcut('Backspace')
+    })
+
+    expect(serializeComposerDocument(editor!).text).toBe('')
+  })
+
+  it('removes a quote token with Delete when the cursor is before the token', async () => {
+    const quoteToken: ComposerDraftToken = {
+      id: 'quote:1',
+      kind: 'quote',
+      label: 'Quote',
+      description: 'Selected message text',
+      promptText: '<blockquote>\n\nSelected message text\n</blockquote>\n'
+    }
+    let editor: Editor | null = null
+    render(<ComposerEditorHarness text="" onEditor={(nextEditor) => (editor = nextEditor)} />)
+
+    await waitFor(() => expect(editor).not.toBeNull())
+
+    act(() => {
+      editor!.chain().focus().insertComposerToken(quoteToken).run()
+    })
+
+    const quotePosition = findComposerTokenPosition(editor!)
+    expect(serializeComposerDocument(editor!).text).toBe('<blockquote>\n\nSelected message text\n</blockquote>')
+
+    act(() => {
+      editor!.chain().focus().setTextSelection(quotePosition).run()
+      editor!.commands.keyboardShortcut('Delete')
+    })
+
+    expect(serializeComposerDocument(editor!).text).toBe('')
   })
 
   it('does not create a prompt variable input when the whole composer is selected', async () => {
