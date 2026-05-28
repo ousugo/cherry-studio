@@ -10,11 +10,11 @@ import {
   DropdownMenuTrigger,
   Tooltip
 } from '@cherrystudio/ui'
-import { classNames } from '@renderer/utils'
-import type { ComponentProps, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { MessageActionButton } from './MessageActionButton'
 import type {
   MessageMenuBarResolvedAction,
   MessageMenuBarToolbarRenderContext,
@@ -24,29 +24,6 @@ import type {
 const isMessageMenuBarTranslationDivider = (
   item: MessageMenuBarTranslationItem
 ): item is Extract<MessageMenuBarTranslationItem, { type: 'divider' }> => 'type' in item && item.type === 'divider'
-
-const ActionButton = ({
-  $softHoverBg,
-  className,
-  type,
-  ...props
-}: ComponentProps<'button'> & { $softHoverBg?: boolean }) => {
-  return (
-    <button
-      type={type ?? 'button'}
-      className={classNames(
-        'flex size-5.5 items-center justify-center rounded-md border-0 bg-transparent p-0 text-(--color-icon) transition-all duration-150 ease-out',
-        '[&_.icon-at]:text-sm [&_.iconfont]:text-[13px] [&_svg]:size-3.5',
-        'enabled:cursor-pointer enabled:hover:text-foreground',
-        'enabled:[&_.iconfont]:cursor-pointer enabled:[&_svg]:cursor-pointer',
-        $softHoverBg ? 'enabled:hover:bg-muted' : 'enabled:hover:bg-accent',
-        'disabled:cursor-not-allowed disabled:opacity-40',
-        className
-      )}
-      {...props}
-    />
-  )
-}
 
 const ConfirmActionButton = ({
   children,
@@ -107,7 +84,7 @@ const ActionButtonWithConfirm = ({
 }) => {
   const disabled = !action.availability.enabled
   const button = (
-    <ActionButton
+    <MessageActionButton
       className="message-action-button"
       onClick={(e) => {
         e.stopPropagation()
@@ -116,9 +93,9 @@ const ActionButtonWithConfirm = ({
         }
       }}
       disabled={disabled}
-      $softHoverBg={softHoverBg}>
+      softHoverBg={softHoverBg}>
       {icon}
-    </ActionButton>
+    </MessageActionButton>
   )
 
   const content = action.confirm ? (
@@ -130,16 +107,16 @@ const ActionButtonWithConfirm = ({
       onOpenChange={(open) => open && onConfirmOpen?.()}
       disabled={disabled}>
       {(open) => (
-        <ActionButton
+        <MessageActionButton
           className="message-action-button"
           onClick={(e) => {
             e.stopPropagation()
             open()
           }}
           disabled={disabled}
-          $softHoverBg={softHoverBg}>
+          softHoverBg={softHoverBg}>
           {icon}
-        </ActionButton>
+        </MessageActionButton>
       )}
     </ConfirmActionButton>
   ) : (
@@ -310,9 +287,13 @@ export function renderModelPickerToolbarAction({
       message: actionContext.message,
       messageParts: actionContext.messageParts,
       trigger: (
-        <ActionButton className="message-action-button" aria-label={label} title={label} $softHoverBg={softHoverBg}>
+        <MessageActionButton
+          className="message-action-button"
+          aria-label={label}
+          title={label}
+          softHoverBg={softHoverBg}>
           {action.icon}
-        </ActionButton>
+        </MessageActionButton>
       )
     }) ?? null
   )
@@ -328,15 +309,15 @@ export function renderTranslateToolbarAction({
   if (actionContext.isTranslating) {
     return (
       <Tooltip content={actionContext.t('translate.stop')}>
-        <ActionButton
+        <MessageActionButton
           className="message-action-button"
           onClick={(e) => {
             e.stopPropagation()
             void executeAction(action)
           }}
-          $softHoverBg={softHoverBg}>
+          softHoverBg={softHoverBg}>
           {action.icon}
-        </ActionButton>
+        </MessageActionButton>
       </Tooltip>
     )
   }
@@ -346,9 +327,12 @@ export function renderTranslateToolbarAction({
   return (
     <Tooltip content={action.label} delay={1200}>
       <TranslateMenuPopover items={translationItems} align="center">
-        <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()} $softHoverBg={softHoverBg}>
+        <MessageActionButton
+          className="message-action-button"
+          onClick={(e) => e.stopPropagation()}
+          softHoverBg={softHoverBg}>
           {action.icon}
-        </ActionButton>
+        </MessageActionButton>
       </TranslateMenuPopover>
     </Tooltip>
   )
@@ -364,9 +348,12 @@ export function renderMoreMenuToolbarAction({
 
   return (
     <MessageActionMenuPopover actions={menuActions} align="end" onAction={executeAction}>
-      <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()} $softHoverBg={softHoverBg}>
+      <MessageActionButton
+        className="message-action-button"
+        onClick={(e) => e.stopPropagation()}
+        softHoverBg={softHoverBg}>
         {action.icon}
-      </ActionButton>
+      </MessageActionButton>
     </MessageActionMenuPopover>
   )
 }

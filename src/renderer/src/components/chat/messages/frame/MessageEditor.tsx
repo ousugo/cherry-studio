@@ -1,6 +1,5 @@
 import { Textarea, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ActionIconButton } from '@renderer/components/Buttons'
 import type { FileMetadata } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -15,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { useMessageParts } from '../blocks'
 import { useMessageListActions, useMessageListUi } from '../MessageListProvider'
 import { defaultMessageEditorConfig, type MessageListItem } from '../types'
+import { MessageActionButton } from './MessageActionButton'
 import { MessageAttachmentButton, MessageAttachmentPreview } from './MessageAttachmentPreview'
 
 interface Props {
@@ -306,11 +306,12 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
                   ? t('chat.input.translate', { target_language: messageUi.editorTranslationTargetLabel })
                   : t('chat.translate')
               }>
-              <ActionIconButton
+              <MessageActionButton
+                className="message-editor-action-button"
                 onClick={handleTranslate}
-                icon={isTranslating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
-                disabled={!editableText.trim() || isTranslating}
-              />
+                disabled={!editableText.trim() || isTranslating}>
+                {isTranslating ? <Loader2 size={18} className="animate-spin" /> : <Languages size={18} />}
+              </MessageActionButton>
             </Tooltip>
           )}
           {isUserMessage && actions.selectFiles && (couldAddImageFile || couldAddTextFile) && (
@@ -324,14 +325,23 @@ const MessageEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
         </ActionBarLeft>
         <ActionBarRight>
           <Tooltip content={t('common.cancel')}>
-            <ActionIconButton onClick={onCancel} icon={<X size={16} />} />
+            <MessageActionButton className="message-editor-action-button" onClick={onCancel}>
+              <X size={16} />
+            </MessageActionButton>
           </Tooltip>
           <Tooltip content={t('common.save')}>
-            <ActionIconButton onClick={handleSave} icon={<Save size={16} />} disabled={isProcessing} />
+            <MessageActionButton className="message-editor-action-button" onClick={handleSave} disabled={isProcessing}>
+              <Save size={16} />
+            </MessageActionButton>
           </Tooltip>
           {canForkAndResend && (
             <Tooltip content={t('chat.resend')}>
-              <ActionIconButton onClick={handleResend} icon={<Send size={16} />} disabled={isProcessing} />
+              <MessageActionButton
+                className="message-editor-action-button"
+                onClick={handleResend}
+                disabled={isProcessing}>
+                <Send size={16} />
+              </MessageActionButton>
             </Tooltip>
           )}
         </ActionBarRight>

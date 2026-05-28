@@ -1,5 +1,4 @@
 import { ColFlex, Tooltip } from '@cherrystudio/ui'
-import { ActionIconButton } from '@renderer/components/Buttons'
 import ImageViewer from '@renderer/components/ImageViewer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import type { FileMetadata } from '@renderer/types'
@@ -25,6 +24,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
+import { MessageActionButton } from './MessageActionButton'
 
 const MAX_FILENAME_DISPLAY_LENGTH = 20
 const FILE_ICON_SIZE = 12
@@ -146,13 +146,14 @@ export const MessageAttachmentButton: FC<{
 
   return (
     <Tooltip placement="top" content={ariaLabel}>
-      <ActionIconButton
+      <MessageActionButton
+        className="message-editor-action-button"
         onClick={onClick}
         active={active}
         disabled={disabled}
-        aria-label={ariaLabel}
-        icon={<Paperclip size={18} />}
-      />
+        aria-label={ariaLabel}>
+        <Paperclip size={18} />
+      </MessageActionButton>
     </Tooltip>
   )
 }
