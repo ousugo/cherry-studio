@@ -1,4 +1,4 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
+import { HorizontalScrollContainer, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { cn } from '@renderer/utils'
@@ -240,7 +240,9 @@ function ShellTabList({ children }: { children: ReactNode }) {
         'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b',
         state.maximized ? 'px-3' : 'py-0 pr-11 pl-3'
       )}>
-      <TabsList className="min-w-0 flex-1 justify-start gap-1 overflow-x-auto">{children}</TabsList>
+      <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
+        <TabsList className="min-w-max justify-start gap-1">{children}</TabsList>
+      </HorizontalScrollContainer>
       <Tooltip content={maximizeLabel} delay={800}>
         <NavbarIcon
           tone="conversation"
@@ -301,7 +303,7 @@ function ShellTab({ value, icon, badge, onClose, children }: ShellTabProps) {
             onClose()
           }
         }}
-        className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex h-[18px] w-[18px] cursor-pointer items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-all duration-150 hover:bg-foreground/10 hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+        className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex h-4.5 w-4.5 cursor-pointer items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-all duration-150 hover:bg-foreground/10 hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
         <X size={11} />
       </div>
     </div>
