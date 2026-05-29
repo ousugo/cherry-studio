@@ -41,7 +41,7 @@ import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/util
 import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Bot, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
+import { Bot, Folder, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
 import { Fragment, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -1268,12 +1268,19 @@ const Sessions = ({
   )
 
   const getGroupHeaderIcon = useCallback(
-    (group: ResourceListGroup) => {
+    (group: ResourceListGroup, context: { collapsed: boolean }) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return undefined
 
       if (displayMode === 'workdir') {
         if (group.id === SESSION_NO_WORKDIR_GROUP_ID || group.id === SESSION_NO_PROJECT_GROUP_ID) return null
-        return <FolderOpen size={13} />
+        if (!context.collapsed) return <FolderOpen size={13} />
+
+        return (
+          <span className="flex size-4 items-center justify-center text-foreground/70 group-hover/resource-list-group:text-foreground group-focus-within/resource-list-group:text-foreground">
+            <Folder size={13} className="block group-hover/resource-list-group:hidden" />
+            <FolderOpen size={13} className="hidden group-hover/resource-list-group:block" />
+          </span>
+        )
       }
 
       if (displayMode !== 'agent') return undefined

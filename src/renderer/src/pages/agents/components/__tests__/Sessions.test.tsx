@@ -690,7 +690,7 @@ describe('Sessions', () => {
   it('loads all sessions and renders collapsed workspace groups with drag by default', () => {
     preferenceMocks.values.set('agent.session.collapsed_group_ids', [])
 
-    render(<Sessions />)
+    const view = render(<Sessions />)
 
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 200 })
     expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
@@ -698,9 +698,13 @@ describe('Sessions', () => {
     expect(screen.getByRole('button', { name: 'Project' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: 'project-a' })).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Project A Workspace' }).querySelector('.lucide-folder-open')
-    ).toBeInTheDocument()
+    const projectIconContainer = screen
+      .getByRole('button', { name: 'Project A Workspace' })
+      .querySelector('[data-resource-list-leading-slot="true"]')
+    expect(projectIconContainer?.querySelector('.lucide-folder')).toBeInTheDocument()
+    expect(projectIconContainer?.querySelector('.lucide-folder-open')).toHaveClass(
+      'group-hover/resource-list-group:block'
+    )
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
 
@@ -710,6 +714,11 @@ describe('Sessions', () => {
       SESSION_WORKDIR_SECTION_ID,
       'session:workspace:ws-a'
     ])
+    view.rerender(<Sessions key="expanded-project-a-workspace" />)
+    expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      screen.getByRole('button', { name: 'Project A Workspace' }).querySelector('.lucide-folder-open')
+    ).toBeInTheDocument()
   })
 
   it('renders no-project sessions in a bottom chats section', () => {
