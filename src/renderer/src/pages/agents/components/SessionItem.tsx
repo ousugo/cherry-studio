@@ -2,15 +2,14 @@ import { Tooltip } from '@cherrystudio/ui'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { ResourceList, useResourceListActions, useResourceListRowState } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import { isMac } from '@renderer/config/constant'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import { PinIcon, SquareArrowOutUpRight, Trash2, XIcon } from 'lucide-react'
+import { PinIcon, SquareArrowOutUpRight } from 'lucide-react'
 import type { MouseEvent } from 'react'
-import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { SessionActionContext } from './sessionItemActions'
@@ -27,8 +26,6 @@ interface SessionItemProps {
   pinned?: boolean
   session: AgentSessionEntity
 }
-
-const DELETE_CONFIRMATION_TIMEOUT = 3000
 
 const SessionItem = ({
   channelType,
@@ -48,8 +45,6 @@ const SessionItem = ({
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
   const { isFulfilled: isStreamFulfilled, isPending: isStreamPending, markSeen } = useTopicStreamStatus(topicId)
-  const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
-  const deleteConfirmationTimeoutRef = useRef<number | null>(null)
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
   const sessionName = session.name ?? session.id
@@ -59,16 +54,16 @@ const SessionItem = ({
   const hasStreamIndicator = !isActive && (isStreamPending || isStreamFulfilled)
   // The active session is already shown in this tab — hide "open in new tab" on it.
   const showOpenInNewTabAction = !!onOpenInNewTab && !isActive
-  const showDeleteOrStreamAction = hasStreamIndicator || !pinned
-  // pin is always shown. Reserve right-padding (literal Tailwind classes) so the
-  // title truncates before the hover actions, sized to the action count.
-  const trailingActionCount = (showOpenInNewTabAction ? 1 : 0) + 1 + (showDeleteOrStreamAction ? 1 : 0)
+  // Pin moved to the leading slot; the trailing slot now only holds "open in new
+  // tab" and the stream indicator. Reserve right-padding (literal Tailwind classes)
+  // so the title truncates before those hover actions, sized to the action count.
+  const trailingActionCount = (showOpenInNewTabAction ? 1 : 0) + (hasStreamIndicator ? 1 : 0)
   const sessionTrailingActionPaddingClassName =
-    trailingActionCount >= 3
-      ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
-      : trailingActionCount === 2
-        ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
-        : 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
+    trailingActionCount >= 2
+      ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
+      : trailingActionCount === 1
+        ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
+        : ''
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
 
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
@@ -120,35 +115,6 @@ const SessionItem = ({
 
   const { menuActions, handleMenuAction } = useSessionMenuActions(actionContext)
 
-  const clearDeleteConfirmationTimeout = useCallback(() => {
-    if (deleteConfirmationTimeoutRef.current === null) return
-    window.clearTimeout(deleteConfirmationTimeoutRef.current)
-    deleteConfirmationTimeoutRef.current = null
-  }, [])
-
-  useEffect(() => clearDeleteConfirmationTimeout, [clearDeleteConfirmationTimeout])
-
-  const handleDeleteClick = useCallback(
-    (event: MouseEvent) => {
-      event.stopPropagation()
-
-      if (isConfirmingDeletion || event.ctrlKey || event.metaKey) {
-        handleDelete()
-        return
-      }
-
-      startTransition(() => {
-        clearDeleteConfirmationTimeout()
-        setIsConfirmingDeletion(true)
-        deleteConfirmationTimeoutRef.current = window.setTimeout(() => {
-          deleteConfirmationTimeoutRef.current = null
-          setIsConfirmingDeletion(false)
-        }, DELETE_CONFIRMATION_TIMEOUT)
-      })
-    },
-    [clearDeleteConfirmationTimeout, handleDelete, isConfirmingDeletion]
-  )
-
   const handlePress = useCallback(
     (event: MouseEvent) => {
       // ⌘/Ctrl-click opens the session in a new tab (browser-style), matching
@@ -195,9 +161,23 @@ const SessionItem = ({
       onClick={handlePress}
       onAuxClick={handleAuxClick}
       title={sessionName}>
-      <ResourceList.ItemLeadingSlot className={cn(!rowState.renaming && channelIcon && 'rounded-sm')}>
+      <ResourceList.ItemLeadingSlot className={cn('relative', !rowState.renaming && channelIcon && 'rounded-sm')}>
+        {!rowState.renaming && onTogglePin && (
+          <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
+            <ResourceList.ItemAction
+              aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+              className={cn(pinned && 'text-foreground/70 hover:text-foreground')}
+              onClick={handleTogglePinClick}>
+              <PinIcon size={13} className={cn(pinned && '-rotate-45')} />
+            </ResourceList.ItemAction>
+          </Tooltip>
+        )}
         {!rowState.renaming && channelIcon ? (
-          <img src={channelIcon} alt="" className="size-3.5 rounded-[2px] object-contain" />
+          <img
+            src={channelIcon}
+            alt=""
+            className="pointer-events-none absolute inset-0 m-auto size-3.5 rounded-[2px] object-contain transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
+          />
         ) : null}
       </ResourceList.ItemLeadingSlot>
 
@@ -220,7 +200,7 @@ const SessionItem = ({
         </ResourceList.ItemTitle>
       )}
 
-      <ResourceList.ItemActions active={hasStreamIndicator || (!pinned && isConfirmingDeletion)}>
+      <ResourceList.ItemActions active={hasStreamIndicator}>
         {showOpenInNewTabAction && (
           <Tooltip title={t('common.open_in_new_tab')} delay={500}>
             <ResourceList.ItemAction
@@ -233,34 +213,7 @@ const SessionItem = ({
             </ResourceList.ItemAction>
           </Tooltip>
         )}
-        <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
-          <ResourceList.ItemAction
-            aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-            className={cn(pinned && 'text-foreground/70 hover:text-foreground')}
-            onClick={handleTogglePinClick}>
-            {pinned ? <PinIcon size={13} className="-rotate-45" /> : <PinIcon size={13} />}
-          </ResourceList.ItemAction>
-        </Tooltip>
-
-        {hasStreamIndicator ? (
-          <SessionStreamIndicator isFulfilled={isStreamFulfilled} isPending={isStreamPending} />
-        ) : !pinned ? (
-          <Tooltip
-            placement="bottom"
-            delay={700}
-            title={
-              <span className="text-xs italic opacity-80">
-                {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-              </span>
-            }>
-            <ResourceList.ItemAction
-              aria-label={t('common.delete')}
-              data-deleting={isConfirmingDeletion}
-              onClick={handleDeleteClick}>
-              {isConfirmingDeletion ? <Trash2 size={14} className="text-destructive" /> : <XIcon size={14} />}
-            </ResourceList.ItemAction>
-          </Tooltip>
-        ) : null}
+        {hasStreamIndicator && <SessionStreamIndicator isFulfilled={isStreamFulfilled} isPending={isStreamPending} />}
       </ResourceList.ItemActions>
     </ResourceList.Item>
   )

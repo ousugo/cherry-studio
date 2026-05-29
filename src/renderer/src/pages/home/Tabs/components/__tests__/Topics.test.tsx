@@ -966,7 +966,7 @@ describe('Topics', () => {
 
     topicRow = getTopicRow('Gamma topic')
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
-    expect(topicRow.querySelector('[data-deleting]')).toBeInTheDocument()
+    expect(topicRow.querySelector('[aria-label="Pin Topic"]')).toBeInTheDocument()
   })
 
   it('marks only completed active topic streams as seen', () => {

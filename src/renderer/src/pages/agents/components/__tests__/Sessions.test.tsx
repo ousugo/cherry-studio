@@ -1318,19 +1318,6 @@ describe('Sessions', () => {
     requestAnimationFrameSpy.mockRestore()
   })
 
-  it('clears pending delete confirmation timers on unmount', () => {
-    vi.useFakeTimers()
-    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout')
-    const onStartTemporarySession = vi.fn()
-    const { unmount } = render(<Sessions onStartTemporarySession={onStartTemporarySession} />)
-
-    fireEvent.click(screen.getAllByLabelText('Delete')[0])
-    unmount()
-
-    expect(clearTimeoutSpy).toHaveBeenCalled()
-    clearTimeoutSpy.mockRestore()
-  })
-
   it('hides the inline delete action for pinned sessions', () => {
     setupSessions({
       sessions: [
