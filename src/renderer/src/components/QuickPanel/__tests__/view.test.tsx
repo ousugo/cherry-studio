@@ -1,12 +1,17 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React, { useEffect } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useQuickPanel } from '../hook'
 import { QuickPanelProvider } from '../provider'
 import type { QuickPanelContextType, QuickPanelInputAdapter, QuickPanelListItem, QuickPanelTriggerInfo } from '../types'
 import { QuickPanelReservedSymbol } from '../types'
 import { QuickPanelView } from '../view'
+
+const virtualListMocks = vi.hoisted(() => ({
+  scrollToIndex: vi.fn(),
+  scrollToOffset: vi.fn()
+}))
 
 vi.mock('i18next', () => ({
   t: (key: string, fallback?: string) => fallback ?? key
@@ -27,10 +32,11 @@ vi.mock('@renderer/components/VirtualList', async () => {
     }: {
       children: (item: QuickPanelListItem, index: number) => React.ReactNode
       list: QuickPanelListItem[]
-      ref?: React.Ref<{ scrollToIndex: (index: number) => void }>
+      ref?: React.Ref<{ scrollToIndex: (index: number) => void; scrollToOffset: (offset: number) => void }>
     }) => {
       React.useImperativeHandle(ref, () => ({
-        scrollToIndex: vi.fn()
+        scrollToIndex: virtualListMocks.scrollToIndex,
+        scrollToOffset: virtualListMocks.scrollToOffset
       }))
 
       return (
@@ -95,6 +101,29 @@ function PanelHarness({
 }
 
 describe('QuickPanelView', () => {
+  beforeEach(() => {
+    virtualListMocks.scrollToIndex.mockClear()
+    virtualListMocks.scrollToOffset.mockClear()
+  })
+
+  it('resets the virtual list scroll offset when a panel opens', async () => {
+    const captureDispatch = vi.fn()
+    const items: QuickPanelListItem[] = [
+      { id: 'first', label: 'First action', icon: '1', action: vi.fn() },
+      { id: 'second', label: 'Second action', icon: '2', action: vi.fn() }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('First action')
+
+    expect(virtualListMocks.scrollToOffset).toHaveBeenCalledWith(0, { align: 'start' })
+  })
+
   it('renders read-only panels without row selection or confirm footer actions', async () => {
     const action = vi.fn()
     const captureDispatch = vi.fn()

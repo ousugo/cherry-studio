@@ -158,6 +158,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const panelGeneration = getPanelGeneration()
     const isPanelGenerationChanged = prevPanelGenerationRef.current !== panelGeneration
     if (isPanelGenerationChanged) {
+      listRef.current?.scrollToOffset?.(0, { align: 'start' })
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = panelGeneration
     }
@@ -489,7 +490,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   useLayoutEffect(() => {
     if (!listRef.current || activeIndex < 0 || scrollTriggerRef.current === 'none') return
 
-    const alignment = scrollTriggerRef.current === 'keyboard' ? 'auto' : 'center'
+    const alignment = scrollTriggerRef.current === 'keyboard' ? 'auto' : activeIndex === 0 ? 'start' : 'center'
     listRef.current?.scrollToIndex(activeIndex, { align: alignment })
 
     scrollTriggerRef.current = 'none'
@@ -776,7 +777,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     <div
       style={{ maxHeight: panelMaxHeight }}
       className={classNames(
-        '-top-1 -translate-y-full pointer-events-none absolute right-0 left-0 w-full origin-bottom overflow-hidden transition-[max-height] duration-200 ease-in-out',
+        '-top-1 -translate-y-full pointer-events-none absolute right-2 left-2 origin-bottom transition-[max-height] duration-200 ease-in-out',
+        ctx.isVisible ? 'overflow-visible' : 'overflow-hidden',
         ctx.isVisible && 'visible',
         ctx.isVisible && 'pointer-events-auto'
       )}
@@ -784,7 +786,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       <div
         ref={bodyRef}
         data-testid="quick-panel-body"
-        className="relative isolate rounded-xl border border-border/80 bg-popover py-[5px] text-popover-foreground [&::-webkit-scrollbar]:w-[3px]"
+        className={classNames(
+          'relative isolate transform-gpu rounded-xl border border-border/80 bg-popover py-[5px] text-popover-foreground transition-[transform,opacity,box-shadow] duration-200 ease-out will-change-transform motion-reduce:translate-y-0 motion-reduce:scale-100 motion-reduce:opacity-100 motion-reduce:transition-none [&::-webkit-scrollbar]:w-[3px]',
+          ctx.isVisible
+            ? 'translate-y-0 scale-100 opacity-100 shadow-[0_18px_44px_rgba(15,23,42,0.16),0_4px_12px_rgba(15,23,42,0.10)] dark:shadow-[0_22px_48px_rgba(0,0,0,0.46),0_8px_18px_rgba(0,0,0,0.35)]'
+            : 'translate-y-3 scale-[0.985] opacity-0 shadow-none'
+        )}
         onKeyDown={handlePanelKeyDown}
         onKeyUp={handlePanelKeyUp}
         onMouseMove={() =>
