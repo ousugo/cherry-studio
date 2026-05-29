@@ -11,6 +11,7 @@ import type { SubWindowInitData } from '@shared/types/subWindow'
 import { Activity, useEffect, useRef } from 'react'
 
 import { TabRouter } from '../../components/layout/TabRouter'
+import { SubWindowTitleBar } from './SubWindowTitleBar'
 
 // The sub-window owns its title-bar chrome (it's the only layer that knows what a detached
 // window's title + controls are) and injects it into the hosted page's ConversationShell.
@@ -65,12 +66,20 @@ export const SubWindowAppShell = () => {
     updateTab(tabId, { url, title: getDefaultRouteTitle(url), icon: undefined })
   }
 
+  // Chat / agent pages merge the window chrome into their own navbar (ConversationShell,
+  // gated on isPageTitledRoute). Every OTHER page (mini-app, settings, files, …) has no
+  // such navbar, so without a standalone title bar the window would be undraggable — give
+  // those a fallback title bar here.
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
+  const showFallbackTitleBar = !!activeTab && !isPageTitledRoute(activeTab.url)
+
   return (
     // The window frame tells the hosted page (HomePage / AgentPage) it owns the whole
     // window: hide the in-page list + sidebar toggle (lock to one conversation) and turn
     // the page navbar into the window title bar via the injected chrome. See ConversationShell.
     <WindowFrameProvider value={WINDOW_FRAME}>
       <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+        {showFallbackTitleBar && <SubWindowTitleBar />}
         {/* Content Area - Multi MemoryRouter Architecture */}
         <main className="relative flex-1 overflow-hidden bg-background">
           {/* Route Tabs: Only render non-dormant tabs */}
