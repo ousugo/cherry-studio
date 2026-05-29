@@ -33,6 +33,7 @@ const dndMocks = vi.hoisted(() => ({
   sortableData: new Map<string, unknown>(),
   sortableDisabled: new Map<string, boolean | undefined>(),
   sortableStrategy: undefined as undefined | ((args: any) => unknown),
+  useSensor: vi.fn((sensor, options) => ({ sensor, options })),
   verticalListSortingStrategy: vi.fn(() => ({ scaleX: 1, scaleY: 1, x: 0, y: 12 }))
 }))
 
@@ -74,7 +75,7 @@ vi.mock('@dnd-kit/core', () => {
       dndMocks.droppableDisabled.set(id, disabled)
       return { isOver: false, setNodeRef: vi.fn() }
     },
-    useSensor: vi.fn((sensor, options) => ({ sensor, options })),
+    useSensor: dndMocks.useSensor,
     useSensors: vi.fn((...sensors) => sensors)
   }
 })
@@ -147,6 +148,7 @@ function renderList(onDragEnd = vi.fn(), extraProps = {}) {
   dndMocks.sortableData.clear()
   dndMocks.sortableDisabled.clear()
   dndMocks.sortableStrategy = undefined
+  dndMocks.useSensor.mockClear()
   dndMocks.verticalListSortingStrategy.mockClear()
 
   render(
@@ -215,7 +217,50 @@ function expectRowsBlocked(rows: Array<HTMLElement | null>) {
   }
 }
 
+function getPointerSensorActivator() {
+  renderList()
+  const sensor = dndMocks.useSensor.mock.calls[0]?.[0]
+  const activator = sensor?.activators?.find(
+    (candidate: { eventName: string }) => candidate.eventName === 'onPointerDown'
+  )
+  if (!activator) {
+    throw new Error('Expected pointer sensor activator')
+  }
+  return activator.handler as (
+    event: { nativeEvent: Partial<PointerEvent> },
+    options: { onActivation?: (args: unknown) => void }
+  ) => boolean
+}
+
 describe('GroupedSortableVirtualList', () => {
+  it('does not activate pointer dragging for secondary-button context menu gestures', () => {
+    const activate = vi.fn()
+    const handler = getPointerSensorActivator()
+
+    expect(handler({ nativeEvent: { button: 2, isPrimary: true } }, { onActivation: activate })).toBe(false)
+    expect(activate).not.toHaveBeenCalled()
+  })
+
+  it('does not activate pointer dragging for macOS ctrl-click context menu gestures', () => {
+    const activate = vi.fn()
+    const handler = getPointerSensorActivator()
+
+    expect(handler({ nativeEvent: { button: 0, ctrlKey: true, isPrimary: true } }, { onActivation: activate })).toBe(
+      false
+    )
+    expect(activate).not.toHaveBeenCalled()
+  })
+
+  it('activates pointer dragging for unmodified primary-button drags', () => {
+    const activate = vi.fn()
+    const handler = getPointerSensorActivator()
+
+    expect(handler({ nativeEvent: { button: 0, ctrlKey: false, isPrimary: true } }, { onActivation: activate })).toBe(
+      true
+    )
+    expect(activate).toHaveBeenCalledTimes(1)
+  })
+
   it('emits same-group item drag payloads', () => {
     const onDragEnd = renderList()
 

@@ -22,7 +22,7 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true }) => 
           {showSidebarControls &&
             (showSidebar ? (
               <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
-                <NavbarIcon tone="conversation" active aria-pressed={showSidebar} onClick={toggleShowSidebar}>
+                <NavbarIcon tone="conversation" aria-pressed={showSidebar} onClick={toggleShowSidebar}>
                   <SidebarCollapseIcon />
                 </NavbarIcon>
               </Tooltip>

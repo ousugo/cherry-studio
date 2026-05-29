@@ -364,6 +364,40 @@ describe('export', () => {
       expect(markdown).toContain('Parts-only content')
     })
 
+    it('should format composer skill tokens as pasteable markers instead of hidden prompt text', async () => {
+      const message = createExportView(
+        [
+          {
+            type: 'text',
+            text: 'Use the find-skills skill. **hello**',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'skill:find-skills',
+                      kind: 'skill',
+                      label: 'find-skills',
+                      index: 0,
+                      textOffset: 0,
+                      promptText: 'Use the find-skills skill.'
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        'user'
+      )
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('/find-skills/ **hello**')
+      expect(markdown).not.toContain('Use the find-skills skill.')
+    })
+
     it('should format parts-only export view citations', async () => {
       const message = createExportView([
         {
@@ -596,6 +630,41 @@ describe('export', () => {
       const result = messageToPlainText(testMessage)
       expect(result).toBe('Header\nBold and italic text\nList item')
       expect(markdownToPlainText).toHaveBeenCalledWith('# Header\n**Bold** and *italic* text\n- List item')
+    })
+
+    it('should copy composer skill tokens as pasteable markers instead of hidden prompt text', () => {
+      const testMessage = createExportView(
+        [
+          {
+            type: 'text',
+            text: 'Use the pdf skill. hello',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'skill:pdf',
+                      kind: 'skill',
+                      label: 'pdf',
+                      index: 0,
+                      textOffset: 0,
+                      promptText: 'Use the pdf skill.'
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        'user'
+      )
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
+
+      const result = messageToPlainText(testMessage)
+
+      expect(result).toBe('/pdf/ hello')
+      expect(markdownToPlainText).toHaveBeenCalledWith('/pdf/ hello')
     })
   })
 

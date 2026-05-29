@@ -14,10 +14,11 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
   CreateSessionDto,
+  DeleteSessionsResult,
   ListSessionsQuery,
   UpdateSessionDto
 } from '@shared/data/api/schemas/sessions'
-import { and, asc, desc, eq, gt, gte, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -265,9 +266,60 @@ export class SessionService {
   }
 
   async deleteByIdTx(tx: SessionDeleteTx, id: string): Promise<void> {
-    const [row] = await tx.delete(sessionsTable).where(eq(sessionsTable.id, id)).returning({ id: sessionsTable.id })
-    if (!row) throw DataApiErrorFactory.notFound('Session', id)
-    await pinService.purgeForEntityTx(tx, 'session', id)
+    await this.deleteByIdsTx(tx, [id], { requireAll: true })
+  }
+
+  async deleteByIds(ids: string[]): Promise<DeleteSessionsResult> {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return { deletedIds: [], deletedCount: 0 }
+
+    const systemWorkspacePaths: string[] = []
+    const dbService = application.get('DbService')
+    const deletedIds = await dbService.withWriteTx(async (tx) => {
+      const rows = await tx
+        .select({ session: sessionsTable, workspace: workspaceTable })
+        .from(sessionsTable)
+        .leftJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
+        .where(inArray(sessionsTable.id, uniqueIds))
+
+      if (rows.length !== uniqueIds.length) {
+        const foundIds = new Set(rows.map((row) => row.session.id))
+        const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
+        throw DataApiErrorFactory.notFound('Session', missingId)
+      }
+
+      const normalSessionIds: string[] = []
+      const systemWorkspacePathById = new Map<string, string>()
+      for (const row of rows) {
+        if (row.workspace?.type === 'system') {
+          workspaceService.assertSystemWorkspacePath(row.workspace.path)
+          systemWorkspacePathById.set(row.workspace.id, row.workspace.path)
+          continue
+        }
+
+        normalSessionIds.push(row.session.id)
+      }
+
+      const deleted = new Set(await this.deleteByIdsTx(tx, normalSessionIds))
+      for (const [workspaceId, workspacePath] of systemWorkspacePathById) {
+        const workspaceSessionIds = await this.deleteByWorkspaceTx(tx, workspaceId)
+        for (const id of workspaceSessionIds) {
+          deleted.add(id)
+        }
+        await workspaceService.deleteByIdTx(tx, workspaceId)
+        systemWorkspacePaths.push(workspacePath)
+      }
+
+      return Array.from(deleted)
+    })
+
+    for (const path of systemWorkspacePaths) {
+      workspaceService.deleteSystemWorkspaceDirectoryAfterCommit(path)
+    }
+
+    logger.info('Deleted sessions', { count: deletedIds.length })
+
+    return { deletedIds, deletedCount: deletedIds.length }
   }
 
   async deleteByWorkspaceTx(tx: SessionDeleteTx, workspaceId: string): Promise<string[]> {
@@ -278,6 +330,81 @@ export class SessionService {
     const sessionIds = deletedSessions.map((session) => session.id)
     await pinService.purgeForEntitiesTx(tx, 'session', sessionIds)
     return sessionIds
+  }
+
+  async deleteByAgentId(agentId: string): Promise<DeleteSessionsResult> {
+    const systemWorkspacePaths: string[] = []
+    const dbService = application.get('DbService')
+    const deletedIds = await dbService.withWriteTx(async (tx) => {
+      const [agent] = await tx
+        .select({ id: agentsTable.id })
+        .from(agentsTable)
+        .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
+        .limit(1)
+      if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
+
+      const rows = await tx
+        .select({ session: sessionsTable, workspace: workspaceTable })
+        .from(sessionsTable)
+        .leftJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
+        .where(eq(sessionsTable.agentId, agentId))
+
+      const normalSessionIds: string[] = []
+      const systemWorkspacePathById = new Map<string, string>()
+      for (const row of rows) {
+        if (row.workspace?.type === 'system') {
+          workspaceService.assertSystemWorkspacePath(row.workspace.path)
+          systemWorkspacePathById.set(row.workspace.id, row.workspace.path)
+          continue
+        }
+
+        normalSessionIds.push(row.session.id)
+      }
+
+      const deleted = new Set(await this.deleteByIdsTx(tx, normalSessionIds))
+      for (const [workspaceId, workspacePath] of systemWorkspacePathById) {
+        const workspaceSessionIds = await this.deleteByWorkspaceTx(tx, workspaceId)
+        for (const id of workspaceSessionIds) {
+          deleted.add(id)
+        }
+        await workspaceService.deleteByIdTx(tx, workspaceId)
+        systemWorkspacePaths.push(workspacePath)
+      }
+
+      return Array.from(deleted)
+    })
+
+    for (const path of systemWorkspacePaths) {
+      workspaceService.deleteSystemWorkspaceDirectoryAfterCommit(path)
+    }
+
+    logger.info('Deleted agent sessions', { agentId, count: deletedIds.length })
+
+    return { deletedIds, deletedCount: deletedIds.length }
+  }
+
+  private async deleteByIdsTx(
+    tx: SessionDeleteTx,
+    ids: string[],
+    options: { requireAll?: boolean } = {}
+  ): Promise<string[]> {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return []
+
+    const rows = await tx.delete(sessionsTable).where(inArray(sessionsTable.id, uniqueIds)).returning({
+      id: sessionsTable.id
+    })
+    const deletedIds = rows.map((row) => row.id)
+
+    if (options.requireAll && deletedIds.length !== uniqueIds.length) {
+      const foundIds = new Set(deletedIds)
+      const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
+      throw DataApiErrorFactory.notFound('Session', missingId)
+    }
+
+    await pinService.purgeForEntitiesTx(tx, 'session', deletedIds)
+
+    return deletedIds
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {

@@ -166,7 +166,7 @@ describe('ThinkingToolRuntime', () => {
     ;(window as any).toast = { warning: mocks.toastWarning }
   })
 
-  it('registers only the runtime launcher, with slash-panel submenu entries', async () => {
+  it('registers only the runtime launcher, with popover and root-panel submenu entries', async () => {
     const { launcher } = renderRuntime({
       assistant: createAssistant({ reasoning_effort: 'low' })
     })
@@ -187,6 +187,7 @@ describe('ThinkingToolRuntime', () => {
       'thinking-medium',
       'thinking-high'
     ])
+    expect(thinkingLauncher.submenu?.every((item) => item.sources?.includes('popover'))).toBe(true)
     expect(thinkingLauncher.submenu?.every((item) => item.sources?.includes('root-panel'))).toBe(true)
     expect(thinkingLauncher.submenu?.find((item) => item.id === 'thinking-low')).toMatchObject({ active: true })
   })

@@ -803,9 +803,11 @@ describe('ArtifactPane', () => {
     expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-auto')
   })
 
-  it('renders HTML previews in an iframe with Popup-aligned sandbox and hidden outer overflow', async () => {
+  it('renders HTML previews in an iframe with Popup-aligned sandbox, file base, and hidden outer overflow', async () => {
     mockWorkspaceTree('/tmp/workspace', ['index.html'])
-    mocks.fsReadText.mockResolvedValue('<!doctype html><html><body><h1>Hello</h1></body></html>')
+    mocks.fsReadText.mockResolvedValue(
+      '<!doctype html><html><head><title>Hello</title></head><body><a href="about.html">About</a></body></html>'
+    )
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -817,7 +819,9 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/index.html'))
     const iframe = container.querySelector('iframe')
     expect(iframe).not.toBeNull()
-    expect(iframe).toHaveAttribute('srcdoc', '<!doctype html><html><body><h1>Hello</h1></body></html>')
+    const srcDoc = iframe?.getAttribute('srcdoc') ?? ''
+    expect(srcDoc).toContain('<base href="file:///tmp/workspace/index.html">')
+    expect(srcDoc).toContain('<a href="about.html">About</a>')
     expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
     expect(iframe).toHaveAttribute('title', 'index.html')
     expect(iframe).toHaveClass('h-full', 'w-full', 'border-0', 'bg-background')

@@ -599,18 +599,7 @@ describe('GlobalSearchPanel', () => {
 
     await waitFor(() => {
       expect(mocks.setPreferences).toHaveBeenLastCalledWith({
-        visible: [
-          'assistants',
-          'agents',
-          'store',
-          'paintings',
-          'translate',
-          'mini_app',
-          'knowledge',
-          'files',
-          'code_tools',
-          'notes'
-        ],
+        visible: ['assistants', 'agents', 'store', 'translate', 'mini_app'],
         invisible: []
       })
     })

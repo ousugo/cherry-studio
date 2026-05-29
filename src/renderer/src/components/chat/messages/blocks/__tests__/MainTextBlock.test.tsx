@@ -1,7 +1,9 @@
+import type * as CherryUI from '@cherrystudio/ui'
 import type { Citation, Model } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
 import { render, screen } from '@testing-library/react'
+import { Fragment, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MainTextBlock from '../MainTextBlock'
@@ -15,6 +17,33 @@ vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => mockRenderConfig,
   useOptionalMessageListActions: () => undefined
 }))
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryUI>()
+  const { createPortal } = await import('react-dom')
+  return {
+    ...actual,
+    Flex: ({ children, className }: { children: ReactNode; className?: string }) => (
+      <div className={className}>{children}</div>
+    ),
+    NormalTooltip: ({
+      children,
+      content,
+      contentProps
+    }: {
+      children: ReactNode
+      content: ReactNode
+      contentProps?: { className?: string }
+    }) => (
+      <>
+        <span data-content-class-name={contentProps?.className} data-testid="composer-message-token-tooltip">
+          {children}
+        </span>
+        {createPortal(<span data-testid="composer-message-token-tooltip-content">{content}</span>, document.body)}
+      </>
+    )
+  }
+})
 
 // Mock citation utilities
 vi.mock('@renderer/utils/citation', () => ({
@@ -36,11 +65,33 @@ vi.mock('@renderer/utils/citation', () => ({
 // Mock Markdown component
 vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
   __esModule: true,
-  default: ({ block, postProcess }: any) => {
+  default: ({ block, postProcess, components }: any) => {
     const content = postProcess ? postProcess(block.content) : block.content
+    const tokenPlaceholderPattern =
+      /<span data-composer-token-index="(\d+)" data-composer-token-block="([^"]+)"><\/span>/g
+    const nodes: any[] = []
+    let cursor = 0
+    for (const match of content.matchAll(tokenPlaceholderPattern)) {
+      const index = match.index ?? 0
+      if (index > cursor) nodes.push(content.slice(cursor, index))
+      const tokenIndex = match[1]
+      const tokenBlock = match[2]
+      nodes.push(
+        <Fragment key={`token-${tokenIndex}-${index}`}>
+          {components?.span?.({
+            dataComposerTokenIndex: tokenIndex,
+            dataComposerTokenBlock: tokenBlock,
+            children: null
+          }) ?? match[0]}
+        </Fragment>
+      )
+      cursor = index + match[0].length
+    }
+    if (cursor < content.length) nodes.push(content.slice(cursor))
+
     return (
       <div data-testid="mock-markdown" data-content={content}>
-        Markdown: {content}
+        Markdown: {nodes}
       </div>
     )
   }
@@ -117,6 +168,90 @@ describe('MainTextBlock', () => {
       expect(screen.getByText('Markdown: User **bold** content')).toBeInTheDocument()
     })
 
+    it('should preserve composer token rendering when markdown rendering is enabled for user messages', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({
+        content: '> quoted line\n\nReply',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'quote-1',
+              kind: 'quote',
+              label: 'Quote',
+              description: 'quoted line',
+              index: 0,
+              textOffset: 0,
+              promptText: '> quoted line'
+            }
+          ]
+        }
+      })
+
+      const markdown = getRenderedMarkdown()!
+      expect(markdown).toBeInTheDocument()
+      expect(markdown).toHaveAttribute(
+        'data-content',
+        '<span data-composer-token-index="0" data-composer-token-block="test-block-1"></span>\n\nReply'
+      )
+      expect(markdown).toHaveTextContent('Quote')
+      expect(markdown).toHaveTextContent('Reply')
+      expect(markdown).not.toHaveTextContent('> quoted line')
+      expect(markdown.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument()
+    })
+
+    it('should render stale quote composer metadata as plain text in markdown mode', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({
+        content: 'Edited quoted line\n\nReply',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'quote-1',
+              kind: 'quote',
+              label: 'Quote',
+              description: 'quoted line',
+              index: 0,
+              textOffset: 0,
+              promptText: '> quoted line'
+            }
+          ]
+        }
+      })
+
+      const markdown = getRenderedMarkdown()!
+      expect(markdown).toHaveAttribute('data-content', 'Edited quoted line\n\nReply')
+      expect(markdown.querySelector('[data-composer-token-kind="quote"]')).not.toBeInTheDocument()
+    })
+
+    it('should render stale quote composer metadata as plain text in plain text mode', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = false
+      renderMainTextBlock({
+        content: 'Edited quoted line\n\nReply',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'quote-1',
+              kind: 'quote',
+              label: 'Quote',
+              description: 'quoted line',
+              index: 0,
+              textOffset: 0,
+              promptText: '> quoted line'
+            }
+          ]
+        }
+      })
+
+      expect(screen.getByText('Edited quoted line Reply')).toBeInTheDocument()
+      expect(document.querySelector('[data-composer-token-kind="quote"]')).not.toBeInTheDocument()
+    })
+
     it('should preserve complex formatting in plain text mode', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = false
       const complexContent = `Line 1
@@ -162,10 +297,100 @@ describe('MainTextBlock', () => {
       const textElement = getRenderedPlainText()!
       expect(textElement).toHaveTextContent('Open chat.ts now')
       expect(textElement).not.toHaveTextContent('src/chat.ts')
-      expect(textElement.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
+      const token = textElement.querySelector('[data-composer-token-kind="file"]')
+      expect(token).toBeInTheDocument()
+      expect(token).toHaveClass('text-primary', 'leading-[inherit]')
+      expect(token).not.toHaveClass('border', 'bg-muted', 'rounded-md', 'px-1.5', 'py-0.5', 'leading-5')
     })
 
-    it('should ignore legacy model composer tokens in user messages', () => {
+    it('should keep long composer token labels on one truncated line in sent messages', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = false
+      const longLabel = 'temp_file_d1a6ca94-e012-4c9e-831a-24cda5f732f0_image.png'
+
+      renderMainTextBlock({
+        content: `Open ${longLabel} now`,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'file-long',
+              kind: 'file',
+              label: longLabel,
+              index: 0,
+              textOffset: 5,
+              promptText: longLabel
+            }
+          ]
+        }
+      })
+
+      const chip = getRenderedPlainText()!.querySelector('[data-composer-token-kind="file"]')
+      const label = screen.getByText(longLabel)
+      expect(chip).toHaveClass('max-w-52', 'overflow-hidden')
+      expect(label).toHaveClass('min-w-0', 'truncate', 'whitespace-nowrap!', 'break-normal')
+    })
+
+    it('should render skill composer tokens with their own visual treatment', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = false
+      renderMainTextBlock({
+        content: 'Use the pdf skill.',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'skill:pdf',
+              kind: 'skill',
+              label: 'pdf',
+              description: 'Read and analyze PDFs',
+              index: 0,
+              textOffset: 0,
+              promptText: 'Use the pdf skill.'
+            }
+          ]
+        }
+      })
+
+      const token = getRenderedPlainText()!.querySelector('[data-composer-token-kind="skill"]')
+      expect(token).toBeInTheDocument()
+      expect(token).toHaveClass('text-primary', 'leading-[inherit]')
+      expect(token).not.toHaveClass('border-0', 'bg-transparent', 'rounded-md', 'px-1.5', 'py-0.5')
+      expect(token?.querySelector('svg')).toHaveClass('translate-y-[0.08em]', 'text-current', 'opacity-80')
+    })
+
+    it('should render composer tokens while preserving markdown for user text segments', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({
+        content: 'Use the find-skills skill. **hello**',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'skill:find-skills',
+              kind: 'skill',
+              label: 'find-skills',
+              index: 0,
+              textOffset: 0,
+              promptText: 'Use the find-skills skill.'
+            }
+          ]
+        }
+      })
+
+      const markdown = getRenderedMarkdown()!
+      expect(markdown).toBeInTheDocument()
+      expect(markdown).toHaveAttribute(
+        'data-content',
+        '<span data-composer-token-index="0" data-composer-token-block="test-block-1"></span> **hello**'
+      )
+      expect(markdown).toHaveTextContent('Markdown: find-skills **hello**')
+      expect(markdown).not.toHaveTextContent('Use the find-skills skill.')
+      expect(markdown.querySelector('[data-composer-token-kind="skill"]')).toBeInTheDocument()
+    })
+
+    it('should ignore unsupported raw composer metadata tokens in user messages', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = false
       renderMainTextBlock({
         content: 'Ask now',
@@ -179,15 +404,42 @@ describe('MainTextBlock', () => {
               label: 'GPT',
               index: 0,
               textOffset: 0
+            },
+            {
+              id: 'mcp-prompt-1',
+              kind: 'mcpPrompt',
+              label: 'Prompt',
+              index: 1,
+              textOffset: 0
+            },
+            {
+              id: 'mcp-resource-1',
+              kind: 'mcpResource',
+              label: 'Resource',
+              index: 2,
+              textOffset: 0
+            },
+            {
+              id: 'environment-1',
+              kind: 'environment',
+              label: 'Computer',
+              index: 3,
+              textOffset: 0
             }
           ]
-        }
+        } as never
       })
 
       const textElement = getRenderedPlainText()!
       expect(textElement.textContent).toBe('Ask now')
       expect(textElement).not.toHaveTextContent('GPT')
+      expect(textElement).not.toHaveTextContent('Prompt')
+      expect(textElement).not.toHaveTextContent('Resource')
+      expect(textElement).not.toHaveTextContent('Computer')
       expect(textElement.querySelector('[data-composer-token-kind="model"]')).not.toBeInTheDocument()
+      expect(textElement.querySelector('[data-composer-token-kind="mcpPrompt"]')).not.toBeInTheDocument()
+      expect(textElement.querySelector('[data-composer-token-kind="mcpResource"]')).not.toBeInTheDocument()
+      expect(textElement.querySelector('[data-composer-token-kind="environment"]')).not.toBeInTheDocument()
     })
 
     it('should ignore prompt-variable composer metadata in user messages', () => {

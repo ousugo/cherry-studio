@@ -1,5 +1,5 @@
 import { cacheService } from '@data/CacheService'
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata, LocalSkill } from '@renderer/types'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -8,19 +8,24 @@ import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
+import type { ComposerSerializedToken } from '../../tokens'
 import AgentComposer, { AgentHomeComposer } from '../AgentComposer'
 
 const mocks = vi.hoisted(() => ({
   draftText: 'hello',
+  draftTokens: undefined as ComposerSerializedToken[] | undefined,
   files: [] as FileMetadata[],
   modelLookupId: undefined as UniqueModelId | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
   getPathStatus: vi.fn(),
+  listDirectory: vi.fn(),
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
   enqueueDraft: vi.fn(),
+  insertToken: vi.fn(),
+  availableSkills: [] as LocalSkill[],
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
@@ -59,6 +64,26 @@ const file = {
   path: '/tmp/notes.md'
 } as FileMetadata
 
+const pdfSkill = {
+  name: 'pdf',
+  description: 'Read and analyze PDFs',
+  filename: 'pdf'
+} satisfies LocalSkill
+const reviewSkill = {
+  name: 'Review (fast)',
+  description: 'Review changed files',
+  filename: 'review-fast'
+} satisfies LocalSkill
+
+const pdfSkillToken = {
+  id: 'skill:pdf',
+  kind: 'skill',
+  label: 'pdf',
+  description: 'Read and analyze PDFs',
+  promptText: 'Use the pdf skill.',
+  payload: pdfSkill
+} as const
+
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
@@ -75,7 +100,8 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
           props.onTextChange(nextText)
         },
         toggleExpanded: vi.fn(),
-        removeToken: vi.fn()
+        removeToken: vi.fn(),
+        insertToken: mocks.insertToken
       })
     }, [props])
 
@@ -89,14 +115,16 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
           onClick={() =>
             props.onSendDraft({
               text: mocks.draftText,
-              tokens: mocks.files.map((currentFile, index) => ({
-                id: `file:${currentFile.id}`,
-                kind: 'file',
-                label: currentFile.name,
-                payload: currentFile,
-                index,
-                textOffset: mocks.draftText.length
-              }))
+              tokens:
+                mocks.draftTokens ??
+                mocks.files.map((currentFile, index) => ({
+                  id: `file:${currentFile.id}`,
+                  kind: 'file',
+                  label: currentFile.name,
+                  payload: currentFile,
+                  index,
+                  textOffset: mocks.draftText.length
+                }))
             })
           }>
           send
@@ -219,6 +247,15 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderDisplayName: () => 'Anthropic'
 }))
 
+vi.mock('@renderer/hooks/useSkills', () => ({
+  useAvailableSkills: () => ({
+    skills: mocks.availableSkills,
+    loading: false,
+    error: null,
+    refresh: vi.fn()
+  })
+}))
+
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <span data-testid="model-avatar" />
 }))
@@ -232,9 +269,19 @@ vi.mock('@renderer/components/Selector', () => ({
       </button>
     </div>
   ),
-  ModelSelector: ({ onSelect, trigger }: any) => (
-    <div>
+  ModelSelector: ({ onSelect, trigger, open, onOpenChange }: any) => (
+    <div data-testid="agent-model-selector" data-open={String(Boolean(open))}>
       {trigger}
+      {onOpenChange ? (
+        <>
+          <button type="button" onClick={() => onOpenChange(true)}>
+            open agent model selector popup
+          </button>
+          <button type="button" onClick={() => onOpenChange(false)}>
+            close agent model selector popup
+          </button>
+        </>
+      ) : null}
       <button type="button" onClick={() => onSelect({ id: 'anthropic::claude-opus-4', name: 'Claude Opus 4' })}>
         select model 2
       </button>
@@ -261,7 +308,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'app.spell_check.enabled': true,
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
-      'chat.input.send_message_shortcut': 'Enter'
+      'chat.input.send_message_shortcut': 'Enter',
+      'chat.input.quick_panel.triggers_enabled': true
     }
     return [values[key]]
   }
@@ -319,6 +367,7 @@ describe('AgentComposer', () => {
     }) as unknown as typeof ResizeObserver
 
     mocks.draftText = 'hello'
+    mocks.draftTokens = undefined
     mocks.files = []
     mocks.modelLookupId = undefined
     mocks.sendMessage.mockReset()
@@ -327,11 +376,14 @@ describe('AgentComposer', () => {
     mocks.stop.mockResolvedValue(undefined)
     mocks.getPathStatus.mockReset()
     mocks.getPathStatus.mockImplementation(() => new Promise(() => undefined))
+    mocks.listDirectory.mockReset()
+    mocks.listDirectory.mockResolvedValue([])
     window.api = {
       ...window.api,
       file: {
         ...window.api.file,
-        getPathStatus: mocks.getPathStatus
+        getPathStatus: mocks.getPathStatus,
+        listDirectory: mocks.listDirectory
       }
     }
     mocks.updateModel.mockReset()
@@ -339,6 +391,8 @@ describe('AgentComposer', () => {
     mocks.setFiles.mockReset()
     mocks.enqueueDraft.mockReset()
     mocks.enqueueDraft.mockResolvedValue(undefined)
+    mocks.insertToken.mockReset()
+    mocks.availableSkills = []
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
@@ -393,6 +447,434 @@ describe('AgentComposer', () => {
       couldAddImageFile: false,
       extensions: mocks.surfaceProps?.supportedExts
     })
+  })
+
+  it('provides workspace resources through the mention suggestion source', async () => {
+    mocks.listDirectory.mockResolvedValue(['/workspace/docs/notes.md', '/workspace/docs/notes.md'])
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const resourceSource = mocks.surfaceProps?.suggestionSources?.[0]
+    expect(resourceSource).toEqual(
+      expect.objectContaining({
+        char: '@',
+        pluginKey: 'agent-resource-mention-suggestion'
+      })
+    )
+
+    const items = await resourceSource?.items({ query: 'notes', editor: {} as any })
+    expect(mocks.listDirectory).toHaveBeenCalledWith(
+      '/workspace',
+      expect.objectContaining({
+        recursive: true,
+        maxDepth: 3,
+        searchPattern: 'notes'
+      })
+    )
+    expect(items).toHaveLength(1)
+    expect(items?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'file:/workspace/docs/notes.md',
+        label: 'docs/notes.md',
+        description: '/workspace/docs/notes.md',
+        disabled: false
+      })
+    )
+
+    const run = vi.fn()
+    const insertContent = vi.fn(() => ({ run }))
+    const insertComposerToken = vi.fn(() => ({ insertContent }))
+    const editor = {
+      getJSON: () => ({ type: 'doc', content: [] }),
+      chain: () => ({
+        focus: () => ({
+          insertComposerToken
+        })
+      })
+    }
+
+    items?.[0]?.command({ editor: editor as any, range: { from: 1, to: 7 }, item: items[0], query: 'notes' })
+
+    expect(insertComposerToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'file:/workspace/docs/notes.md',
+        kind: 'file',
+        label: 'notes.md'
+      })
+    )
+    expect(insertContent).toHaveBeenCalledWith(' ')
+    expect(run).toHaveBeenCalled()
+
+    const setFilesUpdater = mocks.setFiles.mock.calls.at(-1)?.[0]
+    expect(typeof setFilesUpdater).toBe('function')
+    const selectedFile = { id: '/workspace/docs/notes.md', path: '/workspace/docs/notes.md' } as FileMetadata
+    expect(setFilesUpdater([])).toEqual([expect.objectContaining({ path: '/workspace/docs/notes.md' })])
+    expect(setFilesUpdater([selectedFile])).toBeInstanceOf(Array)
+    expect(setFilesUpdater([selectedFile])).toHaveLength(1)
+  })
+
+  it('marks already selected workspace resources as disabled', async () => {
+    mocks.files = [
+      {
+        id: '/workspace/docs/notes.md',
+        name: 'notes.md',
+        origin_name: 'notes.md',
+        path: '/workspace/docs/notes.md'
+      } as FileMetadata
+    ]
+    mocks.listDirectory.mockResolvedValue(['/workspace/docs/notes.md'])
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const items = await mocks.surfaceProps?.suggestionSources?.[0]?.items({ query: 'notes', editor: {} as any })
+    expect(items?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'file:/workspace/docs/notes.md',
+        disabled: true
+      })
+    )
+  })
+
+  it('passes available skills as additional slash panel rows', () => {
+    mocks.availableSkills = [pdfSkill]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const skillItem = mocks.surfaceProps?.rootPanelAdditionalItems?.[0]
+    expect(skillItem).toEqual(
+      expect.objectContaining({
+        id: 'skill:pdf',
+        label: 'pdf',
+        description: 'Read and analyze PDFs',
+        suffix: 'plugins.skills',
+        filterText: expect.stringContaining('pdf Read and analyze PDFs plugins.skills')
+      })
+    )
+    expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'skill'])
+
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      insertToken: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+    skillItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: skillItem,
+      inputAdapter
+    })
+
+    expect(inputAdapter.insertText).not.toHaveBeenCalled()
+    expect(inputAdapter.insertToken).toHaveBeenCalledWith(pdfSkillToken)
+    expect(inputAdapter.focus).toHaveBeenCalled()
+  })
+
+  it('does not fall back to plain prompt text without token support', () => {
+    mocks.availableSkills = [pdfSkill]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const skillItem = mocks.surfaceProps?.rootPanelAdditionalItems?.[0]
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+    skillItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: skillItem,
+      inputAdapter
+    })
+
+    expect(inputAdapter.insertText).not.toHaveBeenCalled()
+    expect(inputAdapter.focus).not.toHaveBeenCalled()
+  })
+
+  it('adds selected skill tokens to ComposerSurface and avoids duplicates', async () => {
+    mocks.availableSkills = [pdfSkill]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      insertToken: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: mocks.surfaceProps.rootPanelAdditionalItems[0],
+      inputAdapter
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken)
+    })
+
+    inputAdapter.insertToken.mockClear()
+    const currentSkillItem = mocks.surfaceProps?.rootPanelAdditionalItems?.[0]
+    currentSkillItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: currentSkillItem,
+      inputAdapter
+    })
+
+    expect(inputAdapter.insertToken).not.toHaveBeenCalled()
+  })
+
+  it('removes selected skill state when the skill token is deleted', async () => {
+    mocks.availableSkills = [pdfSkill]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      insertToken: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+    const skillItem = mocks.surfaceProps?.rootPanelAdditionalItems?.[0]
+    skillItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: skillItem,
+      inputAdapter
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken)
+    })
+
+    act(() => {
+      mocks.surfaceProps?.onTokensChange([])
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens).not.toContainEqual(pdfSkillToken)
+    })
+  })
+
+  it('restores selected skill state when pasted marker inserts a skill token', async () => {
+    mocks.availableSkills = [pdfSkill]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      mocks.surfaceProps?.onTokensChange([
+        {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'pdf',
+          promptText: 'Use the pdf skill.',
+          index: 0,
+          textOffset: 0
+        }
+      ])
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken)
+    })
+  })
+
+  it('resolves slash skill markers by filename', async () => {
+    mocks.availableSkills = [reviewSkill]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.resolveSkillMarker?.('Review (fast)')).toBeNull()
+    expect(mocks.surfaceProps?.resolveSkillMarker?.('review-fast')).toEqual({
+      id: 'skill:review-fast',
+      kind: 'skill',
+      label: 'Review (fast)',
+      description: 'Review changed files',
+      promptText: 'Use the Review (fast) skill.',
+      payload: reviewSkill
+    })
+  })
+
+  it('keeps skill tokens when a file token is removed from the draft', async () => {
+    mocks.availableSkills = [pdfSkill]
+    mocks.files = [file]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      insertToken: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+    const skillItem = mocks.surfaceProps?.rootPanelAdditionalItems?.[0]
+    skillItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: skillItem,
+      inputAdapter
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'file:file-1', kind: 'file' }), pdfSkillToken])
+      )
+    })
+
+    act(() => {
+      mocks.surfaceProps?.onTokensChange([
+        {
+          ...pdfSkillToken,
+          index: 0,
+          textOffset: 0
+        }
+      ])
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken)
+    })
+    const setFilesUpdater = mocks.setFiles.mock.calls.at(-1)?.[0]
+    expect(typeof setFilesUpdater).toBe('function')
+    expect(setFilesUpdater([file])).toEqual([])
+  })
+
+  it('sends a draft that only contains a skill token', () => {
+    mocks.draftText = 'Use the pdf skill.'
+    mocks.draftTokens = [
+      {
+        ...pdfSkillToken,
+        index: 0,
+        textOffset: 0
+      }
+    ]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'Use the pdf skill.' },
+      {
+        body: {
+          agentId: 'agent-1',
+          sessionId: 'session-1',
+          userMessageParts: [
+            expect.objectContaining({
+              type: 'text',
+              text: 'Use the pdf skill.',
+              providerMetadata: {
+                cherry: {
+                  composer: {
+                    version: 1,
+                    tokens: [
+                      {
+                        id: 'skill:pdf',
+                        kind: 'skill',
+                        label: 'pdf',
+                        description: 'Read and analyze PDFs',
+                        index: 0,
+                        textOffset: 0,
+                        promptText: 'Use the pdf skill.'
+                      }
+                    ]
+                  }
+                }
+              }
+            })
+          ]
+        }
+      }
+    )
+    expect(mocks.enqueueDraft).not.toHaveBeenCalled()
   })
 
   it('bridges file tokens into the existing agent session message text protocol', () => {
@@ -494,7 +976,7 @@ describe('AgentComposer', () => {
     expect(mocks.enqueueDraft).toHaveBeenCalledWith(expect.objectContaining({ text: 'hello' }))
   })
 
-  it('appends quoted selected text from the main-window quote IPC', async () => {
+  it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
     vi.mocked(cacheService.getCasual).mockReturnValue('Existing draft')
 
     render(
@@ -515,9 +997,15 @@ describe('AgentComposer', () => {
       mocks.ipcListeners.get(IpcChannel.App_QuoteToMain)?.({}, 'Selected message text')
     })
 
-    await waitFor(() => {
-      expect(mocks.surfaceProps?.text).toBe('Existing draft\n<blockquote>\n\nSelected message text\n</blockquote>\n\n')
-    })
+    expect(mocks.insertToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'quote',
+        label: 'selection.action.builtin.quote',
+        description: 'Selected message text',
+        promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
+      })
+    )
+    expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 
   it('updates the active session agent from the composer toolbar', () => {
@@ -575,6 +1063,28 @@ describe('AgentComposer', () => {
     expect(mocks.updateModel).toHaveBeenCalledWith('agent-1', 'anthropic::claude-opus-4', {
       showSuccessToast: false
     })
+  })
+
+  it('controls the agent model selector popup open state from the composer toolbar', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-open', 'false')
+
+    fireEvent.click(screen.getByText('open agent model selector popup'))
+
+    expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-open', 'true')
+
+    fireEvent.click(screen.getByText('close agent model selector popup'))
+
+    expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-open', 'false')
   })
 
   it('shows only icons in the input bottom toolbar when it is narrow', async () => {

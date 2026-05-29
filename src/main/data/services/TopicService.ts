@@ -1,6 +1,7 @@
 // Topic CRUD, branch switching, ordering.
 
 import { application } from '@application'
+import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
@@ -9,10 +10,15 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { CreateTopicDto, ListTopicsQuery, UpdateTopicDto } from '@shared/data/api/schemas/topics'
+import type {
+  CreateTopicDto,
+  DeleteTopicsResult,
+  ListTopicsQuery,
+  UpdateTopicDto
+} from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, gte, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 
 import { pinService } from './PinService'
 import { tagService } from './TagService'
@@ -195,18 +201,74 @@ export class TopicService {
    * TODO: Clean up associated files (images, attachments) from disk.
    */
   async delete(id: string): Promise<void> {
-    const db = application.get('DbService').getDb()
-
-    await this.getById(id)
-
-    await db.transaction(async (tx) => {
-      await tx.delete(messageTable).where(eq(messageTable.topicId, id))
-      await tagService.purgeForEntityTx(tx, 'topic', id)
-      await pinService.purgeForEntityTx(tx, 'topic', id)
-      await tx.delete(topicTable).where(eq(topicTable.id, id))
-    })
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
 
     logger.info('Deleted topic', { id })
+  }
+
+  async deleteByIds(ids: string[]): Promise<DeleteTopicsResult> {
+    const dbService = application.get('DbService')
+    const deletedIds = await dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
+
+    logger.info('Deleted topics', { count: deletedIds.length })
+
+    return { deletedIds, deletedCount: deletedIds.length }
+  }
+
+  async deleteByAssistantId(assistantId: string): Promise<DeleteTopicsResult> {
+    const dbService = application.get('DbService')
+    const deletedIds = await dbService.withWriteTx(async (tx) => {
+      const [assistant] = await tx
+        .select({ id: assistantTable.id })
+        .from(assistantTable)
+        .where(and(eq(assistantTable.id, assistantId), isNull(assistantTable.deletedAt)))
+        .limit(1)
+      if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+
+      const rows = await tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+
+      return await this.deleteManyByIdsTx(
+        tx,
+        rows.map((row) => row.id)
+      )
+    })
+
+    logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
+
+    return { deletedIds, deletedCount: deletedIds.length }
+  }
+
+  private async deleteManyByIdsTx(
+    tx: DbOrTx,
+    ids: string[],
+    options: { requireAll?: boolean } = {}
+  ): Promise<string[]> {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return []
+
+    const rows = await tx
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(and(inArray(topicTable.id, uniqueIds), isNull(topicTable.deletedAt)))
+    const deletedIds = rows.map((row) => row.id)
+
+    if (options.requireAll && deletedIds.length !== uniqueIds.length) {
+      const foundIds = new Set(deletedIds)
+      const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
+      throw DataApiErrorFactory.notFound('Topic', missingId)
+    }
+    if (deletedIds.length === 0) return []
+
+    await tx.delete(messageTable).where(inArray(messageTable.topicId, deletedIds))
+    await tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
+    await pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
+    await tx.delete(topicTable).where(inArray(topicTable.id, deletedIds))
+
+    return deletedIds
   }
 
   async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {

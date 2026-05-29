@@ -33,6 +33,10 @@ export type ResourceListSection = {
   count?: number
 }
 
+export type ResourceListGroupSeed = ResourceListGroup & {
+  section?: ResourceListSection | null
+}
+
 export type ResourceListGroupHeaderIconContext = {
   collapsed: boolean
 }
@@ -113,6 +117,7 @@ export type ResourceListActionMap = {
   selectGroupHeaderItem: (id: string) => void
   showMoreInGroup: (groupId: string) => void
   collapseGroupItems: (groupId: string) => void
+  collapseGroups: (groupIds: readonly string[]) => void
   toggleGroup: (groupId: string) => void
   reorder: (payload: ResourceListReorderPayload) => void
 }
@@ -131,6 +136,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderClassName?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
+  onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]
   estimateItemSize: (index: number) => number

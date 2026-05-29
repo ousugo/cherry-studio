@@ -102,6 +102,72 @@ describe('messageMenuBarActions', () => {
     expect(toolbarActions.map((action) => action.id)).toEqual(['copy'])
   })
 
+  it('hides user edit toolbar action for root messages', () => {
+    const toolbarActions = resolveMessageMenuBarToolbarActions(
+      createContext({
+        message: {
+          id: 'message-1',
+          role: 'user',
+          topicId: 'topic-1',
+          parentId: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          status: 'success'
+        },
+        actions: {
+          editMessage: vi.fn()
+        } as MessageListActions,
+        isAssistantMessage: false,
+        isUserMessage: true
+      })
+    )
+
+    expect(toolbarActions.map((action) => action.id)).toEqual(['copy'])
+  })
+
+  it('keeps user edit toolbar action for non-root messages', () => {
+    const toolbarActions = resolveMessageMenuBarToolbarActions(
+      createContext({
+        message: {
+          id: 'message-1',
+          role: 'user',
+          topicId: 'topic-1',
+          parentId: 'assistant-1',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          status: 'success'
+        },
+        actions: {
+          editMessage: vi.fn()
+        } as MessageListActions,
+        isAssistantMessage: false,
+        isUserMessage: true
+      })
+    )
+
+    expect(toolbarActions.map((action) => action.id)).toEqual(['user-edit', 'copy'])
+  })
+
+  it('hides edit menu action for root messages', () => {
+    const menuActions = resolveMessageMenuBarMenuActions(
+      createContext({
+        message: {
+          id: 'message-1',
+          role: 'user',
+          topicId: 'topic-1',
+          parentId: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          status: 'success'
+        },
+        actions: {
+          editMessage: vi.fn()
+        } as MessageListActions,
+        isAssistantMessage: false,
+        isUserMessage: true
+      })
+    )
+
+    expect(menuActions.map((action) => action.id)).not.toContain('edit')
+  })
+
   it('resolves assistant toolbar actions from capabilities', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createContext({

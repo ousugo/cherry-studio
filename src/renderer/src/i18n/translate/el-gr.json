@@ -357,7 +357,7 @@
       "items_other": "[to be translated]:{{count}} items",
       "maximize": "[to be translated]:Maximize",
       "minimize": "[to be translated]:Minimize",
-      "no_search_results": "[to be translated]:No files match your search.",
+      "no_search_results": "Κανένα αρχείο δεν ταιριάζει με την αναζήτησή σας",
       "preview": "[to be translated]:Preview",
       "refresh": "[to be translated]:Refresh",
       "search_placeholder": "[to be translated]:Search files...",
@@ -424,6 +424,16 @@
       },
       "add": {
         "title": "Προσθήκη συνεδρίας"
+      },
+      "agent": {
+        "delete": {
+          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete agent chats"
+          },
+          "title": "[to be translated]:Delete agent chats",
+          "trigger": "[to be translated]:Delete agent chats"
+        }
       },
       "allowed_tools": {
         "empty": "Δεν υπάρχουν διαθέσιμα εργαλεία για αυτόν τον agent.",
@@ -1366,20 +1376,10 @@
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
       "resource_panel": {
-        "categories": {
-          "agents": "Πράκτορες",
-          "files": "Αρχεία",
-          "skills": "Δεξιότητες"
-        },
-        "description": "Επιλέξτε από αρχεία, πράκτορες ή δεξιότητες",
         "loading": "Φόρτωση...",
         "no_file_found": {
           "description": "Δεν υπάρχουν διαθέσιμα αρχεία στους προσβάσιμους καταλόγους",
           "label": "Δεν βρέθηκε αρχείο"
-        },
-        "no_items_found": {
-          "description": "Κανένα αρχείο, πράκτορας ή δεξιότητα δεν είναι διαθέσιμα",
-          "label": "Δεν βρέθηκαν στοιχεία"
         },
         "title": "Πόροι"
       },
@@ -1675,6 +1675,7 @@
       "export": {
         "failed": "[to be translated]:Export failed",
         "image": "Εξαγωγή ως εικόνα",
+        "image_exporting_keep_page": "Γίνεται εξαγωγή εικόνας. Παραμείνετε σε αυτήν τη σελίδα.",
         "image_saved": "Η εικόνα αποθηκεύτηκε με επιτυχία",
         "joplin": "Εξαγωγή στο Joplin",
         "md": {

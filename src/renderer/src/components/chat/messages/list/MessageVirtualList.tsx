@@ -12,7 +12,7 @@
  */
 
 import { Scrollbar } from '@cherrystudio/ui'
-import { type ReactNode, type Ref } from 'react'
+import { type ReactNode, type Ref, useCallback } from 'react'
 import { Virtualizer } from 'virtua'
 
 import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chatVirtualizerRuntime'
@@ -48,6 +48,7 @@ export interface MessageVirtualListProps<T> {
   handleRef?: Ref<MessageVirtualListHandle>
   /** className applied to the outer scroll container. */
   className?: string
+  onScrollContainerReady?(element: HTMLDivElement): void
   /** style applied to the outer scroll container. */
   style?: React.CSSProperties
   /** Extra empty space before the oldest message. */
@@ -72,6 +73,7 @@ export function MessageVirtualList<T>({
   hasMoreTop = false,
   handleRef,
   className,
+  onScrollContainerReady,
   style,
   topPadding = DEFAULT_TOP_PADDING_PX,
   bottomPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
@@ -87,10 +89,19 @@ export function MessageVirtualList<T>({
     topReachOverscanItems: overscan,
     scrollToTopKey: forceScrollToBottomKey
   })
+  const setScrollerRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      runtime.scrollerRef.current = element
+      if (element) {
+        onScrollContainerReady?.(element)
+      }
+    },
+    [onScrollContainerReady, runtime.scrollerRef]
+  )
 
   return (
     <Scrollbar
-      ref={runtime.scrollerRef}
+      ref={setScrollerRef}
       data-message-virtual-list-scroller
       className={className}
       style={{ overflowY: 'auto', overflowX: 'hidden', position: 'relative', ...style }}

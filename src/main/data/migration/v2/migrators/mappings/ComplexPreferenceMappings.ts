@@ -38,6 +38,37 @@ import {
 
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
+const DEFAULT_VISIBLE_SIDEBAR_ICONS = ['assistants', 'agents', 'store', 'translate', 'mini_app'] as const
+const LEGACY_DEFAULT_VISIBLE_SIDEBAR_ICONS = [
+  ['assistants', 'agents', 'store', 'paintings', 'translate', 'mini_app', 'knowledge', 'files', 'code_tools', 'notes'],
+  [
+    'assistants',
+    'agents',
+    'store',
+    'paintings',
+    'translate',
+    'mini_app',
+    'knowledge',
+    'files',
+    'code_tools',
+    'notes',
+    'openclaw'
+  ]
+] as const
+
+function hasSameItems(value: unknown[], expected: readonly string[]): boolean {
+  if (value.length !== expected.length) return false
+  const actual = new Set(value)
+  return expected.every((item) => actual.has(item))
+}
+
+function shouldUseDefaultSidebarIcons(visible: unknown, invisible: unknown): visible is unknown[] {
+  if (!Array.isArray(visible)) return false
+  if (Array.isArray(invisible) && invisible.length > 0) return false
+
+  return LEGACY_DEFAULT_VISIBLE_SIDEBAR_ICONS.some((defaultIcons) => hasSameItems(visible, defaultIcons))
+}
+
 // ============================================================================
 // Type Definitions
 // ============================================================================
@@ -185,8 +216,11 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       }
       const visible = rewrite(sources.visible)
       const invisible = rewrite(sources.disabled)
+      const visibleWithAgents = addAgents(visible, invisible)
       return {
-        'ui.sidebar.icons.visible': addAgents(visible, invisible),
+        'ui.sidebar.icons.visible': shouldUseDefaultSidebarIcons(visibleWithAgents, invisible)
+          ? [...DEFAULT_VISIBLE_SIDEBAR_ICONS]
+          : visibleWithAgents,
         'ui.sidebar.icons.invisible': invisible
       }
     }

@@ -4,6 +4,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
+import HtmlPreviewFrame from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
@@ -11,11 +12,12 @@ import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
 import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import type { DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/file/types'
+import type { FilePath } from '@shared/file/types/common'
+import { toFileUrl } from '@shared/file/urlUtil'
 import { AlertCircle, FileText, Folder, FolderOpen, Maximize2, Minimize2, RotateCw, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   type ComponentType,
-  memo,
   type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
@@ -216,11 +218,6 @@ interface WorkspaceFileTreeResult {
   refresh: () => void
 }
 
-interface HtmlPreviewPanelProps {
-  html: string
-  title: string
-}
-
 type PdfPreviewPanelComponent = ComponentType<{
   filePath: string
   fileName: string
@@ -324,24 +321,6 @@ function useArtifactFileTreeResize() {
     startResizing
   }
 }
-
-// HtmlArtifactsPopup uses this sandbox combination for local artifact previews.
-/* eslint-disable @eslint-react/dom/no-unsafe-iframe-sandbox */
-const HtmlPreviewPanel = memo<HtmlPreviewPanelProps>(({ html, title }) => {
-  return (
-    <div className="h-full w-full overflow-hidden bg-background">
-      {html.trim() ? (
-        <iframe
-          srcDoc={html}
-          title={title}
-          sandbox="allow-scripts allow-same-origin allow-forms"
-          className="h-full w-full border-0 bg-background"
-        />
-      ) : null}
-    </div>
-  )
-})
-/* eslint-enable @eslint-react/dom/no-unsafe-iframe-sandbox */
 
 // Memoized at module scope so the hook's useEffect dependency stays stable
 // across renders — otherwise every render would tear down + recreate the
@@ -522,7 +501,14 @@ export function ArtifactFilePreview({
   }
 
   if (isHtmlFile(filePath)) {
-    return <HtmlPreviewPanel key={`html-${filePath}-${contentRefreshKey}`} html={fileContent ?? ''} title={filePath} />
+    return (
+      <HtmlPreviewFrame
+        key={`html-${filePath}-${contentRefreshKey}`}
+        html={fileContent ?? ''}
+        title={filePath}
+        baseUrl={toFileUrl(joinPath(workspacePath, filePath) as FilePath)}
+      />
+    )
   }
   if (isMarkdownFile(filePath)) {
     return (

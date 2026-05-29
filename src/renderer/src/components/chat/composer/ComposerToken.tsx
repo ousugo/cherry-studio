@@ -1,24 +1,27 @@
+import { NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { Bot, Boxes, Braces, Code2, FileText, Globe2, Monitor, Wrench } from 'lucide-react'
-import type { MouseEventHandler, ReactNode } from 'react'
+import {
+  getQuoteTooltipContent,
+  QUOTE_TOOLTIP_BODY_CLASS_NAME,
+  QUOTE_TOOLTIP_CONTENT_CLASS_NAME
+} from '@renderer/components/chat/utils/quoteToken'
+import { Boxes, Braces, FileText, TextQuote, Zap } from 'lucide-react'
+import type { ComponentType, MouseEventHandler, ReactNode } from 'react'
 
-import type { ComposerDraftToken, ComposerDraftTokenKind } from './tokens'
+import type { ActiveComposerInputToken, ActiveComposerInputTokenKind } from './tokens'
 
-const tokenIconByKind: Record<ComposerDraftTokenKind, ReactNode> = {
-  skill: <Wrench size={14} />,
-  file: <FileText size={14} />,
-  command: <Code2 size={14} />,
-  model: <Bot size={14} />,
-  knowledge: <Boxes size={14} />,
-  mcpPrompt: <Wrench size={14} />,
-  mcpResource: <Globe2 size={14} />,
-  reference: <Globe2 size={14} />,
-  environment: <Monitor size={14} />,
-  promptVariable: <Braces size={14} />
+const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
+
+const tokenIconByKind: Record<ActiveComposerInputTokenKind, ReactNode> = {
+  skill: <Zap className={tokenIconClassName} />,
+  file: <FileText className={tokenIconClassName} />,
+  knowledge: <Boxes className={tokenIconClassName} />,
+  quote: <TextQuote className={tokenIconClassName} />,
+  promptVariable: <Braces className={tokenIconClassName} />
 }
 
 export interface ComposerTokenProps {
-  token: ComposerDraftToken
+  token: ActiveComposerInputToken
   selected?: boolean
   className?: string
   children?: ReactNode
@@ -26,43 +29,86 @@ export interface ComposerTokenProps {
   onMouseDown?: MouseEventHandler<HTMLSpanElement>
 }
 
-export function ComposerToken({
+interface ActiveComposerTokenProps extends ComposerTokenProps {
+  icon: ReactNode
+  colorClassName?: string
+}
+
+function ActiveComposerToken({
   token,
   selected = false,
   className,
   children,
   maxWidthClassName = 'max-w-52',
-  onMouseDown
-}: ComposerTokenProps) {
-  if (token.kind === 'model') {
-    return (
-      <span
-        className={cn('inline-flex h-0 w-0 select-none overflow-hidden align-baseline', className)}
-        title={token.label}
-        data-composer-token-kind={token.kind}>
-        <span className="sr-only">{token.label}</span>
-      </span>
-    )
-  }
-
-  const isPromptVariable = token.kind === 'promptVariable'
+  onMouseDown,
+  icon,
+  colorClassName = 'text-primary'
+}: ActiveComposerTokenProps) {
+  const title = token.kind === 'quote' ? undefined : (token.description ?? token.promptText ?? token.label)
 
   return (
     <span
       className={cn(
-        'mx-0.5 inline-flex select-none items-center gap-1 rounded-md border px-1.5 py-0.5 align-baseline text-sm leading-5',
+        'mx-0.5 inline-flex select-none items-baseline gap-1 align-baseline leading-[inherit]',
         maxWidthClassName,
-        isPromptVariable ? 'border-info/30 bg-info/10 text-info' : 'border-border bg-muted text-foreground shadow-none',
-        selected && 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30',
+        colorClassName,
+        selected && 'text-primary underline decoration-primary/40 underline-offset-2',
         className
       )}
-      title={token.description ?? token.promptText ?? token.label}
+      title={title}
       data-composer-token-kind={token.kind}
       onMouseDown={onMouseDown}>
-      <span className="flex size-3.5 shrink-0 items-center justify-center text-current">
-        {token.icon ? token.icon : tokenIconByKind[token.kind]}
+      <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline text-current leading-[inherit]">
+        {token.icon ? token.icon : icon}
       </span>
       {children ?? <span className="min-w-0 truncate">{token.label}</span>}
     </span>
   )
+}
+
+export function SkillComposerToken(props: ComposerTokenProps) {
+  return <ActiveComposerToken {...props} icon={tokenIconByKind.skill} />
+}
+
+export function FileComposerToken(props: ComposerTokenProps) {
+  return <ActiveComposerToken {...props} icon={tokenIconByKind.file} />
+}
+
+export function KnowledgeComposerToken(props: ComposerTokenProps) {
+  return <ActiveComposerToken {...props} icon={tokenIconByKind.knowledge} />
+}
+
+export function QuoteComposerToken(props: ComposerTokenProps) {
+  const quoteTooltipContent = getQuoteTooltipContent(props.token.description, props.token.promptText)
+  const tokenElement = <ActiveComposerToken {...props} icon={tokenIconByKind.quote} />
+
+  if (!quoteTooltipContent) return tokenElement
+
+  return (
+    <NormalTooltip
+      content={<div className={QUOTE_TOOLTIP_BODY_CLASS_NAME}>{quoteTooltipContent}</div>}
+      side="top"
+      sideOffset={6}
+      delayDuration={300}
+      contentProps={{ className: QUOTE_TOOLTIP_CONTENT_CLASS_NAME }}>
+      {tokenElement}
+    </NormalTooltip>
+  )
+}
+
+export function PromptVariableComposerToken(props: ComposerTokenProps) {
+  return <ActiveComposerToken {...props} icon={tokenIconByKind.promptVariable} colorClassName="text-info" />
+}
+
+export const composerInputTokenComponentByKind = {
+  skill: SkillComposerToken,
+  file: FileComposerToken,
+  knowledge: KnowledgeComposerToken,
+  quote: QuoteComposerToken,
+  promptVariable: PromptVariableComposerToken
+} satisfies Record<ActiveComposerInputTokenKind, ComponentType<ComposerTokenProps>>
+
+export function ComposerToken(props: ComposerTokenProps) {
+  const TokenComponent = composerInputTokenComponentByKind[props.token.kind]
+  return <TokenComponent {...props} />
 }

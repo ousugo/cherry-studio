@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   setIsExpanded: vi.fn(),
   updateAssistant: vi.fn(),
   toastError: vi.fn(),
+  insertToken: vi.fn(),
   shortcutHandlers: new Map<string, () => void>(),
   mentionedModels: undefined as Model[] | undefined,
   assistant: undefined as any,
@@ -89,7 +90,8 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
           props.onTextChange(nextText)
         },
         toggleExpanded: vi.fn(),
-        removeToken: vi.fn()
+        removeToken: vi.fn(),
+        insertToken: mocks.insertToken
       })
     }, [props])
 
@@ -179,6 +181,7 @@ vi.mock('../SelectedModelsTrigger', () => ({
     fallbackLabel,
     iconOnly,
     className,
+    suppressSelectionPopover,
     onModelsChange,
     onRestore
   }: any) => (
@@ -186,7 +189,8 @@ vi.mock('../SelectedModelsTrigger', () => ({
       data-testid="selected-models-trigger"
       className={className}
       data-assistant-model-id={assistantModel?.id ?? ''}
-      data-model-count={String(models.length)}>
+      data-model-count={String(models.length)}
+      data-suppress-selection-popover={String(Boolean(suppressSelectionPopover))}>
       <span className={iconOnly ? 'sr-only' : undefined}>
         {models.length === 0 ? fallbackLabel : `${models[0].name} | Provider`}
       </span>
@@ -222,6 +226,8 @@ vi.mock('@renderer/components/Selector', () => ({
     onSelect,
     trigger,
     multiple,
+    open,
+    onOpenChange,
     value,
     defaultMultiSelectMode,
     multiSelectMode,
@@ -230,10 +236,21 @@ vi.mock('@renderer/components/Selector', () => ({
     <div
       data-testid="model-selector"
       data-multiple={String(multiple)}
+      data-open={String(Boolean(open))}
       data-default-multi-select={String(Boolean(defaultMultiSelectMode))}
       data-multi-select-mode={String(Boolean(multiSelectMode))}
       data-value-count={Array.isArray(value) ? String(value.length) : ''}>
       {trigger}
+      {onOpenChange ? (
+        <>
+          <button type="button" onClick={() => onOpenChange(true)}>
+            open model selector popup
+          </button>
+          <button type="button" onClick={() => onOpenChange(false)}>
+            close model selector popup
+          </button>
+        </>
+      ) : null}
       <button
         type="button"
         onClick={() => {
@@ -432,6 +449,7 @@ describe('ChatComposer', () => {
     mocks.setIsExpanded.mockReset()
     mocks.updateAssistant.mockReset()
     mocks.toastError.mockReset()
+    mocks.insertToken.mockReset()
     mocks.shortcutHandlers.clear()
     mocks.mentionedModels = undefined
     mocks.assistant = {
@@ -488,6 +506,12 @@ describe('ChatComposer', () => {
     expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
   })
 
+  it('does not enable skill marker paste handling', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.resolveSkillMarker).toBeUndefined()
+  })
+
   it('shows only icons in the input bottom toolbar when it is narrow', async () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -520,7 +544,7 @@ describe('ChatComposer', () => {
     })
   })
 
-  it('appends quoted selected text from the main-window quote IPC', async () => {
+  it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
     vi.mocked(cacheService.getCasual).mockReturnValue('Existing draft')
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
@@ -533,9 +557,15 @@ describe('ChatComposer', () => {
       mocks.ipcListeners.get(IpcChannel.App_QuoteToMain)?.({}, 'Selected message text')
     })
 
-    await waitFor(() => {
-      expect(mocks.surfaceProps?.text).toBe('Existing draft\n<blockquote>\n\nSelected message text\n</blockquote>\n\n')
-    })
+    expect(mocks.insertToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'quote',
+        label: 'selection.action.builtin.quote',
+        description: 'Selected message text',
+        promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
+      })
+    )
+    expect(mocks.surfaceProps?.text).toBe('Existing draft')
   })
 
   it('updates the topic assistant from the composer toolbar', () => {
@@ -569,6 +599,23 @@ describe('ChatComposer', () => {
     expect(mocks.setModel).not.toHaveBeenCalled()
   })
 
+  it('suppresses the selected-model trigger popover while the mentioned-model selector is open', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-suppress-selection-popover', 'false')
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-open', 'false')
+
+    fireEvent.click(screen.getByText('open model selector popup'))
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-suppress-selection-popover', 'true')
+
+    fireEvent.click(screen.getByText('close model selector popup'))
+
+    expect(screen.getByTestId('model-selector')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-suppress-selection-popover', 'false')
+  })
+
   it('updates the assistant model from the home model selector in single-select mode', () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
@@ -585,7 +632,7 @@ describe('ChatComposer', () => {
     fireEvent.click(screen.getByText('select models 1 and 2'))
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
 
-    expect(mocks.surfaceProps?.tokens.some((token) => token.kind === 'model')).toBe(false)
+    expect(mocks.surfaceProps?.tokens.map((token) => token.kind)).not.toContain('model')
     expect(screen.queryByTestId('remove-token-model:provider::model-a')).not.toBeInTheDocument()
     expect(screen.queryByTestId('remove-token-model:provider::model-b')).not.toBeInTheDocument()
   })
@@ -894,7 +941,7 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([model, modelB])
-    expect(mocks.surfaceProps?.tokens.some((token) => token.kind === 'model')).toBe(false)
+    expect(mocks.surfaceProps?.tokens.map((token) => token.kind)).not.toContain('model')
 
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
 

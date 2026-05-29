@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useToolApprovalBridge')
 
@@ -17,6 +18,8 @@ type ToolApprovalRespondFn = (args: MessageToolApprovalInput) => Promise<void> |
  * decided.
  */
 export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
+  const { t } = useTranslation()
+
   return useCallback(
     async ({ match, approved, reason, updatedInput }) => {
       const approvalId = match.approvalId
@@ -31,6 +34,9 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
           anchorId: match.messageId
         })
         if (!result.ok) throw new Error('Tool approval response was not accepted')
+        if (result.status === 'expired') {
+          window.toast.warning(t('agent.toolPermission.toast.timeout'))
+        }
       } catch (error) {
         logger.error('Failed to deliver tool-approval decision to main', {
           approvalId,
@@ -40,6 +46,6 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
         throw error
       }
     },
-    [topicId]
+    [t, topicId]
   )
 }

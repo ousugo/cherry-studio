@@ -333,7 +333,7 @@
       "welcome_title": "今天想聊點什麼？"
     },
     "input": {
-      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令",
+      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送，@ 選擇路徑，/ 選擇命令",
       "soul_placeholder": "幫我連接微信"
     },
     "list": {
@@ -357,7 +357,7 @@
       "items_other": "{{count}} 個項目",
       "maximize": "最大化",
       "minimize": "最小化",
-      "no_search_results": "[to be translated]:No files match your search.",
+      "no_search_results": "沒有檔案符合你的搜尋",
       "preview": "預覽",
       "refresh": "重新整理",
       "search_placeholder": "[to be translated]:Search files...",
@@ -424,6 +424,16 @@
       },
       "add": {
         "title": "新增工作階段"
+      },
+      "agent": {
+        "delete": {
+          "content": "刪除此代理下的所有工作階段；代理本身不會被刪除。",
+          "error": {
+            "failed": "無法刪除代理工作階段"
+          },
+          "title": "刪除代理工作階段",
+          "trigger": "刪除代理工作階段"
+        }
       },
       "allowed_tools": {
         "empty": "目前此代理沒有可用的工具。",
@@ -1363,23 +1373,13 @@
       "new_topic": "新話題 {{Command}}",
       "paste_text_file": "貼到輸入框",
       "pause": "暫停",
-      "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - / 包含工具",
+      "placeholder": "在此輸入您的訊息，按 {{key}} 傳送，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "resource_panel": {
-        "categories": {
-          "agents": "智能體",
-          "files": "檔案",
-          "skills": "技能"
-        },
-        "description": "從檔案、智能體或技能中選擇",
         "loading": "載入中...",
         "no_file_found": {
           "description": "可存取目錄中無可用檔案",
           "label": "找不到檔案"
-        },
-        "no_items_found": {
-          "description": "沒有可用的檔案、智能體或技能",
-          "label": "未找到項目"
         },
         "title": "資源"
       },
@@ -1675,6 +1675,7 @@
       "export": {
         "failed": "匯出失敗",
         "image": "匯出為圖片",
+        "image_exporting_keep_page": "正在匯出圖片，請不要離開此頁面",
         "image_saved": "圖片儲存成功",
         "joplin": "匯出到 Joplin",
         "md": {
@@ -2308,6 +2309,26 @@
       "agentSubtitle": "{{count}} 個會話",
       "agentTitle": "智能體歷史記錄",
       "assistantSubtitle": "{{count}} 個話題",
+      "bulkDelete": "批量刪除",
+      "bulkDeleteSessions": {
+        "description": "將刪除選中的 {{count}} 個會話。",
+        "title": "刪除選中的會話"
+      },
+      "bulkDeleteTopics": {
+        "description": "將刪除選中的 {{count}} 個話題。",
+        "title": "刪除選中的話題"
+      },
+      "bulkMove": "批量移動",
+      "bulkMoveTopics": {
+        "confirm": "移動",
+        "description": "將選中的 {{count}} 個話題移動到目標助手下。",
+        "empty": "暫無可移動到的助手",
+        "error": "移動話題失敗",
+        "placeholder": "選擇助手",
+        "success": "已移動 {{count}} 個話題",
+        "target": "目標助手",
+        "title": "移動選中的話題"
+      },
       "empty": {
         "description": "目前篩選下沒有可顯示的話題。",
         "sessionsDescription": "目前篩選下沒有可顯示的會話。",
@@ -2335,6 +2356,7 @@
         "running": "運行中"
       },
       "table": {
+        "actions": "操作",
         "emptyValue": "—",
         "messages": "訊息",
         "session": "會話",
@@ -7059,6 +7081,14 @@
       "close": "關閉",
       "confirm": "確認",
       "forward": "前進",
+      "mcp": {
+        "agentEmpty": "目前代理未設定 MCP 伺服器",
+        "assistantEmpty": "目前助手未設定 MCP 伺服器",
+        "autoEmpty": "目前沒有已啟用的 MCP 伺服器",
+        "description": "查看目前 MCP 伺服器狀態",
+        "disabled": "目前助手已停用 MCP",
+        "unknownServer": "未知 MCP 伺服器"
+      },
       "multiple": "多選",
       "noResult": "未找到結果",
       "page": "翻頁",

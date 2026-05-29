@@ -10,8 +10,15 @@ vi.mock('@cherrystudio/ui', () => ({
   ),
   Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  HorizontalScrollContainer: ({ children, className }: { children: ReactNode; className?: string }) => (
+    <div data-testid="shell-tab-scroll-container" className={className}>
+      {children}
+    </div>
+  ),
   TabsList: ({ children, className }: { children: ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
+    <div data-testid="shell-tabs-list" className={className}>
+      {children}
+    </div>
   ),
   TabsTrigger: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
     <button type="button" {...props}>
@@ -189,8 +196,12 @@ describe('Shell.TabList', () => {
     )
 
     const tabList = screen.getByTestId('shell-tab-list')
+    const scrollContainer = screen.getByTestId('shell-tab-scroll-container')
+    const tabsList = screen.getByTestId('shell-tabs-list')
 
     expect(tabList).toHaveClass('pr-11')
+    expect(scrollContainer).toHaveClass('min-w-0', 'flex-1')
+    expect(tabsList).not.toHaveClass('overflow-x-auto')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 

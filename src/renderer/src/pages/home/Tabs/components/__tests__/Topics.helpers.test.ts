@@ -10,7 +10,6 @@ import {
   buildAssistantGroupDropAnchor,
   buildTopicDropAnchor,
   createTopicDisplayGroupResolver,
-  filterTopicsForManageMode,
   getTopicTimeBucket,
   groupTopicByPinned,
   moveAssistantGroupAfterDrop,
@@ -193,17 +192,6 @@ describe('Topics helpers', () => {
       'a',
       'd'
     ])
-  })
-
-  it('filters manage-mode topics by all space-separated keywords only while managing', () => {
-    const topics = [
-      createTopic({ id: 'a', name: 'Daily planning topic' }),
-      createTopic({ id: 'b', name: 'Daily research notes' }),
-      createTopic({ id: 'c', name: 'Release planning' })
-    ]
-
-    expect(filterTopicsForManageMode(topics, 'daily topic', true).map((topic) => topic.id)).toEqual(['a'])
-    expect(filterTopicsForManageMode(topics, 'daily topic', false).map((topic) => topic.id)).toEqual(['a', 'b', 'c'])
   })
 
   it('groups pinned topics separately for ResourceList rendering', () => {

@@ -18,6 +18,7 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
+  NormalTooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   Textarea: {
     Input: ({ ref, ...props }: ComponentProps<'textarea'> & { ref?: React.RefObject<HTMLTextAreaElement | null> }) => (
       <textarea ref={ref} {...props} />
@@ -45,11 +46,21 @@ vi.mock('./../MessageAttachmentPreview', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
+  Bot: () => <span>bot-icon</span>,
+  Boxes: () => <span>boxes-icon</span>,
+  Braces: () => <span>braces-icon</span>,
+  Code2: () => <span>code-icon</span>,
+  FileText: () => <span>file-icon</span>,
+  Globe2: () => <span>globe-icon</span>,
   Languages: () => <span>translate-icon</span>,
   Loader2: () => <span>loading-icon</span>,
+  Monitor: () => <span>monitor-icon</span>,
   Save: () => <span>save-icon</span>,
   Send: () => <span>resend-icon</span>,
-  X: () => <span>cancel-icon</span>
+  TextQuote: () => <span>quote-icon</span>,
+  Wrench: () => <span>wrench-icon</span>,
+  X: () => <span>cancel-icon</span>,
+  Zap: () => <span>zap-icon</span>
 }))
 
 vi.mock('react-i18next', () => ({
@@ -73,7 +84,50 @@ const topic = {
   messages: []
 } as Topic
 
-const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as CherryMessagePart
+const textPart = (text: string, metadata?: Record<string, unknown>): CherryMessagePart =>
+  ({ type: 'text', text, ...(metadata && { providerMetadata: metadata }) }) as CherryMessagePart
+
+const quotedPromptText = '<blockquote>\n\nSelected message text\n</blockquote>'
+
+const quoteTextPart = (): CherryMessagePart =>
+  textPart(`${quotedPromptText} Reply`, {
+    cherry: {
+      composer: {
+        version: 1,
+        tokens: [
+          {
+            id: 'quote-1',
+            kind: 'quote',
+            label: 'Quote',
+            description: 'Selected message text',
+            index: 0,
+            textOffset: 0,
+            promptText: quotedPromptText
+          }
+        ]
+      }
+    }
+  })
+
+const staleQuoteTextPart = (): CherryMessagePart =>
+  textPart('Edited selected message Reply', {
+    cherry: {
+      composer: {
+        version: 1,
+        tokens: [
+          {
+            id: 'quote-1',
+            kind: 'quote',
+            label: 'Quote',
+            description: 'Selected message text',
+            index: 0,
+            textOffset: 0,
+            promptText: quotedPromptText
+          }
+        ]
+      }
+    }
+  })
 
 function userMessage(overrides: Partial<MessageListItem>): MessageListItem {
   return {
@@ -89,11 +143,15 @@ function userMessage(overrides: Partial<MessageListItem>): MessageListItem {
 
 function renderEditor({
   message,
+  parts = [textPart('hello')],
+  actions = {},
   onSave = vi.fn(),
   onResend = vi.fn(),
   onCancel = vi.fn()
 }: {
   message: MessageListItem
+  parts?: CherryMessagePart[]
+  actions?: Partial<MessageListProviderValue['actions']>
   onSave?: (parts: CherryMessagePart[]) => void | Promise<void>
   onResend?: (parts: CherryMessagePart[]) => void | Promise<void>
   onCancel?: () => void
@@ -103,7 +161,7 @@ function renderEditor({
       topic,
       messages: [message],
       partsByMessageId: {
-        [message.id]: [textPart('hello')]
+        [message.id]: parts
       },
       hasOlder: false,
       messageNavigation: 'none',
@@ -121,7 +179,8 @@ function renderEditor({
     },
     actions: {
       forkAndResendMessage: vi.fn(),
-      editMessage: vi.fn()
+      editMessage: vi.fn(),
+      ...actions
     },
     meta: {
       selectionLayer: false
@@ -166,5 +225,98 @@ describe('MessageEditor', () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith([textPart('hello')]))
     expect(onResend).not.toHaveBeenCalled()
+  })
+
+  it('uses compact composer spacing instead of document editor spacing', async () => {
+    renderEditor({ message: userMessage({ parentId: 'assistant-1' }) })
+
+    const editor = await screen.findByRole('textbox')
+
+    expect(editor).toHaveClass('composer-tiptap')
+    expect(editor.getAttribute('style')).toContain('--composer-editor-padding: 14px 16px')
+  })
+
+  it('renders quote composer metadata as an atomic token instead of blockquote text', async () => {
+    renderEditor({ message: userMessage({ parentId: 'assistant-1' }), parts: [quoteTextPart()] })
+
+    const editor = await screen.findByRole('textbox')
+    const token = editor.querySelector('[data-composer-token-kind="quote"]')
+
+    expect(token).toBeInTheDocument()
+    expect(token).toHaveTextContent('Quote')
+    expect(editor.textContent).toContain('QuoteReply')
+    expect(editor.textContent).not.toContain('Quote Reply')
+    expect(editor).not.toHaveTextContent('<blockquote>')
+    expect(editor).not.toHaveTextContent('Selected message text')
+    expect(editor).toHaveTextContent('Reply')
+  })
+
+  it('saves quote token edits as blockquote text and updated composer metadata', async () => {
+    const { onSave } = renderEditor({ message: userMessage({ parentId: 'assistant-1' }), parts: [quoteTextPart()] })
+
+    fireEvent.click(screen.getByText('save-icon').closest('button')!)
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith([
+        expect.objectContaining({
+          type: 'text',
+          text: `${quotedPromptText} Reply`,
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  expect.objectContaining({
+                    id: 'quote-1',
+                    kind: 'quote',
+                    label: 'Quote',
+                    textOffset: 0,
+                    promptText: quotedPromptText
+                  })
+                ]
+              }
+            }
+          }
+        })
+      ])
+    )
+  })
+
+  it('clears stale composer metadata when translated text replaces quote token content', async () => {
+    const translateEditorText = vi.fn().mockResolvedValue('Translated reply')
+    const { onSave } = renderEditor({
+      message: userMessage({ parentId: 'assistant-1' }),
+      parts: [quoteTextPart()],
+      actions: { translateEditorText }
+    })
+
+    fireEvent.click(screen.getByText('translate-icon').closest('button')!)
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveTextContent('Translated reply'))
+    fireEvent.click(screen.getByText('save-icon').closest('button')!)
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+
+    const savedPart = vi.mocked(onSave).mock.calls[0][0][0] as CherryMessagePart & {
+      providerMetadata?: { cherry?: { composer?: unknown } }
+    }
+    expect(savedPart).toMatchObject({ type: 'text', text: 'Translated reply' })
+    expect(savedPart.providerMetadata?.cherry?.composer).toBeUndefined()
+  })
+
+  it('saves stale quote metadata as plain text without reinserting the old prompt text', async () => {
+    const { onSave } = renderEditor({
+      message: userMessage({ parentId: 'assistant-1' }),
+      parts: [staleQuoteTextPart()]
+    })
+
+    fireEvent.click(screen.getByText('save-icon').closest('button')!)
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+
+    const savedPart = vi.mocked(onSave).mock.calls[0][0][0] as CherryMessagePart & {
+      providerMetadata?: { cherry?: { composer?: unknown } }
+    }
+    expect(savedPart).toMatchObject({ type: 'text', text: 'Edited selected message Reply' })
+    expect(savedPart.providerMetadata?.cherry?.composer).toBeUndefined()
   })
 })

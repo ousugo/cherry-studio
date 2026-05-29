@@ -357,7 +357,7 @@
       "items_other": "[to be translated]:{{count}} items",
       "maximize": "[to be translated]:Maximize",
       "minimize": "[to be translated]:Minimize",
-      "no_search_results": "[to be translated]:No files match your search.",
+      "no_search_results": "Keine Dateien entsprechen deiner Suche",
       "preview": "[to be translated]:Preview",
       "refresh": "[to be translated]:Refresh",
       "search_placeholder": "[to be translated]:Search files...",
@@ -424,6 +424,16 @@
       },
       "add": {
         "title": "Sitzung hinzufügen"
+      },
+      "agent": {
+        "delete": {
+          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete agent chats"
+          },
+          "title": "[to be translated]:Delete agent chats",
+          "trigger": "[to be translated]:Delete agent chats"
+        }
       },
       "allowed_tools": {
         "empty": "Für diesen Agent sind derzeit keine Tools verfügbar.",
@@ -1366,20 +1376,10 @@
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
       "resource_panel": {
-        "categories": {
-          "agents": "Agenten",
-          "files": "Dateien",
-          "skills": "Fähigkeiten"
-        },
-        "description": "Wählen Sie aus Dateien, Agenten oder Fähigkeiten",
         "loading": "Laden...",
         "no_file_found": {
           "description": "Keine Dateien in zugänglichen Verzeichnissen verfügbar",
           "label": "Keine Datei gefunden"
-        },
-        "no_items_found": {
-          "description": "Keine Dateien, Agenten oder Fähigkeiten verfügbar",
-          "label": "Keine Artikel gefunden"
         },
         "title": "Ressourcen"
       },
@@ -1675,6 +1675,7 @@
       "export": {
         "failed": "[to be translated]:Export failed",
         "image": "Als Bild exportieren",
+        "image_exporting_keep_page": "Bild wird exportiert. Bitte bleiben Sie auf dieser Seite.",
         "image_saved": "Bild erfolgreich gespeichert",
         "joplin": "Nach Joplin exportieren",
         "md": {

@@ -76,7 +76,7 @@ const HistorySourceSidebar = ({
           </SidebarSection>
         )}
 
-        <SidebarSection title={mode === 'assistant' ? t('common.assistant') : t('agent.session.display.workdir')}>
+        <SidebarSection title={mode === 'assistant' ? t('common.assistant') : t('common.agent')}>
           {mode === 'assistant' && (
             <div className="relative mb-3">
               <Search

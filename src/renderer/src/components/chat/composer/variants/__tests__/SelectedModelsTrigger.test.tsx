@@ -1,44 +1,58 @@
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
 import { SelectedModelsTrigger } from '../SelectedModelsTrigger'
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: { children?: ReactNode }) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  Popover: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  PopoverAnchor: ({ children }: { children?: ReactNode }) => <>{children}</>,
-  PopoverContent: ({
-    children,
-    align: _align,
-    side: _side,
-    sideOffset: _sideOffset,
-    onOpenAutoFocus: _onOpenAutoFocus,
-    onCloseAutoFocus: _onCloseAutoFocus,
-    onPointerLeave: _onPointerLeave,
-    ...props
-  }: {
-    children?: ReactNode
-    align?: string
-    side?: string
-    sideOffset?: number
-    onOpenAutoFocus?: () => void
-    onCloseAutoFocus?: () => void
-    onPointerLeave?: () => void
-  }) => <div {...props}>{children}</div>,
-  Scrollbar: ({ children, ...props }: { children?: ReactNode }) => (
-    <div data-scrolling="false" {...props}>
-      {children}
-    </div>
-  )
-}))
+vi.mock('@cherrystudio/ui', () => {
+  let currentPopoverOpen = false
+
+  return {
+    Button: ({ children, ...props }: { children?: ReactNode }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Popover: ({ children, open }: { children?: ReactNode; open?: boolean }) => {
+      currentPopoverOpen = Boolean(open)
+      return <div>{children}</div>
+    },
+    PopoverAnchor: ({ children }: { children?: ReactNode }) => <>{children}</>,
+    PopoverContent: ({
+      children,
+      align: _align,
+      side: _side,
+      sideOffset: _sideOffset,
+      onOpenAutoFocus: _onOpenAutoFocus,
+      onCloseAutoFocus: _onCloseAutoFocus,
+      onPointerEnter,
+      onPointerLeave,
+      ...props
+    }: {
+      children?: ReactNode
+      align?: string
+      side?: string
+      sideOffset?: number
+      onOpenAutoFocus?: () => void
+      onCloseAutoFocus?: () => void
+      onPointerEnter?: () => void
+      onPointerLeave?: () => void
+    }) =>
+      currentPopoverOpen ? (
+        <div {...props} onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave}>
+          {children}
+        </div>
+      ) : null,
+    Scrollbar: ({ children, ...props }: { children?: ReactNode }) => (
+      <div data-scrolling="false" {...props}>
+        {children}
+      </div>
+    )
+  }
+})
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(' ')
@@ -112,6 +126,10 @@ const providers = [
   { id: 'provider-b', name: 'Provider B' }
 ] as any
 
+function openSelectedModelsPopover() {
+  fireEvent.pointerEnter(screen.getByRole('button', { name: 'Selected models' }))
+}
+
 describe('SelectedModelsTrigger', () => {
   it('renders every selected model avatar inline in the trigger', () => {
     render(
@@ -142,6 +160,8 @@ describe('SelectedModelsTrigger', () => {
         onRestore={vi.fn()}
       />
     )
+
+    openSelectedModelsPopover()
 
     expect(screen.getByTestId('selected-models-popover')).toHaveTextContent('Model A')
     expect(screen.getByTestId('selected-models-list')).toHaveAttribute('data-scrolling', 'false')
@@ -175,6 +195,8 @@ describe('SelectedModelsTrigger', () => {
         onRestore={vi.fn()}
       />
     )
+
+    openSelectedModelsPopover()
 
     fireEvent.click(screen.getByLabelText('Remove Model B'))
 
@@ -247,8 +269,92 @@ describe('SelectedModelsTrigger', () => {
       />
     )
 
+    openSelectedModelsPopover()
+
     fireEvent.click(screen.getByText('Restore'))
 
     expect(onRestore).toHaveBeenCalled()
+  })
+
+  it('does not render the selected-model popover while it is suppressed', () => {
+    render(
+      <SelectedModelsTrigger
+        models={[modelA, modelB]}
+        assistantModel={modelA}
+        providers={providers}
+        fallbackLabel="Select model"
+        suppressSelectionPopover
+        onModelsChange={vi.fn()}
+        onRestore={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByTestId('selected-models-popover')).not.toBeInTheDocument()
+  })
+
+  it('closes and keeps the selected-model popover blocked when suppression starts', () => {
+    const { rerender } = render(
+      <SelectedModelsTrigger
+        models={[modelA, modelB]}
+        assistantModel={modelA}
+        providers={providers}
+        fallbackLabel="Select model"
+        onModelsChange={vi.fn()}
+        onRestore={vi.fn()}
+      />
+    )
+
+    openSelectedModelsPopover()
+
+    expect(screen.getByTestId('selected-models-popover')).toBeInTheDocument()
+
+    rerender(
+      <SelectedModelsTrigger
+        models={[modelA, modelB]}
+        assistantModel={modelA}
+        providers={providers}
+        fallbackLabel="Select model"
+        suppressSelectionPopover
+        onModelsChange={vi.fn()}
+        onRestore={vi.fn()}
+      />
+    )
+
+    fireEvent.pointerEnter(screen.getByRole('button', { name: 'Selected models' }))
+
+    expect(screen.queryByTestId('selected-models-popover')).not.toBeInTheDocument()
+  })
+
+  it('closes the selected-model popover after the hover trigger is left', () => {
+    vi.useFakeTimers()
+
+    try {
+      render(
+        <SelectedModelsTrigger
+          models={[modelA, modelB]}
+          assistantModel={modelA}
+          providers={providers}
+          fallbackLabel="Select model"
+          onModelsChange={vi.fn()}
+          onRestore={vi.fn()}
+        />
+      )
+
+      const trigger = screen.getByRole('button', { name: 'Selected models' })
+
+      fireEvent.pointerEnter(trigger)
+
+      expect(screen.getByTestId('selected-models-popover')).toBeInTheDocument()
+
+      fireEvent.pointerLeave(trigger)
+
+      act(() => {
+        vi.runOnlyPendingTimers()
+      })
+
+      expect(screen.queryByTestId('selected-models-popover')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

@@ -48,7 +48,7 @@ import type { Topic, TranslateLangCode } from '@renderer/types'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { updateCodeBlock } from '@renderer/utils/markdown'
-import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
+import { getComposerTextFromParts } from '@renderer/utils/messageUtils/composerTokens'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import {
   createUniqueModelId,
@@ -61,6 +61,14 @@ import { useNavigate } from '@tanstack/react-router'
 import { last } from 'lodash'
 import { use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import {
+  consumePendingTopicImageActions,
+  rejectPendingTopicImageActions,
+  settleTopicImageActionRequest,
+  type TopicImageActionRequest,
+  type TopicImageActionType
+} from './topicImageActionBus'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
 
@@ -190,7 +198,7 @@ export function useHomeMessageListProviderValue({
     const lastMessage = last(messageItems)
     if (lastMessage) {
       const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
-      const text = getTextFromParts(parts)
+      const text = getComposerTextFromParts(parts)
       void navigator.clipboard
         .writeText(text)
         .then(() => window.toast.success(t('message.copy.success')))
@@ -208,15 +216,64 @@ export function useHomeMessageListProviderValue({
     }
   })
 
-  const bindRuntime = useCallback((runtime: MessageListRuntime) => {
-    const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, runtime.scrollToBottom),
-      EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, runtime.copyTopicImage),
-      EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, runtime.exportTopicImage)
-    ]
+  const runTopicImageAction = useCallback((runtime: MessageListRuntime, type: TopicImageActionType) => {
+    if (type === 'copy') {
+      return runtime.copyTopicImage()
+    }
 
-    return () => unsubscribes.forEach((unsub) => unsub())
+    return runtime.exportTopicImage()
   }, [])
+
+  const consumeTopicImageAction = useCallback(
+    (runtime: MessageListRuntime, type: TopicImageActionType, data?: Topic) => {
+      if (data && data.id !== topic.id) return
+
+      const requests = consumePendingTopicImageActions(topic.id, type)
+      if (requests.length === 0) {
+        void runTopicImageAction(runtime, type)
+        return
+      }
+
+      for (const request of requests) {
+        settleTopicImageActionRequest(request, runTopicImageAction(runtime, type))
+      }
+    },
+    [runTopicImageAction, topic.id]
+  )
+
+  const flushPendingTopicImageActions = useCallback(
+    (runtime: MessageListRuntime) => {
+      const requests = consumePendingTopicImageActions(topic.id)
+      for (const request of requests) {
+        settleTopicImageActionRequest(request, runTopicImageAction(runtime, request.type))
+      }
+    },
+    [runTopicImageAction, topic.id]
+  )
+
+  useEffect(() => {
+    const topicId = topic.id
+    return () => rejectPendingTopicImageActions(topicId, new Error('Topic image export was cancelled'))
+  }, [topic.id])
+
+  const bindRuntime = useCallback(
+    (runtime: MessageListRuntime) => {
+      flushPendingTopicImageActions(runtime)
+
+      const unsubscribes = [
+        EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, runtime.scrollToBottom),
+        EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, (data?: TopicImageActionRequest['topic']) =>
+          consumeTopicImageAction(runtime, 'copy', data)
+        ),
+        EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, (data?: TopicImageActionRequest['topic']) =>
+          consumeTopicImageAction(runtime, 'export', data)
+        )
+      ]
+
+      return () => unsubscribes.forEach((unsub) => unsub())
+    },
+    [consumeTopicImageAction, flushPendingTopicImageActions]
+  )
 
   const bindMessageRuntime = useCallback((messageId: string, runtime: MessageRuntime) => {
     const unsubscribes = [

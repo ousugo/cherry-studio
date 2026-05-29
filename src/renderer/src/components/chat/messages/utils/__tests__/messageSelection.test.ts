@@ -47,4 +47,68 @@ describe('messageSelection', () => {
 
     expect(getSelectedMessagesPlainText(['b', 'a'], messages, partsByMessageId)).toBe('first\n\n---\n\nsecond')
   })
+
+  it('copies composer skill tokens as pasteable markers instead of hidden prompt text', () => {
+    const messages = [createMessage('a', 'user')]
+    const partsByMessageId: Record<string, CherryMessagePart[]> = {
+      a: [
+        {
+          type: 'text',
+          text: 'Use the pdf skill. hello',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'skill:pdf',
+                    kind: 'skill',
+                    label: 'pdf',
+                    index: 0,
+                    textOffset: 0,
+                    promptText: 'Use the pdf skill.'
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+
+    expect(getSelectedMessagesPlainText(['a'], messages, partsByMessageId)).toBe('/pdf/ hello')
+  })
+
+  it('copies quote token messages with the underlying quote text intact', () => {
+    const messages = [createMessage('a', 'user')]
+    const quotedPromptText = '<blockquote>\n\nSelected message text\n</blockquote>'
+    const partsByMessageId: Record<string, CherryMessagePart[]> = {
+      a: [
+        {
+          type: 'text',
+          text: `${quotedPromptText} Reply`,
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'quote-1',
+                    kind: 'quote',
+                    label: 'Quote',
+                    description: 'Selected message text',
+                    index: 0,
+                    textOffset: 0,
+                    promptText: quotedPromptText
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+
+    expect(getSelectedMessagesPlainText(['a'], messages, partsByMessageId)).toBe(`${quotedPromptText} Reply`)
+  })
 })

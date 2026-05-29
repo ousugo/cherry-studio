@@ -432,7 +432,8 @@ beforeEach(() => {
             {
               id: 'kb-1',
               name: 'Knowledge One',
-              documentCount: 3
+              documentCount: 3,
+              emoji: '📚'
             }
           ]
         },
@@ -588,8 +589,15 @@ describe('edit dialogs', () => {
     selectTab('Knowledge')
     await waitFor(() => expect(screen.getByText('Linked knowledge')).toBeVisible())
     expectHelpTrigger('Linked knowledge', 'Choose knowledge bases.')
-    fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
+    const addKnowledgeButton = screen.getByRole('button', { name: 'Add knowledge base' })
+    expect(addKnowledgeButton).toHaveClass('w-fit')
+    fireEvent.click(addKnowledgeButton)
+    expect(screen.getByText('📚')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Knowledge One'))
+    expect(screen.getByText('📚')).toBeInTheDocument()
+    expect(screen.getByText('Knowledge One').closest('.group')).toHaveClass('rounded-md')
+    expect(screen.getByText('📚').parentElement).toHaveClass('rounded-md')
+    expect(screen.getByRole('button', { name: 'Remove knowledge base' })).toHaveClass('rounded-md')
 
     selectTab('MCP')
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Enable MCP' })).toBeVisible())

@@ -357,7 +357,7 @@ describe('DynamicVirtualList', () => {
       expect(scrollContainer).not.toHaveAttribute('aria-hidden', 'true')
     })
 
-    it('should hide scrollbar initially and show during scrolling when autoHideScrollbar is true', async () => {
+    it('should hide only the scrollbar visuals when autoHideScrollbar is true', async () => {
       vi.useFakeTimers()
 
       render(<DynamicVirtualList {...defaultProps} autoHideScrollbar={true} />)
@@ -365,8 +365,9 @@ describe('DynamicVirtualList', () => {
       const scrollContainer = document.querySelector('.dynamic-virtual-list') as HTMLElement
       expect(scrollContainer).toBeInTheDocument()
 
-      // Initially hidden
-      expect(scrollContainer).toHaveAttribute('aria-hidden', 'true')
+      // The content container remains exposed to assistive technology.
+      expect(scrollContainer).not.toHaveAttribute('aria-hidden')
+      expect(scrollContainer).toHaveStyle('scrollbar-color: transparent transparent')
 
       // We can't easily simulate real scroll events in JSDOM, so we'll test the internal logic directly
       // by calling the onChange handler which should update the state
@@ -378,7 +379,8 @@ describe('DynamicVirtualList', () => {
       })
 
       // After scrolling starts, scrollbar should be visible
-      expect(scrollContainer).toHaveAttribute('aria-hidden', 'false')
+      expect(scrollContainer).not.toHaveAttribute('aria-hidden')
+      expect(scrollContainer).toHaveStyle('scrollbar-color: var(--color-scrollbar-thumb) transparent')
 
       // Simulate scroll end
       act(() => {
@@ -390,8 +392,9 @@ describe('DynamicVirtualList', () => {
         vi.advanceTimersByTime(10000)
       })
 
-      // After timeout, scrollbar should be hidden again
-      expect(scrollContainer).toHaveAttribute('aria-hidden', 'true')
+      // After timeout, scrollbar visuals should be hidden again
+      expect(scrollContainer).not.toHaveAttribute('aria-hidden')
+      expect(scrollContainer).toHaveStyle('scrollbar-color: transparent transparent')
 
       vi.useRealTimers()
     })

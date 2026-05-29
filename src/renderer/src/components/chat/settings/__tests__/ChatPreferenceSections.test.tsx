@@ -7,15 +7,12 @@ import ChatPreferenceSections from '../ChatPreferenceSections'
 const mocks = vi.hoisted(() => ({
   setPreference: vi.fn(),
   preferenceValues: {
-    'app.language': 'en-us',
     'chat.message.style': 'plain',
     'chat.message.font_size': 14,
-    'chat.input.translate.target_language': 'en-us',
     'chat.input.send_message_shortcut': 'Enter',
     'chat.message.font': 'system',
     'chat.message.show_prompt': true,
     'chat.message.confirm_delete': true,
-    'chat.input.translate.show_confirm': true,
     'chat.input.quick_panel.triggers_enabled': false,
     'chat.message.navigation_mode': 'none',
     'chat.narrow_mode': false,
@@ -26,7 +23,6 @@ const mocks = vi.hoisted(() => ({
     'chat.message.math.single_dollar': true,
     'chat.input.show_estimated_tokens': false,
     'chat.message.render_as_markdown': false,
-    'chat.input.translate.auto_translate_with_space': false,
     'chat.message.show_outline': false,
     'chat.code.show_line_numbers': false,
     'chat.code.collapsible': false,
@@ -67,13 +63,6 @@ vi.mock('@renderer/context/ThemeProvider', () => ({
 
 vi.mock('@renderer/context/CodeStyleProvider', () => ({
   useCodeStyle: () => ({ themeNames: ['auto', 'github'] })
-}))
-
-vi.mock('@renderer/hooks/translate', () => ({
-  useLanguages: () => ({
-    languages: [{ langCode: 'en-us', emoji: 'US', value: 'English' }],
-    getLabel: (lang: null | { value: string }) => (lang ? lang.value : 'Unknown')
-  })
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
@@ -131,6 +120,16 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.messages.show_message_outline')).toBeNull()
     expect(screen.queryByText('message.message.multi_model_style.label')).toBeNull()
     expect(screen.queryByText('settings.messages.input.show_estimated_tokens')).toBeNull()
+  })
+
+  it('does not render input translation controls', () => {
+    mocks.preferenceValues['app.language'] = 'zh-cn'
+
+    render(<ChatPreferenceSections />)
+
+    expect(screen.queryByText('settings.input.auto_translate_with_space')).toBeNull()
+    expect(screen.queryByText('settings.input.show_translate_confirm')).toBeNull()
+    expect(screen.queryByText('settings.input.target_language.label')).toBeNull()
   })
 
   it('renders assistant-only controls when enabled', () => {

@@ -6,6 +6,8 @@ const {
   getByIdMock,
   updateMock,
   deleteMock,
+  deleteByAgentIdMock,
+  deleteByIdsMock,
   listSessionMessagesMock,
   searchSessionMessagesMock,
   deleteSessionMessageMock,
@@ -17,6 +19,8 @@ const {
   getByIdMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
+  deleteByAgentIdMock: vi.fn(),
+  deleteByIdsMock: vi.fn(),
   listSessionMessagesMock: vi.fn(),
   searchSessionMessagesMock: vi.fn(),
   deleteSessionMessageMock: vi.fn(),
@@ -31,6 +35,8 @@ vi.mock('@data/services/SessionService', () => ({
     getById: getByIdMock,
     update: updateMock,
     delete: deleteMock,
+    deleteByAgentId: deleteByAgentIdMock,
+    deleteByIds: deleteByIdsMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -104,6 +110,36 @@ describe('sessionHandlers', () => {
         createdAtFrom: '2026-05-01T00:00:00.000Z'
       })
       expect(result).toBe(response)
+    })
+  })
+
+  describe('/agents/:agentId/sessions', () => {
+    it('delegates agent-scoped session delete to SessionService', async () => {
+      const response = { deletedIds: ['session-a'], deletedCount: 1 }
+      deleteByAgentIdMock.mockResolvedValueOnce(response)
+
+      const result = await sessionHandlers['/agents/:agentId/sessions'].DELETE({
+        params: { agentId: 'agent-1' }
+      } as never)
+
+      expect(deleteByAgentIdMock).toHaveBeenCalledWith('agent-1')
+      expect(deleteMock).not.toHaveBeenCalled()
+      expect(result).toEqual(response)
+    })
+  })
+
+  describe('/sessions', () => {
+    it('delegates selected session delete to SessionService', async () => {
+      const response = { deletedIds: ['session-a', 'session-b'], deletedCount: 2 }
+      deleteByIdsMock.mockResolvedValueOnce(response)
+
+      const result = await sessionHandlers['/sessions'].DELETE({
+        body: { ids: ['session-a', 'session-b'] }
+      } as never)
+
+      expect(deleteByIdsMock).toHaveBeenCalledWith(['session-a', 'session-b'])
+      expect(deleteMock).not.toHaveBeenCalled()
+      expect(result).toEqual(response)
     })
   })
 })

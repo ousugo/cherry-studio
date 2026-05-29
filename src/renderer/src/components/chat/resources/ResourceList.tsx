@@ -1,6 +1,6 @@
-import { Button, EmptyState as UiEmptyState, Input, Skeleton } from '@cherrystudio/ui'
+import { Button, EmptyState as UiEmptyState, Input, Skeleton, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import { SearchIcon } from 'lucide-react'
+import { SearchIcon, SquareMinus } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 
@@ -35,6 +35,7 @@ export type {
   ResourceListFilterOption,
   ResourceListGroup,
   ResourceListGroupHeaderClickBehavior,
+  ResourceListGroupSeed,
   ResourceListItemAccessors,
   ResourceListItemBase,
   ResourceListMeta,
@@ -155,7 +156,7 @@ function HeaderItem({ actions, className, icon, label, ref, variant = 'ghost', .
         ref={ref}
         variant={variant}
         className={cn(
-          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1.5 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
+          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
           className
         )}
         {...props}>
@@ -203,11 +204,51 @@ function GroupHeaderActionButton({
       size={size}
       variant={variant}
       className={cn(
-        '[&_svg]:!size-3 inline-flex size-6 min-h-6 min-w-6 shrink-0 items-center justify-center gap-0 rounded-md p-0 text-foreground/70! leading-none shadow-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:shrink-0',
+        'inline-flex size-6 min-h-6 min-w-6 shrink-0 items-center justify-center gap-0 rounded-md p-0 text-foreground/70! leading-none shadow-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:size-3! [&_svg]:block [&_svg]:shrink-0',
         className
       )}
       {...props}
     />
+  )
+}
+
+type SectionCollapseActionButtonProps = Omit<HeaderActionButtonProps, 'children'> & {
+  alwaysVisible?: boolean
+  label: string
+  sectionId: string
+}
+
+function SectionCollapseActionButton({
+  alwaysVisible: _alwaysVisible,
+  disabled,
+  label,
+  onClick,
+  sectionId,
+  type = 'button',
+  ...props
+}: SectionCollapseActionButtonProps) {
+  const actions = useResourceListActions()
+  const view = useResourceListView()
+  const section = view.sections.find((candidate) => candidate.section.id === sectionId)
+  const groupIds = section?.groups.filter((group) => !group.collapsed).map((group) => group.group.id) ?? []
+  const isDisabled = disabled || groupIds.length === 0
+
+  return (
+    <Tooltip title={label} delay={500}>
+      <GroupHeaderActionButton
+        type={type}
+        aria-label={props['aria-label'] ?? label}
+        disabled={isDisabled}
+        onClick={(event) => {
+          event.stopPropagation()
+          onClick?.(event)
+          if (event.defaultPrevented || isDisabled) return
+          actions.collapseGroups(groupIds)
+        }}
+        {...props}>
+        <SquareMinus className="block" />
+      </GroupHeaderActionButton>
+    </Tooltip>
   )
 }
 
@@ -480,7 +521,7 @@ function Body<T extends ResourceListItemBase>({
     return errorFallback ?? <ErrorState />
   }
 
-  if (view.items.length === 0) {
+  if (view.items.length === 0 && view.groups.length === 0 && view.sections.length === 0) {
     return emptyFallback ?? <EmptyState />
   }
 
@@ -563,6 +604,7 @@ const ResourceList = {
   Header,
   HeaderActionButton,
   GroupHeaderActionButton,
+  SectionCollapseActionButton,
   HeaderItem,
   Search,
   FilterBar,

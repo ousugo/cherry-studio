@@ -183,27 +183,6 @@ export function normalizeTopicCollapsedGroupIds(groupIds: readonly string[], mod
   return Array.from(new Set(normalizedGroupIds))
 }
 
-export function filterTopicsForManageMode<T extends TopicListItem>(
-  topics: readonly T[],
-  searchText: string,
-  isManageMode: boolean
-): T[] {
-  if (!isManageMode || !searchText.trim()) {
-    return [...topics]
-  }
-
-  const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-
-  if (keywords.length === 0) {
-    return [...topics]
-  }
-
-  return topics.filter((topic) => {
-    const lowerName = topic.name.toLowerCase()
-    return keywords.every((keyword) => lowerName.includes(keyword))
-  })
-}
-
 export function groupTopicByPinned(topic: Pick<Topic, 'pinned'>, pinnedLabel: string, topicLabel: string) {
   if (topic.pinned) {
     return { id: 'pinned', label: pinnedLabel }
@@ -233,6 +212,10 @@ export function getAssistantIdFromTopicGroupId(groupId: string): string | undefi
   }
 
   return groupId.slice(TOPIC_ASSISTANT_GROUP_ID_PREFIX.length)
+}
+
+export function getTopicAssistantGroupId(assistantId: string) {
+  return `${TOPIC_ASSISTANT_GROUP_ID_PREFIX}${assistantId}`
 }
 
 export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>({

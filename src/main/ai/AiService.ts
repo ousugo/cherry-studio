@@ -1,4 +1,5 @@
 import { embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
@@ -8,8 +9,14 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
-import { applyApprovalDecisions } from '@shared/ai/transport'
+import {
+  type AiToolApprovalRespondRequest,
+  type AiToolApprovalRespondResponse,
+  applyApprovalDecisions,
+  type ApprovalDecision
+} from '@shared/ai/transport'
 import { type Assistant } from '@shared/data/types/assistant'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { isEmbeddingModel } from '@shared/utils/model'
@@ -21,7 +28,7 @@ import {
   type UIMessageChunk
 } from 'ai'
 
-import { isAgentSessionTopic } from './agentSession/topic'
+import { extractAgentSessionId, isAgentSessionTopic } from './agentSession/topic'
 import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import { Agent } from './runtime/aiSdk/Agent'
@@ -36,6 +43,32 @@ import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
 
 const logger = loggerService.withContext('AiService')
+const STALE_AGENT_SESSION_APPROVAL_REASON =
+  'Tool approval expired because the agent session runtime is no longer active'
+
+function expirePendingApprovalPart(
+  parts: readonly CherryMessagePart[],
+  approvalId: string
+): { parts: CherryMessagePart[]; changed: boolean; matched: boolean } {
+  let matched = false
+  let changed = false
+  const nextParts = parts.map((part) => {
+    if (!isToolUIPart(part) || part.approval?.id !== approvalId) return part
+    matched = true
+    if (part.state !== 'approval-requested') return part
+    changed = true
+    return {
+      ...part,
+      state: 'output-denied',
+      approval: {
+        id: approvalId,
+        approved: false,
+        reason: STALE_AGENT_SESSION_APPROVAL_REASON
+      }
+    } as CherryMessagePart
+  })
+  return { parts: nextParts, changed, matched }
+}
 
 // ── Request types ──────────────────────────────────────────────────
 
@@ -174,17 +207,7 @@ export class AiService extends BaseService {
 
     this.ipcHandle(
       IpcChannel.Ai_ToolApproval_Respond,
-      async (
-        event,
-        payload: {
-          approvalId: string
-          approved: boolean
-          reason?: string
-          updatedInput?: Record<string, unknown>
-          topicId?: string
-          anchorId?: string
-        }
-      ): Promise<{ ok: boolean }> => {
+      async (event, payload: AiToolApprovalRespondRequest): Promise<AiToolApprovalRespondResponse> => {
         const decision = {
           approvalId: payload.approvalId,
           approved: payload.approved,
@@ -203,7 +226,7 @@ export class AiService extends BaseService {
           updatedInput: payload.updatedInput
         })
 
-        if (dispatched) return { ok: true }
+        if (dispatched) return { ok: true, status: 'accepted' }
 
         // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
         if (!payload.topicId || !payload.anchorId) {
@@ -211,6 +234,10 @@ export class AiService extends BaseService {
             approvalId: payload.approvalId
           })
           return { ok: false }
+        }
+
+        if (isAgentSessionTopic(payload.topicId)) {
+          return this.expireStaleAgentSessionApproval(payload.topicId, payload.anchorId, decision)
         }
 
         // Main is the single authority for the approval mutation: the
@@ -239,14 +266,14 @@ export class AiService extends BaseService {
           await messageService.update(payload.anchorId, { data: { parts: afterParts } })
         }
 
-        if (dispatched) return { ok: true }
+        if (dispatched) return { ok: true, status: 'accepted' }
 
         // Only resume once every approval on this turn is decided — a turn
         // can request several tools at once; the not-yet-decided ones keep
         // their cards.
         const anyStillPending = afterParts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
         if (anyStillPending) {
-          return { ok: true }
+          return { ok: true, status: 'accepted' }
         }
 
         const aiStreamManager = application.get('AiStreamManager')
@@ -258,9 +285,78 @@ export class AiService extends BaseService {
           // Idempotent against the conditional write above; safety net when the part wasn't on the row.
           approvalDecisions: [decision]
         })
-        return { ok: true }
+        return { ok: true, status: 'accepted' }
       }
     )
+  }
+
+  private async expireStaleAgentSessionApproval(
+    topicId: string,
+    anchorId: string,
+    decision: ApprovalDecision
+  ): Promise<AiToolApprovalRespondResponse> {
+    const sessionId = extractAgentSessionId(topicId)
+
+    try {
+      const { items } = await agentSessionMessageService.listSessionMessages(sessionId, {
+        messageId: anchorId,
+        limit: 1
+      })
+      const anchor = items.find((item) => item.id === anchorId)
+      if (!anchor) {
+        logger.warn('Stale agent-session approval anchor was not found', {
+          approvalId: decision.approvalId,
+          topicId,
+          anchorId
+        })
+        return { ok: false }
+      }
+
+      const beforeParts = anchor.data.parts ?? []
+      const { parts, changed, matched } = expirePendingApprovalPart(beforeParts, decision.approvalId)
+      if (!matched) {
+        logger.warn('Stale agent-session approval target was not found', {
+          approvalId: decision.approvalId,
+          topicId,
+          anchorId
+        })
+        return { ok: false }
+      }
+
+      if (!changed) {
+        logger.info('Stale agent-session approval target was already settled', {
+          approvalId: decision.approvalId,
+          topicId,
+          anchorId
+        })
+        return { ok: true, status: 'expired' }
+      }
+
+      await agentSessionMessageService.saveMessage({
+        sessionId,
+        message: {
+          id: anchor.id,
+          role: anchor.role,
+          status: anchor.status,
+          data: { parts }
+        }
+      })
+
+      logger.warn('Expired stale agent-session tool approval', {
+        approvalId: decision.approvalId,
+        topicId,
+        anchorId
+      })
+      return { ok: true, status: 'expired' }
+    } catch (error) {
+      logger.warn('Failed to expire stale agent-session tool approval', {
+        approvalId: decision.approvalId,
+        topicId,
+        anchorId,
+        error
+      })
+      return { ok: false }
+    }
   }
 
   // ── Streaming chat (agent.stream) ──

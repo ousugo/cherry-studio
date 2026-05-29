@@ -357,7 +357,7 @@
       "items_other": "[to be translated]:{{count}} items",
       "maximize": "[to be translated]:Maximize",
       "minimize": "[to be translated]:Minimize",
-      "no_search_results": "[to be translated]:No files match your search.",
+      "no_search_results": "Ningún archivo coincide con tu búsqueda",
       "preview": "[to be translated]:Preview",
       "refresh": "[to be translated]:Refresh",
       "search_placeholder": "[to be translated]:Search files...",
@@ -424,6 +424,16 @@
       },
       "add": {
         "title": "Agregar una sesión"
+      },
+      "agent": {
+        "delete": {
+          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete agent chats"
+          },
+          "title": "[to be translated]:Delete agent chats",
+          "trigger": "[to be translated]:Delete agent chats"
+        }
       },
       "allowed_tools": {
         "empty": "No hay herramientas disponibles para este agente.",
@@ -1366,20 +1376,10 @@
       "placeholder": "Escribe aquí tu mensaje...",
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
       "resource_panel": {
-        "categories": {
-          "agents": "Agentes",
-          "files": "Archivos",
-          "skills": "Habilidades"
-        },
-        "description": "Selecciona entre archivos, agentes o habilidades",
         "loading": "Cargando...",
         "no_file_found": {
           "description": "No hay archivos disponibles en los directorios accesibles",
           "label": "No se encontró ningún archivo"
-        },
-        "no_items_found": {
-          "description": "Sin archivos, agentes o habilidades disponibles",
-          "label": "No se encontraron elementos"
         },
         "title": "Recursos"
       },
@@ -1675,6 +1675,7 @@
       "export": {
         "failed": "[to be translated]:Export failed",
         "image": "Exportar como imagen",
+        "image_exporting_keep_page": "Exportando imagen. Permanece en esta página.",
         "image_saved": "Imagen guardada con éxito",
         "joplin": "Exportar a Joplin",
         "md": {

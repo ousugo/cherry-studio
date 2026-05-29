@@ -2,7 +2,7 @@ import type { CSSProperties, MouseEventHandler } from 'react'
 import { useLayoutEffect, useRef } from 'react'
 
 import { ComposerToken } from './ComposerToken'
-import type { ComposerDraftToken } from './tokens'
+import type { PromptVariableComposerInputToken } from './tokens'
 
 export type PromptVariableCommitReason = 'blur' | 'enter' | 'tab'
 
@@ -12,7 +12,7 @@ const promptVariableInputStyle = {
 } as CSSProperties
 
 export interface PromptVariableTokenProps {
-  token: ComposerDraftToken
+  token: PromptVariableComposerInputToken
   selected?: boolean
   editing?: boolean
   className?: string
@@ -173,7 +173,7 @@ export function PromptVariableToken({
           ref={inputRef}
           defaultValue={token.label}
           aria-label={token.description ?? token.label}
-          className="field-sizing-content bg-transparent p-0 text-current outline-none"
+          className="field-sizing-content m-0 border-0 bg-transparent p-0 font-[inherit] text-current leading-[inherit] outline-none"
           style={promptVariableInputStyle}
           onChange={handleInputChange}
           onMouseDown={(event) => event.stopPropagation()}

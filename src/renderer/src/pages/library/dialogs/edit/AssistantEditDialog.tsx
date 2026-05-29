@@ -90,6 +90,20 @@ const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
 const UI_DEFAULT_MAX_TOOL_CALLS = 20
 
+function KnowledgeBaseAvatar({
+  emoji,
+  className = 'flex size-6 shrink-0 items-center justify-center rounded-md text-xs'
+}: {
+  emoji?: string | null
+  className?: string
+}) {
+  return (
+    <span className={className} style={{ background: 'rgba(139, 92, 246, 0.125)' }}>
+      {emoji ? <span aria-hidden="true">{emoji}</span> : <Database size={14} strokeWidth={1.4} />}
+    </span>
+  )
+}
+
 function isAssistantToolTab(value: string): value is AssistantToolTab {
   return value === 'tools.mcp' || value === 'tools.knowledge'
 }
@@ -531,14 +545,15 @@ function AssistantKnowledgeFields({
         byId.get(id) ?? {
           id,
           name: `${id.slice(0, 8)}${t('library.config.knowledge.invalid_suffix')}`,
-          documentCount: 0
+          documentCount: 0,
+          emoji: undefined
         }
     )
     const items: CatalogItem[] = bases.map((base) => ({
       id: base.id,
       name: base.name,
       description: t('library.config.knowledge.doc_count', { count: base.documentCount ?? 0 }),
-      icon: <Database size={12} strokeWidth={1.4} />
+      icon: <KnowledgeBaseAvatar emoji={base.emoji} />
     }))
     return { catalog: items, linkedItems: linked }
   }, [bases, t, value])
@@ -565,7 +580,7 @@ function AssistantKnowledgeFields({
               help={t('library.config.knowledge.linked_hint')}
             />
             {linkedItems.length === 0 ? (
-              <div className="mt-2 flex flex-col items-center rounded-xs border border-border/20 border-dashed p-6">
+              <div className="mt-2 flex flex-col items-center rounded-md border border-border/20 border-dashed p-6">
                 <Database size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/80" />
                 <p className="mb-1 text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_title')}</p>
                 <p className="text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_desc')}</p>
@@ -575,10 +590,11 @@ function AssistantKnowledgeFields({
                 {linkedItems.map((kb) => (
                   <div
                     key={kb.id}
-                    className="group flex items-center gap-3 rounded-xs border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-2xs bg-accent/50">
-                      <Database size={14} strokeWidth={1.4} className="text-foreground/70" />
-                    </div>
+                    className="group flex items-center gap-3 rounded-md border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
+                    <KnowledgeBaseAvatar
+                      emoji={kb.emoji}
+                      className="flex size-8 shrink-0 items-center justify-center rounded-md text-base leading-none"
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-foreground text-sm">{kb.name}</div>
                       <div className="text-muted-foreground/80 text-xs">
@@ -591,7 +607,7 @@ function AssistantKnowledgeFields({
                       size="icon-sm"
                       onClick={() => remove(kb.id)}
                       aria-label={t('library.config.knowledge.remove_aria')}
-                      className="flex h-6 min-h-0 w-6 items-center justify-center rounded-3xs font-normal text-muted-foreground/80 opacity-0 shadow-none transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0 group-hover:opacity-100">
+                      className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground/80 opacity-0 shadow-none transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0 group-hover:opacity-100">
                       <Trash2 size={10} />
                     </Button>
                   </div>

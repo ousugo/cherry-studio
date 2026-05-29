@@ -80,7 +80,7 @@ describe('AgentContent', () => {
     expect(screen.queryByRole('button', { name: 'open workspace' })).not.toBeInTheDocument()
   })
 
-  it('marks the sidebar toggle active when the sidebar is visible', () => {
+  it('keeps the sidebar toggle inactive when the sidebar is visible', () => {
     preferenceMock.showSidebar = true
 
     render(<AgentContent activeAgent={agentA} />)
@@ -89,7 +89,7 @@ describe('AgentContent', () => {
 
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
     expect(toggle).toHaveAttribute('data-tone', 'conversation')
-    expect(toggle).toHaveAttribute('data-active', 'true')
+    expect(toggle).not.toHaveAttribute('data-active')
   })
 
   it('shows only the inactive sidebar toggle when the sidebar is hidden', () => {

@@ -36,6 +36,18 @@ vi.mock('@renderer/components/chat/composer/tools/components/WebSearchButton', (
   WebSearchToolRuntime: () => null
 }))
 
+vi.mock('@renderer/hooks/agents/useAgent', () => ({
+  useAgent: () => ({ agent: undefined })
+}))
+
+vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
+  useMcpRuntimeStatusMap: () => ({})
+}))
+
+vi.mock('@renderer/hooks/useMcpServer', () => ({
+  useMcpServers: () => ({ mcpServers: [] })
+}))
+
 describe('composer tool visibility', () => {
   it('keeps assistant core capabilities discoverable when the current model cannot enable them', async () => {
     mockIsGenerateImageModel.mockReturnValue(false)
@@ -64,5 +76,19 @@ describe('composer tool visibility', () => {
     expect(tools.map((tool) => tool.key)).toEqual(
       expect.arrayContaining(['generate_image', 'knowledge_base', 'thinking'])
     )
+  })
+
+  it('shows MCP status in chat and agent session scopes only', async () => {
+    await import('../definitions/mcpStatusTool')
+
+    const model = {
+      id: 'text-only',
+      providerId: 'provider-1',
+      name: 'Text only'
+    } as any
+
+    expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('mcp_status')
+    expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('mcp_status')
+    expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('mcp_status')
   })
 })

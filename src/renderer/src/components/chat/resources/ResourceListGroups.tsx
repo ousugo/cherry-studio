@@ -2,7 +2,7 @@ import { ContextMenu as UiContextMenu, ContextMenuTrigger } from '@cherrystudio/
 import { cn } from '@renderer/utils/style'
 import { ChevronDown } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
-import { Fragment, useCallback, useState } from 'react'
+import { Fragment, isValidElement, useCallback, useState } from 'react'
 
 import {
   type ResourceListGroup,
@@ -95,6 +95,8 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
   const sectionState = useResourceListGroupState(section.id)
   const collapsed = sectionState.collapsed
   const sectionHeaderAction = meta.getSectionHeaderAction?.(section)
+  const sectionHeaderActionAlwaysVisible =
+    isValidElement<{ alwaysVisible?: boolean }>(sectionHeaderAction) && sectionHeaderAction.props.alwaysVisible === true
 
   if (!section.label) return null
 
@@ -124,7 +126,13 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
           </span>
         </button>
         {sectionHeaderAction && (
-          <div className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100">
+          <div
+            className={cn(
+              'ml-auto flex shrink-0 items-center transition-opacity',
+              sectionHeaderActionAlwaysVisible
+                ? 'pointer-events-auto opacity-100'
+                : 'pointer-events-none opacity-0 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100'
+            )}>
             {sectionHeaderAction}
           </div>
         )}
@@ -167,12 +175,17 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       const firstItem = groupItems[0]
       if (firstItem) {
         actions.selectGroupHeaderItem(meta.getItemId(firstItem))
+        return
       }
-      return
+
+      if (meta.onEmptyGroupHeaderClick) {
+        const handled = meta.onEmptyGroupHeaderClick(group)
+        if (handled !== false) return
+      }
     }
 
     actions.toggleGroup(group.id)
-  }, [actions, clickBehavior, group.id, groupItems, meta, selected])
+  }, [actions, clickBehavior, group, group.id, groupItems, meta, selected])
 
   if (!group.label) return null
   const header = (

@@ -16,7 +16,8 @@ vi.mock('@renderer/components/VirtualList', async (importOriginal) => {
     DynamicVirtualList: ({ ref, list, children, scrollerStyle }: any & { ref?: React.RefObject<any | null> }) => {
       // Expose a mock function for scrollToIndex
       React.useImperativeHandle(ref, () => ({
-        scrollToIndex: vi.fn()
+        scrollToIndex: vi.fn(),
+        scrollToOffset: vi.fn()
       }))
 
       // Render all items, not virtualized
@@ -101,6 +102,7 @@ function OpenPanelOnMount({
   parentPanel,
   queryAnchor = 0,
   symbol = 'test',
+  trackInputQuery,
   triggerInfo
 }: {
   list: QuickPanelListItem[]
@@ -108,6 +110,7 @@ function OpenPanelOnMount({
   parentPanel?: QuickPanelOpenOptions
   queryAnchor?: number
   symbol?: string
+  trackInputQuery?: boolean
   triggerInfo?: QuickPanelOpenOptions['triggerInfo']
 }) {
   const quickPanel = useQuickPanel()
@@ -123,10 +126,11 @@ function OpenPanelOnMount({
       pageSize: PAGE_SIZE,
       parentPanel,
       queryAnchor,
+      trackInputQuery,
       triggerInfo: triggerInfo ?? { type: 'input', position: queryAnchor, originalText: '' },
       ...panelOptions
     })
-  }, [list, panelOptions, parentPanel, queryAnchor, quickPanel, symbol, triggerInfo])
+  }, [list, panelOptions, parentPanel, queryAnchor, quickPanel, symbol, trackInputQuery, triggerInfo])
   return null
 }
 
@@ -214,7 +218,7 @@ describe('QuickPanelView', () => {
       expect(screen.getByText('Item 1')).toBeInTheDocument()
     })
 
-    it('uses the same horizontal width as the inputbar stack', () => {
+    it('uses a slightly narrower horizontal width than the inputbar stack', () => {
       const list = createList(1)
       const input = createInputAdapter()
 
@@ -232,11 +236,14 @@ describe('QuickPanelView', () => {
       )
 
       const panel = screen.getByTestId('quick-panel')
-      expect(panel).toHaveClass('right-0', 'left-0', 'w-full')
+      expect(panel).toHaveClass('right-2', 'left-2')
+      expect(panel).not.toHaveClass('w-full')
+      expect(panel).toHaveClass('-top-1')
       expect(panel.className).not.toContain('px-[35px]')
+      expect(panel.className).not.toContain('top-px')
     })
 
-    it('renders the panel body with a clear rounded border', () => {
+    it('renders the panel body with drawer-like elevation and motion', () => {
       const list = createList(1)
       const input = createInputAdapter()
 
@@ -254,9 +261,14 @@ describe('QuickPanelView', () => {
       )
 
       const panelBody = screen.getByTestId('quick-panel-body')
-      expect(panelBody).toHaveClass('rounded-xl', 'border', 'border-border/80', 'bg-background')
-      expect(panelBody.className).not.toContain('bg-popover')
-      expect(panelBody.className).not.toContain('shadow')
+      expect(panelBody).toHaveClass('rounded-xl', 'border', 'border-border/80', 'bg-popover', 'text-popover-foreground')
+      expect(panelBody).toHaveClass(
+        'translate-y-0',
+        'scale-100',
+        'opacity-100',
+        'shadow-[0_18px_44px_rgba(15,23,42,0.16),0_4px_12px_rgba(15,23,42,0.10)]'
+      )
+      expect(panelBody.className).not.toContain('bg-background')
     })
 
     it('uses neutral selected item styling instead of theme-primary styling', () => {
@@ -292,6 +304,7 @@ describe('QuickPanelView', () => {
             <OpenPanelOnMount
               list={list}
               symbol="/"
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 0, originalText: '/Item3' }}
             />
           </>
@@ -319,6 +332,7 @@ describe('QuickPanelView', () => {
             <OpenPanelOnMount
               list={list}
               symbol="/"
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 0, originalText: '/Item1' }}
             />
           </>
@@ -347,6 +361,7 @@ describe('QuickPanelView', () => {
             <OpenPanelOnMount
               list={list}
               symbol="/"
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 0, originalText: '/Item1' }}
             />
           </>
@@ -510,6 +525,7 @@ describe('QuickPanelView', () => {
             <OpenPanelOnMount
               list={list}
               symbol="/"
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 0, originalText: '/Item1' }}
             />
           </>
@@ -573,6 +589,7 @@ describe('QuickPanelView', () => {
               list={createList(1)}
               symbol="/"
               queryAnchor={5}
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 5, originalText: '/' }}
             />
           </>
@@ -593,6 +610,7 @@ describe('QuickPanelView', () => {
               list={createList(1)}
               symbol="/"
               queryAnchor={6}
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 6, originalText: '/image' }}
             />
           </>
@@ -615,6 +633,7 @@ describe('QuickPanelView', () => {
               list={createList(1)}
               symbol="/"
               queryAnchor={6}
+              trackInputQuery
               triggerInfo={{ type: 'input', position: 6, originalText: '/image' }}
             />
           </>

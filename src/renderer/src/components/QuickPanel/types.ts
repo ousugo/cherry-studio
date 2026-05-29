@@ -7,7 +7,8 @@ export enum QuickPanelReservedSymbol {
   QuickPhrases = 'quick-phrases',
   Thinking = 'thinking',
   WebSearch = '?',
-  SlashCommands = 'slash-commands'
+  SlashCommands = 'slash-commands',
+  McpStatus = 'mcp-status'
 }
 
 export type QuickPanelCloseAction = 'enter' | 'click' | 'esc' | 'outsideclick' | 'enter_empty' | string | undefined
@@ -74,6 +75,8 @@ export type QuickPanelOpenOptions = {
   pageSize?: number
   /** 是否支持按住cmd/ctrl键多选，default: false */
   multiple?: boolean
+  /** Read-only panels display list content without row selection or action execution. */
+  readOnly?: boolean
   /**
    * 用于标识是哪个快捷面板，不是用于触发显示
    * 可以是 /、# 符号，也可以是其他字符串
@@ -83,6 +86,8 @@ export type QuickPanelOpenOptions = {
   triggerInfo?: QuickPanelTriggerInfo
   /** Input text offset where the current composer-driven query starts. */
   queryAnchor?: number
+  /** Whether this panel tracks and consumes an input trigger query such as `/foo` or `@file`. */
+  trackInputQuery?: boolean
   beforeAction?: (options: QuickPanelCallBackOptions) => void
   afterAction?: (options: QuickPanelCallBackOptions) => void
   onClose?: (options: QuickPanelCallBackOptions) => void
@@ -135,8 +140,10 @@ export interface QuickPanelContextType {
   readonly defaultIndex: number
   readonly pageSize: number
   readonly multiple: boolean
+  readonly readOnly?: boolean
   readonly triggerInfo?: QuickPanelTriggerInfo
   readonly queryAnchor?: number
+  readonly trackInputQuery?: boolean
   readonly parentPanel?: QuickPanelOpenOptions
   readonly manageListExternally?: boolean
   readonly lastCloseAction?: QuickPanelCloseAction

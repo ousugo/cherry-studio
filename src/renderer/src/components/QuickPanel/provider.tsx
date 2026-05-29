@@ -23,9 +23,11 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [defaultIndex, setDefaultIndex] = useState<number>(-1)
   const [pageSize, setPageSize] = useState<number>(7)
   const [multiple, setMultiple] = useState<boolean>(false)
+  const [readOnly, setReadOnly] = useState<boolean>(false)
   const [manageListExternally, setManageListExternally] = useState<boolean>(false)
   const [triggerInfo, setTriggerInfo] = useState<QuickPanelTriggerInfo | undefined>()
   const [queryAnchor, setQueryAnchor] = useState<number | undefined>()
+  const [trackInputQuery, setTrackInputQuery] = useState<boolean>(false)
   const [parentPanel, setParentPanel] = useState<QuickPanelOpenOptions | undefined>()
   const [filterFn, setFilterFn] = useState<QuickPanelFilterFn | undefined>()
   const [sortFn, setSortFn] = useState<QuickPanelSortFn | undefined>()
@@ -36,9 +38,12 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
   const clearTimer = useRef<NodeJS.Timeout | null>(null)
   const keyDownHandlerRef = useRef<QuickPanelKeyDownHandler | undefined>(undefined)
+  const isVisibleRef = useRef(isVisible)
   const panelGenerationRef = useRef(0)
   const generatedItemIdsRef = useRef(new WeakMap<QuickPanelListItem, string>())
   const generatedItemIdCounterRef = useRef(0)
+
+  isVisibleRef.current = isVisible
 
   const ensureListItemIds = useCallback((items: QuickPanelListItem[]) => {
     const usedIds = new Set<string>()
@@ -99,10 +104,12 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       setDefaultIndex(nextDefaultIndex)
       setPageSize(options.pageSize ?? 7)
       setMultiple(options.multiple ?? false)
+      setReadOnly(options.readOnly ?? false)
       setManageListExternally(options.manageListExternally ?? false)
       setSymbol(options.symbol)
       setTriggerInfo(options.triggerInfo)
       setQueryAnchor(options.queryAnchor ?? options.triggerInfo?.position)
+      setTrackInputQuery(options.trackInputQuery ?? false)
       setParentPanel(options.parentPanel)
 
       setOnClose(() => options.onClose)
@@ -120,6 +127,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     (action?: QuickPanelCloseAction, searchText?: string) => {
       setIsVisible(false)
       setManageListExternally(false)
+      setTrackInputQuery(false)
+      setReadOnly(false)
       setLastCloseAction(action)
       onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: this })
 
@@ -134,8 +143,10 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setSymbol('')
         setTriggerInfo(undefined)
         setQueryAnchor(undefined)
+        setTrackInputQuery(false)
         setParentPanel(undefined)
         setManageListExternally(false)
+        setReadOnly(false)
       }, 200)
     },
     [onClose]
@@ -161,6 +172,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   }, [])
 
   const dispatchKeyDown = useCallback((event: QuickPanelKeyDownEvent) => {
+    if (!isVisibleRef.current) return false
     return keyDownHandlerRef.current?.(event) ?? false
   }, [])
 
@@ -181,9 +193,11 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       defaultIndex,
       pageSize,
       multiple,
+      readOnly,
       manageListExternally,
       triggerInfo,
       queryAnchor,
+      trackInputQuery,
       parentPanel,
       lastCloseAction,
       filterFn,
@@ -210,9 +224,11 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       defaultIndex,
       pageSize,
       multiple,
+      readOnly,
       manageListExternally,
       triggerInfo,
       queryAnchor,
+      trackInputQuery,
       parentPanel,
       lastCloseAction,
       filterFn,

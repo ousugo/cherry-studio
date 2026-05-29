@@ -77,18 +77,7 @@ describe('sidebar config helpers', () => {
   it('resets to default visible sidebar icons without forcing non-default icons visible', () => {
     const reset = getDefaultSidebarIconPreferences()
 
-    expect(reset.visible).toEqual([
-      'assistants',
-      'agents',
-      'store',
-      'paintings',
-      'translate',
-      'mini_app',
-      'knowledge',
-      'files',
-      'code_tools',
-      'notes'
-    ])
+    expect(reset.visible).toEqual(['assistants', 'agents', 'store', 'translate', 'mini_app'])
     expect(reset.invisible).toEqual([])
   })
 

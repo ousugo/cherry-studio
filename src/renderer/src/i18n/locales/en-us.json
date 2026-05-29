@@ -333,7 +333,7 @@
       "welcome_title": "What shall we talk about today?"
     },
     "input": {
-      "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command",
+      "placeholder": "Enter your message here, send with {{key}}, @ select path, / select command",
       "soul_placeholder": "Help me connect to Telegram"
     },
     "list": {
@@ -357,7 +357,7 @@
       "items_other": "{{count}} items",
       "maximize": "Maximize",
       "minimize": "Minimize",
-      "no_search_results": "No files match your search.",
+      "no_search_results": "No files match your search",
       "preview": "Preview",
       "refresh": "Refresh",
       "search_placeholder": "Search files...",
@@ -424,6 +424,16 @@
       },
       "add": {
         "title": "Add a session"
+      },
+      "agent": {
+        "delete": {
+          "content": "Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "Failed to delete agent chats"
+          },
+          "title": "Delete agent chats",
+          "trigger": "Delete agent chats"
+        }
       },
       "allowed_tools": {
         "empty": "No tools available for this agent.",
@@ -1363,23 +1373,13 @@
       "new_topic": "New Topic {{Command}}",
       "paste_text_file": "Paste into input",
       "pause": "Pause",
-      "placeholder": "Type your message here, press {{key}} to send - / to Include Tools",
+      "placeholder": "Type your message here, press {{key}} to send, / to include tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "resource_panel": {
-        "categories": {
-          "agents": "Agents",
-          "files": "Files",
-          "skills": "Skills"
-        },
-        "description": "Select from files, agents, or skills",
         "loading": "Loading...",
         "no_file_found": {
           "description": "No files available in accessible directories",
           "label": "No File Found"
-        },
-        "no_items_found": {
-          "description": "No files, agents, or skills available",
-          "label": "No Items Found"
         },
         "title": "Resources"
       },
@@ -1675,6 +1675,7 @@
       "export": {
         "failed": "Export failed",
         "image": "Export as image",
+        "image_exporting_keep_page": "Exporting image. Please stay on this page.",
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
         "md": {
@@ -2308,6 +2309,26 @@
       "agentSubtitle": "{{count}} sessions",
       "agentTitle": "Agent History",
       "assistantSubtitle": "{{count}} topics",
+      "bulkDelete": "Batch Delete",
+      "bulkDeleteSessions": {
+        "description": "Delete {{count}} selected session(s)?",
+        "title": "Delete selected sessions"
+      },
+      "bulkDeleteTopics": {
+        "description": "Delete {{count}} selected topic(s)?",
+        "title": "Delete selected topics"
+      },
+      "bulkMove": "Batch Move",
+      "bulkMoveTopics": {
+        "confirm": "Move",
+        "description": "Move {{count}} selected topic(s) to the target assistant.",
+        "empty": "No assistants available",
+        "error": "Failed to move topics",
+        "placeholder": "Select assistant",
+        "success": "Moved {{count}} topic(s)",
+        "target": "Target assistant",
+        "title": "Move selected topics"
+      },
       "empty": {
         "description": "No topics for the current filters.",
         "sessionsDescription": "No sessions for the current filters.",
@@ -2335,6 +2356,7 @@
         "running": "Running"
       },
       "table": {
+        "actions": "Actions",
         "emptyValue": "—",
         "messages": "Messages",
         "session": "Session",
@@ -7059,6 +7081,14 @@
       "close": "Close",
       "confirm": "Confirm",
       "forward": "Forward",
+      "mcp": {
+        "agentEmpty": "No MCP servers configured for this agent",
+        "assistantEmpty": "No MCP servers configured for this assistant",
+        "autoEmpty": "No enabled MCP servers",
+        "description": "View current MCP server status",
+        "disabled": "MCP is disabled for this assistant",
+        "unknownServer": "Unknown MCP server"
+      },
       "multiple": "Multiple Select",
       "noResult": "No results found",
       "page": "Page",

@@ -294,6 +294,122 @@ describe('ResourceList', () => {
     expect(ITEMS.map((item) => item.id).join(',')).toBe(originalOrder)
   })
 
+  it('renders seeded empty groups without showing the empty state', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={[]}
+        groupSeeds={[
+          {
+            id: 'assistant-empty',
+            label: 'Empty Assistant'
+          }
+        ]}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}>
+        <ResourceList.Frame>
+          <Inspector />
+          <ResourceList.Body<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByRole('button', { name: 'Empty Assistant' })).toBeInTheDocument()
+    expect(screen.queryByText('No Resources')).not.toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      names: [],
+      visibleNames: [],
+      groups: ['assistant-empty']
+    })
+  })
+
+  it('keeps seeded groups before item-derived groups and toggles empty select-first groups', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const onGroupHeaderSelectItem = vi.fn()
+    const onCollapsedGroupIdsChange = vi.fn()
+
+    render(
+      <Provider
+        items={[ITEMS[0]]}
+        groupSeeds={[
+          {
+            id: 'empty-topic',
+            label: 'Empty Topic'
+          }
+        ]}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        groupHeaderClickBehavior="select-first-then-toggle"
+        collapsedGroupIds={['empty-topic', 'session']}
+        onGroupHeaderSelectItem={onGroupHeaderSelectItem}
+        onCollapsedGroupIdsChange={onCollapsedGroupIdsChange}>
+        <ResourceList.Frame>
+          <Inspector />
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      groups: ['empty-topic', 'session']
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Empty Topic' }))
+
+    expect(onGroupHeaderSelectItem).not.toHaveBeenCalled()
+    expect(onCollapsedGroupIdsChange).toHaveBeenCalledWith(['session'])
+  })
+
+  it('lets callers handle empty select-first group clicks', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const onEmptyGroupHeaderClick = vi.fn()
+    const onCollapsedGroupIdsChange = vi.fn()
+
+    render(
+      <Provider
+        items={[ITEMS[0]]}
+        groupSeeds={[
+          {
+            id: 'empty-topic',
+            label: 'Empty Topic'
+          }
+        ]}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        groupHeaderClickBehavior="select-first-then-toggle"
+        collapsedGroupIds={['empty-topic', 'session']}
+        onEmptyGroupHeaderClick={onEmptyGroupHeaderClick}
+        onCollapsedGroupIdsChange={onCollapsedGroupIdsChange}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Empty Topic' }))
+
+    expect(onEmptyGroupHeaderClick).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'empty-topic', label: 'Empty Topic' })
+    )
+    expect(onCollapsedGroupIdsChange).not.toHaveBeenCalled()
+  })
+
   it('keeps resource actions stable when local filter state changes', () => {
     const actionRefs: unknown[] = []
     const Provider = ResourceList.Provider<TestItem>
@@ -1242,7 +1358,7 @@ describe('ResourceList', () => {
       'min-w-6',
       'rounded-md',
       'p-0',
-      '[&_svg]:!size-3'
+      '[&_svg]:size-3!'
     )
     expect(screen.getAllByRole('button', { name: 'Group more' })[0]).not.toHaveClass('min-h-7.5')
   })
@@ -1440,6 +1556,145 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
   })
 
+  it('collapses groups in a section without collapsing the section', () => {
+    const Provider = ResourceList.Provider<TestItem & { groupId: string }>
+    const items = [
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `alpha-${index + 1}`,
+        name: `Alpha ${index + 1}`,
+        kind: 'topic' as const,
+        updatedAt: index,
+        groupId: 'alpha'
+      })),
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `beta-${index + 1}`,
+        name: `Beta ${index + 1}`,
+        kind: 'topic' as const,
+        updatedAt: index,
+        groupId: 'beta'
+      }))
+    ]
+
+    render(
+      <Provider
+        items={items}
+        groupBy={(item) => ({
+          id: item.groupId,
+          label: item.groupId === 'alpha' ? 'Alpha' : 'Beta'
+        })}
+        sectionBy={() => ({ id: 'assistants', label: 'Assistants' })}
+        getSectionHeaderAction={(section) => (
+          <ResourceList.SectionCollapseActionButton alwaysVisible sectionId={section.id} label="Collapse display" />
+        )}
+        defaultGroupVisibleCount={5}
+        groupShowMoreLabel="Show more"
+        groupCollapseLabel="Collapse">
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem & { groupId: string }>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const sectionHeader = screen.getByRole('button', { name: 'Assistants' }).closest('div')
+    expect(sectionHeader).not.toBeNull()
+
+    expect(screen.getByText('Alpha 1')).toBeInTheDocument()
+    expect(screen.getByText('Beta 1')).toBeInTheDocument()
+
+    fireEvent.click(within(sectionHeader as HTMLElement).getByRole('button', { name: 'Collapse display' }))
+
+    expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Alpha' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Beta' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha 1')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta 1')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show more' })).not.toBeInTheDocument()
+    expect(within(sectionHeader as HTMLElement).getByRole('button', { name: 'Collapse display' })).toBeDisabled()
+  })
+
+  it('resets expanded display counts when collapsing a controlled section', () => {
+    const Provider = ResourceList.Provider<TestItem & { groupId: string }>
+    const items = [
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `alpha-${index + 1}`,
+        name: `Alpha ${index + 1}`,
+        kind: 'topic' as const,
+        updatedAt: index,
+        groupId: 'alpha'
+      })),
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `beta-${index + 1}`,
+        name: `Beta ${index + 1}`,
+        kind: 'topic' as const,
+        updatedAt: index,
+        groupId: 'beta'
+      }))
+    ]
+
+    function ControlledSectionHarness() {
+      const [expandedGroupIds, setExpandedGroupIds] = useState(['assistants', 'alpha', 'beta'])
+
+      return (
+        <Provider
+          items={items}
+          collapsedGroupIds={expandedGroupIds}
+          onCollapsedGroupIdsChange={setExpandedGroupIds}
+          groupBy={(item) => ({
+            id: item.groupId,
+            label: item.groupId === 'alpha' ? 'Alpha' : 'Beta'
+          })}
+          sectionBy={() => ({ id: 'assistants', label: 'Assistants' })}
+          getSectionHeaderAction={(section) => (
+            <ResourceList.SectionCollapseActionButton alwaysVisible sectionId={section.id} label="Collapse display" />
+          )}
+          defaultGroupVisibleCount={5}
+          groupShowMoreLabel="Show more"
+          groupCollapseLabel="Collapse">
+          <ResourceList.Frame>
+            <ResourceList.VirtualItems<TestItem & { groupId: string }>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    render(<ControlledSectionHarness />)
+
+    expect(screen.queryByText('Alpha 6')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Show more' })[0])
+
+    expect(screen.getByText('Alpha 6')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument()
+
+    const sectionHeader = screen.getByRole('button', { name: 'Assistants' }).closest('div')
+    expect(sectionHeader).not.toBeNull()
+
+    fireEvent.click(within(sectionHeader as HTMLElement).getByRole('button', { name: 'Collapse display' }))
+
+    expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Alpha' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha 1')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alpha' }))
+
+    expect(screen.getByText('Alpha 1')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha 6')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Collapse' })).not.toBeInTheDocument()
+  })
+
   it('collapses grouped rows without showing group counts', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 6 }, (_, index) => ({
@@ -1536,6 +1791,42 @@ describe('ResourceList', () => {
     expect(screen.getByText('Topic 1')).toBeInTheDocument()
   })
 
+  it('keeps controlled section collapse when a child group is toggled before parent rerender', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items: TestItem[] = [
+      { id: 'pinned-topic', name: 'Pinned topic', kind: 'topic', pinned: true, updatedAt: 1 },
+      { id: 'assistant-topic', name: 'Assistant topic', kind: 'topic', updatedAt: 2 }
+    ]
+    const onCollapsedGroupIdsChange = vi.fn()
+
+    render(
+      <Provider
+        items={items}
+        collapsedGroupIds={['section:pinned', 'section:assistants', 'assistant-a']}
+        groupBy={(item) => (item.pinned ? { id: 'pinned', label: '' } : { id: 'assistant-a', label: 'Assistant A' })}
+        onCollapsedGroupIdsChange={onCollapsedGroupIdsChange}
+        sectionBy={(item) =>
+          item.pinned ? { id: 'section:pinned', label: 'Pinned' } : { id: 'section:assistants', label: 'Assistants' }
+        }>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
+    expect(onCollapsedGroupIdsChange).toHaveBeenLastCalledWith(['section:assistants', 'assistant-a'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Assistant A' }))
+    expect(onCollapsedGroupIdsChange).toHaveBeenLastCalledWith(['section:assistants'])
+  })
+
   it('renders optional section headers above groups and expands both section and group for reveal requests', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items: TestItem[] = [
@@ -1605,6 +1896,53 @@ describe('ResourceList', () => {
       sections: ['section:pinned', 'section:assistants'],
       visibleNames: expect.arrayContaining(['Gamma'])
     })
+  })
+
+  it('keeps sibling sections collapsed when the last expanded controlled section is collapsed', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items: TestItem[] = [
+      { id: 'alpha', name: 'Pinned topic', kind: 'topic', pinned: true, updatedAt: 1 },
+      { id: 'beta', name: 'Assistant topic', kind: 'topic', updatedAt: 2 }
+    ]
+
+    function SectionHarness() {
+      const [expandedIds, setExpandedIds] = useState(['section:assistants'])
+
+      return (
+        <Provider
+          items={items}
+          collapsedGroupIds={expandedIds}
+          groupBy={(item) => ({ id: item.pinned ? 'pinned' : 'assistant', label: '' })}
+          onCollapsedGroupIdsChange={setExpandedIds}
+          sectionBy={(item) =>
+            item.pinned ? { id: 'section:pinned', label: 'Pinned' } : { id: 'section:assistants', label: 'Assistants' }
+          }>
+          <ResourceList.Frame>
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    render(<SectionHarness />)
+
+    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByText('Pinned topic')).not.toBeInTheDocument()
+    expect(screen.getByText('Assistant topic')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Assistants' }))
+
+    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Pinned topic')).not.toBeInTheDocument()
+    expect(screen.queryByText('Assistant topic')).not.toBeInTheDocument()
   })
 
   it('reveals a requested item by clearing local filters, expanding its group, loading enough rows, and scrolling', async () => {

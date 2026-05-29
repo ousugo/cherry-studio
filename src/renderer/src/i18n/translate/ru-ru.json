@@ -357,7 +357,7 @@
       "items_other": "[to be translated]:{{count}} items",
       "maximize": "[to be translated]:Maximize",
       "minimize": "[to be translated]:Minimize",
-      "no_search_results": "[to be translated]:No files match your search.",
+      "no_search_results": "Нет файлов, соответствующих вашему поиску",
       "preview": "[to be translated]:Preview",
       "refresh": "[to be translated]:Refresh",
       "search_placeholder": "[to be translated]:Search files...",
@@ -424,6 +424,16 @@
       },
       "add": {
         "title": "Добавить сеанс"
+      },
+      "agent": {
+        "delete": {
+          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete agent chats"
+          },
+          "title": "[to be translated]:Delete agent chats",
+          "trigger": "[to be translated]:Delete agent chats"
+        }
       },
       "allowed_tools": {
         "empty": "Для этого агента нет доступных инструментов.",
@@ -1366,20 +1376,10 @@
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
       "resource_panel": {
-        "categories": {
-          "agents": "Агенты",
-          "files": "Файлы",
-          "skills": "Навыки"
-        },
-        "description": "Выберите из файлов, агентов или навыков",
         "loading": "Загрузка...",
         "no_file_found": {
           "description": "Нет доступных файлов в доступных каталогах",
           "label": "Файл не найден"
-        },
-        "no_items_found": {
-          "description": "Нет доступных файлов, агентов или навыков",
-          "label": "Элементы не найдены"
         },
         "title": "Ресурсы"
       },
@@ -1675,6 +1675,7 @@
       "export": {
         "failed": "[to be translated]:Export failed",
         "image": "Экспорт как изображение",
+        "image_exporting_keep_page": "Изображение экспортируется. Оставайтесь на этой странице.",
         "image_saved": "Изображение успешно сохранено",
         "joplin": "Экспорт в Joplin",
         "md": {

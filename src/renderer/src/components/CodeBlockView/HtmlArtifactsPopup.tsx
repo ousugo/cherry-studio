@@ -28,6 +28,8 @@ import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHo
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import HtmlPreviewFrame from './HtmlPreviewFrame'
+
 interface CodePanelProps {
   codeEditorRef: React.RefObject<CodeEditorHandles | null>
   html: string
@@ -76,33 +78,6 @@ const CodePanel = memo<CodePanelProps>(
     )
   }
 )
-
-interface PreviewPanelProps {
-  previewFrameRef: React.RefObject<HTMLIFrameElement | null>
-  html: string
-  previewTitle: string
-  emptyText: string
-}
-
-const PreviewPanel = memo<PreviewPanelProps>(({ previewFrameRef, html, previewTitle, emptyText }) => {
-  return (
-    <div className="h-full w-full overflow-hidden bg-background">
-      {html.trim() ? (
-        <iframe
-          ref={previewFrameRef}
-          srcDoc={html}
-          title={previewTitle}
-          sandbox="allow-scripts allow-same-origin allow-forms"
-          className="h-full w-full border-0 bg-background"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground text-sm">
-          <p>{emptyText}</p>
-        </div>
-      )}
-    </div>
-  )
-})
 
 interface HtmlArtifactsPopupProps {
   open: boolean
@@ -182,10 +157,10 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
   )
 
   const renderPreviewPanel = () => (
-    <PreviewPanel
-      previewFrameRef={previewFrameRef}
+    <HtmlPreviewFrame
+      iframeRef={previewFrameRef}
       html={html}
-      previewTitle={t('common.html_preview')}
+      title={t('common.html_preview')}
       emptyText={t('html_artifacts.empty_preview', 'No content to preview')}
     />
   )

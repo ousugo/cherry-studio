@@ -160,6 +160,16 @@ export const ListSessionsQuerySchema = z.strictObject({
 export type ListSessionsQueryParams = z.input<typeof ListSessionsQuerySchema>
 export type ListSessionsQuery = z.output<typeof ListSessionsQuerySchema>
 
+export interface DeleteSessionsResult {
+  deletedIds: string[]
+  deletedCount: number
+}
+
+export const DeleteSessionsSchema = z.strictObject({
+  ids: z.array(z.string().min(1)).min(1)
+})
+export type DeleteSessionsDto = z.infer<typeof DeleteSessionsSchema>
+
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -173,6 +183,15 @@ export type SessionSchemas = {
     POST: {
       body: CreateSessionDto
       response: AgentSessionEntity
+    }
+    /**
+     * Delete an explicit set of sessions.
+     *
+     * Used by multi-select table flows where the selection can span agents.
+     */
+    DELETE: {
+      body: DeleteSessionsDto
+      response: DeleteSessionsResult
     }
   }
 
@@ -211,6 +230,20 @@ export type SessionSchemas = {
     DELETE: {
       params: { sessionId: string; messageId: string }
       response: void
+    }
+  }
+
+  /**
+   * Delete all sessions currently linked to an agent.
+   *
+   * This is an explicit scoped collection delete. It does not change
+   * `DELETE /agents/:agentId`, which deletes only the agent entity and leaves
+   * sessions detached by FK.
+   */
+  '/agents/:agentId/sessions': {
+    DELETE: {
+      params: { agentId: string }
+      response: DeleteSessionsResult
     }
   }
 } & OrderEndpoints<'/sessions'>

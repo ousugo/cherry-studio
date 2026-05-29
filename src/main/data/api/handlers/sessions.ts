@@ -14,6 +14,7 @@ import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateSessionSchema,
+  DeleteSessionsSchema,
   ListSessionsQuerySchema,
   SearchSessionMessagesQuerySchema,
   SessionMessagesListQuerySchema,
@@ -33,6 +34,12 @@ export const sessionHandlers: HandlersFor<SessionSchemas> = {
       const parsed = CreateSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return await sessionService.createSession(parsed.data)
+    },
+
+    DELETE: async ({ body }) => {
+      const parsed = DeleteSessionsSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return await sessionService.deleteByIds(parsed.data.ids)
     }
   },
 
@@ -73,6 +80,12 @@ export const sessionHandlers: HandlersFor<SessionSchemas> = {
     DELETE: async ({ params }) => {
       await sessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
       return undefined
+    }
+  },
+
+  '/agents/:agentId/sessions': {
+    DELETE: async ({ params }) => {
+      return await sessionService.deleteByAgentId(params.agentId)
     }
   },
 

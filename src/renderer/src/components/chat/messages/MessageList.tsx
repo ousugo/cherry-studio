@@ -49,6 +49,36 @@ interface ActiveMessageOutline {
   multiModelMessageStyle: MultiModelMessageStyle
 }
 
+type TopicImageRuntimeAction = 'copy' | 'export'
+
+interface PendingTopicImageRuntimeAction {
+  action: TopicImageRuntimeAction
+  reject: (reason?: unknown) => void
+  resolve: () => void
+}
+
+const pendingTopicImageActionsByTopic = new Map<string, PendingTopicImageRuntimeAction[]>()
+
+function enqueuePendingTopicImageAction(topicId: string, action: PendingTopicImageRuntimeAction): void {
+  const pendingActions = pendingTopicImageActionsByTopic.get(topicId) ?? []
+  pendingActions.push(action)
+  pendingTopicImageActionsByTopic.set(topicId, pendingActions)
+}
+
+function takePendingTopicImageActions(topicId: string): PendingTopicImageRuntimeAction[] {
+  const pendingActions = pendingTopicImageActionsByTopic.get(topicId)
+  if (!pendingActions) return []
+
+  pendingTopicImageActionsByTopic.delete(topicId)
+  return pendingActions
+}
+
+function rejectPendingTopicImageActions(topicId: string, reason: unknown): void {
+  for (const pendingAction of takePendingTopicImageActions(topicId)) {
+    pendingAction.reject(reason)
+  }
+}
+
 function getMessageElementLayout(element: HTMLElement): MultiModelMessageStyle {
   return MESSAGE_OUTLINE_LAYOUTS.find((layout) => element.classList.contains(layout)) ?? 'fold'
 }
@@ -71,8 +101,11 @@ const MessageList = () => {
 
   const messageListRef = useRef<MessageVirtualListHandle | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const topicImageCaptureRef = useRef<HTMLDivElement | null>(null)
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const [groupLayoutOverrides, setGroupLayoutOverrides] = useState<Record<string, MultiModelMessageStyle>>({})
+  const [topicImageCaptureActions, setTopicImageCaptureActions] = useState<PendingTopicImageRuntimeAction[]>([])
+  const topicImageCaptureActionsRef = useRef<PendingTopicImageRuntimeAction[]>([])
 
   const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
   const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
@@ -204,14 +237,136 @@ const MessageList = () => {
     )
   }, [actions, data.loadOlderDelayMs, data.loadingResetDelayMs, hasOlder, isLoadingMore, setTimeoutTimer])
 
+  const executeTopicImageAction = useCallback(
+    async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
+      if (action === 'copy') {
+        await captureScrollableAsBlob(captureRef, async (blob) => {
+          if (blob) {
+            await copyImage?.(blob)
+          }
+        })
+        return
+      }
+
+      if (!meta.imageExportFileName || !saveImage) {
+        throw new Error('Topic image export is unavailable')
+      }
+
+      const imageData = await captureScrollableAsDataURL(captureRef)
+      if (!imageData) {
+        throw new Error('Failed to capture topic image')
+      }
+
+      const saved = await saveImage(removeSpecialCharactersForFileName(meta.imageExportFileName), imageData)
+      if (saved === false) {
+        throw new Error('Failed to save topic image')
+      }
+    },
+    [copyImage, meta.imageExportFileName, saveImage]
+  )
+
+  const enqueueTopicImageCaptureAction = useCallback((action: TopicImageRuntimeAction) => {
+    return new Promise<void>((resolve, reject) => {
+      const captureAction = { action, reject, resolve }
+      setTopicImageCaptureActions((current) => {
+        const nextActions = [...current, captureAction]
+        topicImageCaptureActionsRef.current = nextActions
+        return nextActions
+      })
+    })
+  }, [])
+
+  const runTopicImageAction = useCallback(
+    async (action: TopicImageRuntimeAction) => {
+      if (data.isInitialLoading || !scrollContainerRef.current) {
+        return new Promise<void>((resolve, reject) => {
+          enqueuePendingTopicImageAction(topic.id, { action, reject, resolve })
+        })
+      }
+
+      await enqueueTopicImageCaptureAction(action)
+    },
+    [data.isInitialLoading, enqueueTopicImageCaptureAction, topic.id]
+  )
+
+  const flushPendingTopicImageAction = useCallback(() => {
+    if (data.isInitialLoading || !scrollContainerRef.current) return
+
+    for (const pendingAction of takePendingTopicImageActions(topic.id)) {
+      void enqueueTopicImageCaptureAction(pendingAction.action).then(pendingAction.resolve, pendingAction.reject)
+    }
+  }, [data.isInitialLoading, enqueueTopicImageCaptureAction, topic.id])
+  const handleScrollContainerReady = useCallback(
+    (element: HTMLDivElement) => {
+      scrollContainerRef.current = element
+      flushPendingTopicImageAction()
+    },
+    [flushPendingTopicImageAction]
+  )
+
+  useEffect(() => {
+    const topicId = topic.id
+    return () => {
+      const cancelReason = new Error('Topic image export was cancelled')
+      rejectPendingTopicImageActions(topicId, cancelReason)
+      for (const pendingAction of topicImageCaptureActionsRef.current) {
+        pendingAction.reject(cancelReason)
+      }
+      topicImageCaptureActionsRef.current = []
+    }
+  }, [topic.id])
+
+  const activeTopicImageCaptureAction = topicImageCaptureActions[0] ?? null
+
+  useEffect(() => {
+    topicImageCaptureActionsRef.current = topicImageCaptureActions
+  }, [topicImageCaptureActions])
+
+  useEffect(() => {
+    if (!activeTopicImageCaptureAction || !topicImageCaptureRef.current) return
+
+    let cancelled = false
+    let secondFrame: number | undefined
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        if (cancelled) return
+
+        void executeTopicImageAction(activeTopicImageCaptureAction.action, topicImageCaptureRef)
+          .then(activeTopicImageCaptureAction.resolve, activeTopicImageCaptureAction.reject)
+          .finally(() => {
+            if (cancelled) return
+
+            setTopicImageCaptureActions((current) => {
+              const nextActions =
+                current[0] === activeTopicImageCaptureAction
+                  ? current.slice(1)
+                  : current.filter((captureAction) => captureAction !== activeTopicImageCaptureAction)
+              topicImageCaptureActionsRef.current = nextActions
+              return nextActions
+            })
+          })
+      })
+    })
+
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(firstFrame)
+      if (secondFrame !== undefined) {
+        cancelAnimationFrame(secondFrame)
+      }
+    }
+  }, [activeTopicImageCaptureAction, executeTopicImageAction])
+
   useEffect(() => {
     scrollContainerRef.current = (messageListRef.current?.getScrollElement() as HTMLDivElement | null) ?? null
-  }, [groupedMessages])
+    flushPendingTopicImageAction()
+  }, [flushPendingTopicImageAction, groupedMessages])
 
   useEffect(() => {
     const scrollElement = messageListRef.current?.getScrollElement()
     scrollContainerRef.current = (scrollElement as HTMLDivElement | null) ?? null
     updateActiveMessageOutline()
+    flushPendingTopicImageAction()
 
     if (!scrollElement) return
 
@@ -222,28 +377,16 @@ const MessageList = () => {
       scrollElement.removeEventListener('scroll', updateActiveMessageOutline)
       window.removeEventListener('resize', updateActiveMessageOutline)
     }
-  }, [groupedMessages, updateActiveMessageOutline])
+  }, [flushPendingTopicImageAction, groupedMessages, updateActiveMessageOutline])
 
   useEffect(() => {
     return bindRuntime?.({
       scrollToBottom,
       locateMessage: scrollToMessageById,
-      copyTopicImage: async () => {
-        await captureScrollableAsBlob(scrollContainerRef, async (blob) => {
-          if (blob) {
-            await copyImage?.(blob)
-          }
-        })
-      },
-      exportTopicImage: async () => {
-        if (!meta.imageExportFileName || !saveImage) return
-        const imageData = await captureScrollableAsDataURL(scrollContainerRef)
-        if (imageData) {
-          await saveImage(removeSpecialCharactersForFileName(meta.imageExportFileName), imageData)
-        }
-      }
+      copyTopicImage: () => runTopicImageAction('copy'),
+      exportTopicImage: () => runTopicImageAction('export')
     })
-  }, [bindRuntime, copyImage, meta.imageExportFileName, saveImage, scrollToBottom, scrollToMessageById])
+  }, [bindRuntime, runTopicImageAction, scrollToBottom, scrollToMessageById])
 
   if (data.isInitialLoading) {
     return <MessageListInitialLoading />
@@ -266,6 +409,8 @@ const MessageList = () => {
       ? defaultBottomPadding
       : Math.max(bottomOverlayInsets.contentBottomPadding, isMultiSelectMode ? defaultBottomPadding : 0)
   const scrollerBottomMargin = bottomOverlayInsets?.scrollerBottomMargin ?? 0
+  const topicImageCaptureWidth =
+    scrollContainerRef.current?.clientWidth || scrollContainerRef.current?.getBoundingClientRect().width || undefined
 
   return (
     <MessagesContainer
@@ -289,6 +434,7 @@ const MessageList = () => {
               bottomPadding={bottomPadding}
               forceScrollToBottomKey={forceScrollToBottomKey}
               hasMoreTop={hasOlder}
+              onScrollContainerReady={handleScrollContainerReady}
               onReachTop={loadMoreMessages}
               renderItem={([key, groupMessages]) => {
                 return (
@@ -320,6 +466,33 @@ const MessageList = () => {
           )}
         </div>
       </SelectionContextMenu>
+      {topicImageCaptureActions.length > 0 && (
+        <div
+          ref={topicImageCaptureRef}
+          aria-hidden="true"
+          data-topic-image-capture
+          className={classNames(
+            '-left-[10000px] pointer-events-none fixed top-0 overflow-visible bg-background text-foreground',
+            !topicImageCaptureWidth && 'w-full'
+          )}
+          style={topicImageCaptureWidth ? { width: `${topicImageCaptureWidth}px` } : undefined}>
+          {groupedMessages.map(([key, groupMessages]) => (
+            <NarrowLayout key={key} narrowMode={messageListNarrowMode} withSidePadding>
+              <MessageGroup
+                captureMode
+                isLatestAssistantGroup={key === latestAssistantGroupKey}
+                messages={groupMessages}
+                topic={topic}
+                onMultiModelMessageStyleChange={(style) => {
+                  setGroupLayoutOverrides((current) =>
+                    current[key] === style ? current : { ...current, [key]: style }
+                  )
+                }}
+              />
+            </NarrowLayout>
+          ))}
+        </div>
+      )}
       {messageNavigation === 'anchor' && (
         <MessageAnchorLine
           messages={messages}

@@ -1,12 +1,12 @@
-import { mergeAttributes, Node } from '@tiptap/core'
-import { AllSelection } from '@tiptap/pm/state'
+import { type Editor, mergeAttributes, Node } from '@tiptap/core'
+import { AllSelection, NodeSelection } from '@tiptap/pm/state'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { type ReactNode, useCallback, useLayoutEffect, useState } from 'react'
 
 import { ComposerToken } from './ComposerToken'
 import { type PromptVariableCommitReason, PromptVariableToken } from './PromptVariableToken'
-import type { ComposerDraftToken } from './tokens'
+import type { ActiveComposerInputToken, ComposerDraftToken, PromptVariableComposerInputToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
 export const COMPOSER_TOKEN_NODE_NAME = 'composerToken'
@@ -42,6 +42,27 @@ export type ComposerTokenRenderer = (
 
 interface ComposerTokenNodeOptions {
   renderToken?: ComposerTokenRenderer
+}
+
+function deleteComposerTokenRange(editor: Editor, from: number, to: number) {
+  editor.view.dispatch(editor.state.tr.delete(from, to).scrollIntoView())
+  return true
+}
+
+function deleteComposerTokenNearSelection(editor: Editor, nodeName: string, direction: -1 | 1) {
+  const { selection } = editor.state
+
+  if (selection instanceof NodeSelection && selection.node.type.name === nodeName) {
+    return deleteComposerTokenRange(editor, selection.from, selection.to)
+  }
+
+  if (!selection.empty) return false
+
+  const adjacentNode = direction < 0 ? selection.$from.nodeBefore : selection.$from.nodeAfter
+  if (!adjacentNode || adjacentNode.type.name !== nodeName) return false
+
+  const from = direction < 0 ? selection.from - adjacentNode.nodeSize : selection.from
+  return deleteComposerTokenRange(editor, from, from + adjacentNode.nodeSize)
 }
 
 declare module '@tiptap/core' {
@@ -175,7 +196,7 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
     props.renderToken?.(token, { selected: props.selected, nodeViewProps: props }) ??
     (token.kind === 'promptVariable' ? (
       <PromptVariableToken
-        token={token}
+        token={token as PromptVariableComposerInputToken}
         selected={props.selected}
         editing={isPromptVariableEditing}
         onCommit={finishPromptVariableEdit}
@@ -186,7 +207,7 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
         }}
       />
     ) : (
-      <ComposerToken token={token} selected={props.selected} />
+      <ComposerToken token={token as ActiveComposerInputToken} selected={props.selected} />
     ))
 
   return (
@@ -266,6 +287,13 @@ export const ComposerTokenNode = Node.create<ComposerTokenNodeOptions>({
           requestComposerPromptVariableEdit(editor.view.dom, tokenId, position)
           return true
         }
+    }
+  },
+
+  addKeyboardShortcuts() {
+    return {
+      Backspace: () => deleteComposerTokenNearSelection(this.editor, this.name, -1),
+      Delete: () => deleteComposerTokenNearSelection(this.editor, this.name, 1)
     }
   },
 

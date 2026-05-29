@@ -11,6 +11,7 @@ import {
   type ResourceListFilterOption,
   type ResourceListGroup,
   type ResourceListGroupHeaderClickBehavior,
+  type ResourceListGroupSeed,
   type ResourceListItemAccessors,
   ResourceListItemAccessorsContext,
   type ResourceListItemBase,
@@ -35,11 +36,13 @@ import { ResourceListUiStore } from './ResourceListUiStore'
 
 const EMPTY_SORT_OPTIONS: ResourceListSortOption<ResourceListItemBase>[] = []
 const EMPTY_FILTER_OPTIONS: ResourceListFilterOption<ResourceListItemBase>[] = []
+const EMPTY_GROUP_SEEDS: readonly ResourceListGroupSeed[] = []
 const getDefaultItemId = (item: ResourceListItemBase) => item.id
 const getDefaultItemLabel = (item: ResourceListItemBase) => item.name
 const estimateDefaultItemSize = () => RESOURCE_LIST_DEFAULT_ROW_SIZE
 const UNGROUPED_RESOURCE_GROUP: ResourceListGroup = { id: 'ungrouped', label: '' }
 const UNSECTIONED_RESOURCE_SECTION: ResourceListSection = { id: 'resource-list:section:unsectioned', label: '' }
+const RESOURCE_LIST_NO_EXPANDED_SECTIONS_ID = 'resource-list:section:none'
 
 type ResourceListGroupHeaderClickBehaviorResolver =
   | ResourceListGroupHeaderClickBehavior
@@ -59,12 +62,14 @@ type BuildResourceListGroupsOptions<T extends ResourceListItemBase> = {
   groupStateIds: readonly string[]
   defaultGroupVisibleCount: number
   groupBy?: (item: T) => ResourceListGroup | null
+  groupSeeds?: readonly ResourceListGroup[]
   groupVisibleCounts: Record<string, number>
   items: readonly T[]
   useExpandedGroupIds: boolean
 }
 
 type BuildResourceListSectionsOptions<T extends ResourceListItemBase> = BuildResourceListGroupsOptions<T> & {
+  groupSeeds?: readonly ResourceListGroupSeed[]
   sectionBy?: (item: T) => ResourceListSection | null
 }
 
@@ -83,6 +88,10 @@ function getResourceListGroup<T extends ResourceListItemBase>(
   groupBy?: (item: T) => ResourceListGroup | null
 ) {
   return groupBy?.(item) ?? UNGROUPED_RESOURCE_GROUP
+}
+
+function getResourceListGroupFromSeed({ section: _section, ...group }: ResourceListGroupSeed): ResourceListGroup {
+  return group
 }
 
 function deriveResourceListItems<T extends ResourceListItemBase>({
@@ -123,6 +132,7 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
   groupStateIds,
   defaultGroupVisibleCount,
   groupBy,
+  groupSeeds = EMPTY_GROUP_SEEDS,
   groupVisibleCounts,
   items,
   useExpandedGroupIds
@@ -146,6 +156,10 @@ function buildResourceListGroups<T extends ResourceListItemBase>({
   }
 
   const groups = new Map<string, { group: ResourceListGroup; items: T[] }>()
+  for (const group of groupSeeds) {
+    groups.set(group.id, { group, items: [] })
+  }
+
   for (const item of items) {
     const group = getResourceListGroup(item, groupBy)
     const existing = groups.get(group.id)
@@ -182,6 +196,7 @@ function buildResourceListSections<T extends ResourceListItemBase>({
   groupStateIds,
   defaultGroupVisibleCount,
   groupBy,
+  groupSeeds = EMPTY_GROUP_SEEDS,
   groupVisibleCounts,
   items,
   sectionBy,
@@ -190,7 +205,7 @@ function buildResourceListSections<T extends ResourceListItemBase>({
   if (!sectionBy) return []
 
   const groupStateIdSet = new Set(groupStateIds)
-  const sections = new Map<string, { section: ResourceListSection; items: T[] }>()
+  const sections = new Map<string, { section: ResourceListSection; items: T[]; groupSeeds: ResourceListGroup[] }>()
 
   for (const item of items) {
     const section = sectionBy(item) ?? UNSECTIONED_RESOURCE_SECTION
@@ -199,21 +214,33 @@ function buildResourceListSections<T extends ResourceListItemBase>({
     if (existing) {
       existing.items.push(item)
     } else {
-      sections.set(section.id, { section, items: [item] })
+      sections.set(section.id, { section, items: [item], groupSeeds: [] })
     }
   }
 
-  const hasExpandedSectionIds =
-    useExpandedGroupIds && [...sections.keys()].some((sectionId) => groupStateIdSet.has(sectionId))
+  for (const groupSeed of groupSeeds) {
+    const section = groupSeed.section ?? UNSECTIONED_RESOURCE_SECTION
+    const group = getResourceListGroupFromSeed(groupSeed)
+    const existing = sections.get(section.id)
+    if (existing) {
+      existing.groupSeeds.push(group)
+    } else {
+      sections.set(section.id, { section, items: [], groupSeeds: [group] })
+    }
+  }
 
-  return [...sections.values()].map(({ section, items }) => {
-    const collapsed = useExpandedGroupIds
-      ? hasExpandedSectionIds && !groupStateIdSet.has(section.id)
-      : groupStateIdSet.has(section.id)
+  const hasControlledSectionState =
+    useExpandedGroupIds &&
+    (groupStateIdSet.has(RESOURCE_LIST_NO_EXPANDED_SECTIONS_ID) ||
+      [...sections.keys()].some((sectionId) => groupStateIdSet.has(sectionId)))
+
+  return [...sections.values()].map(({ section, items, groupSeeds }) => {
+    const collapsed = hasControlledSectionState ? !groupStateIdSet.has(section.id) : groupStateIdSet.has(section.id)
     const groups = buildResourceListGroups({
       groupStateIds,
       defaultGroupVisibleCount,
       groupBy,
+      groupSeeds,
       groupVisibleCounts,
       items,
       useExpandedGroupIds
@@ -257,6 +284,14 @@ function getExpandedGroupIds<T extends ResourceListItemBase>(groups: readonly Re
   return groups.filter((group) => Boolean(group.group.label) && !group.collapsed).map((group) => group.group.id)
 }
 
+function hasExpandedSectionId(groupIds: ReadonlySet<string>, sectionIds: ReadonlySet<string>) {
+  for (const sectionId of sectionIds) {
+    if (groupIds.has(sectionId)) return true
+  }
+
+  return false
+}
+
 function findResourceListRevealTarget<T extends ResourceListItemBase>({
   defaultGroupVisibleCount,
   getItemId,
@@ -295,6 +330,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   sortOptions?: ResourceListSortOption<T>[]
   filterOptions?: ResourceListFilterOption<T>[]
   groupBy?: (item: T) => ResourceListGroup | null
+  groupSeeds?: readonly ResourceListGroupSeed[]
   sectionBy?: (item: T) => ResourceListSection | null
   getItemId?: (item: T) => string
   getItemLabel?: (item: T) => string
@@ -345,6 +381,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   onSelectItem?: (id: string) => void
   onRenameItem?: (id: string, name: string) => void
   onGroupHeaderSelectItem?: (id: string) => void
+  onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void
   onOpenContextMenu?: (id: string) => void
   onReorder?: (payload: ResourceListReorderPayload) => void
   onCollapsedGroupIdsChange?: (groupIds: string[]) => void
@@ -361,6 +398,8 @@ type ProviderAction =
   | { type: 'cancelRename' }
   | { type: 'showMoreInGroup'; groupId: string }
   | { type: 'collapseGroupItems'; groupId: string; defaultCount: number }
+  | { type: 'collapseGroups'; groupIds: readonly string[]; defaultCount: number }
+  | { type: 'resetGroupVisibleCounts'; groupIds: readonly string[]; defaultCount: number }
   | { type: 'toggleGroup'; groupId: string }
   | {
       type: 'revealItem'
@@ -418,6 +457,22 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
           [action.groupId]: action.defaultCount
         }
       }
+    case 'collapseGroups': {
+      const collapsedGroups = new Set(state.collapsedGroups)
+      const groupVisibleCounts = { ...state.groupVisibleCounts }
+      for (const groupId of action.groupIds) {
+        collapsedGroups.add(groupId)
+        groupVisibleCounts[groupId] = action.defaultCount
+      }
+      return { ...state, collapsedGroups: [...collapsedGroups], groupVisibleCounts }
+    }
+    case 'resetGroupVisibleCounts': {
+      const groupVisibleCounts = { ...state.groupVisibleCounts }
+      for (const groupId of action.groupIds) {
+        groupVisibleCounts[groupId] = action.defaultCount
+      }
+      return { ...state, groupVisibleCounts }
+    }
     case 'toggleGroup': {
       const collapsedGroups = state.collapsedGroups.includes(action.groupId)
         ? state.collapsedGroups.filter((groupId) => groupId !== action.groupId)
@@ -473,6 +528,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   sortOptions = EMPTY_SORT_OPTIONS as ResourceListSortOption<T>[],
   filterOptions = EMPTY_FILTER_OPTIONS as ResourceListFilterOption<T>[],
   groupBy,
+  groupSeeds = EMPTY_GROUP_SEEDS,
   sectionBy,
   getItemId = getDefaultItemId as (item: T) => string,
   getItemLabel = getDefaultItemLabel as (item: T) => string,
@@ -499,6 +555,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   onSelectItem,
   onRenameItem,
   onGroupHeaderSelectItem,
+  onEmptyGroupHeaderClick,
   onOpenContextMenu,
   onReorder,
   onCollapsedGroupIdsChange
@@ -525,6 +582,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const isSelectedControlled = selectedIdProp !== undefined
   const handledRevealRequestRef = useRef<string | null>(null)
   const stateGroupsRef = useRef<readonly ResourceListViewGroup<T>[]>([])
+  const sectionIdsRef = useRef<ReadonlySet<string>>(new Set())
   const uiStoreRef = useRef<ResourceListUiStore | null>(null)
   if (!uiStoreRef.current) {
     uiStoreRef.current = new ResourceListUiStore({
@@ -541,6 +599,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       typeof groupHeaderClickBehavior === 'function' ? groupHeaderClickBehavior(group) : groupHeaderClickBehavior,
     [groupHeaderClickBehavior]
   )
+  const seedGroups = useMemo(() => groupSeeds.map(getResourceListGroupFromSeed), [groupSeeds])
 
   useEffect(() => {
     if (!revealRequest) return
@@ -577,7 +636,12 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       collapsedGroupIds !== undefined &&
       revealGroupIds.some((groupId) => !effectiveGroupStateIds.includes(groupId))
     ) {
-      onCollapsedGroupIdsChange?.([...new Set([...effectiveGroupStateIds, ...revealGroupIds])])
+      onCollapsedGroupIdsChange?.([
+        ...new Set([
+          ...effectiveGroupStateIds.filter((groupId) => groupId !== RESOURCE_LIST_NO_EXPANDED_SECTIONS_ID),
+          ...revealGroupIds
+        ])
+      ])
     }
 
     handledRevealRequestRef.current = requestKey
@@ -639,6 +703,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       groupStateIds: effectiveGroupStateIds,
       defaultGroupVisibleCount,
       groupBy,
+      groupSeeds,
       groupVisibleCounts: state.groupVisibleCounts,
       items: viewItems,
       sectionBy,
@@ -648,6 +713,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     defaultGroupVisibleCount,
     effectiveGroupStateIds,
     groupBy,
+    groupSeeds,
     sectionBy,
     state.groupVisibleCounts,
     useExpandedGroupIds,
@@ -661,6 +727,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       groupStateIds: effectiveGroupStateIds,
       defaultGroupVisibleCount,
       groupBy,
+      groupSeeds: seedGroups,
       groupVisibleCounts: state.groupVisibleCounts,
       items: viewItems,
       useExpandedGroupIds
@@ -670,6 +737,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     effectiveGroupStateIds,
     groupBy,
     sectionBy,
+    seedGroups,
     state.groupVisibleCounts,
     useExpandedGroupIds,
     viewItems,
@@ -709,6 +777,10 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   useLayoutEffect(() => {
     stateGroupsRef.current = stateGroups
   }, [stateGroups])
+
+  useLayoutEffect(() => {
+    sectionIdsRef.current = new Set(viewSections.map(({ section }) => section.id))
+  }, [viewSections])
 
   const actions = useMemo(
     () => ({
@@ -752,6 +824,19 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       showMoreInGroup: (groupId: string) => dispatch({ type: 'showMoreInGroup', groupId }),
       collapseGroupItems: (groupId: string) =>
         dispatch({ type: 'collapseGroupItems', groupId, defaultCount: defaultGroupVisibleCount }),
+      collapseGroups: (groupIds: readonly string[]) => {
+        if (collapsedGroupIds !== undefined) {
+          const nextExpandedGroupIds = new Set(effectiveGroupStateIds)
+          for (const groupId of groupIds) {
+            nextExpandedGroupIds.delete(groupId)
+          }
+          dispatch({ type: 'resetGroupVisibleCounts', groupIds, defaultCount: defaultGroupVisibleCount })
+          onCollapsedGroupIdsChange?.([...nextExpandedGroupIds])
+          return
+        }
+
+        dispatch({ type: 'collapseGroups', groupIds, defaultCount: defaultGroupVisibleCount })
+      },
       toggleGroup: (groupId: string) => {
         if (collapsedGroupIds !== undefined) {
           const nextExpandedGroupIds = new Set(getExpandedGroupIds(stateGroupsRef.current))
@@ -759,6 +844,12 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
             nextExpandedGroupIds.delete(groupId)
           } else {
             nextExpandedGroupIds.add(groupId)
+          }
+          if (sectionIdsRef.current.has(groupId)) {
+            nextExpandedGroupIds.delete(RESOURCE_LIST_NO_EXPANDED_SECTIONS_ID)
+            if (!hasExpandedSectionId(nextExpandedGroupIds, sectionIdsRef.current)) {
+              nextExpandedGroupIds.add(RESOURCE_LIST_NO_EXPANDED_SECTIONS_ID)
+            }
           }
           onCollapsedGroupIdsChange?.([...nextExpandedGroupIds])
           return
@@ -771,6 +862,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     [
       collapsedGroupIds,
       defaultGroupVisibleCount,
+      effectiveGroupStateIds,
       isSelectedControlled,
       onCollapsedGroupIdsChange,
       onGroupHeaderSelectItem,
@@ -815,6 +907,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderClassName,
       getGroupHeaderTooltip,
       getGroupHeaderClickBehavior,
+      onEmptyGroupHeaderClick,
       sortOptions,
       filterOptions,
       estimateItemSize,
@@ -857,6 +950,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       groupCollapseLabel,
       groupLoadStep,
       groupShowMoreLabel,
+      onEmptyGroupHeaderClick,
       revealRequest,
       sortOptions,
       variant,

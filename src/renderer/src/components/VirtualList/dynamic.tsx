@@ -297,7 +297,6 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
         className
       )}
       role={role}
-      aria-hidden={!showScrollbar}
       onScroll={onScroll}
       style={{
         overflow: 'auto',

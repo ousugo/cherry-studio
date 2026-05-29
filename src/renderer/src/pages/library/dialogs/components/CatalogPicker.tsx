@@ -1,4 +1,17 @@
-import { Badge, Combobox, type ComboboxOption, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Plus } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -127,8 +140,9 @@ export const AddCatalogPopover: FC<{
   portalContainer
 }) => {
   const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
 
-  const options = useMemo<ComboboxOption<{ item: CatalogItem }>[]>(() => {
+  const options = useMemo(() => {
     return items
       .filter((it) => !enabledIds.has(it.id))
       .map((it) => ({
@@ -141,58 +155,81 @@ export const AddCatalogPopover: FC<{
       }))
   }, [enabledIds, items])
 
+  const filteredOptions = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return options
+
+    return options.filter((option) => {
+      const item = option.item
+      return item.name.toLowerCase().includes(q) || (item.description ?? '').toLowerCase().includes(q)
+    })
+  }, [options, search])
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen)
+    if (!nextOpen) setSearch('')
+  }
+
   return (
-    <Combobox
-      searchable
-      open={open}
-      onOpenChange={setOpen}
-      value=""
-      options={options}
-      onChange={(nextValue) => {
-        const id = Array.isArray(nextValue) ? nextValue[0] : nextValue
-        const option = options.find((it) => it.value === id)
-        if (!option || option.item.pickable === false) return
-        onAdd(id)
-        setOpen(false)
-      }}
-      filterOption={(option, search) => {
-        const q = search.trim().toLowerCase()
-        if (!q) return true
-        const item = option.item
-        return item.name.toLowerCase().includes(q) || (item.description ?? '').toLowerCase().includes(q)
-      }}
-      renderValue={() => (
-        <span className="inline-flex min-w-0 items-center gap-1">
-          <Plus size={10} className="shrink-0" />
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          className={cn(
+            triggerPosition === 'end' && 'ml-auto',
+            'h-7 min-h-0 w-fit justify-start gap-1 rounded-md px-2 py-1 font-normal text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40 disabled:opacity-30',
+            triggerClassName
+          )}>
+          <Plus size={12} className="shrink-0" />
           <span className="truncate">{triggerLabel}</span>
-        </span>
-      )}
-      renderOption={(option) => (
-        <>
-          {option.item.icon ? <span className="shrink-0">{option.item.icon}</span> : null}
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-foreground/90">{option.item.name}</div>
-            {option.item.description ? (
-              <div className="truncate text-muted-foreground text-xs">{option.item.description}</div>
-            ) : null}
-          </div>
-          <CatalogBadges item={option.item} />
-        </>
-      )}
-      size="sm"
-      disabled={disabled}
-      placeholder={triggerLabel}
-      searchPlaceholder={searchPlaceholder}
-      emptyText={emptyLabel}
-      popoverAlign={align}
-      portalContainer={portalContainer ?? undefined}
-      className={cn(
-        triggerPosition === 'end' && 'ml-auto',
-        'h-7 min-h-0 w-auto border-transparent bg-transparent px-2 py-1 font-normal text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:opacity-30 aria-expanded:border-transparent aria-expanded:ring-0',
-        triggerClassName
-      )}
-      popoverClassName="w-72 max-w-[calc(100vw-2rem)] rounded-md p-0"
-    />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align={align}
+        portalContainer={portalContainer ?? undefined}
+        className="w-72 max-w-[calc(100vw-2rem)] rounded-md p-0">
+        <Command shouldFilter={false}>
+          <CommandInput
+            value={search}
+            onValueChange={setSearch}
+            placeholder={searchPlaceholder}
+            className="h-8 text-xs"
+          />
+          <CommandList>
+            {filteredOptions.length === 0 ? (
+              <div className="py-6 text-center text-muted-foreground text-sm">{emptyLabel}</div>
+            ) : (
+              <CommandGroup>
+                {filteredOptions.map((option) => (
+                  <CommandItem
+                    key={option.value}
+                    value={option.value}
+                    disabled={option.disabled}
+                    className="rounded-md"
+                    onSelect={() => {
+                      if (option.item.pickable === false) return
+                      onAdd(option.value)
+                      handleOpenChange(false)
+                    }}>
+                    {option.item.icon ? <span className="shrink-0">{option.item.icon}</span> : null}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-foreground/90">{option.item.name}</div>
+                      {option.item.description ? (
+                        <div className="truncate text-muted-foreground text-xs">{option.item.description}</div>
+                      ) : null}
+                    </div>
+                    <CatalogBadges item={option.item} />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }
 

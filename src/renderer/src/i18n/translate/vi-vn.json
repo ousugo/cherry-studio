@@ -357,7 +357,7 @@
       "items_other": "[to be translated]:{{count}} items",
       "maximize": "[to be translated]:Maximize",
       "minimize": "[to be translated]:Minimize",
-      "no_search_results": "[to be translated]:No files match your search.",
+      "no_search_results": "Không có tệp nào khớp với tìm kiếm của bạn",
       "preview": "[to be translated]:Preview",
       "refresh": "[to be translated]:Refresh",
       "search_placeholder": "[to be translated]:Search files...",
@@ -424,6 +424,16 @@
       },
       "add": {
         "title": "Thêm một phiên"
+      },
+      "agent": {
+        "delete": {
+          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete agent chats"
+          },
+          "title": "[to be translated]:Delete agent chats",
+          "trigger": "[to be translated]:Delete agent chats"
+        }
       },
       "allowed_tools": {
         "empty": "Không có công cụ nào khả dụng cho tác nhân này.",
@@ -1366,20 +1376,10 @@
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - / để Bao gồm Công cụ",
       "placeholder_without_triggers": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi",
       "resource_panel": {
-        "categories": {
-          "agents": "Đặc vụ",
-          "files": "Tệp tin",
-          "skills": "Kỹ năng"
-        },
-        "description": "Chọn từ tệp, tác nhân hoặc kỹ năng",
         "loading": "Đang tải...",
         "no_file_found": {
           "description": "Không có tệp nào có sẵn trong các thư mục có thể truy cập",
           "label": "Không tìm thấy tệp"
-        },
-        "no_items_found": {
-          "description": "Không có tệp nào, đại lý hoặc kỹ năng nào có sẵn",
-          "label": "Không tìm thấy mục nào"
         },
         "title": "Tài nguyên"
       },
@@ -1675,6 +1675,7 @@
       "export": {
         "failed": "[to be translated]:Export failed",
         "image": "Xuất dưới dạng hình ảnh",
+        "image_exporting_keep_page": "Đang xuất hình ảnh. Vui lòng ở lại trang này.",
         "image_saved": "Hình ảnh đã được lưu thành công",
         "joplin": "Exporteren naar Joplin",
         "md": {

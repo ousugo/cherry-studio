@@ -9,6 +9,7 @@ import './definitions/knowledgeBaseTool'
 import './definitions/generateImageTool'
 import './definitions/slashCommandsTool'
 import './definitions/permissionModeTool'
+import './definitions/mcpStatusTool'
 
 // Export registry functions
 export { getAllTools, getTool, getToolsForScope, registerTool } from './types'

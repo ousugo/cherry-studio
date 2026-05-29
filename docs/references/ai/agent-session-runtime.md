@@ -166,6 +166,32 @@ When the idle timer expires, the runtime closes the entry:
 
 Service stop and destroy close all runtime entries.
 
+## Stale approval recovery
+
+Tool approval decisions require the live runtime entry because that entry
+owns the held tool promise. When a user waits long enough for the runtime
+entry to disappear, then re-enters the session and clicks an old approval
+card, `AiService` handles the response as a stale agent-session approval:
+
+1. the live `AgentSessionRuntimeService.respondToolApproval(...)` path
+   returns `false`;
+2. `AiService` detects the `agent-session:<sessionId>` topic and reads the
+   anchor from `agentSessionMessageService`;
+3. the matching `approval-requested` part is persisted as `output-denied`
+   with an expiry reason;
+4. if the same approval id is already settled, the handler returns success
+   without another write so the renderer can refresh idempotently.
+
+Both stale outcomes return `{ ok: true, status: 'expired' }` over
+`Ai_ToolApproval_Respond`. The renderer uses that status to show a timeout
+toast before refreshing the session messages, which removes the approval
+panel.
+
+The stale path never falls back to `MessageService.getById(...)` because
+agent-session messages live in agent-session storage, not the persistent
+chat message table. It also does not approve an expired tool call: without
+the runtime entry there is no held tool promise to resume.
+
 ## Removed old path
 
 Claude Code is not a normal provider extension anymore:
