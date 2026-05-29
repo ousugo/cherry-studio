@@ -742,7 +742,7 @@ export class ChatMigrator extends BaseMigrator {
    * source layout (Dexie topic rows + Redux topic metadata + defaultAssistant slot)
    * and the merge contract.
    */
-  private async prepareTopicData(oldTopic: OldTopic, deps: ChatMappingDeps): Promise<PreparedTopicData | null> {
+  private async prepareTopicData(oldTopic: OldTopic, deps?: ChatMappingDeps): Promise<PreparedTopicData | null> {
     // Validate required fields
     if (!oldTopic.id) {
       logger.error('Topic missing id, skipping', new Error('missing topic id'), {

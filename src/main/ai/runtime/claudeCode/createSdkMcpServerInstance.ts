@@ -13,19 +13,11 @@ import type { MCPTool } from '@types'
 const logger = loggerService.withContext('SdkMcpBridge')
 
 function toSdkTool(tool: MCPTool): SdkTool {
-  const {
-    id: _id,
-    serverId: _serverId,
-    serverName: _serverName,
-    type: _type,
-    ...sdkTool
-  } = tool as MCPTool &
-    SdkTool & {
-      id: string
-      serverId: string
-      serverName: string
-      type: string
-    }
+  const sdkTool = { ...tool } as SdkTool & Record<'id' | 'serverId' | 'serverName' | 'type', unknown>
+  Reflect.deleteProperty(sdkTool, 'id')
+  Reflect.deleteProperty(sdkTool, 'serverId')
+  Reflect.deleteProperty(sdkTool, 'serverName')
+  Reflect.deleteProperty(sdkTool, 'type')
   return sdkTool
 }
 

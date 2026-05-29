@@ -268,6 +268,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   enqueueUserMessage(sessionId: string, _message: Message): void {
+    void _message
     const entry = this.entries.get(sessionId)
     if (!entry) return
 

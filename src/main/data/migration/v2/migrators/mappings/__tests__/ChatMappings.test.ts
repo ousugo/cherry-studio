@@ -1,3 +1,5 @@
+import type * as FsPromises from 'node:fs/promises'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import type {
   CherryMessagePart,
@@ -22,7 +24,7 @@ vi.mock('@application', async () => {
 // physical bytes. Keep the rest of node:fs/promises real for unrelated
 // imports.
 vi.mock('node:fs/promises', async () => {
-  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+  const actual = await vi.importActual<typeof FsPromises>('node:fs/promises')
   const stub = {
     ...actual,
     mkdir: vi.fn().mockResolvedValue(undefined),
@@ -727,8 +729,9 @@ describe('transformMessage', () => {
     const result = await transformMessage(msg('m1', 'assistant'), null, 0, blocks, 't1')
     const textPart = result.data.parts?.find((p) => p.type === 'text') as TextUIPart
     const meta = readCherryMeta(textPart)
-    expect(meta?.references).toBeDefined()
-    expect((meta?.references as { category: string }[])[0].category).toBe('citation')
+    const references = meta?.references as { category: string }[] | undefined
+    expect(references).toBeDefined()
+    expect(references?.[0]?.category).toBe('citation')
   })
 })
 

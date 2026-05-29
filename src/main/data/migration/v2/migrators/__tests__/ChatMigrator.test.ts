@@ -435,8 +435,8 @@ describe('ChatMigrator.prepareTopicData', () => {
     m['validAssistantIds'] = new Set(['some-valid-uuid'])
     m['legacyAssistantIdRemap'] = new Map()
 
-    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
-    const result = await fn.call(migrator, oldTopic, undefined)
+    const fn = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const result = await fn.call(migrator, oldTopic)
     expect(result?.topic.assistantId).toBeNull()
   })
 
@@ -467,8 +467,8 @@ describe('ChatMigrator.prepareTopicData', () => {
     m['validAssistantIds'] = new Set([remappedDefaultId])
     m['legacyAssistantIdRemap'] = new Map([['default', remappedDefaultId]])
 
-    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
-    const result = await fn.call(migrator, oldTopic, undefined)
+    const fn = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const result = await fn.call(migrator, oldTopic)
     expect(result?.topic.assistantId).toBe(remappedDefaultId)
   })
 })
@@ -624,8 +624,8 @@ describe('ChatMigrator pin migration', () => {
     m['skippedMessages'] = 0
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
 
-    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
-    const result = await fn.call(migrator, oldTopic, undefined)
+    const fn = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const result = await fn.call(migrator, oldTopic)
 
     expect(result).not.toBeNull()
     expect(result?.pinned).toBe(true)
@@ -661,8 +661,8 @@ describe('ChatMigrator pin migration', () => {
     m['skippedMessages'] = 0
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
 
-    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
-    const result = await fn.call(migrator, oldTopic, undefined)
+    const fn = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const result = await fn.call(migrator, oldTopic)
     expect(result?.pinned).toBe(false)
   })
 })

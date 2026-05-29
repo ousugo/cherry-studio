@@ -9,15 +9,15 @@ import {
   Priority,
   ServicePhase
 } from '@main/core/lifecycle'
-import { isDev } from '@main/core/platform'
+import { WindowType } from '@main/core/window/types'
 // Heavy OTel modules (trace-core processors, trace-node, opentelemetry SDK) are loaded
 // via dynamic import() in initTracer() to avoid startup overhead when developer_mode is off.
 // Only type imports remain static as they are erased at compile time.
 import type { SpanContext } from '@opentelemetry/api'
 import { context, trace } from '@opentelemetry/api'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow, ipcMain } from 'electron'
-import * as path from 'path'
+import type { TraceWindowInitData } from '@shared/types/traceWindow'
+import { ipcMain } from 'electron'
 
 const TRACER_NAME = 'CherryStudio'
 
@@ -32,12 +32,9 @@ const logger = loggerService.withContext('NodeTraceService')
  */
 @Injectable('NodeTraceService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['SpanCacheService'])
+@DependsOn(['SpanCacheService', 'WindowManager'])
 @Priority(0)
 export class NodeTraceService extends BaseService implements Activatable {
-  private traceWin: BrowserWindow | null = null
-  private unsubscribeLanguage: (() => void) | null = null
-
   // Stored from dynamic import, needed for shutdown in onDeactivate()
   private nodeTracer: { shutdown(): Promise<void> } | null = null
 
@@ -152,90 +149,36 @@ export class NodeTraceService extends BaseService implements Activatable {
 
   private openTraceWindow(topicId: string, traceId: string, autoOpen = true, modelName?: string) {
     if (!this.isActivated) return
-    if (this.traceWin && !this.traceWin.isDestroyed()) {
-      this.traceWin.focus()
-      this.traceWin.webContents.send('set-trace', { traceId, topicId, modelName })
+
+    const windowManager = application.get('WindowManager')
+    const hasTraceWindow = windowManager.getWindowsByType(WindowType.Trace).length > 0
+    if (!hasTraceWindow && !autoOpen) {
       return
     }
 
-    if (!this.traceWin && !autoOpen) {
-      return
-    }
-
-    this.traceWin = new BrowserWindow({
-      width: 600,
-      minWidth: 500,
-      minHeight: 600,
-      height: 800,
-      autoHideMenuBar: true,
-      closable: true,
-      focusable: true,
-      movable: true,
-      hasShadow: true,
-      roundedCorners: true,
-      maximizable: true,
-      minimizable: true,
-      resizable: true,
-      title: 'Call Chain Window',
-      frame: true,
-      titleBarOverlay: { height: 40 },
-      webPreferences: {
-        preload: path.join(__dirname, '../preload/index.js'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false,
-        devTools: isDev ? true : false
-      }
-    })
-
-    if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      void this.traceWin.loadURL(process.env['ELECTRON_RENDERER_URL'] + `/traceWindow.html`)
-    } else {
-      void this.traceWin.loadFile(path.join(__dirname, '../renderer/traceWindow.html'))
-    }
-
-    this.traceWin.on('closed', () => {
-      if (this.unsubscribeLanguage) {
-        this.unsubscribeLanguage()
-        this.unsubscribeLanguage = null
-      }
-      try {
-        this.traceWin?.destroy()
-      } finally {
-        this.traceWin = null
-      }
-    })
-
-    this.traceWin.webContents.on('did-finish-load', () => {
-      const preferenceService = application.get('PreferenceService')
-      this.traceWin!.webContents.send('set-trace', {
-        traceId,
+    windowManager.open<TraceWindowInitData>(WindowType.Trace, {
+      initData: {
         topicId,
+        traceId,
         modelName
-      })
-      this.traceWin!.webContents.send('set-language', { lang: preferenceService.get('app.language') })
-      this.unsubscribeLanguage = preferenceService.subscribeChange('app.language', (lang: string | null) => {
-        if (lang) {
-          this.traceWin?.webContents.send('set-language', { lang })
-        }
-      })
+      }
     })
   }
 
   private setTraceWindowTitle(title: string) {
-    if (this.traceWin) {
-      this.traceWin.title = title
+    const windowManager = application.get('WindowManager')
+    for (const { id } of windowManager.getWindowsByType(WindowType.Trace)) {
+      const window = windowManager.getWindow(id)
+      if (window && !window.isDestroyed()) {
+        window.setTitle(title)
+      }
     }
   }
 
   private destroyTraceWindow() {
-    if (this.unsubscribeLanguage) {
-      this.unsubscribeLanguage()
-      this.unsubscribeLanguage = null
-    }
-    if (this.traceWin && !this.traceWin.isDestroyed()) {
-      this.traceWin.destroy()
-      this.traceWin = null
+    const windowManager = application.get('WindowManager')
+    for (const { id } of windowManager.getWindowsByType(WindowType.Trace)) {
+      windowManager.close(id)
     }
   }
 }
