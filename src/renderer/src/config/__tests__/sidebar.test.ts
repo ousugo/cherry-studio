@@ -85,4 +85,9 @@ describe('sidebar config helpers', () => {
     expect(getSidebarMenuPath('paintings', 'zhipu')).toBe('/app/paintings/zhipu')
     expect(resolveSidebarActiveItem('/app/paintings/zhipu')).toBe('paintings')
   })
+
+  it('resolves the active item for query-keyed conversation routes', () => {
+    expect(resolveSidebarActiveItem('/app/chat?topicId=abc')).toBe('assistants')
+    expect(resolveSidebarActiveItem('/app/agents?sessionId=xyz')).toBe('agents')
+  })
 })

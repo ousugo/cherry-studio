@@ -218,8 +218,8 @@ export function getSidebarMenuPath(icon: SidebarIcon, defaultPaintingProvider: s
   return app.resolveUrl?.({ defaultPaintingProvider }) ?? app.routePrefix
 }
 
-export function resolveSidebarActiveItem(pathname: string): SidebarIcon | '' {
-  const match = SIDEBAR_APPS.find((app) => pathname === app.routePrefix || pathname.startsWith(`${app.routePrefix}/`))
+export function resolveSidebarActiveItem(url: string): SidebarIcon | '' {
+  const match = SIDEBAR_APPS.find((app) => tabBelongsToApp(app, url))
   return match?.id ?? ''
 }
 
