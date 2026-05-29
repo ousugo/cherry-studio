@@ -59,7 +59,7 @@ describe('ChatNavBar', () => {
     expect(drawer).not.toHaveAttribute('data-active')
   })
 
-  it('marks the sidebar toggle active when the sidebar is visible', () => {
+  it('keeps the sidebar toggle inactive when the sidebar is visible', () => {
     preferenceMock.showSidebar = true
 
     render(<ChatNavBar />)
@@ -67,7 +67,7 @@ describe('ChatNavBar', () => {
     const [toggle] = screen.getAllByRole('button')
 
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
-    expect(toggle).toHaveAttribute('data-active', 'true')
-    expect(toggle).toHaveClass('bg-secondary')
+    expect(toggle).not.toHaveAttribute('data-active')
+    expect(toggle).not.toHaveClass('bg-secondary')
   })
 })
