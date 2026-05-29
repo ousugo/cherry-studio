@@ -767,6 +767,58 @@ describe('ComposerSurface', () => {
     expect(onTokensChange).not.toHaveBeenCalled()
   })
 
+  it('notifies managed token changes when a token text offset changes', async () => {
+    const onTokensChange = vi.fn()
+    const skillToken = {
+      id: 'skill:pdf',
+      kind: 'skill' as const,
+      label: 'pdf',
+      promptText: 'Use the pdf skill.'
+    }
+    const createEditor = (prefix = '') => ({
+      getJSON: () => ({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [...(prefix ? [{ type: 'text', text: prefix }] : []), { type: 'composerToken', attrs: skillToken }]
+          }
+        ]
+      }),
+      schema: { nodes: {} },
+      state: {
+        doc: {
+          descendants: vi.fn()
+        },
+        tr: mocks.transaction
+      },
+      view: {
+        composing: false,
+        dispatch: mocks.dispatch
+      }
+    })
+
+    render(<ComposerSurface {...baseProps} managedTokenKinds={['skill']} onTokensChange={onTokensChange} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: createEditor() })
+    })
+    onTokensChange.mockClear()
+
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: createEditor('hello ') })
+    })
+
+    expect(onTokensChange).toHaveBeenCalledWith([
+      expect.objectContaining({
+        id: 'skill:pdf',
+        textOffset: 6
+      })
+    ])
+  })
+
   it('lets composer token shortcuts handle Backspace before removing attachments', async () => {
     const setFiles = vi.fn()
     render(<ComposerSurface {...baseProps} filesCount={1} setFiles={setFiles} />)
@@ -955,6 +1007,46 @@ describe('ComposerSurface', () => {
     ])
     expect(resolveSkillMarker).toHaveBeenCalledWith('find-skills')
     expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
+  })
+
+  it('restores serialized skill tokens when initializing draft content', async () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        text="Use the Find Skills skill. hello"
+        draftTokens={[
+          {
+            id: 'skill:find-skills',
+            kind: 'skill',
+            label: 'Find Skills',
+            promptText: 'Use the Find Skills skill.',
+            index: 0,
+            textOffset: 0
+          }
+        ]}
+      />
+    )
+
+    expect(mocks.editorOptions.content).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: {
+                id: 'skill:find-skills',
+                kind: 'skill',
+                label: 'Find Skills',
+                promptText: 'Use the Find Skills skill.'
+              }
+            },
+            { type: 'text', text: ' hello' }
+          ]
+        }
+      ]
+    })
   })
 
   it('leaves long text paste on the native editor path instead of converting it to a file', async () => {

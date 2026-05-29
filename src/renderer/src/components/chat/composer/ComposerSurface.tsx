@@ -13,13 +13,14 @@ import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import PasteService from '@renderer/services/PasteService'
 import type { FileMetadata } from '@renderer/types'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import type { ComposerMessageToken } from '@shared/data/types/uiParts'
 import type { Editor } from '@tiptap/react'
 import { EditorContent } from '@tiptap/react'
 import { CirclePause, Maximize2, Minimize2 } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { serializeComposerDocument } from './composerDraft'
+import { createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
 import { getComposerPlainTextPasteOverride } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
@@ -58,6 +59,7 @@ export interface ComposerSurfaceProps {
   text: string
   onTextChange: (text: string) => void
   tokens: readonly ComposerDraftToken[]
+  draftTokens?: readonly ComposerSerializedToken[]
   managedTokenKinds: readonly ComposerDraftToken['kind'][]
   onTokensChange: (tokens: readonly ComposerSerializedToken[]) => void
   placeholder: string
@@ -82,6 +84,7 @@ export interface ComposerSurfaceProps {
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   getToolLaunchers?: () => ComposerToolLauncher[]
   resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
+  resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
   suggestionSources?: readonly ComposerSuggestionSource[]
   queueContent?: React.ReactNode
   rootPanelAdditionalItems?: readonly QuickPanelListItem[]
@@ -205,11 +208,41 @@ const getManagedTokenSignature = (
 ) =>
   tokens
     .filter((token) => managedTokenKindSet.has(token.kind))
-    .map((token) => `${token.kind}:${token.id}`)
+    .map((token) => `${token.kind}:${token.id}:${token.index}:${token.textOffset}`)
     .join('\n')
 
 function shouldUseNativeLongTextPaste(text: string, pasteLongTextAsFile?: boolean, pasteLongTextThreshold?: number) {
   return Boolean(text && pasteLongTextAsFile && pasteLongTextThreshold && text.length > pasteLongTextThreshold)
+}
+
+function isRestorableDraftToken(
+  token: ComposerSerializedToken
+): token is ComposerSerializedToken & ComposerMessageToken {
+  return token.kind !== 'promptVariable'
+}
+
+function getRestorableDraftTokens(draftTokens: readonly ComposerSerializedToken[] | undefined): ComposerMessageToken[] {
+  return (draftTokens ?? [])
+    .filter(isRestorableDraftToken)
+    .map(({ id, kind, label, icon, description, index, textOffset, promptText }) => ({
+      id,
+      kind,
+      label,
+      ...(icon && { icon }),
+      ...(description && { description }),
+      index,
+      textOffset,
+      ...(promptText && { promptText })
+    }))
+}
+
+function createComposerEditorContent(text: string, draftTokens: readonly ComposerSerializedToken[] | undefined) {
+  const restorableTokens = getRestorableDraftTokens(draftTokens)
+  if (restorableTokens.length) {
+    return createComposerDocumentContent(text, { version: 1, tokens: restorableTokens })
+  }
+
+  return createPromptVariableContent(text)
 }
 
 const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT = 'max(220px, 40vh)'
@@ -254,6 +287,7 @@ export default function ComposerSurface({
   text,
   onTextChange,
   tokens,
+  draftTokens,
   managedTokenKinds,
   onTokensChange,
   placeholder,
@@ -278,6 +312,7 @@ export default function ComposerSurface({
   onActionsChange,
   getToolLaunchers,
   resolveSkillMarker,
+  resolveKnowledgeBaseMarker,
   suggestionSources = [],
   queueContent,
   rootPanelAdditionalItems,
@@ -628,7 +663,7 @@ export default function ComposerSurface({
 
   const editor = useRichTextEditorKernel({
     extensions: editorExtensions,
-    content: createPromptVariableContent(text),
+    content: createComposerEditorContent(text, draftTokens),
     editable,
     enableSpellCheck,
     editorProps: {
@@ -790,7 +825,8 @@ export default function ComposerSurface({
         pasteLongTextAsFile,
         pasteLongTextThreshold,
         promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
-        resolveSkillMarker
+        resolveSkillMarker,
+        resolveKnowledgeBaseMarker
       })
 
       if (plainTextOverride !== null) {
@@ -844,8 +880,8 @@ export default function ComposerSurface({
       return
     }
     pendingLocalTextEchoRef.current = null
-    editor.commands.setContent(createPromptVariableContent(text), { emitUpdate: false })
-  }, [editor, text])
+    editor.commands.setContent(createComposerEditorContent(text, draftTokens), { emitUpdate: false })
+  }, [draftTokens, editor, text])
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return

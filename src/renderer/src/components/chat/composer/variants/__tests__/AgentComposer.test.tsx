@@ -378,6 +378,9 @@ describe('AgentComposer', () => {
     mocks.getPathStatus.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
+    vi.mocked(cacheService.getCasual).mockReset()
+    vi.mocked(cacheService.getCasual).mockReturnValue('')
+    vi.mocked(cacheService.setCasual).mockReset()
     window.api = {
       ...window.api,
       file: {
@@ -668,6 +671,39 @@ describe('AgentComposer', () => {
     })
 
     expect(inputAdapter.insertToken).not.toHaveBeenCalled()
+  })
+
+  it('restores cached skill draft tokens after composer remount', () => {
+    vi.mocked(cacheService.getCasual).mockReturnValue({
+      text: 'Use the pdf skill. continue',
+      tokens: [
+        {
+          ...pdfSkillToken,
+          index: 0,
+          textOffset: 0
+        }
+      ]
+    })
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.text).toBe('Use the pdf skill. continue')
+    expect(mocks.surfaceProps?.tokens).toContainEqual(pdfSkillToken)
+    expect(mocks.surfaceProps?.draftTokens).toEqual([
+      {
+        ...pdfSkillToken,
+        index: 0,
+        textOffset: 0
+      }
+    ])
   })
 
   it('removes selected skill state when the skill token is deleted', async () => {

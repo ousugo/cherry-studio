@@ -248,7 +248,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     const text = inputAdapter.getText()
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
-    if (cursorOffset < queryAnchor) return
+    if (cursorOffset <= queryAnchor) return
 
     inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
   }, [ctx.queryAnchor, inputAdapter])

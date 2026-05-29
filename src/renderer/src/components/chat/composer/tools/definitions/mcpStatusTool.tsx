@@ -8,7 +8,8 @@ import {
 import {
   type QuickPanelInputAdapter,
   type QuickPanelListItem,
-  QuickPanelReservedSymbol
+  QuickPanelReservedSymbol,
+  useQuickPanel
 } from '@renderer/components/QuickPanel'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
@@ -161,8 +162,8 @@ export function createMcpStatusLauncher(items: QuickPanelListItem[], t: TFunctio
 }
 
 const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolContext }) => {
-  const { assistant, launcher, quickPanelController, scope, session, t } = context
-  const { isVisible, symbol, updateList } = quickPanelController
+  const { assistant, launcher, scope, session, t } = context
+  const { isVisible, symbol, updateList } = useQuickPanel()
   const { mcpServers } = useMcpServers()
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
   const { agent } = useAgent(scope === TopicType.Session ? (session?.agentId ?? null) : null)

@@ -5,9 +5,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComposerToolLauncher } from '../toolLauncher'
 import type { ToolRenderContext } from '../tools/types'
 
-const { mockGetToolsForScope } = vi.hoisted(() => ({
-  mockGetToolsForScope: vi.fn()
-}))
+const { mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hoisted(() => {
+  const mockQuickPanelValue = {
+    close: vi.fn(),
+    isVisible: false,
+    open: vi.fn(),
+    symbol: '',
+    updateList: vi.fn()
+  }
+
+  return {
+    mockGetToolsForScope: vi.fn(),
+    mockQuickPanelValue,
+    mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
+  }
+})
 
 vi.mock('@renderer/components/chat/composer/tools', () => ({}))
 
@@ -23,13 +35,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelReservedSymbol: {
     Root: 'root'
   },
-  useQuickPanel: () => ({
-    close: vi.fn(),
-    isVisible: false,
-    open: vi.fn(),
-    symbol: '',
-    updateList: vi.fn()
-  })
+  useQuickPanel: (...args: unknown[]) => mockUseQuickPanel(...args)
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -169,6 +175,10 @@ const LauncherActionReader = ({
 
 beforeEach(() => {
   mockGetToolsForScope.mockReset()
+  mockUseQuickPanel.mockClear()
+  mockQuickPanelValue.close.mockClear()
+  mockQuickPanelValue.open.mockClear()
+  mockQuickPanelValue.updateList.mockClear()
 })
 
 const renderRuntime = (tools: any[], node: ReactNode) => {
@@ -245,6 +255,38 @@ describe('ComposerToolRuntimeHost', () => {
     expect(onNonReactiveRender).toHaveBeenCalledTimes(1)
     expect(createItems).toHaveBeenCalledTimes(1)
     expect(runtimeRegisterCount).toBe(1)
+  })
+
+  it('does not subscribe the runtime host to quick panel state', async () => {
+    const runtimeRender = vi.fn()
+
+    const Runtime = () => {
+      runtimeRender()
+      return null
+    }
+
+    mockGetToolsForScope.mockReturnValue([
+      {
+        key: 'fake-runtime-tool',
+        label: 'Fake runtime tool',
+        composer: {
+          runtime: Runtime
+        }
+      }
+    ])
+
+    render(
+      <ComposerToolRuntimeProvider
+        actions={{
+          addNewTopic: vi.fn(),
+          onTextChange: vi.fn()
+        }}>
+        <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} />
+      </ComposerToolRuntimeProvider>
+    )
+
+    await waitFor(() => expect(runtimeRender).toHaveBeenCalledTimes(1))
+    expect(mockUseQuickPanel).not.toHaveBeenCalled()
   })
 })
 
@@ -545,6 +587,36 @@ describe('ComposerActiveToolControls', () => {
     )
 
     await waitFor(() => expect(screen.queryByLabelText('DisabledActive')).not.toBeInTheDocument())
+  })
+
+  it('does not pin active launchers that opt out of composer active controls', async () => {
+    renderRuntime(
+      [
+        {
+          key: 'fake-menu-tool',
+          label: 'Fake menu tool',
+          composer: {
+            menuItems: {
+              createItems: vi.fn(() => [
+                {
+                  active: true,
+                  showInActiveControls: false,
+                  id: 'unpinned-active-tool',
+                  kind: 'command',
+                  label: 'UnpinnedActive',
+                  icon: 'fake',
+                  sources: ['popover'],
+                  action: vi.fn()
+                }
+              ])
+            }
+          }
+        }
+      ],
+      <ComposerActiveToolControls />
+    )
+
+    await waitFor(() => expect(screen.queryByLabelText('UnpinnedActive')).not.toBeInTheDocument())
   })
 })
 

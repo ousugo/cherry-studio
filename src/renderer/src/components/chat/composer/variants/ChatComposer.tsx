@@ -64,6 +64,7 @@ const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
+const KNOWLEDGE_BASE_IDS_KEY_SEPARATOR = '\u0000'
 const COMPOSER_TOOLBAR_CLASS = 'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden'
 const COMPOSER_SELECTOR_BUTTON_CLASS = 'h-7 shrink-0 gap-1.5 rounded-full px-2 text-xs'
 const COMPOSER_BELOW_SELECTOR_BUTTON_CLASS =
@@ -382,7 +383,7 @@ const ChatComposerInner = ({
     setModel
   } = useAssistant(topic.assistantId, { loadDefaultModel: false })
   const { updateTopic } = useTopicMutations()
-  const { bases: allKnowledgeBases } = useKnowledgeBases()
+  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
   const { models: selectableModels } = useModels()
   const { providers } = useProviders()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -397,6 +398,7 @@ const ChatComposerInner = ({
   const { isPending } = useTopicStreamStatus(topic.id)
   const messageQueue = useComposerMessageQueue(topic.id)
   const autoDispatchingQueueRef = useRef(false)
+  const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '')
   const [mentionedModelMultiSelectMode, setMentionedModelMultiSelectMode] = useState(false)
@@ -424,6 +426,7 @@ const ChatComposerInner = ({
 
   const loading = isPending || isSending || awaitingApproval
   const selectedAssistantId = assistant?.id ?? null
+  const selectedKnowledgeBasesScopeKey = `${topic.id}:${selectedAssistantId ?? 'no-assistant'}`
   const assistantName = assistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const providerName = useProviderDisplayName(runtimeModel?.providerId)
 
@@ -463,6 +466,61 @@ const ChatComposerInner = ({
     if (canAddTextFile) return [...documentExts, ...textExts]
     return []
   }, [canAddImageFile, canAddTextFile])
+
+  const configuredKnowledgeBaseIdsKey = (assistant?.knowledgeBaseIds ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
+  const configuredKnowledgeBaseIdSet = useMemo(
+    () =>
+      new Set(
+        configuredKnowledgeBaseIdsKey ? configuredKnowledgeBaseIdsKey.split(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR) : []
+      ),
+    [configuredKnowledgeBaseIdsKey]
+  )
+  const availableKnowledgeBaseIdsKey = useMemo(
+    () => allKnowledgeBases.map((base) => base.id).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR),
+    [allKnowledgeBases]
+  )
+  const availableKnowledgeBaseIdSet = useMemo(
+    () =>
+      new Set(availableKnowledgeBaseIdsKey ? availableKnowledgeBaseIdsKey.split(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR) : []),
+    [availableKnowledgeBaseIdsKey]
+  )
+  const filterSelectableKnowledgeBases = useCallback(
+    (bases: readonly KnowledgeBase[]) => {
+      if (configuredKnowledgeBaseIdSet.size === 0) return []
+      return bases.filter(
+        (base) =>
+          configuredKnowledgeBaseIdSet.has(base.id) &&
+          (isKnowledgeBasesLoading || availableKnowledgeBaseIdSet.has(base.id))
+      )
+    },
+    [availableKnowledgeBaseIdSet, configuredKnowledgeBaseIdSet, isKnowledgeBasesLoading]
+  )
+  const selectableKnowledgeBases = useMemo(
+    () => filterSelectableKnowledgeBases(allKnowledgeBases),
+    [allKnowledgeBases, filterSelectableKnowledgeBases]
+  )
+  const knowledgeBaseMarkerMap = useMemo(() => {
+    const map = new Map<string, KnowledgeBase>()
+    selectableKnowledgeBases.forEach((base) => {
+      map.set(base.id, base)
+      map.set(base.name, base)
+      map.set(chatComposerTokenId.knowledge(base), base)
+    })
+    return map
+  }, [selectableKnowledgeBases])
+  const resolveKnowledgeBaseMarker = useCallback(
+    (marker: string): ComposerDraftToken | null => {
+      const base = knowledgeBaseMarkerMap.get(marker)
+      return base ? knowledgeBaseToComposerToken(base) : null
+    },
+    [knowledgeBaseMarkerMap]
+  )
+  const isSelectedKnowledgeBasesScopeCurrent =
+    selectedKnowledgeBasesScopeKeyRef.current === selectedKnowledgeBasesScopeKey
+  const selectedKnowledgeBasesInScope = useMemo(
+    () => (isSelectedKnowledgeBasesScopeCurrent ? filterSelectableKnowledgeBases(selectedKnowledgeBases) : []),
+    [filterSelectableKnowledgeBases, isSelectedKnowledgeBasesScopeCurrent, selectedKnowledgeBases]
+  )
 
   const setText = useCallback((nextText: string) => {
     setTextState(nextText)
@@ -527,23 +585,35 @@ const ChatComposerInner = ({
       })
 
   const tokens = useMemo(
-    () => [...files.map(fileToComposerToken), ...selectedKnowledgeBases.map(knowledgeBaseToComposerToken)],
-    [files, selectedKnowledgeBases]
+    () => [...files.map(fileToComposerToken), ...selectedKnowledgeBasesInScope.map(knowledgeBaseToComposerToken)],
+    [files, selectedKnowledgeBasesInScope]
   )
 
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
       const tokenIds = getComposerTokenIds(draftTokens)
+      const knowledgeTokenIds = getComposerTokenIds(draftTokens, 'knowledge')
       setFiles((prev) => {
         const next = prev.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
         return next.length === prev.length ? prev : next
       })
       setSelectedKnowledgeBases((prev) => {
-        const next = prev.filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
-        return next.length === prev.length ? prev : next
+        const next = prev.filter((base) => knowledgeTokenIds.has(chatComposerTokenId.knowledge(base)))
+        const nextIds = new Set(next.map(chatComposerTokenId.knowledge))
+        let changed = next.length !== prev.length
+
+        for (const base of selectableKnowledgeBases) {
+          const tokenId = chatComposerTokenId.knowledge(base)
+          if (!knowledgeTokenIds.has(tokenId) || nextIds.has(tokenId)) continue
+          next.push(base)
+          nextIds.add(tokenId)
+          changed = true
+        }
+
+        return changed ? next : prev
       })
     },
-    [setFiles, setSelectedKnowledgeBases]
+    [selectableKnowledgeBases, setFiles, setSelectedKnowledgeBases]
   )
 
   useEffect(() => {
@@ -673,14 +743,14 @@ const ChatComposerInner = ({
   )
 
   useEffect(() => {
-    if (!assistant?.id) return
-    const ids = assistant?.knowledgeBaseIds ?? []
-    if (ids.length === 0) {
-      setSelectedKnowledgeBases([])
-      return
-    }
-    setSelectedKnowledgeBases(allKnowledgeBases.filter((kb): kb is KnowledgeBase => ids.includes(kb.id)))
-  }, [assistant?.id, assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases])
+    const scopeChanged = selectedKnowledgeBasesScopeKeyRef.current !== selectedKnowledgeBasesScopeKey
+    selectedKnowledgeBasesScopeKeyRef.current = selectedKnowledgeBasesScopeKey
+    setSelectedKnowledgeBases((prev) => {
+      const next = scopeChanged ? [] : filterSelectableKnowledgeBases(prev)
+      if (next.length === prev.length && next.every((base, index) => base.id === prev[index]?.id)) return prev
+      return next
+    })
+  }, [filterSelectableKnowledgeBases, selectedKnowledgeBasesScopeKey, setSelectedKnowledgeBases])
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
@@ -688,7 +758,7 @@ const ChatComposerInner = ({
       if (!nextText) return null
       const tokenIds = getComposerTokenIds(draft.tokens)
       const payloadFiles = files.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
-      const payloadKnowledgeBases = selectedKnowledgeBases.filter((base) =>
+      const payloadKnowledgeBases = selectedKnowledgeBasesInScope.filter((base) =>
         tokenIds.has(chatComposerTokenId.knowledge(base))
       )
       const userMessageParts = createComposerUserMessageParts(draft, { files: payloadFiles })
@@ -703,7 +773,7 @@ const ChatComposerInner = ({
         userMessageParts
       }
     },
-    [files, mentionedModels, selectedKnowledgeBases]
+    [files, mentionedModels, selectedKnowledgeBasesInScope]
   )
 
   const sendQueuedPayload = useCallback(
@@ -731,7 +801,8 @@ const ChatComposerInner = ({
   const clearCurrentDraft = useCallback(() => {
     setText('')
     setFiles([])
-  }, [setFiles, setText])
+    setSelectedKnowledgeBases([])
+  }, [setFiles, setSelectedKnowledgeBases, setText])
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
@@ -951,6 +1022,7 @@ const ChatComposerInner = ({
         tokens={tokens}
         managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
+        resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
         placeholder={searching ? t('chat.input.translating') : placeholderText}
         sendDisabled={
           text.trim().length === 0 ||

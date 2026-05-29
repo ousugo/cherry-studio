@@ -118,6 +118,77 @@ const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
 
 const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentId}`
 
+interface AgentComposerDraftCache {
+  text: string
+  tokens: ComposerSerializedToken[]
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isLocalSkill(value: unknown): value is LocalSkill {
+  return (
+    isRecord(value) &&
+    typeof value.name === 'string' &&
+    typeof value.filename === 'string' &&
+    (value.description === undefined || typeof value.description === 'string')
+  )
+}
+
+function isComposerSerializedToken(value: unknown): value is ComposerSerializedToken {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.kind === 'string' &&
+    typeof value.label === 'string' &&
+    typeof value.index === 'number' &&
+    typeof value.textOffset === 'number'
+  )
+}
+
+function getSkillFilenameFromToken(token: ComposerSerializedToken): string {
+  return token.id.startsWith('skill:') ? token.id.slice('skill:'.length) : token.label
+}
+
+function getSkillFromCachedToken(token: ComposerSerializedToken): LocalSkill {
+  if (isLocalSkill(token.payload)) return token.payload
+
+  return {
+    name: token.label,
+    ...(token.description && { description: token.description }),
+    filename: getSkillFilenameFromToken(token)
+  }
+}
+
+function getCachedSkillTokens(tokens: readonly ComposerSerializedToken[]) {
+  return tokens.filter((token) => token.kind === 'skill')
+}
+
+function readAgentDraftCache(cacheKey: string): AgentComposerDraftCache {
+  const cached = cacheService.getCasual<string | AgentComposerDraftCache>(cacheKey)
+  if (typeof cached === 'string') return { text: cached, tokens: [] }
+  if (!isRecord(cached) || typeof cached.text !== 'string' || !Array.isArray(cached.tokens)) {
+    return { text: '', tokens: [] }
+  }
+
+  return {
+    text: cached.text,
+    tokens: getCachedSkillTokens(cached.tokens.filter(isComposerSerializedToken))
+  }
+}
+
+function writeAgentDraftCache(cacheKey: string, text: string, tokens: readonly ComposerSerializedToken[]) {
+  cacheService.setCasual<AgentComposerDraftCache>(
+    cacheKey,
+    {
+      text,
+      tokens: getCachedSkillTokens(tokens)
+    },
+    DRAFT_CACHE_TTL
+  )
+}
+
 const getBaseName = (filePath: string) => {
   const normalized = filePath.replace(/\\/g, '/')
   return normalized.split('/').pop() || normalized
@@ -585,12 +656,22 @@ const AgentComposerInner = ({
   const { setTimeoutTimer } = useTimer()
   const workspacePathStatus = useWorkspacePathStatus(workspace?.path)
   const workspaceWarning = formatWorkspacePathWarning(t, workspacePathStatus, workspace?.path)
+  const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
+  if (initialDraftRef.current === null) {
+    initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
+  }
+
   const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
-  const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>([])
+  const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
+    initialDraftRef.current ? initialDraftRef.current.tokens.map(getSkillFromCachedToken) : []
+  )
   const modelFilter = useAgentModelFilter(agentBase?.type)
   const providerName = useProviderDisplayName(model?.providerId)
   const draftCacheKey = getAgentDraftCacheKey(agentId)
-  const [text, setTextState] = useState(() => cacheService.getCasual<string>(draftCacheKey) ?? '')
+  const [text, setTextState] = useState(() => initialDraftRef.current?.text ?? '')
+  const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraftRef.current?.tokens ?? [])
+  const textRef = useRef(text)
+  const draftTokensRef = useRef(draftTokens)
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
   const messageQueue = useComposerMessageQueue(sessionTopicId)
   const autoDispatchingQueueRef = useRef(false)
@@ -620,11 +701,20 @@ const AgentComposerInner = ({
 
   const setText = useCallback(
     (nextText: string) => {
+      textRef.current = nextText
       setTextState(nextText)
-      cacheService.setCasual(draftCacheKey, nextText, DRAFT_CACHE_TTL)
+      writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
     },
     [draftCacheKey]
   )
+
+  useEffect(() => {
+    textRef.current = text
+  }, [text])
+
+  useEffect(() => {
+    draftTokensRef.current = draftTokens
+  }, [draftTokens])
 
   const tokens = useMemo(
     () => [...files.map(agentFileToComposerToken), ...selectedSkills.map(agentSkillToComposerToken)],
@@ -644,6 +734,10 @@ const AgentComposerInner = ({
 
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
+      const nextDraftTokens = getCachedSkillTokens(draftTokens)
+      setDraftTokens(nextDraftTokens)
+      draftTokensRef.current = nextDraftTokens
+      writeAgentDraftCache(draftCacheKey, textRef.current, nextDraftTokens)
       const fileTokenIds = getAgentComposerTokenIds(draftTokens, 'file')
       const skillTokenIds = getAgentComposerTokenIds(draftTokens, 'skill')
       const skillTokens = draftTokens.filter((token) => token.kind === 'skill')
@@ -673,7 +767,7 @@ const AgentComposerInner = ({
         return changed ? next : prev
       })
     },
-    [availableSkills, setFiles]
+    [availableSkills, draftCacheKey, setFiles]
   )
 
   useEffect(() => {
@@ -820,8 +914,11 @@ const AgentComposerInner = ({
     setText('')
     setFiles([])
     setSelectedSkills([])
+    setDraftTokens([])
+    draftTokensRef.current = []
+    writeAgentDraftCache(draftCacheKey, '', [])
     setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
-  }, [setFiles, setText, setTimeoutTimer])
+  }, [draftCacheKey, setFiles, setText, setTimeoutTimer])
 
   const handleSendDraft = useCallback(
     (draft: ComposerSerializedDraft) => {
@@ -1091,6 +1188,7 @@ const AgentComposerInner = ({
         text={text}
         onTextChange={setText}
         tokens={tokens}
+        draftTokens={draftTokens}
         managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
         resolveSkillMarker={resolveSkillMarker}

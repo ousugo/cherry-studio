@@ -14,6 +14,7 @@ const DISPLAY_COMPOSER_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
   'quote'
 ])
 const SKILL_TOKEN_ID_PREFIX = 'skill:'
+const KNOWLEDGE_TOKEN_ID_PREFIX = 'knowledge:'
 
 function isTextPart(part: CherryMessagePart): part is Extract<CherryMessagePart, { type: 'text' }> {
   return part.type === 'text'
@@ -47,6 +48,12 @@ export function getComposerTokenClipboardText(token: ComposerMessageToken): stri
       ? token.id.slice(SKILL_TOKEN_ID_PREFIX.length)
       : token.label
     return `/${marker}/`
+  }
+  if (token.kind === 'knowledge') {
+    const marker = token.id.startsWith(KNOWLEDGE_TOKEN_ID_PREFIX)
+      ? token.id.slice(KNOWLEDGE_TOKEN_ID_PREFIX.length)
+      : token.label
+    return `#${marker}#`
   }
   return token.label
 }

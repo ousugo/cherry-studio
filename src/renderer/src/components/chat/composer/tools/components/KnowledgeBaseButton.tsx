@@ -1,9 +1,16 @@
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
+import {
+  type QuickPanelInputAdapter,
+  type QuickPanelListItem,
+  type QuickPanelOpenOptions,
+  QuickPanelReservedSymbol,
+  useQuickPanel
+} from '@renderer/components/QuickPanel'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { FileSearch } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -15,6 +22,28 @@ interface Props {
   disabledReason?: string
 }
 
+const KNOWLEDGE_BASE_IDS_KEY_SEPARATOR = '\u0000'
+
+function getKnowledgeBaseIdsKey(ids: string[] | undefined) {
+  return (ids ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
+}
+
+function clearKnowledgeBaseInputQuery(
+  inputAdapter: QuickPanelInputAdapter | undefined,
+  queryAnchor: number | undefined,
+  triggerInfo: { type: 'input' | 'button' } | undefined
+) {
+  if (!inputAdapter || triggerInfo?.type !== 'input' || queryAnchor === undefined) return false
+
+  const text = inputAdapter.getText()
+  const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+  if (cursorOffset <= queryAnchor) return false
+
+  inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
+  inputAdapter.focus()
+  return true
+}
+
 const useKnowledgeBaseToolController = ({
   launcher,
   configuredKnowledgeBaseIds,
@@ -23,14 +52,27 @@ const useKnowledgeBaseToolController = ({
   disabled,
   disabledReason
 }: Props) => {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
+  const language = i18n.resolvedLanguage ?? i18n.language
+  const { isVisible: isQuickPanelVisible, symbol: quickPanelSymbol, updateList: updateQuickPanelList } = useQuickPanel()
   const { bases: knowledgeBases } = useKnowledgeBases()
+  const onSelectRef = useRef(onSelect)
+  const selectedBasesRef = useRef<KnowledgeBase[]>(selectedBases ?? [])
+  const configuredBasesRef = useRef<KnowledgeBase[]>([])
+  const tRef = useRef(t)
+  const configuredKnowledgeBaseIdsKey = getKnowledgeBaseIdsKey(configuredKnowledgeBaseIds)
 
   const configuredBases = useMemo(() => {
-    const configuredIds = new Set(configuredKnowledgeBaseIds ?? [])
+    const configuredIds = new Set(
+      configuredKnowledgeBaseIdsKey ? configuredKnowledgeBaseIdsKey.split(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR) : []
+    )
     if (configuredIds.size === 0) return []
     return knowledgeBases.filter((base) => configuredIds.has(base.id))
-  }, [configuredKnowledgeBaseIds, knowledgeBases])
+  }, [configuredKnowledgeBaseIdsKey, knowledgeBases])
+  onSelectRef.current = onSelect
+  selectedBasesRef.current = selectedBases ?? []
+  configuredBasesRef.current = configuredBases
+  tRef.current = t
 
   const isEnabled = (selectedBases?.length ?? 0) > 0
   const isDisabled = disabled || configuredBases.length === 0
@@ -38,17 +80,72 @@ const useKnowledgeBaseToolController = ({
     ? t('chat.input.knowledge_base_disabled_by_files')
     : t('chat.save.knowledge.empty.no_knowledge_base')
   const resolvedDisabledReason = isDisabled ? (disabledReason ?? fallbackDisabledReason) : undefined
+  const selectedBaseIds = useMemo(() => new Set((selectedBases ?? []).map((base) => base.id)), [selectedBases])
 
-  const handleToggle = useCallback(() => {
-    if (isDisabled) return
-    onSelect(isEnabled ? [] : configuredBases)
-  }, [configuredBases, isDisabled, isEnabled, onSelect])
+  const buildKnowledgeBaseItems = useCallback((): QuickPanelListItem[] => {
+    return configuredBases.map((base) => ({
+      id: `knowledge-base:${base.id}`,
+      label: base.name,
+      description: tRef.current('library.config.knowledge.doc_count', { count: base.documentCount ?? 0 }),
+      filterText: [base.name, base.id].join(' '),
+      icon: base.emoji ?? <FileSearch />,
+      isSelected: selectedBaseIds.has(base.id),
+      action: ({ item }) => {
+        const nextSelectedIds = new Set(selectedBasesRef.current.map((selectedBase) => selectedBase.id))
+        if (item.isSelected) {
+          nextSelectedIds.add(base.id)
+        } else {
+          nextSelectedIds.delete(base.id)
+        }
+        const nextSelectedBases = configuredBasesRef.current.filter((candidate) => nextSelectedIds.has(candidate.id))
+        selectedBasesRef.current = nextSelectedBases
+        onSelectRef.current(nextSelectedBases)
+      }
+    }))
+  }, [configuredBases, language, selectedBaseIds])
+
+  const knowledgeBaseItems = useMemo(() => buildKnowledgeBaseItems(), [buildKnowledgeBaseItems])
+
+  useEffect(() => {
+    if (isQuickPanelVisible && quickPanelSymbol === QuickPanelReservedSymbol.KnowledgeBase) {
+      updateQuickPanelList(knowledgeBaseItems)
+    }
+  }, [isQuickPanelVisible, knowledgeBaseItems, quickPanelSymbol, updateQuickPanelList])
+
+  const openKnowledgeBasePanel = useCallback(
+    ({
+      inputAdapter,
+      parentPanel,
+      queryAnchor,
+      quickPanel: actionQuickPanel,
+      triggerInfo
+    }: {
+      inputAdapter?: QuickPanelInputAdapter
+      parentPanel?: QuickPanelOpenOptions
+      queryAnchor?: number
+      quickPanel: { open: (options: QuickPanelOpenOptions) => void }
+      triggerInfo?: { type: 'input' | 'button' }
+    }) => {
+      if (isDisabled) return
+      const inputQueryCleared = clearKnowledgeBaseInputQuery(inputAdapter, queryAnchor, triggerInfo)
+      actionQuickPanel.open({
+        title: t('chat.input.knowledge_base'),
+        list: knowledgeBaseItems,
+        symbol: QuickPanelReservedSymbol.KnowledgeBase,
+        parentPanel,
+        queryAnchor: inputQueryCleared ? undefined : queryAnchor,
+        triggerInfo: inputQueryCleared ? { type: 'button' } : (triggerInfo ?? { type: 'button' }),
+        multiple: true
+      })
+    },
+    [isDisabled, knowledgeBaseItems, t]
+  )
 
   useEffect(() => {
     const disposeLauncher = launcher.registerLaunchers([
       {
         id: 'knowledge-base',
-        kind: 'command',
+        kind: 'panel',
         sources: ['popover', 'root-panel'],
         order: 40,
         label: t('chat.input.knowledge_base'),
@@ -56,16 +153,16 @@ const useKnowledgeBaseToolController = ({
         disabledReason: resolvedDisabledReason,
         icon: <FileSearch />,
         active: isEnabled,
+        showInActiveControls: false,
         disabled: isDisabled,
-        suffix: isEnabled ? t('common.enabled') : undefined,
-        action: handleToggle
+        action: openKnowledgeBasePanel
       }
     ])
 
     return () => {
       disposeLauncher()
     }
-  }, [handleToggle, isDisabled, isEnabled, launcher, resolvedDisabledReason, t])
+  }, [isDisabled, isEnabled, launcher, openKnowledgeBasePanel, resolvedDisabledReason, t])
 }
 
 export const KnowledgeBaseToolRuntime: FC<Props> = (props) => {

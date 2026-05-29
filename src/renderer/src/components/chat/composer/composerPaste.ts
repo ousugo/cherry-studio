@@ -13,9 +13,11 @@ interface ComposerPlainTextPasteOptions {
   pasteLongTextThreshold?: number
   promptVariableStartIndex?: number
   resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
+  resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
 }
 
 const SKILL_TOKEN_MARKER_PATTERN = /(^|\s)\/([^/\s]+)\/(?=$|\s)/g
+const KNOWLEDGE_BASE_TOKEN_MARKER_PATTERN = /(^|\s)#([^#\r\n]+)#/g
 
 function createSkillMarkerRule(
   resolveSkillMarker: NonNullable<ComposerPlainTextPasteOptions['resolveSkillMarker']>
@@ -30,6 +32,27 @@ function createSkillMarkerRule(
       if (!marker) return null
 
       const token = resolveSkillMarker(marker)
+      if (!token) return null
+
+      const markerStart = index + prefix.length
+      return { from: markerStart, to: markerStart + marker.length + 2, token }
+    }
+  }
+}
+
+function createKnowledgeBaseMarkerRule(
+  resolveKnowledgeBaseMarker: NonNullable<ComposerPlainTextPasteOptions['resolveKnowledgeBaseMarker']>
+): ComposerTokenMarkerRule {
+  return {
+    id: 'knowledge',
+    pattern: KNOWLEDGE_BASE_TOKEN_MARKER_PATTERN,
+    resolve: (match) => {
+      const prefix = match[1] ?? ''
+      const marker = match[2]?.trim()
+      const index = match.index ?? 0
+      if (!marker) return null
+
+      const token = resolveKnowledgeBaseMarker(marker)
       if (!token) return null
 
       const markerStart = index + prefix.length
@@ -53,6 +76,10 @@ export function createComposerMarkedTextPasteContent(
 
 function createPlainTextPasteMarkerRules(options: ComposerPlainTextPasteOptions): ComposerTokenMarkerRule[] {
   const rules = [createPromptVariableMarkerRule({ startIndex: options.promptVariableStartIndex ?? 0 })]
+
+  if (options.resolveKnowledgeBaseMarker) {
+    rules.push(createKnowledgeBaseMarkerRule(options.resolveKnowledgeBaseMarker))
+  }
 
   if (options.resolveSkillMarker) {
     rules.push(createSkillMarkerRule(options.resolveSkillMarker))

@@ -79,6 +79,36 @@ describe('messageSelection', () => {
     expect(getSelectedMessagesPlainText(['a'], messages, partsByMessageId)).toBe('/pdf/ hello')
   })
 
+  it('copies composer knowledge tokens as pasteable id markers', () => {
+    const messages = [createMessage('a', 'user')]
+    const partsByMessageId: Record<string, CherryMessagePart[]> = {
+      a: [
+        {
+          type: 'text',
+          text: 'hello',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'knowledge:kb-1',
+                    kind: 'knowledge',
+                    label: 'Docs',
+                    index: 0,
+                    textOffset: 0
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+
+    expect(getSelectedMessagesPlainText(['a'], messages, partsByMessageId)).toBe('#kb-1#hello')
+  })
+
   it('copies quote token messages with the underlying quote text intact', () => {
     const messages = [createMessage('a', 'user')]
     const quotedPromptText = '<blockquote>\n\nSelected message text\n</blockquote>'

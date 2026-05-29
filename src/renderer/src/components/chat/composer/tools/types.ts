@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
-import type { QuickPanelContextType } from '@renderer/components/QuickPanel'
 import { type Assistant, type ThinkingOption, TopicType } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
 import type { Model } from '@shared/data/types/model'
@@ -85,18 +84,12 @@ export interface ToolLauncherApi {
 }
 
 /**
- * Runtime controller exposed给工具组件（完整 QuickPanel 能力）
- */
-export type ToolQuickPanelController = QuickPanelContextType
-
-/**
  * Tool render context with injected dependencies
  */
 export type ToolRenderContext<S extends readonly ToolStateKey[], A extends readonly ToolActionKey[]> = ToolContext & {
   state: Pick<ToolStateMap, S[number]>
   actions: Pick<ToolActionMap, A[number]>
   launcher: ToolLauncherApi
-  quickPanelController: ToolQuickPanelController
   t: TFunction
 }
 

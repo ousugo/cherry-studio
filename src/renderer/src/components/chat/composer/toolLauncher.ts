@@ -36,6 +36,7 @@ export interface ComposerToolLauncher {
   icon: ReactNode | string
   suffix?: ReactNode | string
   active?: boolean
+  showInActiveControls?: boolean
   disabled?: boolean
   hidden?: boolean
   submenu?: ComposerToolLauncher[]

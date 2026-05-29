@@ -16,6 +16,15 @@ const resolveSkillMarker = (marker: string) =>
       }
     : null
 
+const resolveKnowledgeBaseMarker = (marker: string) =>
+  marker === 'kb-1' || marker === 'Docs'
+    ? {
+        id: 'knowledge:kb-1',
+        kind: 'knowledge' as const,
+        label: 'Docs'
+      }
+    : null
+
 describe('composer paste handling', () => {
   it('preserves LF newlines as composer hard breaks', () => {
     expect(createComposerPlainTextPasteContent('a\nb')).toEqual([
@@ -103,6 +112,46 @@ describe('composer paste handling', () => {
         }
       },
       { type: 'text', text: ' hello' }
+    ])
+  })
+
+  it('restores knowledge base markers when a resolver is provided', () => {
+    expect(
+      getComposerPlainTextPasteOverride('#kb-1# hello', {
+        pasteLongTextAsFile: false,
+        pasteLongTextThreshold: 1500,
+        resolveKnowledgeBaseMarker
+      })
+    ).toEqual([
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'knowledge:kb-1',
+          kind: 'knowledge',
+          label: 'Docs'
+        }
+      },
+      { type: 'text', text: ' hello' }
+    ])
+  })
+
+  it('preserves unresolved knowledge base markers while restoring other markers', () => {
+    expect(
+      getComposerPlainTextPasteOverride('#missing# #Docs#', {
+        pasteLongTextAsFile: false,
+        pasteLongTextThreshold: 1500,
+        resolveKnowledgeBaseMarker
+      })
+    ).toEqual([
+      { type: 'text', text: '#missing# ' },
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'knowledge:kb-1',
+          kind: 'knowledge',
+          label: 'Docs'
+        }
+      }
     ])
   })
 

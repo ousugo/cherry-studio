@@ -89,7 +89,6 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   const toolState = useComposerToolProviderState()
   const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
     useComposerToolProviderDispatch()
-  const quickPanelContext = useQuickPanel()
   const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
   const { provider } = useProvider(model.providerId)
 
@@ -156,11 +155,10 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
         state,
         actions: runtimeActions,
         launcher: getLauncherApiForTool(tool.key),
-        quickPanelController: quickPanelContext,
         t
       } as ToolRenderContext<S, A>
     },
-    [assistant, getLauncherApiForTool, model, quickPanelContext, scope, session, t, toolActions, toolState]
+    [assistant, getLauncherApiForTool, model, scope, session, t, toolActions, toolState]
   )
 
   const toolRuntimeEntries = useMemo(
@@ -291,7 +289,11 @@ interface ComposerToolMenuProps {
 export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuProps) => {
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const activeLaunchers = useMemo(
-    () => getLaunchers('popover').filter((launcher) => launcher.active && !launcher.disabled && !launcher.hidden),
+    () =>
+      getLaunchers('popover').filter(
+        (launcher) =>
+          launcher.active && launcher.showInActiveControls !== false && !launcher.disabled && !launcher.hidden
+      ),
     [getLaunchers]
   )
 
