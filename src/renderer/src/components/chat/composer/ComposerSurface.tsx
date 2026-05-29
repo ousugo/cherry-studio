@@ -2,7 +2,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
-import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -335,7 +335,7 @@ export default function ComposerSurface({
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
   const pendingLocalTextEchoRef = useRef<string | null>(null)
-  const inputListenersRef = useRef(new Set<(event?: { isComposing?: boolean }) => void>())
+  const inputListenersRef = useRef(new Set<(event?: QuickPanelInputEvent) => void>())
   const isSyncingTokensRef = useRef(false)
   const managedTokenSignatureRef = useRef('')
   const sendDisabledRef = useRef(sendDisabled)
@@ -846,7 +846,10 @@ export default function ComposerSurface({
       textRef.current = nextText
       pendingLocalTextEchoRef.current = nextText
       onTextChange(nextText)
-      inputListenersRef.current.forEach((listener) => listener({ isComposing: updatedEditor.view.composing }))
+      const inputEventCause = isSyncingTokensRef.current ? 'state-sync' : 'user-input'
+      inputListenersRef.current.forEach((listener) =>
+        listener({ isComposing: updatedEditor.view.composing, cause: inputEventCause })
+      )
 
       const nextManagedTokenSignature = getManagedTokenSignature(draft.tokens, managedTokenKindSet)
       if (!isSyncingTokensRef.current) {

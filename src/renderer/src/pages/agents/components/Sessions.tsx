@@ -41,7 +41,7 @@ import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/util
 import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Bot, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
+import { Bot, Folder, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
 import { Fragment, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -116,12 +116,14 @@ function SessionListOptionsMenu({
   mode,
   onChange,
   historyLabel,
-  onOpenHistory
+  onOpenHistory,
+  sectionId
 }: {
   mode: AgentSessionDisplayMode
   onChange: (mode: AgentSessionDisplayMode) => void
   historyLabel: string
   onOpenHistory: (origin?: DOMRectReadOnly) => void
+  sectionId?: string
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -154,6 +156,20 @@ function SessionListOptionsMenu({
               }}
             />
           ))}
+          {sectionId && (
+            <>
+              <MenuDivider className="my-0.5" />
+              <ResourceList.SectionToggleMenuItem
+                sectionId={sectionId}
+                expandLabel={t('agent.session.group.expand_all')}
+                collapseLabel={t('agent.session.group.collapse_all')}
+                className="h-6 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground"
+                onClick={() => {
+                  setOpen(false)
+                }}
+              />
+            </>
+          )}
           <MenuDivider className="my-0.5" />
           <MenuItem
             label={historyLabel}
@@ -1227,16 +1243,6 @@ const Sessions = ({
 
   const getSectionHeaderAction = useCallback(
     (section: ResourceListSection) => {
-      if (section.id === SESSION_AGENT_SECTION_ID || section.id === SESSION_WORKDIR_SECTION_ID) {
-        return (
-          <ResourceList.SectionCollapseActionButton
-            alwaysVisible
-            sectionId={section.id}
-            label={t('agent.session.group.collapse')}
-          />
-        )
-      }
-
       if (section.id !== SESSION_NO_PROJECT_SECTION_ID) return null
 
       const createSessionSeed = findLatestCreateSessionSeed(groupedSessions, isSystemWorkspaceSession)
@@ -1262,12 +1268,19 @@ const Sessions = ({
   )
 
   const getGroupHeaderIcon = useCallback(
-    (group: ResourceListGroup) => {
+    (group: ResourceListGroup, context: { collapsed: boolean }) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return undefined
 
       if (displayMode === 'workdir') {
         if (group.id === SESSION_NO_WORKDIR_GROUP_ID || group.id === SESSION_NO_PROJECT_GROUP_ID) return null
-        return <FolderOpen size={13} />
+        if (!context.collapsed) return <FolderOpen size={13} />
+
+        return (
+          <span className="flex size-4 items-center justify-center text-foreground/70 group-hover/resource-list-group:text-foreground group-focus-within/resource-list-group:text-foreground">
+            <Folder size={13} className="block group-hover/resource-list-group:hidden" />
+            <FolderOpen size={13} className="hidden group-hover/resource-list-group:block" />
+          </span>
+        )
       }
 
       if (displayMode !== 'agent') return undefined
@@ -1446,6 +1459,13 @@ const Sessions = ({
               onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
               historyLabel={onOpenHistory ? t('history.records.shortTitle') : t('shortcut.general.toggle_sidebar')}
               onOpenHistory={handleOpenHistoryOrToggleSidebar}
+              sectionId={
+                displayMode === 'agent'
+                  ? SESSION_AGENT_SECTION_ID
+                  : displayMode === 'workdir'
+                    ? SESSION_WORKDIR_SECTION_ID
+                    : undefined
+              }
             />
           }
         />

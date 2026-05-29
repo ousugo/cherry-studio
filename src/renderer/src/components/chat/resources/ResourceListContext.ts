@@ -117,6 +117,7 @@ export type ResourceListActionMap = {
   selectGroupHeaderItem: (id: string) => void
   showMoreInGroup: (groupId: string) => void
   collapseGroupItems: (groupId: string) => void
+  expandGroups: (groupIds: readonly string[]) => void
   collapseGroups: (groupIds: readonly string[]) => void
   toggleGroup: (groupId: string) => void
   reorder: (payload: ResourceListReorderPayload) => void

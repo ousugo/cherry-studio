@@ -117,7 +117,13 @@ function createInputAdapter(initialText = '', initialCursor = initialText.length
     }
   }
 
-  return { adapter }
+  const syncManagedTokenText = (nextText: string, nextCursor = nextText.length) => {
+    text = nextText
+    cursor = nextCursor
+    listeners.forEach((listener) => listener({ cause: 'state-sync' }))
+  }
+
+  return { adapter, syncManagedTokenText }
 }
 
 function QuickPanelBridge({
@@ -168,7 +174,7 @@ describe('KnowledgeBaseToolRuntime QuickPanel integration', () => {
     ]
   })
 
-  it('opens a real multi-select panel, keeps it open, and clears the typed query once', async () => {
+  it('keeps the multi-select panel open while selecting, then closes it when typing resumes', async () => {
     let quickPanel: QuickPanelContextType | undefined
     const input = createInputAdapter('/knowledge')
     const onSelect = vi.fn()
@@ -206,13 +212,21 @@ describe('KnowledgeBaseToolRuntime QuickPanel integration', () => {
     fireEvent.click(screen.getByText('Knowledge One'))
 
     await waitFor(() => expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0]]))
+    input.syncManagedTokenText(' ')
     expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
     expect(input.adapter.deleteTriggerRange).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByText('Knowledge Two'))
 
     await waitFor(() => expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0], mocks.knowledgeBases[1]]))
+    input.syncManagedTokenText('  ')
     expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
     expect(input.adapter.deleteTriggerRange).toHaveBeenCalledTimes(1)
+
+    input.adapter.insertText(' ')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
+    })
   })
 })

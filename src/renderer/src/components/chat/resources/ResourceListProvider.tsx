@@ -90,8 +90,8 @@ function getResourceListGroup<T extends ResourceListItemBase>(
   return groupBy?.(item) ?? UNGROUPED_RESOURCE_GROUP
 }
 
-function getResourceListGroupFromSeed({ section: _section, ...group }: ResourceListGroupSeed): ResourceListGroup {
-  return group
+function getResourceListGroupFromSeed(group: ResourceListGroupSeed): ResourceListGroup {
+  return { id: group.id, label: group.label, count: group.count }
 }
 
 function deriveResourceListItems<T extends ResourceListItemBase>({
@@ -398,6 +398,7 @@ type ProviderAction =
   | { type: 'cancelRename' }
   | { type: 'showMoreInGroup'; groupId: string }
   | { type: 'collapseGroupItems'; groupId: string; defaultCount: number }
+  | { type: 'expandGroups'; groupIds: readonly string[] }
   | { type: 'collapseGroups'; groupIds: readonly string[]; defaultCount: number }
   | { type: 'resetGroupVisibleCounts'; groupIds: readonly string[]; defaultCount: number }
   | { type: 'toggleGroup'; groupId: string }
@@ -456,6 +457,11 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
           ...state.groupVisibleCounts,
           [action.groupId]: action.defaultCount
         }
+      }
+    case 'expandGroups':
+      return {
+        ...state,
+        collapsedGroups: state.collapsedGroups.filter((groupId) => !action.groupIds.includes(groupId))
       }
     case 'collapseGroups': {
       const collapsedGroups = new Set(state.collapsedGroups)
@@ -581,8 +587,10 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const effectiveSelectedId = selectedIdProp !== undefined ? selectedIdProp : state.selectedId
   const isSelectedControlled = selectedIdProp !== undefined
   const handledRevealRequestRef = useRef<string | null>(null)
-  const stateGroupsRef = useRef<readonly ResourceListViewGroup<T>[]>([])
   const sectionIdsRef = useRef<ReadonlySet<string>>(new Set())
+  const expandedGroupIdsRef = useRef<string[]>([])
+  const hasCheckedSingleGroupExpansionRef = useRef(false)
+  const handledSingleGroupExpansionKeyRef = useRef<string | null>(null)
   const uiStoreRef = useRef<ResourceListUiStore | null>(null)
   if (!uiStoreRef.current) {
     uiStoreRef.current = new ResourceListUiStore({
@@ -749,6 +757,16 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     () => (sectionBy ? [...buildSectionStateGroups(viewSections), ...viewGroups] : viewGroups),
     [sectionBy, viewGroups, viewSections]
   )
+  const singleGroupDefaultExpandedIds = useMemo(() => {
+    const collapsibleGroups = viewGroups.filter((group) => Boolean(group.group.label))
+    if (collapsibleGroups.length !== 1) return null
+
+    const groupId = collapsibleGroups[0].group.id
+    if (!sectionBy) return [groupId]
+
+    const section = viewSections.find((candidate) => candidate.groups.some((group) => group.group.id === groupId))
+    return section?.section.label ? [section.section.id, groupId] : [groupId]
+  }, [sectionBy, viewGroups, viewSections])
 
   useLayoutEffect(() => {
     uiStore.setSelectedId(effectiveSelectedId)
@@ -775,12 +793,51 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   }, [getItemId, stateGroups, uiStore])
 
   useLayoutEffect(() => {
-    stateGroupsRef.current = stateGroups
-  }, [stateGroups])
-
-  useLayoutEffect(() => {
     sectionIdsRef.current = new Set(viewSections.map(({ section }) => section.id))
   }, [viewSections])
+
+  useLayoutEffect(() => {
+    const viewExpandedGroupIds = getExpandedGroupIds(stateGroups)
+    expandedGroupIdsRef.current =
+      collapsedGroupIds === undefined
+        ? viewExpandedGroupIds
+        : [...new Set([...effectiveGroupStateIds, ...viewExpandedGroupIds])]
+  }, [collapsedGroupIds, effectiveGroupStateIds, stateGroups])
+
+  const notifyControlledGroupStateChange = useCallback(
+    (groupIds: string[]) => {
+      const nextGroupIds = new Set(groupIds)
+      if (hasExpandedSectionId(nextGroupIds, sectionIdsRef.current)) {
+        nextGroupIds.delete(RESOURCE_LIST_NO_EXPANDED_SECTIONS_ID)
+      }
+      const next = [...nextGroupIds]
+      expandedGroupIdsRef.current = next
+      onCollapsedGroupIdsChange?.(next)
+    },
+    [onCollapsedGroupIdsChange]
+  )
+
+  useEffect(() => {
+    if (collapsedGroupIds === undefined || !singleGroupDefaultExpandedIds) {
+      hasCheckedSingleGroupExpansionRef.current = true
+      handledSingleGroupExpansionKeyRef.current = null
+      return
+    }
+
+    const expansionKey = singleGroupDefaultExpandedIds.join('|')
+    if (!hasCheckedSingleGroupExpansionRef.current) {
+      hasCheckedSingleGroupExpansionRef.current = true
+      handledSingleGroupExpansionKeyRef.current = expansionKey
+      return
+    }
+
+    if (handledSingleGroupExpansionKeyRef.current === expansionKey) return
+    handledSingleGroupExpansionKeyRef.current = expansionKey
+
+    if (singleGroupDefaultExpandedIds.every((groupId) => effectiveGroupStateIds.includes(groupId))) return
+
+    notifyControlledGroupStateChange([...new Set([...effectiveGroupStateIds, ...singleGroupDefaultExpandedIds])])
+  }, [collapsedGroupIds, effectiveGroupStateIds, notifyControlledGroupStateChange, singleGroupDefaultExpandedIds])
 
   const actions = useMemo(
     () => ({
@@ -824,14 +881,26 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       showMoreInGroup: (groupId: string) => dispatch({ type: 'showMoreInGroup', groupId }),
       collapseGroupItems: (groupId: string) =>
         dispatch({ type: 'collapseGroupItems', groupId, defaultCount: defaultGroupVisibleCount }),
+      expandGroups: (groupIds: readonly string[]) => {
+        if (collapsedGroupIds !== undefined) {
+          const nextExpandedGroupIds = new Set(expandedGroupIdsRef.current)
+          for (const groupId of groupIds) {
+            nextExpandedGroupIds.add(groupId)
+          }
+          notifyControlledGroupStateChange([...nextExpandedGroupIds])
+          return
+        }
+
+        dispatch({ type: 'expandGroups', groupIds })
+      },
       collapseGroups: (groupIds: readonly string[]) => {
         if (collapsedGroupIds !== undefined) {
-          const nextExpandedGroupIds = new Set(effectiveGroupStateIds)
+          const nextExpandedGroupIds = new Set(expandedGroupIdsRef.current)
           for (const groupId of groupIds) {
             nextExpandedGroupIds.delete(groupId)
           }
           dispatch({ type: 'resetGroupVisibleCounts', groupIds, defaultCount: defaultGroupVisibleCount })
-          onCollapsedGroupIdsChange?.([...nextExpandedGroupIds])
+          notifyControlledGroupStateChange([...nextExpandedGroupIds])
           return
         }
 
@@ -839,7 +908,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       },
       toggleGroup: (groupId: string) => {
         if (collapsedGroupIds !== undefined) {
-          const nextExpandedGroupIds = new Set(getExpandedGroupIds(stateGroupsRef.current))
+          const nextExpandedGroupIds = new Set(expandedGroupIdsRef.current)
           if (nextExpandedGroupIds.has(groupId)) {
             nextExpandedGroupIds.delete(groupId)
           } else {
@@ -851,7 +920,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
               nextExpandedGroupIds.add(RESOURCE_LIST_NO_EXPANDED_SECTIONS_ID)
             }
           }
-          onCollapsedGroupIdsChange?.([...nextExpandedGroupIds])
+          notifyControlledGroupStateChange([...nextExpandedGroupIds])
           return
         }
 
@@ -862,9 +931,8 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     [
       collapsedGroupIds,
       defaultGroupVisibleCount,
-      effectiveGroupStateIds,
       isSelectedControlled,
-      onCollapsedGroupIdsChange,
+      notifyControlledGroupStateChange,
       onGroupHeaderSelectItem,
       onOpenContextMenu,
       onRenameItem,

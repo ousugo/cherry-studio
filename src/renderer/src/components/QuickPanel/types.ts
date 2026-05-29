@@ -25,7 +25,12 @@ export interface QuickPanelInputAdapter {
   insertToken?: (token: unknown) => void
   deleteTriggerRange: (range: { from: number; to: number }) => void
   focus: () => void
-  subscribeInput?: (listener: (event?: { isComposing?: boolean }) => void) => () => void
+  subscribeInput?: (listener: (event?: QuickPanelInputEvent) => void) => () => void
+}
+
+export interface QuickPanelInputEvent {
+  isComposing?: boolean
+  cause?: 'user-input' | 'state-sync'
 }
 
 export type QuickPanelCallBackOptions = {

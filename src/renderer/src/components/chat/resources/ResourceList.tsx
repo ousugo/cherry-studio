@@ -1,4 +1,4 @@
-import { Button, EmptyState as UiEmptyState, Input, Skeleton, Tooltip } from '@cherrystudio/ui'
+import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { SearchIcon, SquareMinus } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
@@ -212,6 +212,48 @@ function GroupHeaderActionButton({
   )
 }
 
+type SectionToggleMenuItemProps = Omit<ComponentProps<typeof MenuItem>, 'label'> & {
+  collapseLabel: string
+  expandLabel: string
+  sectionId: string
+}
+
+function SectionToggleMenuItem({
+  collapseLabel,
+  disabled,
+  expandLabel,
+  onClick,
+  sectionId,
+  ...props
+}: SectionToggleMenuItemProps) {
+  const actions = useResourceListActions()
+  const view = useResourceListView()
+  const section = view.sections.find((candidate) => candidate.section.id === sectionId)
+  const groupIds = section?.groups.map((group) => group.group.id) ?? []
+  const expandGroupIds = section ? [section.section.id, ...groupIds] : groupIds
+  const expandedGroupIds = section?.groups.filter((group) => !group.collapsed).map((group) => group.group.id) ?? []
+  const hasExpandedGroup = expandedGroupIds.length > 0
+  const isDisabled = disabled || groupIds.length === 0
+
+  return (
+    <MenuItem
+      label={hasExpandedGroup ? collapseLabel : expandLabel}
+      disabled={isDisabled}
+      onClick={(event) => {
+        onClick?.(event)
+        if (event.defaultPrevented || isDisabled) return
+
+        if (hasExpandedGroup) {
+          actions.collapseGroups(expandedGroupIds)
+        } else {
+          actions.expandGroups(expandGroupIds)
+        }
+      }}
+      {...props}
+    />
+  )
+}
+
 type SectionCollapseActionButtonProps = Omit<HeaderActionButtonProps, 'children'> & {
   alwaysVisible?: boolean
   label: string
@@ -219,7 +261,7 @@ type SectionCollapseActionButtonProps = Omit<HeaderActionButtonProps, 'children'
 }
 
 function SectionCollapseActionButton({
-  alwaysVisible: _alwaysVisible,
+  alwaysVisible,
   disabled,
   label,
   onClick,
@@ -227,6 +269,7 @@ function SectionCollapseActionButton({
   type = 'button',
   ...props
 }: SectionCollapseActionButtonProps) {
+  void alwaysVisible
   const actions = useResourceListActions()
   const view = useResourceListView()
   const section = view.sections.find((candidate) => candidate.section.id === sectionId)
@@ -605,6 +648,7 @@ const ResourceList = {
   HeaderActionButton,
   GroupHeaderActionButton,
   SectionCollapseActionButton,
+  SectionToggleMenuItem,
   HeaderItem,
   Search,
   FilterBar,

@@ -1,6 +1,5 @@
 import { ContextMenu as UiContextMenu, ContextMenuTrigger } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import { ChevronDown } from 'lucide-react'
 import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
 import { Fragment, isValidElement, useCallback, useState } from 'react'
 
@@ -119,11 +118,6 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
           <span className="min-w-0 truncate text-left font-semibold text-[13px] text-inherit leading-5">
             {section.label}
           </span>
-          <span
-            aria-hidden="true"
-            className="flex size-4 shrink-0 items-center justify-center rounded text-inherit opacity-0 transition-opacity duration-150 group-hover/resource-list-section:opacity-100 [&_svg]:stroke-current [&_svg]:text-inherit">
-            <ChevronDown size={12} className={cn('transition-transform', collapsed && '-rotate-90')} />
-          </span>
         </button>
         {sectionHeaderAction && (
           <div
@@ -158,12 +152,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const customGroupHeaderIcon = meta.getGroupHeaderIcon?.(group, groupHeaderContext)
   const groupHeaderClassName = meta.getGroupHeaderClassName?.(group)
   const groupHeaderTooltip = meta.getGroupHeaderTooltip?.(group)
-  const groupHeaderIcon =
-    customGroupHeaderIcon === undefined ? (
-      <ChevronDown size={14} className={cn('transition-transform', collapsed && '-rotate-90')} />
-    ) : (
-      customGroupHeaderIcon
-    )
+  const groupHeaderIcon = customGroupHeaderIcon ?? null
   const handleContextMenu = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       onContextMenu?.(event)
@@ -226,9 +215,11 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           aria-current={selected ? 'true' : undefined}
           className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={handleClick}>
-          <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
-            {groupHeaderIcon}
-          </ResourceListLeadingSlot>
+          {groupHeaderIcon && (
+            <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
+              {groupHeaderIcon}
+            </ResourceListLeadingSlot>
+          )}
           <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-inherit leading-5">
             {group.label}
           </span>
