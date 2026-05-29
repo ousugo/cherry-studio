@@ -110,5 +110,5 @@ INSERT INTO `__new_agent_session_message`("id", "session_id", "role", "data", "s
 DROP TABLE `agent_session_message`;--> statement-breakpoint
 ALTER TABLE `__new_agent_session_message` RENAME TO `agent_session_message`;--> statement-breakpoint
 CREATE INDEX `agent_session_message_session_created_id_idx` ON `agent_session_message` (`session_id`,`created_at`,`id`);--> statement-breakpoint
-ALTER TABLE `assistant` ADD `order_key` text NOT NULL DEFAULT '';--> statement-breakpoint
+ALTER TABLE `assistant` ADD `order_key` text NOT NULL DEFAULT 'a0';--> statement-breakpoint
 CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);

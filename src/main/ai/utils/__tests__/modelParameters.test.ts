@@ -3,7 +3,7 @@ import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import { makeAssistant as makeAssistantBase, makeModel, makeProvider } from '../../__tests__/fixtures'
-import { getMaxTokens, getTemperature, getTopP } from '../modelParameters'
+import { filterStandardParams, getMaxTokens, getTemperature, getTopP } from '../modelParameters'
 
 // modelParameters tests treat `enableTemperature: true` as the baseline,
 // unlike DEFAULT_ASSISTANT_SETTINGS which has it false. Local wrapper keeps
@@ -63,6 +63,18 @@ describe('getTemperature', () => {
     })
     expect(getTemperature(a, model)).toBe(1)
   })
+
+  it('disables temperature for Gemini 3.x models', () => {
+    const a = makeAssistant({ temperature: 0.8 })
+    const model = makeModel({ id: 'gemini::gemini-3-pro' })
+    expect(getTemperature(a, model)).toBeUndefined()
+  })
+
+  it('disables temperature for Claude Opus 4.7 models', () => {
+    const a = makeAssistant({ temperature: 0.8 })
+    const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
+    expect(getTemperature(a, model)).toBeUndefined()
+  })
 })
 
 describe('getTopP', () => {
@@ -89,6 +101,35 @@ describe('getTopP', () => {
     })
     expect(getTopP(a, model)).toBe(0.95)
   })
+
+  it('disables topP for Gemini 3.x models', () => {
+    const a = makeAssistant({ enableTopP: true, topP: 0.8 })
+    const model = makeModel({ id: 'gemini::gemini-3-pro' })
+    expect(getTopP(a, model)).toBeUndefined()
+  })
+
+  it('disables topP for Claude Opus 4.7 models', () => {
+    const a = makeAssistant({ enableTopP: true, topP: 0.8 })
+    const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
+    expect(getTopP(a, model)).toBeUndefined()
+  })
+})
+
+describe('filterStandardParams', () => {
+  it('drops topK for Gemini 3.x models', () => {
+    const model = makeModel({ id: 'gemini::gemini-3-pro' })
+    expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, model)).toEqual({ frequencyPenalty: 0.1 })
+  })
+
+  it('drops topK for Claude Opus 4.7 models', () => {
+    const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
+    expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, model)).toEqual({ frequencyPenalty: 0.1 })
+  })
+
+  it('keeps topK for other models', () => {
+    const input = { topK: 40 }
+    expect(filterStandardParams(input, makeModel())).toBe(input)
+  })
 })
 
 describe('getMaxTokens', () => {
@@ -105,6 +146,13 @@ describe('getMaxTokens', () => {
   it('skips budget subtraction on Claude 4.6 series (adaptive thinking)', () => {
     const a = makeAssistant({ enableMaxTokens: true, maxTokens: 8000, reasoning_effort: 'high' })
     const model = makeModel({ id: 'anthropic::claude-sonnet-4-6-20260101', providerId: 'anthropic' })
+    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
+    expect(getMaxTokens(a, model, provider)).toBe(8000)
+  })
+
+  it('skips budget subtraction on Claude Opus 4.7 series (adaptive thinking)', () => {
+    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 8000, reasoning_effort: 'high' })
+    const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
     const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
     expect(getMaxTokens(a, model, provider)).toBe(8000)
   })

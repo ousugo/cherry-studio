@@ -1,3 +1,5 @@
+import type * as NodeModule from 'node:module'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -17,7 +19,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('node:module', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:module')>()
+  const actual = await importOriginal<typeof NodeModule>()
   return {
     ...actual,
     createRequire: vi.fn(() => ({

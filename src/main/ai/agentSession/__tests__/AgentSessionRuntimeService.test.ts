@@ -300,7 +300,7 @@ describe('AgentSessionRuntimeService', () => {
     })
     const reader = stream.getReader()
 
-    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'stream-start' }, done: false })
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
     await vi.waitFor(() =>
       expect(connect).toHaveBeenCalledWith({
         sessionId: 'session-1',

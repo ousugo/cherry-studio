@@ -1,9 +1,12 @@
-import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
+import type { FileEntryId } from '@shared/data/types/file'
+import { knowledgeItemSourceType, tempSessionSourceType } from '@shared/data/types/file/ref'
 import { type CreateKnowledgeBaseDto, KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -14,6 +17,17 @@ const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SECOND_KNOWLEDGE_BASE_ID = '22222222-2222-4222-8222-222222222222'
 const FAILED_NULL_ERROR_BASE_ID = '33333333-3333-4333-8333-333333333333'
 const FAILED_EMPTY_ERROR_BASE_ID = '44444444-4444-4444-8444-444444444444'
+const ALPHA_KNOWLEDGE_BASE_ID = '55555555-5555-4555-8555-555555555555'
+const BETA_KNOWLEDGE_BASE_ID = '66666666-6666-4666-8666-666666666666'
+const OTHER_KNOWLEDGE_BASE_ID = '77777777-7777-4777-8777-777777777777'
+const LITERAL_KNOWLEDGE_BASE_ID = '88888888-8888-4888-8888-888888888888'
+const EXPANDED_KNOWLEDGE_BASE_ID = '99999999-9999-4999-8999-999999999999'
+const OLD_KNOWLEDGE_BASE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const NEWER_KNOWLEDGE_BASE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+const NEWEST_KNOWLEDGE_BASE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+const FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abc'
+const OTHER_BASE_FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abd'
+const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000a01' as FileEntryId
 
 describe('KnowledgeBaseService', () => {
   const dbh = setupTestDatabase()
@@ -65,6 +79,44 @@ describe('KnowledgeBaseService', () => {
     return values
   }
 
+  async function seedFileEntry() {
+    await dbh.db.insert(fileEntryTable).values({
+      id: FILE_ENTRY_ID,
+      origin: 'internal',
+      name: 'source-file',
+      ext: 'md',
+      size: 1,
+      externalPath: null
+    })
+  }
+
+  async function seedFileKnowledgeItem(overrides: Partial<typeof knowledgeItemTable.$inferInsert> = {}) {
+    await dbh.db.insert(knowledgeItemTable).values({
+      id: FILE_ITEM_ID,
+      baseId: KNOWLEDGE_BASE_ID,
+      groupId: null,
+      type: 'file',
+      data: {
+        source: '/docs/source-file.md',
+        fileEntryId: FILE_ENTRY_ID
+      },
+      status: 'completed',
+      error: null,
+      ...overrides
+    })
+  }
+
+  async function seedKnowledgeItemFileRef(overrides: Partial<typeof fileRefTable.$inferInsert> = {}) {
+    await dbh.db.insert(fileRefTable).values({
+      id: '11111111-1111-4111-8111-123456789abc',
+      fileEntryId: FILE_ENTRY_ID,
+      sourceType: knowledgeItemSourceType,
+      sourceId: FILE_ITEM_ID,
+      role: 'source',
+      ...overrides
+    })
+  }
+
   describe('list', () => {
     it('should return paginated knowledge bases', async () => {
       await seedKnowledgeBase()
@@ -78,9 +130,9 @@ describe('KnowledgeBaseService', () => {
     })
 
     it('should search knowledge bases by name and keep pagination total scoped to the search', async () => {
-      await seedKnowledgeBase({ id: 'kb-alpha', name: 'Alpha Research' })
-      await seedKnowledgeBase({ id: 'kb-beta', name: 'Beta Research' })
-      await seedKnowledgeBase({ id: 'kb-other', name: 'Operations' })
+      await seedKnowledgeBase({ id: ALPHA_KNOWLEDGE_BASE_ID, name: 'Alpha Research' })
+      await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Beta Research' })
+      await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Operations' })
 
       const result = await service.list({ page: 1, limit: 1, search: 'Research' })
 
@@ -91,21 +143,21 @@ describe('KnowledgeBaseService', () => {
     })
 
     it('treats % and _ in knowledge base search as literal characters', async () => {
-      await seedKnowledgeBase({ id: 'kb-literal', name: 'Vector 100%_notes' })
-      await seedKnowledgeBase({ id: 'kb-expanded', name: 'Vector 100xxnotes' })
+      await seedKnowledgeBase({ id: LITERAL_KNOWLEDGE_BASE_ID, name: 'Vector 100%_notes' })
+      await seedKnowledgeBase({ id: EXPANDED_KNOWLEDGE_BASE_ID, name: 'Vector 100xxnotes' })
 
       const result = await service.list({ page: 1, limit: 10, search: '100%_' })
 
       expect(result.total).toBe(1)
-      expect(result.items.map((item) => item.id)).toEqual(['kb-literal'])
+      expect(result.items.map((item) => item.id)).toEqual([LITERAL_KNOWLEDGE_BASE_ID])
     })
 
     it('filters by updatedAtFrom and can sort by updatedAt descending', async () => {
       const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
-      await seedKnowledgeBase({ id: 'kb-old', name: 'Research old', updatedAt: cutoff - 1 })
-      await seedKnowledgeBase({ id: 'kb-newer', name: 'Research newer', updatedAt: cutoff + 2000 })
-      await seedKnowledgeBase({ id: 'kb-newest', name: 'Research newest', updatedAt: cutoff + 3000 })
-      await seedKnowledgeBase({ id: 'kb-other', name: 'Other', updatedAt: cutoff + 4000 })
+      await seedKnowledgeBase({ id: OLD_KNOWLEDGE_BASE_ID, name: 'Research old', updatedAt: cutoff - 1 })
+      await seedKnowledgeBase({ id: NEWER_KNOWLEDGE_BASE_ID, name: 'Research newer', updatedAt: cutoff + 2000 })
+      await seedKnowledgeBase({ id: NEWEST_KNOWLEDGE_BASE_ID, name: 'Research newest', updatedAt: cutoff + 3000 })
+      await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Other', updatedAt: cutoff + 4000 })
 
       const result = await service.list({
         page: 1,
@@ -116,7 +168,7 @@ describe('KnowledgeBaseService', () => {
         orderBy: 'desc'
       })
 
-      expect(result.items.map((item) => item.id)).toEqual(['kb-newest', 'kb-newer'])
+      expect(result.items.map((item) => item.id)).toEqual([NEWEST_KNOWLEDGE_BASE_ID, NEWER_KNOWLEDGE_BASE_ID])
       expect(result.total).toBe(2)
     })
   })
@@ -435,6 +487,50 @@ describe('KnowledgeBaseService', () => {
 
       const rows = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(rows).toHaveLength(0)
+    })
+
+    it('should delete knowledge item file refs when deleting a knowledge base', async () => {
+      await seedKnowledgeBase()
+      await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Other Base' })
+      await seedFileEntry()
+      await seedFileKnowledgeItem()
+      await seedFileKnowledgeItem({ id: OTHER_BASE_FILE_ITEM_ID, baseId: SECOND_KNOWLEDGE_BASE_ID })
+      await seedKnowledgeItemFileRef()
+      await seedKnowledgeItemFileRef({
+        id: '22222222-2222-4222-8222-123456789abc',
+        sourceType: tempSessionSourceType,
+        sourceId: FILE_ITEM_ID,
+        role: 'pending'
+      })
+      await seedKnowledgeItemFileRef({
+        id: '33333333-3333-4333-8333-123456789abc',
+        sourceId: OTHER_BASE_FILE_ITEM_ID
+      })
+
+      await service.delete(KNOWLEDGE_BASE_ID)
+
+      const itemRows = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, FILE_ITEM_ID))
+      const otherItemRows = await dbh.db
+        .select()
+        .from(knowledgeItemTable)
+        .where(eq(knowledgeItemTable.id, OTHER_BASE_FILE_ITEM_ID))
+      const refRows = await dbh.db
+        .select()
+        .from(fileRefTable)
+        .where(eq(fileRefTable.id, '11111111-1111-4111-8111-123456789abc'))
+      const sameSourceIdOtherTypeRows = await dbh.db
+        .select()
+        .from(fileRefTable)
+        .where(eq(fileRefTable.id, '22222222-2222-4222-8222-123456789abc'))
+      const otherBaseRefRows = await dbh.db
+        .select()
+        .from(fileRefTable)
+        .where(eq(fileRefTable.id, '33333333-3333-4333-8333-123456789abc'))
+      expect(itemRows).toHaveLength(0)
+      expect(otherItemRows).toHaveLength(1)
+      expect(refRows).toHaveLength(0)
+      expect(sameSourceIdOtherTypeRows).toHaveLength(1)
+      expect(otherBaseRefRows).toHaveLength(1)
     })
 
     it('should throw NotFound when deleting a missing knowledge base', async () => {

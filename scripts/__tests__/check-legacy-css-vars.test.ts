@@ -46,7 +46,7 @@ describe('check-legacy-css-vars', () => {
       /* var(--color-text-2) */
     `
 
-    expect(findLegacyVarHitsInContent(content, 'src/renderer/src/example.css')).toEqual([])
+    expect(findLegacyVarHitsInContent(content, 'src/renderer/example.css')).toEqual([])
   })
 
   it('reports real legacy variable usages', () => {
@@ -58,7 +58,7 @@ describe('check-legacy-css-vars', () => {
       const node = '<div class="text-[var(--color-text-2)]" />';
     `
 
-    const findings = findLegacyVarHitsInContent(content, 'src/renderer/src/example.tsx')
+    const findings = findLegacyVarHitsInContent(content, 'src/renderer/example.tsx')
 
     expect(findings).toHaveLength(2)
     expect(findings.map((finding) => finding.variable)).toEqual(['--color-text-1', '--color-text-2'])
@@ -69,9 +69,7 @@ describe('check-legacy-css-vars', () => {
     const files = collectTargetFiles()
 
     expect(files.length).toBeGreaterThan(0)
-    expect(files.every((file) => file.includes(`${path.sep}src${path.sep}renderer${path.sep}src${path.sep}`))).toBe(
-      true
-    )
+    expect(files.every((file) => file.includes(`${path.sep}src${path.sep}renderer${path.sep}`))).toBe(true)
   })
 
   it('collects only the specified source file', () => {

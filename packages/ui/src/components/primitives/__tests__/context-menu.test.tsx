@@ -128,13 +128,13 @@ describe('ContextMenu primitive', () => {
     })
 
     it('clears the opening pointerup guard when the opening release happens outside the menu content', () => {
-      let openingPointerUpListener: EventListener | null = null
-      const addEventListener = vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
-        void options
+      let openingPointerUpListener: ((event: Event) => void) | null = null
+      const addEventListener = vi.spyOn(window, 'addEventListener').mockImplementation(((type, listener, _options) => {
         if (type === 'pointerup' && typeof listener === 'function') {
-          openingPointerUpListener = listener
+          openingPointerUpListener = listener as (event: Event) => void
         }
-      })
+        return undefined
+      }) as Window['addEventListener'])
 
       render(
         <ContextMenu>
@@ -152,8 +152,9 @@ describe('ContextMenu primitive', () => {
       } finally {
         addEventListener.mockRestore()
       }
-      expect(openingPointerUpListener).not.toBeNull()
-      openingPointerUpListener?.(new MouseEvent('pointerup', { bubbles: true, button: 0, cancelable: true }))
+      const listener = openingPointerUpListener as ((event: Event) => void) | null
+      expect(listener).not.toBeNull()
+      listener?.(new MouseEvent('pointerup', { bubbles: true, button: 0, cancelable: true }))
 
       const itemPointerUp = new MouseEvent('pointerup', { bubbles: true, button: 0, cancelable: true })
       fireEvent(screen.getByText('Delete'), itemPointerUp)

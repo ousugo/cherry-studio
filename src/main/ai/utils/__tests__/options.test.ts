@@ -1,5 +1,5 @@
 import type { Assistant } from '@shared/data/types/assistant'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -167,6 +167,10 @@ describe('buildCapabilityProviderOptions', () => {
       },
       apiKeys: [],
       authType: 'api-key',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }
+      },
       settings: {
         summaryText: 'detailed'
       },

@@ -16,6 +16,7 @@ import { registry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import type { AiBaseRequest } from '../../../types/requests'
+import { filterStandardParams } from '../../../utils/modelParameters'
 import {
   buildCapabilityProviderOptions,
   extractAiSdkStandardParams,
@@ -105,6 +106,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 }
 
 async function resolveSdkConfig(provider: Provider, model: Model, _chatId: string | undefined): Promise<SdkConfig> {
+  void _chatId
   return {
     ...(await providerToAiSdkConfig(provider, model)),
     modelId: model.apiModelId ?? model.id
@@ -182,7 +184,7 @@ function buildAgentOptions(scope: RequestScope): AgentOptions {
     const customParams = getCustomParameters(assistant)
     if (Object.keys(customParams).length > 0) {
       const split = extractAiSdkStandardParams(customParams)
-      standardParams = split.standardParams
+      standardParams = filterStandardParams(split.standardParams, model)
       providerOptions = mergeCustomProviderParameters(providerOptions, split.providerParams, aiSdkProviderId)
     }
   }

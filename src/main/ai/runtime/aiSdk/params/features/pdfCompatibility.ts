@@ -45,9 +45,22 @@ function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: Ap
   ) {
     return false
   }
-  // OpenAI, Claude, and Gemini models always support native PDF regardless of provider.
-  if (isOpenAILLMModel(model) || isAnthropicModel(model) || isGeminiModel(model)) return true
-  return PDF_NATIVE_PROVIDER_IDS.has(aiSdkProviderId)
+  if (!PDF_NATIVE_PROVIDER_IDS.has(aiSdkProviderId)) return false
+
+  if (aiSdkProviderId === 'openai-responses' || aiSdkProviderId === 'azure' || aiSdkProviderId === 'azure-responses') {
+    return isOpenAILLMModel(model)
+  }
+  if (
+    aiSdkProviderId === 'anthropic' ||
+    aiSdkProviderId === 'anthropic-vertex' ||
+    aiSdkProviderId === 'amazon-bedrock'
+  ) {
+    return isAnthropicModel(model)
+  }
+  if (aiSdkProviderId === 'google' || aiSdkProviderId === 'google-vertex') {
+    return isGeminiModel(model)
+  }
+  return true
 }
 
 function pdfCompatibilityMiddleware(

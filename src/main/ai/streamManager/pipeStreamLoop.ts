@@ -45,7 +45,7 @@ export async function pipeStreamLoop(
   const [forBroadcast, forAccum] = stream.tee()
 
   let finalMessage: CherryUIMessage | undefined
-  const accumulator = runAccumulator(forAccum, signal, options.accumulatorSeed, (msg: CherryUIMessage) => {
+  const accumulator = runAccumulator(forAccum, options.accumulatorSeed, (msg: CherryUIMessage) => {
     finalMessage = msg
     options.onAccumulatedSnapshot?.(msg)
   }).catch(() => {
@@ -86,18 +86,11 @@ export async function pipeStreamLoop(
 
 async function runAccumulator(
   chunkStream: ReadableStream<UIMessageChunk>,
-  signal: AbortSignal,
   seed: CherryUIMessage | undefined,
   onSnapshot: (msg: CherryUIMessage) => void
 ): Promise<void> {
   const uiStream = readUIMessageStream<CherryUIMessage>({ stream: chunkStream, message: seed })
   const reader = uiStream.getReader()
-  const onAbort = () => {
-    void reader.cancel(signal.reason).catch(() => {})
-  }
-  if (signal.aborted) onAbort()
-  else signal.addEventListener('abort', onAbort, { once: true })
-
   try {
     while (true) {
       const { done, value } = await reader.read()
@@ -105,7 +98,6 @@ async function runAccumulator(
       onSnapshot(value)
     }
   } finally {
-    signal.removeEventListener('abort', onAbort)
     reader.releaseLock()
   }
 }

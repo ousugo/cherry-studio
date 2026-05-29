@@ -1,8 +1,8 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-const REPO_ROOT = path.join(__dirname, '..')
-const RENDERER_DIR = path.join(REPO_ROOT, 'src/renderer/src')
+const REPO_ROOT = path.resolve(__dirname, '..')
+const RENDERER_DIR = path.join(REPO_ROOT, 'src/renderer')
 const CHECK_EXTENSIONS = new Set(['.css', '.ts', '.tsx'])
 const IGNORED_DIR_NAMES = new Set(['node_modules', 'dist', 'out'])
 const IGNORED_FILE_PATTERNS = [/\.test\.(ts|tsx)$/, /\.spec\.(ts|tsx)$/, /\.snap$/]

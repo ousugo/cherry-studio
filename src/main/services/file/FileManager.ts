@@ -133,8 +133,8 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { listDirectory as searchListDirectory } from '@main/file/utils/search'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
+import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
 import { fileStorage } from '@main/services/FileStorage'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import { getPathStatus as readPathStatus } from '@main/utils/file/pathStatus'
@@ -717,7 +717,7 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_ListDirectory, async (_e, dirPath: FilePath, options?: DirectoryListOptions) =>
       searchListDirectory(dirPath, options)
     )
-    // `Tree_Create` / `Tree_Dispose` (RFC §12) are owned by `TreeRegistry`
+    // `File_TreeCreate` / `File_TreeDispose` are owned by `DirectoryTreeManager`
     // itself — that service registers them in its own `onInit` so the
     // handler lifetime tracks the service that holds the underlying
     // chokidar watchers and IPC subscriptions.
