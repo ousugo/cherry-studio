@@ -1,6 +1,6 @@
-import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton } from '@cherrystudio/ui'
+import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import { SearchIcon } from 'lucide-react'
+import { SearchIcon, SquareMinus } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 
@@ -251,6 +251,47 @@ function SectionToggleMenuItem({
       }}
       {...props}
     />
+  )
+}
+
+type SectionCollapseActionButtonProps = Omit<HeaderActionButtonProps, 'children'> & {
+  alwaysVisible?: boolean
+  label: string
+  sectionId: string
+}
+
+function SectionCollapseActionButton({
+  alwaysVisible,
+  disabled,
+  label,
+  onClick,
+  sectionId,
+  type = 'button',
+  ...props
+}: SectionCollapseActionButtonProps) {
+  void alwaysVisible
+  const actions = useResourceListActions()
+  const view = useResourceListView()
+  const section = view.sections.find((candidate) => candidate.section.id === sectionId)
+  const groupIds = section?.groups.filter((group) => !group.collapsed).map((group) => group.group.id) ?? []
+  const isDisabled = disabled || groupIds.length === 0
+
+  return (
+    <Tooltip title={label} delay={500}>
+      <GroupHeaderActionButton
+        type={type}
+        aria-label={props['aria-label'] ?? label}
+        disabled={isDisabled}
+        onClick={(event) => {
+          event.stopPropagation()
+          onClick?.(event)
+          if (event.defaultPrevented || isDisabled) return
+          actions.collapseGroups(groupIds)
+        }}
+        {...props}>
+        <SquareMinus className="block" />
+      </GroupHeaderActionButton>
+    </Tooltip>
   )
 }
 
@@ -606,6 +647,7 @@ const ResourceList = {
   Header,
   HeaderActionButton,
   GroupHeaderActionButton,
+  SectionCollapseActionButton,
   SectionToggleMenuItem,
   HeaderItem,
   Search,

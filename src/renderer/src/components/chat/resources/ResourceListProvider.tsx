@@ -587,7 +587,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const effectiveSelectedId = selectedIdProp !== undefined ? selectedIdProp : state.selectedId
   const isSelectedControlled = selectedIdProp !== undefined
   const handledRevealRequestRef = useRef<string | null>(null)
-  const stateGroupsRef = useRef<readonly ResourceListViewGroup<T>[]>([])
   const sectionIdsRef = useRef<ReadonlySet<string>>(new Set())
   const expandedGroupIdsRef = useRef<string[]>([])
   const hasCheckedSingleGroupExpansionRef = useRef(false)
@@ -794,10 +793,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   }, [getItemId, stateGroups, uiStore])
 
   useLayoutEffect(() => {
-    stateGroupsRef.current = stateGroups
-  }, [stateGroups])
-
-  useLayoutEffect(() => {
     sectionIdsRef.current = new Set(viewSections.map(({ section }) => section.id))
   }, [viewSections])
 
@@ -913,7 +908,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       },
       toggleGroup: (groupId: string) => {
         if (collapsedGroupIds !== undefined) {
-          const nextExpandedGroupIds = new Set(getExpandedGroupIds(stateGroupsRef.current))
+          const nextExpandedGroupIds = new Set(expandedGroupIdsRef.current)
           if (nextExpandedGroupIds.has(groupId)) {
             nextExpandedGroupIds.delete(groupId)
           } else {
