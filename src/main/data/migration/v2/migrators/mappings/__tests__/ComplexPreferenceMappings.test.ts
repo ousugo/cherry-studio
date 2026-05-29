@@ -200,6 +200,30 @@ describe('ComplexPreferenceMappings', () => {
       })
     })
 
+    it('should collapse the old default visible sidebar icons to the new default set', () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')!
+      const result = mapping.transform({
+        visible: [
+          'assistants',
+          'store',
+          'paintings',
+          'translate',
+          'mini_app',
+          'knowledge',
+          'files',
+          'code_tools',
+          'notes',
+          'openclaw'
+        ],
+        disabled: []
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.icons.visible': ['assistants', 'agents', 'store', 'translate', 'mini_app'],
+        'ui.sidebar.icons.invisible': []
+      })
+    })
+
     it('should not force agents visible when it was explicitly hidden', () => {
       const mapping = getComplexMappingById('sidebar_icons_rename')!
       const result = mapping.transform({

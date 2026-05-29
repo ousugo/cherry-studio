@@ -133,4 +133,41 @@ describe('PreferenceSeeder', () => {
 
     expect(visible.value).toEqual(['assistants', 'store', 'translate'])
   })
+
+  it('should normalize the old default visible sidebar icons to the current default', async () => {
+    await dbh.db.insert(preferenceTable).values([
+      {
+        scope: 'default',
+        key: 'ui.sidebar.icons.visible',
+        value: [
+          'assistants',
+          'agents',
+          'store',
+          'paintings',
+          'translate',
+          'mini_app',
+          'knowledge',
+          'files',
+          'code_tools',
+          'notes',
+          'openclaw'
+        ]
+      },
+      {
+        scope: 'default',
+        key: 'ui.sidebar.icons.invisible',
+        value: []
+      }
+    ])
+
+    const seed = new PreferenceSeeder()
+    await seed.run(dbh.db)
+
+    const [visible] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'ui.sidebar.icons.visible')))
+
+    expect(visible.value).toEqual(['assistants', 'agents', 'store', 'translate', 'mini_app'])
+  })
 })

@@ -1585,13 +1585,8 @@
                 "assistants",
                 "agents",
                 "store",
-                "paintings",
                 "translate",
-                "mini_app",
-                "knowledge",
-                "files",
-                "code_tools",
-                "notes"
+                "mini_app"
               ],
               "originalKey": "visible",
               "status": "pending",
@@ -1615,13 +1610,8 @@
             "assistants",
             "agents",
             "store",
-            "paintings",
             "translate",
-            "mini_app",
-            "knowledge",
-            "files",
-            "code_tools",
-            "notes"
+            "mini_app"
           ],
           "status": "pending",
           "category": "preferences",

@@ -10,6 +10,22 @@ const OBSOLETE_DEFAULT_PREFERENCE_KEYS = ['app.settings.open_target'] as const
 const DEFAULT_SCOPE = 'default'
 const SIDEBAR_VISIBLE_KEY = 'ui.sidebar.icons.visible'
 const SIDEBAR_INVISIBLE_KEY = 'ui.sidebar.icons.invisible'
+const LEGACY_DEFAULT_VISIBLE_SIDEBAR_ICONS: readonly SidebarIcon[][] = [
+  ['assistants', 'agents', 'store', 'paintings', 'translate', 'mini_app', 'knowledge', 'files', 'code_tools', 'notes'],
+  [
+    'assistants',
+    'agents',
+    'store',
+    'paintings',
+    'translate',
+    'mini_app',
+    'knowledge',
+    'files',
+    'code_tools',
+    'notes',
+    'openclaw'
+  ]
+]
 
 type PreferenceRow = typeof preferenceTable.$inferSelect
 
@@ -30,6 +46,24 @@ function addAgentsToVisibleSidebarIcons(visible: SidebarIcon[], invisible: Sideb
   const assistantsIndex = nextVisible.indexOf('assistants')
   nextVisible.splice(assistantsIndex === -1 ? nextVisible.length : assistantsIndex + 1, 0, 'agents')
   return nextVisible
+}
+
+function hasSameSidebarIcons(value: SidebarIcon[], expected: readonly SidebarIcon[]): boolean {
+  if (value.length !== expected.length) return false
+  const actual = new Set(value)
+  return expected.every((icon) => actual.has(icon))
+}
+
+function normalizeDefaultSidebarIcons(visible: SidebarIcon[], invisible: SidebarIcon[]): SidebarIcon[] {
+  if (invisible.length > 0) {
+    return visible
+  }
+
+  const isLegacyDefault = LEGACY_DEFAULT_VISIBLE_SIDEBAR_ICONS.some((defaultIcons) =>
+    hasSameSidebarIcons(visible, defaultIcons)
+  )
+
+  return isLegacyDefault ? DefaultPreferences.default[SIDEBAR_VISIBLE_KEY] : visible
 }
 
 export class PreferenceSeeder implements ISeeder {
@@ -94,7 +128,9 @@ export class PreferenceSeeder implements ISeeder {
 
     const visibleIcons = isSidebarIconArray(visiblePref?.value) ? visiblePref.value : undefined
     const invisibleIcons = isSidebarIconArray(invisiblePref?.value) ? invisiblePref.value : []
-    const nextVisibleIcons = visibleIcons ? addAgentsToVisibleSidebarIcons(visibleIcons, invisibleIcons) : visibleIcons
+    const nextVisibleIcons = visibleIcons
+      ? normalizeDefaultSidebarIcons(addAgentsToVisibleSidebarIcons(visibleIcons, invisibleIcons), invisibleIcons)
+      : visibleIcons
 
     if (visiblePref && nextVisibleIcons && nextVisibleIcons !== visibleIcons) {
       await db
