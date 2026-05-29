@@ -811,7 +811,7 @@ function HistoryActionsCell<TContext = unknown>({
               setPendingDeleteAction(action)
               return
             }
-            void handleAction(action)
+            handleAction(action)
           }}
         />
       </div>
