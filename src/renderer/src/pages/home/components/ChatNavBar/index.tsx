@@ -16,7 +16,9 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true }) => 
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
 
   return (
-    <NavbarHeader className="home-navbar" style={{ height: 'var(--navbar-height)' }}>
+    <NavbarHeader
+      className='home-navbar relative after:pointer-events-none after:absolute after:top-full after:right-0 after:left-0 after:z-10 after:h-3 after:bg-linear-to-b after:from-background after:to-transparent after:content-[""]'
+      style={{ height: 'var(--navbar-height)' }}>
       <div className="-mx-1 flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden">
         <div className="flex shrink-0 items-center">
           {showSidebarControls &&
