@@ -25,7 +25,7 @@ const menuItemVariants = cva(
   cn(
     'relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden',
     'focus:bg-accent focus:text-accent-foreground',
-    'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+    'data-disabled:pointer-events-none data-disabled:opacity-50',
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
     "[&_svg:not([class*='text-'])]:text-muted-foreground"
   ),
@@ -50,12 +50,86 @@ const menuItemVariants = cva(
 
 /* ─── Root / trigger / content / items ────────────────────────────────────── */
 
-function ContextMenu({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
-  return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />
+type ContextMenuOpeningPointerUpGuard = {
+  consumeOpeningPointerUp: () => boolean
+  markOpeningPointerUp: () => void
 }
 
-function ContextMenuTrigger({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Trigger>) {
-  return <ContextMenuPrimitive.Trigger data-slot="context-menu-trigger" {...props} />
+const ContextMenuOpeningPointerUpGuardContext = React.createContext<ContextMenuOpeningPointerUpGuard | null>(null)
+
+function ContextMenu({ onOpenChange, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
+  const shouldStopOpeningPointerUpRef = React.useRef(false)
+  const clearOpeningPointerUpListenerRef = React.useRef<(() => void) | null>(null)
+  const clearOpeningPointerUpTimerRef = React.useRef<number | null>(null)
+  const clearOpeningPointerUp = React.useCallback(() => {
+    shouldStopOpeningPointerUpRef.current = false
+    clearOpeningPointerUpListenerRef.current?.()
+    clearOpeningPointerUpListenerRef.current = null
+    if (clearOpeningPointerUpTimerRef.current !== null) {
+      window.clearTimeout(clearOpeningPointerUpTimerRef.current)
+      clearOpeningPointerUpTimerRef.current = null
+    }
+  }, [])
+  const pointerUpGuard = React.useMemo<ContextMenuOpeningPointerUpGuard>(
+    () => ({
+      consumeOpeningPointerUp: () => {
+        const shouldStop = shouldStopOpeningPointerUpRef.current
+        clearOpeningPointerUp()
+        return shouldStop
+      },
+      markOpeningPointerUp: () => {
+        shouldStopOpeningPointerUpRef.current = true
+        clearOpeningPointerUpListenerRef.current?.()
+        const handleOpeningPointerUp = () => clearOpeningPointerUp()
+        window.addEventListener('pointerup', handleOpeningPointerUp, { once: true })
+        clearOpeningPointerUpListenerRef.current = () => {
+          window.removeEventListener('pointerup', handleOpeningPointerUp)
+        }
+        if (clearOpeningPointerUpTimerRef.current !== null) {
+          window.clearTimeout(clearOpeningPointerUpTimerRef.current)
+        }
+        clearOpeningPointerUpTimerRef.current = window.setTimeout(clearOpeningPointerUp, 1000)
+      }
+    }),
+    [clearOpeningPointerUp]
+  )
+  const handleOpenChange = React.useCallback(
+    (open: boolean) => {
+      if (!open) clearOpeningPointerUp()
+      onOpenChange?.(open)
+    },
+    [clearOpeningPointerUp, onOpenChange]
+  )
+
+  React.useEffect(() => clearOpeningPointerUp, [clearOpeningPointerUp])
+
+  return (
+    <ContextMenuOpeningPointerUpGuardContext value={pointerUpGuard}>
+      <ContextMenuPrimitive.Root data-slot="context-menu" onOpenChange={handleOpenChange} {...props} />
+    </ContextMenuOpeningPointerUpGuardContext>
+  )
+}
+
+function ContextMenuTrigger({
+  onContextMenu,
+  disabled,
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.Trigger>) {
+  const pointerUpGuard = React.use(ContextMenuOpeningPointerUpGuardContext)
+
+  return (
+    <ContextMenuPrimitive.Trigger
+      data-slot="context-menu-trigger"
+      disabled={disabled}
+      onContextMenu={(event) => {
+        if (!disabled) {
+          pointerUpGuard?.markOpeningPointerUp()
+        }
+        onContextMenu?.(event)
+      }}
+      {...props}
+    />
+  )
 }
 
 function ContextMenuGroup({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Group>) {
@@ -72,6 +146,14 @@ function ContextMenuSub({ ...props }: React.ComponentProps<typeof ContextMenuPri
 
 function ContextMenuRadioGroup({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.RadioGroup>) {
   return <ContextMenuPrimitive.RadioGroup data-slot="context-menu-radio-group" {...props} />
+}
+
+function stopOpeningPointerUp(event: React.PointerEvent, pointerUpGuard: ContextMenuOpeningPointerUpGuard | null) {
+  const isOpeningPointerUp = pointerUpGuard?.consumeOpeningPointerUp() ?? false
+  if (event.button !== 2 && !isOpeningPointerUp) return
+
+  event.preventDefault()
+  event.stopPropagation()
 }
 
 // Sub-trigger only exposes the `inset` knob — `variant` is intentionally
@@ -99,7 +181,13 @@ function ContextMenuSubTrigger({
   )
 }
 
-function ContextMenuSubContent({ className, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
+function ContextMenuSubContent({
+  className,
+  onPointerUpCapture,
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
+  const pointerUpGuard = React.use(ContextMenuOpeningPointerUpGuardContext)
+
   return (
     <ContextMenuPrimitive.SubContent
       data-slot="context-menu-sub-content"
@@ -109,12 +197,22 @@ function ContextMenuSubContent({ className, ...props }: React.ComponentProps<typ
         'data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
         className
       )}
+      onPointerUpCapture={(event) => {
+        onPointerUpCapture?.(event)
+        stopOpeningPointerUp(event, pointerUpGuard)
+      }}
       {...props}
     />
   )
 }
 
-function ContextMenuContent({ className, ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
+function ContextMenuContent({
+  className,
+  onPointerUpCapture,
+  ...props
+}: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
+  const pointerUpGuard = React.use(ContextMenuOpeningPointerUpGuardContext)
+
   return (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content
@@ -125,6 +223,10 @@ function ContextMenuContent({ className, ...props }: React.ComponentProps<typeof
           'data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
           className
         )}
+        onPointerUpCapture={(event) => {
+          onPointerUpCapture?.(event)
+          stopOpeningPointerUp(event, pointerUpGuard)
+        }}
         {...props}
       />
     </ContextMenuPrimitive.Portal>

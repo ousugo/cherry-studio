@@ -207,6 +207,22 @@ const DEFAULT_DRAG_CAPABILITIES: Required<GroupedSortableVirtualListDragCapabili
   itemCrossGroup: true
 }
 
+class ContextMenuSafePointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: 'onPointerDown',
+      handler: ({ nativeEvent: event }, { onActivation }) => {
+        if (!event.isPrimary || event.button !== 0 || event.ctrlKey) {
+          return false
+        }
+
+        onActivation?.({ event })
+        return true
+      }
+    }
+  ] as (typeof PointerSensor)['activators']
+}
+
 function toItemSortableId(id: UniqueIdentifier) {
   return `item:${String(id)}`
 }
@@ -790,7 +806,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
   const overDropStateRef = useRef<OverDropState | null>(null)
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: dragActivationDistance } }),
+    useSensor(ContextMenuSafePointerSensor, { activationConstraint: { distance: dragActivationDistance } }),
     useSensor(KeyboardSensor)
   )
 

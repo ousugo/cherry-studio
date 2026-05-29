@@ -85,6 +85,82 @@ describe('ContextMenu primitive', () => {
       expect(handleSelect).toHaveBeenCalledTimes(1)
     })
 
+    it('does not select the item under the pointer when opening with right click', () => {
+      const handleSelect = vi.fn()
+      render(
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <button type="button">Trigger</button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={handleSelect}>Delete</ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      )
+
+      openMenu(screen.getByText('Trigger'))
+      fireEvent(screen.getByText('Delete'), new MouseEvent('pointerup', { bubbles: true, button: 2, cancelable: true }))
+
+      expect(handleSelect).not.toHaveBeenCalled()
+    })
+
+    it('does not select the item under the pointer when the context menu opens from a primary-button gesture', () => {
+      const handleSelect = vi.fn()
+      render(
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <button type="button">Trigger</button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={handleSelect}>Delete</ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      )
+
+      openMenu(screen.getByText('Trigger'))
+      fireEvent(screen.getByText('Delete'), new MouseEvent('pointerup', { bubbles: true, button: 0, cancelable: true }))
+
+      expect(handleSelect).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByText('Delete'))
+
+      expect(handleSelect).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears the opening pointerup guard when the opening release happens outside the menu content', () => {
+      let openingPointerUpListener: EventListener | null = null
+      const addEventListener = vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+        void options
+        if (type === 'pointerup' && typeof listener === 'function') {
+          openingPointerUpListener = listener
+        }
+      })
+
+      render(
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <button type="button">Trigger</button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem>Delete</ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      )
+
+      try {
+        openMenu(screen.getByText('Trigger'))
+      } finally {
+        addEventListener.mockRestore()
+      }
+      expect(openingPointerUpListener).not.toBeNull()
+      openingPointerUpListener?.(new MouseEvent('pointerup', { bubbles: true, button: 0, cancelable: true }))
+
+      const itemPointerUp = new MouseEvent('pointerup', { bubbles: true, button: 0, cancelable: true })
+      fireEvent(screen.getByText('Delete'), itemPointerUp)
+
+      expect(itemPointerUp.defaultPrevented).toBe(false)
+    })
+
     it('does not fire onSelect on disabled items', () => {
       const handleSelect = vi.fn()
       render(
