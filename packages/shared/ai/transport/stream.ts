@@ -162,6 +162,18 @@ export interface ApprovalDecision {
   updatedInput?: Record<string, unknown>
 }
 
+export interface AiToolApprovalRespondRequest extends ApprovalDecision {
+  topicId?: string
+  anchorId?: string
+}
+
+export type AiToolApprovalRespondStatus = 'accepted' | 'expired'
+
+export interface AiToolApprovalRespondResponse {
+  ok: boolean
+  status?: AiToolApprovalRespondStatus
+}
+
 /** Subscribe to a topic's stream state. */
 export interface AiStreamAttachRequest {
   topicId: string

@@ -5,8 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useToolApprovalBridge } from '../useToolApprovalBridge'
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
 const mocks = vi.hoisted(() => ({
-  respondToolApproval: vi.fn()
+  respondToolApproval: vi.fn(),
+  toastWarning: vi.fn()
 }))
 
 function makeApprovalPart(overrides: Partial<Record<string, unknown>> = {}): CherryMessagePart {
@@ -37,6 +42,7 @@ describe('useToolApprovalBridge', () => {
   beforeEach(() => {
     mocks.respondToolApproval.mockReset()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
+    mocks.toastWarning.mockReset()
 
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -46,6 +52,12 @@ describe('useToolApprovalBridge', () => {
             respond: mocks.respondToolApproval
           }
         }
+      }
+    })
+    Object.defineProperty(window, 'toast', {
+      configurable: true,
+      value: {
+        warning: mocks.toastWarning
       }
     })
   })
@@ -83,5 +95,17 @@ describe('useToolApprovalBridge', () => {
     const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
 
     await expect(result.current({ match, approved: true })).rejects.toThrow('ipc boom')
+  })
+
+  it('shows a timeout notice when main expires a stale approval', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: true, status: 'expired' })
+    const match = makeApprovalMatch()
+    const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
+
+    await act(async () => {
+      await result.current({ match, approved: true })
+    })
+
+    expect(mocks.toastWarning).toHaveBeenCalledWith('agent.toolPermission.toast.timeout')
   })
 })

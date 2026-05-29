@@ -10,6 +10,8 @@ const partsByMessageIdMock = vi.hoisted(() => ({
 }))
 
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
+const agentSessionRefreshMock = vi.hoisted(() => vi.fn())
+const toastWarningMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/components/chat', () => ({
   ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
@@ -122,7 +124,7 @@ vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
     isLoading: false,
     hasOlder: false,
     loadOlder: vi.fn(),
-    refresh: vi.fn()
+    refresh: agentSessionRefreshMock
   })
 }))
 
@@ -212,6 +214,8 @@ describe('AgentChat settings panel', () => {
     partsByMessageIdMock.value = {}
     toolApprovalRespondMock.mockReset()
     toolApprovalRespondMock.mockResolvedValue({ ok: true })
+    agentSessionRefreshMock.mockReset()
+    toastWarningMock.mockReset()
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -220,6 +224,12 @@ describe('AgentChat settings panel', () => {
             respond: toolApprovalRespondMock
           }
         }
+      }
+    })
+    Object.defineProperty(window, 'toast', {
+      configurable: true,
+      value: {
+        warning: toastWarningMock
       }
     })
   })
@@ -457,5 +467,34 @@ describe('AgentChat settings panel', () => {
       topicId: 'agent-session:session-1',
       anchorId: 'message-1'
     })
+  })
+
+  it('shows a timeout notice and refreshes when an agent-session approval expired', async () => {
+    toolApprovalRespondMock.mockResolvedValueOnce({ ok: true, status: 'expired' })
+    partsByMessageIdMock.value = {
+      'message-1': [
+        {
+          type: 'tool-CustomTool',
+          toolName: 'CustomTool',
+          toolCallId: 'call-1',
+          state: 'approval-requested',
+          input: { command: 'pnpm test' },
+          approval: { id: 'approval-1' },
+          callProviderMetadata: {
+            'claude-code': {
+              rawInput: { command: 'pnpm test' },
+              parentToolCallId: null
+            }
+          }
+        }
+      ]
+    }
+
+    renderAgentChat()
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.toolPermission.button.allow' }))
+
+    await waitFor(() => expect(toastWarningMock).toHaveBeenCalledWith('agent.toolPermission.toast.timeout'))
+    expect(agentSessionRefreshMock).toHaveBeenCalled()
   })
 })
