@@ -1,3 +1,4 @@
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -237,6 +238,9 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.copy.plain_text') return 'Copy as Plain Text'
       if (key === 'chat.topics.export.title') return 'Export'
       if (key === 'chat.topics.export.image') return 'Export as Image'
+      if (key === 'chat.topics.export.image_exporting_keep_page') return 'Exporting image. Please stay on this page.'
+      if (key === 'chat.topics.export.image_saved') return 'Image saved successfully'
+      if (key === 'chat.topics.export.failed') return 'Export failed'
       if (key === 'chat.topics.export.md.label') return 'Export as Markdown'
       if (key === 'chat.topics.export.md.reason') return 'Export as Markdown with Reasoning'
       if (key === 'chat.topics.export.word') return 'Export as Word'
@@ -249,6 +253,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'common.more') return 'More'
       if (key === 'common.open_in_new_tab') return 'Open in new tab'
       if (key === 'common.cancel') return 'Cancel'
+      if (key === 'common.copy_failed') return 'Copy failed'
       if (key === 'common.name') return 'Name'
       if (key === 'common.required_field') return 'Required field'
       if (key === 'common.save') return 'Save'
@@ -283,6 +288,12 @@ import {
   mockUseQuery
 } from '../../../../../../../../tests/__mocks__/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '../../../../../../../../tests/__mocks__/renderer/usePreference'
+import {
+  clearPendingTopicImageActionsForTest,
+  consumePendingTopicImageActions,
+  requestTopicImageAction,
+  settleTopicImageActionRequest
+} from '../../../messages/topicImageActionBus'
 import { Topics } from '../Topics'
 import {
   applyOptimisticTopicDisplayMove,
@@ -454,10 +465,13 @@ describe('Topics', () => {
       },
       toast: {
         error: vi.fn(),
+        closeToast: vi.fn(),
+        loading: vi.fn(),
         success: vi.fn(),
         warning: vi.fn()
       }
     })
+    clearPendingTopicImageActionsForTest()
     topicStreamStatusMocks.statuses.clear()
     clearTopicStreamCache('topic-a', 'topic-b', 'topic-c', 'topic-d', 'topic-e')
     vi.useFakeTimers({ shouldAdvanceTime: true })
@@ -756,6 +770,106 @@ describe('Topics', () => {
     expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-a&view=message', {
       forceNew: true,
       title: 'Alpha topic'
+    })
+    requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('shows loading while selecting the right-clicked topic before exporting it as an image', async () => {
+    const { getByText, rerenderTopicList, setActiveTopic } = renderTopicList()
+    const gammaMenu = getByText('Gamma topic').closest('[data-testid="context-menu"]')
+    const menuContent = gammaMenu?.querySelector('[data-testid="context-menu-content"]')
+    const animationFrameCallbacks: FrameRequestCallback[] = []
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrameCallbacks.push(callback)
+      return animationFrameCallbacks.length
+    })
+
+    const exportImageItem = within(menuContent as HTMLElement).getByRole('button', { name: 'Export as Image' })
+    expect(exportImageItem).not.toBeDisabled()
+
+    fireEvent.click(exportImageItem)
+
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(window.toast.loading).not.toHaveBeenCalled()
+
+    act(() => {
+      for (const callback of animationFrameCallbacks.splice(0)) {
+        callback(0)
+      }
+    })
+
+    expect(window.toast.loading).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: expect.stringMatching(/^topic-image-export:/),
+        promise: expect.any(Promise),
+        title: 'Exporting image. Please stay on this page.'
+      })
+    )
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
+    expect(EventEmitter.emit).toHaveBeenCalledWith(
+      EVENT_NAMES.EXPORT_TOPIC_IMAGE,
+      expect.objectContaining({ id: 'topic-c' })
+    )
+
+    rerenderTopicList(
+      undefined,
+      createRendererTopic({ assistantId: 'assistant-2', id: 'topic-c', name: 'Gamma topic' })
+    )
+
+    const [request] = consumePendingTopicImageActions('topic-c', 'export')
+    settleTopicImageActionRequest(request, Promise.resolve())
+    await vi.waitFor(() => {
+      expect(window.toast.success).toHaveBeenCalledWith('Image saved successfully')
+    })
+    requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('cancels pending topic image requests when the topic list unmounts before runtime consumption', async () => {
+    const { unmount } = renderTopicList()
+    const request = requestTopicImageAction(
+      'export',
+      createRendererTopic({ assistantId: 'assistant-2', id: 'topic-c', name: 'Gamma topic' })
+    )
+    expect(request).toEqual(expect.objectContaining({ topic: expect.objectContaining({ id: 'topic-c' }) }))
+    request.promise.catch(() => undefined)
+
+    unmount()
+
+    expect(consumePendingTopicImageActions('topic-c')).toEqual([])
+    await expect(request.promise).rejects.toThrow('Topic image export was cancelled')
+  })
+
+  it('shows an error toast when a queued topic image copy request fails', async () => {
+    const { getByText, setActiveTopic } = renderTopicList()
+    const gammaMenu = getByText('Gamma topic').closest('[data-testid="context-menu"]')
+    const menuContent = gammaMenu?.querySelector('[data-testid="context-menu-content"]')
+    const animationFrameCallbacks: FrameRequestCallback[] = []
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrameCallbacks.push(callback)
+      return animationFrameCallbacks.length
+    })
+
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Copy as Image' }))
+
+    act(() => {
+      for (const callback of animationFrameCallbacks.splice(0)) {
+        callback(0)
+      }
+    })
+
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
+    expect(window.toast.loading).not.toHaveBeenCalled()
+    expect(EventEmitter.emit).toHaveBeenCalledWith(
+      EVENT_NAMES.COPY_TOPIC_IMAGE,
+      expect.objectContaining({ id: 'topic-c' })
+    )
+
+    const [request] = consumePendingTopicImageActions('topic-c', 'copy')
+    request.promise.catch(() => undefined)
+    settleTopicImageActionRequest(request, Promise.reject(new Error('copy failed')))
+
+    await vi.waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('Copy failed')
     })
     requestAnimationFrameSpy.mockRestore()
   })
@@ -1522,7 +1636,7 @@ describe('Topics', () => {
     fireEvent.click(within(emptyAssistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-3' })
 
-    onNewTopic.mockClear()
+    vi.mocked(onNewTopic).mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'Gamma Assistant' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-3' })
 

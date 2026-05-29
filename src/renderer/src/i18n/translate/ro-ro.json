@@ -1675,6 +1675,7 @@
       "export": {
         "failed": "[to be translated]:Export failed",
         "image": "Exportă ca imagine",
+        "image_exporting_keep_page": "Se exportă imaginea. Rămâneți pe această pagină.",
         "image_saved": "Imagine salvată cu succes",
         "joplin": "Exportă în Joplin",
         "md": {

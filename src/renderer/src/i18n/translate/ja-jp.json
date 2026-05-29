@@ -1675,6 +1675,7 @@
       "export": {
         "failed": "[to be translated]:Export failed",
         "image": "画像としてエクスポート",
+        "image_exporting_keep_page": "画像をエクスポートしています。このページから離れないでください。",
         "image_saved": "画像が正常に保存されました",
         "joplin": "Joplin にエクスポート",
         "md": {

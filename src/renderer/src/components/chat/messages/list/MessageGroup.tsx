@@ -25,6 +25,7 @@ const logger = loggerService.withContext('MessageGroup')
 interface Props {
   messages: MessageListItem[]
   topic: Topic
+  captureMode?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
   isLatestAssistantGroup?: boolean
   onMultiModelMessageStyleChange?: (style: MultiModelMessageStyle) => void
@@ -44,6 +45,7 @@ function pickPreferredSelectedMessage(
 const MessageGroup = ({
   messages,
   topic,
+  captureMode = false,
   registerMessageElement,
   isLatestAssistantGroup = false,
   onMultiModelMessageStyleChange
@@ -166,7 +168,7 @@ const MessageGroup = ({
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
     // 只在组件挂载和消息数组变化时添加监听器
-    if (!isGrouped || messageLength <= 1) return
+    if (captureMode || !isGrouped || messageLength <= 1) return
 
     const handleFlowNavigate = (event: CustomEvent) => {
       const { messageId } = event.detail
@@ -194,9 +196,11 @@ const MessageGroup = ({
       document.removeEventListener('flow-navigate-to-message', handleFlowNavigate as EventListener)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, selectedIndex, isGrouped, messageLength])
+  }, [messages, selectedIndex, isGrouped, messageLength, captureMode])
 
   useEffect(() => {
+    if (captureMode) return
+
     return actions.bindMessageGroupRuntime?.(
       messages.map((message) => message.id),
       {
@@ -217,15 +221,17 @@ const MessageGroup = ({
         }
       }
     )
-  }, [actions, messages, setSelectedMessage])
+  }, [actions, captureMode, messages, setSelectedMessage])
 
   useEffect(() => {
+    if (captureMode) return
+
     messages.forEach((message) => {
       const element = document.getElementById(`message-${message.id}`)
       element && registerMessageElement?.(message.id, element)
     })
     return () => messages.forEach((message) => registerMessageElement?.(message.id, null))
-  }, [messages, registerMessageElement])
+  }, [captureMode, messages, registerMessageElement])
 
   const onUpdateUseful = useCallback(
     (msgId: string) => {
@@ -504,6 +510,7 @@ function messageArrayShallowEqual(a: MessageListItem[], b: MessageListItem[]): b
 export default memo(MessageGroup, (prev, next) => {
   return (
     prev.topic === next.topic &&
+    prev.captureMode === next.captureMode &&
     prev.isLatestAssistantGroup === next.isLatestAssistantGroup &&
     messageArrayShallowEqual(prev.messages, next.messages)
   )

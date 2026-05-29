@@ -1675,6 +1675,7 @@
       "export": {
         "failed": "[to be translated]:Export failed",
         "image": "Als Bild exportieren",
+        "image_exporting_keep_page": "Bild wird exportiert. Bitte bleiben Sie auf dieser Seite.",
         "image_saved": "Bild erfolgreich gespeichert",
         "joplin": "Nach Joplin exportieren",
         "md": {

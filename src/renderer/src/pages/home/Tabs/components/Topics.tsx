@@ -60,6 +60,12 @@ import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  rejectPendingTopicImageActions,
+  requestTopicImageAction,
+  type TopicImageActionRequest,
+  type TopicImageActionType
+} from '../../messages/topicImageActionBus'
 import { buildChatMessageRouteUrl } from '../../routeSearch'
 import type { AddNewTopicPayload } from '../../types'
 import {
@@ -341,6 +347,46 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   const [deletingAssistantGroupId, setDeletingAssistantGroupId] = useState<string | null>(null)
   const deletingAssistantGroupIdRef = useRef<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+
+  const showTopicImageExportToast = useCallback(
+    (request: TopicImageActionRequest) => {
+      const key = `topic-image-export:${request.id}`
+      const loadingPromise = request.promise.finally(() => window.toast.closeToast(key)).catch(() => undefined)
+
+      window.toast.loading({
+        key,
+        title: t('chat.topics.export.image_exporting_keep_page'),
+        promise: loadingPromise,
+        onError: () => {}
+      })
+
+      void request.promise.then(
+        () => window.toast.success(t('chat.topics.export.image_saved')),
+        () => window.toast.error(t('chat.topics.export.failed'))
+      )
+    },
+    [t]
+  )
+
+  const handleTopicImageAction = useCallback(
+    (type: TopicImageActionType, topic: Topic) => {
+      const request = requestTopicImageAction(type, topic)
+      if (type === 'export') {
+        showTopicImageExportToast(request)
+      } else {
+        void request.promise.catch(() => window.toast.error(t('common.copy_failed')))
+      }
+
+      if (topic.id !== activeTopic.id) {
+        setActiveTopic(topic)
+      }
+    },
+    [activeTopic.id, setActiveTopic, showTopicImageExportToast]
+  )
+
+  useEffect(() => {
+    return () => rejectPendingTopicImageActions(undefined, new Error('Topic image export was cancelled'))
+  }, [])
 
   const apiBackedTopics = useMemo(
     () =>
@@ -1116,6 +1162,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
           onEditAssistant={openAssistantEditor}
           onOpenInNewTab={tabs ? openTopicInNewTab : undefined}
           onPinTopic={handlePinTopic}
+          onRequestTopicImageAction={handleTopicImageAction}
           onSwitchTopic={setActiveTopic}
           topicsLength={topics.length}
           variant={isAssistantDisplayMode ? 'draggable' : 'plain'}
@@ -1224,6 +1271,7 @@ interface TopicListBodyProps {
   onEditAssistant: (assistantId: string) => void
   onOpenInNewTab?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
+  onRequestTopicImageAction: (type: TopicImageActionType, topic: Topic) => void
   onSwitchTopic: (topic: Topic) => void
   topicsLength: number
   variant: TopicListBodyVariant
@@ -1269,6 +1317,7 @@ function TopicRow({
   onEditAssistant,
   onOpenInNewTab,
   onPinTopic,
+  onRequestTopicImageAction,
   onSwitchTopic,
   topic,
   topicsLength
@@ -1300,12 +1349,14 @@ function TopicRow({
     notesPath,
     onAutoRename,
     onClearMessages,
+    onCopyImage: (topic) => onRequestTopicImageAction('copy', topic),
     onDelete: onDeleteFromMenu,
     onEditAssistant: (topic) => {
       if (topic.assistantId) {
         onEditAssistant(topic.assistantId)
       }
     },
+    onExportImage: (topic) => onRequestTopicImageAction('export', topic),
     onOpenInNewTab,
     onPinTopic,
     onStartRename: startMenuRename,

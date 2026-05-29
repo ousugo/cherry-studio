@@ -1675,6 +1675,7 @@
       "export": {
         "failed": "匯出失敗",
         "image": "匯出為圖片",
+        "image_exporting_keep_page": "正在匯出圖片，請不要離開此頁面",
         "image_saved": "圖片儲存成功",
         "joplin": "匯出到 Joplin",
         "md": {

@@ -1675,6 +1675,7 @@
       "export": {
         "failed": "[to be translated]:Export failed",
         "image": "Xuất dưới dạng hình ảnh",
+        "image_exporting_keep_page": "Đang xuất hình ảnh. Vui lòng ở lại trang này.",
         "image_saved": "Hình ảnh đã được lưu thành công",
         "joplin": "Exporteren naar Joplin",
         "md": {

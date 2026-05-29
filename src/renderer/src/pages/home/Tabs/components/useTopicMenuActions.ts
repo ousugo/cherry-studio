@@ -33,8 +33,10 @@ export interface TopicMenuActionOptions {
   notesPath: string
   onAutoRename: TopicMenuHandler
   onClearMessages: TopicMenuHandler
+  onCopyImage?: TopicMenuHandler
   onDelete: TopicMenuHandler
   onEditAssistant?: TopicMenuHandler
+  onExportImage?: TopicMenuHandler
   onOpenInNewTab?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
   onStartRename: TopicMenuHandler
@@ -49,8 +51,10 @@ export function createTopicActionContext({
   notesPath,
   onAutoRename,
   onClearMessages,
+  onCopyImage,
   onDelete,
   onEditAssistant,
+  onExportImage,
   onOpenInNewTab,
   onPinTopic,
   onStartRename,
@@ -63,12 +67,12 @@ export function createTopicActionContext({
     isRenaming,
     onAutoRename,
     onClearMessages,
-    onCopyImage: (topic) => void EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic),
+    onCopyImage: onCopyImage ?? ((topic) => void EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic)),
     onCopyMarkdown: copyTopicAsMarkdown,
     onCopyPlainText: copyTopicAsPlainText,
     onDelete,
     onEditAssistant,
-    onExportImage: (topic) => void EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic),
+    onExportImage: onExportImage ?? ((topic) => void EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)),
     onExportJoplin: async (topic) => {
       const topicMessages = await getTopicMessages(topic.id)
       void exportMarkdownToJoplin(topic.name, topicMessages)
@@ -172,8 +176,10 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     notesPath,
     onAutoRename,
     onClearMessages,
+    onCopyImage,
     onDelete,
     onEditAssistant,
+    onExportImage,
     onOpenInNewTab,
     onPinTopic,
     onStartRename,
@@ -189,8 +195,10 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         notesPath,
         onAutoRename,
         onClearMessages,
+        onCopyImage,
         onDelete,
         onEditAssistant,
+        onExportImage,
         onOpenInNewTab,
         onPinTopic,
         onStartRename,
@@ -204,8 +212,10 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       notesPath,
       onAutoRename,
       onClearMessages,
+      onCopyImage,
       onDelete,
       onEditAssistant,
+      onExportImage,
       onOpenInNewTab,
       onPinTopic,
       onStartRename,
