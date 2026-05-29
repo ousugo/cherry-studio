@@ -1137,7 +1137,7 @@
         "new": "新建",
         "system": "系统"
       },
-      "title": "助手库"
+      "title": "资源"
     },
     "reorder": {
       "error": {
@@ -1146,7 +1146,7 @@
     },
     "save": {
       "success": "保存成功",
-      "title": "保存到助手库"
+      "title": "保存到资源"
     },
     "search": "搜索助手",
     "settings": {
@@ -2735,7 +2735,7 @@
             "label": "允许使用的工具"
           },
           "avatar": {
-            "hint": "用于资源库和会话识别"
+            "hint": "用于资源和会话识别"
           },
           "description": {
             "hint": "帮助你快速识别用途",
@@ -2773,7 +2773,7 @@
             "label": "主模型"
           },
           "name": {
-            "hint": "展示在资源库和会话列表中",
+            "hint": "展示在资源和会话列表中",
             "label": "Agent 名称",
             "placeholder": "给 Agent 起个名字"
           },
@@ -2851,7 +2851,7 @@
         "description_label": "简介",
         "field": {
           "avatar": {
-            "hint": "用于在资源库和对话中识别助手"
+            "hint": "用于在资源和对话中识别助手"
           },
           "context_count": {
             "hint": "保留为上下文的最近消息数量"
@@ -2873,7 +2873,7 @@
             "hint": "覆盖该助手使用的全局默认模型"
           },
           "name": {
-            "hint": "展示在资源库和助手选择器中",
+            "hint": "展示在资源和助手选择器中",
             "placeholder": "给助手起个名字"
           },
           "stream_output": {
@@ -2903,7 +2903,7 @@
         "precise": "精确",
         "stream_output": "流式输出",
         "tag_empty": "没有可选的标签",
-        "tag_hint": "如需新增标签,请在资源库顶部栏的「+ 标签」入口创建",
+        "tag_hint": "如需新增标签,请在资源顶部栏的「+ 标签」入口创建",
         "tag_placeholder": "选择标签",
         "tag_search": "搜索标签",
         "tags": "标签",
@@ -2915,7 +2915,7 @@
         "top_p": "Top-P",
         "unlimited": "不限"
       },
-      "breadcrumb": "资源库",
+      "breadcrumb": "资源",
       "dialogs": {
         "create": {
           "agent_title": "新建智能体",
@@ -3128,7 +3128,7 @@
       "no_tags": "暂无标签",
       "subtitle": "管理你的 AI 资源",
       "tags": "标签",
-      "title": "资源库"
+      "title": "资源"
     },
     "skill_detail": {
       "created_at": "创建时间",
@@ -3155,7 +3155,7 @@
       "minutes": "{{count}} 分钟前",
       "months": "{{count}} 个月前"
     },
-    "title": "资源库",
+    "title": "资源",
     "toolbar": {
       "add_tag_placeholder": "标签名...",
       "new_resource": "新建资源",
@@ -7473,7 +7473,7 @@
     "openclaw": "OpenClaw",
     "paintings": "绘画",
     "settings": "设置",
-    "store": "助手库",
+    "store": "资源",
     "translate": "翻译"
   },
   "trace": {

@@ -1,7 +1,7 @@
-import { Badge, Button, Dialog, DialogContent, DialogTitle, Separator } from '@cherrystudio/ui'
+import { Badge, Dialog, DialogContent, DialogHeader, DialogTitle, Separator } from '@cherrystudio/ui'
 import type { InstalledSkill } from '@types'
 import type { TFunction } from 'i18next'
-import { Clock, X, Zap } from 'lucide-react'
+import { Clock, Zap } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -42,74 +42,59 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        showCloseButton={false}
-        overlayClassName="bg-black/40 backdrop-blur-sm"
-        className="max-h-[calc(100vh-48px)] w-170 gap-0 overflow-hidden rounded-lg border-border/30 bg-card p-0 shadow-2xl sm:max-w-170">
-        <div className="flex items-start justify-between gap-4 border-border/15 border-b px-5 py-4">
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-2xl">
+        <DialogHeader className="pr-8">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-xs bg-amber-500/10 text-amber-500">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-warning-bg text-warning-text">
               <Zap size={22} strokeWidth={1.5} />
             </div>
             <div className="min-w-0 pt-0.5">
-              <DialogTitle className="truncate text-foreground text-lg leading-6">{skill.name}</DialogTitle>
+              <DialogTitle className="truncate">{skill.name}</DialogTitle>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="border-0 bg-amber-500/10 px-2 py-0.5 text-amber-600 text-xs">
+                <Badge variant="secondary" className="border-0 bg-warning-bg px-2 py-0.5 text-warning-text text-xs">
                   {t('library.type.skill')}
                 </Badge>
-                <span className="text-muted-foreground/50 text-xs">{skill.source}</span>
-                {skill.author ? <span className="text-muted-foreground/50 text-xs">{skill.author}</span> : null}
+                <span className="text-foreground-muted text-xs">{skill.source}</span>
+                {skill.author ? <span className="text-foreground-muted text-xs">{skill.author}</span> : null}
                 {sourceTags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="text-muted-foreground/40 text-xs">
+                  <span key={tag} className="text-foreground-muted text-xs">
                     {tag}
                   </span>
                 ))}
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Badge
-              variant="secondary"
-              className="gap-1.5 border-0 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 text-xs">
-              <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-              {t('library.skill_detail.installed')}
-            </Badge>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('common.close')}
-              onClick={() => onOpenChange(false)}
-              className="flex h-7 min-h-0 w-7 shrink-0 items-center justify-center rounded-3xs font-normal text-muted-foreground/40 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-0">
-              <X size={14} />
-            </Button>
-          </div>
-        </div>
+        </DialogHeader>
 
-        <div className="max-h-[60vh] space-y-6 overflow-y-auto px-5 py-5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75">
+        <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
+          <Badge variant="secondary" className="gap-1.5 border-0 bg-success-bg px-2 py-0.5 text-success-text text-xs">
+            <span className="size-1.5 rounded-full bg-success-base" aria-hidden="true" />
+            {t('library.skill_detail.installed')}
+          </Badge>
           <section className="flex flex-col gap-3">
-            <h3 className="font-medium text-muted-foreground/70 text-sm">{t('library.skill_detail.description')}</h3>
-            <p className="min-h-10 text-muted-foreground/65 text-sm leading-6">
+            <h3 className="font-medium text-foreground-secondary text-sm">{t('library.skill_detail.description')}</h3>
+            <p className="min-h-10 text-foreground-secondary text-sm leading-6">
               {skill.description || t('library.skill_detail.no_description')}
             </p>
           </section>
 
-          <Separator className="bg-border/20" />
+          <Separator className="bg-border-subtle" />
 
           <section className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <span className="font-medium text-muted-foreground/60 text-sm">
+              <span className="font-medium text-foreground-secondary text-sm">
                 {t('library.skill_detail.created_at')}
               </span>
-              <div className="flex items-center gap-2 text-muted-foreground/60 text-sm">
+              <div className="flex items-center gap-2 text-foreground-secondary text-sm">
                 <Clock size={13} />
                 <span>{formatDate(skill.createdAt)}</span>
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <span className="font-medium text-muted-foreground/60 text-sm">
+              <span className="font-medium text-foreground-secondary text-sm">
                 {t('library.skill_detail.updated_at')}
               </span>
-              <div className="flex items-center gap-2 text-muted-foreground/60 text-sm">
+              <div className="flex items-center gap-2 text-foreground-secondary text-sm">
                 <Clock size={13} />
                 <span>
                   {formatDate(skill.updatedAt)} ({timeAgo(t, skill.updatedAt)})

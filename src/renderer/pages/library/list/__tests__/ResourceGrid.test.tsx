@@ -1,10 +1,12 @@
 import type { ResourceItem } from '@renderer/pages/library/types'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type * as ReactModule from 'react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { FixedCardMenu } from '../ResourceCardMenu'
+import { ResourceCardMenu } from '../ResourceCardMenu'
+import { ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
 const { ensureTagsMock, updateAssistantMock } = vi.hoisted(() => ({
@@ -22,72 +24,114 @@ vi.mock('@renderer/pages/library/list/AssistantPresetGroupIcon', () => ({
   AssistantPresetGroupIcon: () => <span />
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
-  Button: ({
-    children,
-    loading,
-    size,
-    variant,
-    ...props
-  }: ComponentProps<'button'> & { loading?: boolean; size?: string; variant?: string }) => {
-    void loading
-    void size
-    void variant
-    return (
-      <button type="button" {...props}>
-        {children}
+vi.mock('@cherrystudio/ui', async () => {
+  const React = await vi.importActual<typeof ReactModule>('react')
+  const PopoverContext = React.createContext<{
+    open: boolean
+    setOpen: (open: boolean) => void
+  }>({
+    open: false,
+    setOpen: () => {}
+  })
+
+  return {
+    Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+    Button: ({
+      children,
+      loading,
+      size,
+      variant,
+      ...props
+    }: ComponentProps<'button'> & { loading?: boolean; size?: string; variant?: string }) => {
+      void loading
+      void size
+      void variant
+      return (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      )
+    },
+    Checkbox: ({
+      checked = false,
+      onCheckedChange,
+      size,
+      ...props
+    }: Omit<ComponentProps<'button'>, 'onChange'> & {
+      checked?: boolean
+      onCheckedChange?: (checked: boolean) => void
+      size?: string
+    }) => {
+      void size
+      return (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={checked}
+          onClick={() => onCheckedChange?.(!checked)}
+          {...props}
+        />
+      )
+    },
+    EmptyState: ({ description, title }: { description?: string; title?: string }) => (
+      <div data-testid="empty-state">
+        {title && <div>{title}</div>}
+        {description && <div>{description}</div>}
+      </div>
+    ),
+    Input: (props: ComponentProps<'input'> & { className?: string }) => <input {...props} />,
+    MenuDivider: () => <div data-testid="menu-divider" />,
+    MenuList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    MenuItem: ({
+      icon,
+      label,
+      onClick,
+      suffix,
+      ...props
+    }: {
+      icon?: ReactNode
+      label: ReactNode
+      onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void
+      suffix?: ReactNode
+    }) => (
+      <button type="button" onClick={onClick} {...props}>
+        {icon}
+        <span>{label}</span>
+        {suffix}
       </button>
-    )
-  },
-  Checkbox: ({
-    checked = false,
-    onCheckedChange,
-    size,
-    ...props
-  }: Omit<ComponentProps<'button'>, 'onChange'> & {
-    checked?: boolean
-    onCheckedChange?: (checked: boolean) => void
-    size?: string
-  }) => {
-    void size
-    return (
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={checked}
-        onClick={() => onCheckedChange?.(!checked)}
-        {...props}
-      />
-    )
-  },
-  EmptyState: ({ description, title }: { description?: string; title?: string }) => (
-    <div data-testid="empty-state">
-      {title && <div>{title}</div>}
-      {description && <div>{description}</div>}
-    </div>
-  ),
-  Input: (props: ComponentProps<'input'> & { className?: string }) => <input {...props} />,
-  MenuDivider: () => <div data-testid="menu-divider" />,
-  MenuItem: ({
-    icon,
-    label,
-    onClick,
-    suffix
-  }: {
-    icon?: ReactNode
-    label: ReactNode
-    onClick?: () => void
-    suffix?: ReactNode
-  }) => (
-    <button type="button" onClick={onClick}>
-      {icon}
-      <span>{label}</span>
-      {suffix}
-    </button>
-  ),
-  Separator: () => <div />
-}))
+    ),
+    Popover: ({
+      children,
+      open,
+      onOpenChange
+    }: {
+      children?: ReactNode
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => {
+      const [internalOpen, setInternalOpen] = React.useState(open ?? false)
+      const actualOpen = open ?? internalOpen
+      const setOpen = (nextOpen: boolean) => {
+        if (open === undefined) setInternalOpen(nextOpen)
+        onOpenChange?.(nextOpen)
+      }
+
+      return <PopoverContext value={{ open: actualOpen, setOpen }}>{children}</PopoverContext>
+    },
+    PopoverContent: ({ children }: { children?: ReactNode }) => {
+      const { open } = React.use(PopoverContext)
+      return open ? <div>{children}</div> : null
+    },
+    PopoverTrigger: ({ children, asChild }: { children?: ReactNode; asChild?: boolean }) => {
+      const { open, setOpen } = React.use(PopoverContext)
+      void asChild
+
+      return <span onPointerDownCapture={() => setOpen(!open)}>{children}</span>
+    },
+    Separator: () => <div />,
+    Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />
+  }
+})
 
 vi.mock('../../adapters/assistantAdapter', () => ({
   useAssistantMutationsById: () => ({
@@ -117,7 +161,7 @@ function createDeferred<T>() {
   return { promise, resolve, reject }
 }
 
-function createAssistantResource(): ResourceItem {
+function createAssistantResource(overrides: Partial<Extract<ResourceItem, { type: 'assistant' }>> = {}): ResourceItem {
   return {
     id: 'assistant-1',
     type: 'assistant',
@@ -127,7 +171,8 @@ function createAssistantResource(): ResourceItem {
     tags: [],
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: {} as Extract<ResourceItem, { type: 'assistant' }>['raw']
+    raw: {} as Extract<ResourceItem, { type: 'assistant' }>['raw'],
+    ...overrides
   }
 }
 
@@ -177,6 +222,7 @@ function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> 
   return render(
     <ResourceGrid
       resources={[]}
+      isLoading={false}
       activeResourceType="assistant"
       search=""
       onSearchChange={vi.fn()}
@@ -197,7 +243,26 @@ function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> 
   )
 }
 
+function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceCard>> = {}) {
+  return {
+    allTagNames: [],
+    onDelete: vi.fn(),
+    onDuplicate: vi.fn(),
+    onEdit: vi.fn(),
+    onExport: vi.fn(),
+    onUpdateResourceTags: vi.fn(),
+    ...overrides
+  }
+}
+
 describe('ResourceGrid empty state copy', () => {
+  it('shows loading placeholders before the empty state while data is loading', () => {
+    renderResourceGrid({ isLoading: true })
+
+    expect(screen.getByTestId('resource-grid-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
+  })
+
   it('uses the generic resource empty copy when there is no search', () => {
     renderResourceGrid()
 
@@ -216,7 +281,42 @@ describe('ResourceGrid empty state copy', () => {
   })
 })
 
-describe('FixedCardMenu tag binding', () => {
+describe('ResourceGrid card actions', () => {
+  it('shows the overflow menu only for assistant cards', () => {
+    render(<ResourceCard resource={createAssistantResource()} {...getResourceCardProps()} />)
+
+    expect(screen.getByRole('button', { name: /common.more/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /common.delete/ })).not.toBeInTheDocument()
+  })
+
+  it('shows a direct delete action when delete is the only card action', async () => {
+    const user = userEvent.setup()
+    const resource = createAgentResource()
+    const onDelete = vi.fn()
+
+    render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
+
+    expect(screen.queryByRole('button', { name: /common.more/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /common.delete/ }))
+
+    expect(onDelete).toHaveBeenCalledWith(resource)
+  })
+
+  it('keeps assistant tags visible in the compact card layout', () => {
+    render(
+      <ResourceCard
+        resource={createAssistantResource({ tags: ['alpha', 'beta', 'gamma'] })}
+        {...getResourceCardProps()}
+      />
+    )
+
+    expect(screen.getByText('alpha')).toBeInTheDocument()
+    expect(screen.getByText('beta')).toBeInTheDocument()
+    expect(screen.getByText('+1')).toBeInTheDocument()
+  })
+})
+
+describe('ResourceCardMenu tag binding', () => {
   beforeEach(() => {
     ensureTagsMock.mockReset()
     updateAssistantMock.mockReset()
@@ -230,12 +330,9 @@ describe('FixedCardMenu tag binding', () => {
     const onUpdateResourceTags = vi.fn()
 
     render(
-      <FixedCardMenu
-        x={240}
-        y={120}
+      <ResourceCardMenu
         resource={createAssistantResource()}
         onClose={vi.fn()}
-        onEdit={vi.fn()}
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
@@ -263,12 +360,9 @@ describe('FixedCardMenu tag binding', () => {
 
   it('does not expose tag management for agent, skill, or prompt resources', () => {
     const { rerender } = render(
-      <FixedCardMenu
-        x={240}
-        y={120}
+      <ResourceCardMenu
         resource={createAgentResource()}
         onClose={vi.fn()}
-        onEdit={vi.fn()}
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
@@ -280,12 +374,9 @@ describe('FixedCardMenu tag binding', () => {
     expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
 
     rerender(
-      <FixedCardMenu
-        x={240}
-        y={120}
+      <ResourceCardMenu
         resource={createSkillResource()}
         onClose={vi.fn()}
-        onEdit={vi.fn()}
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
@@ -297,12 +388,9 @@ describe('FixedCardMenu tag binding', () => {
     expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
 
     rerender(
-      <FixedCardMenu
-        x={240}
-        y={120}
+      <ResourceCardMenu
         resource={createPromptResource()}
         onClose={vi.fn()}
-        onEdit={vi.fn()}
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
@@ -314,14 +402,28 @@ describe('FixedCardMenu tag binding', () => {
     expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
   })
 
-  it('does not expose edit for skill resources while keeping uninstall available', () => {
+  it('keeps uninstall available for skill resources without extra menu actions', () => {
     render(
-      <FixedCardMenu
-        x={240}
-        y={120}
+      <ResourceCardMenu
         resource={createSkillResource()}
         onClose={vi.fn()}
-        onEdit={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        onUpdateResourceTags={vi.fn()}
+        allTagNames={[]}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /library.action.uninstall/ })).toBeInTheDocument()
+    expect(screen.queryByTestId('menu-divider')).not.toBeInTheDocument()
+  })
+
+  it('keeps the divider when assistant resources have actions before delete', () => {
+    render(
+      <ResourceCardMenu
+        resource={createAssistantResource()}
+        onClose={vi.fn()}
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
@@ -331,27 +433,6 @@ describe('FixedCardMenu tag binding', () => {
     )
 
     expect(screen.queryByRole('button', { name: /common.edit/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /library.action.uninstall/ })).toBeInTheDocument()
-    expect(screen.queryByTestId('menu-divider')).not.toBeInTheDocument()
-  })
-
-  it('keeps the divider when non-skill resources have actions before delete', () => {
-    render(
-      <FixedCardMenu
-        x={240}
-        y={120}
-        resource={createAssistantResource()}
-        onClose={vi.fn()}
-        onEdit={vi.fn()}
-        onDuplicate={vi.fn()}
-        onDelete={vi.fn()}
-        onExport={vi.fn()}
-        onUpdateResourceTags={vi.fn()}
-        allTagNames={[]}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: /common.edit/ })).toBeInTheDocument()
     expect(screen.getByTestId('menu-divider')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /common.delete/ })).toBeInTheDocument()
   })

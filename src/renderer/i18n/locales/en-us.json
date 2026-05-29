@@ -1137,7 +1137,7 @@
         "new": "New",
         "system": "System"
       },
-      "title": "Assistants Library"
+      "title": "Resources"
     },
     "reorder": {
       "error": {
@@ -1146,7 +1146,7 @@
     },
     "save": {
       "success": "Saved successfully",
-      "title": "Save to assistant library"
+      "title": "Save to resources"
     },
     "search": "Search assistants...",
     "settings": {
@@ -7473,7 +7473,7 @@
     "openclaw": "OpenClaw",
     "paintings": "Paintings",
     "settings": "Settings",
-    "store": "Assistant Library",
+    "store": "Resources",
     "translate": "Translate"
   },
   "trace": {

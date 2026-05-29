@@ -1137,7 +1137,7 @@
         "new": "新增",
         "system": "系統"
       },
-      "title": "助手庫"
+      "title": "資源"
     },
     "reorder": {
       "error": {
@@ -1146,7 +1146,7 @@
     },
     "save": {
       "success": "儲存成功",
-      "title": "儲存到助手庫"
+      "title": "儲存到資源"
     },
     "search": "搜尋助手...",
     "settings": {
@@ -3155,7 +3155,7 @@
       "minutes": "[to be translated]:{{count}} minute(s) ago",
       "months": "[to be translated]:{{count}} month(s) ago"
     },
-    "title": "資源庫",
+    "title": "資源",
     "toolbar": {
       "add_tag_placeholder": "[to be translated]:Tag name...",
       "new_resource": "[to be translated]:New resource",
@@ -7473,7 +7473,7 @@
     "openclaw": "OpenClaw",
     "paintings": "繪畫",
     "settings": "設定",
-    "store": "助手庫",
+    "store": "資源",
     "translate": "翻譯"
   },
   "trace": {

@@ -95,6 +95,7 @@ export default function LibraryPage() {
     resources,
     allResources,
     typeCounts,
+    isLoading,
     error: resourceError,
     refetch
   } = useResourceLibrary({
@@ -391,12 +392,13 @@ export default function LibraryPage() {
                   {t('common.retry')}
                 </Button>
               }
-              className="max-w-lg rounded-xs px-4 py-3 shadow-none"
+              className="max-w-lg rounded-md px-4 py-3 shadow-none"
             />
           </div>
         ) : (
           <ResourceGrid
             resources={resources}
+            isLoading={isLoading}
             activeResourceType={activeResourceType}
             search={search}
             onSearchChange={setSearch}
