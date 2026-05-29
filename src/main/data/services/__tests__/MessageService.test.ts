@@ -518,10 +518,71 @@ describe('MessageService', () => {
 
       expect(result.nodes.find((node) => node.id === 'm-preview')?.preview).toContain('v2 parts payload')
     })
+
+    it('returns every same-topic root tree even when roots are not in a sibling group', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-multi-root', activeNodeId: 'a-second', orderKey: 'roots' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'u-first',
+          parentId: null,
+          topicId: 'topic-multi-root',
+          role: 'user',
+          data: mainText('first root'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'a-first',
+          parentId: 'u-first',
+          topicId: 'topic-multi-root',
+          role: 'assistant',
+          data: mainText('first answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'u-second',
+          parentId: null,
+          topicId: 'topic-multi-root',
+          role: 'user',
+          data: mainText('second root'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        },
+        {
+          id: 'a-second',
+          parentId: 'u-second',
+          topicId: 'topic-multi-root',
+          role: 'assistant',
+          data: mainText('second answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 400,
+          updatedAt: 400
+        }
+      ])
+
+      const result = await messageService.getTree('topic-multi-root', { depth: -1 })
+
+      expect(result.siblingsGroups).toHaveLength(0)
+      expect(result.nodes.map((node) => [node.id, node.parentId])).toEqual([
+        ['u-first', null],
+        ['a-first', 'u-first'],
+        ['u-second', null],
+        ['a-second', 'u-second']
+      ])
+      expect(result.activeNodeId).toBe('a-second')
+    })
   })
 
   describe('createSibling', () => {
-    it('rejects root message siblings to preserve the single-root topic tree', async () => {
+    it('creates root user siblings for first-turn edit and resend', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-root-sibling', activeNodeId: 'u-root', orderKey: 's0' })
       await dbh.db.insert(messageTable).values({
         id: 'u-root',
@@ -534,20 +595,87 @@ describe('MessageService', () => {
         createdAt: 100,
         updatedAt: 100
       })
-
       const beforeWriteTx = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
 
-      await expect(messageService.createSibling('u-root', mainText('edited root prompt'))).rejects.toBeInstanceOf(
-        DataApiError
-      )
+      const sibling = await messageService.createSibling('u-root', mainText('edited root prompt'))
 
       const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-root-sibling'))
-      expect(messages).toHaveLength(1)
-      expect(messages[0].siblingsGroupId).toBe(0)
+      expect(messages).toHaveLength(2)
+      expect(sibling.role).toBe('user')
+      expect(sibling.parentId).toBeNull()
+      expect(sibling.status).toBe('success')
+      expect(sibling.siblingsGroupId).toBeGreaterThan(0)
+      expect(messages.every((message) => message.siblingsGroupId === sibling.siblingsGroupId)).toBe(true)
 
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-root-sibling')).limit(1)
-      expect(topic.activeNodeId).toBe('u-root')
+      expect(topic.activeNodeId).toBe(sibling.id)
       expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx).toBe(beforeWriteTx + 1)
+
+      const branch = await messageService.getBranchMessages('topic-root-sibling', { includeSiblings: true })
+      expect(branch.items).toHaveLength(1)
+      expect(branch.items[0].message.id).toBe(sibling.id)
+      expect(branch.items[0].siblingsGroup?.map((message) => message.id)).toEqual(['u-root'])
+
+      const tree = await messageService.getTree('topic-root-sibling', { depth: -1 })
+      expect(tree.siblingsGroups).toHaveLength(1)
+      expect(tree.siblingsGroups[0].parentId).toBeNull()
+      expect(tree.siblingsGroups[0].nodes.map((node) => node.id)).toEqual(['u-root', sibling.id])
+    })
+
+    it('returns root sibling branches with each root subtree for the branch flow canvas', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-root-flow', activeNodeId: 'a-original', orderKey: 's1' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'u-original',
+          topicId: 'topic-root-flow',
+          parentId: null,
+          role: 'user',
+          data: mainText('original root prompt'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'a-original',
+          topicId: 'topic-root-flow',
+          parentId: 'u-original',
+          role: 'assistant',
+          data: mainText('original answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      const editedRoot = await messageService.createSibling('u-original', mainText('edited root prompt'))
+      await dbh.db.insert(messageTable).values({
+        id: 'a-edited',
+        topicId: 'topic-root-flow',
+        parentId: editedRoot.id,
+        role: 'assistant',
+        data: mainText('edited answer'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 300,
+        updatedAt: 300
+      })
+      await dbh.db.update(topicTable).set({ activeNodeId: 'a-edited' }).where(eq(topicTable.id, 'topic-root-flow'))
+
+      const tree = await messageService.getTree('topic-root-flow', { depth: -1 })
+
+      expect(tree.activeNodeId).toBe('a-edited')
+      expect(tree.siblingsGroups).toHaveLength(1)
+      expect(tree.siblingsGroups[0].parentId).toBeNull()
+      expect(tree.siblingsGroups[0].nodes.map((node) => [node.id, node.hasChildren])).toEqual([
+        ['u-original', true],
+        [editedRoot.id, true]
+      ])
+      expect(tree.nodes.map((node) => [node.id, node.parentId])).toEqual([
+        ['a-original', 'u-original'],
+        ['a-edited', editedRoot.id]
+      ])
     })
 
     it('marks edited non-root user siblings as success so branch flow does not show the user node as loading', async () => {

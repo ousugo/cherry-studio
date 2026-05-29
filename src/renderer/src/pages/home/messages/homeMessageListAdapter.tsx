@@ -375,7 +375,7 @@ export function useHomeMessageListProviderValue({
       return {
         canAddImageFile: editorModel ? isVisionModel(editorModel) : false,
         canAddTextFile: true,
-        canForkAndResend: message.role === 'user' ? message.parentId != null : true
+        canForkAndResend: message.role === 'user'
       }
     },
     [model]

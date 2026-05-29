@@ -174,7 +174,7 @@ function renderEditor({
       getMessageEditorCapabilities: (item) => ({
         canAddImageFile: false,
         canAddTextFile: true,
-        canForkAndResend: item.parentId != null
+        canForkAndResend: item.role === 'user'
       })
     },
     actions: {
@@ -197,15 +197,15 @@ function renderEditor({
 }
 
 describe('MessageEditor', () => {
-  it('hides resend for root user messages and keeps save available', () => {
+  it('shows resend for root user messages and keeps save available', async () => {
     const { onCancel, onResend } = renderEditor({ message: userMessage({ parentId: null }) })
 
-    expect(screen.queryByText('resend-icon')).not.toBeInTheDocument()
+    expect(screen.getByText('resend-icon')).toBeInTheDocument()
     expect(screen.getByText('save-icon')).toBeInTheDocument()
 
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
 
-    expect(onResend).not.toHaveBeenCalled()
+    await waitFor(() => expect(onResend).toHaveBeenCalledWith([textPart('hello')]))
 
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' })
 

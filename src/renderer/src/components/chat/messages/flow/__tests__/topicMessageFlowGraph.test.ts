@@ -84,6 +84,66 @@ describe('buildTopicMessageFlowGraph', () => {
     expect(graph.stats.branchCount).toBe(2)
   })
 
+  it('expands root sibling groups into independent root trees', () => {
+    const tree: TreeResponse = {
+      nodes: [
+        treeNode({ id: 'assistant-original', parentId: 'root-original', role: 'assistant' }),
+        treeNode({ id: 'assistant-edited', parentId: 'root-edited', role: 'assistant' })
+      ],
+      siblingsGroups: [
+        {
+          parentId: null,
+          siblingsGroupId: 9,
+          nodes: [siblingNode({ id: 'root-original' }), siblingNode({ id: 'root-edited' })]
+        }
+      ],
+      activeNodeId: 'assistant-edited'
+    }
+
+    const graph = buildTopicMessageFlowGraph(tree)
+
+    expect(graph.nodes.map((node) => [node.id, node.parentId, node.data.siblingsGroupId])).toEqual([
+      ['assistant-original', 'root-original', undefined],
+      ['assistant-edited', 'root-edited', undefined],
+      ['root-original', null, 9],
+      ['root-edited', null, 9]
+    ])
+    expect(graph.edges.map((edge) => [edge.source, edge.target])).toEqual([
+      ['root-original', 'assistant-original'],
+      ['root-edited', 'assistant-edited']
+    ])
+    expect(graph.nodes.find((node) => node.id === 'root-edited')?.data.isOnActivePath).toBe(true)
+    expect(graph.nodes.find((node) => node.id === 'root-original')?.data.isInactiveBranch).toBe(true)
+    expect(graph.stats.branchCount).toBe(2)
+  })
+
+  it('keeps ungrouped same-topic roots as separate trees', () => {
+    const tree: TreeResponse = {
+      nodes: [
+        treeNode({ id: 'root-a', hasChildren: true }),
+        treeNode({ id: 'answer-a', parentId: 'root-a', role: 'assistant' }),
+        treeNode({ id: 'root-b', hasChildren: true }),
+        treeNode({ id: 'answer-b', parentId: 'root-b', role: 'assistant' })
+      ],
+      siblingsGroups: [],
+      activeNodeId: 'answer-b'
+    }
+
+    const graph = buildTopicMessageFlowGraph(tree)
+
+    expect(graph.nodes.map((node) => [node.id, node.parentId])).toEqual([
+      ['root-a', null],
+      ['answer-a', 'root-a'],
+      ['root-b', null],
+      ['answer-b', 'root-b']
+    ])
+    expect(graph.edges.map((edge) => [edge.source, edge.target])).toEqual([
+      ['root-a', 'answer-a'],
+      ['root-b', 'answer-b']
+    ])
+    expect(graph.stats.branchCount).toBe(2)
+  })
+
   it('counts regular same-parent children as branch paths even without a sibling group', () => {
     const tree: TreeResponse = {
       nodes: [

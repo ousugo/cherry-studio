@@ -278,25 +278,10 @@ export class MessageService {
 
     const activeNodeId = options.nodeId || topic.activeNodeId
 
-    // Find root node if not specified
-    let rootId = options.rootId
-    if (!rootId) {
-      const [root] = await db
-        .select({ id: messageTable.id })
-        .from(messageTable)
-        .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
-        .limit(1)
-      rootId = root?.id
-    }
-
-    if (!rootId) {
-      return { nodes: [], siblingsGroups: [], activeNodeId: null }
-    }
-
     // Build active path via CTE (single query)
     const activePath = new Set<string>()
     if (activeNodeId) {
-      const pathRows = await db.all<{ id: string }>(sql`
+      const pathRows = await db.all<{ id: string; parent_id: string | null }>(sql`
         WITH RECURSIVE path AS (
           SELECT id, parent_id FROM message WHERE id = ${activeNodeId} AND deleted_at IS NULL
           UNION ALL
@@ -304,9 +289,31 @@ export class MessageService {
           INNER JOIN path p ON m.id = p.parent_id
           WHERE m.deleted_at IS NULL
         )
-        SELECT id FROM path
+        SELECT id, parent_id FROM path
       `)
-      pathRows.forEach((r) => activePath.add(r.id))
+      pathRows.forEach((r) => {
+        activePath.add(r.id)
+      })
+    }
+
+    // Without an explicit root, the flow canvas is a topic-level view: every
+    // non-deleted root message in this topic starts its own tree.
+    const explicitRootId = options.rootId
+    const rootIds = explicitRootId
+      ? [explicitRootId]
+      : (
+          await db
+            .select({ id: messageTable.id, createdAt: messageTable.createdAt })
+            .from(messageTable)
+            .where(
+              and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt))
+            )
+        )
+          .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+          .map((row) => row.id)
+
+    if (rootIds.length === 0) {
+      return { nodes: [], siblingsGroups: [], activeNodeId: null }
     }
 
     // Get tree with depth limit via CTE
@@ -318,7 +325,11 @@ export class MessageService {
     // See docs/references/data/database-patterns.md.
     const treeDepthRows = await db.all<{ id: string; tree_depth: number }>(sql`
       WITH RECURSIVE tree AS (
-        SELECT id, 0 as tree_depth FROM message WHERE id = ${rootId} AND deleted_at IS NULL
+        SELECT id, 0 as tree_depth FROM message
+        WHERE id IN (${sql.join(
+          rootIds.map((id) => sql`${id}`),
+          sql`, `
+        )}) AND deleted_at IS NULL
         UNION ALL
         SELECT m.id, t.tree_depth + 1 FROM message m
         INNER JOIN tree t ON m.parent_id = t.id
@@ -424,6 +435,8 @@ export class MessageService {
     const resultNodes: TreeNode[] = []
     const siblingsGroups: SiblingsGroup[] = []
     const visitedGroups = new Set<string>()
+    const childrenKeyFor = (parentId: string | null) => parentId ?? 'root'
+    const groupKeyFor = (parentId: string | null, siblingsGroupId: number) => `${parentId ?? 'root'}-${siblingsGroupId}`
 
     const collectNodes = (nodeId: string, currentDepth: number, isOnActivePath: boolean) => {
       const message = messagesById.get(nodeId)
@@ -433,22 +446,23 @@ export class MessageService {
       const hasChildren = children.length > 0
 
       // Check if this message is part of a siblings group
-      if (message.siblingsGroupId !== 0 && message.parentId !== null) {
-        const groupKey = `${message.parentId}-${message.siblingsGroupId}`
+      const siblingsGroupId = message.siblingsGroupId ?? 0
+      if (siblingsGroupId !== 0) {
+        const groupKey = groupKeyFor(message.parentId, siblingsGroupId)
         if (!visitedGroups.has(groupKey)) {
           visitedGroups.add(groupKey)
 
           // Find all siblings in this group
-          const parentChildren = childrenMap.get(message.parentId) || []
+          const parentChildren = childrenMap.get(childrenKeyFor(message.parentId)) || []
           const groupMembers = parentChildren
             .map((id) => messagesById.get(id)!)
-            .filter((m) => m && m.siblingsGroupId === message.siblingsGroupId)
+            .filter((m) => m && m.siblingsGroupId === siblingsGroupId)
             .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
 
           if (groupMembers.length > 1) {
             siblingsGroups.push({
               parentId: message.parentId,
-              siblingsGroupId: message.siblingsGroupId,
+              siblingsGroupId,
               nodes: groupMembers.map((m) => {
                 const memberChildren = childrenMap.get(m.id) || []
                 const node = messageToTreeNode(m, memberChildren.length > 0)
@@ -476,8 +490,11 @@ export class MessageService {
       }
     }
 
-    // Start from root
-    collectNodes(rootId, 0, activePath.has(rootId))
+    // Start from root nodes. Root siblings are independent trees that share
+    // parentId=null, so the flow canvas needs to collect each subtree.
+    for (const startRootId of rootIds) {
+      collectNodes(startRootId, 0, activePath.has(startRootId))
+    }
 
     return {
       nodes: resultNodes,
@@ -577,13 +594,13 @@ export class MessageService {
 
     if (includeSiblings) {
       // Collect unique (parentId, siblingsGroupId) pairs that need siblings.
-      // Root messages are not valid sibling sources because topics are single-root.
       const uniqueGroups = new Set<string>()
-      const groupsToQuery: Array<{ parentId: string; siblingsGroupId: number }> = []
-      const groupKeyFor = (parentId: string, siblingsGroupId: number) => `${parentId}-${siblingsGroupId}`
+      const groupsToQuery: Array<{ parentId: string | null; siblingsGroupId: number }> = []
+      const groupKeyFor = (parentId: string | null, siblingsGroupId: number) =>
+        `${parentId ?? 'root'}-${siblingsGroupId}`
 
       for (const msg of paginatedPath) {
-        if (msg.siblingsGroupId && msg.siblingsGroupId !== 0 && msg.parentId !== null) {
+        if (msg.siblingsGroupId && msg.siblingsGroupId !== 0) {
           const key = groupKeyFor(msg.parentId, msg.siblingsGroupId)
           if (!uniqueGroups.has(key)) {
             uniqueGroups.add(key)
@@ -597,7 +614,10 @@ export class MessageService {
 
       if (groupsToQuery.length > 0) {
         const orConditions = groupsToQuery.map((g) =>
-          and(eq(messageTable.parentId, g.parentId), eq(messageTable.siblingsGroupId, g.siblingsGroupId))
+          and(
+            g.parentId === null ? isNull(messageTable.parentId) : eq(messageTable.parentId, g.parentId),
+            eq(messageTable.siblingsGroupId, g.siblingsGroupId)
+          )
         )
 
         const siblingsRows = await db
@@ -606,7 +626,6 @@ export class MessageService {
           .where(and(isNull(messageTable.deletedAt), or(...orConditions)))
 
         for (const row of siblingsRows) {
-          if (row.parentId === null) continue
           const key = groupKeyFor(row.parentId, row.siblingsGroupId ?? 0)
           if (!siblingsMap.has(key)) siblingsMap.set(key, [])
           siblingsMap.get(key)!.push(rowToMessage(row))
@@ -618,7 +637,7 @@ export class MessageService {
         const message = rowToMessage(msg)
         let siblingsGroup: Message[] | undefined
 
-        if (msg.siblingsGroupId != null && msg.siblingsGroupId !== 0 && msg.parentId !== null) {
+        if (msg.siblingsGroupId != null && msg.siblingsGroupId !== 0) {
           const key = groupKeyFor(msg.parentId, msg.siblingsGroupId)
           const group = siblingsMap.get(key)
           if (group && group.length > 1) {
@@ -791,8 +810,8 @@ export class MessageService {
    *   the same `parentId`, and always becomes the topic's active node.
    * - Edited user siblings are already complete (`success`); assistant siblings
    *   stay `pending` until their response stream resolves.
-   * - Root messages (`parentId = null`) cannot create siblings because topics
-   *   keep a single-root tree.
+   * - Root messages (`parentId = null`) can create root siblings for editing
+   *   and resending the first user turn.
    */
   async createSibling(sourceId: string, data: MessageData): Promise<Message> {
     const dbService = application.get('DbService')
@@ -801,9 +820,6 @@ export class MessageService {
       const [source] = await tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1)
       if (!source) {
         throw DataApiErrorFactory.notFound('Message', sourceId)
-      }
-      if (source.parentId === null) {
-        throw DataApiErrorFactory.invalidOperation('create sibling message', 'Root message cannot be resent')
       }
 
       let siblingsGroupId = source.siblingsGroupId ?? 0

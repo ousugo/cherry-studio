@@ -49,9 +49,9 @@ export interface ChatWriteActions {
   clearTopicMessages: () => Promise<void>
   editMessage: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
   /**
-   * Branch a user message: create a new sibling under the same parent with the
-   * edited parts, make it the active node, then regenerate the assistant
-   * response anchored at the new sibling. The source message stays intact.
+   * Branch a user message: create a sibling with edited parts, make it active,
+   * then regenerate the assistant response anchored at that sibling. The source
+   * message stays intact, including for the first root user message.
    */
   forkAndResend: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
   /**

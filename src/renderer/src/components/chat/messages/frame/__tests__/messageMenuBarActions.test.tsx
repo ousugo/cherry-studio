@@ -102,7 +102,7 @@ describe('messageMenuBarActions', () => {
     expect(toolbarActions.map((action) => action.id)).toEqual(['copy'])
   })
 
-  it('hides user edit toolbar action for root messages', () => {
+  it('keeps user edit toolbar action for root messages', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createContext({
         message: {
@@ -121,7 +121,7 @@ describe('messageMenuBarActions', () => {
       })
     )
 
-    expect(toolbarActions.map((action) => action.id)).toEqual(['copy'])
+    expect(toolbarActions.map((action) => action.id)).toEqual(['user-edit', 'copy'])
   })
 
   it('keeps user edit toolbar action for non-root messages', () => {
@@ -146,7 +146,7 @@ describe('messageMenuBarActions', () => {
     expect(toolbarActions.map((action) => action.id)).toEqual(['user-edit', 'copy'])
   })
 
-  it('hides edit menu action for root messages', () => {
+  it('keeps edit menu action for root messages', () => {
     const menuActions = resolveMessageMenuBarMenuActions(
       createContext({
         message: {
@@ -165,7 +165,7 @@ describe('messageMenuBarActions', () => {
       })
     )
 
-    expect(menuActions.map((action) => action.id)).not.toContain('edit')
+    expect(menuActions.map((action) => action.id)).toContain('edit')
   })
 
   it('resolves assistant toolbar actions from capabilities', () => {

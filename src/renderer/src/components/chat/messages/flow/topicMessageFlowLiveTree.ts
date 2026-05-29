@@ -159,7 +159,7 @@ export function mergeTopicMessageFlowLiveTree(
 
   for (const liveNode of liveState.nodes) {
     const existing = existingTreeNodes.get(liveNode.id)
-    if (liveNode.siblingsGroupId && liveNode.parentId) {
+    if (liveNode.siblingsGroupId && liveNode.siblingsGroupId !== 0) {
       regularNodes.delete(liveNode.id)
       const key = groupKey(liveNode.parentId, liveNode.siblingsGroupId)
       const group =

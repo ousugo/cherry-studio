@@ -580,6 +580,14 @@ describe('ChatContent', () => {
   it('adds the forked user sibling to branch live state before refreshed tree data arrives', async () => {
     const onBranchLiveStateChange = vi.fn()
     const editedParts = [{ type: 'text', text: 'edited branch prompt' } as CherryMessagePart]
+    const historyUser = {
+      ...createUiMessage('history-user', 'user'),
+      metadata: { parentId: 'branch-a', createdAt: '2026-01-01T00:00:00.000Z' }
+    } as CherryUIMessage
+    const historyAssistant = {
+      ...createUiMessage('history-assistant', 'assistant'),
+      metadata: { parentId: 'history-user', status: 'success', createdAt: '2026-01-01T00:00:01.000Z' }
+    } as CherryUIMessage
     const createSiblingTrigger = vi.fn().mockResolvedValue({
       id: 'forked-user',
       topicId: 'topic-1',
@@ -597,8 +605,8 @@ describe('ChatContent', () => {
       updatedAt: '2026-01-01T00:00:03.000Z'
     })
     const refresh = vi.fn().mockResolvedValue([
-      createUiMessage('history-user', 'user'),
-      createUiMessage('history-assistant', 'assistant'),
+      historyUser,
+      historyAssistant,
       {
         id: 'forked-user',
         role: 'user',
@@ -620,7 +628,7 @@ describe('ChatContent', () => {
       error: undefined
     }))
     mockUseTopicMessages.mockReturnValue({
-      uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
+      uiMessages: [historyUser, historyAssistant],
       siblingsMap: {},
       isLoading: false,
       refresh,
@@ -696,6 +704,96 @@ describe('ChatContent', () => {
     await waitFor(() => {
       expect(refresh).toHaveBeenCalledTimes(2)
       expect(onBranchLiveStateChange).toHaveBeenLastCalledWith(null)
+    })
+  })
+
+  it('resends an edited root user message by creating a root sibling', async () => {
+    const editedParts = [{ type: 'text', text: 'edited root prompt' } as CherryMessagePart]
+    const createSiblingTrigger = vi.fn().mockResolvedValue({
+      id: 'forked-root-user',
+      topicId: 'topic-1',
+      parentId: null,
+      role: 'user',
+      data: { parts: editedParts },
+      searchableText: '',
+      status: 'success',
+      siblingsGroupId: 23,
+      modelId: null,
+      modelSnapshot: null,
+      traceId: null,
+      stats: null,
+      createdAt: '2026-01-01T00:00:03.000Z',
+      updatedAt: '2026-01-01T00:00:03.000Z'
+    })
+    const setMessages = vi.fn()
+    const regenerate = vi.fn().mockResolvedValue(undefined)
+    const rootUser = {
+      ...createUiMessage('root-user', 'user'),
+      metadata: { parentId: null, createdAt: '2026-01-01T00:00:00.000Z' }
+    } as CherryUIMessage
+    const rootAssistant = {
+      ...createUiMessage('root-assistant', 'assistant'),
+      metadata: { parentId: 'root-user', status: 'success', createdAt: '2026-01-01T00:00:01.000Z' }
+    } as CherryUIMessage
+
+    const refresh = vi.fn().mockResolvedValue([
+      rootUser,
+      rootAssistant,
+      {
+        id: 'forked-root-user',
+        role: 'user',
+        parts: editedParts,
+        metadata: {
+          parentId: null,
+          siblingsGroupId: 23,
+          status: 'success',
+          createdAt: '2026-01-01T00:00:03.000Z'
+        }
+      } as CherryUIMessage
+    ])
+
+    mockUseMutation.mockImplementation((method: string, path: string) => ({
+      trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [rootUser, rootAssistant],
+      siblingsMap: {},
+      isLoading: false,
+      refresh,
+      activeNodeId: 'root-assistant',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate,
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages,
+      activeExecutions: []
+    })
+
+    render(<ChatContent topic={topic} />)
+
+    await act(async () => {
+      await mockChatWriteValue.current?.forkAndResend('root-user', editedParts)
+    })
+
+    expect(createSiblingTrigger).toHaveBeenCalledWith({
+      params: { id: 'root-user' },
+      body: { parts: editedParts }
+    })
+    expect(refresh).toHaveBeenCalled()
+    expect(setMessages).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ id: 'forked-root-user', parts: editedParts })])
+    )
+    expect(regenerate).toHaveBeenCalledWith({
+      messageId: 'forked-root-user',
+      body: expect.objectContaining({ parentAnchorId: 'forked-root-user' })
     })
   })
 
