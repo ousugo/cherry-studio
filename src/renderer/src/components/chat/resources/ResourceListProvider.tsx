@@ -389,7 +389,8 @@ type ProviderAction =
   | { type: 'cancelRename' }
   | { type: 'showMoreInGroup'; groupId: string }
   | { type: 'collapseGroupItems'; groupId: string; defaultCount: number }
-  | { type: 'collapseGroups'; groupIds: readonly string[] }
+  | { type: 'collapseGroups'; groupIds: readonly string[]; defaultCount: number }
+  | { type: 'resetGroupVisibleCounts'; groupIds: readonly string[]; defaultCount: number }
   | { type: 'toggleGroup'; groupId: string }
   | {
       type: 'revealItem'
@@ -449,10 +450,19 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
       }
     case 'collapseGroups': {
       const collapsedGroups = new Set(state.collapsedGroups)
+      const groupVisibleCounts = { ...state.groupVisibleCounts }
       for (const groupId of action.groupIds) {
         collapsedGroups.add(groupId)
+        groupVisibleCounts[groupId] = action.defaultCount
       }
-      return { ...state, collapsedGroups: [...collapsedGroups] }
+      return { ...state, collapsedGroups: [...collapsedGroups], groupVisibleCounts }
+    }
+    case 'resetGroupVisibleCounts': {
+      const groupVisibleCounts = { ...state.groupVisibleCounts }
+      for (const groupId of action.groupIds) {
+        groupVisibleCounts[groupId] = action.defaultCount
+      }
+      return { ...state, groupVisibleCounts }
     }
     case 'toggleGroup': {
       const collapsedGroups = state.collapsedGroups.includes(action.groupId)
@@ -813,11 +823,12 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
           for (const groupId of groupIds) {
             nextExpandedGroupIds.delete(groupId)
           }
+          dispatch({ type: 'resetGroupVisibleCounts', groupIds, defaultCount: defaultGroupVisibleCount })
           notifyControlledGroupStateChange([...nextExpandedGroupIds])
           return
         }
 
-        dispatch({ type: 'collapseGroups', groupIds })
+        dispatch({ type: 'collapseGroups', groupIds, defaultCount: defaultGroupVisibleCount })
       },
       toggleGroup: (groupId: string) => {
         if (collapsedGroupIds !== undefined) {
