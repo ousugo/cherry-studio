@@ -135,6 +135,31 @@ describe('ChatAppShell', () => {
     expect(sidePanelHost).toHaveClass('*:pointer-events-auto')
   })
 
+  it('renders centerTopOverlay in a z-1000 overlay host that is a sibling of the center, not trapped inside it', () => {
+    const { container } = render(
+      <ChatAppShell
+        centerId="chat-main"
+        main={<div data-testid="main" />}
+        centerTopOverlay={<div data-testid="search-overlay" />}
+      />
+    )
+
+    const chatMain = container.querySelector('#chat-main')
+    const overlay = screen.getByTestId('search-overlay')
+
+    // Must NOT live inside the center: the center carries a transform (stacking context),
+    // so an overlay trapped inside it cannot paint above sibling chrome at the shell root.
+    expect(chatMain).not.toContainElement(overlay)
+
+    const overlayHost = overlay.closest('.z-1000')
+    expect(overlayHost).not.toBeNull()
+    expect(overlayHost).toHaveClass('absolute')
+    expect(overlayHost).toHaveClass('inset-0')
+
+    // Sibling of the center (same wrapper) so it overlays exactly the center box.
+    expect(overlayHost?.parentElement).toBe(chatMain?.parentElement)
+  })
+
   it('keeps the pane mounted when keyed center content changes', () => {
     const paneMounts: string[] = []
 

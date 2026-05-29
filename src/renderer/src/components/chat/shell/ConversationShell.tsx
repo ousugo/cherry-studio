@@ -20,6 +20,8 @@ export interface ConversationShellProps {
   center: ReactNode
   sidePanel?: ReactNode
   centerOverlay?: ReactNode
+  /** Overlay scoped to the center area but rendered above the center's transform/stacking layer. */
+  centerTopOverlay?: ReactNode
   overlay?: ReactNode
   rightPane?: ReactNode
   centerId?: string
@@ -39,6 +41,7 @@ export default function ConversationShell({
   center,
   sidePanel,
   centerOverlay,
+  centerTopOverlay,
   overlay,
   rightPane,
   centerId,
@@ -75,6 +78,7 @@ export default function ConversationShell({
           centerContent={center}
           sidePanel={sidePanel}
           centerOverlay={centerOverlay}
+          centerTopOverlay={centerTopOverlay}
           overlay={overlay}
           centerId={centerId}
           centerRef={centerRef}
