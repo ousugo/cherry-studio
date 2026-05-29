@@ -179,11 +179,13 @@ function resolveAssistantIdForTopicGroup(
 function TopicListOptionsMenu({
   mode,
   onChange,
-  onOpenHistory
+  onOpenHistory,
+  sectionId
 }: {
   mode: TopicDisplayMode
   onChange: (mode: TopicDisplayMode) => void
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
+  sectionId?: string
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -212,6 +214,20 @@ function TopicListOptionsMenu({
               }}
             />
           ))}
+          {sectionId && (
+            <>
+              <MenuDivider className="my-0.5" />
+              <ResourceList.SectionToggleMenuItem
+                sectionId={sectionId}
+                expandLabel={t('chat.topics.group.expand_all')}
+                collapseLabel={t('chat.topics.group.collapse_all')}
+                className="h-6 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground"
+                onClick={() => {
+                  setOpen(false)
+                }}
+              />
+            </>
+          )}
           {onOpenHistory && (
             <>
               <MenuDivider className="my-0.5" />
@@ -869,21 +885,6 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     ]
   )
 
-  const getSectionHeaderAction = useCallback(
-    (section: ResourceListSection) => {
-      if (section.id !== TOPIC_ASSISTANT_SECTION_ID) return null
-
-      return (
-        <ResourceList.SectionCollapseActionButton
-          alwaysVisible
-          sectionId={section.id}
-          label={t('chat.topics.group.collapse')}
-        />
-      )
-    },
-    [t]
-  )
-
   const getGroupHeaderContextMenu = useCallback(
     (group: { id: string }) => {
       if (displayMode !== 'assistant') return null
@@ -1105,7 +1106,6 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         revealRequest={revealRequest}
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
-        getSectionHeaderAction={getSectionHeaderAction}
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}
@@ -1140,6 +1140,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
                   mode={displayMode}
                   onChange={(nextMode) => void setTopicDisplayMode(nextMode)}
                   onOpenHistory={onOpenHistory}
+                  sectionId={isAssistantDisplayMode ? TOPIC_ASSISTANT_SECTION_ID : undefined}
                 />
               </>
             }

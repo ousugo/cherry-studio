@@ -1,6 +1,6 @@
-import { Button, EmptyState as UiEmptyState, Input, Skeleton, Tooltip } from '@cherrystudio/ui'
+import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import { SearchIcon, SquareMinus } from 'lucide-react'
+import { SearchIcon } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 
@@ -212,43 +212,45 @@ function GroupHeaderActionButton({
   )
 }
 
-type SectionCollapseActionButtonProps = Omit<HeaderActionButtonProps, 'children'> & {
-  alwaysVisible?: boolean
-  label: string
+type SectionToggleMenuItemProps = Omit<ComponentProps<typeof MenuItem>, 'label'> & {
+  collapseLabel: string
+  expandLabel: string
   sectionId: string
 }
 
-function SectionCollapseActionButton({
-  alwaysVisible: _alwaysVisible,
+function SectionToggleMenuItem({
+  collapseLabel,
   disabled,
-  label,
+  expandLabel,
   onClick,
   sectionId,
-  type = 'button',
   ...props
-}: SectionCollapseActionButtonProps) {
+}: SectionToggleMenuItemProps) {
   const actions = useResourceListActions()
   const view = useResourceListView()
   const section = view.sections.find((candidate) => candidate.section.id === sectionId)
-  const groupIds = section?.groups.filter((group) => !group.collapsed).map((group) => group.group.id) ?? []
+  const groupIds = section?.groups.map((group) => group.group.id) ?? []
+  const expandGroupIds = section ? [section.section.id, ...groupIds] : groupIds
+  const expandedGroupIds = section?.groups.filter((group) => !group.collapsed).map((group) => group.group.id) ?? []
+  const hasExpandedGroup = expandedGroupIds.length > 0
   const isDisabled = disabled || groupIds.length === 0
 
   return (
-    <Tooltip title={label} delay={500}>
-      <GroupHeaderActionButton
-        type={type}
-        aria-label={props['aria-label'] ?? label}
-        disabled={isDisabled}
-        onClick={(event) => {
-          event.stopPropagation()
-          onClick?.(event)
-          if (event.defaultPrevented || isDisabled) return
-          actions.collapseGroups(groupIds)
-        }}
-        {...props}>
-        <SquareMinus className="block" />
-      </GroupHeaderActionButton>
-    </Tooltip>
+    <MenuItem
+      label={hasExpandedGroup ? collapseLabel : expandLabel}
+      disabled={isDisabled}
+      onClick={(event) => {
+        onClick?.(event)
+        if (event.defaultPrevented || isDisabled) return
+
+        if (hasExpandedGroup) {
+          actions.collapseGroups(expandedGroupIds)
+        } else {
+          actions.expandGroups(expandGroupIds)
+        }
+      }}
+      {...props}
+    />
   )
 }
 
@@ -604,7 +606,7 @@ const ResourceList = {
   Header,
   HeaderActionButton,
   GroupHeaderActionButton,
-  SectionCollapseActionButton,
+  SectionToggleMenuItem,
   HeaderItem,
   Search,
   FilterBar,

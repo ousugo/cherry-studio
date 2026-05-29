@@ -116,12 +116,14 @@ function SessionListOptionsMenu({
   mode,
   onChange,
   historyLabel,
-  onOpenHistory
+  onOpenHistory,
+  sectionId
 }: {
   mode: AgentSessionDisplayMode
   onChange: (mode: AgentSessionDisplayMode) => void
   historyLabel: string
   onOpenHistory: (origin?: DOMRectReadOnly) => void
+  sectionId?: string
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -154,6 +156,20 @@ function SessionListOptionsMenu({
               }}
             />
           ))}
+          {sectionId && (
+            <>
+              <MenuDivider className="my-0.5" />
+              <ResourceList.SectionToggleMenuItem
+                sectionId={sectionId}
+                expandLabel={t('agent.session.group.expand_all')}
+                collapseLabel={t('agent.session.group.collapse_all')}
+                className="h-6 rounded-lg px-1.5 py-0 font-normal text-[11px] text-muted-foreground/75 hover:bg-accent hover:text-foreground"
+                onClick={() => {
+                  setOpen(false)
+                }}
+              />
+            </>
+          )}
           <MenuDivider className="my-0.5" />
           <MenuItem
             label={historyLabel}
@@ -1227,16 +1243,6 @@ const Sessions = ({
 
   const getSectionHeaderAction = useCallback(
     (section: ResourceListSection) => {
-      if (section.id === SESSION_AGENT_SECTION_ID || section.id === SESSION_WORKDIR_SECTION_ID) {
-        return (
-          <ResourceList.SectionCollapseActionButton
-            alwaysVisible
-            sectionId={section.id}
-            label={t('agent.session.group.collapse')}
-          />
-        )
-      }
-
       if (section.id !== SESSION_NO_PROJECT_SECTION_ID) return null
 
       const createSessionSeed = findLatestCreateSessionSeed(groupedSessions, isSystemWorkspaceSession)
@@ -1446,6 +1452,13 @@ const Sessions = ({
               onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
               historyLabel={onOpenHistory ? t('history.records.shortTitle') : t('shortcut.general.toggle_sidebar')}
               onOpenHistory={handleOpenHistoryOrToggleSidebar}
+              sectionId={
+                displayMode === 'agent'
+                  ? SESSION_AGENT_SECTION_ID
+                  : displayMode === 'workdir'
+                    ? SESSION_WORKDIR_SECTION_ID
+                    : undefined
+              }
             />
           }
         />

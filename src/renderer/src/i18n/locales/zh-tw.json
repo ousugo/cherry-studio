@@ -477,9 +477,11 @@
       },
       "group": {
         "collapse": "折疊顯示",
+        "collapse_all": "全部折疊",
         "conversation": "對話",
         "drag_hint": "拖曳可排序，也可拖曳工作階段調整展示/隱藏分組。",
         "earlier": "[to be translated]:Earlier",
+        "expand_all": "全部展開",
         "no_workdir": "無專案",
         "show_more": "展開顯示",
         "this_week": "[to be translated]:This week",
@@ -1725,7 +1727,9 @@
       },
       "group": {
         "collapse": "折疊顯示",
+        "collapse_all": "全部折疊",
         "earlier": "更早",
+        "expand_all": "全部展開",
         "show_more": "展開顯示",
         "this_week": "本週",
         "today": "今天",

@@ -216,6 +216,8 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.group.unknown_assistant') return 'Unlinked Assistant'
       if (key === 'chat.topics.group.show_more') return 'Show more topics'
       if (key === 'chat.topics.group.collapse') return 'Collapse topics'
+      if (key === 'chat.topics.group.collapse_all') return 'Collapse all'
+      if (key === 'chat.topics.group.expand_all') return 'Expand all'
       if (key === 'chat.topics.search.placeholder') return 'Search topics'
       if (key === 'chat.topics.search.title') return 'Search topics'
       if (key === 'chat.topics.pin') return 'Pin Topic'
@@ -1034,7 +1036,7 @@ describe('Topics', () => {
     expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
   })
 
-  it('collapses assistant groups from the assistant section action', () => {
+  it('collapses assistant groups from the display options menu', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -1077,16 +1079,11 @@ describe('Topics', () => {
       })
     })
 
-    const assistantSectionButton = screen
-      .getAllByRole('button', { name: 'Assistant' })
-      .find((button) => button.hasAttribute('aria-expanded'))
-    expect(assistantSectionButton).toBeDefined()
-    const assistantSection = assistantSectionButton?.closest('div')
-    expect(assistantSection).not.toBeNull()
     expect(screen.getByText('Alpha topic 1')).toBeInTheDocument()
     expect(screen.getByText('Beta topic 1')).toBeInTheDocument()
 
-    fireEvent.click(within(assistantSection as HTMLElement).getByRole('button', { name: 'Collapse topics' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
     rerenderTopicList()
 
     const collapsedAssistantSectionButton = screen
@@ -1103,10 +1100,12 @@ describe('Topics', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).not.toEqual(
       expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
     )
-    expect(within(assistantSection as HTMLElement).getByRole('button', { name: 'Collapse topics' })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
+    expect(screen.getByRole('button', { name: 'Expand all' })).toBeInTheDocument()
   })
 
-  it('does not show the assistant section collapse action in time display mode', () => {
+  it('does not show the assistant section toggle action in time display mode', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [{ items: createTopicPageItems(6) }],
@@ -1127,6 +1126,8 @@ describe('Topics', () => {
     expect(
       screen.getAllByRole('button', { name: 'Assistant' }).some((button) => button.hasAttribute('aria-expanded'))
     ).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
+    expect(screen.queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse topics' })).toHaveTextContent('Collapse topics')
   })
 
@@ -1190,19 +1191,13 @@ describe('Topics', () => {
       'This week',
       'Earlier'
     ])
-    expect(screen.getByRole('button', { name: 'Pinned' }).querySelector('.lucide-chevron-down')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Pinned' }).querySelector('.lucide-chevron-down')).not.toHaveClass(
-      '-rotate-90'
-    )
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pinned' }).querySelector('.lucide-chevron-down')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     rerenderTopicList()
 
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Pinned' }).querySelector('.lucide-chevron-down')).toHaveClass(
-      '-rotate-90'
-    )
     expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
   })
@@ -1214,18 +1209,14 @@ describe('Topics', () => {
     const { rerenderTopicList } = renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).not.toHaveClass(
-      '-rotate-90'
-    )
+    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
     expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Today' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([])
     rerenderTopicList()
-    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toHaveClass(
-      '-rotate-90'
-    )
+    expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
