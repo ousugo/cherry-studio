@@ -4,17 +4,23 @@ export const COMPOSER_DRAFT_TOKEN_KINDS = [
   'skill',
   'file',
   'command',
-  'model',
   'knowledge',
-  'mcpPrompt',
-  'mcpResource',
   'reference',
   'quote',
-  'environment',
   'promptVariable'
 ] as const
 
 export type ComposerDraftTokenKind = (typeof COMPOSER_DRAFT_TOKEN_KINDS)[number]
+
+export const ACTIVE_COMPOSER_INPUT_TOKEN_KINDS = ['skill', 'file', 'knowledge', 'quote', 'promptVariable'] as const
+
+export type ActiveComposerInputTokenKind = (typeof ACTIVE_COMPOSER_INPUT_TOKEN_KINDS)[number]
+
+const ACTIVE_COMPOSER_INPUT_TOKEN_KIND_SET = new Set<ComposerDraftTokenKind>(ACTIVE_COMPOSER_INPUT_TOKEN_KINDS)
+
+export function isActiveComposerInputTokenKind(kind: ComposerDraftTokenKind): kind is ActiveComposerInputTokenKind {
+  return ACTIVE_COMPOSER_INPUT_TOKEN_KIND_SET.has(kind)
+}
 
 export interface ComposerDraftToken {
   id: string

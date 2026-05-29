@@ -5,26 +5,21 @@ import {
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
   QUOTE_TOOLTIP_CONTENT_CLASS_NAME
 } from '@renderer/components/chat/utils/quoteToken'
-import { Bot, Boxes, Braces, Code2, FileText, Globe2, Monitor, TextQuote, Wrench, Zap } from 'lucide-react'
+import { Boxes, Braces, FileText, TextQuote, Zap } from 'lucide-react'
 import type { MouseEventHandler, ReactNode } from 'react'
 
-import type { ComposerDraftToken, ComposerDraftTokenKind } from './tokens'
+import type { ActiveComposerInputTokenKind, ComposerDraftToken } from './tokens'
+import { isActiveComposerInputTokenKind } from './tokens'
 
-const tokenIconByKind: Record<ComposerDraftTokenKind, ReactNode> = {
-  skill: <Zap size={14} className="text-primary" />,
-  file: <FileText size={14} />,
-  command: <Code2 size={14} />,
-  model: <Bot size={14} />,
-  knowledge: <Boxes size={14} />,
-  mcpPrompt: <Wrench size={14} />,
-  mcpResource: <Globe2 size={14} />,
-  reference: <Globe2 size={14} />,
-  quote: <TextQuote size={14} />,
-  environment: <Monitor size={14} />,
-  promptVariable: <Braces size={14} />
+const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
+
+const tokenIconByKind: Record<ActiveComposerInputTokenKind, ReactNode> = {
+  skill: <Zap className={tokenIconClassName} />,
+  file: <FileText className={tokenIconClassName} />,
+  knowledge: <Boxes className={tokenIconClassName} />,
+  quote: <TextQuote className={tokenIconClassName} />,
+  promptVariable: <Braces className={tokenIconClassName} />
 }
-
-const skillTokenClassName = 'border-0 bg-transparent text-primary shadow-none'
 
 export interface ComposerTokenProps {
   token: ComposerDraftToken
@@ -43,13 +38,20 @@ export function ComposerToken({
   maxWidthClassName = 'max-w-52',
   onMouseDown
 }: ComposerTokenProps) {
-  if (token.kind === 'model') {
+  if (!isActiveComposerInputTokenKind(token.kind)) {
+    const title = token.description ?? token.promptText ?? token.label
     return (
       <span
-        className={cn('inline-flex h-0 w-0 select-none overflow-hidden align-baseline', className)}
-        title={token.label}
-        data-composer-token-kind={token.kind}>
-        <span className="sr-only">{token.label}</span>
+        className={cn(
+          'mx-0.5 inline-flex select-none align-baseline text-muted-foreground leading-[inherit]',
+          maxWidthClassName,
+          selected && 'underline decoration-muted-foreground/40 underline-offset-2',
+          className
+        )}
+        title={title}
+        data-composer-token-kind={token.kind}
+        data-composer-token-legacy="">
+        {children ?? <span className="min-w-0 truncate">{token.label}</span>}
       </span>
     )
   }
@@ -58,25 +60,20 @@ export function ComposerToken({
   const quoteTooltipContent =
     token.kind === 'quote' ? getQuoteTooltipContent(token.description, token.promptText) : undefined
   const title = token.kind === 'quote' ? undefined : (token.description ?? token.promptText ?? token.label)
-  const isSkill = token.kind === 'skill'
 
   const tokenElement = (
     <span
       className={cn(
-        'mx-0.5 inline-flex select-none items-center gap-1 rounded-md border px-1.5 py-0.5 align-baseline text-sm leading-5',
+        'mx-0.5 inline-flex select-none items-baseline gap-1 align-baseline leading-[inherit]',
         maxWidthClassName,
-        isPromptVariable
-          ? 'border-info/30 bg-info/10 text-info'
-          : isSkill
-            ? skillTokenClassName
-            : 'border-border bg-muted text-foreground shadow-none',
-        selected && 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30',
+        isPromptVariable ? 'text-info' : 'text-primary',
+        selected && 'text-primary underline decoration-primary/40 underline-offset-2',
         className
       )}
       title={title}
       data-composer-token-kind={token.kind}
       onMouseDown={onMouseDown}>
-      <span className="flex size-3.5 shrink-0 items-center justify-center text-current">
+      <span className="inline-flex shrink-0 translate-y-[0.08em] items-baseline text-current leading-[inherit]">
         {token.icon ? token.icon : tokenIconByKind[token.kind]}
       </span>
       {children ?? <span className="min-w-0 truncate">{token.label}</span>}

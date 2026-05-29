@@ -72,6 +72,10 @@ describe('ComposerToken', () => {
     expect(screen.getByText('notes.md')).toBeInTheDocument()
     expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.queryByTestId('composer-token-tooltip')).toBeNull()
+
+    const token = screen.getByText('notes.md').closest('[data-composer-token-kind="file"]')
+    expect(token).toHaveClass('text-primary', 'leading-[inherit]')
+    expect(token).not.toHaveClass('border', 'bg-muted', 'rounded-md', 'px-1.5', 'py-0.5', 'leading-5')
   })
 
   it('shows quoted content in a tooltip for quote tokens', () => {
@@ -151,13 +155,40 @@ describe('ComposerToken', () => {
     expect(tooltipBody.className).toContain('[-webkit-line-clamp:4]')
   })
 
-  it('renders skill tokens with their own visual treatment', () => {
+  it('renders skill tokens as colored inline text', () => {
     const { container } = render(<ComposerToken token={{ id: 'skill:pdf', kind: 'skill', label: 'pdf' }} />)
 
     const token = container.querySelector('[data-composer-token-kind="skill"]')
     expect(token).toBeInTheDocument()
-    expect(token).toHaveClass('border-0', 'bg-transparent', 'text-primary')
-    expect(token?.querySelector('svg')).toHaveClass('text-primary')
+    expect(token).toHaveClass('text-primary', 'leading-[inherit]')
+    expect(token).not.toHaveClass('border-0', 'bg-transparent', 'rounded-md', 'px-1.5', 'py-0.5', 'ring-1')
+    expect(token?.querySelector('svg')).toHaveClass('text-current', 'opacity-80')
+    expect(token?.querySelector('svg')?.parentElement).toHaveClass('translate-y-[0.08em]')
+  })
+
+  it('renders prompt variable tokens with text color and selected underline', () => {
+    const { rerender } = render(<ComposerToken token={promptVariableToken} />)
+
+    const token = screen.getByText('city').closest('[data-composer-token-kind="promptVariable"]')
+    expect(token).toHaveClass('text-info')
+    expect(token).not.toHaveClass('border-info/30', 'bg-info/10', 'rounded-md', 'ring-1')
+
+    rerender(<ComposerToken token={promptVariableToken} selected />)
+
+    const selectedToken = screen.getByText('city').closest('[data-composer-token-kind="promptVariable"]')
+    expect(selectedToken).toHaveClass('text-primary', 'underline', 'decoration-primary/40', 'underline-offset-2')
+    expect(selectedToken).not.toHaveClass('border-info/30', 'bg-info/10', 'rounded-md', 'ring-1')
+  })
+
+  it('renders fallback composer token kinds as inert fallback text', () => {
+    render(<ComposerToken token={{ id: 'reference:docs', kind: 'reference', label: 'Docs' }} />)
+
+    const token = screen.getByText('Docs').closest('[data-composer-token-kind="reference"]')
+    expect(token).toBeInTheDocument()
+    expect(token).toHaveAttribute('data-composer-token-legacy', '')
+    expect(token).toHaveClass('text-muted-foreground', 'leading-[inherit]')
+    expect(token).not.toHaveClass('text-primary')
+    expect(token?.querySelector('svg')).not.toBeInTheDocument()
   })
 
   it('does not render a prompt variable input unless the token is editing', () => {

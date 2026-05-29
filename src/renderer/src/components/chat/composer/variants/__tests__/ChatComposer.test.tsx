@@ -632,7 +632,7 @@ describe('ChatComposer', () => {
     fireEvent.click(screen.getByText('select models 1 and 2'))
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
 
-    expect(mocks.surfaceProps?.tokens.some((token) => token.kind === 'model')).toBe(false)
+    expect(mocks.surfaceProps?.tokens.map((token) => token.kind)).not.toContain('model')
     expect(screen.queryByTestId('remove-token-model:provider::model-a')).not.toBeInTheDocument()
     expect(screen.queryByTestId('remove-token-model:provider::model-b')).not.toBeInTheDocument()
   })
@@ -941,7 +941,7 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
     expect(mocks.setMentionedModels).toHaveBeenCalledWith([model, modelB])
-    expect(mocks.surfaceProps?.tokens.some((token) => token.kind === 'model')).toBe(false)
+    expect(mocks.surfaceProps?.tokens.map((token) => token.kind)).not.toContain('model')
 
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
 

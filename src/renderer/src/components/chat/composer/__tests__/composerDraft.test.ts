@@ -26,7 +26,7 @@ describe('composer draft serialization', () => {
           content: [
             tokenNode({ id: 'browser', kind: 'skill', label: 'Browser', payload: { skillId: 'browser' } }),
             { type: 'text', text: ' open ' },
-            tokenNode({ id: 'computer', kind: 'environment', label: '电脑' }),
+            tokenNode({ id: 'docs-reference', kind: 'reference', label: 'Docs' }),
             { type: 'text', text: ' edit ' },
             tokenNode({
               id: 'chat.ts',
@@ -43,7 +43,7 @@ describe('composer draft serialization', () => {
     expect(draft.text).toBe(' open  edit src/chat.ts')
     expect(draft.tokens).toMatchObject([
       { id: 'browser', kind: 'skill', label: 'Browser', index: 0, textOffset: 0 },
-      { id: 'computer', kind: 'environment', label: '电脑', index: 1, textOffset: 6 },
+      { id: 'docs-reference', kind: 'reference', label: 'Docs', index: 1, textOffset: 6 },
       { id: 'chat.ts', kind: 'file', label: 'chat.ts', index: 2, textOffset: 12 }
     ])
   })
@@ -56,7 +56,7 @@ describe('composer draft serialization', () => {
           type: 'paragraph',
           content: [
             { type: 'text', text: 'Use ' },
-            tokenNode({ id: 'model-1', kind: 'model', label: '5.5 超高' }),
+            tokenNode({ id: 'reference:docs', kind: 'reference', label: 'Docs' }),
             { type: 'text', text: ' please' }
           ]
         }
@@ -64,7 +64,7 @@ describe('composer draft serialization', () => {
     })
 
     expect(draft.text).toBe('Use  please')
-    expect(draft.tokens[0]).toMatchObject({ kind: 'model', label: '5.5 超高', textOffset: 4 })
+    expect(draft.tokens[0]).toMatchObject({ kind: 'reference', label: 'Docs', textOffset: 4 })
   })
 
   it('keeps plain pasted text as text, not tokens', () => {
@@ -221,26 +221,27 @@ describe('composer draft serialization', () => {
     expect(serializeComposerDocument(content)).toEqual({ text: 'Edited selected message Reply', tokens: [] })
   })
 
-  it('filters model tokens out of persisted composer metadata', () => {
-    expect(
-      createComposerMessageSnapshot({
-        text: 'Ask docs',
-        tokens: [
-          { id: 'model-1', kind: 'model', label: 'GPT', index: 0, textOffset: 0 },
-          { id: 'kb-1', kind: 'knowledge', label: 'Docs', index: 1, textOffset: 4 }
-        ]
-      })
-    ).toEqual({
+  it('does not restore unsupported raw composer metadata tokens', () => {
+    const content = createComposerDocumentContent('Ask docs', {
       version: 1,
-      tokens: [{ id: 'kb-1', kind: 'knowledge', label: 'Docs', index: 1, textOffset: 4 }]
-    })
+      tokens: [
+        { id: 'model-1', kind: 'model', label: 'GPT', index: 0, textOffset: 0 },
+        { id: 'mcp-prompt-1', kind: 'mcpPrompt', label: 'Prompt', index: 0, textOffset: 0 },
+        { id: 'mcp-resource-1', kind: 'mcpResource', label: 'Resource', index: 1, textOffset: 0 },
+        { id: 'environment-1', kind: 'environment', label: 'Computer', index: 2, textOffset: 0 }
+      ]
+    } as never)
 
-    expect(
-      createComposerMessageSnapshot({
-        text: 'Ask',
-        tokens: [{ id: 'model-1', kind: 'model', label: 'GPT', index: 0, textOffset: 0 }]
-      })
-    ).toBeUndefined()
+    expect(content).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Ask docs' }]
+        }
+      ]
+    })
+    expect(serializeComposerDocument(content)).toEqual({ text: 'Ask docs', tokens: [] })
   })
 
   it('serializes prompt variable tokens as plain prompt text without persisting composer metadata', () => {

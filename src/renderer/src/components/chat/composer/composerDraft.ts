@@ -9,6 +9,14 @@ import { normalizeComposerTokenAttrs } from './tokens'
 const COMPOSER_MESSAGE_SNAPSHOT_VERSION = 1
 
 type ComposerSerializableSource = Pick<Editor, 'getJSON'> | JSONContent
+const RESTORABLE_COMPOSER_MESSAGE_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
+  'skill',
+  'file',
+  'command',
+  'knowledge',
+  'reference',
+  'quote'
+])
 type PersistedComposerSerializedToken = ComposerSerializedToken & {
   kind: Exclude<ComposerSerializedToken['kind'], 'promptVariable'>
 }
@@ -71,7 +79,7 @@ function createComposerTokenNode(token: ComposerMessageToken, restoredTextSuffix
 export function createComposerDocumentContent(text: string, composer?: ComposerMessageSnapshot): JSONContent {
   const nodes: JSONContent[] = []
   const tokens = composer?.tokens
-    .filter((token) => token.kind !== 'model' && token.label)
+    .filter((token) => RESTORABLE_COMPOSER_MESSAGE_TOKEN_KINDS.has(token.kind) && token.label)
     .toSorted((a, b) => a.textOffset - b.textOffset || a.index - b.index)
 
   if (!tokens?.length) {
@@ -163,7 +171,7 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
 
 export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): ComposerMessageSnapshot | undefined {
   const visibleTokens = draft.tokens.filter(
-    (token): token is PersistedComposerSerializedToken => token.kind !== 'model' && token.kind !== 'promptVariable'
+    (token): token is PersistedComposerSerializedToken => token.kind !== 'promptVariable'
   )
   if (visibleTokens.length === 0) return undefined
 

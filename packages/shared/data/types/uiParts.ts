@@ -189,17 +189,7 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
 // Accessors — single read/write boundary for providerMetadata.cherry
 // ============================================================================
 
-export type ComposerMessageTokenKind =
-  | 'skill'
-  | 'file'
-  | 'command'
-  | 'model'
-  | 'knowledge'
-  | 'mcpPrompt'
-  | 'mcpResource'
-  | 'reference'
-  | 'quote'
-  | 'environment'
+export type ComposerMessageTokenKind = 'skill' | 'file' | 'command' | 'knowledge' | 'reference' | 'quote'
 
 export interface ComposerMessageToken {
   id: string

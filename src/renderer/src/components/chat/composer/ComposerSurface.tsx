@@ -120,7 +120,7 @@ function addMissingToken(
   existingTokens: readonly ComposerSerializedToken[]
 ) {
   if (existingTokens.some((existing) => existing.id === token.id)) return
-  insertComposerTokenAtCursor(editor, token, { insertSeparator: token.kind !== 'model' })
+  insertComposerTokenAtCursor(editor, token)
 }
 
 function hasComposerTokenBeforeSelection(editor: Editor) {

@@ -297,10 +297,13 @@ describe('MainTextBlock', () => {
       const textElement = getRenderedPlainText()!
       expect(textElement).toHaveTextContent('Open chat.ts now')
       expect(textElement).not.toHaveTextContent('src/chat.ts')
-      expect(textElement.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
+      const token = textElement.querySelector('[data-composer-token-kind="file"]')
+      expect(token).toBeInTheDocument()
+      expect(token).toHaveClass('text-primary', 'leading-[inherit]')
+      expect(token).not.toHaveClass('border', 'bg-muted', 'rounded-md', 'px-1.5', 'py-0.5', 'leading-5')
     })
 
-    it('should render skill composer tokens with their own visual treatment', () => {
+    it('should render skill composer tokens as colored inline text', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = false
       renderMainTextBlock({
         content: 'Use the pdf skill.',
@@ -323,8 +326,9 @@ describe('MainTextBlock', () => {
 
       const token = getRenderedPlainText()!.querySelector('[data-composer-token-kind="skill"]')
       expect(token).toBeInTheDocument()
-      expect(token).toHaveClass('border-0', 'bg-transparent', 'text-primary')
-      expect(token?.querySelector('svg')).toHaveClass('text-primary')
+      expect(token).toHaveClass('text-primary', 'leading-[inherit]')
+      expect(token).not.toHaveClass('border-0', 'bg-transparent', 'rounded-md', 'px-1.5', 'py-0.5')
+      expect(token?.querySelector('svg')).toHaveClass('translate-y-[0.08em]', 'text-current', 'opacity-80')
     })
 
     it('should render composer tokens while preserving markdown for user text segments', () => {
@@ -358,7 +362,7 @@ describe('MainTextBlock', () => {
       expect(markdown.querySelector('[data-composer-token-kind="skill"]')).toBeInTheDocument()
     })
 
-    it('should ignore legacy model composer tokens in user messages', () => {
+    it('should ignore unsupported raw composer metadata tokens in user messages', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = false
       renderMainTextBlock({
         content: 'Ask now',
@@ -372,15 +376,42 @@ describe('MainTextBlock', () => {
               label: 'GPT',
               index: 0,
               textOffset: 0
+            },
+            {
+              id: 'mcp-prompt-1',
+              kind: 'mcpPrompt',
+              label: 'Prompt',
+              index: 1,
+              textOffset: 0
+            },
+            {
+              id: 'mcp-resource-1',
+              kind: 'mcpResource',
+              label: 'Resource',
+              index: 2,
+              textOffset: 0
+            },
+            {
+              id: 'environment-1',
+              kind: 'environment',
+              label: 'Computer',
+              index: 3,
+              textOffset: 0
             }
           ]
-        }
+        } as never
       })
 
       const textElement = getRenderedPlainText()!
       expect(textElement.textContent).toBe('Ask now')
       expect(textElement).not.toHaveTextContent('GPT')
+      expect(textElement).not.toHaveTextContent('Prompt')
+      expect(textElement).not.toHaveTextContent('Resource')
+      expect(textElement).not.toHaveTextContent('Computer')
       expect(textElement.querySelector('[data-composer-token-kind="model"]')).not.toBeInTheDocument()
+      expect(textElement.querySelector('[data-composer-token-kind="mcpPrompt"]')).not.toBeInTheDocument()
+      expect(textElement.querySelector('[data-composer-token-kind="mcpResource"]')).not.toBeInTheDocument()
+      expect(textElement.querySelector('[data-composer-token-kind="environment"]')).not.toBeInTheDocument()
     })
 
     it('should ignore prompt-variable composer metadata in user messages', () => {

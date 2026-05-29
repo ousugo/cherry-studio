@@ -53,7 +53,7 @@ describe('agent composer token mapping', () => {
       [
         { id: 'file:file-1', kind: 'file', label: 'agent.ts', index: 0, textOffset: 0 },
         { id: 'skill:pdf', kind: 'skill', label: 'pdf', index: 1, textOffset: 0 },
-        { id: 'model:model-1', kind: 'model', label: 'GPT 5.5', index: 1, textOffset: 0 }
+        { id: 'reference:docs', kind: 'reference', label: 'Docs', index: 1, textOffset: 0 }
       ],
       'file'
     )

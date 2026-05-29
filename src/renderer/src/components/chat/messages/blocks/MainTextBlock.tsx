@@ -1,6 +1,5 @@
 import { Flex, NormalTooltip } from '@cherrystudio/ui'
 import type { MarkdownSource } from '@cherrystudio/ui/composites/markdown'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   getQuoteTooltipContent,
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
@@ -14,7 +13,7 @@ import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
-import { Bot, Boxes, Code2, FileText, Globe2, Monitor, TextQuote, Wrench, Zap } from 'lucide-react'
+import { Boxes, Code2, FileText, Globe2, TextQuote, Zap } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Components } from 'streamdown'
 
@@ -35,35 +34,26 @@ interface Props {
 
 const composerTokenIcon = {
   command: Code2,
-  environment: Monitor,
   file: FileText,
   knowledge: Boxes,
-  mcpPrompt: Wrench,
-  mcpResource: Globe2,
-  model: Bot,
   quote: TextQuote,
   reference: Globe2,
   skill: Zap
 } satisfies Record<ComposerMessageToken['kind'], React.ComponentType<{ size?: number; className?: string }>>
 
-const skillComposerTokenClassName = 'border-0 bg-transparent text-primary'
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
 
 function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
   const Icon = composerTokenIcon[token.kind]
   const title = token.kind === 'quote' ? undefined : (token.description ?? token.label)
-  const isSkill = token.kind === 'skill'
 
   const chip = (
     <span
-      className={cn(
-        'mx-0.5 inline-flex max-w-52 select-none items-center gap-1 rounded-md border px-1.5 py-0.5 align-baseline text-sm leading-5',
-        isSkill ? skillComposerTokenClassName : 'border-border bg-muted text-foreground'
-      )}
+      className="mx-0.5 inline-flex max-w-52 select-none items-baseline gap-1 align-baseline text-primary leading-[inherit]"
       data-composer-token-kind={token.kind}
       title={title}>
-      <Icon size={14} className={cn('shrink-0', isSkill ? 'text-primary' : 'text-foreground-muted')} />
+      <Icon className="size-[1em] shrink-0 translate-y-[0.08em] text-current opacity-80" />
       <span className="truncate">{token.label}</span>
     </span>
   )

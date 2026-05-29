@@ -4,11 +4,8 @@ import { type ComposerMessageSnapshot, type ComposerMessageToken, readCherryMeta
 
 const RENDERABLE_COMPOSER_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
   'command',
-  'environment',
   'file',
   'knowledge',
-  'mcpPrompt',
-  'mcpResource',
   'reference',
   'skill'
 ])
