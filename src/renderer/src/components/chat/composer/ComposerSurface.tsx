@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
@@ -923,6 +923,7 @@ export default function ComposerSurface({
   const quickPanelElement = quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled
   const belowControls = renderBelowControls?.(inputAdapter)
+  const ExpandIcon = isExpanded ? Minimize2 : Maximize2
   const inputbarElement = (
     <div
       id="inputbar"
@@ -939,30 +940,24 @@ export default function ComposerSurface({
           aria-hidden="true"
           data-composer-expand-corner-line=""
           className={cn(
-            'pointer-events-none absolute top-0 right-0 size-[18px] rounded-tr-[18px] border-t-[1.5px] border-r-[1.5px] border-black/70 opacity-70 transition-opacity duration-150 ease-out group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:opacity-0 dark:border-white/70',
-            isExpanded && 'opacity-0'
+            'pointer-events-none absolute top-0 right-0 size-[18px] origin-top-right scale-100 rounded-tr-[18px] border-t-[1.5px] border-r-[1.5px] border-black/70 opacity-70 transition-[opacity,transform] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0 dark:border-white/70',
+            isExpanded && 'scale-50 opacity-0'
           )}
         />
-        <Tooltip
-          content={isExpanded ? t('chat.input.collapse') : t('chat.input.expand')}
-          classNames={{
-            placeholder: 'absolute top-1 right-1'
-          }}>
-          <Button
-            type="button"
-            onClick={() => handleToggleExpanded()}
-            variant="ghost"
-            size="icon-sm"
-            className={cn(
-              'pointer-events-none size-5.5 translate-x-2 -translate-y-2 scale-95 rounded-full bg-transparent text-foreground-secondary/70 opacity-0 shadow-none transition-[opacity,transform,color] duration-300 ease-out hover:bg-transparent hover:text-foreground group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:opacity-100 focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:scale-100 focus-visible:opacity-100 [&_svg]:!size-3',
-              isExpanded &&
-                'pointer-events-auto translate-x-0 translate-y-0 scale-100 bg-transparent text-foreground opacity-100'
-            )}
-            aria-pressed={isExpanded}
-            aria-label={isExpanded ? t('chat.input.collapse') : t('chat.input.expand')}>
-            {isExpanded ? <Minimize2 /> : <Maximize2 />}
-          </Button>
-        </Tooltip>
+        <Button
+          type="button"
+          onClick={() => handleToggleExpanded()}
+          variant="ghost"
+          size="icon-sm"
+          className={cn(
+            'pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 -translate-y-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-foreground-secondary/60 opacity-0 shadow-none transition-[opacity,transform,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100 focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 [&_svg]:!size-3',
+            isExpanded &&
+              'pointer-events-auto translate-x-0 translate-y-0 rotate-0 scale-100 bg-accent/80 text-foreground opacity-100'
+          )}
+          aria-pressed={isExpanded}
+          aria-label={isExpanded ? t('chat.input.collapse') : t('chat.input.expand')}>
+          <ExpandIcon className="transition-transform duration-300 ease-out group-focus-within/expand-corner:scale-110 group-hover/expand-corner:scale-110" />
+        </Button>
       </div>
       <div
         ref={editorFrameRef}

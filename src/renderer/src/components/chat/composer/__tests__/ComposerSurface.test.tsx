@@ -48,10 +48,7 @@ vi.mock('@cherrystudio/ui', () => ({
         {children}
       </button>
     )
-  },
-  Tooltip: ({ children, classNames }: { children: ReactNode; classNames?: { placeholder?: string } }) => (
-    <div className={classNames?.placeholder}>{children}</div>
-  )
+  }
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
@@ -187,6 +184,10 @@ vi.mock('@renderer/services/PasteService', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  },
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
@@ -307,7 +308,6 @@ describe('ComposerSurface', () => {
     render(<Harness />)
 
     const expandButton = screen.getByRole('button', { name: 'chat.input.expand' })
-    const expandButtonTrigger = expandButton.parentElement
     const inputbar = document.getElementById('inputbar')
     const corner = inputbar?.querySelector('[data-composer-expand-corner]') as HTMLElement | null
     const cornerLine = inputbar?.querySelector('[data-composer-expand-corner-line]') as HTMLElement | null
@@ -317,19 +317,45 @@ describe('ComposerSurface', () => {
     expect(inputbar).not.toBeNull()
     expect(corner).not.toBeNull()
     expect(expandButton.closest('#inputbar')).toBe(inputbar)
+    expect(expandButton.parentElement).toBe(corner)
     expect(inputbar).not.toHaveClass('group/inputbar')
     expect(corner).toHaveClass('group/expand-corner', 'absolute', 'top-px', 'right-px', 'size-7')
     expect(cornerLine).toHaveClass('top-0', 'right-0', 'size-[18px]', 'rounded-tr-[18px]')
-    expect(cornerLine).toHaveClass('border-t-[1.5px]', 'border-r-[1.5px]', 'group-hover/expand-corner:opacity-0')
-    expect(expandButtonTrigger).toHaveClass('absolute', 'top-1', 'right-1')
-    expect(expandButton).toHaveClass('size-5.5', 'translate-x-2', '-translate-y-2', 'duration-300', 'opacity-0')
-    expect(expandButton).toHaveClass('group-hover/expand-corner:opacity-100')
+    expect(cornerLine).toHaveClass('border-t-[1.5px]', 'border-r-[1.5px]', 'origin-top-right')
+    expect(cornerLine).toHaveClass(
+      'transition-[opacity,transform]',
+      'duration-200',
+      'group-hover/expand-corner:scale-50',
+      'group-hover/expand-corner:opacity-0'
+    )
+    expect(expandButton).toHaveClass(
+      'absolute',
+      'top-1',
+      'right-1',
+      'size-5.5',
+      'translate-x-2.5',
+      '-translate-y-2.5',
+      'rotate-[-8deg]',
+      'scale-80',
+      'duration-300',
+      'opacity-0'
+    )
+    expect(expandButton).toHaveClass(
+      'group-hover/expand-corner:translate-x-0',
+      'group-hover/expand-corner:translate-y-0',
+      'group-hover/expand-corner:rotate-0',
+      'group-hover/expand-corner:scale-100',
+      'group-hover/expand-corner:bg-accent/80',
+      'group-hover/expand-corner:opacity-100'
+    )
+    expect(expandButton.querySelector('svg')).toHaveClass('transition-transform', 'group-hover/expand-corner:scale-110')
 
     fireEvent.click(expandButton)
 
     const collapseButton = screen.getByRole('button', { name: 'chat.input.collapse' })
     expect(collapseButton).toHaveAttribute('aria-pressed', 'true')
-    expect(collapseButton).toHaveClass('opacity-100', 'bg-transparent')
+    expect(collapseButton).toHaveClass('opacity-100', 'bg-accent/80', 'rotate-0')
+    expect(cornerLine).toHaveClass('opacity-0', 'scale-50')
   })
 
   it('sets quick phrase text as prompt variable token content', async () => {
