@@ -555,12 +555,18 @@ export default function ComposerSurface({
       },
       handleKeyDown: (_view, event) => {
         if (
-          quickPanel.isVisible &&
           ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
         ) {
           const handled = quickPanel.dispatchKeyDown(event)
           if (handled) return true
-          if (event.key === 'Enter' && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          if (
+            quickPanel.isVisible &&
+            event.key === 'Enter' &&
+            event.shiftKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey
+          ) {
             return false
           }
         }

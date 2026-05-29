@@ -38,9 +38,12 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
   const clearTimer = useRef<NodeJS.Timeout | null>(null)
   const keyDownHandlerRef = useRef<QuickPanelKeyDownHandler | undefined>(undefined)
+  const isVisibleRef = useRef(isVisible)
   const panelGenerationRef = useRef(0)
   const generatedItemIdsRef = useRef(new WeakMap<QuickPanelListItem, string>())
   const generatedItemIdCounterRef = useRef(0)
+
+  isVisibleRef.current = isVisible
 
   const ensureListItemIds = useCallback((items: QuickPanelListItem[]) => {
     const usedIds = new Set<string>()
@@ -169,6 +172,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   }, [])
 
   const dispatchKeyDown = useCallback((event: QuickPanelKeyDownEvent) => {
+    if (!isVisibleRef.current) return false
     return keyDownHandlerRef.current?.(event) ?? false
   }, [])
 

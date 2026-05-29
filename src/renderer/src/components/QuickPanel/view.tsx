@@ -660,7 +660,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     [activeIndex, ctx, list, handleItemAction, handleClose, activeSearchQuery]
   )
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isPanelVisible) return
     return registerKeyDownHandler(handlePanelKeyDown)
   }, [isPanelVisible, registerKeyDownHandler, handlePanelKeyDown])
@@ -776,7 +776,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     <div
       style={{ maxHeight: panelMaxHeight }}
       className={classNames(
-        '-translate-y-full pointer-events-none absolute top-px right-0 left-0 w-full origin-bottom overflow-hidden transition-[max-height] duration-200 ease-in-out',
+        '-top-1 -translate-y-full pointer-events-none absolute right-0 left-0 w-full origin-bottom overflow-hidden transition-[max-height] duration-200 ease-in-out',
         ctx.isVisible && 'visible',
         ctx.isVisible && 'pointer-events-auto'
       )}

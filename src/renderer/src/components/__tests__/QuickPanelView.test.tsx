@@ -236,7 +236,9 @@ describe('QuickPanelView', () => {
 
       const panel = screen.getByTestId('quick-panel')
       expect(panel).toHaveClass('right-0', 'left-0', 'w-full')
+      expect(panel).toHaveClass('-top-1')
       expect(panel.className).not.toContain('px-[35px]')
+      expect(panel.className).not.toContain('top-px')
     })
 
     it('renders the panel body with a clear rounded border', () => {

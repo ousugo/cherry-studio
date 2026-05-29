@@ -1051,6 +1051,19 @@ describe('ComposerSurface', () => {
     expect(mocks.setNodeSelection).not.toHaveBeenCalled()
   })
 
+  it('routes QuickPanel keys through the dispatcher even when the editor captured a hidden panel state', async () => {
+    mocks.quickPanelIsVisible = false
+    mocks.quickPanelDispatchKeyDown.mockReturnValue(true)
+
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = new KeyboardEvent('keydown', { key: 'Escape' })
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, event)).toBe(true)
+    expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+  })
+
   it('keeps the QuickPanel root as the parent when opening child panels from slash', async () => {
     const onToolLauncherSelect = vi.fn()
     render(
