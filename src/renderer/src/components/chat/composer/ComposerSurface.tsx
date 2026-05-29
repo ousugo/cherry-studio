@@ -15,8 +15,8 @@ import type { FileMetadata } from '@renderer/types'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { Editor } from '@tiptap/react'
 import { EditorContent } from '@tiptap/react'
-import { CirclePause, Maximize, Minimize } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import { CirclePause, Maximize2, Minimize2 } from 'lucide-react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { serializeComposerDocument } from './composerDraft'
@@ -216,16 +216,29 @@ const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT = 'max(220px, 40vh)'
 const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT = 'max(220px, 50vh)'
 const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,40vh)]!'
 const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,50vh)]!'
+const COMPOSER_EDITOR_HEIGHT_TRANSITION_MS = 260
 
 function getComposerEditorMinHeight(fontSize: number) {
   return Math.ceil(fontSize * 1.4 * 2 + 6)
+}
+
+function getViewportRelativeHeightPx(minHeight: number, viewportRatio: number) {
+  return Math.max(minHeight, Math.round(window.innerHeight * viewportRatio))
+}
+
+function getCollapsedEditorFrameHeightPx(frame: HTMLDivElement, editorMinHeight: number) {
+  const editorElement = frame.querySelector('.composer-tiptap') as HTMLElement | null
+  const contentHeight = editorElement?.scrollHeight || frame.scrollHeight || editorMinHeight
+  const maxCollapsedHeight = getViewportRelativeHeightPx(220, 0.4)
+
+  return Math.max(editorMinHeight, Math.min(contentHeight, maxCollapsedHeight))
 }
 
 function getComposerEditorStyle(fontSize: number, isExpanded: boolean) {
   const maxHeight = isExpanded ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT
 
   return [
-    '--composer-editor-padding: 6px 15px 0',
+    '--composer-editor-padding: 6px 44px 0 15px',
     `--composer-editor-min-height: ${getComposerEditorMinHeight(fontSize)}px`,
     `--composer-editor-font-size: ${fontSize}px`,
     '--composer-editor-line-height: 1.4',
@@ -280,6 +293,10 @@ export default function ComposerSurface({
   const { forceWideLayout } = useChatLayoutMode()
   const { setTimeoutTimer } = useTimer()
   const editorMinHeight = getComposerEditorMinHeight(fontSize)
+  const editorFrameRef = useRef<HTMLDivElement | null>(null)
+  const editorFrameAnimationRef = useRef<number | null>(null)
+  const pendingEditorFrameExpandedRef = useRef<boolean | null>(null)
+  const [editorFrameHeight, setEditorFrameHeight] = useState<string | null>(null)
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
   const pendingLocalTextEchoRef = useRef<string | null>(null)
@@ -365,14 +382,61 @@ export default function ComposerSurface({
     editorRef.current?.commands.focus()
   }, [])
 
+  const clearEditorFrameAnimationFrame = useCallback(() => {
+    if (editorFrameAnimationRef.current === null) return
+    window.cancelAnimationFrame(editorFrameAnimationRef.current)
+    editorFrameAnimationRef.current = null
+  }, [])
+
   const handleToggleExpanded = useCallback(
     (nextState?: boolean) => {
       const target = typeof nextState === 'boolean' ? nextState : !isExpanded
+      const editorFrame = editorFrameRef.current
+
+      if (editorFrame) {
+        clearEditorFrameAnimationFrame()
+        setEditorFrameHeight(`${editorFrame.offsetHeight || editorMinHeight}px`)
+        pendingEditorFrameExpandedRef.current = target
+      }
+
       onExpandedChange(target)
       focusEditor()
     },
-    [focusEditor, isExpanded, onExpandedChange]
+    [clearEditorFrameAnimationFrame, editorMinHeight, focusEditor, isExpanded, onExpandedChange]
   )
+
+  useEffect(() => {
+    const editorFrame = editorFrameRef.current
+    if (!editorFrame || pendingEditorFrameExpandedRef.current !== isExpanded) return
+
+    const targetHeight = isExpanded
+      ? getViewportRelativeHeightPx(220, 0.5)
+      : getCollapsedEditorFrameHeightPx(editorFrame, editorMinHeight)
+
+    clearEditorFrameAnimationFrame()
+    editorFrameAnimationRef.current = window.requestAnimationFrame(() => {
+      setEditorFrameHeight(`${targetHeight}px`)
+      editorFrameAnimationRef.current = null
+    })
+
+    setTimeoutTimer(
+      'composerEditorFrameHeightTransition',
+      () => {
+        setEditorFrameHeight(null)
+        pendingEditorFrameExpandedRef.current = null
+      },
+      COMPOSER_EDITOR_HEIGHT_TRANSITION_MS + 80
+    )
+  }, [clearEditorFrameAnimationFrame, editorMinHeight, isExpanded, setTimeoutTimer])
+
+  useEffect(() => clearEditorFrameAnimationFrame, [clearEditorFrameAnimationFrame])
+
+  const handleEditorFrameTransitionEnd = useCallback((event: React.TransitionEvent<HTMLDivElement>) => {
+    if (event.propertyName && event.propertyName !== 'height') return
+
+    setEditorFrameHeight(null)
+    pendingEditorFrameExpandedRef.current = null
+  }, [])
 
   const handleTextChangeFromTool = useCallback(
     (updater: string | ((prev: string) => string)) => {
@@ -870,11 +934,47 @@ export default function ComposerSurface({
           "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
         isExpanded && 'expanded'
       )}>
+      <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-7">
+        <span
+          aria-hidden="true"
+          data-composer-expand-corner-line=""
+          className={cn(
+            'pointer-events-none absolute top-0 right-0 size-[18px] rounded-tr-[18px] border-t-[1.5px] border-r-[1.5px] border-black/70 opacity-70 transition-opacity duration-150 ease-out group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:opacity-0 dark:border-white/70',
+            isExpanded && 'opacity-0'
+          )}
+        />
+        <Tooltip
+          content={isExpanded ? t('chat.input.collapse') : t('chat.input.expand')}
+          classNames={{
+            placeholder: 'absolute top-1 right-1'
+          }}>
+          <Button
+            type="button"
+            onClick={() => handleToggleExpanded()}
+            variant="ghost"
+            size="icon-sm"
+            className={cn(
+              'pointer-events-none size-5.5 translate-x-2 -translate-y-2 scale-95 rounded-full bg-transparent text-foreground-secondary/70 opacity-0 shadow-none transition-[opacity,transform,color] duration-300 ease-out hover:bg-transparent hover:text-foreground group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:opacity-100 focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:scale-100 focus-visible:opacity-100 [&_svg]:!size-3',
+              isExpanded &&
+                'pointer-events-auto translate-x-0 translate-y-0 scale-100 bg-transparent text-foreground opacity-100'
+            )}
+            aria-pressed={isExpanded}
+            aria-label={isExpanded ? t('chat.input.collapse') : t('chat.input.expand')}>
+            {isExpanded ? <Minimize2 /> : <Maximize2 />}
+          </Button>
+        </Tooltip>
+      </div>
       <div
+        ref={editorFrameRef}
+        className="overflow-hidden transition-[height] ease-out"
+        onTransitionEnd={handleEditorFrameTransitionEnd}
         style={
-          isExpanded
-            ? { height: COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT, overflow: 'hidden' }
-            : { minHeight: editorMinHeight }
+          {
+            height: editorFrameHeight ?? (isExpanded ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT : undefined),
+            minHeight: editorMinHeight,
+            overflow: 'hidden',
+            transitionDuration: `${COMPOSER_EDITOR_HEIGHT_TRANSITION_MS}ms`
+          } as React.CSSProperties
         }>
         <EditorContent
           editor={editor}
@@ -889,16 +989,6 @@ export default function ComposerSurface({
       <div className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">{renderLeftControls?.(inputAdapter)}</div>
         <div className="flex flex-row items-center gap-1.5">
-          <Tooltip content={isExpanded ? t('chat.input.collapse') : t('chat.input.expand')}>
-            <Button
-              onClick={() => handleToggleExpanded()}
-              variant="ghost"
-              size="icon-sm"
-              className="rounded-full"
-              aria-label={isExpanded ? t('chat.input.collapse') : t('chat.input.expand')}>
-              {isExpanded ? <Minimize size={18} /> : <Maximize size={18} />}
-            </Button>
-          </Tooltip>
           {showPauseButton ? (
             <Tooltip content={t('chat.input.pause')} placement="top">
               <button

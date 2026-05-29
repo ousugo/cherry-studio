@@ -49,7 +49,9 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
+  Tooltip: ({ children, classNames }: { children: ReactNode; classNames?: { placeholder?: string } }) => (
+    <div className={classNames?.placeholder}>{children}</div>
+  )
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
@@ -274,9 +276,11 @@ describe('ComposerSurface', () => {
     const editorContent = screen.getByTestId('editor-content')
     const editor = screen.getByTestId('composer-editor')
     const editorContainer = editorContent.parentElement
+    const expandedHeight = `${Math.max(220, Math.round(window.innerHeight * 0.5))}px`
 
     expect(editorContainer).toHaveStyle({ minHeight: '46px' })
     expect(editorContainer).not.toHaveStyle({ height: 'max(220px, 50vh)' })
+    expect(editorContainer).toHaveClass('transition-[height]', 'ease-out')
     expect(editorContent).not.toHaveStyle({ height: '100%' })
     expect(editor.getAttribute('data-editor-style')).toContain('max-height: max(220px, 40vh)')
     expect(editor.className).toContain('max-h-[max(220px,40vh)]')
@@ -284,6 +288,9 @@ describe('ComposerSurface', () => {
     expect(editor.className).not.toContain('max-h-[500px]')
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.input.expand' }))
+
+    await waitFor(() => expect(editorContainer).toHaveStyle({ height: expandedHeight, overflow: 'hidden' }))
+    fireEvent.transitionEnd(editorContainer as HTMLElement, { propertyName: 'height' })
 
     expect(editorContainer).toHaveStyle({ height: 'max(220px, 50vh)', overflow: 'hidden' })
     expect(editorContent).toHaveStyle({ height: '100%' })
@@ -296,18 +303,33 @@ describe('ComposerSurface', () => {
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('overflow-y: auto')
   })
 
-  it('renders the expand control immediately before send controls', () => {
+  it('renders the expand control in the inputbar corner', () => {
     render(<Harness />)
 
     const expandButton = screen.getByRole('button', { name: 'chat.input.expand' })
-    const sendButton = screen.getByRole('button', { name: 'send' })
+    const expandButtonTrigger = expandButton.parentElement
+    const inputbar = document.getElementById('inputbar')
+    const corner = inputbar?.querySelector('[data-composer-expand-corner]') as HTMLElement | null
+    const cornerLine = inputbar?.querySelector('[data-composer-expand-corner-line]') as HTMLElement | null
 
     expect(screen.queryByRole('button', { name: 'translate' })).not.toBeInTheDocument()
-    expect(expandButton.nextElementSibling).toBe(sendButton)
+    expect(screen.getByRole('button', { name: 'send' })).toBeInTheDocument()
+    expect(inputbar).not.toBeNull()
+    expect(corner).not.toBeNull()
+    expect(expandButton.closest('#inputbar')).toBe(inputbar)
+    expect(inputbar).not.toHaveClass('group/inputbar')
+    expect(corner).toHaveClass('group/expand-corner', 'absolute', 'top-px', 'right-px', 'size-7')
+    expect(cornerLine).toHaveClass('top-0', 'right-0', 'size-[18px]', 'rounded-tr-[18px]')
+    expect(cornerLine).toHaveClass('border-t-[1.5px]', 'border-r-[1.5px]', 'group-hover/expand-corner:opacity-0')
+    expect(expandButtonTrigger).toHaveClass('absolute', 'top-1', 'right-1')
+    expect(expandButton).toHaveClass('size-5.5', 'translate-x-2', '-translate-y-2', 'duration-300', 'opacity-0')
+    expect(expandButton).toHaveClass('group-hover/expand-corner:opacity-100')
 
     fireEvent.click(expandButton)
 
-    expect(screen.getByRole('button', { name: 'chat.input.collapse' })).toBeInTheDocument()
+    const collapseButton = screen.getByRole('button', { name: 'chat.input.collapse' })
+    expect(collapseButton).toHaveAttribute('aria-pressed', 'true')
+    expect(collapseButton).toHaveClass('opacity-100', 'bg-transparent')
   })
 
   it('sets quick phrase text as prompt variable token content', async () => {
