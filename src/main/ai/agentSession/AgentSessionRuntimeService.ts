@@ -362,6 +362,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
 
+    await this.hydrateResumeToken(entry)
     const connection = await driver.connect({
       sessionId: entry.sessionId,
       agentId: entry.agentId,
@@ -374,6 +375,12 @@ export class AgentSessionRuntimeService extends BaseService {
       if (entry.connection === connection) entry.connection = undefined
       if (entry.connectionLoop) entry.connectionLoop = undefined
     })
+  }
+
+  private async hydrateResumeToken(entry: AgentSessionRuntimeEntry): Promise<void> {
+    if (entry.lastResumeToken) return
+    const runtimeResumeToken = await agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
+    if (runtimeResumeToken) entry.lastResumeToken = runtimeResumeToken
   }
 
   private async runConnectionLoop(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): Promise<void> {
