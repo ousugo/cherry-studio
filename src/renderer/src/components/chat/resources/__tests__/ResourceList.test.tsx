@@ -1714,6 +1714,42 @@ describe('ResourceList', () => {
     expect(screen.getByText('Topic 1')).toBeInTheDocument()
   })
 
+  it('keeps controlled section collapse when a child group is toggled before parent rerender', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items: TestItem[] = [
+      { id: 'pinned-topic', name: 'Pinned topic', kind: 'topic', pinned: true, updatedAt: 1 },
+      { id: 'assistant-topic', name: 'Assistant topic', kind: 'topic', updatedAt: 2 }
+    ]
+    const onCollapsedGroupIdsChange = vi.fn()
+
+    render(
+      <Provider
+        items={items}
+        collapsedGroupIds={['section:pinned', 'section:assistants', 'assistant-a']}
+        groupBy={(item) => (item.pinned ? { id: 'pinned', label: '' } : { id: 'assistant-a', label: 'Assistant A' })}
+        onCollapsedGroupIdsChange={onCollapsedGroupIdsChange}
+        sectionBy={(item) =>
+          item.pinned ? { id: 'section:pinned', label: 'Pinned' } : { id: 'section:assistants', label: 'Assistants' }
+        }>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
+    expect(onCollapsedGroupIdsChange).toHaveBeenLastCalledWith(['section:assistants', 'assistant-a'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Assistant A' }))
+    expect(onCollapsedGroupIdsChange).toHaveBeenLastCalledWith(['section:assistants'])
+  })
+
   it('renders optional section headers above groups and expands both section and group for reveal requests', () => {
     const Provider = ResourceList.Provider<TestItem>
     const items: TestItem[] = [

@@ -562,7 +562,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const effectiveSelectedId = selectedIdProp !== undefined ? selectedIdProp : state.selectedId
   const isSelectedControlled = selectedIdProp !== undefined
   const handledRevealRequestRef = useRef<string | null>(null)
-  const stateGroupsRef = useRef<readonly ResourceListViewGroup<T>[]>([])
+  const expandedGroupIdsRef = useRef<string[]>([])
   const uiStoreRef = useRef<ResourceListUiStore | null>(null)
   if (!uiStoreRef.current) {
     uiStoreRef.current = new ResourceListUiStore({
@@ -750,8 +750,20 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   }, [getItemId, stateGroups, uiStore])
 
   useLayoutEffect(() => {
-    stateGroupsRef.current = stateGroups
-  }, [stateGroups])
+    const viewExpandedGroupIds = getExpandedGroupIds(stateGroups)
+    expandedGroupIdsRef.current =
+      collapsedGroupIds === undefined
+        ? viewExpandedGroupIds
+        : [...new Set([...effectiveGroupStateIds, ...viewExpandedGroupIds])]
+  }, [collapsedGroupIds, effectiveGroupStateIds, stateGroups])
+
+  const notifyControlledGroupStateChange = useCallback(
+    (groupIds: string[]) => {
+      expandedGroupIdsRef.current = groupIds
+      onCollapsedGroupIdsChange?.(groupIds)
+    },
+    [onCollapsedGroupIdsChange]
+  )
 
   const actions = useMemo(
     () => ({
@@ -797,11 +809,11 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
         dispatch({ type: 'collapseGroupItems', groupId, defaultCount: defaultGroupVisibleCount }),
       collapseGroups: (groupIds: readonly string[]) => {
         if (collapsedGroupIds !== undefined) {
-          const nextExpandedGroupIds = new Set(effectiveGroupStateIds)
+          const nextExpandedGroupIds = new Set(expandedGroupIdsRef.current)
           for (const groupId of groupIds) {
             nextExpandedGroupIds.delete(groupId)
           }
-          onCollapsedGroupIdsChange?.([...nextExpandedGroupIds])
+          notifyControlledGroupStateChange([...nextExpandedGroupIds])
           return
         }
 
@@ -809,13 +821,13 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       },
       toggleGroup: (groupId: string) => {
         if (collapsedGroupIds !== undefined) {
-          const nextExpandedGroupIds = new Set(getExpandedGroupIds(stateGroupsRef.current))
+          const nextExpandedGroupIds = new Set(expandedGroupIdsRef.current)
           if (nextExpandedGroupIds.has(groupId)) {
             nextExpandedGroupIds.delete(groupId)
           } else {
             nextExpandedGroupIds.add(groupId)
           }
-          onCollapsedGroupIdsChange?.([...nextExpandedGroupIds])
+          notifyControlledGroupStateChange([...nextExpandedGroupIds])
           return
         }
 
@@ -826,9 +838,8 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     [
       collapsedGroupIds,
       defaultGroupVisibleCount,
-      effectiveGroupStateIds,
       isSelectedControlled,
-      onCollapsedGroupIdsChange,
+      notifyControlledGroupStateChange,
       onGroupHeaderSelectItem,
       onOpenContextMenu,
       onRenameItem,
