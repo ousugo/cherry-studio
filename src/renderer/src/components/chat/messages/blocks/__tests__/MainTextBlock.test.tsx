@@ -303,7 +303,35 @@ describe('MainTextBlock', () => {
       expect(token).not.toHaveClass('border', 'bg-muted', 'rounded-md', 'px-1.5', 'py-0.5', 'leading-5')
     })
 
-    it('should render skill composer tokens as colored inline text', () => {
+    it('should keep long composer token labels on one truncated line in sent messages', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = false
+      const longLabel = 'temp_file_d1a6ca94-e012-4c9e-831a-24cda5f732f0_image.png'
+
+      renderMainTextBlock({
+        content: `Open ${longLabel} now`,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'file-long',
+              kind: 'file',
+              label: longLabel,
+              index: 0,
+              textOffset: 5,
+              promptText: longLabel
+            }
+          ]
+        }
+      })
+
+      const chip = getRenderedPlainText()!.querySelector('[data-composer-token-kind="file"]')
+      const label = screen.getByText(longLabel)
+      expect(chip).toHaveClass('max-w-52', 'overflow-hidden')
+      expect(label).toHaveClass('min-w-0', 'truncate', 'whitespace-nowrap!', 'break-normal')
+    })
+
+    it('should render skill composer tokens with their own visual treatment', () => {
       mockRenderConfig.renderInputMessageAsMarkdown = false
       renderMainTextBlock({
         content: 'Use the pdf skill.',

@@ -50,11 +50,11 @@ function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
 
   const chip = (
     <span
-      className="mx-0.5 inline-flex max-w-52 select-none items-baseline gap-1 align-baseline text-primary leading-[inherit]"
+      className="mx-0.5 inline-flex max-w-52 select-none items-baseline gap-1 overflow-hidden align-baseline text-primary leading-[inherit]"
       data-composer-token-kind={token.kind}
       title={title}>
       <Icon className="size-[1em] shrink-0 translate-y-[0.08em] text-current opacity-80" />
-      <span className="truncate">{token.label}</span>
+      <span className="whitespace-nowrap! min-w-0 truncate break-normal">{token.label}</span>
     </span>
   )
   const quoteTooltipContent =
