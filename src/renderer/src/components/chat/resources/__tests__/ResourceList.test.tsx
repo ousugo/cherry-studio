@@ -1898,6 +1898,53 @@ describe('ResourceList', () => {
     })
   })
 
+  it('keeps sibling sections collapsed when the last expanded controlled section is collapsed', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items: TestItem[] = [
+      { id: 'alpha', name: 'Pinned topic', kind: 'topic', pinned: true, updatedAt: 1 },
+      { id: 'beta', name: 'Assistant topic', kind: 'topic', updatedAt: 2 }
+    ]
+
+    function SectionHarness() {
+      const [expandedIds, setExpandedIds] = useState(['section:assistants'])
+
+      return (
+        <Provider
+          items={items}
+          collapsedGroupIds={expandedIds}
+          groupBy={(item) => ({ id: item.pinned ? 'pinned' : 'assistant', label: '' })}
+          onCollapsedGroupIdsChange={setExpandedIds}
+          sectionBy={(item) =>
+            item.pinned ? { id: 'section:pinned', label: 'Pinned' } : { id: 'section:assistants', label: 'Assistants' }
+          }>
+          <ResourceList.Frame>
+            <ResourceList.VirtualItems<TestItem>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    render(<SectionHarness />)
+
+    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByText('Pinned topic')).not.toBeInTheDocument()
+    expect(screen.getByText('Assistant topic')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Assistants' }))
+
+    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Pinned topic')).not.toBeInTheDocument()
+    expect(screen.queryByText('Assistant topic')).not.toBeInTheDocument()
+  })
+
   it('reveals a requested item by clearing local filters, expanding its group, loading enough rows, and scrolling', async () => {
     const Provider = ResourceList.Provider<TestItem>
     const items = Array.from({ length: 8 }, (_, index) => ({
