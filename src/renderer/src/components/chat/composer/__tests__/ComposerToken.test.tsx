@@ -1,3 +1,4 @@
+import { FILE_TYPE, type FileMetadata } from '@renderer/types'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Editor } from '@tiptap/core'
 import { AllSelection, NodeSelection, Selection } from '@tiptap/pm/state'
@@ -42,6 +43,21 @@ const promptVariableToken: PromptVariableComposerInputToken = {
   promptText: '${city}'
 }
 
+function createFileMetadata(overrides: Partial<FileMetadata>): FileMetadata {
+  return {
+    id: 'file-1',
+    name: 'file-1.txt',
+    origin_name: 'file-1.txt',
+    path: '/tmp/file-1.txt',
+    size: 1024,
+    ext: '.txt',
+    type: FILE_TYPE.TEXT,
+    created_at: '2026-05-29T00:00:00.000Z',
+    count: 1,
+    ...overrides
+  }
+}
+
 function ComposerEditorHarness({
   onEditor,
   text = 'go ${city}'
@@ -76,16 +92,99 @@ describe('ComposerToken', () => {
     )
   })
 
-  it('renders a static composer token label', () => {
-    render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
+  it('renders file tokens as compact inline chips with fallback styling', () => {
+    const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
 
-    expect(screen.getByText('notes.md')).toBeInTheDocument()
+    const token = container.querySelector('[data-composer-token-kind="file"]')
+    expect(token).toHaveTextContent('notes.md')
     expect(screen.queryByRole('textbox')).toBeNull()
-    expect(screen.queryByTestId('composer-token-tooltip')).toBeNull()
+    expect(screen.getByTestId('composer-token-tooltip')).toBeInTheDocument()
+    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('notes.md')
 
-    const token = screen.getByText('notes.md').closest('[data-composer-token-kind="file"]')
-    expect(token).toHaveClass('text-primary', 'leading-[inherit]')
-    expect(token).not.toHaveClass('border', 'bg-muted', 'rounded-md', 'px-1.5', 'py-0.5', 'leading-5')
+    expect(token).toHaveClass('h-6', 'items-center', 'rounded-md', 'border', 'bg-background', 'leading-[inherit]')
+    expect(token).not.toHaveClass('bg-muted')
+    expect(token).not.toHaveClass('py-0.5', 'leading-5')
+  })
+
+  it('renders image file tokens with image variant metadata and preview', () => {
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'file:image',
+          kind: 'file',
+          label: 'avatar-preview.png',
+          payload: createFileMetadata({
+            id: 'image-file',
+            name: 'avatar-preview.png',
+            origin_name: 'avatar-preview.png',
+            path: '/tmp/avatar-preview.png',
+            size: 1536,
+            ext: '.png',
+            type: FILE_TYPE.IMAGE
+          })
+        }}
+      />
+    )
+
+    const token = container.querySelector('[data-composer-token-kind="file"]')
+    expect(token).toHaveAttribute('data-file-token-variant', 'image')
+    expect(token?.querySelector('[data-file-token-icon="image"]')).toHaveClass('text-success')
+    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('avatar-preview.png')
+    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('IMAGE')
+    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('2 KB')
+    expect(screen.getByAltText('avatar-preview.png')).toHaveAttribute('src', 'file:///tmp/avatar-preview.png')
+  })
+
+  it('renders document file tokens with document variant metadata', () => {
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'file:document',
+          kind: 'file',
+          label: 'report-q2-final.pdf',
+          payload: createFileMetadata({
+            name: 'report-q2-final.pdf',
+            origin_name: 'report-q2-final.pdf',
+            path: '/tmp/report-q2-final.pdf',
+            size: 2048,
+            ext: '.pdf',
+            type: FILE_TYPE.DOCUMENT
+          })
+        }}
+      />
+    )
+
+    const token = container.querySelector('[data-composer-token-kind="file"]')
+    expect(token).toHaveAttribute('data-file-token-variant', 'document')
+    expect(token?.querySelector('[data-file-token-icon="document"]')).toHaveClass('text-destructive')
+    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('PDF')
+    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('2 KB')
+  })
+
+  it('renders text and code file tokens with text variant metadata', () => {
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'file:text',
+          kind: 'file',
+          label: 'config.schema.ts',
+          payload: createFileMetadata({
+            name: 'config.schema.ts',
+            origin_name: 'config.schema.ts',
+            path: '/tmp/config.schema.ts',
+            size: 3072,
+            ext: '.ts',
+            type: FILE_TYPE.TEXT
+          })
+        }}
+      />
+    )
+
+    const token = container.querySelector('[data-composer-token-kind="file"]')
+    expect(token).toHaveAttribute('data-file-token-variant', 'text')
+    expect(token?.querySelector('[data-file-token-icon="text"]')).toHaveClass('text-info')
+    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('TS')
+    expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('3 KB')
   })
 
   it('shows quoted content in a tooltip for quote tokens', () => {
@@ -127,7 +226,7 @@ describe('ComposerToken', () => {
   })
 
   it('keeps native title for non-quote tokens', () => {
-    render(
+    const { container } = render(
       <ComposerToken
         token={{
           id: 'file:1',
@@ -138,10 +237,7 @@ describe('ComposerToken', () => {
       />
     )
 
-    expect(screen.getByText('notes.md').closest('[data-composer-token-kind="file"]')).toHaveAttribute(
-      'title',
-      'Project notes'
-    )
+    expect(container.querySelector('[data-composer-token-kind="file"]')).toHaveAttribute('title', 'Project notes')
   })
 
   it('keeps long quoted tooltip content and clamps it visually', () => {

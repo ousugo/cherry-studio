@@ -1,6 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { type ChatPanePosition, ConversationShell, OverlayHost } from '@renderer/components/chat'
+import { type ChatPanePosition, ConversationShell } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
@@ -186,25 +186,24 @@ const ChatInner: FC<Props> = (props) => {
           onPersistTemporaryTopic={props.onPersistTemporaryTopic}
         />
       }
+      centerTopOverlay={
+        <ContentSearch
+          ref={contentSearchRef}
+          searchTarget={mainRef as React.RefObject<HTMLElement>}
+          filter={contentSearchFilter}
+          includeUser={filterIncludeUser}
+          onIncludeUserChange={userOutlinedItemClickHandler}
+          positionMode="absolute"
+        />
+      }
       centerOverlay={
-        <>
-          <OverlayHost>
-            <ContentSearch
-              ref={contentSearchRef}
-              searchTarget={mainRef as React.RefObject<HTMLElement>}
-              filter={contentSearchFilter}
-              includeUser={filterIncludeUser}
-              onIncludeUserChange={userOutlinedItemClickHandler}
-            />
-          </OverlayHost>
-          {!branchPaneDisabled && (
-            <TopicRightPane.MaximizedOverlay
-              topicId={props.activeTopic.id}
-              topicName={props.activeTopic.name}
-              onLocateMessage={setBranchLocateMessageId}
-            />
-          )}
-        </>
+        !branchPaneDisabled && (
+          <TopicRightPane.MaximizedOverlay
+            topicId={props.activeTopic.id}
+            topicName={props.activeTopic.name}
+            onLocateMessage={setBranchLocateMessageId}
+          />
+        )
       }
       rightPane={
         branchPaneDisabled ? undefined : (

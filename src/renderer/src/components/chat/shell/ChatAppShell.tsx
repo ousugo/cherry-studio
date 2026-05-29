@@ -18,6 +18,8 @@ interface ChatAppShellBaseProps {
   panePosition?: ChatPanePosition
   sidePanel?: ReactNode
   centerOverlay?: ReactNode
+  /** Overlay scoped to the center area but rendered above the center's transform/stacking layer. */
+  centerTopOverlay?: ReactNode
   overlay?: ReactNode
   rootId?: string
   rootClassName?: string
@@ -52,6 +54,7 @@ export function ChatAppShell({
   bottomComposer,
   sidePanel,
   centerOverlay,
+  centerTopOverlay,
   overlay,
   rootId,
   rootClassName,
@@ -104,25 +107,28 @@ export function ChatAppShell({
           {pane}
         </PageSidebar>
 
-        <motion.div
-          ref={centerRef}
-          id={centerId}
-          layout
-          transition={CHAT_SHELL_TRANSITION}
-          className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', centerClassName)}>
-          {topBar && <ErrorBoundary>{topBar}</ErrorBoundary>}
-          {hasCenterContent ? (
-            <ErrorBoundary>{centerContent}</ErrorBoundary>
-          ) : (
-            <>
-              <ErrorBoundary>
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
-              </ErrorBoundary>
-              {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
-            </>
-          )}
-          {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
-        </motion.div>
+        <div className="relative flex min-w-0 flex-1 flex-col">
+          <motion.div
+            ref={centerRef}
+            id={centerId}
+            layout
+            transition={CHAT_SHELL_TRANSITION}
+            className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', centerClassName)}>
+            {topBar && <ErrorBoundary>{topBar}</ErrorBoundary>}
+            {hasCenterContent ? (
+              <ErrorBoundary>{centerContent}</ErrorBoundary>
+            ) : (
+              <>
+                <ErrorBoundary>
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
+                </ErrorBoundary>
+                {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
+              </>
+            )}
+            {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
+          </motion.div>
+          {centerTopOverlay && <OverlayHost>{centerTopOverlay}</OverlayHost>}
+        </div>
 
         <RightPaneHost open={paneOpen && panePosition === 'right'}>{pane}</RightPaneHost>
       </div>
