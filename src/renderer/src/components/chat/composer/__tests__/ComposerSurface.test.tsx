@@ -139,10 +139,6 @@ vi.mock('@tiptap/react', () => ({
   )
 }))
 
-vi.mock('@renderer/components/TranslateButton', () => ({
-  default: () => <button type="button">translate</button>
-}))
-
 vi.mock('@renderer/pages/home/Inputbar/SendMessageButton', () => ({
   default: () => <button type="button">send</button>
 }))
@@ -295,13 +291,14 @@ describe('ComposerSurface', () => {
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('overflow-y: auto')
   })
 
-  it('renders the expand control immediately before translate', () => {
+  it('renders the expand control immediately before send controls', () => {
     render(<Harness />)
 
     const expandButton = screen.getByRole('button', { name: 'chat.input.expand' })
-    const translateButton = screen.getByRole('button', { name: 'translate' })
+    const sendButton = screen.getByRole('button', { name: 'send' })
 
-    expect(expandButton.nextElementSibling).toBe(translateButton)
+    expect(screen.queryByRole('button', { name: 'translate' })).not.toBeInTheDocument()
+    expect(expandButton.nextElementSibling).toBe(sendButton)
 
     fireEvent.click(expandButton)
 

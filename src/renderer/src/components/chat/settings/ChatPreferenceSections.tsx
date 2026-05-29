@@ -3,7 +3,6 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import EditableNumber from '@renderer/components/EditableNumber'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useLanguages } from '@renderer/hooks/translate'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/pages/settings'
 import type { CodeStyleVarious } from '@renderer/types'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -40,13 +39,10 @@ interface Props {
 const ChatPreferenceSections: FC<Props> = ({ features }) => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
-  const [language] = usePreference('app.language')
-  const [targetLanguage, setTargetLanguage] = usePreference('chat.input.translate.target_language')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
   const [showPrompt, setShowPrompt] = usePreference('chat.message.show_prompt')
   const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
-  const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const [enableQuickPanelTriggers, setEnableQuickPanelTriggers] = usePreference(
     'chat.input.quick_panel.triggers_enabled'
   )
@@ -60,9 +56,6 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
   const [showInputEstimatedTokens, setShowInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
   const [renderInputMessageAsMarkdown, setRenderInputMessageAsMarkdown] = usePreference(
     'chat.message.render_as_markdown'
-  )
-  const [autoTranslateWithSpace, setAutoTranslateWithSpace] = usePreference(
-    'chat.input.translate.auto_translate_with_space'
   )
   const [showMessageOutline, setShowMessageOutline] = usePreference('chat.message.show_outline')
   const [codeShowLineNumbers, setCodeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
@@ -93,7 +86,6 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
   const { theme } = useTheme()
   const { themeNames } = useCodeStyle()
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
-  const { languages, getLabel } = useLanguages()
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -120,11 +112,6 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
   const codeStyleItems = useMemo<SelectOption<CodeStyleVarious>[]>(
     () => themeNames.map((themeName) => ({ value: themeName, label: themeName })),
     [themeNames]
-  )
-
-  const targetLanguageItems = useMemo<SelectOption<string>[]>(
-    () => languages?.map((item) => ({ value: item.langCode, label: getLabel(item) ?? '' })) ?? [],
-    [languages, getLabel]
   )
 
   const sendMessageShortcutItems = useMemo<SelectOption<SendMessageShortcut>[]>(
@@ -222,26 +209,6 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
             />
           </SettingRow>
           <SettingDivider />
-          {!(language || navigator.language).startsWith('en') && (
-            <>
-              <SettingRow>
-                <SettingSwitch
-                  checked={autoTranslateWithSpace}
-                  onCheckedChange={setAutoTranslateWithSpace}
-                  label={t('settings.input.auto_translate_with_space')}
-                />
-              </SettingRow>
-              <SettingDivider />
-            </>
-          )}
-          <SettingRow>
-            <SettingSwitch
-              checked={showTranslateConfirm}
-              onCheckedChange={setShowTranslateConfirm}
-              label={t('settings.input.show_translate_confirm')}
-            />
-          </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={enableQuickPanelTriggers}
@@ -256,22 +223,6 @@ const ChatPreferenceSections: FC<Props> = ({ features }) => {
               onCheckedChange={setConfirmDeleteMessage}
               label={t('settings.messages.input.confirm_delete_message')}
             />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
-            <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-              <SelectTrigger size="sm" className="w-[220px] text-sm">
-                <SelectValue placeholder={getLabel(null)} />
-              </SelectTrigger>
-              <SelectContent className="text-sm">
-                {targetLanguageItems.map((item) => (
-                  <SelectItem className="text-sm" key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </SettingRow>
           <SettingDivider />
           <SettingRow>

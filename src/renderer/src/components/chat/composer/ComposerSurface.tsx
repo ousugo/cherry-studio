@@ -5,7 +5,6 @@ import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
-import TranslateButton from '@renderer/components/TranslateButton'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useFileDragDrop } from '@renderer/pages/home/Inputbar/hooks/useFileDragDrop'
@@ -807,13 +806,6 @@ export default function ComposerSurface({
     void Promise.resolve(onSendDraft(draft)).finally(focusEditor)
   }, [editor, focusEditor, onSendDraft, sendDisabled, showBlockedSendReason])
 
-  const onTranslated = useCallback(
-    (translatedText: string) => {
-      applyComposerText(translatedText)
-    },
-    [applyComposerText]
-  )
-
   const quickPanelElement = quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled
   const belowControls = renderBelowControls?.(inputAdapter)
@@ -857,7 +849,6 @@ export default function ComposerSurface({
               {isExpanded ? <Minimize size={18} /> : <Maximize size={18} />}
             </Button>
           </Tooltip>
-          <TranslateButton text={text} disabled={sendDisabled} onTranslated={onTranslated} />
           {showPauseButton ? (
             <Tooltip content={t('chat.input.pause')} placement="top">
               <button
