@@ -16,12 +16,6 @@ export const ACTIVE_COMPOSER_INPUT_TOKEN_KINDS = ['skill', 'file', 'knowledge', 
 
 export type ActiveComposerInputTokenKind = (typeof ACTIVE_COMPOSER_INPUT_TOKEN_KINDS)[number]
 
-const ACTIVE_COMPOSER_INPUT_TOKEN_KIND_SET = new Set<ComposerDraftTokenKind>(ACTIVE_COMPOSER_INPUT_TOKEN_KINDS)
-
-export function isActiveComposerInputTokenKind(kind: ComposerDraftTokenKind): kind is ActiveComposerInputTokenKind {
-  return ACTIVE_COMPOSER_INPUT_TOKEN_KIND_SET.has(kind)
-}
-
 export interface ComposerDraftToken {
   id: string
   kind: ComposerDraftTokenKind
@@ -31,6 +25,9 @@ export interface ComposerDraftToken {
   promptText?: string
   payload?: unknown
 }
+
+export type ActiveComposerInputToken = ComposerDraftToken & { kind: ActiveComposerInputTokenKind }
+export type PromptVariableComposerInputToken = ActiveComposerInputToken & { kind: 'promptVariable' }
 
 export interface ComposerSerializedToken extends ComposerDraftToken {
   index: number

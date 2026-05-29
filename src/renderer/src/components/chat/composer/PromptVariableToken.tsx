@@ -2,7 +2,7 @@ import type { CSSProperties, MouseEventHandler } from 'react'
 import { useLayoutEffect, useRef } from 'react'
 
 import { ComposerToken } from './ComposerToken'
-import type { ComposerDraftToken } from './tokens'
+import type { PromptVariableComposerInputToken } from './tokens'
 
 export type PromptVariableCommitReason = 'blur' | 'enter' | 'tab'
 
@@ -12,7 +12,7 @@ const promptVariableInputStyle = {
 } as CSSProperties
 
 export interface PromptVariableTokenProps {
-  token: ComposerDraftToken
+  token: PromptVariableComposerInputToken
   selected?: boolean
   editing?: boolean
   className?: string

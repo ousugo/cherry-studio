@@ -6,7 +6,7 @@ import { type ReactNode, useCallback, useLayoutEffect, useState } from 'react'
 
 import { ComposerToken } from './ComposerToken'
 import { type PromptVariableCommitReason, PromptVariableToken } from './PromptVariableToken'
-import type { ComposerDraftToken } from './tokens'
+import type { ActiveComposerInputToken, ComposerDraftToken, PromptVariableComposerInputToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
 export const COMPOSER_TOKEN_NODE_NAME = 'composerToken'
@@ -196,7 +196,7 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
     props.renderToken?.(token, { selected: props.selected, nodeViewProps: props }) ??
     (token.kind === 'promptVariable' ? (
       <PromptVariableToken
-        token={token}
+        token={token as PromptVariableComposerInputToken}
         selected={props.selected}
         editing={isPromptVariableEditing}
         onCommit={finishPromptVariableEdit}
@@ -207,7 +207,7 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
         }}
       />
     ) : (
-      <ComposerToken token={token} selected={props.selected} />
+      <ComposerToken token={token as ActiveComposerInputToken} selected={props.selected} />
     ))
 
   return (

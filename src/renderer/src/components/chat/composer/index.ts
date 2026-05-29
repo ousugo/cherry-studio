@@ -6,7 +6,16 @@ export {
   serializeComposerDocument
 } from './composerDraft'
 export { type ComposerEditorPresetOptions, createComposerEditorPreset } from './composerPreset'
-export { ComposerToken, type ComposerTokenProps } from './ComposerToken'
+export {
+  composerInputTokenComponentByKind,
+  ComposerToken,
+  type ComposerTokenProps,
+  FileComposerToken,
+  KnowledgeComposerToken,
+  PromptVariableComposerToken,
+  QuoteComposerToken,
+  SkillComposerToken
+} from './ComposerToken'
 export {
   COMPOSER_TOKEN_NODE_NAME,
   ComposerTokenNode,

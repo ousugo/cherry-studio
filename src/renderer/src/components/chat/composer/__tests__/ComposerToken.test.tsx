@@ -7,11 +7,15 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { serializeComposerDocument } from '../composerDraft'
 import { createComposerEditorPreset } from '../composerPreset'
-import { ComposerToken } from '../ComposerToken'
+import { composerInputTokenComponentByKind, ComposerToken } from '../ComposerToken'
 import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
 import { createPromptVariableContent, selectPromptVariableToken } from '../promptVariables'
 import { PromptVariableToken } from '../PromptVariableToken'
-import type { ComposerDraftToken } from '../tokens'
+import {
+  ACTIVE_COMPOSER_INPUT_TOKEN_KINDS,
+  type ComposerDraftToken,
+  type PromptVariableComposerInputToken
+} from '../tokens'
 
 vi.mock('@cherrystudio/ui', () => ({
   NormalTooltip: ({
@@ -30,7 +34,7 @@ vi.mock('@cherrystudio/ui', () => ({
   )
 }))
 
-const promptVariableToken: ComposerDraftToken = {
+const promptVariableToken: PromptVariableComposerInputToken = {
   id: 'prompt-variable:0:city',
   kind: 'promptVariable',
   label: 'city',
@@ -66,6 +70,12 @@ function findComposerTokenPosition(editor: Editor): number {
 }
 
 describe('ComposerToken', () => {
+  it('maps active composer token kinds to explicit components', () => {
+    expect(Object.keys(composerInputTokenComponentByKind).toSorted()).toEqual(
+      [...ACTIVE_COMPOSER_INPUT_TOKEN_KINDS].toSorted()
+    )
+  })
+
   it('renders a static composer token label', () => {
     render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
 
@@ -180,15 +190,10 @@ describe('ComposerToken', () => {
     expect(selectedToken).not.toHaveClass('border-info/30', 'bg-info/10', 'rounded-md', 'ring-1')
   })
 
-  it('renders fallback composer token kinds as inert fallback text', () => {
-    render(<ComposerToken token={{ id: 'reference:docs', kind: 'reference', label: 'Docs' }} />)
-
-    const token = screen.getByText('Docs').closest('[data-composer-token-kind="reference"]')
-    expect(token).toBeInTheDocument()
-    expect(token).toHaveAttribute('data-composer-token-legacy', '')
-    expect(token).toHaveClass('text-muted-foreground', 'leading-[inherit]')
-    expect(token).not.toHaveClass('text-primary')
-    expect(token?.querySelector('svg')).not.toBeInTheDocument()
+  it('rejects unsupported token kinds', () => {
+    expect(() =>
+      render(<ComposerToken token={{ id: 'reference:docs', kind: 'reference', label: 'Docs' } as never} />)
+    ).toThrow()
   })
 
   it('does not render a prompt variable input unless the token is editing', () => {
