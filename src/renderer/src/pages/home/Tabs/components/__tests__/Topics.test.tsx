@@ -92,12 +92,51 @@ const notesSettingsMocks = vi.hoisted(() => ({
 vi.mock('@renderer/hooks/useNotesSettings', () => notesSettingsMocks)
 
 const tabsContextMocks = vi.hoisted(() => ({
-  openTab: vi.fn()
+  openTab: vi.fn(),
+  setActiveTab: vi.fn(),
+  tabs: [] as Array<{ id: string; type: string; url: string }>
 }))
 
 vi.mock('@renderer/context/TabsContext', () => ({
   useOptionalTabsContext: () => ({
-    openTab: tabsContextMocks.openTab
+    openTab: tabsContextMocks.openTab,
+    setActiveTab: tabsContextMocks.setActiveTab,
+    tabs: tabsContextMocks.tabs
+  })
+}))
+
+// Topics drives the conversation-navigation boundary; back it with the same fake tab
+// store so the existing openTab / setActiveTab assertions keep verifying the behavior.
+const topicIdFromUrl = (url: string) => {
+  try {
+    return new URL(url, 'app://x').searchParams.get('topicId') ?? undefined
+  } catch {
+    return undefined
+  }
+}
+vi.mock('@renderer/hooks/useConversationNavigation', () => ({
+  useConversationNavigation: () => ({
+    focusExistingTab: (key: string, options?: { excludeTabId?: string }) => {
+      const existing = tabsContextMocks.tabs.find(
+        (t) => t.type === 'route' && t.id !== options?.excludeTabId && topicIdFromUrl(t.url) === key
+      )
+      if (existing) {
+        tabsContextMocks.setActiveTab(existing.id)
+        return true
+      }
+      return false
+    },
+    openInNewTab: (key: string, title?: string) => {
+      const existing = tabsContextMocks.tabs.find((t) => t.type === 'route' && topicIdFromUrl(t.url) === key)
+      if (existing) {
+        tabsContextMocks.setActiveTab(existing.id)
+        return
+      }
+      tabsContextMocks.openTab(`/app/chat?topicId=${encodeURIComponent(key)}`, { forceNew: true, title })
+    },
+    focusOrOpen: (key: string, title?: string) => {
+      tabsContextMocks.openTab(`/app/chat?topicId=${encodeURIComponent(key)}`, { title })
+    }
   })
 }))
 
@@ -483,6 +522,8 @@ describe('Topics', () => {
     pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
     pinMutationMocks.deletePin.mockResolvedValue(undefined)
     tabsContextMocks.openTab.mockClear()
+    tabsContextMocks.setActiveTab.mockClear()
+    tabsContextMocks.tabs = []
     mockUseMutation.mockImplementation((method, path) => {
       if (method === 'POST' && path === '/pins') {
         return { trigger: pinMutationMocks.createPin, isLoading: false, error: undefined }
@@ -754,11 +795,38 @@ describe('Topics', () => {
         callback(0)
       }
     })
-    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-a&view=message', {
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-a', {
       forceNew: true,
       title: 'Alpha topic'
     })
     requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('focuses the existing tab instead of duplicating when the topic is already open', () => {
+    tabsContextMocks.tabs = [{ id: 'tab-alpha', type: 'route', url: '/app/chat?topicId=topic-a' }]
+    try {
+      const { getByText } = renderTopicList()
+      const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+      const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+      const animationFrameCallbacks: FrameRequestCallback[] = []
+      const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        animationFrameCallbacks.push(callback)
+        return animationFrameCallbacks.length
+      })
+
+      fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Open in new tab' }))
+      act(() => {
+        for (const callback of animationFrameCallbacks.splice(0)) {
+          callback(0)
+        }
+      })
+
+      expect(tabsContextMocks.setActiveTab).toHaveBeenCalledWith('tab-alpha')
+      expect(tabsContextMocks.openTab).not.toHaveBeenCalled()
+      requestAnimationFrameSpy.mockRestore()
+    } finally {
+      tabsContextMocks.tabs = []
+    }
   })
 
   it('renames a topic from the shared context menu dialog', async () => {

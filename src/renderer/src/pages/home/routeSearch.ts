@@ -12,6 +12,20 @@ export function buildChatMessageRouteUrl(topicId: string): string {
   return `${CHAT_ROUTE}?${params.toString()}`
 }
 
+/** Open a topic as a normal chat tab (no focused message view). */
+export function buildChatTopicRouteUrl(topicId: string): string {
+  return `${CHAT_ROUTE}?topicId=${encodeURIComponent(topicId)}`
+}
+
+/** Extract the topicId a chat tab points at, for cross-tab dedupe. */
+export function getTopicIdFromUrl(url: string): string | undefined {
+  try {
+    return new URL(url, 'app://x').searchParams.get('topicId') ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function parseChatRouteSearch(search: Record<string, unknown>): ChatRouteSearch {
   const assistantId = typeof search.assistantId === 'string' ? search.assistantId : undefined
   const topicId = typeof search.topicId === 'string' ? search.topicId : undefined

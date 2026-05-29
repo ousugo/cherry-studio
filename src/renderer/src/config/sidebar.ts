@@ -1,5 +1,6 @@
 import { OpenClawSidebarIcon } from '@renderer/components/Icons/SvgIcon'
 import type { SidebarMenuItem } from '@renderer/components/Sidebar/types'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import {
@@ -15,25 +16,171 @@ import {
   Sparkle
 } from 'lucide-react'
 
-//TODO 这个文件是否还有存在的价值？ fullex @ data refactor
+/**
+ * Context passed to sidebar navigation handlers. Carries per-call state the
+ * registry can't know on its own (preferences, persisted "last used" cache).
+ */
+export interface SidebarNavContext {
+  defaultPaintingProvider: string
+  /** Cross-window persistent "last focused chat topic" — drives `assistants` defaultKey. */
+  lastUsedTopicId?: string | null
+  /** Cross-window persistent "last focused agent session" — drives `agents` defaultKey. */
+  lastUsedSessionId?: string | null
+}
+
+/**
+ * Apps that hold navigable sub-instances (chat→topic, agent→session) carry an
+ * `instanceKey`. Sidebar click then focuses the tab whose key matches the
+ * "last focused" key (`defaultKey`) instead of focusing an arbitrary tab.
+ * Apps without it (files / notes / paintings / …) are plain focus-or-open.
+ */
+export interface SidebarInstanceKey {
+  /** Extract the instance key (topicId / sessionId) from an existing tab url. */
+  keyFromUrl: (url: string) => string | undefined
+  /** The instance key to target on sidebar click (cross-window "last focused"). */
+  defaultKey: (ctx: SidebarNavContext) => string | undefined
+  /** Build the tab url for an instance key (keeps dispatch app-agnostic). */
+  urlForKey: (key: string) => string
+}
+
+export interface SidebarApp {
+  id: SidebarIcon
+  icon: SidebarMenuItem['icon']
+  routePrefix: string
+  /** Url to open when no tab exists yet (defaults to `routePrefix`). */
+  resolveUrl?: (ctx: SidebarNavContext) => string
+  instanceKey?: SidebarInstanceKey
+}
+
+function getSearchParamFromUrl(url: string, name: string): string | undefined {
+  try {
+    return new URL(url, 'app://x').searchParams.get(name) ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Single source of truth for sidebar applications.
+ * Order here is the canonical sidebar order and drives preference defaults.
+ */
+export const SIDEBAR_APPS: readonly SidebarApp[] = [
+  {
+    id: 'assistants',
+    icon: MessageSquare,
+    routePrefix: '/app/chat',
+    instanceKey: {
+      keyFromUrl: (url) => getSearchParamFromUrl(url, 'topicId'),
+      defaultKey: ({ lastUsedTopicId }) => lastUsedTopicId ?? undefined,
+      urlForKey: (key) => `/app/chat?topicId=${encodeURIComponent(key)}`
+    }
+  },
+  {
+    id: 'agents',
+    icon: MousePointerClick,
+    routePrefix: '/app/agents',
+    instanceKey: {
+      keyFromUrl: (url) => getSearchParamFromUrl(url, 'sessionId'),
+      defaultKey: ({ lastUsedSessionId }) => lastUsedSessionId ?? undefined,
+      urlForKey: (key) => `/app/agents?sessionId=${encodeURIComponent(key)}`
+    }
+  },
+  {
+    id: 'store',
+    icon: Sparkle,
+    routePrefix: '/app/library'
+  },
+  {
+    id: 'paintings',
+    icon: Palette,
+    routePrefix: '/app/paintings',
+    resolveUrl: ({ defaultPaintingProvider }) => `/app/paintings/${defaultPaintingProvider}`
+  },
+  {
+    id: 'translate',
+    icon: Languages,
+    routePrefix: '/app/translate'
+  },
+  {
+    id: 'mini_app',
+    icon: LayoutGrid,
+    routePrefix: '/app/mini-app'
+  },
+  {
+    id: 'knowledge',
+    icon: FileSearch,
+    routePrefix: '/app/knowledge'
+  },
+  {
+    id: 'files',
+    icon: Folder,
+    routePrefix: '/app/files'
+  },
+  {
+    id: 'code_tools',
+    icon: Code,
+    routePrefix: '/app/code'
+  },
+  {
+    id: 'notes',
+    icon: NotepadText,
+    routePrefix: '/app/notes'
+  },
+  {
+    id: 'openclaw',
+    icon: OpenClawSidebarIcon,
+    routePrefix: '/app/openclaw'
+  }
+]
+
+const SIDEBAR_APP_BY_ID: Record<SidebarIcon, SidebarApp> = SIDEBAR_APPS.reduce(
+  (acc, app) => {
+    acc[app.id] = app
+    return acc
+  },
+  {} as Record<SidebarIcon, SidebarApp>
+)
+
+export function getSidebarApp(id: SidebarIcon): SidebarApp | undefined {
+  return SIDEBAR_APP_BY_ID[id]
+}
+
+/**
+ * A tab belongs to an app when its url is the route itself, a path sub-route,
+ * or a query-param instance of it. Shared by the sidebar dispatcher and the
+ * conversation-navigation boundary so the matcher lives in exactly one place.
+ */
+export function tabBelongsToApp(app: SidebarApp, url: string): boolean {
+  return url === app.routePrefix || url.startsWith(`${app.routePrefix}/`) || url.startsWith(`${app.routePrefix}?`)
+}
+
+/**
+ * The tab id to focus on a sidebar click, or undefined if none exists. Apps with
+ * sub-instances narrow the match to the last-focused key (so clicking returns to
+ * that one); keyless apps focus any tab they own.
+ */
+export function findAppTabToFocus(app: SidebarApp, tabs: Tab[], ctx: SidebarNavContext): string | undefined {
+  const key = app.instanceKey?.defaultKey(ctx)
+  const existing = tabs.find(
+    (t) =>
+      t.type === 'route' &&
+      tabBelongsToApp(app, t.url) &&
+      (app.instanceKey && key ? app.instanceKey.keyFromUrl(t.url) === key : true)
+  )
+  return existing?.id
+}
+
+/** The url to open when no owned tab exists yet (instance key url, resolveUrl, or routePrefix). */
+export function resolveAppOpenUrl(app: SidebarApp, ctx: SidebarNavContext): string {
+  const key = app.instanceKey?.defaultKey(ctx)
+  return app.instanceKey && key ? app.instanceKey.urlForKey(key) : (app.resolveUrl?.(ctx) ?? app.routePrefix)
+}
 
 /**
  * 侧边栏支持的完整菜单顺序。
  * Preference 默认值可能不包含新菜单，管理态列表仍需要覆盖当前全部支持项。
  */
-export const SIDEBAR_ICON_ORDER: SidebarIcon[] = [
-  'assistants',
-  'agents',
-  'store',
-  'paintings',
-  'translate',
-  'mini_app',
-  'knowledge',
-  'files',
-  'code_tools',
-  'notes',
-  'openclaw'
-]
+export const SIDEBAR_ICON_ORDER: SidebarIcon[] = SIDEBAR_APPS.map((app) => app.id)
 
 /**
  * 必须显示的侧边栏图标（不能被隐藏）
@@ -44,33 +191,21 @@ export const REQUIRED_SIDEBAR_ICONS: SidebarIcon[] = ['assistants']
 
 const sidebarIconSet = new Set<SidebarIcon>(SIDEBAR_ICON_ORDER)
 
-export const SIDEBAR_ROUTE_PREFIX_MAP: Record<SidebarIcon, string> = {
-  assistants: '/app/chat',
-  agents: '/app/agents',
-  store: '/app/library',
-  paintings: '/app/paintings',
-  translate: '/app/translate',
-  mini_app: '/app/mini-app',
-  knowledge: '/app/knowledge',
-  files: '/app/files',
-  code_tools: '/app/code',
-  notes: '/app/notes',
-  openclaw: '/app/openclaw'
-}
+export const SIDEBAR_ROUTE_PREFIX_MAP: Record<SidebarIcon, string> = SIDEBAR_APPS.reduce(
+  (acc, app) => {
+    acc[app.id] = app.routePrefix
+    return acc
+  },
+  {} as Record<SidebarIcon, string>
+)
 
-export const SIDEBAR_ICON_COMPONENTS: Record<SidebarIcon, SidebarMenuItem['icon']> = {
-  assistants: MessageSquare,
-  agents: MousePointerClick,
-  store: Sparkle,
-  paintings: Palette,
-  translate: Languages,
-  mini_app: LayoutGrid,
-  knowledge: FileSearch,
-  files: Folder,
-  code_tools: Code,
-  notes: NotepadText,
-  openclaw: OpenClawSidebarIcon
-}
+export const SIDEBAR_ICON_COMPONENTS: Record<SidebarIcon, SidebarMenuItem['icon']> = SIDEBAR_APPS.reduce(
+  (acc, app) => {
+    acc[app.id] = app.icon
+    return acc
+  },
+  {} as Record<SidebarIcon, SidebarMenuItem['icon']>
+)
 
 type SidebarIconPreferences = {
   visible: SidebarIcon[]
@@ -78,19 +213,14 @@ type SidebarIconPreferences = {
 }
 
 export function getSidebarMenuPath(icon: SidebarIcon, defaultPaintingProvider: string): string {
-  if (icon === 'paintings') {
-    return `/app/paintings/${defaultPaintingProvider}`
-  }
-
-  return SIDEBAR_ROUTE_PREFIX_MAP[icon] || ''
+  const app = getSidebarApp(icon)
+  if (!app) return ''
+  return app.resolveUrl?.({ defaultPaintingProvider }) ?? app.routePrefix
 }
 
 export function resolveSidebarActiveItem(pathname: string): SidebarIcon | '' {
-  const match = (Object.entries(SIDEBAR_ROUTE_PREFIX_MAP) as Array<[SidebarIcon, string]>).find(
-    ([, prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  )
-
-  return match?.[0] || ''
+  const match = SIDEBAR_APPS.find((app) => pathname === app.routePrefix || pathname.startsWith(`${app.routePrefix}/`))
+  return match?.id ?? ''
 }
 
 export function sanitizeSidebarIcons(icons: readonly SidebarIcon[] | undefined): SidebarIcon[] {

@@ -28,14 +28,24 @@ const historyTopic: Topic = {
 }
 
 const homeMocks = vi.hoisted(() => ({
-  activeTopicOptions: undefined as { autoPickFirst?: boolean; syncActiveCache?: boolean } | undefined,
+  activeTopicOptions: undefined as
+    | {
+        autoPickFirst?: boolean
+        passive?: boolean
+        activeTopicId?: string | null
+        initialTopic?: Topic
+        setActiveTopicId?: (id: string | null) => void
+      }
+    | undefined,
   cacheSetPersist: vi.fn(),
   discardTemporaryConversation: vi.fn(),
   activeTopicLoading: false,
   activeTopicOverride: undefined as Topic | undefined,
+  activeTopicSource: 'query' as 'query' | 'pending' | 'none',
   forceActiveTopicUndefined: false,
   historyTopic: undefined as Topic | undefined,
   locationState: undefined as { topic: Topic } | undefined,
+  navigate: vi.fn(),
   persistCacheValues: new Map<string, unknown>(),
   persistTemporaryConversation: vi.fn(),
   preferenceValues: new Map<string, unknown>(),
@@ -44,6 +54,7 @@ const homeMocks = vi.hoisted(() => ({
   routeSearch: {} as Record<string, unknown>,
   routeTopic: undefined as Topic | undefined,
   routeTopicLoading: false,
+  setActiveTopicId: vi.fn(),
   setShowSidebar: vi.fn(),
   startTemporaryConversation: vi.fn(),
   temporaryConversation: null as any,
@@ -117,13 +128,26 @@ vi.mock('@renderer/hooks/useTopic', async () => {
     useTopicMutations: () => ({
       refreshTopics: homeMocks.refreshTopics
     }),
-    useActiveTopic: (topic?: Topic, options?: { autoPickFirst?: boolean; syncActiveCache?: boolean }) => {
-      homeMocks.activeTopicOptions = options
-      const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(topic)
+    useActiveTopic: (options: {
+      initialTopic?: Topic
+      activeTopicId: string | null
+      setActiveTopicId: (id: string | null) => void
+      autoPickFirst?: boolean
+      passive?: boolean
+    }) => {
+      homeMocks.activeTopicOptions = {
+        autoPickFirst: options.autoPickFirst,
+        passive: options.passive,
+        activeTopicId: options.activeTopicId,
+        initialTopic: options.initialTopic,
+        setActiveTopicId: options.setActiveTopicId
+      }
+      const [activeTopic, setActiveTopic] = React.useState<Topic | undefined>(options.initialTopic)
       return {
         activeTopic: homeMocks.forceActiveTopicUndefined ? undefined : (homeMocks.activeTopicOverride ?? activeTopic),
         setActiveTopic,
-        isLoading: homeMocks.activeTopicLoading
+        isLoading: homeMocks.activeTopicLoading,
+        topicSource: homeMocks.activeTopicSource
       }
     },
     useTopicById: (topicId?: string) => ({
@@ -138,7 +162,7 @@ vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({
     state: homeMocks.locationState
   }),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => homeMocks.navigate,
   useSearch: () => homeMocks.routeSearch
 }))
 
@@ -287,6 +311,7 @@ describe('HomePage', () => {
     homeMocks.temporaryConversation = null
     homeMocks.activeTopicLoading = false
     homeMocks.activeTopicOverride = undefined
+    homeMocks.activeTopicSource = 'query'
     homeMocks.forceActiveTopicUndefined = false
     homeMocks.preferenceValues.clear()
     homeMocks.preferenceValues.set('topic.tab.show', false)
@@ -413,7 +438,11 @@ describe('HomePage', () => {
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
     expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('false')
     expect(screen.queryByRole('button', { name: 'New topic' })).not.toBeInTheDocument()
-    expect(homeMocks.activeTopicOptions).toEqual({ autoPickFirst: false, syncActiveCache: false })
+    expect(homeMocks.activeTopicOptions).toMatchObject({
+      autoPickFirst: false,
+      passive: true,
+      activeTopicId: 'topic-message'
+    })
     expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
     expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
     expect(homeMocks.cacheSetPersist).not.toHaveBeenCalled()
@@ -458,7 +487,11 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
-    expect(homeMocks.activeTopicOptions).toEqual({ autoPickFirst: false, syncActiveCache: true })
+    expect(homeMocks.activeTopicOptions).toMatchObject({
+      autoPickFirst: false,
+      passive: false,
+      activeTopicId: 'topic-message'
+    })
     await waitFor(() => {
       expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: undefined })
     })
@@ -595,5 +628,59 @@ describe('HomePage', () => {
     expect(homeMocks.updateTemporaryAssistant).toHaveBeenCalledWith('assistant-2')
     expect(homeMocks.replaceTemporaryConversation).not.toHaveBeenCalled()
     expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+  })
+
+  it('passes URL topicId to useActiveTopic as activeTopicId', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.routeSearch = { topicId: 'topic-from-url' }
+
+    await act(async () => {
+      render(<HomePage />)
+    })
+
+    expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-from-url')
+    expect(homeMocks.activeTopicOptions?.passive).toBe(false)
+  })
+
+  it('writes the URL via navigate when setActiveTopicId fires', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.routeSearch = {}
+
+    await act(async () => {
+      render(<HomePage />)
+    })
+
+    const setActiveTopicId = homeMocks.activeTopicOptions?.setActiveTopicId
+    expect(typeof setActiveTopicId).toBe('function')
+
+    await act(async () => {
+      setActiveTopicId?.('topic-next')
+    })
+
+    expect(homeMocks.navigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: '/app/chat',
+        replace: true
+      })
+    )
+    const navArgs = homeMocks.navigate.mock.calls[0]?.[0]
+    expect(typeof navArgs?.search).toBe('function')
+    expect(navArgs?.search({ assistantId: 'a-1' })).toEqual({ assistantId: 'a-1', topicId: 'topic-next' })
+  })
+
+  it('clears URL topicId when setActiveTopicId is called with null', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.routeSearch = { topicId: 'topic-x' }
+
+    await act(async () => {
+      render(<HomePage />)
+    })
+
+    await act(async () => {
+      homeMocks.activeTopicOptions?.setActiveTopicId?.(null)
+    })
+
+    const navArgs = homeMocks.navigate.mock.calls[0]?.[0]
+    expect(navArgs?.search({ topicId: 'topic-x' })).toEqual({ topicId: undefined })
   })
 })

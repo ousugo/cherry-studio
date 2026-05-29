@@ -235,7 +235,9 @@ const cacheMocks = vi.hoisted(() => ({
 }))
 
 const tabsContextMocks = vi.hoisted(() => ({
-  openTab: vi.fn()
+  openTab: vi.fn(),
+  setActiveTab: vi.fn(),
+  tabs: [] as Array<{ id: string; type: string; url: string }>
 }))
 
 const dataApiMocks = vi.hoisted(() => ({
@@ -310,17 +312,19 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: (key: string) => {
-    if (key === 'agent.active_session_id') {
-      return [
-        cacheMocks.state.activeSessionId,
-        (id: string | null) => {
-          cacheMocks.state.activeSessionId = id
-          cacheMocks.setActiveSessionId(id)
-        }
-      ]
-    }
-    return [undefined, vi.fn()]
+  useCache: () => [undefined, vi.fn()]
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useSearch: () => ({ sessionId: cacheMocks.state.activeSessionId ?? undefined }),
+  useNavigate: () => (args: { search?: ((prev: any) => any) | Record<string, unknown> }) => {
+    const next =
+      typeof args.search === 'function'
+        ? args.search({ sessionId: cacheMocks.state.activeSessionId ?? undefined })
+        : (args.search ?? {})
+    const nextSessionId = (next as { sessionId?: string | null }).sessionId ?? null
+    cacheMocks.state.activeSessionId = nextSessionId
+    cacheMocks.setActiveSessionId(nextSessionId)
   }
 }))
 
@@ -1269,7 +1273,7 @@ describe('Sessions', () => {
         callback(0)
       }
     })
-    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/agents?sessionId=session-a&view=message', {
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/agents?sessionId=session-a', {
       forceNew: true,
       title: 'Alpha session'
     })

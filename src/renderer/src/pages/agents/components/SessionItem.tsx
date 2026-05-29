@@ -8,7 +8,7 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import { PinIcon, Trash2, XIcon } from 'lucide-react'
+import { PinIcon, SquareArrowOutUpRight, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -57,10 +57,18 @@ const SessionItem = ({
   const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
   const hasStreamIndicator = !isActive && (isStreamPending || isStreamFulfilled)
+  // The active session is already shown in this tab — hide "open in new tab" on it.
+  const showOpenInNewTabAction = !!onOpenInNewTab && !isActive
+  const showDeleteOrStreamAction = hasStreamIndicator || !pinned
+  // pin is always shown. Reserve right-padding (literal Tailwind classes) so the
+  // title truncates before the hover actions, sized to the action count.
+  const trailingActionCount = (showOpenInNewTabAction ? 1 : 0) + 1 + (showDeleteOrStreamAction ? 1 : 0)
   const sessionTrailingActionPaddingClassName =
-    pinned && !hasStreamIndicator
-      ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
-      : 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
+    trailingActionCount >= 3
+      ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
+      : trailingActionCount === 2
+        ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
+        : 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
 
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
@@ -141,10 +149,29 @@ const SessionItem = ({
     [clearDeleteConfirmationTimeout, handleDelete, isConfirmingDeletion]
   )
 
-  const handlePress = useCallback(() => {
-    onPress(session.id)
-    onSelectItem?.()
-  }, [onPress, onSelectItem, session.id])
+  const handlePress = useCallback(
+    (event: MouseEvent) => {
+      // ⌘/Ctrl-click opens the session in a new tab (browser-style), matching
+      // the hover ⤢ action. Skip the active session — it's already shown here.
+      if ((event.metaKey || event.ctrlKey) && onOpenInNewTab && !isActive) {
+        handleOpenInNewTab()
+        return
+      }
+      onPress(session.id)
+      onSelectItem?.()
+    },
+    [handleOpenInNewTab, onOpenInNewTab, isActive, onPress, onSelectItem, session.id]
+  )
+
+  const handleAuxClick = useCallback(
+    (event: MouseEvent) => {
+      // Middle-click opens in a new tab (except the already-shown active session).
+      if (isActive || event.button !== 1 || !onOpenInNewTab) return
+      event.preventDefault()
+      handleOpenInNewTab()
+    },
+    [handleOpenInNewTab, isActive, onOpenInNewTab]
+  )
 
   const handleTogglePinClick = useCallback(
     (event: MouseEvent) => {
@@ -166,6 +193,7 @@ const SessionItem = ({
       className="relative"
       style={{ cursor: 'pointer' }}
       onClick={handlePress}
+      onAuxClick={handleAuxClick}
       title={sessionName}>
       <ResourceList.ItemLeadingSlot className={cn(!rowState.renaming && channelIcon && 'rounded-sm')}>
         {!rowState.renaming && channelIcon ? (
@@ -193,6 +221,18 @@ const SessionItem = ({
       )}
 
       <ResourceList.ItemActions active={hasStreamIndicator || (!pinned && isConfirmingDeletion)}>
+        {showOpenInNewTabAction && (
+          <Tooltip title={t('common.open_in_new_tab')} delay={500}>
+            <ResourceList.ItemAction
+              aria-label={t('common.open_in_new_tab')}
+              onClick={(event) => {
+                event.stopPropagation()
+                handleOpenInNewTab()
+              }}>
+              <SquareArrowOutUpRight size={13} />
+            </ResourceList.ItemAction>
+          </Tooltip>
+        )}
         <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
           <ResourceList.ItemAction
             aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}

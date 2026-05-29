@@ -33,8 +33,8 @@ import {
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { isMac } from '@renderer/config/constant'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
+import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import {
@@ -61,6 +61,7 @@ import {
   MoreHorizontal,
   PinIcon,
   Square,
+  SquareArrowOutUpRight,
   SquareMinus,
   SquarePen,
   Trash2,
@@ -70,7 +71,6 @@ import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { buildChatMessageRouteUrl } from '../../routeSearch'
 import type { AddNewTopicPayload } from '../../types'
 import {
   type AssistantGroupAction,
@@ -298,7 +298,7 @@ function AssistantGroupMoreMenu({
 
 export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, setActiveTopic }: Props) {
   const { t } = useTranslation()
-  const tabs = useOptionalTabsContext()
+  const conversationNav = useConversationNavigation('assistants')
   const [groupNow] = useState(() => dayjs())
   const { notesPath } = useNotesSettings()
   const { updateTopic: patchTopic, deleteTopic: deleteTopicById, refreshTopics } = useTopicMutations()
@@ -669,12 +669,9 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   }, [])
   const openTopicInNewTab = useCallback(
     (topic: Topic) => {
-      tabs?.openTab(buildChatMessageRouteUrl(topic.id), {
-        forceNew: true,
-        title: topic.name || t('common.unnamed')
-      })
+      conversationNav.openInNewTab(topic.id, topic.name || t('common.unnamed'))
     },
-    [tabs, t]
+    [conversationNav, t]
   )
 
   const handleToggleAssistantPin = useCallback(
@@ -1153,7 +1150,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
           onDeleteClick={handleDeleteClick}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
           onEditAssistant={openAssistantEditor}
-          onOpenInNewTab={tabs ? openTopicInNewTab : undefined}
+          onOpenInNewTab={openTopicInNewTab}
           onPinTopic={handlePinTopic}
           onSwitchTopic={setActiveTopic}
           selectedIds={selectedIds}
@@ -1347,11 +1344,22 @@ function TopicRow({
       : ''
   const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
   const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
-  const hasTopicTrailingActions = !topic.pinned || !isManageMode || hasTopicStreamIndicator
+  // The active topic is already shown in this tab — offering "open in new tab"
+  // for it would just duplicate the current view, so hide it on the active row.
+  const showOpenInNewTabAction = !isManageMode && !!onOpenInNewTab && !isActive
+  const showPinAction = !isManageMode
+  const showDeleteOrStreamAction = hasTopicStreamIndicator || !topic.pinned
+  const hasTopicTrailingActions = showOpenInNewTabAction || showPinAction || showDeleteOrStreamAction
+  const trailingActionCount =
+    (showOpenInNewTabAction ? 1 : 0) + (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
+  // Tailwind needs literal class strings, so map the reserved right-padding
+  // (so the title truncates before the hover actions) per action count.
   const topicTrailingActionPaddingClassName =
-    !isManageMode && (hasTopicStreamIndicator || !topic.pinned)
-      ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
-      : 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
+    trailingActionCount >= 3
+      ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
+      : trailingActionCount === 2
+        ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
+        : 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
@@ -1386,7 +1394,7 @@ function TopicRow({
         isManageMode && !canSelect && 'cursor-not-allowed opacity-50'
       )}
       style={{ cursor: isManageMode && !canSelect ? 'not-allowed' : 'pointer' }}
-      onClick={() => {
+      onClick={(event) => {
         if (isManageMode) {
           if (canSelect) {
             toggleSelectTopic(topic.id)
@@ -1394,7 +1402,20 @@ function TopicRow({
           return
         }
 
+        // ⌘/Ctrl-click opens the topic in a new tab (browser-style), matching
+        // the hover ⤢ action. Skip the active topic — it's already shown here.
+        if ((event.metaKey || event.ctrlKey) && onOpenInNewTab && !isActive) {
+          onOpenInNewTab(topic)
+          return
+        }
+
         onSwitchTopic(topic)
+      }}
+      onAuxClick={(event) => {
+        // Middle-click opens in a new tab (except the already-shown active topic).
+        if (isManageMode || isActive || event.button !== 1 || !onOpenInNewTab) return
+        event.preventDefault()
+        onOpenInNewTab(topic)
       }}>
       <ResourceList.ItemLeadingSlot className={cn(isManageMode && !canSelect && 'opacity-50')}>
         {isManageMode ? (
@@ -1429,6 +1450,18 @@ function TopicRow({
       )}
       {hasTopicTrailingActions && (
         <ResourceList.ItemActions active={hasTopicStreamIndicator || deletingTopicId === topic.id}>
+          {showOpenInNewTabAction && (
+            <Tooltip title={t('common.open_in_new_tab')} delay={500}>
+              <ResourceList.ItemAction
+                aria-label={t('common.open_in_new_tab')}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onOpenInNewTab?.(topic)
+                }}>
+                <SquareArrowOutUpRight size={13} />
+              </ResourceList.ItemAction>
+            </Tooltip>
+          )}
           {!isManageMode && (
             <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
               <ResourceList.ItemAction
