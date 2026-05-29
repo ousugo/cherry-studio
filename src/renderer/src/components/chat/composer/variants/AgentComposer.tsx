@@ -630,12 +630,16 @@ const AgentComposerInner = ({
     () => [...files.map(agentFileToComposerToken), ...selectedSkills.map(agentSkillToComposerToken)],
     [files, selectedSkills]
   )
+  const skillByFilename = useMemo(
+    () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
+    [availableSkills]
+  )
   const resolveSkillMarker = useCallback(
     (marker: string): ComposerDraftToken | null => {
-      const skill = availableSkills.find((candidate) => candidate.filename === marker)
+      const skill = skillByFilename.get(marker)
       return skill ? agentSkillToComposerToken(skill) : null
     },
-    [availableSkills]
+    [skillByFilename]
   )
 
   const handleTokensChange = useCallback(
@@ -643,10 +647,14 @@ const AgentComposerInner = ({
       const fileTokenIds = getAgentComposerTokenIds(draftTokens, 'file')
       const skillTokenIds = getAgentComposerTokenIds(draftTokens, 'skill')
       const skillTokens = draftTokens.filter((token) => token.kind === 'skill')
-      setFiles((prev) => prev.filter((file) => fileTokenIds.has(agentComposerTokenId.file(file))))
+      setFiles((prev) => {
+        const next = prev.filter((file) => fileTokenIds.has(agentComposerTokenId.file(file)))
+        return next.length === prev.length ? prev : next
+      })
       setSelectedSkills((prev) => {
         const next = prev.filter((skill) => skillTokenIds.has(agentComposerTokenId.skill(skill)))
         const nextIds = new Set(next.map(agentComposerTokenId.skill))
+        let changed = next.length !== prev.length
 
         for (const token of skillTokens) {
           const skill = availableSkills.find((candidate) => {
@@ -659,9 +667,10 @@ const AgentComposerInner = ({
           if (nextIds.has(skillId)) continue
           next.push(skill)
           nextIds.add(skillId)
+          changed = true
         }
 
-        return next
+        return changed ? next : prev
       })
     },
     [availableSkills, setFiles]
@@ -669,16 +678,22 @@ const AgentComposerInner = ({
 
   useEffect(() => {
     setFiles((prev) => {
-      const counts = new Map<string, number>()
+      const seenIds = new Set<string>()
+      const next: typeof prev = []
+      let changed = false
+
       for (const file of prev) {
         const id = agentComposerTokenId.file(file)
-        counts.set(id, (counts.get(id) ?? 0) + 1)
+        if (seenIds.has(id)) {
+          changed = true
+          continue
+        }
+
+        seenIds.add(id)
+        next.push(file)
       }
 
-      const duplicateIds = new Set([...counts].filter(([, count]) => count > 1).map(([id]) => id))
-      if (duplicateIds.size === 0) return prev
-
-      return prev.filter((file) => !duplicateIds.has(agentComposerTokenId.file(file)))
+      return changed ? next : prev
     })
   }, [files, setFiles])
 
@@ -983,7 +998,7 @@ const AgentComposerInner = ({
           accessiblePaths.map((dirPath) =>
             window.api.file.listDirectory(dirPath, {
               recursive: true,
-              maxDepth: 10,
+              maxDepth: 3,
               includeHidden: false,
               includeFiles: true,
               includeDirectories: true,

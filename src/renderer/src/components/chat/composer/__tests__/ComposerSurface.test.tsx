@@ -17,6 +17,12 @@ const mocks = vi.hoisted(() => ({
   docDescendants: vi.fn(),
   getJSON: vi.fn(),
   dispatch: vi.fn(),
+  pasteHandler: vi.fn(),
+  preferences: {
+    'chat.input.paste_long_text_as_file': false,
+    'chat.input.paste_long_text_threshold': 1000,
+    'chat.input.send_message_shortcut': 'Enter'
+  } as Record<string, unknown>,
   editorPresetOptions: undefined as any,
   quickPanelClose: vi.fn(),
   quickPanelDispatchKeyDown: vi.fn(),
@@ -144,14 +150,7 @@ vi.mock('@renderer/pages/home/Inputbar/SendMessageButton', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) => {
-    const values: Record<string, unknown> = {
-      'chat.input.paste_long_text_as_file': false,
-      'chat.input.paste_long_text_threshold': 1000,
-      'chat.input.send_message_shortcut': 'Enter'
-    }
-    return [values[key]]
-  }
+  usePreference: (key: string) => [mocks.preferences[key]]
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
@@ -172,7 +171,7 @@ vi.mock('@renderer/pages/home/Inputbar/hooks/useFileDragDrop', () => ({
 
 vi.mock('@renderer/pages/home/Inputbar/hooks/usePasteHandler', () => ({
   usePasteHandler: () => ({
-    handlePaste: vi.fn()
+    handlePaste: mocks.pasteHandler
   })
 }))
 
@@ -249,6 +248,12 @@ describe('ComposerSurface', () => {
     mocks.getJSON.mockReset()
     mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
     mocks.dispatch.mockReset()
+    mocks.pasteHandler.mockReset()
+    mocks.preferences = {
+      'chat.input.paste_long_text_as_file': false,
+      'chat.input.paste_long_text_threshold': 1000,
+      'chat.input.send_message_shortcut': 'Enter'
+    }
     mocks.editorPresetOptions = undefined
     mocks.quickPanelClose.mockReset()
     mocks.quickPanelDispatchKeyDown.mockReset()
@@ -674,6 +679,73 @@ describe('ComposerSurface', () => {
     expect(mocks.insertContent).toHaveBeenCalledTimes(2)
   })
 
+  it('does not notify token changes when only text changes', async () => {
+    const onTextChange = vi.fn()
+    const onTokensChange = vi.fn()
+    render(
+      <ComposerSurface
+        {...baseProps}
+        managedTokenKinds={['file']}
+        onTextChange={onTextChange}
+        onTokensChange={onTokensChange}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    act(() => {
+      mocks.editorOptions.onUpdate({
+        editor: {
+          getJSON: () => ({
+            type: 'doc',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }]
+          }),
+          schema: { nodes: {} },
+          state: {
+            doc: {
+              descendants: vi.fn()
+            },
+            tr: mocks.transaction
+          },
+          view: {
+            composing: false,
+            dispatch: mocks.dispatch
+          }
+        }
+      })
+    })
+
+    expect(onTextChange).toHaveBeenCalledWith('hello')
+    expect(onTokensChange).not.toHaveBeenCalled()
+  })
+
+  it('lets composer token shortcuts handle Backspace before removing attachments', async () => {
+    const setFiles = vi.fn()
+    render(<ComposerSurface {...baseProps} filesCount={1} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    mocks.selection = {
+      empty: false,
+      from: 1,
+      to: 2,
+      node: { type: { name: 'composerToken' } },
+      $from: { nodeBefore: null }
+    }
+    const event = {
+      key: 'Backspace',
+      isComposing: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn()
+    }
+
+    const handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+
+    expect(handled).toBe(false)
+    expect(setFiles).not.toHaveBeenCalled()
+    expect(event.preventDefault).not.toHaveBeenCalled()
+  })
+
   it('opens the QuickPanel root when slash follows whitespace', async () => {
     render(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
 
@@ -835,6 +907,27 @@ describe('ComposerSurface', () => {
     ])
     expect(resolveSkillMarker).toHaveBeenCalledWith('find-skills')
     expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
+  })
+
+  it('leaves long text paste on the native editor path instead of converting it to a file', async () => {
+    mocks.preferences['chat.input.paste_long_text_as_file'] = true
+    mocks.preferences['chat.input.paste_long_text_threshold'] = 3
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? 'long text' : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(false)
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(mocks.pasteHandler).not.toHaveBeenCalled()
   })
 
   it('does not reapply serialized skill prompt text as visible editor content', async () => {

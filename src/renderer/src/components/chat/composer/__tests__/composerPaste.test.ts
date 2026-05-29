@@ -44,6 +44,53 @@ describe('composer paste handling', () => {
     ).toEqual([{ type: 'text', text: 'single line' }])
   })
 
+  it('restores mixed prompt variable and slash skill markers in one paste pass', () => {
+    expect(
+      getComposerPlainTextPasteOverride('Use ${city} with /pdf/\nThen ${date}', {
+        pasteLongTextAsFile: false,
+        pasteLongTextThreshold: 1500,
+        promptVariableStartIndex: 2,
+        resolveSkillMarker
+      })
+    ).toEqual([
+      { type: 'text', text: 'Use ' },
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'prompt-variable:2:city',
+          kind: 'promptVariable',
+          label: 'city',
+          description: '${city}',
+          promptText: '${city}',
+          payload: { raw: '${city}', variableName: 'city' }
+        }
+      },
+      { type: 'text', text: ' with ' },
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF',
+          promptText: 'Use the PDF skill.'
+        }
+      },
+      { type: 'hardBreak' },
+      { type: 'text', text: 'Then ' },
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'prompt-variable:3:date',
+          kind: 'promptVariable',
+          label: 'date',
+          description: '${date}',
+          promptText: '${date}',
+          payload: { raw: '${date}', variableName: 'date' }
+        }
+      }
+    ])
+  })
+
   it('restores slash skill markers only when a resolver is provided', () => {
     expect(createComposerMarkedTextPasteContent('/pdf/ hello', resolveSkillMarker)).toEqual([
       {
@@ -66,6 +113,39 @@ describe('composer paste handling', () => {
         pasteLongTextThreshold: 1500
       })
     ).toEqual([{ type: 'text', text: '/pdf/ hello' }])
+  })
+
+  it('preserves unresolved slash markers while restoring other markers', () => {
+    expect(
+      getComposerPlainTextPasteOverride('/missing/ ${city} /pdf/', {
+        pasteLongTextAsFile: false,
+        pasteLongTextThreshold: 1500,
+        resolveSkillMarker
+      })
+    ).toEqual([
+      { type: 'text', text: '/missing/ ' },
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'prompt-variable:0:city',
+          kind: 'promptVariable',
+          label: 'city',
+          description: '${city}',
+          promptText: '${city}',
+          payload: { raw: '${city}', variableName: 'city' }
+        }
+      },
+      { type: 'text', text: ' ' },
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF',
+          promptText: 'Use the PDF skill.'
+        }
+      }
+    ])
   })
 
   it('does not parse skill markers with spaces inside the slashes', () => {

@@ -123,6 +123,15 @@ function addMissingToken(
   insertComposerTokenAtCursor(editor, token, { insertSeparator: token.kind !== 'model' })
 }
 
+function hasComposerTokenBeforeSelection(editor: Editor) {
+  const selection = editor.state.selection
+  const selectedNode = (selection as { node?: { type?: { name?: string } } }).node
+  if (selectedNode?.type?.name === COMPOSER_TOKEN_NODE_NAME) return true
+  if (!selection.empty) return false
+
+  return selection.$from.nodeBefore?.type.name === COMPOSER_TOKEN_NODE_NAME
+}
+
 function insertComposerTokenAtCursor(
   editor: Editor,
   token: ComposerDraftToken,
@@ -190,6 +199,19 @@ function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
 }
 
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
+const getManagedTokenSignature = (
+  tokens: readonly ComposerSerializedToken[],
+  managedTokenKindSet: ReadonlySet<ComposerDraftToken['kind']>
+) =>
+  tokens
+    .filter((token) => managedTokenKindSet.has(token.kind))
+    .map((token) => `${token.kind}:${token.id}`)
+    .join('\n')
+
+function shouldUseNativeLongTextPaste(text: string, pasteLongTextAsFile?: boolean, pasteLongTextThreshold?: number) {
+  return Boolean(text && pasteLongTextAsFile && pasteLongTextThreshold && text.length > pasteLongTextThreshold)
+}
+
 const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT = 'max(220px, 40vh)'
 const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT = 'max(220px, 50vh)'
 const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,40vh)]!'
@@ -263,6 +285,7 @@ export default function ComposerSurface({
   const pendingLocalTextEchoRef = useRef<string | null>(null)
   const inputListenersRef = useRef(new Set<(event?: { isComposing?: boolean }) => void>())
   const isSyncingTokensRef = useRef(false)
+  const managedTokenSignatureRef = useRef('')
   const sendDisabledRef = useRef(sendDisabled)
   const sendBlockedReasonRef = useRef(sendBlockedReason)
   const onSendDraftRef = useRef(onSendDraft)
@@ -602,7 +625,12 @@ export default function ComposerSurface({
           return true
         }
 
-        if (event.key === 'Backspace' && textRef.current.trim().length === 0 && filesCount > 0) {
+        if (
+          event.key === 'Backspace' &&
+          textRef.current.trim().length === 0 &&
+          filesCount > 0 &&
+          (!editorRef.current || !hasComposerTokenBeforeSelection(editorRef.current))
+        ) {
           setFiles((prev) => prev.slice(0, -1))
           event.preventDefault()
           return true
@@ -690,9 +718,14 @@ export default function ComposerSurface({
         return true
       }
 
+      if (shouldUseNativeLongTextPaste(pastedText, pasteLongTextAsFile, pasteLongTextThreshold)) {
+        return false
+      }
+
       const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, {
         pasteLongTextAsFile,
         pasteLongTextThreshold,
+        promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
         resolveSkillMarker
       })
 
@@ -715,8 +748,14 @@ export default function ComposerSurface({
       onTextChange(nextText)
       inputListenersRef.current.forEach((listener) => listener({ isComposing: updatedEditor.view.composing }))
 
+      const nextManagedTokenSignature = getManagedTokenSignature(draft.tokens, managedTokenKindSet)
       if (!isSyncingTokensRef.current) {
-        onTokensChange(draft.tokens)
+        if (nextManagedTokenSignature !== managedTokenSignatureRef.current) {
+          managedTokenSignatureRef.current = nextManagedTokenSignature
+          onTokensChange(draft.tokens)
+        }
+      } else {
+        managedTokenSignatureRef.current = nextManagedTokenSignature
       }
     },
     onCreate: ({ editor: createdEditor }) => {
@@ -759,6 +798,11 @@ export default function ComposerSurface({
     } finally {
       isSyncingTokensRef.current = false
     }
+
+    managedTokenSignatureRef.current = getManagedTokenSignature(
+      serializeComposerDocument(editor).tokens,
+      managedTokenKindSet
+    )
   }, [editor, managedTokenKindSet, tokens])
 
   const inputAdapter = useMemo<QuickPanelInputAdapter | undefined>(() => {

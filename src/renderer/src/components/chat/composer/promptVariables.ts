@@ -2,6 +2,7 @@ import type { Editor, JSONContent } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { NodeSelection, type Selection } from '@tiptap/pm/state'
 
+import { type ComposerTokenMarkerRule, createComposerTokenMarkerInlineContent } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME, requestComposerPromptVariableEdit } from './ComposerTokenNode'
 import type { ComposerDraftToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
@@ -56,6 +57,26 @@ export function createPromptVariableToken(variableName: string, raw: string, ind
   }
 }
 
+export function createPromptVariableMarkerRule(options: { startIndex?: number } = {}): ComposerTokenMarkerRule {
+  const startIndex = options.startIndex ?? 0
+  let variableIndex = 0
+
+  return {
+    id: 'promptVariable',
+    pattern: PROMPT_VARIABLE_PATTERN,
+    resolve: (match) => {
+      const raw = match[0]
+      const matchIndex = match.index ?? 0
+      const variableName = match[1]?.trim() ?? ''
+      if (!raw || !variableName) return null
+
+      const token = createPromptVariableToken(variableName, raw, startIndex + variableIndex)
+      variableIndex += 1
+      return { from: matchIndex, to: matchIndex + raw.length, token }
+    }
+  }
+}
+
 function readPromptVariableIndex(token: ComposerDraftToken): number | undefined {
   if (token.kind !== 'promptVariable') return undefined
   const match = PROMPT_VARIABLE_ID_PATTERN.exec(token.id)
@@ -78,32 +99,9 @@ export function getNextPromptVariableIndex(editor: Editor): number {
   return nextIndex
 }
 
-function appendTextContent(content: JSONContent[], text: string) {
-  const lines = text.split('\n')
-  lines.forEach((line, index) => {
-    if (index > 0) content.push({ type: 'hardBreak' })
-    if (line) content.push({ type: 'text', text: line })
-  })
-}
-
 export function createPromptVariableInlineContent(text: string, options: { startIndex?: number } = {}): JSONContent[] {
-  const content: JSONContent[] = []
-  const segments = parsePromptVariableSegments(text)
   const startIndex = options.startIndex ?? 0
-
-  for (const segment of segments) {
-    if (segment.type === 'text') {
-      appendTextContent(content, segment.text)
-      continue
-    }
-
-    content.push({
-      type: COMPOSER_TOKEN_NODE_NAME,
-      attrs: createPromptVariableToken(segment.variableName, segment.raw, startIndex + segment.index)
-    })
-  }
-
-  return content
+  return createComposerTokenMarkerInlineContent(text, [createPromptVariableMarkerRule({ startIndex })]).content
 }
 
 export function createPromptVariableContent(text: string): JSONContent {

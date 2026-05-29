@@ -534,27 +534,36 @@ const ChatComposerInner = ({
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
       const tokenIds = getComposerTokenIds(draftTokens)
-      setFiles((prev) => prev.filter((file) => tokenIds.has(chatComposerTokenId.file(file))))
-      const nextSelectedKnowledgeBases = selectedKnowledgeBases.filter((base) =>
-        tokenIds.has(chatComposerTokenId.knowledge(base))
-      )
-      setSelectedKnowledgeBases(nextSelectedKnowledgeBases)
+      setFiles((prev) => {
+        const next = prev.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
+        return next.length === prev.length ? prev : next
+      })
+      setSelectedKnowledgeBases((prev) => {
+        const next = prev.filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
+        return next.length === prev.length ? prev : next
+      })
     },
-    [selectedKnowledgeBases, setFiles, setSelectedKnowledgeBases]
+    [setFiles, setSelectedKnowledgeBases]
   )
 
   useEffect(() => {
     setFiles((prev) => {
-      const counts = new Map<string, number>()
+      const seenIds = new Set<string>()
+      const next: typeof prev = []
+      let changed = false
+
       for (const file of prev) {
         const id = chatComposerTokenId.file(file)
-        counts.set(id, (counts.get(id) ?? 0) + 1)
+        if (seenIds.has(id)) {
+          changed = true
+          continue
+        }
+
+        seenIds.add(id)
+        next.push(file)
       }
 
-      const duplicateIds = new Set([...counts].filter(([, count]) => count > 1).map(([id]) => id))
-      if (duplicateIds.size === 0) return prev
-
-      return prev.filter((file) => !duplicateIds.has(chatComposerTokenId.file(file)))
+      return changed ? next : prev
     })
   }, [files, setFiles])
 
