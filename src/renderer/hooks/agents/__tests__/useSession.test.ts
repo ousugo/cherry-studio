@@ -62,15 +62,14 @@ describe('useActiveSession', () => {
     vi.clearAllMocks()
   })
 
-  const setActiveSessionId = vi.fn()
-
   it('ignores query data that does not match the active session id', () => {
+    MockUseCacheUtils.setCacheValue('agent.active_session_id', 'session-2')
     MockUseDataApiUtils.mockQueryResult('/sessions/:sessionId', {
       data: createSession({ id: 'session-1' }),
       isLoading: false
     })
 
-    const { result } = renderHook(() => useActiveSession({ activeSessionId: 'session-2', setActiveSessionId }))
+    const { result } = renderHook(() => useActiveSession())
 
     expect(result.current.activeSessionId).toBe('session-2')
     expect(result.current.session).toBeUndefined()
@@ -79,14 +78,13 @@ describe('useActiveSession', () => {
 
   it('uses a matching pending session while the query catches up', () => {
     const pendingSession = createSession({ id: 'temp-session-1' })
+    MockUseCacheUtils.setCacheValue('agent.active_session_id', 'temp-session-1')
     MockUseDataApiUtils.mockQueryResult('/sessions/:sessionId', {
       data: undefined,
       isLoading: true
     })
 
-    const { result } = renderHook(() =>
-      useActiveSession({ activeSessionId: 'temp-session-1', setActiveSessionId, pendingSession })
-    )
+    const { result } = renderHook(() => useActiveSession({ pendingSession }))
 
     expect(result.current.session).toBe(pendingSession)
     expect(result.current.sessionSource).toBe('pending')
@@ -96,14 +94,13 @@ describe('useActiveSession', () => {
   it('prefers matching query data over a pending session', () => {
     const querySession = createSession({ id: 'session-1' })
     const pendingSession = createSession({ id: 'session-1', name: 'Pending Session' })
+    MockUseCacheUtils.setCacheValue('agent.active_session_id', 'session-1')
     MockUseDataApiUtils.mockQueryResult('/sessions/:sessionId', {
       data: querySession,
       isLoading: false
     })
 
-    const { result } = renderHook(() =>
-      useActiveSession({ activeSessionId: 'session-1', setActiveSessionId, pendingSession })
-    )
+    const { result } = renderHook(() => useActiveSession({ pendingSession }))
 
     expect(result.current.session).toBe(querySession)
     expect(result.current.sessionSource).toBe('query')

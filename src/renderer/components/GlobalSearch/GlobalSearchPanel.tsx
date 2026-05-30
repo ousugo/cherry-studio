@@ -9,12 +9,12 @@ import {
   KbdGroup,
   SegmentedControl
 } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { GroupedVirtualList } from '@renderer/components/VirtualList'
-import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
@@ -178,8 +178,6 @@ function getPreviewMessageJumpTarget(
 export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const { t, i18n } = useTranslation()
   const { openTab } = useTabs()
-  const chatNav = useConversationNavigation('assistants')
-  const agentNav = useConversationNavigation('agents')
   const { defaultPaintingProvider } = useSettings()
   const invalidateCache = useInvalidateCache()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -260,24 +258,26 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     async (topicId: string) => {
       const apiTopic = await dataApiService.get(`/topics/${topicId}`)
       const topic = mapApiTopicToRendererTopic(apiTopic)
-      chatNav.focusOrOpen(topic.id)
+      cacheService.set('topic.active_id', topic.id)
+      openTab('/app/chat')
       window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, topic)
       })
       onClose()
     },
-    [onClose, chatNav]
+    [onClose, openTab]
   )
 
   const openSession = useCallback(
     (sessionId: string) => {
-      agentNav.focusOrOpen(sessionId)
+      cacheService.set('agent.active_session_id', sessionId)
+      openTab('/app/agents')
       window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, sessionId)
       })
       onClose()
     },
-    [onClose, agentNav]
+    [onClose, openTab]
   )
 
   const openTopicMessageById = useCallback(
@@ -294,26 +294,28 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
       await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: activeNodeId } })
       await invalidateCache(`/topics/${topicId}/messages`)
-      chatNav.focusOrOpen(topic.id)
+      cacheService.set('topic.active_id', topic.id)
+      openTab('/app/chat')
       window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, { topic, messageId })
       })
       onClose()
     },
-    [invalidateCache, onClose, chatNav]
+    [invalidateCache, onClose, openTab]
   )
 
   const openSessionMessageById = useCallback(
     async (sessionId: string, messageId: string) => {
       await dataApiService.get(`/sessions/${sessionId}`)
       await invalidateCache(['/sessions', `/sessions/${sessionId}`, `/sessions/${sessionId}/messages`])
-      agentNav.focusOrOpen(sessionId)
+      cacheService.set('agent.active_session_id', sessionId)
+      openTab('/app/agents')
       window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, { sessionId, messageId })
       })
       onClose()
     },
-    [invalidateCache, onClose, agentNav]
+    [invalidateCache, onClose, openTab]
   )
 
   const openKnowledgeBase = useCallback(

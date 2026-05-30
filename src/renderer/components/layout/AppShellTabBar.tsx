@@ -8,17 +8,39 @@ import {
 } from '@cherrystudio/ui'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
+import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import type { Tab } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils'
-import { AppWindow, ChevronsLeft, Pin, PinOff, Plus, X } from 'lucide-react'
+import { ChevronsLeft, Pin, PinOff, Plus, X } from 'lucide-react'
+import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
-import { TabIcon } from './TabIcon'
-import { TITLE_BAR_HEIGHT_CLASS } from './titleBar'
+import { getTabIcon } from './tabIcons'
 import { useTabDrag } from './useTabDrag'
+
+const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ tab, size, className }) => {
+  if (tab.icon) {
+    const logo = getMiniAppsLogo(tab.icon)
+    if (logo) {
+      const Compound = logo
+      return <Compound.Avatar size={size} shape="rounded" className={cn('select-none', className)} />
+    }
+    return (
+      <img
+        src={tab.icon}
+        alt=""
+        draggable={false}
+        className={cn('select-none rounded-[3px] object-cover', className)}
+        style={{ width: size, height: size }}
+      />
+    )
+  }
+  const Icon = getTabIcon(tab)
+  return <Icon size={size} strokeWidth={1.6} className={className} />
+}
 
 const DEFAULT_TAB_ID = 'chat'
 
@@ -33,7 +55,7 @@ type AppShellTabBarProps = {
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
   pinTab: (id: string) => void
   unpinTab: (id: string) => void
-  detachTab?: (id: string) => void
+  isDetached?: boolean
 }
 
 // ─── Drag item props (grouped to reduce sub-component prop count) ─────────────
@@ -238,7 +260,6 @@ const TabRightClickMenu = ({
   isPinned,
   onMoveToFirst,
   onPin,
-  onOpenInNewWindow,
   onClose,
   enabled = true,
   children
@@ -246,7 +267,6 @@ const TabRightClickMenu = ({
   isPinned: boolean
   onMoveToFirst: () => void
   onPin: () => void
-  onOpenInNewWindow?: () => void
   onClose: () => void
   enabled?: boolean
   children: React.ReactNode
@@ -269,13 +289,6 @@ const TabRightClickMenu = ({
             {isPinned ? t('tab.unpin') : t('tab.pin')}
           </ContextMenuItemContent>
         </ContextMenuItem>
-        {onOpenInNewWindow && (
-          <ContextMenuItem onSelect={onOpenInNewWindow}>
-            <ContextMenuItemContent icon={<AppWindow size={14} />}>
-              {t('tab.open_in_new_window')}
-            </ContextMenuItemContent>
-          </ContextMenuItem>
-        )}
         <ContextMenuItem onSelect={onClose}>
           <ContextMenuItemContent icon={<X size={14} />}>{t('tab.close')}</ContextMenuItemContent>
         </ContextMenuItem>
@@ -294,11 +307,11 @@ export const AppShellTabBar = ({
   reorderTabs,
   pinTab,
   unpinTab,
-  detachTab
+  isDetached = false
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { rightPaddingClass } = useShellTabBarLayout()
+  const { rightPaddingClass } = useShellTabBarLayout(isDetached)
   const tabTone = useMemo<TabToneProps>(
     () =>
       isMacTransparentWindow
@@ -366,7 +379,7 @@ export const AppShellTabBar = ({
   // ─── Drag logic (extracted to useTabDrag) ──────────────────────────────────
 
   const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
-    useTabDrag({ pinnedTabs, normalTabs, reorderTabs, closeTab, setActiveTab })
+    useTabDrag({ pinnedTabs, normalTabs, isDetached, reorderTabs, closeTab, setActiveTab })
 
   // ─── Action handlers ────────────────────────────────────────────────────────
 
@@ -381,8 +394,7 @@ export const AppShellTabBar = ({
       <header
         ref={tabBarRef}
         className={cn(
-          'relative flex w-full select-none items-center gap-1 [-webkit-app-region:drag]',
-          TITLE_BAR_HEIGHT_CLASS,
+          'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           rightPaddingClass,
           isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
@@ -398,8 +410,8 @@ export const AppShellTabBar = ({
                   isPinned={!!tab.isPinned}
                   onMoveToFirst={() => handleMoveToFirst(tab.id)}
                   onPin={() => handlePinToggle(tab.id)}
-                  onOpenInNewWindow={detachTab && !tab.isTemporary ? () => detachTab(tab.id) : undefined}
-                  onClose={() => closeTab(tab.id)}>
+                  onClose={() => closeTab(tab.id)}
+                  enabled={!isDetached}>
                   <PinnedTabButton
                     tab={tab}
                     isActive={tab.id === activeTabId}
@@ -425,7 +437,7 @@ export const AppShellTabBar = ({
             </div>
           )}
 
-          {pinnedTabs.length > 0 && hasUnpinnedTabs && <Separator />}
+          {!isDetached && pinnedTabs.length > 0 && hasUnpinnedTabs && <Separator />}
 
           {defaultTab && (
             <NormalTabButton
@@ -433,6 +445,7 @@ export const AppShellTabBar = ({
               isActive={defaultTab.id === activeTabId}
               onSelect={() => setActiveTab(defaultTab.id)}
               onClose={() => undefined}
+              showClose={!isDetached}
               tone={tabTone}
               drag={{
                 isDragging: false,
@@ -458,13 +471,14 @@ export const AppShellTabBar = ({
               isPinned={!!tab.isPinned}
               onMoveToFirst={() => handleMoveToFirst(tab.id)}
               onPin={() => handlePinToggle(tab.id)}
-              onOpenInNewWindow={detachTab ? () => detachTab(tab.id) : undefined}
-              onClose={() => closeTab(tab.id)}>
+              onClose={() => closeTab(tab.id)}
+              enabled={!isDetached}>
               <NormalTabButton
                 tab={tab}
                 isActive={tab.id === activeTabId}
                 onSelect={() => handleTabClick(tab.id)}
                 onClose={() => closeTab(tab.id)}
+                showClose={!isDetached}
                 tone={tabTone}
                 drag={{
                   isDragging: isDragging(tab.id),
@@ -485,20 +499,22 @@ export const AppShellTabBar = ({
           ))}
 
           {/* New tab button — sticky so it hugs the last tab but never scrolls away */}
-          <button
-            type="button"
-            aria-label={t('globalSearch.open')}
-            onClick={handleOpenGlobalSearch}
-            className={cn(
-              'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
-              isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
-            )}
-            title={t('globalSearch.open')}>
-            <Plus size={14} />
-          </button>
+          {!isDetached && (
+            <button
+              type="button"
+              aria-label={t('globalSearch.open')}
+              onClick={handleOpenGlobalSearch}
+              className={cn(
+                'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
+                isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
+              )}
+              title={t('globalSearch.open')}>
+              <Plus size={14} />
+            </button>
+          )}
         </div>
 
-        <ShellTabBarActions />
+        <ShellTabBarActions isDetached={isDetached} />
       </header>
     </>
   )

@@ -386,10 +386,7 @@ const api = {
   window: {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.MainWindow_SetMinimumSize, width, height),
-    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.MainWindow_ResetMinimumSize),
-    // Pin/unpin the current sub-window (always-on-top).
-    setAlwaysOnTop: (pinned: boolean): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.SubWindow_SetAlwaysOnTop, pinned)
+    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.MainWindow_ResetMinimumSize)
   },
   fileService: {
     upload: (provider: Provider, file: FileMetadata): Promise<FileUploadResponse> =>

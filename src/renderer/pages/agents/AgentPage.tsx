@@ -5,11 +5,9 @@ import {
   createRecentSessionEntryFromSession,
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
-import { useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
-import { useWindowFrame } from '@renderer/context/WindowFrameContext'
-import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { useCache, usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
-import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
+import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession, useSession } from '@renderer/hooks/agents/useSession'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversationDefaults, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
@@ -17,10 +15,9 @@ import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import { useNavigate, useSearch } from '@tanstack/react-router'
+import { useSearch } from '@tanstack/react-router'
 import type { PropsWithChildren } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,7 +25,7 @@ import { useTranslation } from 'react-i18next'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
 import { AgentEmpty } from './components/status'
-import { type AgentRouteSearch, parseAgentRouteSearch } from './routeSearch'
+import { parseAgentRouteSearch } from './routeSearch'
 
 const logger = loggerService.withContext('AgentPage')
 
@@ -52,26 +49,13 @@ const AgentPage = () => {
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const routeSessionId = routeSearch.sessionId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
-  const isWindowFrame = useWindowFrame().mode === 'window'
-  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar
+  const effectiveShowSidebar = !isMessageOnlyView && showSidebar
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { session: routeSession, isLoading: isRouteSessionLoading } = useSession(
     isMessageOnlyView ? routeSessionId : null
   )
   const { agents } = useAgents()
-  const navigate = useNavigate()
-  const activeSessionId = isMessageOnlyView ? null : (routeSessionId ?? null)
-  const setActiveSessionId = useCallback(
-    (id: string | null) => {
-      void navigate({
-        to: '/app/agents',
-        search: (prev: AgentRouteSearch) => ({ ...prev, sessionId: id ?? undefined }),
-        replace: true
-      })
-    },
-    [navigate]
-  )
-  const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
+  const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
@@ -102,29 +86,12 @@ const AgentPage = () => {
     isLoading: isActiveSessionLoading,
     sessionSource: activeSessionSource
   } = useActiveSession({
-    activeSessionId,
-    setActiveSessionId,
     pendingSession
   })
   const lastVisibleSessionRef = useRef<AgentSessionEntity | null>(null)
   const visibleSession = isMessageOnlyView
     ? routeSession
     : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
-
-  // All non-dormant tabs mount at once (Activity keep-alive), so each agent tab runs its
-  // own AgentPage. `useIsActiveTab` answers "am I the globally-focused tab" (gates last_used).
-  const isActiveTab = useIsActiveTab()
-  // Label this tab with its agent emoji + session name so multiple agent tabs
-  // are distinguishable (every tab labels itself — not gated on active).
-  const { agent: visibleAgent } = useAgent(visibleSession?.agentId ?? null)
-  // This tab shows an unpersisted temp session (no sessionId in url, live temp
-  // lease) → forbid "open in new window".
-  const isTemporaryView = !isMessageOnlyView && !activeSessionId && temporaryAgentConversation?.type === 'agent'
-  useTabSelfMetadata({
-    title: visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents'),
-    emoji: visibleAgent?.configuration?.avatar,
-    isTemporary: isTemporaryView
-  })
 
   useShortcut('general.toggle_sidebar', () => {
     if (isMessageOnlyView) return
@@ -159,17 +126,6 @@ const AgentPage = () => {
   useEffect(() => {
     if (activeSession) lastVisibleSessionRef.current = activeSession
   }, [activeSession])
-
-  useEffect(() => {
-    // Track "last focused session" only for persisted sessions — temp ids are
-    // ephemeral and would point to nothing on the next sidebar click. Gated on
-    // the active tab: `last_used` is a single global "what I'm looking at now",
-    // so background tabs must not clobber it and switching tabs must update it.
-    if (!isActiveTab) return
-    if (activeSession?.id && activeSessionSource === 'query') {
-      setLastUsedSessionId(activeSession.id)
-    }
-  }, [isActiveTab, activeSession, activeSessionSource, setLastUsedSessionId])
 
   useEffect(() => {
     void window.api.window.setMinimumSize(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
@@ -439,7 +395,7 @@ const AgentPage = () => {
           paneOpen={effectiveShowSidebar}
           panePosition={panePosition}
           onPaneCollapse={() => void setShowSidebar(false)}
-          showResourceListControls={!isMessageOnlyView && !isWindowFrame}
+          showResourceListControls={!isMessageOnlyView}
           temporaryConversation={isMessageOnlyView ? null : temporaryAgentConversation}
           onStartTemporarySession={isMessageOnlyView ? undefined : startTemporarySession}
           onPersistTemporarySession={isMessageOnlyView ? undefined : persistTemporarySession}

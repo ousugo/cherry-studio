@@ -33,6 +33,13 @@ vi.mock('i18next', () => ({
   t: (key: string) => key
 }))
 
+vi.mock('motion/react', () => ({
+  AnimatePresence: ({ children }: { children: ReactNode }) => children,
+  motion: {
+    div: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  }
+}))
+
 import ChatNavBar from '../ChatNavBar'
 
 describe('ChatNavBar', () => {
@@ -42,13 +49,14 @@ describe('ChatNavBar', () => {
   })
 
   it('uses the conversation style without active state when the sidebar is hidden', () => {
-    render(<ChatNavBar />)
+    render(<ChatNavBar onOpenSidePanelDrawer={vi.fn()} />)
 
-    const toggle = screen.getByRole('button')
+    const [toggle, drawer] = screen.getAllByRole('button')
 
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(toggle).not.toHaveAttribute('data-active')
     expect(toggle).toHaveClass('hover:bg-accent/60')
+    expect(drawer).not.toHaveAttribute('data-active')
   })
 
   it('keeps the sidebar toggle inactive when the sidebar is visible', () => {

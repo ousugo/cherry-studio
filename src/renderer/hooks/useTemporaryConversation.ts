@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -57,6 +58,9 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
     try {
       if (current.type === 'assistant') {
         await dataApiService.delete(`/temporary/topics/${current.id}`)
+        if (cacheService.get('topic.active_id') === current.id) {
+          cacheService.set('topic.active_id', null)
+        }
         return
       }
 

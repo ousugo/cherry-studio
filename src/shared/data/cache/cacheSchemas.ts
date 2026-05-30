@@ -138,10 +138,13 @@ export type UseCacheSchema = {
   'mini_app.detected_region': MiniAppRegion | null
 
   // Topic management
+  'topic.active_id': string | null
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
 
-  // Agent management
+  // Agent management — sessions are the user-facing primary; active agent is
+  // derived from the active session's `agentId`, so a single pointer is enough.
+  'agent.active_session_id': string | null
   'agent.session.waiting_id_map': Record<string, boolean>
 
   // Translate page state management
@@ -209,10 +212,12 @@ export const DefaultUseCache: UseCacheSchema = {
   'mini_app.detected_region': null,
 
   // Topic management
+  'topic.active_id': null,
   'topic.renaming': [],
   'topic.newly_renamed': [],
 
   // Agent management
+  'agent.active_session_id': null,
   'agent.session.waiting_id_map': {},
 
   // Translate page state management
@@ -293,8 +298,6 @@ export type RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.width': number
   'ui.chat.artifact_pane.file_tree.width': number
   'ui.chat.last_used_assistant_id': string | null
-  'ui.chat.last_used_topic_id': string | null
-  'ui.agent.last_used_session_id': string | null
   'ui.agent.last_used_agent_id': string | null
   'ui.agent.last_used_workspace_id': string | null
   'settings.provider.last_selected_provider_id': string | null
@@ -313,8 +316,6 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.width': 460,
   'ui.chat.artifact_pane.file_tree.width': 160,
   'ui.chat.last_used_assistant_id': null,
-  'ui.chat.last_used_topic_id': null,
-  'ui.agent.last_used_session_id': null,
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
   'settings.provider.last_selected_provider_id': null,

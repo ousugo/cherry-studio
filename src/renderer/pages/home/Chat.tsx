@@ -30,6 +30,7 @@ interface Props {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onOpenSidePanelDrawer?: () => void | Promise<void>
   showResourceListControls?: boolean
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   locateMessageId?: string
@@ -163,7 +164,12 @@ const ChatInner: FC<Props> = (props) => {
       paneOpen={props.paneOpen}
       panePosition={props.panePosition}
       onPaneCollapse={props.onPaneCollapse}
-      topBar={<ChatNavbar showSidebarControls={props.showResourceListControls} />}
+      topBar={
+        <ChatNavbar
+          onOpenSidePanelDrawer={props.onOpenSidePanelDrawer}
+          showSidebarControls={props.showResourceListControls}
+        />
+      }
       topRightTool={<TopicRightPane.Toggle disabled={branchPaneDisabled} />}
       sidePanel={
         <CitationsPanel

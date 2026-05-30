@@ -23,7 +23,7 @@ vi.mock('@renderer/i18n', () => ({
   }
 }))
 
-import { getDefaultRouteTitle, getRouteTitleKey, isPageTitledRoute, isTopLevelRoute } from '../routeTitle'
+import { getDefaultRouteTitle, getRouteTitleKey, isTopLevelRoute } from '../routeTitle'
 
 describe('routeTitle', () => {
   beforeEach(() => {
@@ -140,21 +140,6 @@ describe('routeTitle', () => {
       expect(isTopLevelRoute('/app/chat?topicId=123&view=message')).toBe(false)
       expect(isTopLevelRoute('/app/agents#session')).toBe(false)
       expect(isTopLevelRoute('/app/chat/topic-123')).toBe(false)
-    })
-  })
-
-  describe('isPageTitledRoute', () => {
-    it('treats chat/agent routes as page-titled regardless of query/sub-path', () => {
-      expect(isPageTitledRoute('/app/chat')).toBe(true)
-      expect(isPageTitledRoute('/app/chat?topicId=123')).toBe(true)
-      expect(isPageTitledRoute('/app/agents')).toBe(true)
-      expect(isPageTitledRoute('/app/agents?sessionId=abc')).toBe(true)
-    })
-
-    it('treats route-titled apps as not page-titled', () => {
-      expect(isPageTitledRoute('/app/files')).toBe(false)
-      expect(isPageTitledRoute('/app/paintings/zhipu')).toBe(false)
-      expect(isPageTitledRoute('/settings')).toBe(false)
     })
   })
 })

@@ -772,6 +772,31 @@ describe('Topics', () => {
     requestAnimationFrameSpy.mockRestore()
   })
 
+  it('renames a topic from the shared context menu dialog', async () => {
+    const { getByText } = renderTopicList()
+
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Edit topic name' }))
+
+    expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('Edit topic name')
+    const input = within(dialog).getByLabelText('Name')
+    expect(topicDataMocks.updateTopic).not.toHaveBeenCalled()
+
+    fireEvent.change(input, { target: { value: 'Renamed topic' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await vi.waitFor(() =>
+      expect(topicDataMocks.updateTopic).toHaveBeenCalledWith('topic-a', {
+        name: 'Renamed topic',
+        isNameManuallyEdited: true
+      })
+    )
+  })
+
   it('shows loading while selecting the right-clicked topic before exporting it as an image', async () => {
     const { getByText, rerenderTopicList, setActiveTopic } = renderTopicList()
     const gammaMenu = getByText('Gamma topic').closest('[data-testid="context-menu"]')

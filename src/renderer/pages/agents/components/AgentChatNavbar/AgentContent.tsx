@@ -3,9 +3,12 @@ import { usePreference } from '@data/hooks/usePreference'
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import type { AgentEntity } from '@shared/data/types/agent'
+import { Menu } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import AgentSidePanelDrawer from '../AgentSidePanelDrawer'
 import Tools from './Tools'
 
 type AgentContentProps = {
@@ -42,6 +45,22 @@ const AgentContent = ({ activeAgent, tools, showSidebarControls = true }: AgentC
                 </NavbarIcon>
               </Tooltip>
             )}
+            <AnimatePresence initial={false}>
+              {!showSidebar && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 'auto', opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}>
+                  <NavbarIcon
+                    tone="conversation"
+                    onClick={() => AgentSidePanelDrawer.show()}
+                    style={{ marginRight: 5 }}>
+                    <Menu size={18} />
+                  </NavbarIcon>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         )}
       </div>

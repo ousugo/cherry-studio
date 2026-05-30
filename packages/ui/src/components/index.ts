@@ -15,7 +15,6 @@ export {
   NormalTooltip,
   Tooltip,
   TooltipContent,
-  TooltipPortalContainerProvider,
   type TooltipProps,
   TooltipProvider,
   TooltipRoot,

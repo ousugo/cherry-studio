@@ -7448,16 +7448,10 @@
       "title": "縮放"
     }
   },
-  "subWindow": {
-    "back_to_main": "回到主視窗",
-    "pin": "視窗置頂",
-    "unpin": "取消置頂"
-  },
   "tab": {
     "close": "關閉分頁",
     "move_to_first": "移至第一個",
     "new": "新標籤頁",
-    "open_in_new_window": "[to be translated]:Open in New Window",
     "pin": "釘選分頁",
     "unpin": "取消固定分頁"
   },

@@ -3,15 +3,18 @@ import { usePreference } from '@data/hooks/usePreference'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
 import { t } from 'i18next'
+import { Menu } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 
 import NavbarIcon from '../../../../components/NavbarIcon'
 
 interface HeaderNavbarProps {
+  onOpenSidePanelDrawer?: () => void | Promise<void>
   showSidebarControls?: boolean
 }
 
-const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true }) => {
+const HeaderNavbar: FC<HeaderNavbarProps> = ({ onOpenSidePanelDrawer, showSidebarControls = true }) => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
 
@@ -39,6 +42,24 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true }) => 
                 </NavbarIcon>
               </Tooltip>
             ))}
+          {showSidebarControls && (
+            <AnimatePresence initial={false}>
+              {!showSidebar && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 'auto', opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}>
+                  <NavbarIcon
+                    tone="conversation"
+                    onClick={() => void onOpenSidePanelDrawer?.()}
+                    style={{ marginRight: 5 }}>
+                    <Menu size={18} />
+                  </NavbarIcon>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
         </div>
       </div>
     </NavbarHeader>

@@ -34,6 +34,17 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
   )
 }))
 
+vi.mock('motion/react', () => ({
+  AnimatePresence: ({ children }: { children: ReactNode }) => children,
+  motion: {
+    div: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  }
+}))
+
+vi.mock('../../AgentSidePanelDrawer', () => ({
+  default: { show: vi.fn() }
+}))
+
 vi.mock('../Tools', () => ({
   default: () => <span>tools</span>
 }))
@@ -92,13 +103,15 @@ describe('AgentContent', () => {
     expect(toggle).not.toHaveAttribute('data-active')
   })
 
-  it('shows only the inactive sidebar toggle when the sidebar is hidden', () => {
+  it('keeps the workspace drawer button inactive when the sidebar is hidden', () => {
     render(<AgentContent activeAgent={agentA} />)
 
-    const toggle = screen.getAllByRole('button')[0]
+    const [toggle, drawer] = screen.getAllByRole('button')
 
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     expect(toggle).toHaveAttribute('data-tone', 'conversation')
     expect(toggle).not.toHaveAttribute('data-active')
+    expect(drawer).toHaveAttribute('data-tone', 'conversation')
+    expect(drawer).not.toHaveAttribute('data-active')
   })
 })
