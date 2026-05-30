@@ -1,3 +1,4 @@
+import { useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils'
 import type { ReactNode } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
@@ -41,6 +42,16 @@ export default function ComposerDockTransitionFrame({
   const isDocked = placement === 'docked'
   const dockMotionTransition = useComposerDockMotionTransition(placement)
   const dockMotionAttributes = getComposerDockMotionAttributes(dockMotionTransition)
+  const quickPanel = useOptionalQuickPanel()
+
+  // Home placement asks the quick panel to fill the available height above the input.
+  // Pushed explicitly through context (no DOM contract); no-op when there is no provider.
+  const setQuickPanelFill = quickPanel?.setFillToAvailableHeight
+  useLayoutEffect(() => {
+    if (!setQuickPanelFill) return
+    setQuickPanelFill(placement === 'home')
+    return () => setQuickPanelFill(false)
+  }, [placement, setQuickPanelFill])
 
   useLayoutEffect(() => {
     const node = composerRef.current

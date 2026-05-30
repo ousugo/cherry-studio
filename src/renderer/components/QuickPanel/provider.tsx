@@ -35,6 +35,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [beforeAction, setBeforeAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
   const [afterAction, setAfterAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
   const [lastCloseAction, setLastCloseAction] = useState<QuickPanelCloseAction | undefined>(undefined)
+  const [fillToAvailableHeight, setFillToAvailableHeight] = useState(false)
 
   const clearTimer = useRef<NodeJS.Timeout | null>(null)
   const keyDownHandlerRef = useRef<QuickPanelKeyDownHandler | undefined>(undefined)
@@ -202,6 +203,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       lastCloseAction,
       filterFn,
       sortFn,
+      fillToAvailableHeight,
+      setFillToAvailableHeight,
       dispatchKeyDown,
       getPanelGeneration,
       registerKeyDownHandler,
@@ -233,6 +236,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       lastCloseAction,
       filterFn,
       sortFn,
+      fillToAvailableHeight,
       onClose,
       beforeAction,
       afterAction

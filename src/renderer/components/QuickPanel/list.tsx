@@ -127,6 +127,7 @@ export function QuickPanelFooter({
   return (
     <div
       ref={containerRef}
+      data-testid="quick-panel-footer"
       className={cn('flex w-full items-center justify-between gap-4 px-3 pt-2 pb-[5px]', className)}>
       <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-muted-foreground">
         {title || ''}

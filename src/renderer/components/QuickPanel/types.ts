@@ -155,6 +155,10 @@ export interface QuickPanelContextType {
   readonly filterFn?: QuickPanelFilterFn
   readonly sortFn?: QuickPanelSortFn
 
+  /** Ambient layout hint: when true, the panel fills the available height above the input (home placement). */
+  readonly fillToAvailableHeight: boolean
+  readonly setFillToAvailableHeight: (fill: boolean) => void
+
   readonly dispatchKeyDown: (event: QuickPanelKeyDownEvent) => boolean
   readonly getPanelGeneration: () => number
   readonly registerKeyDownHandler: (handler: QuickPanelKeyDownHandler | undefined) => () => void
