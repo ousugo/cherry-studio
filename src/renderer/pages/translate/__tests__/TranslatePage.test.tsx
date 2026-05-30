@@ -218,23 +218,8 @@ vi.mock('../components/TranslateLanguageBar', () => ({
 }))
 
 vi.mock('../components/TranslateOutputPane', () => ({
-  default: ({
-    translating,
-    onTranslate,
-    onAbort
-  }: {
-    translating: boolean
-    couldTranslate: boolean
-    onTranslate: () => void | Promise<void>
-    onAbort: () => void
-  }) => (
-    <div data-testid="translate-output-pane">
-      <button
-        type="button"
-        aria-label={translating ? 'common.stop' : 'translate.button.translate'}
-        onClick={translating ? onAbort : onTranslate}
-      />
-    </div>
+  default: ({ translating }: { translating: boolean }) => (
+    <div data-testid="translate-output-pane">{translating && <span>translate.processing</span>}</div>
   )
 }))
 

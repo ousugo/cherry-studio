@@ -29,6 +29,21 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuid } from 'uuid'
 
+const TRANSLATE_ERROR_KEY_PATTERN = /\btranslate\.error\.[a-zA-Z0-9_.-]+\b/
+
+function localizeTranslateError(error: unknown, t: (key: string) => string): unknown {
+  if (!(error instanceof Error)) return error
+
+  const key = error.message.match(TRANSLATE_ERROR_KEY_PATTERN)?.[0]
+  if (!key) return error
+
+  const localizedError = new Error(t(key))
+  localizedError.name = error.name
+  localizedError.stack = error.stack
+  localizedError.cause = error.cause
+  return localizedError
+}
+
 export interface UseTranslateOptions {
   /** Default: true. Set false to suppress the default error toast. */
   showErrorToast?: boolean
@@ -136,7 +151,7 @@ export function useTranslate(options?: UseTranslateOptions): UseTranslateResult 
         const errorPrefixI18nKey = opts?.errorPrefixI18nKey ?? 'translate.error.failed'
         loggerService.withContext(opts?.loggerContext ?? 'useTranslate').error('Translation failed', error as Error)
         if (showErrorToast) {
-          window.toast?.error(formatErrorMessageWithPrefix(error, t(errorPrefixI18nKey)))
+          window.toast?.error(formatErrorMessageWithPrefix(localizeTranslateError(error, t), t(errorPrefixI18nKey)))
         }
         if (opts?.rethrowError) throw error
         return undefined

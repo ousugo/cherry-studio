@@ -35,18 +35,18 @@ const baseProps = () => ({
   onSelectFile: vi.fn(),
   onCopy: vi.fn(),
   disabled: false,
-  selecting: false,
-  tokenCount: 2
+  selecting: false
 })
 
 describe('TranslateInputPane', () => {
   it('disables file upload while the parent pane is disabled', () => {
     const props = baseProps()
+    props.text = ''
     render(<TranslateInputPane {...props} disabled />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.upload_files' }))
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
 
-    expect(screen.getByRole('button', { name: 'common.upload_files' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'translate.files.upload' })).toBeDisabled()
     expect(props.onSelectFile).not.toHaveBeenCalled()
   })
 })
