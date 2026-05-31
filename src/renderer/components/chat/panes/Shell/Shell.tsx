@@ -8,6 +8,7 @@ import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useChatMaximizedOverlayBottomInset } from '../../layout/ChatViewportInsetContext'
 import {
   ARTIFACT_RIGHT_PANE_CACHE_KEY,
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
@@ -165,18 +166,25 @@ const CLIP_REVEALED = 'inset(0% 0% 0% 0%)'
 function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
   const { state, actions } = useShell()
   const reduceMotion = useReducedMotion()
+  const bottomInset = useChatMaximizedOverlayBottomInset()
 
   return (
     <AnimatePresence onExitComplete={actions.finishClose}>
       {state.open && state.maximized && (
         <motion.div
+          data-shell-maximized-overlay=""
           key="shell-maximized"
           initial={{ clipPath: CLIP_COLLAPSED }}
           animate={{ clipPath: CLIP_REVEALED }}
           exit={{ clipPath: CLIP_COLLAPSED, transition: reduceMotion ? { duration: 0 } : MAXIMIZE_EXIT }}
           transition={reduceMotion ? { duration: 0 } : MAXIMIZE_ENTER}
           className="absolute inset-0 z-40 overflow-hidden bg-background">
-          {children}
+          <div
+            data-shell-maximized-overlay-content=""
+            className="h-full min-h-0 overflow-hidden"
+            style={bottomInset > 0 ? { height: `max(0px, calc(100% - ${bottomInset}px))` } : undefined}>
+            {children}
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

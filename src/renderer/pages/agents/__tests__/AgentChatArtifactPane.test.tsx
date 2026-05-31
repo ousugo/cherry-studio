@@ -422,6 +422,9 @@ vi.mock('../components/AgentSessionMessages', () => ({
       <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/src/index.ts')}>
         open artifact file
       </button>
+      <button type="button" onClick={() => openArtifactFile?.('/tmp/workspace/report.xlsx')}>
+        open excel artifact file
+      </button>
       <button type="button" onClick={() => openArtifactFile?.('/Users/suyao/Desktop/记忆商人.md')}>
         open desktop artifact file
       </button>
@@ -687,6 +690,23 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'src/index.ts')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
+  })
+
+  it('opens Excel file paths in a framed file preview tab without text sniffing', () => {
+    const isTextFile = vi.mocked(window.api.file.isTextFile)
+    const getFileSize = vi.mocked(window.api.file.getFileSize)
+
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open excel artifact file' }))
+
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByRole('button', { name: /report\.xlsx/ })).toBeInTheDocument()
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
+    expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'report.xlsx')
+    expect(screen.getByTestId('artifact-file-preview').parentElement).toHaveClass('overflow-hidden')
+    expect(isTextFile).not.toHaveBeenCalled()
+    expect(getFileSize).not.toHaveBeenCalled()
   })
 
   it('opens absolute file paths outside the workspace in a separate file preview tab', () => {

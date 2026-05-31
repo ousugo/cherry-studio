@@ -352,6 +352,21 @@
         "description": "開始與 Agent 對話，生成的程式碼與即時預覽將在此處顯示。",
         "title": "準備就緒"
       },
+      "excel": {
+        "errors": {
+          "file_too_large": "這個 Excel 檔案超出預覽大小上限。",
+          "invalid_request": "Excel 預覽請求無效。",
+          "parse_failed": "無法讀取這個 Excel 檔案。",
+          "too_complex": "這個 Excel 檔案內容過於複雜，暫時無法預覽。",
+          "unsupported_extension": "只支援預覽 .xlsx 和 .xlsm 檔案。",
+          "unsupported_xls": "暫時不支援舊版 .xls 檔案預覽。"
+        },
+        "warnings": {
+          "generic": "部分活頁簿內容可能未完整顯示。",
+          "title": "預覽提示",
+          "unsupported_images": "圖片暫未在 Excel 預覽中顯示。"
+        }
+      },
       "file_tree": "檔案樹",
       "items_one": "{{count}} 個項目",
       "items_other": "{{count}} 個項目",

@@ -352,6 +352,21 @@
         "description": "Start chatting with the agent; generated code and live previews will appear here.",
         "title": "Ready"
       },
+      "excel": {
+        "errors": {
+          "file_too_large": "This Excel file exceeds the preview size limit.",
+          "invalid_request": "The Excel preview request is invalid.",
+          "parse_failed": "Unable to read this Excel file.",
+          "too_complex": "This Excel file is too complex to preview.",
+          "unsupported_extension": "Only .xlsx and .xlsm files can be previewed.",
+          "unsupported_xls": "Legacy .xls files are not supported by Excel preview."
+        },
+        "warnings": {
+          "generic": "Some workbook content may not be fully shown.",
+          "title": "Preview notice",
+          "unsupported_images": "Images are not shown in Excel preview yet."
+        }
+      },
       "file_tree": "File tree",
       "items_one": "{{count}} item",
       "items_other": "{{count}} items",

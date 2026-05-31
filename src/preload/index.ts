@@ -68,6 +68,7 @@ import type {
   WebSearchResponse,
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
+import type { ExcelWorkbookPreviewRequest, ExcelWorkbookPreviewResult } from '@shared/excelPreview'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import type { FilePath } from '@shared/file/types/common'
 import type { FileHandle } from '@shared/file/types/handle'
@@ -347,6 +348,10 @@ const api = {
   pdf: {
     extractText: (data: Uint8Array | ArrayBuffer | string): Promise<string> =>
       ipcRenderer.invoke(IpcChannel.Pdf_ExtractText, data)
+  },
+  excel: {
+    readWorkbookPreview: (request: ExcelWorkbookPreviewRequest): Promise<ExcelWorkbookPreviewResult> =>
+      ipcRenderer.invoke(IpcChannel.Excel_ReadWorkbookPreview, request)
   },
   export: {
     toWord: (markdown: string, fileName: string) => ipcRenderer.invoke(IpcChannel.Export_Word, markdown, fileName)

@@ -2,6 +2,7 @@ import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils'
 import type { PropsWithChildren, ReactNode, Ref } from 'react'
 
+import { ChatMaximizedOverlayInsetProvider } from '../layout/ChatViewportInsetContext'
 import { useOptionalShellState } from '../panes/Shell'
 import { ChatAppShell } from './ChatAppShell'
 import type { ChatPanePosition } from './types'
@@ -48,32 +49,34 @@ export default function ConversationShell({
 }: ConversationShellProps) {
   const resolvedTopBar = topRightTool ? <ConversationShellTopBar>{topBar}</ConversationShellTopBar> : topBar
   return (
-    <div
-      id={id}
-      className={cn(
-        'relative flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background',
-        className
-      )}>
-      <QuickPanelProvider>
-        <ChatAppShell
-          pane={pane}
-          paneOpen={paneOpen}
-          panePosition={panePosition}
-          topBar={resolvedTopBar}
-          centerContent={center}
-          sidePanel={sidePanel}
-          centerOverlay={centerOverlay}
-          centerTopOverlay={centerTopOverlay}
-          overlay={overlay}
-          centerId={centerId}
-          centerRef={centerRef}
-          centerClassName={centerClassName}
-          onPaneCollapse={onPaneCollapse}
-        />
-      </QuickPanelProvider>
-      {topRightTool && <ConversationShellTopRightTool>{topRightTool}</ConversationShellTopRightTool>}
-      {rightPane}
-    </div>
+    <ChatMaximizedOverlayInsetProvider>
+      <div
+        id={id}
+        className={cn(
+          'relative flex h-[calc(100vh-var(--navbar-height)-6px)] flex-1 overflow-hidden rounded-tl-[10px] rounded-bl-[10px] bg-background',
+          className
+        )}>
+        <QuickPanelProvider>
+          <ChatAppShell
+            pane={pane}
+            paneOpen={paneOpen}
+            panePosition={panePosition}
+            topBar={resolvedTopBar}
+            centerContent={center}
+            sidePanel={sidePanel}
+            centerOverlay={centerOverlay}
+            centerTopOverlay={centerTopOverlay}
+            overlay={overlay}
+            centerId={centerId}
+            centerRef={centerRef}
+            centerClassName={centerClassName}
+            onPaneCollapse={onPaneCollapse}
+          />
+        </QuickPanelProvider>
+        {topRightTool && <ConversationShellTopRightTool>{topRightTool}</ConversationShellTopRightTool>}
+        {rightPane}
+      </div>
+    </ChatMaximizedOverlayInsetProvider>
   )
 }
 
