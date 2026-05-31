@@ -2486,6 +2486,10 @@
       "completed": "Завершено",
       "error": "Произошла ошибка",
       "groupHeader": "{{count}} вызовов инструментов",
+      "groupHeaderMessages": "{{count}} сообщений",
+      "groupHeaderThinking": "{{count}} размышлений",
+      "groupHeaderWithDetails": "{{toolCount}} вызовов инструментов · {{thinkingCount}} размышлений · {{messageCount}} сообщений",
+      "groupHeaderWithMessages": "{{toolCount}} вызовов инструментов · {{messageCount}} сообщений",
       "invoking": "Вызов",
       "labels": {
         "bash": "Баш",

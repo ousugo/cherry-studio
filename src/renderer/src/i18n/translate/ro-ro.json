@@ -2486,6 +2486,10 @@
       "completed": "Finalizat",
       "error": "A apărut o eroare",
       "groupHeader": "{{count}} apeluri de instrumente",
+      "groupHeaderMessages": "{{count}} mesaje",
+      "groupHeaderThinking": "{{count}} gânduri",
+      "groupHeaderWithDetails": "{{toolCount}} apeluri de instrumente · {{thinkingCount}} gânduri · {{messageCount}} mesaje",
+      "groupHeaderWithMessages": "{{toolCount}} apeluri de instrumente · {{messageCount}} mesaje",
       "invoking": "Se invocă",
       "labels": {
         "bash": "Bash",

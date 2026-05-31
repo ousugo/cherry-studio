@@ -2486,6 +2486,10 @@
       "completed": "Abgeschlossen",
       "error": "Fehler aufgetreten",
       "groupHeader": "{{count}} Toolaufrufe",
+      "groupHeaderMessages": "{{count}} Nachrichten",
+      "groupHeaderThinking": "{{count}} Gedanken",
+      "groupHeaderWithDetails": "{{toolCount}} Toolaufrufe · {{thinkingCount}} Gedanken · {{messageCount}} Nachrichten",
+      "groupHeaderWithMessages": "{{toolCount}} Toolaufrufe · {{messageCount}} Nachrichten",
       "invoking": "Wird aufgerufen",
       "labels": {
         "bash": "Bash",

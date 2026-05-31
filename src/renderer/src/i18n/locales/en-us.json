@@ -2486,6 +2486,10 @@
       "completed": "Completed",
       "error": "Error occurred",
       "groupHeader": "{{count}} tool calls",
+      "groupHeaderMessages": "{{count}} messages",
+      "groupHeaderThinking": "{{count}} thoughts",
+      "groupHeaderWithDetails": "{{toolCount}} tool calls · {{thinkingCount}} thoughts · {{messageCount}} messages",
+      "groupHeaderWithMessages": "{{toolCount}} tool calls · {{messageCount}} messages",
       "invoking": "Invoking",
       "labels": {
         "bash": "Bash",

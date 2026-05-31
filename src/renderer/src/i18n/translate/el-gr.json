@@ -2486,6 +2486,10 @@
       "completed": "Ολοκληρώθηκε",
       "error": "Προέκυψε σφάλμα",
       "groupHeader": "{{count}} κλήσεις εργαλείων",
+      "groupHeaderMessages": "{{count}} μηνύματα",
+      "groupHeaderThinking": "{{count}} σκέψεις",
+      "groupHeaderWithDetails": "{{toolCount}} κλήσεις εργαλείων · {{thinkingCount}} σκέψεις · {{messageCount}} μηνύματα",
+      "groupHeaderWithMessages": "{{toolCount}} κλήσεις εργαλείων · {{messageCount}} μηνύματα",
       "invoking": "κλήση σε εξέλιξη",
       "labels": {
         "bash": "Μπας",
