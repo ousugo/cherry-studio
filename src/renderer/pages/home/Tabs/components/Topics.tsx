@@ -65,7 +65,7 @@ import {
   type TopicImageActionRequest,
   type TopicImageActionType
 } from '../../messages/topicImageActionBus'
-import { buildChatMessageRouteUrl } from '../../routeSearch'
+import { buildChatTopicRouteUrl } from '../../routeSearch'
 import type { AddNewTopicPayload } from '../../types'
 import {
   type AssistantGroupAction,
@@ -696,7 +696,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   }, [])
   const openTopicInNewTab = useCallback(
     (topic: Topic) => {
-      tabs?.openTab(buildChatMessageRouteUrl(topic.id), {
+      tabs?.openTab(buildChatTopicRouteUrl(topic.id), {
         forceNew: true,
         title: topic.name || t('common.unnamed')
       })

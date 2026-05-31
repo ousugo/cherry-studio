@@ -765,7 +765,7 @@ describe('Topics', () => {
         callback(0)
       }
     })
-    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-a&view=message', {
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-a', {
       forceNew: true,
       title: 'Alpha topic'
     })
