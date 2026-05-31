@@ -86,15 +86,15 @@ function getRipgrepBinaryPath(): string | null {
     const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
     const tail = path.join(
       'node_modules',
-      '@anthropic-ai',
-      'claude-agent-sdk',
+      '@cherrystudio',
+      'ripgrep',
       'vendor',
       'ripgrep',
       `${arch}-${platform}`,
       executable
     )
 
-    // Walk up parents until we find a `node_modules/@anthropic-ai/claude-agent-sdk`
+    // Walk up parents until we find the vendored `@cherrystudio/ripgrep`
     // checkout. This is robust to: production bundle (`out/main/…`), source
     // layout (`src/main/services/file/tree/…` under vitest), and any future
     // re-layering. Also checks the asar-unpacked sibling at each step so
