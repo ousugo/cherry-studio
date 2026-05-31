@@ -2908,6 +2908,11 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "notice": "Ao continuar, você confirma que leu e concorda com",
+      "period": ".",
+      "policy": "Política de Privacidade"
+    },
     "select_model": {
       "change_later": "Você pode alterar isso a qualquer momento nas configurações",
       "start": "Comece",

@@ -2908,6 +2908,11 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "notice": "Durch die Fortsetzung bestätigen Sie, dass Sie gelesen haben und zustimmen",
+      "period": ".",
+      "policy": "Datenschutzerklärung"
+    },
     "select_model": {
       "change_later": "Sie können dies jederzeit in den Einstellungen ändern.",
       "start": "Loslegen",
