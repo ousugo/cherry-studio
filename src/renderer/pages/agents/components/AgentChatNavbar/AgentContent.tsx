@@ -21,7 +21,7 @@ const AgentContent = ({ activeAgent, tools, showSidebarControls = true }: AgentC
 
   return (
     <div className="flex w-full justify-between">
-      <div className="flex min-w-0 shrink items-center">
+      <div data-navbar-left-occupant className="flex min-w-0 shrink items-center">
         {showSidebarControls && (
           <>
             {showSidebar && (
@@ -45,7 +45,9 @@ const AgentContent = ({ activeAgent, tools, showSidebarControls = true }: AgentC
           </>
         )}
       </div>
-      <div className="flex items-center">{activeAgent && <Tools>{tools}</Tools>}</div>
+      <div data-navbar-right-occupant className="flex items-center">
+        {activeAgent && <Tools>{tools}</Tools>}
+      </div>
     </div>
   )
 }

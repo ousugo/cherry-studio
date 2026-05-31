@@ -1,9 +1,10 @@
 import { TopicType } from '@renderer/types'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils'
 import { act, render, screen } from '@testing-library/react'
-import type { ReactNode, Ref } from 'react'
+import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ImmersiveNarrowReportProvider, ImmersiveNavbarStateProvider } from '../../layout/ImmersiveNavbarContext'
 import type { MessageVirtualListHandle } from '../list/MessageVirtualList'
 import MessageList from '../MessageList'
 import { MessageListProvider } from '../MessageListProvider'
@@ -71,7 +72,20 @@ vi.mock('@renderer/utils', () => ({
 
 vi.mock('../layout/NarrowLayout', () => ({
   __esModule: true,
-  default: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  default: ({
+    children,
+    narrowMode,
+    withSidePadding,
+    ...props
+  }: {
+    children: ReactNode
+    narrowMode?: boolean
+    withSidePadding?: boolean
+  } & HTMLAttributes<HTMLDivElement>) => {
+    void narrowMode
+    void withSidePadding
+    return <div {...props}>{children}</div>
+  }
 }))
 
 vi.mock('../frame/MessageOutline', () => ({
@@ -123,7 +137,15 @@ vi.mock('../list/MessageVirtualList', async () => {
   const React = await import('react')
   return {
     MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX: 12,
-    MessageVirtualList: ({ forceScrollToBottomKey, handleRef, items, onScrollContainerReady, renderItem }: any) => {
+    MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX: 6,
+    MessageVirtualList: ({
+      forceScrollToBottomKey,
+      handleRef,
+      items,
+      onScrollContainerReady,
+      renderItem,
+      topPadding
+    }: any) => {
       React.useImperativeHandle(
         handleRef as Ref<MessageVirtualListHandle>,
         () => ({
@@ -148,7 +170,10 @@ vi.mock('../list/MessageVirtualList', async () => {
       const visibleItems = items.slice(0, messageVirtualListMocks.renderItemLimit ?? items.length)
 
       return (
-        <div data-force-scroll-key={forceScrollToBottomKey ?? ''} data-testid="virtual-list">
+        <div
+          data-force-scroll-key={forceScrollToBottomKey ?? ''}
+          data-testid="virtual-list"
+          data-top-padding={topPadding}>
           {visibleItems.map((item: unknown, index: number) => (
             <div key={index}>{renderItem(item, index)}</div>
           ))}
@@ -257,6 +282,50 @@ describe('MessageList', () => {
     })
 
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'useruser-1')
+  })
+
+  it('uses the immersive navbar inset as the virtual-list top padding', () => {
+    render(
+      <ImmersiveNavbarStateProvider value={{ floating: true, insetHeight: 44 }}>
+        <MessageListProvider value={createValue([createMessage('user-1', 'user')])}>
+          <MessageList />
+        </MessageListProvider>
+      </ImmersiveNavbarStateProvider>
+    )
+
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-top-padding', '44')
+  })
+
+  it('reports the narrow flag — including while initial loading (no probe-timing dependency)', () => {
+    const reportNarrow = vi.fn()
+    render(
+      <ImmersiveNarrowReportProvider value={reportNarrow}>
+        <MessageListProvider
+          value={createValue([], {
+            isInitialLoading: true,
+            renderConfig: { ...defaultMessageRenderConfig, narrowMode: true }
+          })}>
+          <MessageList />
+        </MessageListProvider>
+      </ImmersiveNarrowReportProvider>
+    )
+
+    // Narrow is config-derived, so it is published even during loading — the subwindow regression
+    // was that the old probe-based report stayed silent until the probe mounted.
+    expect(reportNarrow).toHaveBeenLastCalledWith(true)
+  })
+
+  it('reports narrow=false when narrow mode is off', () => {
+    const reportNarrow = vi.fn()
+    render(
+      <ImmersiveNarrowReportProvider value={reportNarrow}>
+        <MessageListProvider value={createValue([createMessage('user-1', 'user')])}>
+          <MessageList />
+        </MessageListProvider>
+      </ImmersiveNarrowReportProvider>
+    )
+
+    expect(reportNarrow).toHaveBeenLastCalledWith(false)
   })
 
   it('marks newly appended user and assistant messages for enter motion', () => {

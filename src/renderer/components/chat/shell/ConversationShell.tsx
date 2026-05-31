@@ -1,9 +1,9 @@
-import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
+import { TITLE_BAR_HEIGHT_CLASS, TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isMac } from '@renderer/config/constant'
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { cn } from '@renderer/utils'
-import type { ReactNode, Ref } from 'react'
+import type { CSSProperties, ReactNode, Ref } from 'react'
 
 import { useOptionalShellState } from '../panes/Shell'
 import { ChatAppShell } from './ChatAppShell'
@@ -51,6 +51,7 @@ export default function ConversationShell({
 }: ConversationShellProps) {
   const { mode, chrome } = useWindowFrame()
   const isWindow = mode === 'window'
+
   // In window mode the page navbar IS the window title bar, so wrap it even without a
   // right tool to pick up the drag region, traffic-light inset, and title-leading slot.
   const resolvedTopBar =
@@ -101,8 +102,10 @@ type TopBarProps = { isWindow: boolean; leading?: ReactNode; children?: ReactNod
 const ConversationShellTopBar = ({ isWindow, leading, children }: TopBarProps) => {
   const shellState = useOptionalShellState()
   const maximized = shellState?.maximized ?? false
+  const windowNavbarHeightStyle = isWindow ? ({ '--navbar-height': TITLE_BAR_HEIGHT_PX } as CSSProperties) : undefined
   return (
     <div
+      style={windowNavbarHeightStyle}
       className={cn(
         'flex h-fit w-full min-w-0 items-center',
         // Window mode: the navbar is the window title bar — make it draggable, inset past the
@@ -125,6 +128,7 @@ const ConversationShellTopRightTool = ({ isWindow, trailing, children }: TopRigh
   if (maximized) return null
   return (
     <div
+      data-navbar-right-occupant
       className={cn(
         'absolute top-0 right-2 z-20 flex items-center [-webkit-app-region:no-drag]',
         // Window mode: shorter bar (lines up with the traffic lights) + injected controls

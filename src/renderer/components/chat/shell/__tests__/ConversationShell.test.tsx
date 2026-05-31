@@ -1,3 +1,4 @@
+import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -56,5 +57,18 @@ describe('ConversationShell', () => {
     expect(screen.getByTestId('right-pane')).toBeInTheDocument()
     expect(shellProps.current?.centerContent).toBeTruthy()
     expect(document.getElementById('conversation')).toHaveClass('message-style')
+  })
+
+  it('keeps the window-mode navbar wrapper at the title-bar height', () => {
+    render(
+      <WindowFrameProvider value={{ mode: 'window', chrome: { titleLeading: <div data-testid="title-leading" /> } }}>
+        <ConversationShell topBar={<div data-testid="top-bar" />} center={<div />} />
+      </WindowFrameProvider>
+    )
+
+    const topBarWrapper = screen.getByTestId('top-bar').parentElement
+    expect(topBarWrapper).toHaveClass('h-[37.5px]')
+    expect(topBarWrapper).not.toHaveClass('h-(--navbar-height)')
+    expect(topBarWrapper?.style.getPropertyValue('--navbar-height')).toBe('37.5px')
   })
 })

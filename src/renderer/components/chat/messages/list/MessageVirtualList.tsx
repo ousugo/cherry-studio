@@ -17,7 +17,7 @@ import { Virtualizer } from 'virtua'
 
 import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chatVirtualizerRuntime'
 
-const DEFAULT_TOP_PADDING_PX = 6
+export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 6
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
 
 export type { MessageVirtualListHandle }
@@ -75,7 +75,7 @@ export function MessageVirtualList<T>({
   className,
   onScrollContainerReady,
   style,
-  topPadding = DEFAULT_TOP_PADDING_PX,
+  topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX,
   bottomPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
   forceScrollToBottomKey
 }: MessageVirtualListProps<T>): React.ReactElement {
@@ -107,6 +107,9 @@ export function MessageVirtualList<T>({
       style={{ overflowY: 'auto', overflowX: 'hidden', position: 'relative', ...style }}
       onWheel={runtime.scrollerProps.onWheel}>
       <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
+        {topPadding > 0 && (
+          <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
+        )}
         <Virtualizer
           ref={runtime.vlistHandleRef}
           scrollRef={runtime.scrollerRef}
