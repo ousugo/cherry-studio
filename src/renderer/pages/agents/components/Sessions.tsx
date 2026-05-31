@@ -28,23 +28,24 @@ import {
 } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
-import { useCache } from '@renderer/data/hooks/useCache'
+import { useCurrentTabId } from '@renderer/context/TabIdContext'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
+import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { usePins } from '@renderer/hooks/usePins'
 import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/pages/library/dialogs'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Bot, Folder, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
 import { Fragment, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { buildAgentSessionMessageRouteUrl } from '../routeSearch'
+import { type AgentRouteSearch, parseAgentRouteSearch } from '../routeSearch'
 import {
   type AgentGroupAction,
   type AgentGroupActionContext,
@@ -374,7 +375,7 @@ const Sessions = ({
   revealRequest
 }: SessionsProps) => {
   const { t } = useTranslation()
-  const tabs = useOptionalTabsContext()
+  const conversationNav = useConversationNavigation('agents')
   const [groupNow] = useState(() => new Date())
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
@@ -395,7 +396,24 @@ const Sessions = ({
     reorderSession,
     togglePin
   } = useSessions(undefined, { loadAll: true, pageSize: 200 })
-  const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
+  const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  const navigate = useNavigate()
+  const currentTabId = useCurrentTabId()
+  const activeSessionId = routeSearch.sessionId ?? null
+  const setActiveSessionId = useCallback(
+    (id: string | null) => {
+      // One tab per session: if this session is already open in another tab,
+      // focus that tab instead of navigating the current one (avoids a duplicate
+      // tab). Navigate the current tab only when it isn't open elsewhere.
+      if (id && conversationNav.focusExistingTab(id, { excludeTabId: currentTabId ?? undefined })) return
+      void navigate({
+        to: '/app/agents',
+        search: (prev: AgentRouteSearch) => ({ ...prev, sessionId: id ?? undefined }),
+        replace: true
+      })
+    },
+    [navigate, conversationNav, currentTabId]
+  )
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
@@ -903,12 +921,9 @@ const Sessions = ({
   }, [])
   const openSessionInNewTab = useCallback(
     (session: AgentSessionEntity) => {
-      tabs?.openTab(buildAgentSessionMessageRouteUrl(session.id), {
-        forceNew: true,
-        title: session.name || t('common.unnamed')
-      })
+      conversationNav.openInNewTab(session.id, session.name || t('common.unnamed'))
     },
-    [tabs, t]
+    [conversationNav, t]
   )
 
   const handleToggleAgentPin = useCallback(
@@ -1463,7 +1478,7 @@ const Sessions = ({
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
         onEditAgent={openAgentEditor}
-        onOpenInNewTab={tabs ? openSessionInNewTab : undefined}
+        onOpenInNewTab={openSessionInNewTab}
         onRetry={handleRetry}
         onSelectItem={onSelectItem}
         onTogglePin={togglePin}

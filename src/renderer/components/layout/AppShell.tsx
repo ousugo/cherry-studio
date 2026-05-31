@@ -5,7 +5,7 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils'
-import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { useCallback, useEffect, useMemo } from 'react'
 
 import Sidebar from '../app/Sidebar'
@@ -17,7 +17,7 @@ import { TabRouter } from './TabRouter'
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab } = useTabs()
+  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab, detachTab } = useTabs()
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
 
@@ -46,17 +46,22 @@ export const AppShell = () => {
     recordRouteVisit(activeTab)
   }, [activeTab, recordRouteVisit])
 
-  // Sync internal navigation back to tab state. Clear the per-entity icon
-  // override too — it was supplied for a specific URL (e.g. a mini-app's
-  // logo on /app/mini-app/<id>) and no longer applies once the user
-  // navigates elsewhere inside the same tab.
+  // Sync internal navigation back to tab state. For route-titled tabs we also
+  // refresh the title and clear the per-entity icon (it was supplied for a
+  // specific URL, e.g. a mini-app logo on /app/mini-app/<id>, and no longer
+  // applies once the user navigates elsewhere inside the tab). Chat / agent
+  // tabs are page-titled — their HomePage/AgentPage owns title + icon (topic /
+  // session name + assistant / agent emoji), so we only sync the url and leave
+  // title/icon alone, or navigating between topics would wipe them.
   const handleUrlChange = (tabId: string, url: string) => {
-    const title = getDefaultRouteTitle(url)
-    updateTab(tabId, { url, title, icon: undefined, lastAccessTime: Date.now() })
+    const patch = isPageTitledRoute(url)
+      ? { url, lastAccessTime: Date.now() }
+      : { url, title: getDefaultRouteTitle(url), icon: undefined, lastAccessTime: Date.now() }
+    updateTab(tabId, patch)
 
     const tab = tabs.find((candidate) => candidate.id === tabId)
     if (tab) {
-      recordRouteVisit({ ...tab, url, title, icon: undefined }, Date.now())
+      recordRouteVisit({ ...tab, ...patch }, Date.now())
     }
   }
 
@@ -75,6 +80,7 @@ export const AppShell = () => {
         reorderTabs={reorderTabs}
         pinTab={pinTab}
         unpinTab={unpinTab}
+        detachTab={detachTab}
       />
 
       {/* Zone 2: Main Area (Sidebar + Content) */}

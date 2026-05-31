@@ -66,7 +66,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',
-          trafficLightPosition: { x: 13, y: 16 },
+          // y centers the lights in the 37.5px tab bar (TITLE_BAR_HEIGHT_CLASS); matches SubWindow.
+          trafficLightPosition: { x: 13, y: 13 },
           // WCO height; consumed by renderer's env(titlebar-area-height)
           titleBarOverlay: { height: 42 }
         },
@@ -163,6 +164,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',
+          // Standard macOS inset. The detached title bar (ConversationShell) is sized to
+          // 37.5px so its centered content lines up with the lights at this position.
           trafficLightPosition: { x: 8, y: 13 },
           // WCO height; consumed by renderer's env(titlebar-area-height)
           titleBarOverlay: { height: 42 }

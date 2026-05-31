@@ -5,12 +5,8 @@
  * orderKey / timestamps` live here. For config (model / instructions /
  * configuration / ...) call {@link import('./useAgent').useAgent}
  * with `session.agentId`.
- *
- * Companion hooks for derived/lifecycle state (not CRUD):
- *  - {@link import('./useCreateDefaultSession').useCreateDefaultSession}
  */
 
-import { useCache } from '@renderer/data/hooks/useCache'
 import {
   useInfiniteFlatItems,
   useInfiniteQuery,
@@ -62,22 +58,20 @@ export const useSession = (sessionId: string | null) => {
   return { session, error, isLoading, mutate }
 }
 
-/**
- * Reads the single active-session pointer and returns the resolved session.
- * Active agent is derived from `session.agentId` — see {@link useActiveAgent}.
- */
-export const useActiveSession = (options: { pendingSession?: AgentSessionEntity | null } = {}) => {
-  const [activeSessionId, setActiveSessionIdAction] = useCache('agent.active_session_id')
-  const setActiveSessionId = useCallback(
-    (id: string | null) => setActiveSessionIdAction(id),
-    [setActiveSessionIdAction]
-  )
+export interface UseActiveSessionOptions {
+  /** External source of truth for the active session id (e.g. URL search). */
+  activeSessionId: string | null
+  /** Write back when callers select a different session. */
+  setActiveSessionId: (id: string | null) => void
+  pendingSession?: AgentSessionEntity | null
+}
+
+export const useActiveSession = ({ activeSessionId, setActiveSessionId, pendingSession }: UseActiveSessionOptions) => {
   const result = useSession(activeSessionId)
   const querySession = activeSessionId && result.session?.id === activeSessionId ? result.session : undefined
-  const pendingSession =
-    activeSessionId && options.pendingSession?.id === activeSessionId ? options.pendingSession : undefined
-  const session = querySession ?? pendingSession
-  const sessionSource: AgentSessionSource = querySession ? 'query' : pendingSession ? 'pending' : 'none'
+  const resolvedPendingSession = activeSessionId && pendingSession?.id === activeSessionId ? pendingSession : undefined
+  const session = querySession ?? resolvedPendingSession
+  const sessionSource: AgentSessionSource = querySession ? 'query' : resolvedPendingSession ? 'pending' : 'none'
 
   return {
     ...result,

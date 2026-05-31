@@ -129,6 +129,16 @@ const SessionItem = ({
     [handleOpenInNewTab, onOpenInNewTab, isActive, onPress, onSelectItem, session.id]
   )
 
+  const handleAuxClick = useCallback(
+    (event: MouseEvent) => {
+      // Middle-click opens in a new tab (except the already-shown active session).
+      if (isActive || event.button !== 1 || !onOpenInNewTab) return
+      event.preventDefault()
+      handleOpenInNewTab()
+    },
+    [handleOpenInNewTab, isActive, onOpenInNewTab]
+  )
+
   const handleTogglePinClick = useCallback(
     (event: MouseEvent) => {
       event.stopPropagation()
@@ -149,6 +159,7 @@ const SessionItem = ({
       className="relative"
       style={{ cursor: 'pointer' }}
       onClick={handlePress}
+      onAuxClick={handleAuxClick}
       title={sessionName}>
       <ResourceList.ItemLeadingSlot className={cn('relative', !rowState.renaming && channelIcon && 'rounded-sm')}>
         {!rowState.renaming && onTogglePin && (

@@ -2,8 +2,11 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import {
+  findAppTabToFocus,
   getOrderedVisibleSidebarIcons,
+  getSidebarApp,
   getSidebarMenuPath,
+  resolveAppOpenUrl,
   resolveSidebarActiveItem,
   SIDEBAR_ICON_COMPONENTS
 } from '@renderer/config/sidebar'
@@ -31,8 +34,10 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
-  const { activeTab, updateTab, openTab } = useTabs()
+  const { activeTab, tabs, openTab, setActiveTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
+  const [lastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
+  const [lastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
 
   // Sidebar width — persisted across restarts. Drive the CSS variable
   // straight from the cached value so:
@@ -116,28 +121,21 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const activeItem = resolveSidebarActiveItem(pathname)
 
   const handleNavigate = useCallback(
-    async (menuItemId: string) => {
-      const menuId = menuItemId as SidebarIconType
-      const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
-      if (!path) return
+    (menuItemId: string) => {
+      const app = getSidebarApp(menuItemId as SidebarIconType)
+      if (!app) return
 
-      if (activeTab?.url === path) return
-
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
+      const navCtx = { defaultPaintingProvider, lastUsedTopicId, lastUsedSessionId }
+      const existingId = findAppTabToFocus(app, tabs, navCtx)
+      if (existingId) {
+        setActiveTab(existingId)
         return
       }
 
-      if (activeTab) {
-        // Reusing the active tab — clear any per-entity icon (e.g. a mini-app
-        // logo carried over from /app/mini-app/<id>) so the new top-level
-        // route falls back to its default Lucide icon.
-        updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path), icon: undefined })
-      } else {
-        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
-      }
+      const url = resolveAppOpenUrl(app, navCtx)
+      openTab(url, { title: getDefaultRouteTitle(url) })
     },
-    [activeTab, updateTab, openTab, defaultPaintingProvider]
+    [tabs, openTab, setActiveTab, defaultPaintingProvider, lastUsedTopicId, lastUsedSessionId]
   )
 
   // Common props shared between normal and floating sidebar

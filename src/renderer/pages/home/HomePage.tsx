@@ -6,7 +6,11 @@ import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
+import { useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
+import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { useAssistantApiById } from '@renderer/hooks/useAssistant'
+import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversation, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
@@ -14,6 +18,7 @@ import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import type { FC } from 'react'
@@ -22,8 +27,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import Chat from './Chat'
-import HomeSidePanelDrawer from './components/HomeSidePanelDrawer'
-import { parseChatRouteSearch } from './routeSearch'
+import { type ChatRouteSearch, parseChatRouteSearch } from './routeSearch'
 import HomeTabs from './Tabs'
 import type { AddNewTopicPayload } from './types'
 
@@ -67,6 +71,7 @@ const HomePage: FC = () => {
   const [ignoredTemporaryTopicId, setIgnoredTemporaryTopicId] = useState<string | null>(null)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const lastUsedAssistantIdRef = useRef<string | undefined>(lastUsedAssistantId ?? undefined)
+  const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
@@ -77,7 +82,10 @@ const HomePage: FC = () => {
   const state = location.state as { topic?: Topic } | undefined
   const routeTopicId = routeSearch.topicId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
-  const effectiveShowSidebar = !isMessageOnlyView && showSidebar
+  // In a detached window the user popped this topic out to focus on it — hide the
+  // topic list pane and its toggle, locking the window to one topic.
+  const isWindowFrame = useWindowFrame().mode === 'window'
+  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -140,16 +148,35 @@ const HomePage: FC = () => {
     return temporaryTopic ?? pendingTemporaryTopicSnapshot
   }, [isMessageOnlyView, pendingTemporaryTopicSnapshot, state?.topic, temporaryTopic])
 
+  const setActiveTopicIdToUrl = useCallback(
+    (id: string | null) => {
+      void navigate({
+        to: '/app/chat',
+        search: (prev: ChatRouteSearch) => ({ ...prev, topicId: id ?? undefined }),
+        replace: true
+      })
+    },
+    [navigate]
+  )
+
   const {
     activeTopic,
     setActiveTopic,
-    isLoading: isActiveTopicLoading
-  } = useActiveTopic(initialTopic, {
+    isLoading: isActiveTopicLoading,
+    topicSource: activeTopicSource
+  } = useActiveTopic({
+    initialTopic,
+    // URL is the single source of truth — per-tab via Tab.url, no cross-tab leak.
+    activeTopicId: routeSearch.topicId ?? null,
+    setActiveTopicId: setActiveTopicIdToUrl,
     // While we're waiting for the temporary topic to lease, suppress the
     // auto-pick-first-topic effect so the UI doesn't flash a stale topic
     // before our blank one shows up.
     autoPickFirst: !shouldUseTemporary && !isMessageOnlyView,
-    syncActiveCache: !isMessageOnlyView
+    // Message-only view loads its target via useTopicById; the active hook
+    // must not reconcile (it would clobber the URL with topics[0] when the
+    // requested topic isn't in the loaded list).
+    passive: isMessageOnlyView
   })
   const lastVisibleTopicRef = useRef<Topic | null>(null)
   const temporaryTopicSnapshot = useMemo<Topic | undefined>(() => {
@@ -173,6 +200,37 @@ const HomePage: FC = () => {
       setLastUsedAssistantId(assistantId)
     }
   }, [activeTopic, setLastUsedAssistantId])
+
+  // All non-dormant tabs mount at once (Activity keep-alive), so each chat tab runs its
+  // own HomePage. `currentTabId` is *this* tab; the conversation-nav boundary uses it to
+  // exclude self when deduping. `useIsActiveTab` answers "am I the globally-focused tab".
+  const currentTabId = useCurrentTabId()
+  const conversationNav = useConversationNavigation('assistants')
+  const isActiveTab = useIsActiveTab()
+
+  useEffect(() => {
+    // Track "last focused topic" only for persisted topics — temp ids are
+    // ephemeral and would point to nothing on the next sidebar click. Drives
+    // the sidebar `assistants` dedupe key (mirror of agent's last_used_session).
+    // Gated on the active tab: `last_used` is a single global "what I'm looking
+    // at now", so background tabs (also mounted) must not clobber it.
+    if (!isActiveTab) return
+    if (activeTopic?.id && activeTopicSource === 'query') {
+      setLastUsedTopicId(activeTopic.id)
+    }
+  }, [isActiveTab, activeTopic, activeTopicSource, setLastUsedTopicId])
+
+  // Label this tab with its assistant emoji + topic name so multiple chat tabs
+  // are distinguishable in the tab bar (every tab labels itself — not gated on active).
+  const { assistant: visibleAssistant } = useAssistantApiById(visibleTopic?.assistantId ?? undefined)
+  // This tab shows an unpersisted temp topic → forbid "open in new window".
+  const isTemporaryView =
+    !isMessageOnlyView && !!temporaryTopicSnapshot && visibleTopic?.id === temporaryTopicSnapshot.id
+  useTabSelfMetadata({
+    title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
+    emoji: visibleAssistant?.emoji,
+    isTemporary: isTemporaryView
+  })
 
   useEffect(() => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
@@ -335,6 +393,11 @@ const HomePage: FC = () => {
 
   const setActiveTopicAndDiscardTemporary = useCallback(
     (topic: Topic) => {
+      // One tab per topic: if this topic is already open in another tab, focus
+      // that tab instead of navigating the current one (which would duplicate
+      // it in the tab bar). The current tab keeps its own topic untouched.
+      if (conversationNav.focusExistingTab(topic.id, { excludeTabId: currentTabId ?? undefined })) return
+
       const currentTemporaryTopicId =
         temporaryTopicConversation?.type === 'assistant'
           ? temporaryTopicConversation.topicId
@@ -347,7 +410,7 @@ const HomePage: FC = () => {
       }
       setActiveTopic(topic)
     },
-    [discardTemporaryConversation, setActiveTopic, temporaryTopicConversation]
+    [conversationNav, currentTabId, discardTemporaryConversation, setActiveTopic, temporaryTopicConversation]
   )
 
   useEffect(() => {
@@ -412,17 +475,6 @@ const HomePage: FC = () => {
     />
   )
 
-  const openSidePanelDrawer = useCallback(() => {
-    if (!visibleTopic) return
-
-    void HomeSidePanelDrawer.show({
-      activeTopic: visibleTopic,
-      setActiveTopic: setActiveTopicAndDiscardTemporary,
-      onOpenHistory: openHistory,
-      onNewTopic: startTemporaryTopic
-    })
-  }, [openHistory, setActiveTopicAndDiscardTemporary, startTemporaryTopic, visibleTopic])
-
   if (!visibleTopic) {
     if (isMessageOnlyView) {
       return (
@@ -448,7 +500,7 @@ const HomePage: FC = () => {
 
   return (
     <Container id="home-page">
-      <ContentContainer>
+      <ContentContainer $detached={isWindowFrame}>
         <Chat
           activeTopic={visibleTopic}
           pane={
@@ -464,8 +516,7 @@ const HomePage: FC = () => {
           panePosition={panePosition}
           onPaneCollapse={() => void setShowSidebar(false)}
           onNewTopic={isMessageOnlyView ? undefined : startTemporaryTopic}
-          onOpenSidePanelDrawer={isMessageOnlyView ? undefined : openSidePanelDrawer}
-          showResourceListControls={!isMessageOnlyView}
+          showResourceListControls={!isMessageOnlyView && !isWindowFrame}
           // Wire the persist callback only while the temp lease is the
           // currently-active topic. If the user clicks a sidebar topic
           // before sending, the active id no longer matches the lease and
@@ -510,12 +561,14 @@ const Container = styled.div`
   max-width: 100vw;
 `
 
-const ContentContainer = styled.div`
+const ContentContainer = styled.div<{ $detached?: boolean }>`
   display: flex;
   flex: 1;
   flex-direction: row;
   overflow: hidden;
-  max-width: calc(100vw - 12px);
+  /* The 12px inset is for the main window's rounded content edge; a detached
+     sub-window has no such inset, so it would just leave a dead right gap. */
+  max-width: ${({ $detached }) => ($detached ? '100vw' : 'calc(100vw - 12px)')};
 `
 
 export default HomePage

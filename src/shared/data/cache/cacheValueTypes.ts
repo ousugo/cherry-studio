@@ -58,6 +58,9 @@ export interface Tab {
   isDormant?: boolean // 是否已休眠
   isPinned?: boolean // 是否置顶（豁免 LRU）
   savedState?: TabSavedState // 休眠前保存的状态
+  // 是否承载未持久化的临时话题/会话。临时实例仅存在于本窗口的内存租约中，
+  // 无法被新窗口独立加载，故禁止「从新窗口打开」(detach)。由页面写入。
+  isTemporary?: boolean
 }
 
 export interface TabsState {

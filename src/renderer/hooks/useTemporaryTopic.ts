@@ -21,7 +21,6 @@
  * Main-side leaks.
  */
 
-import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -103,10 +102,6 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
         void dataApiService.delete(`/temporary/topics/${idToCleanup}`).catch((err) => {
           logger.warn('Failed to release temporary topic on unmount', err as Error)
         })
-
-        if (cacheService.get('topic.active_id') === idToCleanup) {
-          cacheService.set('topic.active_id', null)
-        }
       }
     }
   }, [enabled, assistantId, epoch])

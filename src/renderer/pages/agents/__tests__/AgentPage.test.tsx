@@ -7,9 +7,12 @@ const agentPageMocks = vi.hoisted(() => ({
   activeSessionId: 'session-initial' as string | null,
   agents: [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }],
   lastUsedAgentId: null as string | null,
+  lastUsedSessionId: null as string | null,
   lastUsedWorkspaceId: null as string | null,
+  navigate: vi.fn(),
   setActiveSessionId: vi.fn(),
   setLastUsedAgentId: vi.fn(),
+  setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
   setShowSidebar: vi.fn(),
   showSidebar: false
@@ -60,33 +63,30 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   const React = await import('react')
 
   return {
-    useCache: (key: string) => {
-      const [activeSessionId, setActiveSessionId] = React.useState(agentPageMocks.activeSessionId)
-      if (key !== 'agent.active_session_id') return [undefined, vi.fn()]
-
-      const setCache = vi.fn((nextSessionId: string | null) => {
-        agentPageMocks.activeSessionId = nextSessionId
-        agentPageMocks.setActiveSessionId(nextSessionId)
-        setActiveSessionId(nextSessionId)
-      })
-
-      return [activeSessionId, setCache]
-    },
     usePersistCache: (key: string) => {
       const initialValue =
         key === 'ui.agent.last_used_agent_id'
           ? agentPageMocks.lastUsedAgentId
-          : key === 'ui.agent.last_used_workspace_id'
-            ? agentPageMocks.lastUsedWorkspaceId
-            : undefined
+          : key === 'ui.agent.last_used_session_id'
+            ? agentPageMocks.lastUsedSessionId
+            : key === 'ui.agent.last_used_workspace_id'
+              ? agentPageMocks.lastUsedWorkspaceId
+              : undefined
       const [value, setValue] = React.useState(initialValue)
-      if (key !== 'ui.agent.last_used_agent_id' && key !== 'ui.agent.last_used_workspace_id')
+      if (
+        key !== 'ui.agent.last_used_agent_id' &&
+        key !== 'ui.agent.last_used_session_id' &&
+        key !== 'ui.agent.last_used_workspace_id'
+      )
         return [undefined, vi.fn()]
 
       const setCache = vi.fn((nextValue: string | null) => {
         if (key === 'ui.agent.last_used_agent_id') {
           agentPageMocks.lastUsedAgentId = nextValue
           agentPageMocks.setLastUsedAgentId(nextValue)
+        } else if (key === 'ui.agent.last_used_session_id') {
+          agentPageMocks.lastUsedSessionId = nextValue
+          agentPageMocks.setLastUsedSessionId(nextValue)
         } else {
           agentPageMocks.lastUsedWorkspaceId = nextValue
           agentPageMocks.setLastUsedWorkspaceId(nextValue)
@@ -102,6 +102,9 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useAgents: () => ({
     agents: agentPageMocks.agents
+  }),
+  useAgent: (id: string | null) => ({
+    agent: id ? agentPageMocks.agents.find((a) => a.id === id) : undefined
   })
 }))
 
@@ -110,14 +113,20 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
     session: undefined,
     isLoading: false
   }),
-  useActiveSession: (options?: { pendingSession?: any }) => ({
+  useActiveSession: (options: {
+    activeSessionId: string | null
+    setActiveSessionId: (id: string | null) => void
+    pendingSession?: any
+  }) => ({
     session: activeSessionMocks.session ?? options?.pendingSession ?? undefined,
     isLoading: activeSessionMocks.isLoading,
     sessionSource: activeSessionMocks.session
       ? activeSessionMocks.sessionSource
       : options?.pendingSession
         ? 'pending'
-        : 'none'
+        : 'none',
+    activeSessionId: options.activeSessionId,
+    setActiveSessionId: options.setActiveSessionId
   })
 }))
 
@@ -130,7 +139,17 @@ vi.mock('@renderer/hooks/useShortcuts', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  useSearch: () => ({})
+  useSearch: () => (agentPageMocks.activeSessionId ? { sessionId: agentPageMocks.activeSessionId } : {}),
+  useNavigate: () => (args: { search?: ((prev: any) => any) | Record<string, unknown> }) => {
+    const next =
+      typeof args.search === 'function'
+        ? args.search({ sessionId: agentPageMocks.activeSessionId ?? undefined })
+        : (args.search ?? {})
+    const nextSessionId = (next as { sessionId?: string | null }).sessionId ?? null
+    agentPageMocks.activeSessionId = nextSessionId
+    agentPageMocks.setActiveSessionId(nextSessionId)
+    agentPageMocks.navigate(args)
+  }
 }))
 
 vi.mock('@renderer/hooks/useTemporaryConversation', () => ({

@@ -1,8 +1,11 @@
+import { TooltipPortalContainerProvider } from '@cherrystudio/ui'
+import { TabIdProvider } from '@renderer/context/TabIdContext'
 import { routeTree } from '@renderer/routeTree.gen'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { Activity } from 'react'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
 interface TabRouterProps {
   tab: Tab
   isActive: boolean
@@ -41,11 +44,17 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     }
   }, [router, tab.url])
 
+  const [tooltipContainer, setTooltipContainer] = useState<HTMLElement | null>(null)
+
   return (
     <Activity mode={isActive ? 'visible' : 'hidden'}>
-      <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-        <RouterProvider router={router} />
-      </div>
+      <TabIdProvider tabId={tab.id}>
+        <div ref={setTooltipContainer} className="flex h-full min-h-0 w-full flex-1 flex-col">
+          <TooltipPortalContainerProvider container={tooltipContainer}>
+            <RouterProvider router={router} />
+          </TooltipPortalContainerProvider>
+        </div>
+      </TabIdProvider>
     </Activity>
   )
 }
