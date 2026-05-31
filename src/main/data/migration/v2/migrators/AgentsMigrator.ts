@@ -24,7 +24,7 @@ import {
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
 import { type ChatMappingDeps, normalizeStatus, transformBlocksToParts } from './mappings/ChatMappings'
-import { remapAgentPrefixIds } from './remapAgentPrefixIds'
+import { AGENT_TABLES, remapAgentPrefixIds } from './remapAgentPrefixIds'
 
 type V1ScheduledTaskRow = {
   id: string
@@ -138,7 +138,8 @@ export class AgentsMigrator extends BaseMigrator {
     try {
       await ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
       isAttached = true
-      await ctx.db.run(sql.raw('PRAGMA foreign_keys = OFF'))
+      // Foreign keys are already OFF for the whole migration (MigrationDbService registers
+      // it via setPragma), so no per-call toggle here.
       await ctx.db.run(sql.raw('BEGIN'))
 
       this.derivedWorkspaceCount = await stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
@@ -175,6 +176,12 @@ export class AgentsMigrator extends BaseMigrator {
       // BEGIN/COMMIT (nested SQLite transactions are not supported). It is
       // idempotent, so a retry after a partial failure is safe.
       await remapAgentPrefixIds(ctx.db)
+
+      // Self-check agent-domain referential integrity after import + remap. FK is OFF for
+      // the whole migration, so violations only surface here (and at the engine's final
+      // verifyForeignKeys). foreign_key_check is read-only and stays on this connection, so
+      // it is safe inside the ATTACH window.
+      await this.assertOwnedForeignKeys(ctx.db, AGENT_TABLES)
     } catch (error) {
       if (!committed) {
         try {
@@ -188,17 +195,6 @@ export class AgentsMigrator extends BaseMigrator {
       }
       logger.error('Agents migration execute failed:', error as Error)
       pendingError = error
-    }
-
-    // FK re-enable must succeed: a silent failure leaves the rest of the migration
-    // pipeline (and the app) running with FK enforcement off, which masks
-    // referential corruption. Only overwrite pendingError if the main path succeeded —
-    // otherwise the original failure is more informative.
-    try {
-      await ctx.db.run(sql.raw('PRAGMA foreign_keys = ON'))
-    } catch (pragmaError) {
-      logger.error('Failed to re-enable foreign_keys after agents migration — aborting', pragmaError as Error)
-      if (!pendingError) pendingError = pragmaError
     }
 
     if (isAttached) {
