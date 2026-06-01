@@ -91,6 +91,21 @@ describe('ClaudeCodeStreamAdapter', () => {
     ])
   })
 
+  it('handles compact_boundary system messages without dropping them silently or emitting chunks', () => {
+    const { adapter, parts } = createAdapter()
+
+    const result = adapter.handleMessage({
+      type: 'system',
+      subtype: 'compact_boundary',
+      session_id: 'sdk-compact',
+      uuid: crypto.randomUUID(),
+      compact_metadata: { trigger: 'auto', pre_tokens: 50_000, post_tokens: 12_000 }
+    } as any)
+
+    expect(result).toEqual({ type: 'continue' })
+    expect(parts).toEqual([])
+  })
+
   it('maps text content block deltas', () => {
     const { adapter, parts } = createAdapter()
 

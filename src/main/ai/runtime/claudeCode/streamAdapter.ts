@@ -11,7 +11,6 @@ import type {
   SDKMessage,
   SDKPartialAssistantMessage,
   SDKResultMessage,
-  SDKSystemMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type {
@@ -224,9 +223,7 @@ export class ClaudeCodeStreamAdapter {
         this.handleResultMessage(message, this.ctx)
         return { type: 'result', sessionId: message.session_id, message }
       case 'system':
-        if (message.subtype === 'init') {
-          this.handleSystemMessage(message, this.ctx)
-        }
+        this.handleSystemMessage(message, this.ctx)
         return { type: 'continue' }
     }
     return { type: 'continue' }
@@ -750,14 +747,20 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private handleSystemMessage(message: SDKSystemMessage, ctx: StreamContext): void {
-    if (message.subtype !== 'init') return
+  private handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>, ctx: StreamContext): void {
+    if (message.subtype === 'init') {
+      this.logMcpConnectionIssues(message.mcp_servers)
+      this.setSessionId(message.session_id)
+      logger.info(`Stream session initialized: ${message.session_id}`)
+      ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
+      return
+    }
 
-    this.logMcpConnectionIssues(message.mcp_servers)
-    this.setSessionId(message.session_id)
-    logger.info(`Stream session initialized: ${message.session_id}`)
-
-    ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
+    // Every other system subtype (compact_boundary, status, api_retry, hook_*,
+    // task_*, notification, permission_denied, memory_recall, …) is a control
+    // signal with no consumer in Cherry yet. Acknowledged at debug so it is not
+    // silently swallowed; dedicated UI is planned in a follow-up PR.
+    logger.debug(`Unhandled claude system message subtype: ${message.subtype}`)
   }
 
   private extractToolUses(content: BetaContentBlock[]): ClaudeToolUseBlock[] {
