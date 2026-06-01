@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { ToolLauncherApi } from '@renderer/components/chat/composer/tools/types'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
@@ -8,9 +9,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import WebSearchButton from '../WebSearchButton'
 
-const updateAssistantMock = vi.fn()
-const navigateMock = vi.fn()
-const confirmMock = vi.fn()
+const mocks = vi.hoisted(() => ({
+  updateAssistant: vi.fn(),
+  navigate: vi.fn(),
+  confirm: vi.fn(),
+  toastWarning: vi.fn(),
+  assistant: undefined as any,
+  model: undefined as Model | undefined
+}))
+
 const launcherApi: ToolLauncherApi = {
   registerLaunchers: vi.fn(() => vi.fn())
 }
@@ -25,7 +32,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => navigateMock
+  useNavigate: () => mocks.navigate
 }))
 
 vi.mock('@renderer/components/Buttons', () => ({
@@ -49,24 +56,9 @@ vi.mock('antd', () => ({
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({
-    assistant: {
-      id: 'assistant-1',
-      name: 'Assistant',
-      settings: {
-        toolUseMode: 'function'
-      },
-      enableWebSearch: false,
-      mcpMode: 'disabled',
-      mcpServers: []
-    },
-    model: {
-      id: 'anthropic::claude-3-5-sonnet',
-      providerId: 'anthropic',
-      apiModelId: 'claude-3-5-sonnet',
-      name: 'Claude 3.5 Sonnet',
-      capabilities: []
-    },
-    updateAssistant: updateAssistantMock
+    assistant: mocks.assistant,
+    model: mocks.model,
+    updateAssistant: mocks.updateAssistant
   })
 }))
 
@@ -90,11 +82,18 @@ vi.mock('@renderer/config/models', () => {
         get: (target, prop) => (prop in target ? target[prop as keyof typeof target] : [])
       }
     ),
+    getThinkModelType: () => 'default',
+    isFunctionCallingModel: (model?: Model) => model?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
     isGemini3Model: () => false,
     isGeminiModel: () => false,
     isGPT5SeriesReasoningModel: () => false,
+    isOpenRouterBuiltInWebSearchModel: () => false,
     isOpenAIWebSearchModel: () => false,
-    isWebSearchModel: () => false
+    isSupportedReasoningEffortModel: () => false,
+    isSupportedThinkingTokenModel: () => false,
+    isWebSearchModel: (model?: Model) => model?.capabilities.includes(MODEL_CAPABILITY.WEB_SEARCH) ?? false,
+    MODEL_SUPPORTED_OPTIONS: { default: ['none'] },
+    MODEL_SUPPORTED_REASONING_EFFORT: { default: ['none'] }
   }
 })
 
@@ -124,6 +123,26 @@ vi.mock('@renderer/utils/assistant', () => ({
 describe('WebSearchButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.assistant = {
+      id: 'assistant-1',
+      name: 'Assistant',
+      settings: {
+        enableWebSearch: false,
+        toolUseMode: 'function'
+      },
+      mcpMode: 'disabled',
+      mcpServers: []
+    }
+    mocks.model = {
+      id: 'anthropic::claude-3-5-sonnet',
+      providerId: 'anthropic',
+      apiModelId: 'claude-3-5-sonnet',
+      name: 'Claude 3.5 Sonnet',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    }
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', null)
@@ -131,7 +150,11 @@ describe('WebSearchButton', () => {
     Object.assign(window, {
       modal: {
         ...window.modal,
-        confirm: confirmMock
+        confirm: mocks.confirm
+      },
+      toast: {
+        ...window.toast,
+        warning: mocks.toastWarning
       }
     })
   })
@@ -141,13 +164,48 @@ describe('WebSearchButton', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
 
-    expect(confirmMock).toHaveBeenCalledWith(
+    expect(mocks.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'settings.tool.websearch.search_provider',
         content: 'settings.tool.websearch.search_provider_placeholder'
       })
     )
-    expect(updateAssistantMock).not.toHaveBeenCalled()
+    expect(mocks.updateAssistant).not.toHaveBeenCalled()
+  })
+
+  it('disables web search when the configured provider cannot be consumed by the current model', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    const button = screen.getByRole('button', { name: 'chat.input.web_search.label' })
+    expect(button).toBeDisabled()
+
+    await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
+    const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls[0][0]
+    expect(webSearchLauncher).toMatchObject({
+      disabled: true,
+      disabledReason: 'chat.input.web_search.builtin.disabled_content'
+    })
+
+    fireEvent.click(button)
+
+    expect(mocks.toastWarning).not.toHaveBeenCalled()
+    expect(mocks.updateAssistant).not.toHaveBeenCalled()
+  })
+
+  it('enables web search with an external provider when the model can call tools', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
+    mocks.model = {
+      ...mocks.model!,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
+
+    await waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { enableWebSearch: true } }))
   })
 
   it('registers web search only for the plus menu', async () => {
