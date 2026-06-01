@@ -7,6 +7,9 @@ import { AbsolutePathSchema } from '@shared/data/types/file'
 import type {
   ExcelImportDiagnostic,
   ExcelImportDiagnosticCode,
+  ExcelPreviewTableFilter,
+  ExcelPreviewTableRange,
+  ExcelPreviewTableStringFilterInfo,
   ExcelWorkbookPreviewRequest,
   ExcelWorkbookPreviewResult
 } from '@shared/excelPreview'
@@ -20,7 +23,8 @@ import type {
   ExcelStreamSheetMetadataIndex,
   ExcelWorkbookPreviewBudget,
   ExcelWorksheetColumnData,
-  ExcelWorksheetMergeData
+  ExcelWorksheetMergeData,
+  ExcelWorksheetTableData
 } from './excelToUniverWorkbook'
 
 export const EXCEL_PREVIEW_MAX_SIZE_BYTES = 25 * 1024 * 1024
@@ -87,12 +91,65 @@ interface ParsedWorksheetXml {
     mergeCells?: {
       mergeCell?: ParsedWorksheetMergeCell | ParsedWorksheetMergeCell[]
     }
+    tableParts?: {
+      tablePart?: ParsedWorksheetTablePart | ParsedWorksheetTablePart[]
+    }
   }
 }
 
 interface ExcelArchiveWorksheetMetadata {
   columnData: ExcelWorksheetColumnData
   mergeData: ExcelWorksheetMergeData
+  tableData: ExcelWorksheetTableData[]
+}
+
+interface ParsedWorksheetTablePart {
+  id?: string
+}
+
+interface ParsedTableColumn {
+  id?: number | string
+  name?: string
+}
+
+interface ParsedTableFilter {
+  val?: string
+}
+
+interface ParsedTableCustomFilter {
+  operator?: string
+  val?: string
+}
+
+interface ParsedTableFilterColumn {
+  colId?: number | string
+  customFilters?: {
+    and?: boolean | number | string
+    customFilter?: ParsedTableCustomFilter | ParsedTableCustomFilter[]
+  }
+  filters?: {
+    filter?: ParsedTableFilter | ParsedTableFilter[]
+  }
+  hiddenButton?: boolean | number | string
+}
+
+interface ParsedTableXml {
+  table?: {
+    autoFilter?: {
+      filterColumn?: ParsedTableFilterColumn | ParsedTableFilterColumn[]
+    }
+    displayName?: string
+    headerRowCount?: number | string
+    name?: string
+    ref?: string
+    tableColumns?: {
+      tableColumn?: ParsedTableColumn | ParsedTableColumn[]
+    }
+    tableStyleInfo?: {
+      name?: string
+    }
+    totalsRowCount?: number | string
+  }
 }
 
 interface ExcelArchiveMetadata {
@@ -178,6 +235,11 @@ const decodeMergeRange = (range: string): ExcelWorksheetMergeData[number] | null
   }
 }
 
+const decodeTableRange = (range: string | undefined): ExcelPreviewTableRange | null => {
+  const decodedRange = range ? decodeMergeRange(range) : null
+  return decodedRange ? { ...decodedRange } : null
+}
+
 const parseExcelBooleanAttribute = (value: boolean | number | string | undefined): boolean => {
   return value === true || value === 1 || value === '1' || value === 'true'
 }
@@ -225,18 +287,260 @@ const parseWorksheetMergeData = (worksheet: ParsedWorksheetXml): ExcelWorksheetM
   })
 }
 
+const toArchiveTargetPath = (baseDir: string, target: string | undefined): string | undefined => {
+  if (!target) return undefined
+
+  const normalizedTarget = target.replace(/\\/g, '/')
+  return normalizedTarget.startsWith('/')
+    ? normalizedTarget.slice(1)
+    : path.posix.normalize(path.posix.join(baseDir, normalizedTarget))
+}
+
+const toSafeTableIdentifier = (value: string): string => {
+  return value
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+const normalizeTableStyleId = (theme: string | undefined): string | undefined => {
+  // Excel exposes built-in table style names like TableStyleMedium2, not their
+  // resolved colors. Univer's closest neutral fallback is its default blue.
+  return theme ? 'table-default-0' : undefined
+}
+
+const toNumberFilterCompareType = (
+  operator: string | undefined
+): 'equal' | 'notEqual' | 'greaterThan' | 'greaterThanOrEqual' | 'lessThan' | 'lessThanOrEqual' => {
+  switch (operator) {
+    case 'notEqual':
+      return 'notEqual'
+    case 'greaterThan':
+      return 'greaterThan'
+    case 'greaterThanOrEqual':
+      return 'greaterThanOrEqual'
+    case 'lessThan':
+      return 'lessThan'
+    case 'lessThanOrEqual':
+      return 'lessThanOrEqual'
+    default:
+      return 'equal'
+  }
+}
+
+const unescapeExcelWildcardValue = (value: string): string => value.replace(/~([*?~])/g, '$1')
+
+const getUnescapedExcelWildcardPositions = (value: string, wildcard: '*' | '?'): number[] => {
+  const positions: number[] = []
+  let escaped = false
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+
+    if (char === '~') {
+      escaped = true
+      continue
+    }
+
+    if (char === wildcard) {
+      positions.push(index)
+    }
+  }
+
+  return positions
+}
+
+const toStringFilterInfo = (operator: string | undefined, value: string): ExcelPreviewTableStringFilterInfo => {
+  const starPositions = getUnescapedExcelWildcardPositions(value, '*')
+  const hasQuestionWildcard = getUnescapedExcelWildcardPositions(value, '?').length > 0
+
+  if (value.length > 1 && !hasQuestionWildcard) {
+    const excludesMatches = operator === 'notEqual'
+    const hasLeadingWildcard = starPositions.includes(0)
+    const hasTrailingWildcard = starPositions.includes(value.length - 1)
+    const hasOnlyBoundaryWildcards = starPositions.every((position) => position === 0 || position === value.length - 1)
+
+    if (hasOnlyBoundaryWildcards && hasLeadingWildcard && hasTrailingWildcard && value.length > 2) {
+      return {
+        conditionType: 'string',
+        compareType: excludesMatches ? 'notContains' : 'contains',
+        expectedValue: unescapeExcelWildcardValue(value.slice(1, -1))
+      }
+    }
+
+    if (hasOnlyBoundaryWildcards && !excludesMatches && hasTrailingWildcard) {
+      return {
+        conditionType: 'string',
+        compareType: 'startsWith',
+        expectedValue: unescapeExcelWildcardValue(value.slice(0, -1))
+      }
+    }
+
+    if (hasOnlyBoundaryWildcards && !excludesMatches && hasLeadingWildcard) {
+      return {
+        conditionType: 'string',
+        compareType: 'endsWith',
+        expectedValue: unescapeExcelWildcardValue(value.slice(1))
+      }
+    }
+  }
+
+  return {
+    conditionType: 'string',
+    compareType: operator === 'notEqual' ? 'notEqual' : 'equal',
+    expectedValue: unescapeExcelWildcardValue(value)
+  }
+}
+
+const isNumericFilterValue = (value: string): boolean => {
+  return value.trim() !== '' && Number.isFinite(Number(value))
+}
+
+const parseCustomFilter = (filter: ParsedTableCustomFilter): ExcelPreviewTableFilter | null => {
+  if (filter.val === undefined) return null
+
+  if (isNumericFilterValue(filter.val)) {
+    return {
+      filterType: 'condition',
+      filterInfo: {
+        conditionType: 'number',
+        compareType: toNumberFilterCompareType(filter.operator),
+        expectedValue: Number(filter.val)
+      }
+    }
+  }
+
+  return {
+    filterType: 'condition',
+    filterInfo: toStringFilterInfo(filter.operator, filter.val)
+  }
+}
+
+const parseCustomFilters = (filters: ParsedTableFilterColumn['customFilters']): ExcelPreviewTableFilter | null => {
+  const customFilters = asArray(filters?.customFilter)
+  if (customFilters.length === 1) return parseCustomFilter(customFilters[0])
+
+  const numericFilters = customFilters.filter((filter) => filter.val !== undefined && isNumericFilterValue(filter.val))
+  if (numericFilters.length !== 2 || !parseExcelBooleanAttribute(filters?.and)) return null
+
+  const lower = numericFilters.find(
+    (filter) => filter.operator === 'greaterThanOrEqual' || filter.operator === 'greaterThan'
+  )
+  const upper = numericFilters.find((filter) => filter.operator === 'lessThanOrEqual' || filter.operator === 'lessThan')
+  if (!lower?.val || !upper?.val) return null
+
+  return {
+    filterType: 'condition',
+    filterInfo: {
+      conditionType: 'number',
+      compareType: 'between',
+      expectedValue: [Number(lower.val), Number(upper.val)]
+    }
+  }
+}
+
+const parseTableFilterColumn = (filterColumn: ParsedTableFilterColumn): ExcelPreviewTableFilter | null => {
+  const manualValues = asArray(filterColumn.filters?.filter)
+    .map((filter) => filter.val)
+    .filter((value): value is string => value !== undefined)
+
+  if (manualValues.length) {
+    return {
+      filterType: 'manual',
+      values: manualValues
+    }
+  }
+
+  return parseCustomFilters(filterColumn.customFilters)
+}
+
+const parseTableFilters = (table: ParsedTableXml): Array<ExcelPreviewTableFilter | null> | undefined => {
+  const filterColumns = asArray(table.table?.autoFilter?.filterColumn)
+  if (!filterColumns.length) return undefined
+
+  const filters: Array<ExcelPreviewTableFilter | null> = []
+  filterColumns.forEach((filterColumn) => {
+    const columnIndex = parseExcelIntegerAttribute(filterColumn.colId)
+    if (columnIndex === undefined || columnIndex < 0) return
+
+    filters[columnIndex] = parseTableFilterColumn(filterColumn)
+  })
+
+  return filters.some(Boolean) ? filters.map((filter) => filter ?? null) : undefined
+}
+
+const parseArchiveTableData = (tableXml: string, fallbackIndex: number): ExcelWorksheetTableData | null => {
+  const table = excelArchiveXmlParser.parse(tableXml) as ParsedTableXml
+  const tableName = table.table?.name || table.table?.displayName || `Table${fallbackIndex + 1}`
+  const range = decodeTableRange(table.table?.ref)
+  if (!range) return null
+
+  const tableId = `excel-table-${toSafeTableIdentifier(tableName) || fallbackIndex + 1}`
+  const columns = asArray(table.table?.tableColumns?.tableColumn).map((column, index) => ({
+    displayName: column.name || `Column ${index + 1}`,
+    id: `${tableId}-column-${index + 1}`
+  }))
+  const filters = parseTableFilters(table)
+
+  return {
+    columns,
+    id: tableId,
+    name: tableName,
+    range,
+    showFooter: parseExcelBooleanAttribute(table.table?.totalsRowCount),
+    showHeader: table.table?.headerRowCount !== '0' && table.table?.headerRowCount !== 0,
+    tableStyleId: normalizeTableStyleId(table.table?.tableStyleInfo?.name),
+    ...(filters ? { filters } : {})
+  }
+}
+
+const collectWorksheetTableData = async (
+  zip: StreamZip.StreamZipAsync,
+  fileNumber: string,
+  worksheet: ParsedWorksheetXml
+): Promise<ExcelWorksheetTableData[]> => {
+  const tableParts = asArray(worksheet.worksheet?.tableParts?.tablePart)
+  if (!tableParts.length) return []
+
+  const relsXml = await readArchiveEntryText(zip, `xl/worksheets/_rels/sheet${fileNumber}.xml.rels`)
+  if (!relsXml) return []
+
+  const relationships = asArray(
+    (excelArchiveXmlParser.parse(relsXml) as ParsedWorkbookRelationshipsXml).Relationships?.Relationship
+  )
+  const relationshipsById = new Map(relationships.map((relationship) => [relationship.Id, relationship]))
+
+  const tableData: ExcelWorksheetTableData[] = []
+  for (const [index, tablePart] of tableParts.entries()) {
+    const relationship = tablePart.id ? relationshipsById.get(tablePart.id) : undefined
+    const tablePath = toArchiveTargetPath('xl/worksheets', relationship?.Target)
+    if (!tablePath) continue
+
+    const tableXml = await readArchiveEntryText(zip, tablePath)
+    const parsedTable = tableXml ? parseArchiveTableData(tableXml, index) : null
+    if (parsedTable) tableData.push(parsedTable)
+  }
+
+  return tableData
+}
+
 const collectArchiveWorksheetMetadata = async (
   zip: StreamZip.StreamZipAsync,
   fileNumber: string
 ): Promise<ExcelArchiveWorksheetMetadata> => {
   const worksheetXml = await readArchiveEntryText(zip, `xl/worksheets/sheet${fileNumber}.xml`)
-  if (!worksheetXml) return { columnData: {}, mergeData: [] }
+  if (!worksheetXml) return { columnData: {}, mergeData: [], tableData: [] }
 
   const worksheet = excelArchiveXmlParser.parse(worksheetXml) as ParsedWorksheetXml
 
   return {
     columnData: parseWorksheetColumnData(worksheet),
-    mergeData: parseWorksheetMergeData(worksheet)
+    mergeData: parseWorksheetMergeData(worksheet),
+    tableData: await collectWorksheetTableData(zip, fileNumber, worksheet)
   }
 }
 
@@ -271,6 +575,7 @@ const collectArchiveSheetMetadata = async (zip: StreamZip.StreamZipAsync): Promi
     const metadata: ExcelStreamSheetMetadata = {
       ...(Object.keys(worksheetMetadata.columnData).length ? { columnData: worksheetMetadata.columnData } : {}),
       ...(worksheetMetadata.mergeData.length ? { mergeData: worksheetMetadata.mergeData } : {}),
+      ...(worksheetMetadata.tableData.length ? { tableData: worksheetMetadata.tableData } : {}),
       name: sheet.name,
       ...(sheet.state ? { state: sheet.state } : {})
     }
@@ -395,7 +700,8 @@ export async function readExcelWorkbookPreview(
     const data = excelJsWorkbookToPreviewData(
       workbook,
       normalizeFileName(normalizedRequest),
-      options.budget ?? EXCEL_PREVIEW_COMPLEXITY_BUDGET
+      options.budget ?? EXCEL_PREVIEW_COMPLEXITY_BUDGET,
+      archiveMetadata.sheetMetadataIndex
     )
     data.diagnostics = mergeExcelImportDiagnostics(data.diagnostics, archiveMetadata.diagnostics)
 

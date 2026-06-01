@@ -17,10 +17,13 @@ const ALLOWED_WORKBOOK_VIEW_COMMANDS = new Set([
   'sheet.command.scroll-view',
   'sheet.command.scroll-view-reset',
   'sheet.command.select-range',
+  'sheet.command.set-table-filter',
   'sheet.command.set-scroll-relative',
   'sheet.command.set-worksheet-activate',
   'sheet.command.set-zoom-ratio'
 ])
+
+const ALLOWED_WORKBOOK_VIEW_MUTATIONS = new Set(['sheet.mutation.set-table-filter'])
 
 const PROTECTED_WORKBOOK_VIEW_COMMAND_PREFIXES = [
   'doc.command.',
@@ -67,6 +70,7 @@ export function shouldBlockExcelWorkbookCommand(
 ): boolean {
   if (options?.fromChangeset) return false
   if (isLocalFormulaMutation(commandInfo, options)) return false
+  if (ALLOWED_WORKBOOK_VIEW_MUTATIONS.has(commandInfo.id)) return false
   if (commandInfo.type === CommandType.MUTATION) return true
   if (PROTECTED_WORKBOOK_VIEW_OPERATIONS.has(commandInfo.id)) return true
   if (ALLOWED_WORKBOOK_VIEW_COMMANDS.has(commandInfo.id)) return false

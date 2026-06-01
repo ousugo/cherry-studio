@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
 import { ExcelWorkbookView } from '@renderer/components/Excel'
-import type { ExcelImportDiagnosticCode } from '@shared/excelPreview'
+import type { ExcelImportDiagnosticCode, ExcelPreviewTable } from '@shared/excelPreview'
 import type { IWorkbookData } from '@univerjs/core'
 import type { TFunction } from 'i18next'
 import { AlertCircle, FileSpreadsheet } from 'lucide-react'
@@ -18,7 +18,7 @@ export interface ExcelPreviewProps {
 
 type ExcelPreviewStatus =
   | { type: 'loading' }
-  | { type: 'ready'; workbookData: IWorkbookData }
+  | { type: 'ready'; tables?: ExcelPreviewTable[]; workbookData: IWorkbookData }
   | { type: 'empty' }
   | { type: 'error'; code: ExcelImportDiagnosticCode; detail?: string }
 
@@ -73,7 +73,7 @@ const ExcelPreview = ({ filePath, fileName, refreshKey }: ExcelPreviewProps) => 
         setStatus(
           isUniverWorkbookEmpty(result.data.workbookData)
             ? { type: 'empty' }
-            : { type: 'ready', workbookData: result.data.workbookData }
+            : { type: 'ready', tables: result.data.tables, workbookData: result.data.workbookData }
         )
       } catch (err) {
         if (cancelled) return
@@ -124,6 +124,7 @@ const ExcelPreview = ({ filePath, fileName, refreshKey }: ExcelPreviewProps) => 
         className="min-h-0 flex-1"
         onError={handleWorkbookError}
         readOnly
+        tables={status.tables}
         workbookData={status.workbookData}
       />
     </div>

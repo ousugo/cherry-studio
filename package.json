@@ -298,6 +298,8 @@
     "@uiw/react-codemirror": "4.25.7",
     "@univerjs/core": "0.25.0",
     "@univerjs/preset-sheets-core": "0.25.0",
+    "@univerjs/preset-sheets-filter": "0.25.0",
+    "@univerjs/preset-sheets-table": "0.25.0",
     "@vitejs/plugin-react-swc": "^3.9.0",
     "@vitest/browser": "^3.2.4",
     "@vitest/coverage-v8": "^3.2.4",

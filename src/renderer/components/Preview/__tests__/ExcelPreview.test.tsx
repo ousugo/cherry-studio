@@ -31,6 +31,7 @@ vi.mock('@renderer/components/Excel', () => ({
     ariaLabel?: string
     onError?: (error: Error) => void
     readOnly?: boolean
+    tables?: unknown[]
     workbookData: IWorkbookData
   }) => {
     mocks.excelWorkbookView(props)
@@ -57,6 +58,15 @@ const makeWorkbookData = (overrides: Partial<IWorkbookData> = {}): IWorkbookData
 })
 
 const workbookData = makeWorkbookData()
+const tables = [
+  {
+    columns: [{ id: 'excel-table-sheet-1-Sales-column-1', displayName: 'Region' }],
+    id: 'excel-table-sheet-1-Sales',
+    name: 'Sales',
+    range: { startRow: 0, startColumn: 0, endRow: 2, endColumn: 0 },
+    sheetId: 'sheet-1'
+  }
+]
 
 describe('ExcelPreview', () => {
   beforeEach(() => {
@@ -66,6 +76,7 @@ describe('ExcelPreview', () => {
       data: {
         diagnostics: [],
         fileName: 'report.xlsx',
+        tables,
         workbookData
       }
     })
@@ -92,6 +103,7 @@ describe('ExcelPreview', () => {
       expect.objectContaining({
         ariaLabel: 'report.xlsx',
         readOnly: true,
+        tables,
         workbookData
       })
     )

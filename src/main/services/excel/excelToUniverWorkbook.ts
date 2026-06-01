@@ -3,6 +3,9 @@ import type {
   ExcelPreviewCellCustom,
   ExcelPreviewImageAnchor,
   ExcelPreviewImageRenderData,
+  ExcelPreviewTable,
+  ExcelPreviewTableColumn,
+  ExcelPreviewTableRange,
   ExcelWorkbookPreviewData
 } from '@shared/excelPreview'
 import {
@@ -19,7 +22,7 @@ import {
   VerticalAlign,
   WrapStrategy
 } from '@univerjs/core'
-import type ExcelJS from 'exceljs'
+import ExcelJS from 'exceljs'
 
 const UNIVER_MODEL_VERSION = '0.25.0'
 const DEFAULT_ROW_COUNT = 100
@@ -50,6 +53,7 @@ type StreamWorksheetReader = ExcelJS.stream.xlsx.WorksheetReader & {
   name?: string
   state?: string
 }
+export type ExcelWorksheetTableData = Omit<ExcelPreviewTable, 'sheetId'>
 
 interface WorksheetImageRenderData {
   imagesByCellKey: Map<string, ExcelPreviewImageRenderData[]>
@@ -62,6 +66,7 @@ export interface ExcelStreamSheetMetadata {
   mergeData?: ExcelWorksheetMergeData
   name?: string
   state?: string
+  tableData?: ExcelWorksheetTableData[]
 }
 
 type ExcelStreamSheetMetadataMap = Record<string, ExcelStreamSheetMetadata | undefined>
@@ -570,6 +575,111 @@ const decodeMergeRange = (range: string): MergeRange | null => {
   }
 }
 
+const toExcelPreviewTableRange = (range: string): ExcelPreviewTableRange | null => {
+  const decodedRange = decodeMergeRange(range)
+  return decodedRange ? { ...decodedRange } : null
+}
+
+const toSafeTableIdentifier = (value: string): string => {
+  return value
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+const toSheetTableId = (sheetId: string, tableName: string, index: number): string => {
+  return `excel-table-${sheetId}-${toSafeTableIdentifier(tableName) || index + 1}`
+}
+
+const withSheetTableIdentity = (table: ExcelWorksheetTableData, sheetId: string, index: number): ExcelPreviewTable => {
+  const tableId = toSheetTableId(sheetId, table.name, index)
+
+  return {
+    ...table,
+    columns: table.columns.map((column, columnIndex) => ({
+      ...column,
+      id: `${tableId}-column-${columnIndex + 1}`
+    })),
+    id: tableId,
+    sheetId
+  }
+}
+
+const normalizeTableStyleId = (theme: string | undefined): string | undefined => {
+  // Excel exposes built-in table style names like TableStyleMedium2, not their
+  // resolved colors. Univer's closest neutral fallback is its default blue.
+  return theme ? 'table-default-0' : undefined
+}
+
+const toTableColumnData = (columns: Array<{ name?: string }>, tableId: string): ExcelPreviewTableColumn[] => {
+  return columns.map((column, index) => ({
+    displayName: column.name || `Column ${index + 1}`,
+    id: `${tableId}-column-${index + 1}`
+  }))
+}
+
+type ExcelJsTableModel = {
+  columns?: Array<{ name?: string }>
+  displayName?: string
+  headerRow?: boolean
+  name?: string
+  style?: { theme?: string }
+  tableRef?: string
+  totalsRow?: boolean
+}
+
+type ExcelJsWorksheetModelWithTables = ExcelJS.Worksheet['model'] & {
+  tables?: ExcelJsTableModel[]
+}
+
+const getWorksheetTableModels = (worksheet: ExcelJS.Worksheet): ExcelJsTableModel[] => {
+  const models = (worksheet.model as ExcelJsWorksheetModelWithTables).tables
+  return Array.isArray(models) ? models : []
+}
+
+const tableRangeKey = (table: Pick<ExcelWorksheetTableData, 'range'>): string => {
+  return `${table.range.startRow}:${table.range.startColumn}:${table.range.endRow}:${table.range.endColumn}`
+}
+
+const mergeTableData = (
+  worksheet: ExcelJS.Worksheet,
+  sheetId: string,
+  metadata?: ExcelStreamSheetMetadata
+): ExcelPreviewTable[] => {
+  const metadataTables = metadata?.tableData ?? []
+  const metadataByRange = new Map(metadataTables.map((table) => [tableRangeKey(table), table]))
+  const tables = getWorksheetTableModels(worksheet).flatMap((tableModel, index): ExcelPreviewTable[] => {
+    const tableName = tableModel.name || tableModel.displayName || `Table${index + 1}`
+    const range = tableModel.tableRef ? toExcelPreviewTableRange(tableModel.tableRef) : null
+    if (!range) return []
+
+    const baseId = toSheetTableId(sheetId, tableName, index)
+    const metadataTable = metadataByRange.get(tableRangeKey({ range }))
+    const columns = tableModel.columns?.length ? toTableColumnData(tableModel.columns, baseId) : metadataTable?.columns
+
+    return [
+      {
+        columns: columns ?? [],
+        id: baseId,
+        name: tableName,
+        range,
+        sheetId,
+        showFooter: tableModel.totalsRow,
+        showHeader: tableModel.headerRow,
+        tableStyleId: normalizeTableStyleId(tableModel.style?.theme),
+        ...(metadataTable?.filters ? { filters: metadataTable.filters } : {})
+      }
+    ]
+  })
+
+  const knownKeys = new Set(tables.map(tableRangeKey))
+  const archiveOnlyTables = metadataTables
+    .filter((table) => !knownKeys.has(tableRangeKey(table)))
+    .map((table, index) => withSheetTableIdentity(table, sheetId, index))
+
+  return [...tables, ...archiveOnlyTables]
+}
+
 const toMergeData = (worksheet: ExcelJS.Worksheet): MergeRange[] => {
   return (worksheet.model.merges ?? []).flatMap((range) => {
     const merge = decodeMergeRange(range)
@@ -849,6 +959,7 @@ export async function excelJsStreamingWorkbookToPreviewData(
   const context = createWorkbookBuildContext(false, budget)
   const sheets: IWorkbookData['sheets'] = {}
   const sheetOrder: string[] = []
+  const tables: ExcelPreviewTable[] = []
   const reader = new ExcelJS.stream.xlsx.WorkbookReader(filePath, {
     hyperlinks: 'cache',
     sharedStrings: 'cache',
@@ -871,12 +982,14 @@ export async function excelJsStreamingWorkbookToPreviewData(
         ? sheetIdMetadata
         : (fileNumberMetadata ?? sequentialFileNumberMetadata)
     sheets[sheetId] = await streamWorksheetToWorksheetData(streamWorksheet, sheetId, context, metadata)
+    tables.push(...(metadata?.tableData ?? []).map((table, index) => withSheetTableIdentity(table, sheetId, index)))
     sheetOrder.push(sheetId)
   }
 
   return {
     diagnostics,
     fileName,
+    ...(tables.length ? { tables } : {}),
     workbookData: {
       id: 'excel-preview-workbook',
       name: toWorkbookName(fileName),
@@ -892,11 +1005,24 @@ export async function excelJsStreamingWorkbookToPreviewData(
 export function excelJsWorkbookToPreviewData(
   workbook: ExcelJS.Workbook,
   fileName: string,
-  budget?: ExcelWorkbookPreviewBudget
+  budget?: ExcelWorkbookPreviewBudget,
+  sheetMetadataIndex: ExcelStreamSheetMetadataIndex = { byFileNumber: {}, bySheetId: {} }
 ): ExcelWorkbookPreviewData {
+  const tables = workbook.worksheets.flatMap((worksheet, index) => {
+    const sheetId = `sheet-${index + 1}`
+    const worksheetSheetId = worksheet.id !== undefined ? String(worksheet.id) : undefined
+    const metadata =
+      (worksheetSheetId ? sheetMetadataIndex.bySheetId[worksheetSheetId] : undefined) ??
+      (worksheetSheetId ? sheetMetadataIndex.byFileNumber[worksheetSheetId] : undefined) ??
+      sheetMetadataIndex.byFileNumber[String(index + 1)]
+
+    return mergeTableData(worksheet, sheetId, metadata)
+  })
+
   return {
     diagnostics: collectImportDiagnostics(),
     fileName,
+    ...(tables.length ? { tables } : {}),
     workbookData: excelJsWorkbookToUniverWorkbook(workbook, fileName, budget)
   }
 }

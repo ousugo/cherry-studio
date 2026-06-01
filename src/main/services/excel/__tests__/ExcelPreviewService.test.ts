@@ -108,6 +108,97 @@ const writeWorkbookWithChartDrawing = (): string =>
 <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart/></c:chartSpace>`
   })
 
+const writeWorkbookWithTableFilter = (customerFilter = '*Acme*'): string =>
+  writeZipWorkbook('table-filter.xlsx', {
+    '[Content_Types].xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+  <Override PartName="/xl/tables/table1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>
+</Types>`,
+    '_rels/.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`,
+    'xl/_rels/workbook.xml.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`,
+    'xl/workbook.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Sales" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>`,
+    'xl/styles.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="1"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/></font></fonts>
+  <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>
+</styleSheet>`,
+    'xl/worksheets/sheet1.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <dimension ref="A1:C3"/>
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="inlineStr"><is><t>Region</t></is></c>
+      <c r="B1" t="inlineStr"><is><t>Amount</t></is></c>
+      <c r="C1" t="inlineStr"><is><t>Customer</t></is></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="inlineStr"><is><t>East</t></is></c>
+      <c r="B2"><v>12</v></c>
+      <c r="C2" t="inlineStr"><is><t>Acme Inc</t></is></c>
+    </row>
+    <row r="3">
+      <c r="A3" t="inlineStr"><is><t>West</t></is></c>
+      <c r="B3"><v>44</v></c>
+      <c r="C3" t="inlineStr"><is><t>Other</t></is></c>
+    </row>
+  </sheetData>
+  <tableParts count="1">
+    <tablePart r:id="rId1"/>
+  </tableParts>
+</worksheet>`,
+    'xl/worksheets/_rels/sheet1.xml.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/>
+</Relationships>`,
+    'xl/tables/table1.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="1" name="SalesTable" displayName="SalesTable" ref="A1:C3" headerRowCount="1" totalsRowShown="0">
+  <autoFilter ref="A1:C3">
+    <filterColumn colId="0">
+      <filters>
+        <filter val="East"/>
+      </filters>
+    </filterColumn>
+    <filterColumn colId="1">
+      <customFilters and="1">
+        <customFilter operator="greaterThanOrEqual" val="10"/>
+        <customFilter operator="lessThanOrEqual" val="30"/>
+      </customFilters>
+    </filterColumn>
+    <filterColumn colId="2">
+      <customFilters>
+        <customFilter operator="equal" val="${customerFilter}"/>
+      </customFilters>
+    </filterColumn>
+  </autoFilter>
+  <tableColumns count="3">
+    <tableColumn id="1" name="Region"/>
+    <tableColumn id="2" name="Amount"/>
+    <tableColumn id="3" name="Customer"/>
+  </tableColumns>
+  <tableStyleInfo name="TableStyleMedium2" showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"/>
+</table>`
+  })
+
 describe('ExcelPreviewService', () => {
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-excel-preview-'))
@@ -204,6 +295,158 @@ describe('ExcelPreviewService', () => {
     })
     expect(dateStyle).toMatchObject({
       n: { pattern: 'yyyy-mm-dd' }
+    })
+  })
+
+  it('extracts Excel table structure from workbook models', async () => {
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Sales')
+
+    worksheet.addTable({
+      columns: [
+        { name: 'Region', totalsRowLabel: 'Total' },
+        { name: 'Amount', totalsRowFunction: 'sum' }
+      ],
+      headerRow: true,
+      name: 'SalesTable',
+      ref: 'B2',
+      rows: [
+        ['East', 10],
+        ['West', 20]
+      ],
+      style: {
+        showRowStripes: true,
+        theme: 'TableStyleMedium2'
+      },
+      totalsRow: true
+    })
+
+    const filePath = await writeWorkbook('sales-table.xlsx', workbook)
+    const result = await readExcelWorkbookPreview({ filePath, fileName: 'sales-table.xlsx' })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+
+    expect(result.data.tables).toEqual([
+      {
+        columns: [
+          { displayName: 'Region', id: 'excel-table-sheet-1-SalesTable-column-1' },
+          { displayName: 'Amount', id: 'excel-table-sheet-1-SalesTable-column-2' }
+        ],
+        id: 'excel-table-sheet-1-SalesTable',
+        name: 'SalesTable',
+        range: { startRow: 1, startColumn: 1, endRow: 4, endColumn: 2 },
+        sheetId: 'sheet-1',
+        showFooter: true,
+        showHeader: true,
+        tableStyleId: 'table-default-0'
+      }
+    ])
+  })
+
+  it('merges table filters by range when workbook and archive table names differ', () => {
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Sales')
+    const filter = { filterType: 'manual' as const, values: ['East'] }
+
+    worksheet.addTable({
+      columns: [{ name: 'Region' }, { name: 'Amount' }],
+      headerRow: true,
+      name: 'SalesTable',
+      ref: 'A1',
+      rows: [
+        ['East', 10],
+        ['West', 20]
+      ]
+    })
+
+    const preview = excelJsWorkbookToPreviewData(workbook, 'sales-table.xlsx', undefined, {
+      byFileNumber: {
+        '1': {
+          name: 'Sales',
+          tableData: [
+            {
+              columns: [],
+              filters: [filter],
+              id: 'archive-table-id',
+              name: 'ArchiveSalesTable',
+              range: { startRow: 0, startColumn: 0, endRow: 2, endColumn: 1 }
+            }
+          ]
+        }
+      },
+      bySheetId: {}
+    })
+
+    expect(preview.tables).toHaveLength(1)
+    expect(preview.tables?.[0]).toMatchObject({
+      filters: [filter],
+      id: 'excel-table-sheet-1-SalesTable',
+      name: 'SalesTable',
+      range: { startRow: 0, startColumn: 0, endRow: 2, endColumn: 1 }
+    })
+  })
+
+  it('extracts common active table filters from table parts', async () => {
+    const filePath = writeWorkbookWithTableFilter()
+
+    const result = await readExcelWorkbookPreview({ filePath, fileName: 'table-filter.xlsx' })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+
+    expect(result.data.tables).toEqual([
+      {
+        columns: [
+          { displayName: 'Region', id: 'excel-table-sheet-1-SalesTable-column-1' },
+          { displayName: 'Amount', id: 'excel-table-sheet-1-SalesTable-column-2' },
+          { displayName: 'Customer', id: 'excel-table-sheet-1-SalesTable-column-3' }
+        ],
+        filters: [
+          { filterType: 'manual', values: ['East'] },
+          {
+            filterType: 'condition',
+            filterInfo: {
+              conditionType: 'number',
+              compareType: 'between',
+              expectedValue: [10, 30]
+            }
+          },
+          {
+            filterType: 'condition',
+            filterInfo: {
+              conditionType: 'string',
+              compareType: 'contains',
+              expectedValue: 'Acme'
+            }
+          }
+        ],
+        id: 'excel-table-sheet-1-SalesTable',
+        name: 'SalesTable',
+        range: { startRow: 0, startColumn: 0, endRow: 2, endColumn: 2 },
+        sheetId: 'sheet-1',
+        showFooter: false,
+        showHeader: true,
+        tableStyleId: 'table-default-0'
+      }
+    ])
+  })
+
+  it('preserves escaped wildcard values as literal text filters', async () => {
+    const filePath = writeWorkbookWithTableFilter('Acme~*')
+
+    const result = await readExcelWorkbookPreview({ filePath, fileName: 'table-filter.xlsx' })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+
+    expect(result.data.tables?.[0]?.filters?.[2]).toEqual({
+      filterType: 'condition',
+      filterInfo: {
+        conditionType: 'string',
+        compareType: 'equal',
+        expectedValue: 'Acme*'
+      }
     })
   })
 
