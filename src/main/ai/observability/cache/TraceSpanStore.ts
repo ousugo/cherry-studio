@@ -27,10 +27,6 @@ export class TraceSpanStore {
     return this.traceMeta.get(traceId)
   }
 
-  hasTrace(traceId: string): boolean {
-    return this.traceMeta.has(traceId) || Array.from(this.spans.values()).some((span) => span.traceId === traceId)
-  }
-
   getTraceIdsByTopic(topicId: string): string[] {
     const traceIds = new Set<string>()
     for (const [traceId, meta] of this.traceMeta) {

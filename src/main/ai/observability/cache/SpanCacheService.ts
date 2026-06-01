@@ -145,8 +145,9 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
   }
 
   async getSpans(topicId: string, traceId: string, modelName?: string) {
-    if (this.store.hasTrace(traceId)) {
-      return this.store.getSpans({ topicId, traceId, modelName })
+    const cached = this.store.getSpans({ topicId, traceId, modelName })
+    if (cached.length > 0) {
+      return cached
     }
     return this.getHistoryData(topicId, traceId, modelName)
   }

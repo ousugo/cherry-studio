@@ -83,6 +83,22 @@ describe('SpanCacheService', () => {
     expect(application.getPath).toHaveBeenCalledWith('feature.trace')
   })
 
+  it('falls back to history when the trace id lingers in memory without matching spans', async () => {
+    await service._doInit()
+    const topicDir = path.join(traceDir, 'topic-a')
+    await fs.mkdir(topicDir, { recursive: true })
+    await fs.writeFile(
+      path.join(topicDir, 'trace-a'),
+      `${JSON.stringify(span({ id: 'history', topicId: 'topic-a', traceId: 'trace-a', modelName: 'model-a' }))}\n`
+    )
+    // Memory still knows the trace id (e.g. lingering meta) but holds no span matching the query.
+    service.setTopicId('trace-a', 'topic-a')
+
+    const spans = await service.getSpans('topic-a', 'trace-a', 'model-a')
+
+    expect(spans.map((item) => item.id)).toEqual(['history'])
+  })
+
   it('returns an empty list for missing history without logging an error', async () => {
     await service._doInit()
 
