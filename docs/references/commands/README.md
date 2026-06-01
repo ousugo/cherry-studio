@@ -13,9 +13,15 @@ own definitions, key‑formatting, and dispatch wiring.
 
 ## Commands, shortcuts, and menus — the relationship
 
-A **command** is the unit of behavior, identified by a `CommandId` (e.g.
-`topic.create`, `app.zoom.in`, `chat.message.search`). Commands are the center of
-the model; shortcuts and menus are just two ways to invoke them.
+**A command is *what* the app does; a shortcut is one *way* to ask for it.** They
+are deliberately separate concepts:
+
+- A **command** is the unit of behavior, identified by a `CommandId` (e.g.
+  `topic.create`, `app.zoom.in`, `chat.message.search`). It owns the behavior and
+  knows nothing about how it was triggered.
+- A **shortcut** is a key binding *for* a command. A **menu item** is a menu entry
+  *for* a command. A **button** invokes a command. All of them are just triggers
+  that resolve to a `CommandId` and run its handler.
 
 ```
  keyboard shortcut ─┐
@@ -23,19 +29,41 @@ the model; shortcuts and menus are just two ways to invoke them.
  button / palette ──┘
 ```
 
-- A **shortcut** is a keybinding attached to a command. Its user preference lives
-  under `shortcut.<commandId>` (e.g. `shortcut.topic.create`). There is exactly
-  one shortcut preference key per command.
-- A **menu item** is a menu *contribution* that points at a command for a given
-  menu location (e.g. `chat.input.tools.context`, `app.menu`).
-- A command may be `scope: 'main' | 'renderer' | 'both'`, which decides where its
-  handler runs and whether the global‑shortcut registrar (main) or the window
-  keydown dispatcher (renderer) is responsible for it.
+Two consequences fall out of this split:
 
-`COMMAND_DEFINITIONS` (in `src/shared/commands/definitions.ts`) is the single
-source of truth. Everything else — the keybinding rules, the per‑command shortcut
-preference key, and the `when`/`enablement` context expressions — is derived from
-it. Menu contributions are a parallel declaration (`MENU_CONTRIBUTIONS`).
+- **There are no free‑floating shortcuts.** Every shortcut, menu item, and button
+  resolves to a command. You never bind a key to an inline callback — you bind it
+  to a `CommandId`, and a surface registers the handler separately. Adding a new
+  way to trigger something never touches the behavior, and changing the behavior
+  never touches its triggers.
+- **A command can have zero, one, or several triggers.** A command may be
+  menu‑only (no default key), keyboard‑only, or both; the keybinding even allows
+  `additionalBindings` (e.g. numpad zoom). The command is the same either way.
+
+### How a command relates to its shortcut
+
+| Concept | Where it lives | Example for `topic.create` |
+| --- | --- | --- |
+| Command definition | `COMMAND_DEFINITIONS` (`src/shared/commands/definitions.ts`) | `{ id: 'topic.create', scope: 'renderer', keybinding: { defaultBinding: ['CommandOrControl','N'] } }` |
+| Default key binding | the command's `keybinding.defaultBinding` | `Cmd/Ctrl + N` |
+| **User override** | the preference `shortcut.<commandId>` | `shortcut.topic.create` → `{ binding, enabled }` |
+| Handler | a surface via `useCommandHandler` (renderer) or a built‑in (main) | `useCommandHandler('topic.create', addNewTopic)` |
+| Menu entry (optional) | a `MENU_CONTRIBUTIONS` entry | `{ location: 'chat.input.tools.context', command: 'topic.create' }` |
+
+So there is exactly **one shortcut preference key per command** (`shortcut.<id>`):
+the command's *default* binding comes from its definition, and the user's edit in
+**Settings → Shortcuts** overrides it through that preference key. At runtime the
+effective binding is "user preference if set, else the definition default".
+
+A command's `scope: 'main' | 'renderer' | 'both'` decides where its handler runs
+and who listens for its key: the main‑process global‑shortcut registrar
+(`ShortcutService`) for main/global, or the per‑window keydown dispatcher
+(`CommandProvider`) for renderer.
+
+`COMMAND_DEFINITIONS` is the single source of truth — the `CommandId` union, the
+keybinding rules, the per‑command `shortcut.<id>` key, and the `when`/`enablement`
+context expressions are all derived from it. Menu contributions are a parallel
+declaration (`MENU_CONTRIBUTIONS`) keyed by the same `CommandId`s.
 
 ## Architecture — three layers
 
