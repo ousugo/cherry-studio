@@ -232,9 +232,7 @@ export const isShortcutBinding = (value: unknown): value is ShortcutBinding => {
 }
 
 // ---------------------------------------------------------------------------
-// Display / accelerator formatting (token-typed). The unified command system
-// consumes these; the legacy `@shared/shortcuts/utils` string-based variants
-// remain for un-migrated callers until the migration completes.
+// Display / accelerator formatting (token-typed) for the unified command system.
 // ---------------------------------------------------------------------------
 
 const acceleratorKeyMap: Record<string, ShortcutToken> = {

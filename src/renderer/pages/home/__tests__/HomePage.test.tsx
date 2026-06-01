@@ -97,10 +97,6 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   }
 })
 
-vi.mock('@renderer/hooks/useShortcuts', () => ({
-  useShortcut: vi.fn()
-}))
-
 vi.mock('@renderer/components/chat', () => ({
   ChatAppShell: ({ centerContent }: { centerContent?: ReactNode }) => (
     <div data-testid="message-only-shell">{centerContent}</div>

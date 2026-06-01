@@ -73,10 +73,6 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/hooks/useShortcuts', () => ({
-  useShortcut: vi.fn()
-}))
-
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: vi.fn() })
 }))

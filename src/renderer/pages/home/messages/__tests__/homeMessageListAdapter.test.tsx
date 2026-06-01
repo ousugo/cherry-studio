@@ -84,10 +84,6 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useShortcuts', () => ({
-  useShortcut: vi.fn()
-}))
-
 vi.mock('@renderer/pages/shared/messages/hooks/useMessageActivityState', () => ({
   useMessageActivityState: () => vi.fn(() => undefined)
 }))

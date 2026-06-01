@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import { useCommandHandler } from '@renderer/commands'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerMessageQueuePanel from '@renderer/components/chat/composer/ComposerMessageQueuePanel'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
@@ -27,7 +28,6 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { AddNewTopicPayload } from '@renderer/pages/home/types'
@@ -734,13 +734,9 @@ const ChatComposerInner = ({
     })
   }, [handleQuote])
 
-  useShortcut(
-    'topic.new',
-    () => {
-      addNewTopic()
-    },
-    { preventDefault: true, enableOnFormTags: true }
-  )
+  useCommandHandler('topic.create', () => {
+    addNewTopic()
+  })
 
   useEffect(() => {
     const scopeChanged = selectedKnowledgeBasesScopeKeyRef.current !== selectedKnowledgeBasesScopeKey

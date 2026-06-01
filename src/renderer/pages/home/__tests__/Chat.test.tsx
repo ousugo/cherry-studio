@@ -62,10 +62,6 @@ vi.mock('@renderer/components/Popups/PromptPopup', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useShortcuts', () => ({
-  useShortcut: vi.fn()
-}))
-
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({
     setTimeoutTimer: vi.fn()

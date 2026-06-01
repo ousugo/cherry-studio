@@ -1,5 +1,7 @@
 import type { PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 
+import type { ShortcutBinding } from './tokens'
+
 export type ShortcutScope = 'main' | 'renderer' | 'both'
 
 /** Built-in shortcut categories for UI grouping. */
@@ -45,7 +47,7 @@ export interface ShortcutDefinition {
 /** Runtime-resolved shortcut state after merging user preferences with definition defaults. */
 export interface ResolvedShortcut {
   /** Effective key binding used at runtime. User-defined, default, or empty (explicitly cleared). */
-  binding: string[]
+  binding: ShortcutBinding
   /** Whether this shortcut is currently enabled. */
   enabled: boolean
 }

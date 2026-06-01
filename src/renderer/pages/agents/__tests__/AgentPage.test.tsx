@@ -134,10 +134,6 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => vi.fn().mockResolvedValue(undefined)
 }))
 
-vi.mock('@renderer/hooks/useShortcuts', () => ({
-  useShortcut: vi.fn()
-}))
-
 vi.mock('@tanstack/react-router', () => ({
   useSearch: () => (agentPageMocks.activeSessionId ? { sessionId: agentPageMocks.activeSessionId } : {}),
   useNavigate: () => (args: { search?: ((prev: any) => any) | Record<string, unknown> }) => {

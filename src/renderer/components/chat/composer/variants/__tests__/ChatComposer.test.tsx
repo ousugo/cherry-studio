@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
   updateAssistant: vi.fn(),
   toastError: vi.fn(),
   insertToken: vi.fn(),
-  shortcutHandlers: new Map<string, () => void>(),
+  commandHandlers: new Map<string, () => void>(),
   mentionedModels: undefined as Model[] | undefined,
   selectedKnowledgeBases: undefined as KnowledgeBase[] | undefined,
   knowledgeBases: [] as KnowledgeBase[],
@@ -351,9 +351,9 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({ providers: [{ id: 'provider', name: 'Provider' }] })
 }))
 
-vi.mock('@renderer/hooks/useShortcuts', () => ({
-  useShortcut: (key: string, handler: () => void) => {
-    mocks.shortcutHandlers.set(key, handler)
+vi.mock('@renderer/commands', () => ({
+  useCommandHandler: (command: string, handler: () => void) => {
+    mocks.commandHandlers.set(command, handler)
   }
 }))
 
@@ -468,7 +468,7 @@ describe('ChatComposer', () => {
     mocks.updateAssistant.mockReset()
     mocks.toastError.mockReset()
     mocks.insertToken.mockReset()
-    mocks.shortcutHandlers.clear()
+    mocks.commandHandlers.clear()
     mocks.mentionedModels = undefined
     mocks.selectedKnowledgeBases = undefined
     mocks.knowledgeBases = []
@@ -827,7 +827,7 @@ describe('ChatComposer', () => {
     const onNewTopic = vi.fn()
     render(<ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} />)
 
-    mocks.shortcutHandlers.get('topic.new')?.()
+    mocks.commandHandlers.get('topic.create')?.()
 
     expect(onNewTopic).toHaveBeenCalledWith(undefined)
     expect(mocks.createTopic).not.toHaveBeenCalled()
