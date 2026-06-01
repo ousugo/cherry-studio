@@ -309,7 +309,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       preferenceMocks.values.set(key, value)
       preferenceMocks.setPreference(key, value)
     }
-  ]
+  ],
+  useMultiplePreferences: () => [{}, vi.fn()]
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({

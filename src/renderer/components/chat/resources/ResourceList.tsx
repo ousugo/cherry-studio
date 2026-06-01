@@ -16,7 +16,6 @@ import {
   useResourceListRowState,
   useResourceListView
 } from './ResourceListContext'
-import { ResourceListContextMenu } from './ResourceListContextMenu'
 import { GroupHeader, GroupShowMore } from './ResourceListGroups'
 import {
   RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
@@ -663,7 +662,6 @@ const ResourceList = {
   ItemLeadingSlot,
   ItemTitle,
   RenameField,
-  ContextMenu: ResourceListContextMenu,
   EmptyState,
   LoadingState,
   ErrorState

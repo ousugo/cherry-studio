@@ -889,10 +889,14 @@ describe('Topics', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete Topics')
+    // Deletion is gated behind a confirm popup (command-menu items have no inline dialog).
+    await vi.waitFor(() =>
+      expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Topics' }))
+    )
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
 
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
+    await confirmOptions?.onOk?.()
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
   })
