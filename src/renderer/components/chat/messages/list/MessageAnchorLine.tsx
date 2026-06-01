@@ -328,7 +328,7 @@ const MessageLineContainer = ({
   <div
     ref={ref}
     className={[
-      'group fixed right-[13px] z-0 flex w-[14px] translate-y-[-50%] select-none items-center justify-end overflow-hidden text-[5px] hover:w-[500px] hover:overflow-y-hidden hover:overflow-x-visible',
+      'group fixed right-[13px] z-999 flex w-[14px] translate-y-[-50%] select-none items-center justify-end overflow-hidden text-[5px] hover:w-[500px] hover:overflow-y-hidden hover:overflow-x-visible',
       className
     ]
       .filter(Boolean)

@@ -27,5 +27,5 @@ export const MessagesContainer = ({
   ...props
 }: ComponentPropsWithoutRef<'div'> & ContainerProps) => {
   void $right
-  return <div className={cn('relative z-1 flex h-full flex-col overflow-hidden', className)} {...props} />
+  return <div className={cn('relative flex h-full flex-col overflow-hidden', className)} {...props} />
 }
