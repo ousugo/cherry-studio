@@ -1,14 +1,11 @@
 import { getToolsForScope, TopicType } from '@renderer/components/chat/composer/tools/types'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockIsGenerateImageModel, mockIsPromptToolUse, mockIsReasoningModel, mockIsSupportedToolUse } = vi.hoisted(
-  () => ({
-    mockIsGenerateImageModel: vi.fn(),
-    mockIsPromptToolUse: vi.fn(),
-    mockIsReasoningModel: vi.fn(),
-    mockIsSupportedToolUse: vi.fn()
-  })
-)
+const { mockIsGenerateImageModel, mockIsReasoningModel, mockIsSupportedToolUse } = vi.hoisted(() => ({
+  mockIsGenerateImageModel: vi.fn(),
+  mockIsReasoningModel: vi.fn(),
+  mockIsSupportedToolUse: vi.fn()
+}))
 
 vi.mock('@renderer/config/models', () => ({
   isGenerateImageModel: (...args: unknown[]) => mockIsGenerateImageModel(...args),
@@ -16,7 +13,6 @@ vi.mock('@renderer/config/models', () => ({
 }))
 
 vi.mock('@renderer/utils/assistant', () => ({
-  isPromptToolUse: (...args: unknown[]) => mockIsPromptToolUse(...args),
   isSupportedToolUse: (...args: unknown[]) => mockIsSupportedToolUse(...args)
 }))
 
@@ -51,7 +47,6 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
 describe('composer tool visibility', () => {
   it('keeps assistant core capabilities discoverable when the current model cannot enable them', async () => {
     mockIsGenerateImageModel.mockReturnValue(false)
-    mockIsPromptToolUse.mockReturnValue(false)
     mockIsReasoningModel.mockReturnValue(false)
     mockIsSupportedToolUse.mockReturnValue(false)
 

@@ -116,10 +116,6 @@ vi.mock('@renderer/types', () => ({
   getEffectiveMcpMode: () => 'disabled'
 }))
 
-vi.mock('@renderer/utils/assistant', () => ({
-  isToolUseModeFunction: () => true
-}))
-
 describe('WebSearchButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -127,8 +123,7 @@ describe('WebSearchButton', () => {
       id: 'assistant-1',
       name: 'Assistant',
       settings: {
-        enableWebSearch: false,
-        toolUseMode: 'function'
+        enableWebSearch: false
       },
       mcpMode: 'disabled',
       mcpServers: []

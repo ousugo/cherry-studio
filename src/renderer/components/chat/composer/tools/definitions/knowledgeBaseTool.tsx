@@ -4,7 +4,7 @@ import {
   type ToolRenderContext,
   TopicType
 } from '@renderer/components/chat/composer/tools/types'
-import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
+import { isSupportedToolUse } from '@renderer/utils/assistant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useCallback } from 'react'
 
@@ -29,8 +29,7 @@ const useKnowledgeBaseSelect = (context: KnowledgeBaseToolContext) => {
 const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolContext }) => {
   const { state, launcher } = context
   const handleSelect = useKnowledgeBaseSelect(context)
-  const isToolUseAvailable =
-    !!context.assistant && (isSupportedToolUse(context.assistant, context.model) || isPromptToolUse(context.assistant))
+  const isToolUseAvailable = !!context.assistant && isSupportedToolUse(context.model)
 
   return (
     <KnowledgeBaseToolRuntime

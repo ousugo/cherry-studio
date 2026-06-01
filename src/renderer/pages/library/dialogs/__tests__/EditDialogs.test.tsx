@@ -246,7 +246,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.field.max_tool_calls.hint': 'Caps tool loops.',
           'library.config.basic.field.stream_output.hint': 'Stream responses.',
           'library.config.basic.field.temperature.hint': 'Controls randomness.',
-          'library.config.basic.field.tool_use_mode.hint': 'Controls tool mode.',
           'library.config.basic.field.top_p.hint': 'Controls nucleus sampling.',
           'library.config.basic.creative': 'Creative',
           'library.config.basic.json_invalid': 'Invalid JSON',
@@ -260,10 +259,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.tag_empty': 'No tags',
           'library.config.basic.tag_placeholder': 'Select tags',
           'library.config.basic.tag_search': 'Search tags',
+          'library.config.basic.mcp_mode': 'MCP Mode',
           'library.config.basic.temperature': 'Temperature',
-          'library.config.basic.tool_use_function': 'Function',
-          'library.config.basic.tool_use_mode': 'Tool mode',
-          'library.config.basic.tool_use_prompt': 'Prompt',
           'library.config.basic.top_p': 'Top-P',
           'library.config.basic.unlimited': 'Unlimited',
           'library.config.dialogs.edit.advanced_tab': 'Advanced',
@@ -346,7 +343,6 @@ const ASSISTANT: Assistant = {
     streamOutput: true,
     reasoning_effort: 'default',
     mcpMode: 'auto',
-    toolUseMode: 'function',
     maxToolCalls: 20,
     enableMaxToolCalls: true,
     enableWebSearch: false,
@@ -602,7 +598,7 @@ describe('edit dialogs', () => {
     selectTab('MCP')
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Enable MCP' })).toBeVisible())
     expect(screen.queryByRole('button', { name: 'Add MCP server' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('combobox', { name: 'Tool mode' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'MCP Mode' }))
     fireEvent.click(await screen.findByRole('option', { name: 'Manual' }))
     fireEvent.click(screen.getByRole('switch', { name: 'MCP One' }))
 
@@ -612,7 +608,6 @@ describe('edit dialogs', () => {
     expectHelpTrigger('Top-P', 'Controls nucleus sampling.')
     expectHelpTrigger('Max tokens', 'Caps response length.')
     expectHelpTrigger('Stream output', 'Stream responses.')
-    expectHelpTrigger('Tool mode', 'Controls tool mode.')
     expectHelpTrigger('Max tool calls', 'Caps tool loops.')
     expectHelpTrigger('Custom parameters', 'Extra provider parameters.')
     fireEvent.click(screen.getByRole('switch', { name: 'Temperature' }))

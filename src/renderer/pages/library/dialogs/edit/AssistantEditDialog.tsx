@@ -1,6 +1,5 @@
 import {
   Button,
-  ButtonGroup,
   EditableNumber,
   FormControl,
   FormField,
@@ -73,7 +72,6 @@ type AssistantEditFormValues = {
   maxTokens: number
   enableMaxTokens: boolean
   streamOutput: boolean
-  toolUseMode: AssistantFormState['toolUseMode']
   maxToolCalls: number
   enableMaxToolCalls: boolean
   customParameters: AssistantFormState['customParameters']
@@ -124,7 +122,6 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     maxTokens: form.maxTokens,
     enableMaxTokens: form.enableMaxTokens,
     streamOutput: form.streamOutput,
-    toolUseMode: form.toolUseMode,
     maxToolCalls: form.maxToolCalls,
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
@@ -158,7 +155,6 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     maxTokens: values.maxTokens,
     enableMaxTokens: values.enableMaxTokens,
     streamOutput: values.streamOutput,
-    toolUseMode: values.toolUseMode,
     maxToolCalls: values.maxToolCalls,
     enableMaxToolCalls: values.enableMaxToolCalls,
     customParameters: values.customParameters,
@@ -649,7 +645,7 @@ function AssistantToolsFields({
   const mcpMode = form.watch('mcpMode')
   const mcpServerIds = form.watch('mcpServerIds')
   const mcpEnabled = mcpMode !== 'disabled'
-  const mcpModeLabel = t('library.config.basic.tool_use_mode')
+  const mcpModeLabel = t('library.config.basic.mcp_mode')
   const selectableMcpModes = useMemo(() => MCP_MODE_OPTIONS.filter((mode) => mode.id !== 'disabled'), [])
 
   const catalog = useMemo<CatalogItem[]>(
@@ -873,34 +869,6 @@ function AssistantAdvancedFields({
           </FormItem>
         )}
       />
-
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <FieldLabelWithHelp
-            label={t('library.config.basic.tool_use_mode')}
-            help={t('library.config.basic.field.tool_use_mode.hint')}
-            formLabel={false}
-          />
-        </div>
-        <ButtonGroup className="shrink-0 overflow-hidden rounded-2xs border border-border/30">
-          {(['function', 'prompt'] as const).map((mode) => (
-            <Button
-              key={mode}
-              type="button"
-              variant="ghost"
-              onClick={() => form.setValue('toolUseMode', mode, { shouldDirty: true })}
-              className={`h-auto min-h-0 px-2.5 py-1 font-normal text-xs shadow-none transition-colors focus-visible:ring-0 ${
-                values.toolUseMode === mode
-                  ? 'bg-accent text-foreground'
-                  : 'text-muted-foreground/80 hover:bg-accent/50 hover:text-foreground'
-              }`}>
-              {t(
-                mode === 'function' ? 'library.config.basic.tool_use_function' : 'library.config.basic.tool_use_prompt'
-              )}
-            </Button>
-          ))}
-        </ButtonGroup>
-      </div>
 
       <ToggleFieldGroup
         label={t('library.config.basic.max_tool_calls')}

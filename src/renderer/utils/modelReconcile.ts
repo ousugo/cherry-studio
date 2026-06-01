@@ -31,14 +31,12 @@ export type ReasoningEffortPatch = {
   reasoning_effort?: string
 }
 
-type WebSearchModelSettings = Partial<Pick<AssistantSettings, 'toolUseMode'>>
-
 export function hasModelBuiltinWebSearch(model: Model): boolean {
   return isWebSearchModel(model) || isOpenRouterBuiltInWebSearchModel(model)
 }
 
-export function canModelUseAssistantWebSearch(model: Model, current: WebSearchModelSettings): boolean {
-  return hasModelBuiltinWebSearch(model) || isFunctionCallingModel(model) || current.toolUseMode === 'prompt'
+export function canModelUseAssistantWebSearch(model: Model): boolean {
+  return hasModelBuiltinWebSearch(model) || isFunctionCallingModel(model)
 }
 
 export function reconcileReasoningEffortForModel(
@@ -77,9 +75,9 @@ export function reconcileReasoningEffortForModel(
 
 export function reconcileWebSearchForModel(
   nextModel: Model,
-  current: Pick<AssistantSettings, 'enableWebSearch'> & WebSearchModelSettings
+  current: Pick<AssistantSettings, 'enableWebSearch'>
 ): { enableWebSearch: false } | null {
   if (!current.enableWebSearch) return null
-  if (canModelUseAssistantWebSearch(nextModel, current)) return null
+  if (canModelUseAssistantWebSearch(nextModel)) return null
   return { enableWebSearch: false }
 }

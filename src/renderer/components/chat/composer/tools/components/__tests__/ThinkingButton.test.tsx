@@ -88,7 +88,6 @@ const DEFAULT_TEST_SETTINGS = {
   reasoning_effort: 'none' as ThinkingOption,
   streamOutput: true,
   temperature: 0.7,
-  toolUseMode: 'function' as const,
   topP: 1
 }
 

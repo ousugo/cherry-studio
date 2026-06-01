@@ -2900,9 +2900,6 @@
           "temperature": {
             "hint": "启用后控制回复随机性"
           },
-          "tool_use_mode": {
-            "hint": "控制工具如何暴露给模型"
-          },
           "top_p": {
             "hint": "启用后限制采样范围"
           }
@@ -2910,6 +2907,7 @@
         "json_invalid": "JSON 格式错误",
         "max_tokens": "最大 Token 数",
         "max_tool_calls": "最大工具调用次数",
+        "mcp_mode": "MCP 模式",
         "model": "默认模型",
         "model_clear": "清空",
         "model_not_found": "模型未找到(可能被删除):{{id}}",
@@ -2924,9 +2922,6 @@
         "tags": "标签",
         "temperature": "模型温度",
         "title": "基础设置",
-        "tool_use_function": "函数",
-        "tool_use_mode": "工具调用方式",
-        "tool_use_prompt": "Prompt",
         "top_p": "Top-P",
         "unlimited": "不限"
       },

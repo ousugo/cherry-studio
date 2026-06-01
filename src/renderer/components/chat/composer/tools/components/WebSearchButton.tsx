@@ -5,7 +5,6 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { getWebSearchProviderLogo } from '@renderer/pages/settings/WebSearchSettings/utils/webSearchProviderMeta'
 import { getEffectiveMcpMode } from '@renderer/types'
-import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { canModelUseAssistantWebSearch, hasModelBuiltinWebSearch } from '@renderer/utils/modelReconcile'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import { isGemini3Model, isGeminiModel, isGPT5SeriesReasoningModel, isOpenAIWebSearchModel } from '@shared/utils/model'
@@ -37,7 +36,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
   const hasBuiltinWebSearch = model ? hasModelBuiltinWebSearch(model) : false
-  const canUseWebSearch = assistant && model ? canModelUseAssistantWebSearch(model, assistant.settings) : false
+  const canUseWebSearch = assistant && model ? canModelUseAssistantWebSearch(model) : false
 
   const activeProviderId = useMemo(() => {
     const p = defaultSearchKeywordsProvider
@@ -59,7 +58,6 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       isGeminiWebSearchProvider(modelProvider) &&
       isGeminiModel(model) &&
       !isGemini3Model(model) &&
-      isToolUseModeFunction(assistant) &&
       getEffectiveMcpMode(assistant) !== 'disabled'
   )
   const hasOpenAIMinimalWebSearchConflict = Boolean(

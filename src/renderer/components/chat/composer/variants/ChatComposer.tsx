@@ -660,7 +660,7 @@ const ChatComposerInner = ({
       if (!nextModel) return
       if (!assistant) return
 
-      const enabledWebSearch = canModelUseAssistantWebSearch(nextModel, assistant.settings)
+      const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
       setModel(nextModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
     },
     [assistant, setModel]
