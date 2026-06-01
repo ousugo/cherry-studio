@@ -11,7 +11,16 @@ import type { FUniver } from '@univerjs/core/facade'
 
 const SHEETS_UI_CONFIG_KEY = 'sheets-ui.config'
 
-const ALLOWED_WORKBOOK_VIEW_COMMANDS = new Set(['sheet.command.select-range', 'sheet.command.set-worksheet-activate'])
+const ALLOWED_WORKBOOK_VIEW_COMMANDS = new Set([
+  'sheet.command.change-zoom-ratio',
+  'sheet.command.scroll-to-cell',
+  'sheet.command.scroll-view',
+  'sheet.command.scroll-view-reset',
+  'sheet.command.select-range',
+  'sheet.command.set-scroll-relative',
+  'sheet.command.set-worksheet-activate',
+  'sheet.command.set-zoom-ratio'
+])
 
 const PROTECTED_WORKBOOK_VIEW_COMMAND_PREFIXES = [
   'doc.command.',

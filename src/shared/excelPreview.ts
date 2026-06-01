@@ -6,6 +6,7 @@ export type ExcelImportDiagnosticCode =
   | 'unsupported_xls_format'
   | 'excel_file_too_large'
   | 'excel_preview_too_complex'
+  | 'unsupported_excel_charts'
   | 'unsupported_excel_images'
   | 'excel_parse_error'
 
@@ -16,6 +17,30 @@ export interface ExcelImportDiagnostic {
   count?: number
   message?: string
   severity: ExcelImportDiagnosticSeverity
+}
+
+export interface ExcelPreviewImageAnchor {
+  column: number
+  columnOffset: number
+  row: number
+  rowOffset: number
+}
+
+export interface ExcelPreviewImageSize {
+  height: number
+  width: number
+}
+
+export interface ExcelPreviewImageRenderData {
+  from: ExcelPreviewImageAnchor
+  id: string
+  size?: ExcelPreviewImageSize
+  source: string
+  to?: ExcelPreviewImageAnchor
+}
+
+export interface ExcelPreviewCellCustom {
+  excelImages?: ExcelPreviewImageRenderData[]
 }
 
 export interface ExcelWorkbookPreviewRequest {

@@ -11,8 +11,10 @@ const mocks = vi.hoisted(() => ({
   commandGuardDispose: vi.fn(),
   configSet: vi.fn(),
   createWorkbook: vi.fn(),
+  imageRendererDispose: vi.fn(),
   mergeLocales: vi.fn((locale: unknown) => locale),
   onBeforeCommandExecute: vi.fn(),
+  onCellRender: vi.fn(),
   presetConfig: undefined as
     | {
         footer?: { addSheetButtonConfig?: { show?: boolean } }
@@ -54,6 +56,9 @@ vi.mock('@univerjs/core/facade', () => ({
   FUniver: {
     newAPI: () => ({
       createWorkbook: mocks.createWorkbook,
+      getSheetHooks: () => ({
+        onCellRender: mocks.onCellRender
+      }),
       onBeforeCommandExecute: mocks.onBeforeCommandExecute
     })
   }
@@ -95,6 +100,7 @@ describe('ExcelWorkbookView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.beforeCommandListener = undefined
+    mocks.onCellRender.mockReturnValue({ dispose: mocks.imageRendererDispose })
     mocks.presetConfig = undefined
     mocks.onBeforeCommandExecute.mockImplementation(
       (
@@ -145,10 +151,21 @@ describe('ExcelWorkbookView', () => {
       { merge: true }
     )
     expect(mocks.onBeforeCommandExecute).toHaveBeenCalledTimes(1)
+    expect(mocks.onCellRender).toHaveBeenCalledTimes(1)
+    expect(mocks.onCellRender).toHaveBeenCalledWith([expect.objectContaining({ drawWith: expect.any(Function) })])
     expect(mocks.createWorkbook.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.onBeforeCommandExecute.mock.invocationCallOrder[0]
     )
+    expect(mocks.createWorkbook.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.onCellRender.mock.invocationCallOrder[0]
+    )
     expect(() => mocks.beforeCommandListener?.({ id: 'sheet.command.select-range', type: 0 })).not.toThrow()
+    expect(() => mocks.beforeCommandListener?.({ id: 'sheet.command.set-scroll-relative', type: 0 })).not.toThrow()
+    expect(() => mocks.beforeCommandListener?.({ id: 'sheet.command.scroll-view', type: 0 })).not.toThrow()
+    expect(() => mocks.beforeCommandListener?.({ id: 'sheet.command.scroll-to-cell', type: 0 })).not.toThrow()
+    expect(() => mocks.beforeCommandListener?.({ id: 'sheet.command.scroll-view-reset', type: 0 })).not.toThrow()
+    expect(() => mocks.beforeCommandListener?.({ id: 'sheet.command.set-zoom-ratio', type: 0 })).not.toThrow()
+    expect(() => mocks.beforeCommandListener?.({ id: 'sheet.command.change-zoom-ratio', type: 0 })).not.toThrow()
     expect(() => mocks.beforeCommandListener?.({ id: 'sheet.command.insert-sheet', type: 0 })).toThrow()
     expect(() => mocks.beforeCommandListener?.({ id: 'sheet.mutation.set-range-values', type: 2 })).toThrow()
     expect(() =>
@@ -167,11 +184,13 @@ describe('ExcelWorkbookView', () => {
     expect(mocks.createWorkbook).toHaveBeenLastCalledWith(nextWorkbookData)
     expect(mocks.univerInstances).toHaveLength(2)
     expect(mocks.commandGuardDispose).toHaveBeenCalledTimes(1)
+    expect(mocks.imageRendererDispose).toHaveBeenCalledTimes(1)
     expect(mocks.univerInstances[0].dispose).toHaveBeenCalledTimes(1)
 
     unmount()
 
     expect(mocks.commandGuardDispose).toHaveBeenCalledTimes(2)
+    expect(mocks.imageRendererDispose).toHaveBeenCalledTimes(2)
     expect(mocks.univerInstances[1].dispose).toHaveBeenCalledTimes(1)
   })
 
@@ -187,5 +206,6 @@ describe('ExcelWorkbookView', () => {
     expect(mocks.univerInstances).toHaveLength(1)
     expect(mocks.univerInstances[0].dispose).toHaveBeenCalledTimes(1)
     expect(mocks.commandGuardDispose).not.toHaveBeenCalled()
+    expect(mocks.imageRendererDispose).not.toHaveBeenCalled()
   })
 })

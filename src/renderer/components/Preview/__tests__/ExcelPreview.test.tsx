@@ -20,15 +20,6 @@ vi.mock('@renderer/components/chat', () => ({
   LoadingState: ({ label }: { label: string }) => <div data-testid="loading-state">{label}</div>
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Alert: ({ description, message, type }: { description?: string; message?: string; type?: string }) => (
-    <div data-testid="excel-preview-alert" data-type={type}>
-      <span>{message}</span>
-      <span>{description}</span>
-    </div>
-  )
-}))
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: mocks.t
@@ -163,7 +154,7 @@ describe('ExcelPreview', () => {
     expect(mocks.excelWorkbookView).not.toHaveBeenCalled()
   })
 
-  it('renders import diagnostics as a preview warning', async () => {
+  it('renders workbook view without a preview warning when import diagnostics are returned', async () => {
     mocks.readWorkbookPreview.mockResolvedValueOnce({
       success: true,
       data: {
@@ -182,12 +173,8 @@ describe('ExcelPreview', () => {
 
     render(<ExcelPreview filePath="/tmp/workspace/images.xlsx" fileName="images.xlsx" />)
 
-    await waitFor(() => expect(screen.getByTestId('excel-preview-alert')).toBeInTheDocument())
-    expect(screen.getByTestId('excel-preview-alert')).toHaveTextContent('agent.preview_pane.excel.warnings.title')
-    expect(screen.getByTestId('excel-preview-alert')).toHaveTextContent(
-      'agent.preview_pane.excel.warnings.unsupported_images'
-    )
-    expect(screen.getByTestId('excel-workbook-view')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTestId('excel-workbook-view')).toBeInTheDocument())
+    expect(screen.queryByTestId('excel-preview-alert')).not.toBeInTheDocument()
   })
 
   it('renders an error state when the workbook view reports an initialization failure', async () => {

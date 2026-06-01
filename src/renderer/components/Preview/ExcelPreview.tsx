@@ -1,8 +1,7 @@
-import { Alert } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
 import { ExcelWorkbookView } from '@renderer/components/Excel'
-import type { ExcelImportDiagnostic, ExcelImportDiagnosticCode } from '@shared/excelPreview'
+import type { ExcelImportDiagnosticCode } from '@shared/excelPreview'
 import type { IWorkbookData } from '@univerjs/core'
 import type { TFunction } from 'i18next'
 import { AlertCircle, FileSpreadsheet } from 'lucide-react'
@@ -19,7 +18,7 @@ export interface ExcelPreviewProps {
 
 type ExcelPreviewStatus =
   | { type: 'loading' }
-  | { type: 'ready'; warnings: ExcelImportDiagnostic[]; workbookData: IWorkbookData }
+  | { type: 'ready'; workbookData: IWorkbookData }
   | { type: 'empty' }
   | { type: 'error'; code: ExcelImportDiagnosticCode; detail?: string }
 
@@ -30,6 +29,7 @@ const EXCEL_PREVIEW_ERROR_KEYS: Record<ExcelImportDiagnosticCode, string> = {
   excel_parse_error: 'agent.preview_pane.excel.errors.parse_failed',
   excel_preview_too_complex: 'agent.preview_pane.excel.errors.too_complex',
   invalid_excel_preview_request: 'agent.preview_pane.excel.errors.invalid_request',
+  unsupported_excel_charts: 'agent.preview_pane.excel.errors.parse_failed',
   unsupported_excel_extension: 'agent.preview_pane.excel.errors.unsupported_extension',
   unsupported_excel_images: 'agent.preview_pane.excel.errors.parse_failed',
   unsupported_xls_format: 'agent.preview_pane.excel.errors.unsupported_xls'
@@ -37,14 +37,6 @@ const EXCEL_PREVIEW_ERROR_KEYS: Record<ExcelImportDiagnosticCode, string> = {
 
 const getExcelPreviewErrorDescription = (t: TFunction, code: ExcelImportDiagnosticCode, detail?: string): string => {
   return t(EXCEL_PREVIEW_ERROR_KEYS[code], { defaultValue: detail ?? t('common.error') })
-}
-
-const getExcelPreviewWarningDescription = (t: TFunction, diagnostic: ExcelImportDiagnostic): string => {
-  if (diagnostic.code === 'unsupported_excel_images') {
-    return t('agent.preview_pane.excel.warnings.unsupported_images', { count: diagnostic.count ?? 0 })
-  }
-
-  return t('agent.preview_pane.excel.warnings.generic')
 }
 
 const ExcelPreview = ({ filePath, fileName, refreshKey }: ExcelPreviewProps) => {
@@ -81,7 +73,7 @@ const ExcelPreview = ({ filePath, fileName, refreshKey }: ExcelPreviewProps) => 
         setStatus(
           isUniverWorkbookEmpty(result.data.workbookData)
             ? { type: 'empty' }
-            : { type: 'ready', warnings, workbookData: result.data.workbookData }
+            : { type: 'ready', workbookData: result.data.workbookData }
         )
       } catch (err) {
         if (cancelled) return
@@ -127,18 +119,6 @@ const ExcelPreview = ({ filePath, fileName, refreshKey }: ExcelPreviewProps) => 
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col bg-background">
-      {status.warnings.length > 0 && (
-        <div className="shrink-0 p-2 pb-0">
-          <Alert
-            showIcon
-            type="warning"
-            message={t('agent.preview_pane.excel.warnings.title')}
-            description={status.warnings
-              .map((diagnostic) => getExcelPreviewWarningDescription(t, diagnostic))
-              .join(' ')}
-          />
-        </div>
-      )}
       <ExcelWorkbookView
         ariaLabel={fileName ?? filePath}
         className="min-h-0 flex-1"
