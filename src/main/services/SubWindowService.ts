@@ -225,12 +225,19 @@ export class SubWindowService extends BaseService {
     this.tabIdToWindowId.set(tabId, windowId)
 
     // showMode: 'manual' — WM does not auto-show. Callers that supply an initial position
-    // will receive Tab_MoveWindow which shows the window after repositioning; otherwise
-    // auto-show once Electron signals ready.
+    // will receive Tab_MoveWindow which shows the window after repositioning; otherwise we show
+    // it here. A pooled standby is already loaded (ready-to-show fired during pre-warm and won't
+    // fire again), so it must be shown now; a freshly-created window (empty pool) shows on
+    // ready-to-show to avoid a blank flash. resetPooledWindowGeometry has already centered it.
     if (!hasPosition) {
-      win.once('ready-to-show', () => {
+      const showWindow = () => {
         if (!win.isDestroyed()) win.show()
-      })
+      }
+      if (win.webContents.isLoadingMainFrame()) {
+        win.once('ready-to-show', showWindow)
+      } else {
+        showWindow()
+      }
     }
 
     if (USE_CONTENT_BOUNDS_MOVE) {

@@ -79,6 +79,9 @@ interface MockBrowserWindow extends EventEmitter {
   getBounds: ReturnType<typeof vi.fn>
   getContentBounds: ReturnType<typeof vi.fn>
   setAlwaysOnTop: ReturnType<typeof vi.fn>
+  webContents: {
+    isLoadingMainFrame: ReturnType<typeof vi.fn>
+  }
 }
 
 function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrowserWindow {
@@ -93,6 +96,8 @@ function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrows
   win.getBounds = vi.fn(() => ({ x: 100, y: 100, width: 1200, height: 800 }))
   win.getContentBounds = vi.fn(() => ({ x: 100, y: 100, width: 800, height: 600 }))
   win.setAlwaysOnTop = vi.fn()
+  // Fresh (still-loading) window by default; reused-pool tests override isLoadingMainFrame → false.
+  win.webContents = { isLoadingMainFrame: vi.fn(() => true) }
   Object.assign(win, overrides)
   return win
 }
@@ -261,6 +266,18 @@ describe('SubWindowService', () => {
       svc.createWindow({ id: 'tab-xy', url: 'u', x: 10, y: 10 })
       win2.emit('ready-to-show')
       expect(win2.show).not.toHaveBeenCalled()
+    })
+
+    it('shows immediately when a reused pool window has already loaded (no ready-to-show wait)', () => {
+      const win = createMockWindow()
+      win.webContents.isLoadingMainFrame.mockReturnValue(false)
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({ id: 'tab-reused', url: 'u' })
+
+      // Recycled standby already fired ready-to-show during pre-warm, so it must be shown now
+      // rather than waiting for an event that will never fire again.
+      expect(win.show).toHaveBeenCalledTimes(1)
     })
   })
 
