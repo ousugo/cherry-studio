@@ -2,7 +2,7 @@
   "metadata": {
     "version": "1.0.0",
     "description": "Target key definitions that override or extend classification.json. Keys defined here with status 'classified' will be added or override classification.json. Keys with status 'pending' will be disabled.",
-    "lastUpdated": "2026-03-24"
+    "lastUpdated": "2026-06-01"
   },
   "definitions": [
     {
@@ -99,7 +99,13 @@
     {
       "targetKey": "ui.sidebar.icons.visible",
       "type": "PreferenceTypes.SidebarIcon[]",
-      "defaultValue": ["assistants", "agents", "store", "translate", "mini_app"],
+      "defaultValue": [
+        "assistants",
+        "agents",
+        "store",
+        "translate",
+        "mini_app"
+      ],
       "status": "classified",
       "description": "Visible sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"
     },
@@ -204,7 +210,10 @@
     {
       "targetKey": "feature.translate.page.bidirectional_pair",
       "type": "PreferenceTypes.TranslateBidirectionalPair",
-      "defaultValue": ["zh-cn", "en-us"],
+      "defaultValue": [
+        "zh-cn",
+        "en-us"
+      ],
       "status": "classified",
       "description": "Translate page bidirectional language pair (from complex migration)"
     },
@@ -221,6 +230,260 @@
       "defaultValue": "zh-cn",
       "status": "classified",
       "description": "Translate page target language (from complex migration)"
+    },
+    {
+      "targetKey": "shortcut.app.fullscreen.exit",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "Escape"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.fullscreen.exit (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.search",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "F"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.search (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.sidebar.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "["
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.sidebar.toggle (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.settings.open",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          ","
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.settings.open (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.window.show",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.window.show (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.zoom.in",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "="
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.zoom.in (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.zoom.out",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "-"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.zoom.out (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.app.zoom.reset",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "0"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.zoom.reset (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.context.toggle_new",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "K"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.context.toggle_new (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.message.copy_last",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "C"
+        ],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.message.copy_last (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.message.edit_last_user",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "E"
+        ],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.message.edit_last_user (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.message.search",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "F"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.message.search (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.model.select",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "Shift",
+          "M"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.model.select (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.chat.topic.clear",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "L"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: chat.topic.clear (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.quick_assistant.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "E"
+        ],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: quick_assistant.toggle (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.selection.capture_text",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: selection.capture_text (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.selection.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: selection.toggle (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.topic.create",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "N"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: topic.create (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.topic.rename",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "T"
+        ],
+        "enabled": false
+      },
+      "status": "classified",
+      "description": "Command shortcut: topic.rename (unified command system)"
+    },
+    {
+      "targetKey": "shortcut.topic.sidebar.toggle",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "]"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
     }
   ]
 }

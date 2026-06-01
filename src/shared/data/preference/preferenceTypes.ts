@@ -1,4 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { ShortcutBinding } from '@shared/shortcuts/tokens'
 import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
@@ -23,7 +24,7 @@ export type PreferenceUpdateOptions = {
 }
 
 export type PreferenceShortcutType = {
-  binding: string[]
+  binding: ShortcutBinding
   enabled: boolean
 }
 
