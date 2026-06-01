@@ -626,6 +626,40 @@ describe('ArtifactPane', () => {
     expect(pane).not.toHaveAttribute('data-resizing')
   })
 
+  it('cleans the file tree resize state on window blur', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
+
+    const pane = container.querySelector('[data-artifact-file-tree-pane]')
+    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
+
+    if (!pane || !handle) {
+      throw new Error('Expected artifact file tree pane and resize handle')
+    }
+
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, ARTIFACT_FILE_TREE_DEFAULT_WIDTH, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 260 })
+    fireEvent.mouseMove(document, { clientX: 250 })
+    expect(pane).toHaveAttribute('data-resizing', 'true')
+    expect(document.body.style.cursor).toBe('col-resize')
+    expect(mocks.setArtifactFileTreeWidth).toHaveBeenCalledTimes(1)
+
+    fireEvent.blur(window)
+
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+    expect(pane).not.toHaveAttribute('data-resizing')
+
+    fireEvent.mouseMove(document, { clientX: 500 })
+
+    expect(mocks.setArtifactFileTreeWidth).toHaveBeenCalledTimes(1)
+  })
+
   it('clamps dragged file tree width from the measured artifact pane width', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
 

@@ -1,9 +1,10 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { cn } from '@renderer/utils'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef } from 'react'
 
 import { CHAT_SHELL_PANE_WIDTH, CHAT_SHELL_TRANSITION } from './types'
 
@@ -46,51 +47,24 @@ function useRightPaneResize({
 }) {
   const [storedWidth, setStoredWidth] = usePersistCache(cacheKey)
   const paneRef = useRef<HTMLDivElement>(null)
-  const resizeCleanupRef = useRef<(() => void) | null>(null)
-  const isResizingRef = useRef(false)
-  const [isResizing, setIsResizing] = useState(false)
+  const paneRightRef = useRef(0)
   const paneWidth = clampRightPaneWidth(storedWidth ?? defaultWidth, minWidth, maxWidth)
 
-  useEffect(() => {
-    return () => resizeCleanupRef.current?.()
-  }, [])
+  const handleMouseMove = useCallback(
+    (moveEvent: MouseEvent) => {
+      setStoredWidth(clampRightPaneWidth(paneRightRef.current - moveEvent.clientX, minWidth, maxWidth))
+    },
+    [maxWidth, minWidth, setStoredWidth]
+  )
+
+  const { isResizing, startResizing: startResizeDrag } = useResizeDrag({ onMove: handleMouseMove })
 
   const startResizing = useCallback(
     (event: ReactMouseEvent) => {
-      event.preventDefault()
-
-      isResizingRef.current = true
-      setIsResizing(true)
-
-      const previousCursor = document.body.style.cursor
-      const previousUserSelect = document.body.style.userSelect
-      document.body.style.cursor = 'col-resize'
-      document.body.style.userSelect = 'none'
-
-      const paneRight = paneRef.current?.getBoundingClientRect().right ?? event.clientX + paneWidth
-
-      const cleanup = () => {
-        isResizingRef.current = false
-        setIsResizing(false)
-        document.body.style.cursor = previousCursor
-        document.body.style.userSelect = previousUserSelect
-        document.removeEventListener('mousemove', onMouseMove)
-        document.removeEventListener('mouseup', onMouseUp)
-        resizeCleanupRef.current = null
-      }
-
-      const onMouseMove = (moveEvent: MouseEvent) => {
-        if (!isResizingRef.current) return
-        setStoredWidth(clampRightPaneWidth(paneRight - moveEvent.clientX, minWidth, maxWidth))
-      }
-
-      const onMouseUp = () => cleanup()
-
-      document.addEventListener('mousemove', onMouseMove)
-      document.addEventListener('mouseup', onMouseUp)
-      resizeCleanupRef.current = cleanup
+      paneRightRef.current = paneRef.current?.getBoundingClientRect().right ?? event.clientX + paneWidth
+      startResizeDrag(event)
     },
-    [maxWidth, minWidth, paneWidth, setStoredWidth]
+    [paneWidth, startResizeDrag]
   )
 
   return {

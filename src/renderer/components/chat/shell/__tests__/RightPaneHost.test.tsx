@@ -161,4 +161,36 @@ describe('RightPaneHost', () => {
     expect(document.body.style.userSelect).toBe('')
     expect(pane).not.toHaveAttribute('data-resizing')
   })
+
+  it('cleans the right pane resize state on window blur', () => {
+    const { container } = render(
+      <RightPaneHost open resizable width={460}>
+        <div>artifact pane</div>
+      </RightPaneHost>
+    )
+    const pane = container.querySelector('[data-right-pane]')
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+    if (!pane || !handle) {
+      throw new Error('Expected right pane and resize handle')
+    }
+
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(340, 0, 460, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 340 })
+    fireEvent.mouseMove(document, { clientX: 300 })
+    expect(pane).toHaveAttribute('data-resizing', 'true')
+    expect(document.body.style.cursor).toBe('col-resize')
+    expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
+
+    fireEvent.blur(window)
+
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+    expect(pane).not.toHaveAttribute('data-resizing')
+
+    fireEvent.mouseMove(document, { clientX: 20 })
+
+    expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
+  })
 })

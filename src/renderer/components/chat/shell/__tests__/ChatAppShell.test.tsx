@@ -248,6 +248,34 @@ describe('ChatAppShell', () => {
     expect(pane).not.toHaveAttribute('data-resizing')
   })
 
+  it('cleans the left resource pane resize state on window blur', () => {
+    const { container } = render(<ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />)
+    const pane = container.querySelector('[data-resource-list-pane]')
+    const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
+
+    if (!pane || !handle) {
+      throw new Error('Expected resource list pane and resize handle')
+    }
+
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, 275, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 375 })
+    fireEvent.mouseMove(document, { clientX: 350 })
+    expect(pane).toHaveAttribute('data-resizing', 'true')
+    expect(document.body.style.cursor).toBe('col-resize')
+    expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
+
+    fireEvent.blur(window)
+
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+    expect(pane).not.toHaveAttribute('data-resizing')
+
+    fireEvent.mouseMove(document, { clientX: 600 })
+
+    expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
+  })
+
   it('clamps below-minimum drag width without collapsing when left drag is below the collapse threshold', () => {
     const onPaneCollapse = vi.fn()
     const { container } = render(

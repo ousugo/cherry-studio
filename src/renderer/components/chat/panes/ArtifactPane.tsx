@@ -10,6 +10,7 @@ import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
 import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
+import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import type { DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/file/types'
 import type { FilePath } from '@shared/file/types/common'
@@ -279,19 +280,14 @@ function useArtifactFileTreeResize() {
   const [storedWidth, setStoredWidth] = usePersistCache(ARTIFACT_FILE_TREE_CACHE_KEY)
   const artifactPaneRef = useRef<HTMLDivElement>(null)
   const paneRef = useRef<HTMLDivElement>(null)
-  const resizeCleanupRef = useRef<(() => void) | null>(null)
-  const isResizingRef = useRef(false)
-  const [isResizing, setIsResizing] = useState(false)
+  const currentArtifactPaneWidthRef = useRef(ARTIFACT_PANE_WIDTH)
+  const paneLeftRef = useRef(0)
   const [artifactPaneWidth, setArtifactPaneWidth] = useState(ARTIFACT_PANE_WIDTH)
   const paneWidth = clampArtifactFileTreeWidth(storedWidth ?? ARTIFACT_FILE_TREE_DEFAULT_WIDTH, artifactPaneWidth)
 
   const measureArtifactPaneWidth = useCallback(() => {
     const width = artifactPaneRef.current?.getBoundingClientRect().width
     return width && Number.isFinite(width) ? width : ARTIFACT_PANE_WIDTH
-  }, [])
-
-  useEffect(() => {
-    return () => resizeCleanupRef.current?.()
   }, [])
 
   useEffect(() => {
@@ -306,44 +302,26 @@ function useArtifactFileTreeResize() {
     return () => observer.disconnect()
   }, [measureArtifactPaneWidth])
 
+  const handleMouseMove = useCallback(
+    (moveEvent: MouseEvent) => {
+      setStoredWidth(
+        clampArtifactFileTreeWidth(moveEvent.clientX - paneLeftRef.current, currentArtifactPaneWidthRef.current)
+      )
+    },
+    [setStoredWidth]
+  )
+
+  const { isResizing, startResizing: startResizeDrag } = useResizeDrag({ onMove: handleMouseMove })
+
   const startResizing = useCallback(
     (event: ReactMouseEvent) => {
-      event.preventDefault()
-
-      isResizingRef.current = true
-      setIsResizing(true)
-
-      const previousCursor = document.body.style.cursor
-      const previousUserSelect = document.body.style.userSelect
-      document.body.style.cursor = 'col-resize'
-      document.body.style.userSelect = 'none'
-
       const currentArtifactPaneWidth = measureArtifactPaneWidth()
+      currentArtifactPaneWidthRef.current = currentArtifactPaneWidth
       setArtifactPaneWidth(currentArtifactPaneWidth)
-      const paneLeft = paneRef.current?.getBoundingClientRect().left ?? event.clientX - paneWidth
-
-      const cleanup = () => {
-        isResizingRef.current = false
-        setIsResizing(false)
-        document.body.style.cursor = previousCursor
-        document.body.style.userSelect = previousUserSelect
-        document.removeEventListener('mousemove', onMouseMove)
-        document.removeEventListener('mouseup', onMouseUp)
-        resizeCleanupRef.current = null
-      }
-
-      const onMouseMove = (moveEvent: MouseEvent) => {
-        if (!isResizingRef.current) return
-        setStoredWidth(clampArtifactFileTreeWidth(moveEvent.clientX - paneLeft, currentArtifactPaneWidth))
-      }
-
-      const onMouseUp = () => cleanup()
-
-      document.addEventListener('mousemove', onMouseMove)
-      document.addEventListener('mouseup', onMouseUp)
-      resizeCleanupRef.current = cleanup
+      paneLeftRef.current = paneRef.current?.getBoundingClientRect().left ?? event.clientX - paneWidth
+      startResizeDrag(event)
     },
-    [measureArtifactPaneWidth, paneWidth, setStoredWidth]
+    [measureArtifactPaneWidth, paneWidth, startResizeDrag]
   )
 
   return {

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { Home } from 'lucide-react'
 import type { ComponentProps } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Sidebar } from '../Sidebar'
 import type { SidebarMenuItem, SidebarTab } from '../types'
@@ -67,6 +67,12 @@ function renderFloatingSidebar(overrides: Partial<ComponentProps<typeof Sidebar>
 }
 
 describe('Sidebar', () => {
+  afterEach(() => {
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    vi.restoreAllMocks()
+  })
+
   it('uses card background for the floating panel', () => {
     renderFloatingSidebar()
 
@@ -95,5 +101,41 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getByText('Docked App').closest('div')!)
     expect(props.onMiniAppTabClick).toHaveBeenCalledWith('docked-mini-app')
     expect(props.onDismiss).toHaveBeenCalledTimes(3)
+  })
+
+  it('cleans the visible sidebar resize state on window blur', () => {
+    const setWidth = vi.fn()
+    const { container } = render(
+      <Sidebar
+        width={200}
+        setWidth={setWidth}
+        activeItem="home"
+        items={items}
+        title="Cherry Studio"
+        dockedTabs={dockedTabs}
+        onItemClick={vi.fn()}
+      />
+    )
+    const resizeHandle = container.querySelector('.cursor-col-resize')
+
+    if (!resizeHandle) {
+      throw new Error('Expected sidebar resize handle')
+    }
+
+    fireEvent.mouseDown(resizeHandle, { clientX: 200 })
+    expect(document.body.style.cursor).toBe('col-resize')
+    expect(document.body.style.userSelect).toBe('none')
+
+    fireEvent.mouseMove(document, { clientX: 260 })
+    expect(setWidth).toHaveBeenCalledTimes(1)
+
+    fireEvent.blur(window)
+
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+
+    fireEvent.mouseMove(document, { clientX: 320 })
+
+    expect(setWidth).toHaveBeenCalledTimes(1)
   })
 })
