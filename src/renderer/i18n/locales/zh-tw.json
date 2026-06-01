@@ -1391,7 +1391,6 @@
       "paste_text_file": "貼到輸入框",
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送，/ 包含工具",
-      "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "resource_panel": {
         "loading": "載入中...",
         "no_file_found": {
@@ -6369,9 +6368,6 @@
       "input": {
         "confirm_delete_message": "刪除訊息前確認",
         "confirm_regenerate_message": "重新產生訊息前確認",
-        "enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
-        "paste_long_text_as_file": "將長文字貼上為檔案",
-        "paste_long_text_threshold": "長文字長度",
         "send_shortcuts": "傳送快捷鍵",
         "show_estimated_tokens": "顯示預估 Token 數",
         "title": "輸入設定"

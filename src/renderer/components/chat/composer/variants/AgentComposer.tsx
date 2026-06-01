@@ -662,7 +662,6 @@ const AgentComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
   const workspacePathStatus = useWorkspacePathStatus(workspace?.path)
@@ -1175,8 +1174,8 @@ const AgentComposerInner = ({
   )
 
   const suggestionSources = useMemo(
-    () => (enableQuickPanelTriggers && enableMentionModelTrigger ? [resourceSuggestionSource] : []),
-    [enableMentionModelTrigger, enableQuickPanelTriggers, resourceSuggestionSource]
+    () => (enableMentionModelTrigger ? [resourceSuggestionSource] : []),
+    [enableMentionModelTrigger, resourceSuggestionSource]
   )
 
   const controlSlots = renderControls({
@@ -1221,7 +1220,6 @@ const AgentComposerInner = ({
         isExpanded={isExpanded}
         onExpandedChange={setIsExpanded}
         quickPanelEnabled={config.enableQuickPanel ?? true}
-        enableQuickPanelTriggers={enableQuickPanelTriggers}
         enableDragDrop={config.enableDragDrop ?? true}
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}

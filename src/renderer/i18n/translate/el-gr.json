@@ -1374,7 +1374,6 @@
       "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
-      "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
       "resource_panel": {
         "loading": "Φόρτωση...",
         "no_file_found": {
@@ -6323,9 +6322,6 @@
       "input": {
         "confirm_delete_message": "Επιβεβαίωση πριν τη διαγραφή μηνύματος",
         "confirm_regenerate_message": "Επιβεβαίωση πριν από την επαναδημιουργία του μηνύματος",
-        "enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",
-        "paste_long_text_as_file": "Επικόλληση μεγάλου κειμένου ως αρχείο",
-        "paste_long_text_threshold": "Όριο μεγάλου κειμένου",
         "send_shortcuts": "Συντάγματα αποστολής",
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
         "title": "Ρυθμίσεις εισαγωγής"

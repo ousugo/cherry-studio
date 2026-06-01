@@ -388,7 +388,6 @@ const ChatComposerInner = ({
   const { models: selectableModels } = useModels()
   const { providers } = useProviders()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
@@ -576,14 +575,7 @@ const ChatComposerInner = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` must not participate in the dependency key here.
   }, [runtimeModel, runtimeModelPending, selectedAssistantId, topic.id, useMentionedModelSelector])
 
-  const placeholderText = enableQuickPanelTriggers
-    ? t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
-    : t('chat.input.placeholder_without_triggers', {
-        key: getSendMessageShortcutLabel(sendMessageShortcut),
-        defaultValue: t('chat.input.placeholder', {
-          key: getSendMessageShortcutLabel(sendMessageShortcut)
-        })
-      })
+  const placeholderText = t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
 
   const tokens = useMemo(
     () => [...files.map(fileToComposerToken), ...selectedKnowledgeBasesInScope.map(knowledgeBaseToComposerToken)],
@@ -1048,7 +1040,6 @@ const ChatComposerInner = ({
         isExpanded={isExpanded}
         onExpandedChange={setIsExpanded}
         quickPanelEnabled={config.enableQuickPanel ?? true}
-        enableQuickPanelTriggers={enableQuickPanelTriggers}
         enableDragDrop={config.enableDragDrop ?? true}
         enableSpellCheck={enableSpellCheck}
         editable={!searching}

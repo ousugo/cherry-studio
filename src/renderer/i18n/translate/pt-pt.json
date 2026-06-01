@@ -1374,7 +1374,6 @@
       "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
-      "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
       "resource_panel": {
         "loading": "Carregando...",
         "no_file_found": {
@@ -6323,9 +6322,6 @@
       "input": {
         "confirm_delete_message": "confirmar antes de excluir a mensagem",
         "confirm_regenerate_message": "Confirmar antes de regenerar a mensagem",
-        "enable_quick_triggers": "Ativar menu rápido com '/' e '@'",
-        "paste_long_text_as_file": "Colar texto longo como arquivo",
-        "paste_long_text_threshold": "Limite de texto longo",
         "send_shortcuts": "Atalhos de envio",
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configurações de entrada"

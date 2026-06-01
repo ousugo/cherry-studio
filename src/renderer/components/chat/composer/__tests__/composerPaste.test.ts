@@ -45,19 +45,12 @@ describe('composer paste handling', () => {
   })
 
   it('intercepts single-line text paste as plain text content', () => {
-    expect(
-      getComposerPlainTextPasteOverride('single line', {
-        pasteLongTextAsFile: false,
-        pasteLongTextThreshold: 1500
-      })
-    ).toEqual([{ type: 'text', text: 'single line' }])
+    expect(getComposerPlainTextPasteOverride('single line', {})).toEqual([{ type: 'text', text: 'single line' }])
   })
 
   it('restores mixed prompt variable and slash skill markers in one paste pass', () => {
     expect(
       getComposerPlainTextPasteOverride('Use ${city} with /pdf/\nThen ${date}', {
-        pasteLongTextAsFile: false,
-        pasteLongTextThreshold: 1500,
         promptVariableStartIndex: 2,
         resolveSkillMarker
       })
@@ -118,8 +111,6 @@ describe('composer paste handling', () => {
   it('restores knowledge base markers when a resolver is provided', () => {
     expect(
       getComposerPlainTextPasteOverride('#kb-1# hello', {
-        pasteLongTextAsFile: false,
-        pasteLongTextThreshold: 1500,
         resolveKnowledgeBaseMarker
       })
     ).toEqual([
@@ -138,8 +129,6 @@ describe('composer paste handling', () => {
   it('preserves unresolved knowledge base markers while restoring other markers', () => {
     expect(
       getComposerPlainTextPasteOverride('#missing# #Docs#', {
-        pasteLongTextAsFile: false,
-        pasteLongTextThreshold: 1500,
         resolveKnowledgeBaseMarker
       })
     ).toEqual([
@@ -156,19 +145,12 @@ describe('composer paste handling', () => {
   })
 
   it('keeps slash skill markers as plain text without a resolver', () => {
-    expect(
-      getComposerPlainTextPasteOverride('/pdf/ hello', {
-        pasteLongTextAsFile: false,
-        pasteLongTextThreshold: 1500
-      })
-    ).toEqual([{ type: 'text', text: '/pdf/ hello' }])
+    expect(getComposerPlainTextPasteOverride('/pdf/ hello', {})).toEqual([{ type: 'text', text: '/pdf/ hello' }])
   })
 
   it('preserves unresolved slash markers while restoring other markers', () => {
     expect(
       getComposerPlainTextPasteOverride('/missing/ ${city} /pdf/', {
-        pasteLongTextAsFile: false,
-        pasteLongTextThreshold: 1500,
         resolveSkillMarker
       })
     ).toEqual([
@@ -202,20 +184,10 @@ describe('composer paste handling', () => {
   })
 
   it('does not intercept empty text paste', () => {
-    expect(
-      getComposerPlainTextPasteOverride('', {
-        pasteLongTextAsFile: false,
-        pasteLongTextThreshold: 1500
-      })
-    ).toBeNull()
+    expect(getComposerPlainTextPasteOverride('', {})).toBeNull()
   })
 
-  it('delegates long text paste to the existing long-text file handler', () => {
-    expect(
-      getComposerPlainTextPasteOverride('a\nlong text', {
-        pasteLongTextAsFile: true,
-        pasteLongTextThreshold: 5
-      })
-    ).toBeNull()
+  it('delegates text longer than the fixed threshold to the long-text file handler', () => {
+    expect(getComposerPlainTextPasteOverride('a'.repeat(1501), {})).toBeNull()
   })
 })

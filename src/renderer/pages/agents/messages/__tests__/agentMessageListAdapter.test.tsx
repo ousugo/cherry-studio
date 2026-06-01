@@ -106,8 +106,6 @@ vi.mock('@renderer/pages/shared/messages/hooks/useMessageListRenderConfig', () =
 
 vi.mock('@renderer/pages/shared/messages/hooks/useMessageEditorConfig', () => ({
   useMessageEditorConfig: () => ({
-    pasteLongTextAsFile: false,
-    pasteLongTextThreshold: 1500,
     fontSize: 14,
     sendMessageShortcut: 'Enter',
     enableSpellCheck: false
@@ -256,8 +254,6 @@ describe('useAgentMessageListProviderValue', () => {
       selectedMessageIds: ['user-1']
     })
     expect(value?.state.editorConfig).toEqual({
-      pasteLongTextAsFile: false,
-      pasteLongTextThreshold: 1500,
       fontSize: 14,
       sendMessageShortcut: 'Enter',
       enableSpellCheck: false

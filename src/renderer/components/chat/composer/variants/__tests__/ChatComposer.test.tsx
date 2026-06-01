@@ -322,7 +322,6 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'app.spell_check.enabled': true,
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
-      'chat.input.quick_panel.triggers_enabled': true,
       'chat.input.send_message_shortcut': 'Enter'
     }
     return [values[key]]

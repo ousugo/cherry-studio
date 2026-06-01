@@ -1391,7 +1391,6 @@
       "paste_text_file": "粘贴到输入框",
       "pause": "暂停",
       "placeholder": "在这里输入消息，按 {{key}} 发送，/ 选择工具",
-      "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
       "resource_panel": {
         "loading": "加载中...",
         "no_file_found": {
@@ -6369,9 +6368,6 @@
       "input": {
         "confirm_delete_message": "删除消息前确认",
         "confirm_regenerate_message": "重新生成消息前确认",
-        "enable_quick_triggers": "启用 / 和 @ 触发快捷菜单",
-        "paste_long_text_as_file": "长文本粘贴为文件",
-        "paste_long_text_threshold": "长文本长度",
         "send_shortcuts": "发送快捷键",
         "show_estimated_tokens": "显示预估 Token 数",
         "title": "输入设置"

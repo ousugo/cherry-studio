@@ -19,8 +19,6 @@ const mocks = vi.hoisted(() => ({
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
   preferences: {
-    'chat.input.paste_long_text_as_file': false,
-    'chat.input.paste_long_text_threshold': 1000,
     'chat.input.send_message_shortcut': 'Enter'
   } as Record<string, unknown>,
   editorPresetOptions: undefined as any,
@@ -216,7 +214,6 @@ const baseProps: ComposerSurfaceProps = {
   isExpanded: false,
   onExpandedChange: vi.fn(),
   quickPanelEnabled: false,
-  enableQuickPanelTriggers: false,
   enableDragDrop: false,
   enableSpellCheck: false,
   fontSize: 14,
@@ -254,8 +251,6 @@ describe('ComposerSurface', () => {
     mocks.dispatch.mockReset()
     mocks.pasteHandler.mockReset()
     mocks.preferences = {
-      'chat.input.paste_long_text_as_file': false,
-      'chat.input.paste_long_text_threshold': 1000,
       'chat.input.send_message_shortcut': 'Enter'
     }
     mocks.editorPresetOptions = undefined
@@ -498,7 +493,6 @@ describe('ComposerSurface', () => {
       <ComposerSurface
         {...baseProps}
         quickPanelEnabled
-        enableQuickPanelTriggers
         getToolLaunchers={() => [
           {
             id: 'generate-image',
@@ -573,7 +567,6 @@ describe('ComposerSurface', () => {
       <ComposerSurface
         {...baseProps}
         quickPanelEnabled
-        enableQuickPanelTriggers
         suggestionSources={[
           {
             pluginKey: 'resource-suggestion',
@@ -660,7 +653,6 @@ describe('ComposerSurface', () => {
       <ComposerSurface
         {...baseProps}
         quickPanelEnabled
-        enableQuickPanelTriggers
         onRootPanelOpen={onRootPanelOpen}
         getToolLaunchers={() => [
           {
@@ -922,7 +914,7 @@ describe('ComposerSurface', () => {
   })
 
   it('opens the QuickPanel root when slash follows whitespace', async () => {
-    render(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
+    render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
 
     await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
 
@@ -950,7 +942,6 @@ describe('ComposerSurface', () => {
       <ComposerSurface
         {...baseProps}
         quickPanelEnabled
-        enableQuickPanelTriggers
         onToolLauncherSelect={onToolLauncherSelect}
         getToolLaunchers={() => [
           {
@@ -1124,9 +1115,7 @@ describe('ComposerSurface', () => {
     })
   })
 
-  it('delegates long text paste to the existing long-text file handler', async () => {
-    mocks.preferences['chat.input.paste_long_text_as_file'] = true
-    mocks.preferences['chat.input.paste_long_text_threshold'] = 3
+  it('delegates text longer than the fixed threshold to the long-text file handler', async () => {
     render(<ComposerSurface {...baseProps} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
@@ -1134,7 +1123,7 @@ describe('ComposerSurface', () => {
     const event = {
       preventDefault: vi.fn(),
       clipboardData: {
-        getData: vi.fn((type: string) => (type === 'text/plain' ? 'long text' : ''))
+        getData: vi.fn((type: string) => (type === 'text/plain' ? 'a'.repeat(1501) : ''))
       }
     }
 
@@ -1221,7 +1210,7 @@ describe('ComposerSurface', () => {
   })
 
   it('does not open the QuickPanel root when slash is attached to previous text', async () => {
-    render(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
+    render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
 
     await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
 
@@ -1244,7 +1233,7 @@ describe('ComposerSurface', () => {
   })
 
   it('does not open the QuickPanel root when cursor is not at the end of the slash query', async () => {
-    render(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
+    render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
 
     await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
 
@@ -1273,7 +1262,7 @@ describe('ComposerSurface', () => {
     mocks.quickPanelIsVisible = true
     mocks.quickPanelSymbol = 'root'
 
-    render(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
+    render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
 
     await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
 
@@ -1299,9 +1288,7 @@ describe('ComposerSurface', () => {
     mocks.quickPanelIsVisible = true
     mocks.quickPanelSymbol = 'root'
 
-    const { rerender } = render(
-      <ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />
-    )
+    const { rerender } = render(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
 
     await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
 
@@ -1321,7 +1308,7 @@ describe('ComposerSurface', () => {
     })
 
     mocks.quickPanelSymbol = 'child-panel'
-    rerender(<ComposerSurface {...baseProps} quickPanelEnabled enableQuickPanelTriggers getToolLaunchers={() => []} />)
+    rerender(<ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={() => []} />)
 
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -1378,7 +1365,6 @@ describe('ComposerSurface', () => {
       <ComposerSurface
         {...baseProps}
         quickPanelEnabled
-        enableQuickPanelTriggers
         onToolLauncherSelect={onToolLauncherSelect}
         getToolLaunchers={() => [
           {

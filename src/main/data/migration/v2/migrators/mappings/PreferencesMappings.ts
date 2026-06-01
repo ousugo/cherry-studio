@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-06-01T06:01:30.451Z
+ * Generated at: 2026-06-01T11:35:25.545Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -157,14 +157,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'assistantIconType',
       targetKey: 'assistant.icon_type'
-    },
-    {
-      originalKey: 'pasteLongTextAsFile',
-      targetKey: 'chat.input.paste_long_text_as_file'
-    },
-    {
-      originalKey: 'pasteLongTextThreshold',
-      targetKey: 'chat.input.paste_long_text_threshold'
     },
     {
       originalKey: 'renderInputMessageAsMarkdown',
@@ -461,10 +453,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'spellCheckLanguages',
       targetKey: 'app.spell_check.languages'
-    },
-    {
-      originalKey: 'enableQuickPanelTriggers',
-      targetKey: 'chat.input.quick_panel.triggers_enabled'
     },
     {
       originalKey: 'useSystemTitleBar',
@@ -803,11 +791,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 177
+ * - Redux Store项: 174
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 4
  * - localStorage项: 0
- * - 总配置项: 182
+ * - 总配置项: 179
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

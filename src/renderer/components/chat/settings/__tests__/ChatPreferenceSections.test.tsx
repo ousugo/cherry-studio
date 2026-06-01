@@ -13,13 +13,10 @@ const mocks = vi.hoisted(() => ({
     'chat.message.font': 'system',
     'chat.message.show_prompt': true,
     'chat.message.confirm_delete': true,
-    'chat.input.quick_panel.triggers_enabled': false,
     'chat.message.navigation_mode': 'none',
     'chat.narrow_mode': false,
     'chat.message.thought.auto_collapse': true,
     'chat.message.multi_model.style': 'horizontal',
-    'chat.input.paste_long_text_as_file': false,
-    'chat.input.paste_long_text_threshold': 1500,
     'chat.message.math.single_dollar': true,
     'chat.input.show_estimated_tokens': false,
     'chat.message.render_as_markdown': false,
@@ -120,6 +117,8 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.messages.show_message_outline')).toBeNull()
     expect(screen.queryByText('message.message.multi_model_style.label')).toBeNull()
     expect(screen.queryByText('settings.messages.input.show_estimated_tokens')).toBeNull()
+    expect(screen.queryByText('settings.messages.input.paste_long_text_as_file')).toBeNull()
+    expect(screen.queryByText('settings.messages.input.enable_quick_triggers')).toBeNull()
   })
 
   it('does not render input translation controls', () => {
