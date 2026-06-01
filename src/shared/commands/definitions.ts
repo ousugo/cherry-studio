@@ -184,7 +184,7 @@ export const COMMAND_DEFINITIONS = [
   }),
   defineCommand({
     id: 'topic.sidebar.toggle',
-    titleKey: 'settings.shortcuts.toggle_show_topics',
+    titleKey: 'settings.shortcuts.toggle_right_sidebar',
     categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
     keybinding: {
