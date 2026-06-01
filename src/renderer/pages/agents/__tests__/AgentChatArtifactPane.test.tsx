@@ -711,6 +711,50 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('agent-home-composer')).toBeInTheDocument()
   })
 
+  it('disables the artifact pane when switching into a draft temporary session', async () => {
+    const { rerender } = renderAgentChat({
+      pane: <aside data-testid="session-pane" />,
+      paneOpen: true,
+      panePosition: 'left'
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+
+    rerenderAgentChat(rerender, {
+      pane: <aside data-testid="session-pane" />,
+      paneOpen: true,
+      panePosition: 'left',
+      temporaryConversation: {
+        type: 'agent',
+        id: 'temp-session-1',
+        sessionId: 'temp-session-1',
+        topicId: 'agent-session:temp-session-1',
+        agentId: 'agent-1',
+        workspace: { path: '/tmp/workspace' },
+        name: 'Temp Session',
+        session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } }
+      } as any
+    })
+
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.queryByTestId('artifact-right-pane')).toBeNull()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'common.open_sidebar' })).toBeDisabled()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    expect(screen.queryByTestId('artifact-right-pane')).toBeNull()
+
+    rerenderAgentChat(rerender, {
+      pane: <aside data-testid="session-pane" />,
+      paneOpen: true,
+      panePosition: 'left'
+    })
+
+    expect(screen.getByRole('button', { name: 'common.open_sidebar' })).toBeEnabled()
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
   it('reuses the docked composer frame during temporary session handoff', async () => {
     activeSessionMocks.result = {
       activeSessionId: null,

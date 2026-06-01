@@ -456,9 +456,11 @@ const AgentChatSessionFrame = ({
       respondToolApproval={runtime.respondToolApproval}
     />
   )
+  const rightPaneDisabled = placement === 'home'
 
   return (
     <AgentRightPane
+      key={rightPaneDisabled ? 'right-pane-disabled' : 'right-pane-enabled'}
       workspacePath={session.workspace?.path}
       messages={runtime.uiMessages}
       partsByMessageId={runtime.partsByMessageId}
@@ -481,7 +483,7 @@ const AgentChatSessionFrame = ({
             showSidebarControls={showResourceListControls}
           />
         }
-        topRightTool={<AgentRightPane.FilesToggle />}
+        topRightTool={<AgentRightPane.FilesToggle disabled={rightPaneDisabled} />}
         center={
           <ConversationStageCenter
             placement={placement}
@@ -491,8 +493,8 @@ const AgentChatSessionFrame = ({
           />
         }
         sidePanel={sidePanel}
-        centerOverlay={<AgentRightPane.MaximizedOverlay />}
-        rightPane={<AgentRightPane.Host />}
+        centerOverlay={rightPaneDisabled ? undefined : <AgentRightPane.MaximizedOverlay />}
+        rightPane={rightPaneDisabled ? undefined : <AgentRightPane.Host />}
       />
     </AgentRightPane>
   )

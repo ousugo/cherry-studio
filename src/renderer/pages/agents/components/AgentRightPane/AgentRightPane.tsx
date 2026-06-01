@@ -631,8 +631,8 @@ function AgentRightPaneMaximizedOverlay() {
   )
 }
 
-function AgentRightPaneFilesToggle() {
-  return <Shell.Toggle tab="files" />
+function AgentRightPaneFilesToggle({ disabled }: { disabled?: boolean }) {
+  return <Shell.Toggle tab="files" disabled={disabled} />
 }
 
 // `AgentRightPane` is the provider itself, with the other parts attached as
