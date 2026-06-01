@@ -161,7 +161,7 @@ Choose by **consumer / producer fanout**:
 ```
 src/main/ai/
 ├── AiService.ts                       lifecycle service: streamText + non-streaming IPC gateway
-└── agent/
+└── runtime/aiSdk/
     └── loop/
         └── PendingMessageQueue.ts     injected-message queue (drain + AsyncIterable consumption)
 
@@ -234,7 +234,7 @@ write paths per status.
 | Listener | Role | id | isAlive |
 |---|---|---|---|
 | **WebContentsListener** | chunks → renderer window | `wc:${wc.id}:${topicId}` | `!wc.isDestroyed()` |
-| **PersistenceListener** | terminal write via strategy | `persistence:${backendKind}:${topicId}:${modelId}` | always `true` |
+| **PersistenceListener** | terminal write via strategy | `persistence:${backendKind}:${topicId}:${modelId ?? 'default'}` | always `true` |
 | **TraceFlushListener** | terminal trace-cache flush | `persistence:trace:${topicId}` | always `true` |
 | **ChannelAdapterListener** | text → IM platform | `channel:${channelId}:${chatId}` | `adapter.connected` |
 | **SseListener** | API-server SSE passthrough | `sse:${uuid}` | `!res.writableEnded` |
@@ -663,6 +663,7 @@ built-in `Cache_Sync` broadcast). The entry shape is
   status: 'pending' | 'streaming' | 'done' | 'aborted' | 'awaiting-approval' | 'error'
   activeExecutions: ActiveExecution[]         // execs currently `streaming`
   awaitingApprovalAnchors: ActiveExecution[]  // execs with awaitingApproval = true
+  lastCompletedAt?: number                    // bumped only on `done`; the fulfilled-badge read-receipt gate
 }
 ```
 
@@ -757,8 +758,8 @@ wins).
 | | Persistent | Temporary | Agent |
 |---|---|---|---|
 | User message timing | before stream (tree node) | before stream (append) | before stream (agents DB) |
-| Assistant placeholder | created pending before stream | none | none |
-| Terminal write | `update` placeholder | `append` new row | `persistAssistantMessage` |
+| Assistant placeholder | created pending before stream | none | created pending before stream (atomic with user msg) |
+| Terminal write | `update` placeholder | `append` new row | `update` placeholder (`persistAssistantMessage`) |
 | Backend | `MessageServiceBackend` | `TemporaryChatBackend` | `AgentSessionMessageBackend` |
 | Multi-model | ✓ | ✗ (single-model) | ✗ (single-model) |
 | Regenerate | ✓ | ✗ | ✗ |
