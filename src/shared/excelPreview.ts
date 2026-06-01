@@ -40,6 +40,7 @@ export interface ExcelPreviewImageRenderData {
 }
 
 export interface ExcelPreviewCellCustom {
+  excelImageRefs?: string[]
   excelImages?: ExcelPreviewImageRenderData[]
 }
 

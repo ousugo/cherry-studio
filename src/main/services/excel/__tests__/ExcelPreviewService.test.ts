@@ -12,6 +12,7 @@ import { excelJsWorkbookToPreviewData } from '../excelToUniverWorkbook'
 
 const ONE_PIXEL_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lZRtWQAAAABJRU5ErkJggg=='
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47])
 
 let tempDir: string
 
@@ -106,6 +107,119 @@ const writeWorkbookWithChartDrawing = (): string =>
 </Relationships>`,
     'xl/charts/chart1.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart/></c:chartSpace>`
+  })
+
+const writeWorkbookWithBarChartDrawing = (): string =>
+  writeZipWorkbook('bar-chart.xlsx', {
+    '[Content_Types].xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+  <Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>
+  <Override PartName="/xl/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+</Types>`,
+    '_rels/.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`,
+    'xl/_rels/workbook.xml.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`,
+    'xl/workbook.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Data" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>`,
+    'xl/styles.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="1"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/></font></fonts>
+  <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>
+</styleSheet>`,
+    'xl/worksheets/sheet1.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <dimension ref="A1:B3"/>
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="inlineStr"><is><t>Region</t></is></c>
+      <c r="B1" t="inlineStr"><is><t>Amount</t></is></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="inlineStr"><is><t>North</t></is></c>
+      <c r="B2"><v>12</v></c>
+    </row>
+    <row r="3">
+      <c r="A3" t="inlineStr"><is><t>South</t></is></c>
+      <c r="B3"><v>30</v></c>
+    </row>
+  </sheetData>
+  <drawing r:id="rId1"/>
+</worksheet>`,
+    'xl/worksheets/_rels/sheet1.xml.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="/xl/drawings/drawing1.xml"/>
+</Relationships>`,
+    'xl/drawings/drawing1.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<wsDr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing">
+  <twoCellAnchor>
+    <from><col>0</col><colOff>0</colOff><row>4</row><rowOff>0</rowOff></from>
+    <to><col>6</col><colOff>0</colOff><row>18</row><rowOff>0</rowOff></to>
+    <graphicFrame>
+      <nvGraphicFramePr><cNvPr id="1" name="Chart 1"/><cNvGraphicFramePr/></nvGraphicFramePr>
+      <xfrm/>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rId1"/></a:graphicData></a:graphic>
+    </graphicFrame>
+    <clientData/>
+  </twoCellAnchor>
+</wsDr>`,
+    'xl/drawings/_rels/drawing1.xml.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="/xl/charts/chart1.xml"/>
+</Relationships>`,
+    'xl/charts/chart1.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+  <c:chart>
+    <c:title>
+      <c:tx><c:rich><a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:r><a:t>Sales</a:t></a:r></a:p></c:rich></c:tx>
+    </c:title>
+    <c:plotArea>
+      <c:barChart>
+        <c:barDir val="col"/>
+        <c:ser>
+          <c:idx val="0"/>
+          <c:order val="0"/>
+          <c:tx>
+            <c:strRef>
+              <c:f>Data!$B$1</c:f>
+              <c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>Amount</c:v></c:pt></c:strCache>
+            </c:strRef>
+          </c:tx>
+          <c:cat>
+            <c:strRef>
+              <c:f>Data!$A$2:$A$3</c:f>
+              <c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>North</c:v></c:pt><c:pt idx="1"><c:v>South</c:v></c:pt></c:strCache>
+            </c:strRef>
+          </c:cat>
+          <c:val>
+            <c:numRef>
+              <c:f>Data!$B$2:$B$3</c:f>
+              <c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="2"/><c:pt idx="0"><c:v>12</c:v></c:pt><c:pt idx="1"><c:v>30</c:v></c:pt></c:numCache>
+            </c:numRef>
+          </c:val>
+        </c:ser>
+      </c:barChart>
+    </c:plotArea>
+    <c:legend><c:legendPos val="r"/></c:legend>
+  </c:chart>
+</c:chartSpace>`
   })
 
 const writeWorkbookWithTableFilter = (customerFilter = '*Acme*'): string =>
@@ -470,6 +584,34 @@ describe('ExcelPreviewService', () => {
     ])
   })
 
+  it('renders basic chart drawings as worksheet images', async () => {
+    const filePath = writeWorkbookWithBarChartDrawing()
+
+    const result = await readExcelWorkbookPreview({ filePath, fileName: 'bar-chart.xlsx' })
+
+    expect(result).toMatchObject({ success: true })
+    if (!result.success) return
+
+    const sheet = result.data.workbookData.sheets['sheet-1']
+    const chartImage = sheet.cellData?.[4]?.[0]?.custom?.excelImages?.[0]
+    const encodedPng = chartImage?.source.replace('data:image/png;base64,', '')
+
+    expect(result.data.diagnostics).not.toContainEqual(
+      expect.objectContaining({
+        code: 'unsupported_excel_charts'
+      })
+    )
+    expect(chartImage).toMatchObject({
+      from: { column: 0, columnOffset: 0, row: 4, rowOffset: 0 },
+      id: 'sheet-1-chart-1',
+      source: expect.stringMatching(/^data:image\/png;base64,/),
+      to: { column: 6, columnOffset: 0, row: 18, rowOffset: 0 }
+    })
+    expect(encodedPng ? Buffer.from(encodedPng, 'base64').subarray(0, 4) : null).toEqual(PNG_SIGNATURE)
+    expect(sheet.rowCount).toBeGreaterThanOrEqual(19)
+    expect(sheet.columnCount).toBeGreaterThanOrEqual(7)
+  })
+
   it('falls back to a cell-only preview when workbook sheet id differs from its sheet file number', async () => {
     const filePath = writeWorkbookWithChartDrawing()
 
@@ -537,6 +679,19 @@ describe('ExcelPreviewService', () => {
     const filePath = await writeWorkbook('complex.xlsx', workbook)
 
     const result = await readExcelWorkbookPreview({ filePath }, { budget: { maxCells: 1 } })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        code: 'excel_preview_too_complex'
+      }
+    })
+  })
+
+  it('returns a clear error when the workbook exceeds chart count limits', async () => {
+    const filePath = writeWorkbookWithBarChartDrawing()
+
+    const result = await readExcelWorkbookPreview({ filePath }, { budget: { maxCharts: 0 } })
 
     expect(result).toMatchObject({
       success: false,

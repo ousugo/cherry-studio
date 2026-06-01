@@ -105,6 +105,7 @@
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/libsql": "workspace:*",
     "@vectorstores/readers": "^0.1.8",
+    "echarts": "6.1.0",
     "exceljs": "^4.4.0",
     "express": "5.1.0",
     "font-list": "2.0.0",

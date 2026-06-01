@@ -9,7 +9,7 @@ import type {
   ExcelPreviewImageRenderData,
   ExcelPreviewTable
 } from '@shared/excelPreview'
-import type { ICellCustomRender, IDisposable, Plugin, PluginCtor } from '@univerjs/core'
+import type { ICellCustomRender, IDisposable, IWorkbookData, Plugin, PluginCtor } from '@univerjs/core'
 import { LocaleType, mergeLocales, Univer } from '@univerjs/core'
 import { FUniver } from '@univerjs/core/facade'
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core'
@@ -93,6 +93,52 @@ const getExcelCellImages = (custom: unknown): ExcelPreviewImageRenderData[] => {
   return Array.isArray(images) ? images : []
 }
 
+const getExcelCellImageRefs = (custom: unknown): string[] => {
+  if (!custom || typeof custom !== 'object') return []
+
+  const refs = (custom as ExcelPreviewCellCustom).excelImageRefs
+  return Array.isArray(refs) ? refs.filter((ref): ref is string => typeof ref === 'string') : []
+}
+
+const getExcelCellCustom = (cell: unknown): unknown => {
+  if (!cell || typeof cell !== 'object') return undefined
+
+  return (cell as { custom?: unknown }).custom
+}
+
+const createExcelImageIndex = (workbookData: IWorkbookData): Map<string, ExcelPreviewImageRenderData> => {
+  const images = new Map<string, ExcelPreviewImageRenderData>()
+
+  Object.values(workbookData.sheets ?? {}).forEach((sheet) => {
+    Object.values(sheet?.cellData ?? {}).forEach((rowData) => {
+      Object.values(rowData ?? {}).forEach((cell) => {
+        getExcelCellImages(getExcelCellCustom(cell)).forEach((image) => {
+          images.set(image.id, image)
+        })
+      })
+    })
+  })
+
+  return images
+}
+
+const getExcelCellRenderImages = (
+  custom: unknown,
+  imageIndex: Map<string, ExcelPreviewImageRenderData>
+): ExcelPreviewImageRenderData[] => {
+  const imagesById = new Map<string, ExcelPreviewImageRenderData>()
+
+  getExcelCellImages(custom).forEach((image) => {
+    imagesById.set(image.id, image)
+  })
+  getExcelCellImageRefs(custom).forEach((imageId) => {
+    const image = imageIndex.get(imageId)
+    if (image) imagesById.set(image.id, image)
+  })
+
+  return Array.from(imagesById.values())
+}
+
 const getAnchorPoint = (
   skeleton: { getCellWithCoordByIndex?: (row: number, column: number, header?: boolean) => unknown },
   anchor: ExcelPreviewImageAnchor,
@@ -111,7 +157,43 @@ const getAnchorPoint = (
   }
 }
 
-const createExcelImageCellRenderer = (): ICellCustomRender => {
+type CellRenderBounds = { endX: number; endY: number; startX: number; startY: number }
+
+const drawImageInCell = (
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  imageData: ExcelPreviewImageRenderData,
+  skeleton: { getCellWithCoordByIndex?: (row: number, column: number, header?: boolean) => unknown },
+  cell: CellRenderBounds
+): void => {
+  const from = getAnchorPoint(skeleton, imageData.from, cell)
+  const to = imageData.to ? getAnchorPoint(skeleton, imageData.to, cell) : undefined
+  const imageWidth = imageData.size?.width ?? (to ? to.x - from.x : image.naturalWidth)
+  const imageHeight = imageData.size?.height ?? (to ? to.y - from.y : image.naturalHeight)
+  if (imageWidth <= 0 || imageHeight <= 0) return
+
+  const left = from.x
+  const top = from.y
+  const right = left + imageWidth
+  const bottom = top + imageHeight
+  const clipLeft = Math.max(left, cell.startX)
+  const clipTop = Math.max(top, cell.startY)
+  const clipRight = Math.min(right, cell.endX)
+  const clipBottom = Math.min(bottom, cell.endY)
+  const width = clipRight - clipLeft
+  const height = clipBottom - clipTop
+  if (width <= 0 || height <= 0) return
+
+  const sourceX = ((clipLeft - left) / imageWidth) * image.naturalWidth
+  const sourceY = ((clipTop - top) / imageHeight) * image.naturalHeight
+  const sourceWidth = (width / imageWidth) * image.naturalWidth
+  const sourceHeight = (height / imageHeight) * image.naturalHeight
+
+  ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, clipLeft, clipTop, width, height)
+}
+
+const createExcelImageCellRenderer = (workbookData: IWorkbookData): ICellCustomRender => {
+  const imageIndex = createExcelImageIndex(workbookData)
   const imageCache = new Map<string, HTMLImageElement>()
 
   const getImage = (imageData: ExcelPreviewImageRenderData, markDirty: () => void) => {
@@ -128,7 +210,7 @@ const createExcelImageCellRenderer = (): ICellCustomRender => {
 
   return {
     drawWith: (ctx, info, skeleton, spreadsheets) => {
-      const images = getExcelCellImages(info.data?.custom)
+      const images = getExcelCellRenderImages(info.data?.custom, imageIndex)
       if (!images.length) return
 
       const markDirty =
@@ -138,23 +220,20 @@ const createExcelImageCellRenderer = (): ICellCustomRender => {
         const image = getImage(imageData, markDirty)
         if (!image.complete || image.naturalWidth === 0) return
 
-        const from = getAnchorPoint(skeleton, imageData.from, info.primaryWithCoord)
-        const to = imageData.to ? getAnchorPoint(skeleton, imageData.to, info.primaryWithCoord) : undefined
-        const width = imageData.size?.width ?? (to ? to.x - from.x : image.naturalWidth)
-        const height = imageData.size?.height ?? (to ? to.y - from.y : image.naturalHeight)
-        if (width <= 0 || height <= 0) return
-
-        ctx.drawImage(image, from.x, from.y, width, height)
+        drawImageInCell(ctx, image, imageData, skeleton, info.primaryWithCoord)
       })
     },
     zIndex: 100
   }
 }
 
-const installExcelImageCellRenderer = (univerAPI: ReturnType<typeof FUniver.newAPI>): IDisposable | undefined => {
+const installExcelImageCellRenderer = (
+  univerAPI: ReturnType<typeof FUniver.newAPI>,
+  workbookData: IWorkbookData
+): IDisposable | undefined => {
   return (univerAPI as unknown as ExcelSheetHooksApi)
     .getSheetHooks?.()
-    ?.onCellRender?.([createExcelImageCellRenderer()])
+    ?.onCellRender?.([createExcelImageCellRenderer(workbookData)])
 }
 
 const toUniverTableColumns = (table: ExcelPreviewTable): ExcelTableColumnData[] => {
@@ -312,7 +391,7 @@ const ExcelWorkbookView = ({
         const univerAPI = FUniver.newAPI(univer)
 
         const fWorkbook = univerAPI.createWorkbook(workbookData) as unknown as ExcelTableWorkbookApi | undefined
-        pendingImageRenderer = installExcelImageCellRenderer(univerAPI)
+        pendingImageRenderer = installExcelImageCellRenderer(univerAPI, workbookData)
         await installExcelTables(fWorkbook, tables)
         if (disposed) return
 
