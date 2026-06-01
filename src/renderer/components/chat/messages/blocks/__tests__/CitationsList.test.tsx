@@ -106,6 +106,18 @@ describe('CitationsList', () => {
     expect(openExternalUrl).toHaveBeenCalledWith('https://example.com')
   })
 
+  it('renders web citations without a url as non-links', () => {
+    const citations: Citation[] = [
+      { number: 1, url: '', title: 'No URL Source', content: 'Reference text', type: 'websearch' }
+    ]
+
+    render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />)
+
+    const title = screen.getByText('No URL Source')
+    expect(title).toBeInTheDocument()
+    expect(title.closest('a')).toBeNull()
+  })
+
   it('uses injected copy actions when rendered without a message list provider', async () => {
     mocks.messageListActions = undefined
     const copyText = vi.fn().mockResolvedValue(undefined)

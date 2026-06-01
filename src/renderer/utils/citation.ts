@@ -81,14 +81,23 @@ export function normalizeCitationMarks(
   sourceType?: WebSearchSource
 ): string {
   const codeBlockRegex = /```[\s\S]*?```|`[^`\n]*`/gm
-  const skipRanges: Array<{ start: number; end: number }> = []
+  const getSkipRanges = () => {
+    const skipRanges: Array<{ start: number; end: number }> = []
 
-  let match: RegExpExecArray | null
-  while ((match = codeBlockRegex.exec(content)) !== null) {
-    skipRanges.push({ start: match.index, end: match.index + match[0].length })
+    codeBlockRegex.lastIndex = 0
+    let match: RegExpExecArray | null
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      skipRanges.push({
+        start: match.index,
+        end: match.index + match[0].length
+      })
+    }
+
+    return skipRanges
   }
 
-  const shouldSkip = (pos: number): boolean => {
+  // 检查位置是否在代码块内
+  const shouldSkip = (pos: number, skipRanges = getSkipRanges()): boolean => {
     for (const range of skipRanges) {
       if (pos >= range.start && pos < range.end) return true
       if (range.start > pos) break
@@ -98,10 +107,12 @@ export function normalizeCitationMarks(
 
   const applyReplacements = (regex: RegExp, getReplacementFn: (m: RegExpExecArray) => string | null) => {
     const replacements: Array<{ start: number; end: number; replacement: string }> = []
-    regex.lastIndex = 0
+    const skipRanges = getSkipRanges()
+
+    regex.lastIndex = 0 // 重置正则状态
     let m: RegExpExecArray | null
     while ((m = regex.exec(content)) !== null) {
-      if (!shouldSkip(m.index)) {
+      if (!shouldSkip(m.index, skipRanges)) {
         const replacement = getReplacementFn(m)
         if (replacement !== null) {
           replacements.push({ start: m.index, end: m.index + m[0].length, replacement })
@@ -113,14 +124,23 @@ export function normalizeCitationMarks(
     })
   }
 
+  const normalizePlainBracketMarks = () => {
+    applyReplacements(/\[(\d+)\]/g, (match) => {
+      const citationNum = parseInt(match[1], 10)
+      return citationMap.has(citationNum) ? `[cite:${citationNum}]` : null
+    })
+  }
+
   switch (sourceType) {
     case WEB_SEARCH_SOURCE.OPENAI:
     case WEB_SEARCH_SOURCE.OPENAI_RESPONSE:
+    case WEB_SEARCH_SOURCE.AISDK:
     case WEB_SEARCH_SOURCE.PERPLEXITY: {
       applyReplacements(/\[<sup>(\d+)<\/sup>\]\([^)]*\)/g, (m) => {
         const citationNum = parseInt(m[1], 10)
         return citationMap.has(citationNum) ? `[cite:${citationNum}]` : null
       })
+      normalizePlainBracketMarks()
       break
     }
     case WEB_SEARCH_SOURCE.GEMINI: {
@@ -171,10 +191,8 @@ export function normalizeCitationMarks(
       break
     }
     default: {
-      applyReplacements(/\[(\d+)\]/g, (m) => {
-        const citationNum = parseInt(m[1], 10)
-        return citationMap.has(citationNum) ? `[cite:${citationNum}]` : null
-      })
+      // 简单数字格式: [N] → [cite:N]
+      normalizePlainBracketMarks()
     }
   }
 

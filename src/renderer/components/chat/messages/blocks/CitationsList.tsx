@@ -136,6 +136,7 @@ const handleLinkClick = (
     openExternalUrl?: (url: string) => void | Promise<void>
   }
 ) => {
+  if (!url) return
   if (url.startsWith('http')) {
     if (!actions?.openExternalUrl) return
     event.preventDefault()
@@ -212,6 +213,7 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
   })
 
   const displayTitle = isXPost && oembedData?.author ? `@${oembedData.author}` : citation.title
+  const titleContent = displayTitle || citation.hostname || citation.content || citation.url
 
   return (
     <SelectionContextMenu>
@@ -220,12 +222,16 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
           {citation.showFavicon && citation.url && (
             <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
           )}
-          <a
-            className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
-            href={citation.url}
-            onClick={(e) => handleLinkClick(citation.url, e, linkActions)}>
-            {displayTitle || <span className="text-primary">{citation.hostname}</span>}
-          </a>
+          {citation.url ? (
+            <a
+              className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
+              href={citation.url}
+              onClick={(e) => handleLinkClick(citation.url, e, linkActions)}>
+              {displayTitle || <span className="text-primary">{citation.hostname}</span>}
+            </a>
+          ) : (
+            <span className="flex-1 text-nowrap text-foreground text-sm leading-[1.6]">{titleContent}</span>
+          )}
 
           <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] text-primary leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
             {citation.number}

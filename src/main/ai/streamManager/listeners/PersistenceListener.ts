@@ -11,6 +11,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
+import { normalizeAssistantMessageCitations } from '../persistence/normalizeCitations'
 import { type PersistenceBackend, statsFromTerminal } from '../persistence/PersistenceBackend'
 import type {
   SemanticTimings,
@@ -103,14 +104,17 @@ export class PersistenceListener implements StreamListener {
       return
     }
 
+    const finalMessageForPersistence =
+      status === 'success' && finalMessage ? normalizeAssistantMessageCitations(finalMessage) : finalMessage
+
     const stats = statsFromTerminal(
-      finalMessage,
+      finalMessageForPersistence,
       transportTimings ? { ...transportTimings, ...this.semanticTimings } : undefined
     )
 
     try {
       await this.opts.backend.persistAssistant({
-        finalMessage,
+        finalMessage: finalMessageForPersistence,
         status,
         modelId: this.opts.modelId,
         stats
@@ -130,8 +134,8 @@ export class PersistenceListener implements StreamListener {
       return
     }
 
-    if (status === 'success' && finalMessage && this.opts.backend.afterPersist) {
-      void this.opts.backend.afterPersist(finalMessage).catch((err) => {
+    if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {
+      void this.opts.backend.afterPersist(finalMessageForPersistence).catch((err) => {
         logger.warn('afterPersist hook failed', {
           backend: this.opts.backend.kind,
           topicId: this.opts.topicId,

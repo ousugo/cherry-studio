@@ -66,6 +66,11 @@ function extractOpenRouterContent(entry: Record<string, unknown>): string | unde
   return typeof openrouterMeta.content === 'string' ? openrouterMeta.content : undefined
 }
 
+function readExplicitCitationNumber(entry: Record<string, unknown>): number {
+  const value = entry.number
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+}
+
 function normalizeWebResult(result: unknown): Citation | null {
   if (typeof result === 'string') {
     return {
@@ -92,8 +97,6 @@ function normalizeWebResult(result: unknown): Citation | null {
     (typeof webEntry?.uri === 'string' && webEntry.uri) ||
     ''
 
-  if (!url) return null
-
   const title =
     (typeof entry.title === 'string' && entry.title) ||
     (typeof openAiUrlCitation?.title === 'string' && openAiUrlCitation.title) ||
@@ -101,9 +104,10 @@ function normalizeWebResult(result: unknown): Citation | null {
     toHostOrUrl(url)
 
   const content = (typeof entry.content === 'string' && entry.content) || extractOpenRouterContent(entry)
+  if (!url && !title && !content) return null
 
   return {
-    number: 0,
+    number: readExplicitCitationNumber(entry),
     url,
     title,
     content,
@@ -146,10 +150,19 @@ function normalizeWebResults(results: unknown): Citation[] {
       ? ((results as Record<string, unknown>).results as unknown[])
       : []
 
-  return list
-    .map(normalizeWebResult)
-    .filter((c): c is Citation => c !== null)
-    .map((c, index) => ({ ...c, number: index + 1 }))
+  return list.map(normalizeWebResult).filter((c): c is Citation => c !== null)
+}
+
+function assignMissingCitationNumbers(citations: Citation[]): Citation[] {
+  const assigned = new Set(citations.filter((citation) => citation.number > 0).map((citation) => citation.number))
+  let nextNumber = 1
+
+  return citations.map((citation) => {
+    if (citation.number > 0) return citation
+    while (assigned.has(nextNumber)) nextNumber += 1
+    assigned.add(nextNumber)
+    return { ...citation, number: nextNumber }
+  })
 }
 
 /**
@@ -196,15 +209,13 @@ export function convertReferencesToCitations(references: ContentReference[]): Ci
   }
 
   const urlSet = new Set<string>()
-  return all
-    .filter((citation) => {
-      if (citation.type === 'knowledge' || citation.type === 'memory') return true
-      if (!citation.url || urlSet.has(citation.url)) return false
-      urlSet.add(citation.url)
-      return true
-    })
-    .map((citation, index) => ({
-      ...citation,
-      number: index + 1
-    }))
+  const unique = all.filter((citation) => {
+    if (citation.type === 'knowledge' || citation.type === 'memory') return true
+    if (!citation.url) return true
+    if (urlSet.has(citation.url)) return false
+    urlSet.add(citation.url)
+    return true
+  })
+
+  return assignMissingCitationNumbers(unique)
 }
