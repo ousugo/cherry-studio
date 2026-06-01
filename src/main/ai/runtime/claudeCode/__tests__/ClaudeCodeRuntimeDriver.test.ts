@@ -318,4 +318,42 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     void connection.close()
   })
+
+  it('binds the session approval emitter so canUseTool can stream approval requests', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+
+    const dispose = vi.fn()
+    const approvalEmitter: { emit?: (event: any) => void; dispose?: () => void } = { dispose }
+    mocks.buildRequest.mockResolvedValue({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { maxToolResultSize: 123, approvalEmitter },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // The connection populated `emit` on the shared holder that `canUseTool`
+    // reads — otherwise approvals are denied with "Approval emitter not ready".
+    expect(approvalEmitter.emit).toBeTypeOf('function')
+
+    // An emitted approval request flows out of the live stream as a chunk.
+    const approvalRequest = { type: 'tool-approval-request', approvalId: 'approval-1', toolCallId: 'session-1:tool-1' }
+    approvalEmitter.emit!(approvalRequest)
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: approvalRequest }
+    })
+
+    // Closing disposes the holder (clears `emit`, aborts pending approvals).
+    void connection.close()
+    expect(dispose).toHaveBeenCalled()
+  })
 })

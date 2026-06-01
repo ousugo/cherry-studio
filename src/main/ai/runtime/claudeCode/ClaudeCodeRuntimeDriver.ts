@@ -29,6 +29,7 @@ import type {
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
 import { AgentSessionWorkspaceError, assertClaudeCodeWorkspaceDirectory } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage } from './streamAdapter'
+import type { ToolApprovalEmitterHolder } from './types'
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
   private readonly items: T[] = []
@@ -117,6 +118,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private pendingInitMessage?: SDKSystemMessage
   private resumeToken?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
+  private approvalEmitter?: ToolApprovalEmitterHolder
 
   readonly events = this.eventQueue
 
@@ -157,6 +159,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.adapterModelId = request.sdkModelId
     this.adapterMaxToolResultSize = request.settings.maxToolResultSize
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
+
+    // Bind the per-session approval emitter to this connection's event queue.
+    // `canUseTool` (settingsBuilder) calls `emit` to surface a
+    // `tool-approval-request` chunk; without this binding it has no emitter and
+    // denies every manual approval ("Approval emitter not ready").
+    this.approvalEmitter = request.settings.approvalEmitter
+    if (this.approvalEmitter) {
+      this.approvalEmitter.emit = (event) =>
+        this.eventQueue.push({ type: 'chunk', chunk: event as unknown as UIMessageChunk })
+    }
+
     void this.runQueryLoop()
     return this
   }
@@ -194,6 +207,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   close(): void {
+    this.approvalEmitter?.dispose?.()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.query?.close()
