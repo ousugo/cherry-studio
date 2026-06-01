@@ -43,13 +43,8 @@ export const MENU_CONTRIBUTIONS = [
   { location: 'app.menu', command: 'app.zoom.out', group: 'view', order: 30 },
   { location: 'command.palette', command: 'app.search', group: 'navigation', order: 10 },
   { location: 'command.palette', command: 'topic.create', group: 'topic', order: 10 },
-  { location: 'command.palette', command: 'chat.topic.clear', group: 'chat', order: 10 },
   { location: 'chat.input.tools.context', command: 'topic.create', group: 'chat', order: 10 },
-  { location: 'chat.input.tools.context', command: 'chat.context.toggle_new', group: 'chat', order: 20 },
-  { location: 'chat.input.tools.context', command: 'chat.topic.clear', group: 'chat', order: 30 },
-  { location: 'chat.input.toolbar', command: 'topic.create', group: 'topic', order: 10 },
-  { location: 'chat.input.toolbar', command: 'chat.context.toggle_new', group: 'chat', order: 20 },
-  { location: 'chat.input.toolbar', command: 'chat.topic.clear', group: 'chat', order: 30 }
+  { location: 'chat.input.toolbar', command: 'topic.create', group: 'topic', order: 10 }
 ] as const satisfies readonly MenuContribution<CommandId>[]
 
 const registerMenuContribution = (

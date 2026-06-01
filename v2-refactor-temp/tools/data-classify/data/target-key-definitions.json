@@ -342,8 +342,8 @@
         ],
         "enabled": true
       },
-      "status": "classified",
-      "description": "Command shortcut: chat.context.toggle_new (unified command system)"
+      "status": "deleted",
+      "description": "Deleted: command removed (feature not implemented in v2)."
     },
     {
       "targetKey": "shortcut.chat.message.copy_last",
@@ -410,8 +410,8 @@
         ],
         "enabled": true
       },
-      "status": "classified",
-      "description": "Command shortcut: chat.topic.clear (unified command system)"
+      "status": "deleted",
+      "description": "Deleted: command removed (feature not implemented in v2)."
     },
     {
       "targetKey": "shortcut.quick_assistant.toggle",

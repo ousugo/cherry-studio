@@ -104,12 +104,12 @@ describe('command shortcut preferences', () => {
   })
 
   it('merges user values with command defaults', () => {
-    expect(resolveCommandShortcutPreference('chat.topic.clear', undefined)).toEqual({
-      binding: ['CommandOrControl', 'L'],
+    expect(resolveCommandShortcutPreference('chat.message.search', undefined)).toEqual({
+      binding: ['CommandOrControl', 'F'],
       enabled: true
     })
-    expect(resolveCommandShortcutPreference('chat.topic.clear', { binding: [], enabled: true })?.binding).toEqual([])
-    expect(resolveCommandShortcutPreference('chat.topic.clear', { binding: ['Alt', 'L'], enabled: false })).toEqual({
+    expect(resolveCommandShortcutPreference('chat.message.search', { binding: [], enabled: true })?.binding).toEqual([])
+    expect(resolveCommandShortcutPreference('chat.message.search', { binding: ['Alt', 'L'], enabled: false })).toEqual({
       binding: ['Alt', 'L'],
       enabled: false
     })

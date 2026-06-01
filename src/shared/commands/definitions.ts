@@ -91,15 +91,6 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
-    id: 'chat.context.toggle_new',
-    titleKey: 'settings.shortcuts.toggle_new_context',
-    categoryKey: 'settings.shortcuts.chat',
-    scope: 'renderer',
-    keybinding: {
-      defaultBinding: ['CommandOrControl', 'K']
-    }
-  }),
-  defineCommand({
     id: 'chat.message.copy_last',
     titleKey: 'settings.shortcuts.copy_last_message',
     categoryKey: 'settings.shortcuts.chat',
@@ -133,15 +124,6 @@ export const COMMAND_DEFINITIONS = [
     scope: 'renderer',
     keybinding: {
       defaultBinding: ['CommandOrControl', 'Shift', 'M']
-    }
-  }),
-  defineCommand({
-    id: 'chat.topic.clear',
-    titleKey: 'settings.shortcuts.clear_topic',
-    categoryKey: 'settings.shortcuts.chat',
-    scope: 'renderer',
-    keybinding: {
-      defaultBinding: ['CommandOrControl', 'L']
     }
   }),
   defineCommand({

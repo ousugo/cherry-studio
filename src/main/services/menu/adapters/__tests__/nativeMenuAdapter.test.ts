@@ -48,8 +48,8 @@ describe('toElectronMenuTemplate', () => {
         children: [
           {
             type: 'command',
-            command: 'chat.context.toggle_new',
-            label: 'New context',
+            command: 'topic.rename',
+            label: 'Rename topic',
             enabled: false,
             checked: true,
             shortcutLabel: ''
@@ -72,7 +72,7 @@ describe('toElectronMenuTemplate', () => {
         enabled: true,
         submenu: [
           expect.objectContaining({
-            label: 'New context',
+            label: 'Rename topic',
             enabled: false,
             type: 'checkbox',
             checked: true

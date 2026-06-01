@@ -8,7 +8,7 @@ describe('MenuRegistry', () => {
       { location: 'chat.input.toolbar', command: 'topic.create', group: 'topic', order: 10, when: 'chat.active' },
       {
         location: 'chat.input.toolbar',
-        command: 'chat.topic.clear',
+        command: 'chat.message.search',
         group: 'chat',
         order: 10,
         when: '!chat.generating'
@@ -29,8 +29,8 @@ describe('MenuRegistry', () => {
     expect(model.items).toEqual([
       {
         type: 'command',
-        command: 'chat.topic.clear',
-        label: 'chat.topic.clear',
+        command: 'chat.message.search',
+        label: 'chat.message.search',
         enabled: true,
         checked: undefined,
         destructive: undefined,
