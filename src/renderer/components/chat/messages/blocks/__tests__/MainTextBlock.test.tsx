@@ -285,29 +285,17 @@ describe('MainTextBlock', () => {
       expect(getRenderedMarkdown()).toBeInTheDocument()
     })
 
-    it('should not show the collapse toggle for user messages with up to ten effective lines', () => {
-      const tenEffectiveLines = [
-        'Line 1',
-        '',
-        'Line 2',
-        'Line 3',
-        'Line 4',
-        'Line 5',
-        'Line 6',
-        'Line 7',
-        'Line 8',
-        'Line 9',
-        'Line 10'
-      ].join('\n')
+    it('should not show the collapse toggle for user messages with up to five effective lines', () => {
+      const fiveEffectiveLines = ['Line 1', '', 'Line 2', 'Line 3', 'Line 4', 'Line 5'].join('\n')
 
-      renderMainTextBlock({ content: tenEffectiveLines, role: 'user' })
+      renderMainTextBlock({ content: fiveEffectiveLines, role: 'user' })
 
       expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Collapse' })).not.toBeInTheDocument()
-      expect(document.body).toHaveTextContent('Line 10')
+      expect(document.body).toHaveTextContent('Line 5')
     })
 
-    it('should preview the first ten effective lines for long plain text user messages', () => {
+    it('should preview the first five effective lines for long plain text user messages', () => {
       const longContent = [
         'Line 1',
         '',
@@ -335,8 +323,8 @@ describe('MainTextBlock', () => {
       expect(content.style.overflow).toBe('')
       expect(content).toHaveClass('[&>*:last-child]:mb-0!', '[&_.markdown>*:last-child]:mb-0!')
       expect(content.textContent).toContain('Line 1\n\n\nLine 2')
-      expect(document.body).toHaveTextContent('Line 10')
-      expect(document.body).not.toHaveTextContent('Line 11')
+      expect(document.body).toHaveTextContent('Line 5')
+      expect(document.body).not.toHaveTextContent('Line 6')
       expect(button).toHaveAttribute('aria-expanded', 'false')
       expect(button).toHaveClass(
         'flex',
@@ -368,7 +356,7 @@ describe('MainTextBlock', () => {
       expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
       expect(getRenderedMarkdown()).toHaveAttribute(
         'data-content',
-        Array.from({ length: 10 }, (_, index) => `User **bold** content ${index + 1}`).join('\n')
+        Array.from({ length: 5 }, (_, index) => `User **bold** content ${index + 1}`).join('\n')
       )
       expect(getRenderedMarkdown()).not.toHaveAttribute('data-content', expect.stringContaining('content 11'))
     })
@@ -398,8 +386,8 @@ describe('MainTextBlock', () => {
 
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
-      expect(document.body).toHaveTextContent('Line 10')
-      expect(document.body).not.toHaveTextContent('Line 11')
+      expect(document.body).toHaveTextContent('Line 5')
+      expect(document.body).not.toHaveTextContent('Line 6')
     })
 
     it('should not collapse assistant messages', () => {
