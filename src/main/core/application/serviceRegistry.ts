@@ -23,6 +23,7 @@ import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { CommandService } from '@main/services/CommandService'
 import { ComposerQueueService } from '@main/services/ComposerQueueService'
 import { ExcelPreviewService } from '@main/services/excel/ExcelPreviewService'
 import { FileManager } from '@main/services/file/FileManager'
@@ -32,6 +33,7 @@ import { KnowledgeOrchestrationService } from '@main/services/knowledge'
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
+import { NativeCommandPopupMenuService } from '@main/services/NativeCommandPopupMenuService'
 import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
@@ -86,6 +88,8 @@ export const services = {
   AnalyticsService,
   AppMenuService,
   CodeCliService,
+  CommandService,
+  NativeCommandPopupMenuService,
   ComposerQueueService,
   ExcelPreviewService,
   LanTransferService,
