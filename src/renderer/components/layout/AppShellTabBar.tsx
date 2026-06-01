@@ -1,5 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandTooltip } from '@renderer/commands'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -494,18 +494,19 @@ export const AppShellTabBar = ({
             </TabRightClickMenu>
           ))}
 
-          {/* New tab button — sticky so it hugs the last tab but never scrolls away */}
-          <button
-            type="button"
-            aria-label={t('globalSearch.open')}
-            onClick={handleOpenGlobalSearch}
-            className={cn(
-              'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
-              isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
-            )}
-            title={t('globalSearch.open')}>
-            <Plus size={14} />
-          </button>
+          {/* Global search button — sticky so it hugs the last tab but never scrolls away */}
+          <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
+            <button
+              type="button"
+              aria-label={t('globalSearch.open')}
+              onClick={handleOpenGlobalSearch}
+              className={cn(
+                'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
+                isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
+              )}>
+              <Plus size={14} />
+            </button>
+          </CommandTooltip>
         </div>
 
         <ShellTabBarActions />

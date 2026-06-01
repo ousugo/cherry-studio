@@ -1,5 +1,5 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandTooltip } from '@renderer/commands'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
@@ -22,13 +22,21 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true }) => 
         <div data-navbar-left-occupant className="flex shrink-0 items-center">
           {showSidebarControls &&
             (showSidebar ? (
-              <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
+              <CommandTooltip
+                command="app.sidebar.toggle"
+                label={t('navbar.hide_sidebar')}
+                placement="bottom"
+                delay={800}>
                 <NavbarIcon tone="conversation" aria-pressed={showSidebar} onClick={toggleShowSidebar}>
                   <SidebarCollapseIcon />
                 </NavbarIcon>
-              </Tooltip>
+              </CommandTooltip>
             ) : (
-              <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
+              <CommandTooltip
+                command="app.sidebar.toggle"
+                label={t('navbar.show_sidebar')}
+                placement="bottom"
+                delay={800}>
                 <NavbarIcon
                   tone="conversation"
                   aria-pressed={showSidebar}
@@ -36,7 +44,7 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true }) => 
                   style={{ marginRight: 2 }}>
                   <SidebarExpandIcon />
                 </NavbarIcon>
-              </Tooltip>
+              </CommandTooltip>
             ))}
         </div>
       </div>

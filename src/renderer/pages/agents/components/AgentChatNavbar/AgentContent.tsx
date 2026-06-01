@@ -1,5 +1,5 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { CommandTooltip } from '@renderer/commands'
 import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -25,14 +25,18 @@ const AgentContent = ({ activeAgent, tools, showSidebarControls = true }: AgentC
         {showSidebarControls && (
           <>
             {showSidebar && (
-              <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
+              <CommandTooltip command="app.sidebar.toggle" label={t('navbar.hide_sidebar')} delay={800}>
                 <NavbarIcon tone="conversation" aria-pressed={showSidebar} onClick={toggleShowSidebar}>
                   <SidebarCollapseIcon />
                 </NavbarIcon>
-              </Tooltip>
+              </CommandTooltip>
             )}
             {!showSidebar && (
-              <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
+              <CommandTooltip
+                command="app.sidebar.toggle"
+                label={t('navbar.show_sidebar')}
+                delay={800}
+                placement="right">
                 <NavbarIcon
                   tone="conversation"
                   aria-pressed={showSidebar}
@@ -40,7 +44,7 @@ const AgentContent = ({ activeAgent, tools, showSidebarControls = true }: AgentC
                   style={{ marginRight: 2 }}>
                   <SidebarExpandIcon />
                 </NavbarIcon>
-              </Tooltip>
+              </CommandTooltip>
             )}
           </>
         )}
