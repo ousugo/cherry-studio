@@ -1,5 +1,5 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
-import type { IWorkbookData } from '@univerjs/core'
+import { type IWorkbookData, LocaleType } from '@univerjs/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ExcelPreview from '../ExcelPreview'
@@ -48,7 +48,24 @@ vi.mock('@renderer/components/Excel', () => ({
   }
 }))
 
-const workbookData = { id: 'workbook-1', sheetOrder: ['sheet-1'] } as IWorkbookData
+const makeWorkbookData = (overrides: Partial<IWorkbookData> = {}): IWorkbookData => ({
+  id: 'workbook-1',
+  name: 'report.xlsx',
+  appVersion: '0.25.0',
+  locale: LocaleType.EN_US,
+  sheetOrder: ['sheet-1'],
+  sheets: {
+    'sheet-1': {
+      cellData: {},
+      id: 'sheet-1',
+      name: 'Sheet1'
+    }
+  },
+  styles: {},
+  ...overrides
+})
+
+const workbookData = makeWorkbookData()
 
 describe('ExcelPreview', () => {
   beforeEach(() => {
@@ -119,7 +136,7 @@ describe('ExcelPreview', () => {
       data: {
         diagnostics: [],
         fileName: 'empty.xlsx',
-        workbookData: { id: 'empty', sheetOrder: [] } as unknown as IWorkbookData
+        workbookData: makeWorkbookData({ id: 'empty', name: 'empty.xlsx', sheetOrder: [], sheets: {} })
       }
     })
 
