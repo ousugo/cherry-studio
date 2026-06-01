@@ -119,7 +119,7 @@ describe('ExcelPreview', () => {
       data: {
         diagnostics: [],
         fileName: 'empty.xlsx',
-        workbookData: { id: 'empty', sheetOrder: [] } as IWorkbookData
+        workbookData: { id: 'empty', sheetOrder: [] } as unknown as IWorkbookData
       }
     })
 

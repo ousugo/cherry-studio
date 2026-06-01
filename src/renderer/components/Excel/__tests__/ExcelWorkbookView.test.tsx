@@ -88,7 +88,7 @@ const makeWorkbookData = (id: string): IWorkbookData =>
       }
     },
     styles: {}
-  }) as IWorkbookData
+  }) as unknown as IWorkbookData
 
 describe('ExcelWorkbookView', () => {
   beforeEach(() => {
