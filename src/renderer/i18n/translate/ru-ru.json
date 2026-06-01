@@ -1374,7 +1374,6 @@
       "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
-      "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
       "resource_panel": {
         "loading": "Загрузка...",
         "no_file_found": {
@@ -6317,9 +6316,6 @@
       "input": {
         "confirm_delete_message": "Подтверждать перед удалением сообщений",
         "confirm_regenerate_message": "Подтверждать перед пересозданием сообщений",
-        "enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
-        "paste_long_text_as_file": "Вставлять длинный текст как файл",
-        "paste_long_text_threshold": "Длина вставки длинного текста",
         "send_shortcuts": "Горячие клавиши для отправки",
         "show_estimated_tokens": "Показывать затраты токенов",
         "title": "Настройки ввода"

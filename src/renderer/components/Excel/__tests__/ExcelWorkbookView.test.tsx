@@ -1,6 +1,6 @@
 import { render, waitFor } from '@testing-library/react'
 import { type IWorkbookData, LocaleType } from '@univerjs/core'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ExcelWorkbookView from '../ExcelWorkbookView'
 
@@ -137,6 +137,10 @@ describe('ExcelWorkbookView', () => {
       }
     )
     mocks.univerInstances.length = 0
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('creates a Univer workbook and disposes stale instances on workbook changes and unmount', async () => {
@@ -298,6 +302,71 @@ describe('ExcelWorkbookView', () => {
     expect(mocks.addTable.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.onBeforeCommandExecute.mock.invocationCallOrder[0]
     )
+  })
+
+  it('renders the visible slice of referenced Excel images for each covered cell', async () => {
+    class MockImage {
+      complete = true
+      naturalHeight = 100
+      naturalWidth = 100
+      onerror: (() => void) | null = null
+      onload: (() => void) | null = null
+      src = ''
+    }
+    vi.stubGlobal('Image', MockImage)
+
+    const workbookData = makeWorkbookData('images')
+    const image = {
+      from: { column: 0, columnOffset: 0, row: 0, rowOffset: 0 },
+      id: 'image-1',
+      source: 'data:image/png;base64,image',
+      to: { column: 2, columnOffset: 0, row: 2, rowOffset: 0 }
+    }
+    workbookData.sheets['sheet-1'].cellData = {
+      0: {
+        0: { custom: { excelImageRefs: ['image-1'], excelImages: [image] } },
+        1: { custom: { excelImageRefs: ['image-1'] } }
+      },
+      1: {
+        0: { custom: { excelImageRefs: ['image-1'] } },
+        1: { custom: { excelImageRefs: ['image-1'] } }
+      }
+    }
+
+    render(<ExcelWorkbookView workbookData={workbookData} ariaLabel="images.xlsx" readOnly />)
+
+    await waitFor(() => expect(mocks.onCellRender).toHaveBeenCalledTimes(1))
+
+    const renderer = mocks.onCellRender.mock.calls[0][0][0]
+    const ctx = { drawImage: vi.fn() }
+    const cell = { endX: 200, endY: 20, startX: 100, startY: 0 }
+    const skeleton = {
+      getCellWithCoordByIndex: vi.fn((row: number, column: number) => ({
+        endX: (column + 1) * 100,
+        endY: (row + 1) * 20,
+        startX: column * 100,
+        startY: row * 20
+      }))
+    }
+
+    renderer.drawWith(
+      ctx,
+      {
+        col: 1,
+        data: workbookData.sheets['sheet-1'].cellData?.[0]?.[1],
+        primaryWithCoord: cell,
+        row: 0,
+        style: null,
+        subUnitId: 'sheet-1',
+        unitId: 'images',
+        workbook: undefined,
+        worksheet: {}
+      },
+      skeleton,
+      { makeDirty: vi.fn() }
+    )
+
+    expect(ctx.drawImage).toHaveBeenCalledWith(expect.any(MockImage), 50, 0, 50, 50, 100, 0, 100, 20)
   })
 
   it('keeps the workbook mounted when table installation fails', async () => {

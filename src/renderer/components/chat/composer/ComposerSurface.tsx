@@ -5,6 +5,7 @@ import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
+import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useFileDragDrop } from '@renderer/pages/home/Inputbar/hooks/useFileDragDrop'
@@ -74,7 +75,6 @@ export interface ComposerSurfaceProps {
   isExpanded: boolean
   onExpandedChange: (expanded: boolean) => void
   quickPanelEnabled: boolean
-  enableQuickPanelTriggers: boolean
   enableDragDrop: boolean
   enableSpellCheck: boolean
   editable?: boolean
@@ -212,12 +212,8 @@ const getManagedTokenSignature = (
     .map((token) => `${token.kind}:${token.id}:${token.index}:${token.textOffset}`)
     .join('\n')
 
-function shouldDelegateLongTextPasteToFileHandler(
-  text: string,
-  pasteLongTextAsFile?: boolean,
-  pasteLongTextThreshold?: number
-) {
-  return Boolean(text && pasteLongTextAsFile && pasteLongTextThreshold && text.length > pasteLongTextThreshold)
+function shouldDelegateLongTextPasteToFileHandler(text: string) {
+  return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD)
 }
 
 function isRestorableDraftToken(
@@ -307,7 +303,6 @@ export default function ComposerSurface({
   isExpanded,
   onExpandedChange,
   quickPanelEnabled,
-  enableQuickPanelTriggers,
   enableDragDrop,
   enableSpellCheck,
   editable = true,
@@ -326,8 +321,6 @@ export default function ComposerSurface({
   renderLeftControls,
   renderBelowControls
 }: ComposerSurfaceProps) {
-  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
-  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -397,8 +390,6 @@ export default function ComposerSurface({
   const { handlePaste } = usePasteHandler(text, setText, {
     supportedExts,
     setFiles,
-    pasteLongTextAsFile,
-    pasteLongTextThreshold,
     onResize: () => undefined,
     t
   })
@@ -674,8 +665,8 @@ export default function ComposerSurface({
   )
 
   const activeSuggestionSources = useMemo(
-    () => (quickPanelEnabled && enableQuickPanelTriggers ? [rootSuggestionSource, ...quickPanelSuggestionSources] : []),
-    [enableQuickPanelTriggers, quickPanelEnabled, rootSuggestionSource, quickPanelSuggestionSources]
+    () => (quickPanelEnabled ? [rootSuggestionSource, ...quickPanelSuggestionSources] : []),
+    [quickPanelEnabled, rootSuggestionSource, quickPanelSuggestionSources]
   )
 
   const editorExtensions = useMemo(
@@ -839,15 +830,13 @@ export default function ComposerSurface({
         return true
       }
 
-      if (shouldDelegateLongTextPasteToFileHandler(pastedText, pasteLongTextAsFile, pasteLongTextThreshold)) {
+      if (shouldDelegateLongTextPasteToFileHandler(pastedText)) {
         event.preventDefault()
         void handlePaste(event)
         return true
       }
 
       const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, {
-        pasteLongTextAsFile,
-        pasteLongTextThreshold,
         promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
         resolveSkillMarker,
         resolveKnowledgeBaseMarker

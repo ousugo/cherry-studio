@@ -18,13 +18,15 @@ import { XMLParser } from 'fast-xml-parser'
 import StreamZip from 'node-stream-zip'
 import * as z from 'zod'
 
-import type {
-  ExcelStreamSheetMetadata,
-  ExcelStreamSheetMetadataIndex,
-  ExcelWorkbookPreviewBudget,
-  ExcelWorksheetColumnData,
-  ExcelWorksheetMergeData,
-  ExcelWorksheetTableData
+import { collectWorksheetChartImages } from './chart/excelChartArchive'
+import {
+  createUnsupportedExcelChartsDiagnostic,
+  type ExcelStreamSheetMetadata,
+  type ExcelStreamSheetMetadataIndex,
+  type ExcelWorkbookPreviewBudget,
+  type ExcelWorksheetColumnData,
+  type ExcelWorksheetMergeData,
+  type ExcelWorksheetTableData
 } from './excelToUniverWorkbook'
 
 export const EXCEL_PREVIEW_MAX_SIZE_BYTES = 25 * 1024 * 1024
@@ -88,6 +90,9 @@ interface ParsedWorksheetXml {
     cols?: {
       col?: ParsedWorksheetColumn | ParsedWorksheetColumn[]
     }
+    drawing?: {
+      id?: string
+    }
     mergeCells?: {
       mergeCell?: ParsedWorksheetMergeCell | ParsedWorksheetMergeCell[]
     }
@@ -98,7 +103,9 @@ interface ParsedWorksheetXml {
 }
 
 interface ExcelArchiveWorksheetMetadata {
+  chartImages: ExcelStreamSheetMetadata['chartImages']
   columnData: ExcelWorksheetColumnData
+  diagnostics: ExcelImportDiagnostic[]
   mergeData: ExcelWorksheetMergeData
   tableData: ExcelWorksheetTableData[]
 }
@@ -154,6 +161,7 @@ interface ParsedTableXml {
 
 interface ExcelArchiveMetadata {
   diagnostics: ExcelImportDiagnostic[]
+  hasCharts: boolean
   sheetMetadataIndex: ExcelStreamSheetMetadataIndex
 }
 
@@ -530,21 +538,38 @@ const collectWorksheetTableData = async (
 
 const collectArchiveWorksheetMetadata = async (
   zip: StreamZip.StreamZipAsync,
-  fileNumber: string
+  fileNumber: string,
+  sheetId: string,
+  sheetName?: string,
+  budget?: ExcelWorkbookPreviewBudget
 ): Promise<ExcelArchiveWorksheetMetadata> => {
   const worksheetXml = await readArchiveEntryText(zip, `xl/worksheets/sheet${fileNumber}.xml`)
-  if (!worksheetXml) return { columnData: {}, mergeData: [], tableData: [] }
+  if (!worksheetXml) return { chartImages: [], columnData: {}, diagnostics: [], mergeData: [], tableData: [] }
 
   const worksheet = excelArchiveXmlParser.parse(worksheetXml) as ParsedWorksheetXml
+  const chartImages = await collectWorksheetChartImages({
+    budget,
+    fileNumber,
+    sheetId,
+    sheetName,
+    worksheet,
+    worksheetXml,
+    zip
+  })
 
   return {
+    chartImages: chartImages.images,
     columnData: parseWorksheetColumnData(worksheet),
+    diagnostics: chartImages.diagnostics,
     mergeData: parseWorksheetMergeData(worksheet),
     tableData: await collectWorksheetTableData(zip, fileNumber, worksheet)
   }
 }
 
-const collectArchiveSheetMetadata = async (zip: StreamZip.StreamZipAsync): Promise<ExcelStreamSheetMetadataIndex> => {
+const collectArchiveSheetMetadata = async (
+  zip: StreamZip.StreamZipAsync,
+  budget?: ExcelWorkbookPreviewBudget
+): Promise<Pick<ExcelArchiveMetadata, 'diagnostics' | 'sheetMetadataIndex'>> => {
   const [workbookXml, workbookRelsXml] = await Promise.all([
     readArchiveEntryText(zip, 'xl/workbook.xml'),
     readArchiveEntryText(zip, 'xl/_rels/workbook.xml.rels')
@@ -553,11 +578,11 @@ const collectArchiveSheetMetadata = async (zip: StreamZip.StreamZipAsync): Promi
     byFileNumber: {},
     bySheetId: {}
   }
-  if (!workbookXml) return sheetMetadataIndex
+  if (!workbookXml) return { diagnostics: [], sheetMetadataIndex }
 
   const workbook = excelArchiveXmlParser.parse(workbookXml) as ParsedWorkbookXml
   const sheets = asArray(workbook.workbook?.sheets?.sheet)
-  if (!sheets.length) return sheetMetadataIndex
+  if (!sheets.length) return { diagnostics: [], sheetMetadataIndex }
 
   const relationships = workbookRelsXml
     ? asArray(
@@ -566,13 +591,22 @@ const collectArchiveSheetMetadata = async (zip: StreamZip.StreamZipAsync): Promi
     : []
   const relationshipsById = new Map(relationships.map((relationship) => [relationship.Id, relationship]))
 
+  const diagnostics: ExcelImportDiagnostic[] = []
   for (const [index, sheet] of sheets.entries()) {
     if (!sheet.name) continue
 
     const relationship = sheet.id ? relationshipsById.get(sheet.id) : undefined
     const fileNumber = getWorksheetFileNumberFromRelationshipTarget(relationship?.Target) ?? String(index + 1)
-    const worksheetMetadata = await collectArchiveWorksheetMetadata(zip, fileNumber)
+    const worksheetMetadata = await collectArchiveWorksheetMetadata(
+      zip,
+      fileNumber,
+      `sheet-${index + 1}`,
+      sheet.name,
+      budget
+    )
+    diagnostics.push(...worksheetMetadata.diagnostics)
     const metadata: ExcelStreamSheetMetadata = {
+      ...(worksheetMetadata.chartImages?.length ? { chartImages: worksheetMetadata.chartImages } : {}),
       ...(Object.keys(worksheetMetadata.columnData).length ? { columnData: worksheetMetadata.columnData } : {}),
       ...(worksheetMetadata.mergeData.length ? { mergeData: worksheetMetadata.mergeData } : {}),
       ...(worksheetMetadata.tableData.length ? { tableData: worksheetMetadata.tableData } : {}),
@@ -585,47 +619,83 @@ const collectArchiveSheetMetadata = async (zip: StreamZip.StreamZipAsync): Promi
     }
   }
 
-  return sheetMetadataIndex
+  return { diagnostics, sheetMetadataIndex }
 }
 
-const collectArchiveMetadata = async (filePath: string): Promise<ExcelArchiveMetadata> => {
+const getRenderedArchiveChartCount = (sheetMetadataIndex: ExcelStreamSheetMetadataIndex): number => {
+  return Object.values(sheetMetadataIndex.byFileNumber).reduce(
+    (count, metadata) => count + (metadata?.chartImages?.length ?? 0),
+    0
+  )
+}
+
+const getUnsupportedArchiveChartCount = (diagnostics: ExcelImportDiagnostic[]): number => {
+  return diagnostics.reduce(
+    (count, diagnostic) => count + (diagnostic.code === 'unsupported_excel_charts' ? (diagnostic.count ?? 1) : 0),
+    0
+  )
+}
+
+const createBudgetExceededError = (message: string): Error => {
+  const error = new Error(message)
+  error.name = 'ExcelWorkbookPreviewBudgetExceededError'
+  return error
+}
+
+const collectArchiveMetadata = async (
+  filePath: string,
+  budget?: ExcelWorkbookPreviewBudget
+): Promise<ExcelArchiveMetadata> => {
   const zip = new StreamZip.async({ file: filePath })
 
   try {
     const entries = await zip.entries()
     const entryNames = Object.keys(entries)
     const chartCount = entryNames.filter((entryName) => XLSX_CHART_ENTRY_PATTERN.test(entryName)).length
+    if (chartCount > (budget?.maxCharts ?? EXCEL_PREVIEW_COMPLEXITY_BUDGET.maxCharts)) {
+      throw createBudgetExceededError('Excel workbook has too many charts to preview.')
+    }
+    const sheetMetadata = await collectArchiveSheetMetadata(zip, budget)
+    const renderedChartCount = getRenderedArchiveChartCount(sheetMetadata.sheetMetadataIndex)
+    const unsupportedChartCount = getUnsupportedArchiveChartCount(sheetMetadata.diagnostics)
+    const unaccountedChartCount = Math.max(0, chartCount - renderedChartCount - unsupportedChartCount)
+    const unsupportedTotal = unsupportedChartCount + unaccountedChartCount
+    const nonChartDiagnostics = sheetMetadata.diagnostics.filter(
+      (diagnostic) => diagnostic.code !== 'unsupported_excel_charts'
+    )
 
     return {
       diagnostics: [
-        ...(chartCount
-          ? [
-              {
-                code: 'unsupported_excel_charts' as const,
-                count: chartCount,
-                message: 'Charts are not rendered in Excel preview yet.',
-                severity: 'warning' as const
-              }
-            ]
-          : [])
+        ...nonChartDiagnostics,
+        ...(unsupportedTotal ? [createUnsupportedExcelChartsDiagnostic(unsupportedTotal)] : [])
       ],
-      sheetMetadataIndex: await collectArchiveSheetMetadata(zip)
+      hasCharts: chartCount > 0,
+      sheetMetadataIndex: sheetMetadata.sheetMetadataIndex
     }
   } finally {
     await zip.close()
   }
 }
 
-const getArchiveMetadata = async (filePath: string): Promise<ExcelArchiveMetadata> => {
+const getArchiveMetadata = async (
+  filePath: string,
+  budget?: ExcelWorkbookPreviewBudget
+): Promise<ExcelArchiveMetadata> => {
   try {
-    return await collectArchiveMetadata(filePath)
+    return await collectArchiveMetadata(filePath, budget)
   } catch (err) {
+    if (toError(err).name === 'ExcelWorkbookPreviewBudgetExceededError') {
+      throw err
+    }
     logger.warn(`Failed to inspect Excel archive metadata: ${filePath}`, toError(err))
-    return { diagnostics: [], sheetMetadataIndex: { byFileNumber: {}, bySheetId: {} } }
+    return { diagnostics: [], hasCharts: false, sheetMetadataIndex: { byFileNumber: {}, bySheetId: {} } }
   }
 }
 
 export const EXCEL_PREVIEW_COMPLEXITY_BUDGET = {
+  maxChartPayloadBytes: 4 * 1024 * 1024,
+  maxChartPixels: 4_000_000,
+  maxCharts: 20,
   maxCells: 200_000,
   maxColumnsPerSheet: 5_000,
   maxMerges: 10_000,
@@ -665,7 +735,8 @@ export async function readExcelWorkbookPreview(
       return fail('excel_file_too_large', 'Excel preview supports files up to 25 MB.')
     }
 
-    const archiveMetadata = await getArchiveMetadata(normalizedRequest.filePath)
+    const budget = options.budget ?? EXCEL_PREVIEW_COMPLEXITY_BUDGET
+    const archiveMetadata = await getArchiveMetadata(normalizedRequest.filePath, budget)
     const [
       { default: ExcelJS },
       { excelJsStreamingWorkbookToPreviewData, excelJsWorkbookToPreviewData, mergeExcelImportDiagnostics }
@@ -675,10 +746,7 @@ export async function readExcelWorkbookPreview(
       await workbook.xlsx.readFile(normalizedRequest.filePath)
     } catch (err) {
       const error = toError(err)
-      const hasUnsupportedCharts = archiveMetadata.diagnostics.some(
-        (diagnostic) => diagnostic.code === 'unsupported_excel_charts'
-      )
-      if (!hasUnsupportedCharts || !isUnsupportedExcelDrawingError(error)) {
+      if (!archiveMetadata.hasCharts || !isUnsupportedExcelDrawingError(error)) {
         throw error
       }
 
@@ -690,7 +758,7 @@ export async function readExcelWorkbookPreview(
         data: await excelJsStreamingWorkbookToPreviewData(
           normalizedRequest.filePath,
           normalizeFileName(normalizedRequest),
-          options.budget ?? EXCEL_PREVIEW_COMPLEXITY_BUDGET,
+          budget,
           archiveMetadata.diagnostics,
           archiveMetadata.sheetMetadataIndex
         )
@@ -700,7 +768,7 @@ export async function readExcelWorkbookPreview(
     const data = excelJsWorkbookToPreviewData(
       workbook,
       normalizeFileName(normalizedRequest),
-      options.budget ?? EXCEL_PREVIEW_COMPLEXITY_BUDGET,
+      budget,
       archiveMetadata.sheetMetadataIndex
     )
     data.diagnostics = mergeExcelImportDiagnostics(data.diagnostics, archiveMetadata.diagnostics)

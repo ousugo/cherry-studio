@@ -1072,16 +1072,16 @@
           "type": "boolean",
           "defaultValue": false,
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.input.paste_long_text_as_file"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "pasteLongTextThreshold",
           "type": "number",
           "defaultValue": 1500,
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.input.paste_long_text_threshold"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "clickAssistantToShowTopic",
@@ -1926,8 +1926,8 @@
           "type": "boolean",
           "defaultValue": false,
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.input.quick_panel.triggers_enabled"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "disableHardwareAcceleration",

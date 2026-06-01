@@ -62,6 +62,7 @@ interface WorksheetImageRenderData {
 }
 
 export interface ExcelStreamSheetMetadata {
+  chartImages?: ExcelPreviewImageRenderData[]
   columnData?: ExcelWorksheetColumnData
   mergeData?: ExcelWorksheetMergeData
   name?: string
@@ -77,6 +78,9 @@ export interface ExcelStreamSheetMetadataIndex {
 }
 
 export interface ExcelWorkbookPreviewBudget {
+  maxChartPayloadBytes?: number
+  maxChartPixels?: number
+  maxCharts?: number
   maxCells?: number
   maxColumnsPerSheet?: number
   maxMerges?: number
@@ -89,6 +93,9 @@ export interface ExcelWorkbookPreviewBudget {
 type NormalizedExcelWorkbookPreviewBudget = Required<ExcelWorkbookPreviewBudget>
 
 export const DEFAULT_EXCEL_WORKBOOK_PREVIEW_BUDGET: NormalizedExcelWorkbookPreviewBudget = {
+  maxChartPayloadBytes: 4 * 1024 * 1024,
+  maxChartPixels: 4_000_000,
+  maxCharts: 20,
   maxCells: 200_000,
   maxColumnsPerSheet: 5_000,
   maxMerges: 10_000,
@@ -247,6 +254,60 @@ const addImageToCell = (
       excelImages: [...(existingCustom.excelImages ?? []), ...images]
     }
   }
+}
+
+const addImageRefToCell = (cellData: CellMatrix, row: number, column: number, imageId: string): boolean => {
+  cellData[row] ??= {}
+  const existingCell = cellData[row][column] ?? {}
+  const existingCustom = (isObject(existingCell.custom) ? existingCell.custom : {}) as ExcelPreviewCellCustom
+  const existingRefs = existingCustom.excelImageRefs ?? []
+  if (existingRefs.includes(imageId)) return false
+
+  cellData[row][column] = {
+    ...existingCell,
+    custom: {
+      ...existingCustom,
+      excelImageRefs: [...existingRefs, imageId]
+    }
+  }
+  return true
+}
+
+const getImageFootprintRange = (
+  image: ExcelPreviewImageRenderData
+): { endColumn: number; endRow: number; startColumn: number; startRow: number } => {
+  const endColumnPoint =
+    image.to?.column !== undefined
+      ? image.to.column + image.to.columnOffset
+      : image.from.column + (image.size?.width ?? DEFAULT_COLUMN_WIDTH) / DEFAULT_COLUMN_WIDTH
+  const endRowPoint =
+    image.to?.row !== undefined
+      ? image.to.row + image.to.rowOffset
+      : image.from.row + (image.size?.height ?? DEFAULT_ROW_HEIGHT) / DEFAULT_ROW_HEIGHT
+
+  return {
+    endColumn: Math.max(image.from.column, Math.ceil(endColumnPoint) - 1),
+    endRow: Math.max(image.from.row, Math.ceil(endRowPoint) - 1),
+    startColumn: image.from.column,
+    startRow: image.from.row
+  }
+}
+
+const addImageRefsToCellData = (
+  cellData: CellMatrix,
+  images: ExcelPreviewImageRenderData[],
+  context: WorkbookBuildContext
+): void => {
+  images.forEach((image) => {
+    const range = getImageFootprintRange(image)
+    for (let row = range.startRow; row <= range.endRow; row += 1) {
+      for (let column = range.startColumn; column <= range.endColumn; column += 1) {
+        if (addImageRefToCell(cellData, row, column, image.id)) {
+          registerPayloadBytes(context, image.id.length * 2 + 32)
+        }
+      }
+    }
+  })
 }
 
 const isErrorValue = (value: ExcelJS.CellValue): value is ExcelJS.CellErrorValue => {
@@ -721,26 +782,64 @@ const collectWorksheetImages = (
     }
     const key = toCellKey(from.row, from.column)
     imagesByCellKey.set(key, [...(imagesByCellKey.get(key) ?? []), image])
-    maxRow = Math.max(maxRow, from.row, to?.row ?? from.row)
-    maxColumn = Math.max(maxColumn, from.column, to?.column ?? from.column)
+    const footprint = getImageFootprintRange(image)
+    maxRow = Math.max(maxRow, footprint.endRow)
+    maxColumn = Math.max(maxColumn, footprint.endColumn)
   })
 
   return { imagesByCellKey, maxColumn, maxRow }
 }
 
+const getImageRenderDataBounds = (
+  images: ExcelPreviewImageRenderData[]
+): Pick<WorksheetImageRenderData, 'maxColumn' | 'maxRow'> => {
+  return images.reduce(
+    (bounds, image) => {
+      const footprint = getImageFootprintRange(image)
+      return {
+        maxColumn: Math.max(bounds.maxColumn, footprint.endColumn),
+        maxRow: Math.max(bounds.maxRow, footprint.endRow)
+      }
+    },
+    { maxColumn: -1, maxRow: -1 }
+  )
+}
+
+const addImagesToCellData = (
+  cellData: CellMatrix,
+  images: ExcelPreviewImageRenderData[],
+  context: WorkbookBuildContext
+): void => {
+  images.forEach((image) => {
+    registerPayloadBytes(context, image.source.length * 2 + 128)
+    addImageToCell(cellData, image.from.row, image.from.column, [image])
+  })
+  addImageRefsToCellData(cellData, images, context)
+}
+
 const toWorksheetData = (
   worksheet: ExcelJS.Worksheet,
   sheetId: string,
-  context: WorkbookBuildContext
+  context: WorkbookBuildContext,
+  metadata?: ExcelStreamSheetMetadata
 ): Partial<IWorksheetData> => {
   const cellData: CellMatrix = {}
   const worksheetImages = collectWorksheetImages(worksheet, sheetId, context)
-  const rowCount = Math.max(worksheet.rowCount, worksheet.actualRowCount, worksheetImages.maxRow + 1, DEFAULT_ROW_COUNT)
+  const metadataImages = metadata?.chartImages ?? []
+  const metadataImageBounds = getImageRenderDataBounds(metadataImages)
+  const rowCount = Math.max(
+    worksheet.rowCount,
+    worksheet.actualRowCount,
+    worksheetImages.maxRow + 1,
+    metadataImageBounds.maxRow + 1,
+    DEFAULT_ROW_COUNT
+  )
   const columnCount = Math.max(
     worksheet.columnCount,
     worksheet.actualColumnCount,
     worksheet.columns?.length ?? 0,
     worksheetImages.maxColumn + 1,
+    metadataImageBounds.maxColumn + 1,
     DEFAULT_COLUMN_COUNT
   )
   assertBudget(rowCount <= context.budget.maxRowsPerSheet, `Worksheet "${worksheet.name}" has too many rows.`)
@@ -763,6 +862,8 @@ const toWorksheetData = (
     const [row, column] = key.split(':').map(Number)
     addImageToCell(cellData, row, column, images)
   })
+  addImageRefsToCellData(cellData, [...worksheetImages.imagesByCellKey.values()].flat(), context)
+  addImagesToCellData(cellData, metadataImages, context)
 
   const mergeData = toMergeData(worksheet)
   context.counters.merges += mergeData.length
@@ -836,7 +937,8 @@ export const mergeExcelImportDiagnostics = (
 export function excelJsWorkbookToUniverWorkbook(
   workbook: ExcelJS.Workbook,
   fileName?: string,
-  budget?: ExcelWorkbookPreviewBudget
+  budget?: ExcelWorkbookPreviewBudget,
+  sheetMetadataIndex: ExcelStreamSheetMetadataIndex = { byFileNumber: {}, bySheetId: {} }
 ): IWorkbookData {
   const context = createWorkbookBuildContext(workbook.properties.date1904 === true, budget)
   const sheets: IWorkbookData['sheets'] = {}
@@ -846,7 +948,12 @@ export function excelJsWorkbookToUniverWorkbook(
 
   workbook.worksheets.forEach((worksheet, index) => {
     const sheetId = `sheet-${index + 1}`
-    sheets[sheetId] = toWorksheetData(worksheet, sheetId, context)
+    const worksheetSheetId = worksheet.id !== undefined ? String(worksheet.id) : undefined
+    const metadata =
+      (worksheetSheetId ? sheetMetadataIndex.bySheetId[worksheetSheetId] : undefined) ??
+      (worksheetSheetId ? sheetMetadataIndex.byFileNumber[worksheetSheetId] : undefined) ??
+      sheetMetadataIndex.byFileNumber[String(index + 1)]
+    sheets[sheetId] = toWorksheetData(worksheet, sheetId, context, metadata)
     sheetOrder.push(sheetId)
   })
 
@@ -897,6 +1004,7 @@ const streamWorksheetToWorksheetData = async (
 
   const columns = getStreamWorksheetColumns(worksheet)
   const archiveColumnData = metadata?.columnData ?? {}
+  const metadataImages = metadata?.chartImages ?? []
   const mergeData = metadata?.mergeData ?? []
   const maxArchiveColumn = Object.keys(archiveColumnData).reduce((max, key) => {
     const column = Number(key)
@@ -904,12 +1012,14 @@ const streamWorksheetToWorksheetData = async (
   }, -1)
   const maxMergeRow = mergeData.reduce((max, merge) => Math.max(max, merge.endRow), -1)
   const maxMergeColumn = mergeData.reduce((max, merge) => Math.max(max, merge.endColumn), -1)
-  const rowCount = Math.max(maxRowNumber, maxMergeRow + 1, DEFAULT_ROW_COUNT)
+  const metadataImageBounds = getImageRenderDataBounds(metadataImages)
+  const rowCount = Math.max(maxRowNumber, maxMergeRow + 1, metadataImageBounds.maxRow + 1, DEFAULT_ROW_COUNT)
   const columnCount = Math.max(
     maxColumnNumber,
     columns.length,
     maxArchiveColumn + 1,
     maxMergeColumn + 1,
+    metadataImageBounds.maxColumn + 1,
     DEFAULT_COLUMN_COUNT
   )
   assertBudget(rowCount <= context.budget.maxRowsPerSheet, `Worksheet "${worksheet.name}" has too many rows.`)
@@ -919,6 +1029,7 @@ const streamWorksheetToWorksheetData = async (
   registerPayloadBytes(context, mergeData.length * 48)
   const sheetName = metadata?.name || worksheet.name || String(worksheet.id ?? sheetId)
   const sheetState = metadata?.state ?? worksheet.state
+  addImagesToCellData(cellData, metadataImages, context)
 
   return {
     id: sheetId,
@@ -1023,7 +1134,7 @@ export function excelJsWorkbookToPreviewData(
     diagnostics: collectImportDiagnostics(),
     fileName,
     ...(tables.length ? { tables } : {}),
-    workbookData: excelJsWorkbookToUniverWorkbook(workbook, fileName, budget)
+    workbookData: excelJsWorkbookToUniverWorkbook(workbook, fileName, budget, sheetMetadataIndex)
   }
 }
 

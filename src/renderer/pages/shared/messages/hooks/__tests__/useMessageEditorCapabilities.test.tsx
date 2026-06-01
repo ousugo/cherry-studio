@@ -101,9 +101,7 @@ describe('useMessageEditorCapabilities', () => {
       result.current.handleEditorPaste?.({
         event: pasteEvent,
         extensions: ['.txt'],
-        addFiles,
-        pasteLongTextAsFile: true,
-        pasteLongTextThreshold: 20
+        addFiles
       })
     ).resolves.toBe(true)
 
@@ -116,8 +114,6 @@ describe('useMessageEditorCapabilities', () => {
       ['.txt'],
       expect.any(Function),
       undefined,
-      true,
-      20,
       undefined,
       undefined,
       expect.any(Function)
@@ -134,9 +130,7 @@ describe('useMessageEditorCapabilities', () => {
       result.current.handleEditorPaste?.({
         event: pasteEvent,
         extensions: ['.txt'],
-        addFiles,
-        pasteLongTextAsFile: true,
-        pasteLongTextThreshold: 20
+        addFiles
       })
     ).resolves.toBe(true)
 

@@ -1391,7 +1391,6 @@
       "paste_text_file": "Paste into input",
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send, / to include tools",
-      "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "resource_panel": {
         "loading": "Loading...",
         "no_file_found": {
@@ -6364,9 +6363,6 @@
       "input": {
         "confirm_delete_message": "Confirm before deleting messages",
         "confirm_regenerate_message": "Confirm before regenerating messages",
-        "enable_quick_triggers": "Enable / and @ triggers",
-        "paste_long_text_as_file": "Paste long text as file",
-        "paste_long_text_threshold": "Paste long text length",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
         "title": "Input Settings"
