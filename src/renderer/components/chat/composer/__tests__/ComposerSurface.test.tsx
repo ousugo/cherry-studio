@@ -1124,7 +1124,7 @@ describe('ComposerSurface', () => {
     })
   })
 
-  it('leaves long text paste on the native editor path instead of converting it to a file', async () => {
+  it('delegates long text paste to the existing long-text file handler', async () => {
     mocks.preferences['chat.input.paste_long_text_as_file'] = true
     mocks.preferences['chat.input.paste_long_text_threshold'] = 3
     render(<ComposerSurface {...baseProps} />)
@@ -1140,9 +1140,9 @@ describe('ComposerSurface', () => {
 
     const handled = mocks.editorOptions.handlePaste(null, event)
 
-    expect(handled).toBe(false)
-    expect(event.preventDefault).not.toHaveBeenCalled()
-    expect(mocks.pasteHandler).not.toHaveBeenCalled()
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
   })
 
   it('does not reapply serialized skill prompt text as visible editor content', async () => {

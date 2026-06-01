@@ -212,7 +212,11 @@ const getManagedTokenSignature = (
     .map((token) => `${token.kind}:${token.id}:${token.index}:${token.textOffset}`)
     .join('\n')
 
-function shouldUseNativeLongTextPaste(text: string, pasteLongTextAsFile?: boolean, pasteLongTextThreshold?: number) {
+function shouldDelegateLongTextPasteToFileHandler(
+  text: string,
+  pasteLongTextAsFile?: boolean,
+  pasteLongTextThreshold?: number
+) {
   return Boolean(text && pasteLongTextAsFile && pasteLongTextThreshold && text.length > pasteLongTextThreshold)
 }
 
@@ -835,8 +839,10 @@ export default function ComposerSurface({
         return true
       }
 
-      if (shouldUseNativeLongTextPaste(pastedText, pasteLongTextAsFile, pasteLongTextThreshold)) {
-        return false
+      if (shouldDelegateLongTextPasteToFileHandler(pastedText, pasteLongTextAsFile, pasteLongTextThreshold)) {
+        event.preventDefault()
+        void handlePaste(event)
+        return true
       }
 
       const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, {
