@@ -7187,9 +7187,9 @@
       "show_app": "显示 / 隐藏应用",
       "show_settings": "打开设置",
       "title": "快捷键",
+      "toggle_left_sidebar": "切换左侧边栏",
       "toggle_new_context": "清除上下文",
-      "toggle_show_topics": "切换话题显示",
-      "toggle_sidebar": "切换侧边栏",
+      "toggle_right_sidebar": "切换右侧边栏",
       "zoom_in": "放大界面",
       "zoom_out": "缩小界面",
       "zoom_reset": "重置缩放"

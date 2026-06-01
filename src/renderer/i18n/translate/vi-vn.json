@@ -7133,9 +7133,9 @@
       "show_app": "Hiện/Ẩn ứng dụng",
       "show_settings": "Mở Cài đặt",
       "title": "Phím tắt",
+      "toggle_left_sidebar": "[to be translated]:Toggle Left Sidebar",
       "toggle_new_context": "Ngữ cảnh rõ ràng",
-      "toggle_show_topics": "Chuyển đổi chủ đề",
-      "toggle_sidebar": "Chuyển đổi thanh bên",
+      "toggle_right_sidebar": "Chuyển đổi thanh bên phải",
       "zoom_in": "Phóng to",
       "zoom_out": "Thu nhỏ",
       "zoom_reset": "Đặt lại thu phóng"

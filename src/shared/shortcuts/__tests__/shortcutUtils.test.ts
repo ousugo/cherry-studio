@@ -207,6 +207,26 @@ describe('SHORTCUT_DEFINITIONS', () => {
     }
   })
 
+  it('uses explicit left and right sidebar shortcut definitions in the topic category', () => {
+    expect(findShortcutDefinition('shortcut.general.toggle_sidebar' as never)).toBeUndefined()
+    expect(findShortcutDefinition('shortcut.general.toggle_left_sidebar' as never)).toBeUndefined()
+    expect(findShortcutDefinition('shortcut.general.toggle_right_sidebar' as never)).toBeUndefined()
+
+    const leftSidebar = findShortcutDefinition('shortcut.topic.toggle_left_sidebar' as never)
+    const rightSidebar = findShortcutDefinition('shortcut.topic.toggle_right_sidebar' as never)
+
+    expect(leftSidebar).toMatchObject({
+      key: 'shortcut.topic.toggle_left_sidebar',
+      category: 'topic',
+      labelKey: 'toggle_left_sidebar'
+    })
+    expect(rightSidebar).toMatchObject({
+      key: 'shortcut.topic.toggle_right_sidebar',
+      category: 'topic',
+      labelKey: 'toggle_right_sidebar'
+    })
+  })
+
   it('returns undefined for unknown keys', () => {
     expect(findShortcutDefinition('shortcut.unknown.nope' as never)).toBeUndefined()
   })

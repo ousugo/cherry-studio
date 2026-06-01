@@ -493,7 +493,7 @@ vi.mock('react-i18next', () => ({
         'selector.common.sort.desc': 'Newest first',
         'selector.common.sort_label': 'Sort',
         'selector.common.unpin': 'Unpin',
-        'shortcut.general.toggle_sidebar': 'Toggle sidebar'
+        'settings.shortcuts.toggle_left_sidebar': 'Toggle Left Sidebar'
       }
       return labels[key] ?? key
     }
@@ -1191,11 +1191,11 @@ describe('Sessions', () => {
     )
   })
 
-  it('toggles the agent sidebar from the list options menu', () => {
+  it('toggles the left agent sidebar from the list options menu', () => {
     render(<Sessions />)
 
     openSessionListOptions()
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle sidebar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Left Sidebar' }))
 
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.show', false)
   })

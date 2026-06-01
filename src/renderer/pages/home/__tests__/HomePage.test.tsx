@@ -1,3 +1,4 @@
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -261,7 +262,6 @@ vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
-    SHOW_TOPIC_SIDEBAR: 'SHOW_TOPIC_SIDEBAR',
     GLOBAL_SEARCH_SELECT_TOPIC: 'GLOBAL_SEARCH_SELECT_TOPIC',
     GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE: 'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE'
   },
@@ -359,6 +359,24 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false))
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+
+  it('toggles the left sidebar off with the left sidebar shortcut', () => {
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+
+    render(<HomePage />)
+
+    const shortcutHandler = vi
+      .mocked(useShortcut)
+      .mock.calls.find(([shortcutKey]) => shortcutKey === 'topic.toggle_left_sidebar')?.[1]
+
+    expect(shortcutHandler).toBeDefined()
+
+    act(() => {
+      shortcutHandler?.(new KeyboardEvent('keydown', { key: '[', metaKey: true }))
+    })
+
+    expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false)
   })
 
   it('uses the compact minimum window width even while the topic sidebar is open', async () => {
@@ -601,7 +619,6 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
 
     expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
-    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
   })
 
   it('updates the active temporary topic assistant without changing the topic id', async () => {

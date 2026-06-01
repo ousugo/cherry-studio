@@ -7133,9 +7133,9 @@
       "show_app": "App anzeigen/ausblenden",
       "show_settings": "Einstellungen öffnen",
       "title": "Shortcut",
+      "toggle_left_sidebar": "[to be translated]:Toggle Left Sidebar",
       "toggle_new_context": "Kontext löschen",
-      "toggle_show_topics": "Themenanzeige umschalten",
-      "toggle_sidebar": "Seitenleiste umschalten",
+      "toggle_right_sidebar": "Rechte Seitenleiste umschalten",
       "zoom_in": "Oberfläche vergrößern",
       "zoom_out": "Oberfläche verkleinern",
       "zoom_reset": "Zoom zurücksetzen"

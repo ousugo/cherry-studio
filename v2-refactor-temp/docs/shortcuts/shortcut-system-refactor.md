@@ -191,7 +191,6 @@ type ResolvedShortcut = {
 | `shortcut.general.show_main_window` | *(无)* | main | 否 |
 | `shortcut.feature.quick_assistant.toggle_window` | `Cmd/Ctrl+E` | main | 否 |
 | `shortcut.general.show_settings` | `Cmd/Ctrl+,` | main | 是 |
-| `shortcut.general.toggle_sidebar` | `Cmd/Ctrl+[` | renderer | 是 |
 | `shortcut.general.exit_fullscreen` | `Escape` | renderer | 是 |
 | `shortcut.general.zoom_in` | `Cmd/Ctrl+=` | main | 是 |
 | `shortcut.general.zoom_out` | `Cmd/Ctrl+-` | main | 是 |
@@ -215,7 +214,8 @@ type ResolvedShortcut = {
 | --- | --- | --- | --- |
 | `shortcut.topic.new` | `Cmd/Ctrl+N` | renderer | 是 |
 | `shortcut.topic.rename` | `Cmd/Ctrl+T` | renderer | 否 |
-| `shortcut.topic.toggle_show_topics` | `Cmd/Ctrl+]` | renderer | 是 |
+| `shortcut.topic.toggle_left_sidebar` | `Cmd/Ctrl+[` | renderer | 是 |
+| `shortcut.topic.toggle_right_sidebar` | `Cmd/Ctrl+]` | renderer | 是 |
 
 ### feature.selection
 

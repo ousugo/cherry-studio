@@ -7133,9 +7133,9 @@
       "show_app": "Показать/скрыть приложение",
       "show_settings": "Открыть настройки",
       "title": "Горячие клавиши",
+      "toggle_left_sidebar": "[to be translated]:Toggle Left Sidebar",
       "toggle_new_context": "Очистить контекст",
-      "toggle_show_topics": "Переключить отображение топиков",
-      "toggle_sidebar": "Свернуть боковую панель",
+      "toggle_right_sidebar": "Переключить правую боковую панель",
       "zoom_in": "Увеличить",
       "zoom_out": "Уменьшить",
       "zoom_reset": "Сбросить масштаб"

@@ -7187,9 +7187,9 @@
       "show_app": "Show/Hide App",
       "show_settings": "Open Settings",
       "title": "Keyboard Shortcuts",
+      "toggle_left_sidebar": "Toggle Left Sidebar",
       "toggle_new_context": "Clear Context",
-      "toggle_show_topics": "Toggle Topics",
-      "toggle_sidebar": "Toggle Sidebar",
+      "toggle_right_sidebar": "Toggle Right Sidebar",
       "zoom_in": "Zoom In",
       "zoom_out": "Zoom Out",
       "zoom_reset": "Reset Zoom"

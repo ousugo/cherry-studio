@@ -126,16 +126,10 @@ const AgentPage = () => {
     isTemporary: isTemporaryView
   })
 
-  useShortcut('general.toggle_sidebar', () => {
+  useShortcut('topic.toggle_left_sidebar', () => {
     if (isMessageOnlyView) return
 
     toggleShowSidebar()
-  })
-
-  useShortcut('topic.toggle_show_topics', () => {
-    if (isMessageOnlyView) return
-
-    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
   })
 
   useEffect(() => {

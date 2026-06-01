@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from 'react'
 import { useEffect } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
@@ -57,6 +57,18 @@ vi.mock('@renderer/components/chat', () => ({
 vi.mock('@renderer/components/Icons', () => ({
   RightSidebarCollapseIcon: () => <span data-testid="collapse-icon" />,
   RightSidebarExpandIcon: () => <span data-testid="expand-icon" />
+}))
+
+const shortcutHandlers = new Map<string, (event: KeyboardEvent) => void>()
+
+vi.mock('@renderer/hooks/useShortcuts', () => ({
+  useShortcut: (key: string, callback: (event: KeyboardEvent) => void, options?: { enabled?: boolean }) => {
+    if (options?.enabled === false) {
+      shortcutHandlers.delete(key)
+      return
+    }
+    shortcutHandlers.set(key, callback)
+  }
 }))
 
 vi.mock('@renderer/utils', () => ({
@@ -143,10 +155,24 @@ function MaximizedOverlayBottomInsetSnapshot() {
 function ShellStateSnapshot() {
   const state = useShellState()
 
-  return <div data-testid="shell-state">{`${state.open ? 'open' : 'closed'}:${state.activeTab}`}</div>
+  return (
+    <div data-testid="shell-state">{`${state.open ? 'open' : 'closed'}:${state.activeTab}:${state.maximized}`}</div>
+  )
+}
+
+function triggerRightSidebarShortcut() {
+  const handler = shortcutHandlers.get('topic.toggle_right_sidebar')
+  if (!handler) throw new Error('Expected right sidebar shortcut to be registered')
+  act(() => {
+    handler(new KeyboardEvent('keydown', { key: ']', metaKey: true }))
+  })
 }
 
 describe('Shell.Toggle', () => {
+  beforeEach(() => {
+    shortcutHandlers.clear()
+  })
+
   it('keeps the same toggle button while swapping icons across states', () => {
     render(
       <Shell defaultTab="files">
@@ -216,12 +242,78 @@ describe('Shell.Toggle', () => {
 
     const toggle = screen.getByRole('button', { name: 'common.close_sidebar' })
     expect(toggle).toHaveAttribute('data-state', 'open')
-    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:trace')
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:trace:false')
 
     fireEvent.click(toggle)
 
     expect(toggle).toHaveAttribute('data-state', 'closed')
-    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:trace')
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:trace:false')
+  })
+
+  it('opens the default tab with the right sidebar shortcut', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+
+    triggerRightSidebarShortcut()
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+    expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toHaveAttribute('data-state', 'open')
+  })
+
+  it('closes the open pane with the right sidebar shortcut', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    triggerRightSidebarShortcut()
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+
+    triggerRightSidebarShortcut()
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+  })
+
+  it('closes and restores from maximized mode with the right sidebar shortcut', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" />
+        <Shell.Tabs>
+          <Shell.TabList>
+            <Shell.Tab value="files">Files</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    triggerRightSidebarShortcut()
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:true')
+
+    triggerRightSidebarShortcut()
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+  })
+
+  it('does not respond to the right sidebar shortcut when disabled', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" disabled />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(shortcutHandlers.has('topic.toggle_right_sidebar')).toBe(false)
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
   })
 })
 

@@ -1,6 +1,7 @@
 import { HorizontalScrollContainer, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { cn } from '@renderer/utils'
 import { Maximize2, Minimize2, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
@@ -205,6 +206,7 @@ function ShellToggle({ tab, disabled = false }: { tab: string; disabled?: boolea
     }
     actions.openTab(tab)
   }, [actions, state.open, tab])
+  useShortcut('topic.toggle_right_sidebar', handleClick, { enabled: !disabled })
 
   return (
     <Tooltip content={toggleLabel} delay={800}>

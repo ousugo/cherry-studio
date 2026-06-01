@@ -2619,7 +2619,7 @@
               },
               "originalKey": "toggle_show_topics",
               "status": "classified",
-              "targetKey": "shortcut.topic.toggle_show_topics",
+              "targetKey": "shortcut.topic.toggle_right_sidebar",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2633,7 +2633,7 @@
               },
               "originalKey": "toggle_show_assistants",
               "status": "classified",
-              "targetKey": "shortcut.general.toggle_sidebar",
+              "targetKey": "shortcut.topic.toggle_left_sidebar",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {

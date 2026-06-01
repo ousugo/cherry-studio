@@ -1457,7 +1457,9 @@ const Sessions = ({
             <SessionListOptionsMenu
               mode={displayMode}
               onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
-              historyLabel={onOpenHistory ? t('history.records.shortTitle') : t('shortcut.general.toggle_sidebar')}
+              historyLabel={
+                onOpenHistory ? t('history.records.shortTitle') : t('settings.shortcuts.toggle_left_sidebar')
+              }
               onOpenHistory={handleOpenHistoryOrToggleSidebar}
               sectionId={
                 displayMode === 'agent'

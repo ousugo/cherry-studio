@@ -19,12 +19,6 @@ export const SHORTCUT_DEFINITIONS = [
     editable: false
   }),
   defineShortcut({
-    key: 'shortcut.general.toggle_sidebar',
-    scope: 'renderer',
-    category: 'general',
-    labelKey: 'toggle_sidebar'
-  }),
-  defineShortcut({
     key: 'shortcut.general.exit_fullscreen',
     scope: 'renderer',
     category: 'general',
@@ -99,10 +93,16 @@ export const SHORTCUT_DEFINITIONS = [
     labelKey: 'rename_topic'
   }),
   defineShortcut({
-    key: 'shortcut.topic.toggle_show_topics',
+    key: 'shortcut.topic.toggle_left_sidebar',
     scope: 'renderer',
     category: 'topic',
-    labelKey: 'toggle_show_topics'
+    labelKey: 'toggle_left_sidebar'
+  }),
+  defineShortcut({
+    key: 'shortcut.topic.toggle_right_sidebar',
+    scope: 'renderer',
+    category: 'topic',
+    labelKey: 'toggle_right_sidebar'
   }),
   // ==================== Feature shortcuts ====================
   defineShortcut({
