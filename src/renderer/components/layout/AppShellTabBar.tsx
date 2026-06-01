@@ -14,8 +14,6 @@ import { TabIcon } from './TabIcon'
 import { TITLE_BAR_HEIGHT_CLASS } from './titleBar'
 import { useTabDrag } from './useTabDrag'
 
-const DEFAULT_TAB_ID = 'chat'
-
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type AppShellTabBarProps = {
@@ -122,7 +120,6 @@ const NormalTabButton = ({
   ref,
   ...rest
 }: NormalTabButtonProps) => {
-  const isCloseable = tab.id !== DEFAULT_TAB_ID
   const btnRef = useRef<HTMLButtonElement | null>(null)
   const [isNarrow, setIsNarrow] = useState(false)
 
@@ -146,8 +143,8 @@ const NormalTabButton = ({
     [tabRef, ref]
   )
 
-  const showRightClose = isCloseable && showClose && !isNarrow
-  const showIconOverlayClose = isCloseable && showClose && isNarrow
+  const showRightClose = showClose && !isNarrow
+  const showIconOverlayClose = showClose && isNarrow
 
   return (
     // Spread injected ContextMenuTrigger props first; the explicit drag handler
@@ -228,62 +225,112 @@ const NormalTabButton = ({
 
 // ─── Tab right-click menu ─────────────────────────────────────────────────────
 
+// ─── Tab capabilities (declarative rule table) ────────────────────────────────
+
+interface TabCapabilities {
+  /** Show a right-click context menu at all. */
+  menu: boolean
+  /** "Move to first" + drag-to-reorder, within the tab's own zone. */
+  reorder: boolean
+  /** Pin (normal) or unpin (pinned). */
+  togglePin: boolean
+  /** "Open in new window" (detach to its own window). */
+  detach: boolean
+  /** Close the tab (context-menu item + inline X). */
+  close: boolean
+}
+
+/**
+ * Single source of truth for what a tab can do, derived from its zone and the
+ * tab counts. A window always keeps at least one normal tab, so the last normal
+ * tab can't be closed / pinned / detached and therefore shows no menu. Pinned
+ * tabs can always be unpinned but never closed directly; reordering is per-zone.
+ */
+export function getTabCapabilities(
+  tab: Pick<Tab, 'isPinned' | 'isTemporary'>,
+  ctx: { pinnedCount: number; normalCount: number; canDetach: boolean }
+): TabCapabilities {
+  const detach = ctx.canDetach && !tab.isTemporary
+  if (tab.isPinned) {
+    const hasSiblings = ctx.pinnedCount > 1
+    return { menu: true, reorder: hasSiblings, togglePin: true, detach, close: false }
+  }
+  const hasSiblings = ctx.normalCount > 1
+  return {
+    menu: hasSiblings,
+    reorder: hasSiblings,
+    togglePin: hasSiblings,
+    detach: hasSiblings && detach,
+    close: hasSiblings
+  }
+}
+
 const TabRightClickMenu = ({
   isPinned,
+  capabilities,
   onMoveToFirst,
-  onPin,
-  onOpenInNewWindow,
+  onTogglePin,
+  onDetach,
   onClose,
-  enabled = true,
   children
 }: {
   isPinned: boolean
+  capabilities: TabCapabilities
   onMoveToFirst: () => void
-  onPin: () => void
-  onOpenInNewWindow?: () => void
+  onTogglePin: () => void
+  onDetach: () => void
   onClose: () => void
-  enabled?: boolean
   children: React.ReactNode
 }) => {
   const { t } = useTranslation()
 
   const items = useMemo<CommandContextMenuExtraItem[]>(() => {
-    const list: CommandContextMenuExtraItem[] = [
+    const entries: Array<{ enabled: boolean; item: CommandContextMenuExtraItem }> = [
       {
-        type: 'item',
-        id: 'tab.move-to-first',
-        label: t('tab.move_to_first'),
-        icon: <ChevronsLeft size={14} />,
-        onSelect: onMoveToFirst
+        enabled: capabilities.reorder,
+        item: {
+          type: 'item',
+          id: 'tab.move-to-first',
+          label: t('tab.move_to_first'),
+          icon: <ChevronsLeft size={14} />,
+          onSelect: onMoveToFirst
+        }
       },
       {
-        type: 'item',
-        id: 'tab.pin',
-        label: isPinned ? t('tab.unpin') : t('tab.pin'),
-        icon: isPinned ? <PinOff size={14} /> : <Pin size={14} />,
-        onSelect: onPin
+        enabled: capabilities.togglePin,
+        item: {
+          type: 'item',
+          id: 'tab.pin',
+          label: isPinned ? t('tab.unpin') : t('tab.pin'),
+          icon: isPinned ? <PinOff size={14} /> : <Pin size={14} />,
+          onSelect: onTogglePin
+        }
+      },
+      {
+        enabled: capabilities.detach,
+        item: {
+          type: 'item',
+          id: 'tab.open-in-new-window',
+          label: t('tab.open_in_new_window'),
+          icon: <AppWindow size={14} />,
+          onSelect: onDetach
+        }
+      },
+      {
+        enabled: capabilities.close,
+        item: {
+          type: 'item',
+          id: 'tab.close',
+          label: t('tab.close'),
+          icon: <X size={14} />,
+          onSelect: onClose
+        }
       }
     ]
-    if (onOpenInNewWindow) {
-      list.push({
-        type: 'item',
-        id: 'tab.open-in-new-window',
-        label: t('tab.open_in_new_window'),
-        icon: <AppWindow size={14} />,
-        onSelect: onOpenInNewWindow
-      })
-    }
-    list.push({
-      type: 'item',
-      id: 'tab.close',
-      label: t('tab.close'),
-      icon: <X size={14} />,
-      onSelect: onClose
-    })
-    return list
-  }, [t, isPinned, onMoveToFirst, onPin, onOpenInNewWindow, onClose])
+    return entries.filter((entry) => entry.enabled).map((entry) => entry.item)
+  }, [t, isPinned, capabilities, onMoveToFirst, onTogglePin, onDetach, onClose])
 
-  if (!enabled) {
+  if (!capabilities.menu || items.length === 0) {
     return <>{children}</>
   }
 
@@ -326,24 +373,25 @@ export const AppShellTabBar = ({
     [isMacTransparentWindow]
   )
 
-  const { defaultTab, pinnedTabs, normalTabs } = useMemo(() => {
+  const { pinnedTabs, normalTabs } = useMemo(() => {
     const pinned: Tab[] = []
     const normal: Tab[] = []
-    let defaultRouteTab: Tab | undefined
     for (const tab of tabs) {
-      if (tab.id === DEFAULT_TAB_ID) {
-        defaultRouteTab = tab
-        continue
-      }
       if (tab.isPinned) {
         pinned.push(tab)
       } else {
         normal.push(tab)
       }
     }
-    return { defaultTab: defaultRouteTab, pinnedTabs: pinned, normalTabs: normal }
+    return { pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
-  const hasUnpinnedTabs = !!defaultTab || normalTabs.length > 0
+  const hasUnpinnedTabs = normalTabs.length > 0
+  // Shared input for `getTabCapabilities` — every per-tab affordance is derived
+  // from this, so the render stays declarative.
+  const tabContext = useMemo(
+    () => ({ pinnedCount: pinnedTabs.length, normalCount: normalTabs.length, canDetach: !!detachTab }),
+    [pinnedTabs.length, normalTabs.length, detachTab]
+  )
 
   // ─── Context menu actions ───────────────────────────────────────────────────
 
@@ -364,6 +412,9 @@ export const AppShellTabBar = ({
     (tabId: string) => {
       const tab = tabs.find((t) => t.id === tabId)
       if (!tab) return
+      // `normalTabs`/`pinnedTabs` now mirror the TabsContext arrays that
+      // `reorderTabs` splices (the default `chat` tab is no longer pulled out),
+      // so the bar index maps straight onto the context index.
       const list = tab.isPinned ? pinnedTabs : normalTabs
       const currentIndex = list.findIndex((t) => t.id === tabId)
       if (currentIndex > 0) {
@@ -402,97 +453,82 @@ export const AppShellTabBar = ({
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">
-              {pinnedTabs.map((tab) => (
-                <TabRightClickMenu
-                  key={tab.id}
-                  isPinned={!!tab.isPinned}
-                  onMoveToFirst={() => handleMoveToFirst(tab.id)}
-                  onPin={() => handlePinToggle(tab.id)}
-                  onOpenInNewWindow={detachTab && !tab.isTemporary ? () => detachTab(tab.id) : undefined}
-                  onClose={() => closeTab(tab.id)}>
-                  <PinnedTabButton
-                    tab={tab}
-                    isActive={tab.id === activeTabId}
-                    onSelect={() => handleTabClick(tab.id)}
-                    tone={tabTone}
-                    drag={{
-                      isDragging: isDragging(tab.id),
-                      isGhost: isGhost(tab.id),
-                      noTransition,
-                      translateX: getTranslateX(tab.id, 'pinned'),
-                      onPointerDown: (e) => handlePointerDown(e, tab, 'pinned')
-                    }}
-                    tabRef={(el) => {
-                      if (el) {
-                        tabRefs.current.set(tab.id, el)
-                      } else {
-                        tabRefs.current.delete(tab.id)
-                      }
-                    }}
-                  />
-                </TabRightClickMenu>
-              ))}
+              {pinnedTabs.map((tab) => {
+                const caps = getTabCapabilities(tab, tabContext)
+                return (
+                  <TabRightClickMenu
+                    key={tab.id}
+                    isPinned
+                    capabilities={caps}
+                    onMoveToFirst={() => handleMoveToFirst(tab.id)}
+                    onTogglePin={() => handlePinToggle(tab.id)}
+                    onDetach={() => detachTab?.(tab.id)}
+                    onClose={() => closeTab(tab.id)}>
+                    <PinnedTabButton
+                      tab={tab}
+                      isActive={tab.id === activeTabId}
+                      onSelect={() => handleTabClick(tab.id)}
+                      tone={tabTone}
+                      drag={{
+                        isDragging: isDragging(tab.id),
+                        isGhost: isGhost(tab.id),
+                        noTransition,
+                        translateX: getTranslateX(tab.id, 'pinned'),
+                        onPointerDown: caps.reorder ? (e) => handlePointerDown(e, tab, 'pinned') : () => undefined
+                      }}
+                      tabRef={(el) => {
+                        if (el) {
+                          tabRefs.current.set(tab.id, el)
+                        } else {
+                          tabRefs.current.delete(tab.id)
+                        }
+                      }}
+                    />
+                  </TabRightClickMenu>
+                )
+              })}
             </div>
           )}
 
           {pinnedTabs.length > 0 && hasUnpinnedTabs && <Separator />}
 
-          {defaultTab && (
-            <NormalTabButton
-              tab={defaultTab}
-              isActive={defaultTab.id === activeTabId}
-              onSelect={() => setActiveTab(defaultTab.id)}
-              onClose={() => undefined}
-              tone={tabTone}
-              drag={{
-                isDragging: false,
-                isGhost: false,
-                noTransition,
-                translateX: 0,
-                onPointerDown: () => undefined
-              }}
-              tabRef={(el) => {
-                if (el) {
-                  tabRefs.current.set(defaultTab.id, el)
-                } else {
-                  tabRefs.current.delete(defaultTab.id)
-                }
-              }}
-            />
-          )}
-
-          {/* Normal tabs */}
-          {normalTabs.map((tab) => (
-            <TabRightClickMenu
-              key={tab.id}
-              isPinned={!!tab.isPinned}
-              onMoveToFirst={() => handleMoveToFirst(tab.id)}
-              onPin={() => handlePinToggle(tab.id)}
-              onOpenInNewWindow={detachTab ? () => detachTab(tab.id) : undefined}
-              onClose={() => closeTab(tab.id)}>
-              <NormalTabButton
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onSelect={() => handleTabClick(tab.id)}
-                onClose={() => closeTab(tab.id)}
-                tone={tabTone}
-                drag={{
-                  isDragging: isDragging(tab.id),
-                  isGhost: isGhost(tab.id),
-                  noTransition,
-                  translateX: getTranslateX(tab.id, 'normal'),
-                  onPointerDown: (e) => handlePointerDown(e, tab, 'normal')
-                }}
-                tabRef={(el) => {
-                  if (el) {
-                    tabRefs.current.set(tab.id, el)
-                  } else {
-                    tabRefs.current.delete(tab.id)
-                  }
-                }}
-              />
-            </TabRightClickMenu>
-          ))}
+          {/* Normal tabs — affordances come entirely from getTabCapabilities. */}
+          {normalTabs.map((tab) => {
+            const caps = getTabCapabilities(tab, tabContext)
+            return (
+              <TabRightClickMenu
+                key={tab.id}
+                isPinned={false}
+                capabilities={caps}
+                onMoveToFirst={() => handleMoveToFirst(tab.id)}
+                onTogglePin={() => handlePinToggle(tab.id)}
+                onDetach={() => detachTab?.(tab.id)}
+                onClose={() => closeTab(tab.id)}>
+                <NormalTabButton
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  onSelect={() => handleTabClick(tab.id)}
+                  onClose={() => closeTab(tab.id)}
+                  showClose={caps.close}
+                  tone={tabTone}
+                  drag={{
+                    isDragging: isDragging(tab.id),
+                    isGhost: isGhost(tab.id),
+                    noTransition,
+                    translateX: getTranslateX(tab.id, 'normal'),
+                    onPointerDown: caps.reorder ? (e) => handlePointerDown(e, tab, 'normal') : () => undefined
+                  }}
+                  tabRef={(el) => {
+                    if (el) {
+                      tabRefs.current.set(tab.id, el)
+                    } else {
+                      tabRefs.current.delete(tab.id)
+                    }
+                  }}
+                />
+              </TabRightClickMenu>
+            )
+          })}
 
           {/* Global search button — sticky so it hugs the last tab but never scrolls away */}
           <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
