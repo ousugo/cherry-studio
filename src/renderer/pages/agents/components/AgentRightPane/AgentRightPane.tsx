@@ -98,6 +98,9 @@ interface AgentRightPaneState {
   tracePayload: TracePanePayload | null
   filePreview: AgentFilePreviewTab | null
   selectedFile: string | null
+  fileTreeOpen: boolean
+  fileTreeExpandedIds: ReadonlySet<string>
+  fileTreeSearchKeyword: string
   workspacePath?: string
 }
 
@@ -109,6 +112,9 @@ interface AgentRightPaneActions {
   closeFilePreview: () => void
   closeFlowTab: (toolCallId: string) => void
   setSelectedFile: (file: string | null) => void
+  setFileTreeOpen: (open: boolean) => void
+  setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
+  setFileTreeSearchKeyword: (keyword: string) => void
 }
 
 interface AgentRightPaneContextValue {
@@ -154,6 +160,9 @@ function AgentRightPaneStateProvider({
   const [tracePayload, setTracePayload] = useState<TracePanePayload | null>(null)
   const [filePreview, setFilePreview] = useState<AgentFilePreviewTab | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [fileTreeOpen, setFileTreeOpen] = useState(false)
+  const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const previousWorkspacePathRef = useRef(workspacePath)
 
   const activeFlowToolCallId = getFlowToolCallId(activeTab)
@@ -208,6 +217,8 @@ function AgentRightPaneStateProvider({
     previousWorkspacePathRef.current = workspacePath
     setSelectedFile(null)
     setFilePreview(null)
+    setFileTreeExpandedIds(new Set())
+    setFileTreeSearchKeyword('')
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
   }, [activeTab, openTab, workspacePath])
   const closeTrace = useCallback(() => {
@@ -236,6 +247,9 @@ function AgentRightPaneStateProvider({
         tracePayload,
         filePreview,
         selectedFile,
+        fileTreeOpen,
+        fileTreeExpandedIds,
+        fileTreeSearchKeyword,
         workspacePath
       },
       actions: {
@@ -245,7 +259,10 @@ function AgentRightPaneStateProvider({
         closeTrace,
         closeFilePreview,
         closeFlowTab,
-        setSelectedFile
+        setSelectedFile,
+        setFileTreeOpen,
+        setFileTreeExpandedIds,
+        setFileTreeSearchKeyword
       },
       meta: { sessionId, sessionName, agentId, agentName, agentAvatar, modelFallback }
     }),
@@ -257,6 +274,9 @@ function AgentRightPaneStateProvider({
       closeFilePreview,
       closeTrace,
       closeFlowTab,
+      fileTreeExpandedIds,
+      fileTreeOpen,
+      fileTreeSearchKeyword,
       filePreview,
       flow,
       flowTabs,
@@ -294,6 +314,12 @@ function AgentRightPaneFilesPanel() {
       pdfLayoutPending={shellState.pdfLayoutPending}
       selectedFile={state.selectedFile}
       onSelectedFileChange={actions.setSelectedFile}
+      fileTreeOpen={state.fileTreeOpen}
+      onFileTreeOpenChange={actions.setFileTreeOpen}
+      fileTreeExpandedIds={state.fileTreeExpandedIds}
+      onFileTreeExpandedIdsChange={actions.setFileTreeExpandedIds}
+      fileTreeSearchKeyword={state.fileTreeSearchKeyword}
+      onFileTreeSearchKeywordChange={actions.setFileTreeSearchKeyword}
       pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
       enableFileSearch
     />

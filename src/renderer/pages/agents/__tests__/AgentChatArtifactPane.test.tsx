@@ -154,13 +154,31 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
   const MockArtifactPane = ({
     workspacePath,
     selectedFile,
-    onSelectedFileChange
+    onSelectedFileChange,
+    fileTreeOpen,
+    onFileTreeOpenChange,
+    fileTreeExpandedIds,
+    onFileTreeExpandedIdsChange,
+    fileTreeSearchKeyword,
+    onFileTreeSearchKeywordChange
   }: {
     workspacePath?: string
     selectedFile?: string | null
     onSelectedFileChange?: (file: string | null) => void
+    fileTreeOpen?: boolean
+    onFileTreeOpenChange?: (open: boolean) => void
+    fileTreeExpandedIds?: ReadonlySet<string>
+    onFileTreeExpandedIdsChange?: (ids: ReadonlySet<string>) => void
+    fileTreeSearchKeyword?: string
+    onFileTreeSearchKeywordChange?: (keyword: string) => void
   }) => {
     const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview')
+    const [internalFileTreeOpen, setInternalFileTreeOpen] = useState(false)
+    const [internalExpandedIds, setInternalExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+    const [internalFileSearchKeyword, setInternalFileSearchKeyword] = useState('')
+    const resolvedFileTreeOpen = fileTreeOpen ?? internalFileTreeOpen
+    const resolvedExpandedIds = fileTreeExpandedIds ?? internalExpandedIds
+    const resolvedFileSearchKeyword = fileTreeSearchKeyword ?? internalFileSearchKeyword
 
     useEffect(() => {
       setViewMode('preview')
@@ -171,10 +189,41 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
         data-testid="artifact-pane"
         data-workspace-path={workspacePath ?? ''}
         data-selected-file={selectedFile ?? ''}
-        data-view-mode={viewMode}>
+        data-view-mode={viewMode}
+        data-file-tree-open={String(resolvedFileTreeOpen)}
+        data-expanded-ids={Array.from(resolvedExpandedIds).sort().join(',')}
+        data-file-search-keyword={resolvedFileSearchKeyword}>
         <button type="button" onClick={() => onSelectedFileChange?.('README.md')}>
           select artifact file
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            const next = !resolvedFileTreeOpen
+            if (fileTreeOpen === undefined) setInternalFileTreeOpen(next)
+            onFileTreeOpenChange?.(next)
+          }}>
+          toggle artifact file tree
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const next = new Set(resolvedExpandedIds)
+            next.add('src')
+            if (fileTreeExpandedIds === undefined) setInternalExpandedIds(next)
+            onFileTreeExpandedIdsChange?.(next)
+          }}>
+          expand src folder
+        </button>
+        <input
+          aria-label="artifact file search"
+          value={resolvedFileSearchKeyword}
+          onChange={(event) => {
+            const next = event.target.value
+            if (fileTreeSearchKeyword === undefined) setInternalFileSearchKeyword(next)
+            onFileTreeSearchKeywordChange?.(next)
+          }}
+        />
         <button
           type="button"
           aria-label={viewMode === 'preview' ? 'agent.preview_pane.preview' : 'agent.preview_pane.code'}
@@ -551,6 +600,53 @@ describe('AgentChat artifact pane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
+  })
+
+  it('keeps file tree UI state when maximizing and restoring the pane', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'toggle artifact file tree' }))
+    fireEvent.click(screen.getByRole('button', { name: 'expand src folder' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'artifact file search' }), {
+      target: { value: 'index' }
+    })
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-tree-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('chat-center-overlay')).toContainElement(screen.getByTestId('artifact-pane'))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-tree-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-tree-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
+  })
+
+  it('keeps file tree UI state when closing and reopening the pane', () => {
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    const toggle = screen.getByRole('button', { name: 'common.open_sidebar' })
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', { name: 'toggle artifact file tree' }))
+    fireEvent.click(screen.getByRole('button', { name: 'expand src folder' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'artifact file search' }), {
+      target: { value: 'index' }
+    })
+
+    fireEvent.click(toggle)
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
+
+    fireEvent.click(toggle)
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-tree-open', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
   })
 
   it('mounts the artifact pane in preview mode when maximizing and restoring the pane', () => {

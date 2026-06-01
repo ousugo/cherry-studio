@@ -37,6 +37,7 @@ export const ARTIFACT_FILE_TREE_DEFAULT_WIDTH = 160
 export const ARTIFACT_FILE_TREE_CACHE_KEY = 'ui.chat.artifact_pane.file_tree.width'
 const ARTIFACT_FILE_TREE_MIN_WIDTH = 80
 const ARTIFACT_FILE_TREE_MAX_WIDTH_OFFSET = 140
+const WORKSPACE_ROOT_ID = '__workspace_root__'
 
 export interface ArtifactPaneProps {
   workspacePath?: string
@@ -45,6 +46,13 @@ export interface ArtifactPaneProps {
   pdfLayoutRefreshKey?: number
   selectedFile?: string | null
   onSelectedFileChange?: (file: string | null) => void
+  fileTreeOpen?: boolean
+  onFileTreeOpenChange?: (open: boolean) => void
+  /** Caller-owned expanded folder ids. The synthetic workspace root is managed internally. */
+  fileTreeExpandedIds?: ReadonlySet<string>
+  onFileTreeExpandedIdsChange?: (next: ReadonlySet<string>) => void
+  fileTreeSearchKeyword?: string
+  onFileTreeSearchKeywordChange?: (keyword: string) => void
   onToggleMaximized?: () => void
   /** Show a search input inside the file tree that filters nodes by name. */
   enableFileSearch?: boolean
@@ -86,13 +94,18 @@ const isHtmlFile = (name: string) => HTML_EXT.has(extOf(name))
 const isPdfFile = (name: string) => PDF_EXT.has(extOf(name))
 const isExcelFile = (name: string) => EXCEL_EXT.has(extOf(name))
 
+const stripWorkspaceRootId = (ids: ReadonlySet<string>): ReadonlySet<string> => {
+  if (!ids.has(WORKSPACE_ROOT_ID)) return ids
+  const next = new Set(ids)
+  next.delete(WORKSPACE_ROOT_ID)
+  return next
+}
+
 const joinPath = (base: string, rel: string): string => {
   const trimmed = rel.replace(/^[/\\]+/, '')
   if (!base) return trimmed
   return /[/\\]$/.test(base) ? `${base}${trimmed}` : `${base}/${trimmed}`
 }
-
-const WORKSPACE_ROOT_ID = '__workspace_root__'
 
 const getPathBasename = (path: string): string => {
   const trimmed = path.trim().replace(/[\\/]+$/, '')
@@ -602,6 +615,12 @@ const ArtifactPane = ({
   pdfLayoutRefreshKey = 0,
   selectedFile: selectedFileProp,
   onSelectedFileChange,
+  fileTreeOpen: fileTreeOpenProp,
+  onFileTreeOpenChange,
+  fileTreeExpandedIds: fileTreeExpandedIdsProp,
+  onFileTreeExpandedIdsChange,
+  fileTreeSearchKeyword: fileTreeSearchKeywordProp,
+  onFileTreeSearchKeywordChange,
   onToggleMaximized,
   enableFileSearch = false
 }: ArtifactPaneProps) => {
@@ -615,20 +634,49 @@ const ArtifactPane = ({
     startResizing: startFileTreeResizing
   } = useArtifactFileTreeResize()
 
-  const [treeOpen, setTreeOpen] = useState(false)
+  const [internalFileTreeOpen, setInternalFileTreeOpen] = useState(false)
   const [internalSelectedFile, setInternalSelectedFile] = useState<string | null>(null)
-  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [internalFileTreeExpandedIds, setInternalFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
-  const [fileSearchKeyword, setFileSearchKeyword] = useState('')
+  const [internalFileTreeSearchKeyword, setInternalFileTreeSearchKeyword] = useState('')
   const previousWorkspacePathRef = useRef(workspacePath)
+  const hasMountedRef = useRef(false)
   const selectedFileControlled = selectedFileProp !== undefined
   const selectedFile = selectedFileControlled ? selectedFileProp : internalSelectedFile
+  const fileTreeOpenControlled = fileTreeOpenProp !== undefined
+  const treeOpen = fileTreeOpenProp ?? internalFileTreeOpen
+  const fileTreeExpandedIdsControlled = fileTreeExpandedIdsProp !== undefined
+  const expandedIds = fileTreeExpandedIdsProp ?? internalFileTreeExpandedIds
+  const fileTreeSearchKeywordControlled = fileTreeSearchKeywordProp !== undefined
+  const fileSearchKeyword = fileTreeSearchKeywordProp ?? internalFileTreeSearchKeyword
   const setSelectedFile = useCallback(
     (file: string | null) => {
       if (!selectedFileControlled) setInternalSelectedFile(file)
       onSelectedFileChange?.(file)
     },
     [onSelectedFileChange, selectedFileControlled]
+  )
+  const setTreeOpen = useCallback(
+    (open: boolean) => {
+      if (!fileTreeOpenControlled) setInternalFileTreeOpen(open)
+      onFileTreeOpenChange?.(open)
+    },
+    [fileTreeOpenControlled, onFileTreeOpenChange]
+  )
+  const setExpandedIds = useCallback(
+    (ids: ReadonlySet<string>) => {
+      const nextIds = stripWorkspaceRootId(ids)
+      if (!fileTreeExpandedIdsControlled) setInternalFileTreeExpandedIds(nextIds)
+      onFileTreeExpandedIdsChange?.(nextIds)
+    },
+    [fileTreeExpandedIdsControlled, onFileTreeExpandedIdsChange]
+  )
+  const setFileSearchKeyword = useCallback(
+    (keyword: string) => {
+      if (!fileTreeSearchKeywordControlled) setInternalFileTreeSearchKeyword(keyword)
+      onFileTreeSearchKeywordChange?.(keyword)
+    },
+    [fileTreeSearchKeywordControlled, onFileTreeSearchKeywordChange]
   )
 
   const nodeById = useMemo(() => {
@@ -644,6 +692,13 @@ const ArtifactPane = ({
   }, [tree])
 
   const trimmedFileSearch = enableFileSearch ? fileSearchKeyword.trim() : ''
+
+  const expandedIdsWithWorkspaceRoot = useMemo<ReadonlySet<string>>(() => {
+    if (!workspacePath) return expandedIds
+    const next = new Set(expandedIds)
+    next.add(WORKSPACE_ROOT_ID)
+    return next
+  }, [expandedIds, workspacePath])
 
   const filteredTree = useMemo<FileTreeNode[]>(() => {
     if (!trimmedFileSearch) return tree
@@ -668,7 +723,7 @@ const ArtifactPane = ({
   // While searching, expand every visible folder so matches stay reachable —
   // user-toggled `expandedIds` resumes after the keyword clears.
   const effectiveExpandedIds = useMemo<ReadonlySet<string>>(() => {
-    if (!trimmedFileSearch) return expandedIds
+    if (!trimmedFileSearch) return expandedIdsWithWorkspaceRoot
     const expanded = new Set<string>()
     const visit = (nodes: readonly FileTreeNode[]) => {
       for (const node of nodes) {
@@ -680,18 +735,31 @@ const ArtifactPane = ({
     }
     visit(filteredTree)
     return expanded
-  }, [expandedIds, trimmedFileSearch, filteredTree])
+  }, [expandedIdsWithWorkspaceRoot, trimmedFileSearch, filteredTree])
 
   // Reset transient state when the workspace changes.
   useEffect(() => {
-    if (previousWorkspacePathRef.current !== workspacePath) {
+    const workspaceChanged = previousWorkspacePathRef.current !== workspacePath
+    if (workspaceChanged) {
       if (!selectedFileControlled) setSelectedFile(null)
     }
     previousWorkspacePathRef.current = workspacePath
-    setExpandedIds(workspacePath ? new Set([WORKSPACE_ROOT_ID]) : new Set())
+
+    if (!hasMountedRef.current || workspaceChanged) {
+      if (!fileTreeExpandedIdsControlled) setExpandedIds(new Set())
+      if (!fileTreeSearchKeywordControlled) setFileSearchKeyword('')
+    }
+    hasMountedRef.current = true
     setContentRefreshToken(0)
-    setFileSearchKeyword('')
-  }, [selectedFileControlled, setSelectedFile, workspacePath])
+  }, [
+    fileTreeExpandedIdsControlled,
+    fileTreeSearchKeywordControlled,
+    selectedFileControlled,
+    setExpandedIds,
+    setFileSearchKeyword,
+    setSelectedFile,
+    workspacePath
+  ])
 
   useEffect(() => {
     if (!selectedFile || !hasLoaded) return
@@ -838,7 +906,7 @@ const ArtifactPane = ({
                   className={headerToggleClass(treeOpen)}
                   aria-label={t('agent.preview_pane.file_tree')}
                   aria-pressed={treeOpen}
-                  onClick={() => setTreeOpen((v) => !v)}>
+                  onClick={() => setTreeOpen(!treeOpen)}>
                   <FileTreeIcon size={16} />
                 </Button>
               </Tooltip>
