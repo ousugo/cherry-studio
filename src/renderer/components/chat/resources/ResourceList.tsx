@@ -1,5 +1,7 @@
 import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
+import { CommandTooltip } from '@renderer/commands'
 import { cn } from '@renderer/utils/style'
+import type { CommandId } from '@shared/commands'
 import { SearchIcon, SquareMinus } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
@@ -141,29 +143,42 @@ type HeaderActionButtonProps = ComponentProps<typeof Button> & {
   ref?: Ref<HTMLButtonElement>
 }
 
-type HeaderItemProps = Omit<ComponentProps<typeof Button>, 'children'> & {
+type HeaderItemProps = Omit<ComponentProps<typeof Button>, 'children' | 'command'> & {
   actions?: ReactNode
+  /** When set, the button shows a tooltip with this command's label and keyboard shortcut on hover. */
+  command?: CommandId
   icon?: ReactNode
   label: ReactNode
   ref?: Ref<HTMLButtonElement>
 }
 
-function HeaderItem({ actions, className, icon, label, ref, variant = 'ghost', ...props }: HeaderItemProps) {
+function HeaderItem({ actions, className, command, icon, label, ref, variant = 'ghost', ...props }: HeaderItemProps) {
+  const button = (
+    <Button
+      ref={ref}
+      variant={variant}
+      className={cn(
+        'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg px-1.5 py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
+        command ? 'w-full' : 'flex-1',
+        className
+      )}
+      {...props}>
+      {icon && <ItemLeadingSlot>{icon}</ItemLeadingSlot>}
+      <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
+        {label}
+      </span>
+    </Button>
+  )
+
   return (
     <div className="flex min-h-8 items-center gap-1">
-      <Button
-        ref={ref}
-        variant={variant}
-        className={cn(
-          'group min-h-8 min-w-0 flex-1 justify-start gap-1.5 rounded-lg px-1.5 py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
-          className
-        )}
-        {...props}>
-        {icon && <ItemLeadingSlot>{icon}</ItemLeadingSlot>}
-        <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
-          {label}
-        </span>
-      </Button>
+      {command ? (
+        <CommandTooltip command={command} label={label} delay={800} classNames={{ placeholder: 'min-w-0 flex-1' }}>
+          {button}
+        </CommandTooltip>
+      ) : (
+        button
+      )}
       {actions && <div className="flex shrink-0 items-center gap-1 text-foreground/70">{actions}</div>}
     </div>
   )

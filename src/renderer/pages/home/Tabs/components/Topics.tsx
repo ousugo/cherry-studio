@@ -1093,6 +1093,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         <ResourceList.Header className="gap-1 px-1.5 pb-0">
           <ResourceList.HeaderItem
             type="button"
+            command="topic.create"
             aria-label={t('chat.conversation.new')}
             icon={<SquarePen />}
             label={t('chat.conversation.new')}

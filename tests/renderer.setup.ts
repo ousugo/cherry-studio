@@ -488,6 +488,7 @@ vi.mock('@cherrystudio/ui', () => {
         children
       ),
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
+    Kbd: ({ children, ...props }) => React.createElement('kbd', { ...props }, children),
     Checkbox: ({ checked, onCheckedChange, ...props }) =>
       React.createElement('input', {
         ...props,
