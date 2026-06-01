@@ -28,6 +28,7 @@ import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBac
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+const AGENT_RUNTIME_INTERRUPT_REASON = 'agent-runtime-interrupt'
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = 'success' | 'paused' | 'error'
@@ -252,12 +253,17 @@ export class AgentSessionRuntimeService extends BaseService {
           this.clearIdleTimer(entry)
           turn.controller = controller
 
-          const onAbort = () => this.closeCurrentTurn(entry, 'paused')
-          if (input.signal.aborted) onAbort()
-          else input.signal.addEventListener('abort', onAbort, { once: true })
+          const onAbort = () => this.handleTurnAbort(entry, input.signal.reason)
+          if (input.signal.aborted) {
+            onAbort()
+            return
+          } else {
+            input.signal.addEventListener('abort', onAbort, { once: true })
+          }
 
           controller.enqueue({ type: 'start' })
-          await this.ensureConnection(entry)
+          const connected = await this.ensureConnection(entry)
+          if (!connected || !this.isCurrentEntry(entry) || turn.terminalStatus) return
           await this.admitTurn(entry, turn)
         } catch (error) {
           controller.error(error)
@@ -358,13 +364,20 @@ export class AgentSessionRuntimeService extends BaseService {
     toolApprovalRegistry.clear('agent-session-runtime-destroy')
   }
 
-  private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<void> {
-    if (entry.connection) return
+  private isCurrentEntry(entry: AgentSessionRuntimeEntry): boolean {
+    return this.entries.get(entry.sessionId) === entry
+  }
+
+  private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
+    if (!this.isCurrentEntry(entry)) return false
+    if (entry.connection) return true
 
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
 
     await this.hydrateResumeToken(entry)
+    if (!this.isCurrentEntry(entry)) return false
+
     const connection = await driver.connect({
       sessionId: entry.sessionId,
       agentId: entry.agentId,
@@ -372,11 +385,17 @@ export class AgentSessionRuntimeService extends BaseService {
       resumeToken: entry.lastResumeToken,
       trace: entry.currentTurn?.trace
     })
+    if (!this.isCurrentEntry(entry)) {
+      void connection.close()
+      return false
+    }
+
     entry.connection = connection
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
       if (entry.connection === connection) entry.connection = undefined
       if (entry.connectionLoop) entry.connectionLoop = undefined
     })
+    return true
   }
 
   private async hydrateResumeToken(entry: AgentSessionRuntimeEntry): Promise<void> {
@@ -424,6 +443,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async admitTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
+    if (!this.isCurrentEntry(entry) || entry.currentTurn !== turn || turn.terminalStatus) return
     if (turn.admitted) return
     turn.admitted = true
     entry.status = 'active'
@@ -465,7 +485,16 @@ export class AgentSessionRuntimeService extends BaseService {
     void entry.connection?.interrupt?.().catch((error) => {
       logger.warn('Agent runtime interrupt failed', { sessionId: entry.sessionId, error })
     })
-    application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-runtime-interrupt')
+    application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, AGENT_RUNTIME_INTERRUPT_REASON)
+  }
+
+  private handleTurnAbort(entry: AgentSessionRuntimeEntry, reason: unknown): void {
+    if (reason === AGENT_RUNTIME_INTERRUPT_REASON) {
+      this.closeCurrentTurn(entry, 'paused')
+      return
+    }
+
+    this.closeSession(entry.sessionId)
   }
 
   private closeCurrentTurn(entry: AgentSessionRuntimeEntry, status: AgentSessionRuntimeTerminalStatus): void {

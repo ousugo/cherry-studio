@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/chat/composer/useToolApprovalComposerOverrides'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
@@ -7,15 +8,17 @@ import {
   type ConversationHistoryAdapter,
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
-import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { GetAgentResponse } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { useCallback, useLayoutEffect, useMemo } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useAgentChatRuntimeState')
 
 export type AgentSendOptions = { body?: Record<string, unknown> }
 
@@ -130,7 +133,26 @@ export function useAgentChatRuntimeState({
     return next
   }, [uiMessages])
 
-  const { overlay } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages)
+  const finishRef = useRef<((executionId: string, event: ExecutionFinishEvent) => void) | undefined>(undefined)
+  const { overlay, disposeOverlay } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages, {
+    onFinish: (executionId, event) => finishRef.current?.(executionId, event)
+  })
+
+  const handleExecutionFinish = useCallback(
+    (_executionId: string, { message }: ExecutionFinishEvent) => {
+      void (async () => {
+        try {
+          await refresh()
+        } catch (error) {
+          logger.warn('Failed to refresh agent messages after execution finish', { sessionId, error })
+        } finally {
+          if (message.id) disposeOverlay(message.id)
+        }
+      })()
+    },
+    [disposeOverlay, refresh, sessionId]
+  )
+  finishRef.current = handleExecutionFinish
 
   const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next = { ...basePartsMap }
