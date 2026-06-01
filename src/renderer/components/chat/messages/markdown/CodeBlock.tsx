@@ -6,7 +6,7 @@ import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'
 
-import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
+import { useMessageRenderConfig, useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
 import { isInlineFilePath, normalizeInlineFilePath } from '../utils/filePath'
 
 interface Props {
@@ -41,6 +41,8 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
 
   const actions = useOptionalMessageListActions()
+  const ui = useOptionalMessageListUi()
+  const canSaveCodeBlock = !!id && !!actions?.saveCodeBlock && ui?.readonly !== true
 
   const handleSave = useCallback(
     (newContent: string) => {
@@ -59,12 +61,19 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
     // Fancy code block
     if (codeFancyBlock) {
       if (language === 'html') {
-        return <HtmlArtifactsCard html={children} onSave={handleSave} isStreaming={isIncomplete} />
+        return (
+          <HtmlArtifactsCard
+            html={children}
+            onSave={handleSave}
+            editable={canSaveCodeBlock}
+            isStreaming={isIncomplete}
+          />
+        )
       }
     }
 
     return (
-      <CodeBlockView language={language} onSave={handleSave}>
+      <CodeBlockView language={language} onSave={handleSave} editable={canSaveCodeBlock}>
         {children}
       </CodeBlockView>
     )
