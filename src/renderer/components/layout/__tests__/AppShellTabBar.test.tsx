@@ -24,7 +24,8 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 vi.mock('@renderer/config/constant', () => ({
   isMac: false,
   isLinux: false,
-  isWin: false
+  isWin: false,
+  platform: 'linux'
 }))
 
 vi.mock('@renderer/config/miniApps', () => ({

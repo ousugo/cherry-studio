@@ -180,6 +180,7 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: () => ['cherry', () => {}],
   useMultiplePreferences: hookMocks.useMultiplePreferences
 }))
 
@@ -403,6 +404,9 @@ describe('HistoryRecordsPage assistant mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
     Object.assign(window, {
+      modal: {
+        confirm: vi.fn()
+      },
       toast: {
         error: vi.fn(),
         success: vi.fn(),
@@ -874,13 +878,12 @@ describe('HistoryRecordsPage assistant mode', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete Topics')
-    expect(screen.getByRole('dialog')).toHaveClass('z-50')
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-overlay-class', 'z-40')
+    expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Topics' }))
     expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
 
+    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -910,8 +913,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
 
+    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -942,8 +946,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
 
+    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -975,8 +980,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
 
+    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 

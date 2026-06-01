@@ -174,6 +174,7 @@ vi.mock('@renderer/pages/library/dialogs', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: () => ['cherry', () => {}],
   useMultiplePreferences: hookMocks.useMultiplePreferences
 }))
 
@@ -418,6 +419,9 @@ describe('HistoryRecordsPage agent mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
     Object.assign(window, {
+      modal: {
+        confirm: vi.fn()
+      },
       toast: {
         error: vi.fn(),
         success: vi.fn(),
@@ -763,13 +767,12 @@ describe('HistoryRecordsPage agent mode', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete session')
-    expect(screen.getByRole('dialog')).toHaveClass('z-50')
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-overlay-class', 'z-40')
+    expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete session' }))
     expect(hookMocks.deleteSession).not.toHaveBeenCalled()
 
+    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -787,8 +790,9 @@ describe('HistoryRecordsPage agent mode', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
 
+    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 

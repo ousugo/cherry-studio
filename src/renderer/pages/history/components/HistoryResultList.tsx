@@ -1,6 +1,6 @@
-import { Button, Checkbox, ContextMenu, ContextMenuTrigger, EmptyState } from '@cherrystudio/ui'
+import { Button, Checkbox, EmptyState } from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { ActionConfirmDialog } from '@renderer/components/chat/actions/ActionConfirmDialog'
-import { ActionMenu } from '@renderer/components/chat/actions/ActionMenu'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
@@ -245,8 +245,6 @@ const HistoryResultList = ({
         <HistoryActionContextMenu
           actions={actions}
           className="z-50"
-          confirmDialogContentClassName="z-50"
-          confirmDialogOverlayClassName="z-40"
           onAction={(action) => topicMenuPreset.onAction(topic, action, contextOverride)}>
           {row}
         </HistoryActionContextMenu>
@@ -267,8 +265,6 @@ const HistoryResultList = ({
         <HistoryActionContextMenu
           actions={actions}
           className="z-50"
-          confirmDialogContentClassName="z-50"
-          confirmDialogOverlayClassName="z-40"
           onAction={(action) => sessionMenuPreset.onAction(session, action, contextOverride)}>
           {row}
         </HistoryActionContextMenu>
@@ -725,8 +721,6 @@ interface HistoryActionContextMenuProps<TContext = unknown> {
   actions: readonly ResolvedAction<TContext>[]
   children: ReactElement
   className?: string
-  confirmDialogContentClassName?: string
-  confirmDialogOverlayClassName?: string
   onAction: (action: ResolvedAction<TContext>) => void | Promise<void>
 }
 
@@ -734,33 +728,70 @@ function HistoryActionContextMenu<TContext = unknown>({
   actions,
   children,
   className,
-  confirmDialogContentClassName,
-  confirmDialogOverlayClassName,
   onAction
 }: HistoryActionContextMenuProps<TContext>) {
-  const [contextMenuKey, setContextMenuKey] = useState(0)
-  const handleAction = useCallback(
+  const runAction = useCallback(
     (action: ResolvedAction<TContext>) => {
-      setContextMenuKey((key) => key + 1)
-      window.requestAnimationFrame(() => {
-        void onAction(action)
-      })
+      if (!action.availability.enabled) return
+      const confirm = action.confirm
+      if (confirm) {
+        void window.modal.confirm({
+          title: confirm.title,
+          content: confirm.description ?? confirm.content,
+          okText: confirm.confirmText,
+          cancelText: confirm.cancelText,
+          centered: true,
+          okButtonProps: confirm.destructive ? { danger: true } : undefined,
+          onOk: () => onAction(action)
+        })
+        return
+      }
+      window.requestAnimationFrame(() => void onAction(action))
     },
     [onAction]
   )
 
+  const extraItems = useMemo<CommandContextMenuExtraItem[]>(() => {
+    const toItems = (list: readonly ResolvedAction<TContext>[]): CommandContextMenuExtraItem[] => {
+      const items: CommandContextMenuExtraItem[] = []
+      let previousGroup: string | undefined
+      for (const action of list) {
+        if (!action.availability.visible) continue
+        if (items.length > 0 && action.group !== previousGroup) {
+          items.push({ type: 'separator' })
+        }
+        previousGroup = action.group
+        if (action.children.length > 0) {
+          items.push({
+            type: 'submenu',
+            id: action.id,
+            label: action.label as string,
+            icon: action.icon,
+            enabled: action.availability.enabled,
+            children: toItems(action.children)
+          })
+        } else {
+          items.push({
+            type: 'item',
+            id: action.id,
+            label: action.label as string,
+            icon: action.icon,
+            enabled: action.availability.enabled,
+            destructive: action.danger,
+            shortcutLabel: action.shortcut,
+            onSelect: () => runAction(action)
+          })
+        }
+      }
+      return items
+    }
+    return toItems(actions)
+  }, [actions, runAction])
+
   return (
-    <ContextMenu key={contextMenuKey}>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ActionMenu
-        actions={actions}
-        className={className}
-        confirmDialogContentClassName={confirmDialogContentClassName}
-        confirmDialogOverlayClassName={confirmDialogOverlayClassName}
-        onAction={handleAction}
-        onConfirmActionComplete={() => setContextMenuKey((key) => key + 1)}
-      />
-    </ContextMenu>
+    <CommandContextMenu location="webcontents.context" extraItems={extraItems} contentClassName={className}>
+      {children}
+    </CommandContextMenu>
   )
 }
 

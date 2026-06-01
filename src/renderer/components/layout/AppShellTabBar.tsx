@@ -1,11 +1,5 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -253,34 +247,50 @@ const TabRightClickMenu = ({
 }) => {
   const { t } = useTranslation()
 
+  const items = useMemo<CommandContextMenuExtraItem[]>(() => {
+    const list: CommandContextMenuExtraItem[] = [
+      {
+        type: 'item',
+        id: 'tab.move-to-first',
+        label: t('tab.move_to_first'),
+        icon: <ChevronsLeft size={14} />,
+        onSelect: onMoveToFirst
+      },
+      {
+        type: 'item',
+        id: 'tab.pin',
+        label: isPinned ? t('tab.unpin') : t('tab.pin'),
+        icon: isPinned ? <PinOff size={14} /> : <Pin size={14} />,
+        onSelect: onPin
+      }
+    ]
+    if (onOpenInNewWindow) {
+      list.push({
+        type: 'item',
+        id: 'tab.open-in-new-window',
+        label: t('tab.open_in_new_window'),
+        icon: <AppWindow size={14} />,
+        onSelect: onOpenInNewWindow
+      })
+    }
+    list.push({
+      type: 'item',
+      id: 'tab.close',
+      label: t('tab.close'),
+      icon: <X size={14} />,
+      onSelect: onClose
+    })
+    return list
+  }, [t, isPinned, onMoveToFirst, onPin, onOpenInNewWindow, onClose])
+
   if (!enabled) {
     return <>{children}</>
   }
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="min-w-[130px]">
-        <ContextMenuItem onSelect={onMoveToFirst}>
-          <ContextMenuItemContent icon={<ChevronsLeft size={14} />}>{t('tab.move_to_first')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={onPin}>
-          <ContextMenuItemContent icon={isPinned ? <PinOff size={14} /> : <Pin size={14} />}>
-            {isPinned ? t('tab.unpin') : t('tab.pin')}
-          </ContextMenuItemContent>
-        </ContextMenuItem>
-        {onOpenInNewWindow && (
-          <ContextMenuItem onSelect={onOpenInNewWindow}>
-            <ContextMenuItemContent icon={<AppWindow size={14} />}>
-              {t('tab.open_in_new_window')}
-            </ContextMenuItemContent>
-          </ContextMenuItem>
-        )}
-        <ContextMenuItem onSelect={onClose}>
-          <ContextMenuItemContent icon={<X size={14} />}>{t('tab.close')}</ContextMenuItemContent>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <CommandContextMenu location="webcontents.context" extraItems={items} contentClassName="min-w-[130px]">
+      {children}
+    </CommandContextMenu>
   )
 }
 
