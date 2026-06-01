@@ -13,7 +13,7 @@ import {
   VerticalAlign,
   WrapStrategy
 } from '@univerjs/core'
-import ExcelJS from 'exceljs'
+import type ExcelJS from 'exceljs'
 
 const UNIVER_MODEL_VERSION = '0.25.0'
 const DEFAULT_ROW_COUNT = 100
