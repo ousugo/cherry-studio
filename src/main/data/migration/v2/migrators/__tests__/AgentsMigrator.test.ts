@@ -99,7 +99,7 @@ describe('AgentsMigrator', () => {
     expect(result.itemCount).toBe(26)
   })
 
-  it('execute attaches the legacy db and imports every table inside a FK-off transaction', async () => {
+  it('execute attaches the legacy db and imports every table without per-migrator FK toggling', async () => {
     const run = vi.fn().mockResolvedValue(undefined)
     // remapAgentPrefixIds calls db.select().from().where() to find old-prefix IDs;
     // mock to return empty arrays so the remap loop is a no-op.
@@ -139,33 +139,34 @@ describe('AgentsMigrator', () => {
     expect(result.processedCount).toBe(26)
 
     const outer = getExecutedSql(run)
-    // Import phase: ATTACH → PRAGMA FK OFF → BEGIN → [INSERTs] → COMMIT
+    // FK is managed globally by the engine (MigrationDbService setPragma) — no per-migrator
+    // PRAGMA toggling. Import phase: ATTACH → BEGIN → [INSERTs] → COMMIT
     expect(outer[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
-    expect(outer[1]).toBe('PRAGMA foreign_keys = OFF')
-    expect(outer[2]).toBe('BEGIN')
-    // After import COMMIT: remapAgentPrefixIds emits PRAGMA FK OFF → BEGIN → COMMIT → PRAGMA FK ON
-    // Then execute() finally emits PRAGMA FK ON → DETACH
-    // run tail: ...COMMIT(import), PRAGMA FK OFF, BEGIN, COMMIT, PRAGMA FK ON, PRAGMA FK ON, DETACH
-    expect(outer.at(-7)).toBe('COMMIT')
-    expect(outer.at(-6)).toBe('PRAGMA foreign_keys = OFF')
-    expect(outer.at(-5)).toBe('BEGIN')
+    expect(outer[1]).toBe('BEGIN')
+    // run tail after import COMMIT: remapAgentPrefixIds emits BEGIN → COMMIT (no old-prefix
+    // IDs here, so no UPDATEs), then execute() emits DETACH.
     expect(outer.at(-4)).toBe('COMMIT')
-    expect(outer.at(-3)).toBe('PRAGMA foreign_keys = ON')
-    expect(outer.at(-2)).toBe('PRAGMA foreign_keys = ON')
+    expect(outer.at(-3)).toBe('BEGIN')
+    expect(outer.at(-2)).toBe('COMMIT')
     expect(outer.at(-1)).toBe('DETACH DATABASE agents_legacy')
-    const commitIndex = outer.indexOf('COMMIT')
-    expect(commitIndex).toBeGreaterThan(2)
-    const importCalls = outer.slice(3, commitIndex)
-    expect(importCalls.slice(0, 2)).toEqual([
-      'CREATE TEMP TABLE IF NOT EXISTS session_workspace_map (session_id TEXT PRIMARY KEY, workspace_id TEXT)',
-      'DELETE FROM session_workspace_map'
-    ])
-    const insertCalls = importCalls.filter((stmt) => stmt?.startsWith('INSERT INTO'))
-    expect(insertCalls).toHaveLength(AGENTS_TABLE_MIGRATION_SPECS.filter((spec) => !spec.manualImport).length)
+    // Session-workspace staging runs first inside the import transaction, emitted
+    // via run() before the table INSERTs.
+    expect(outer).toContain(
+      'CREATE TEMP TABLE IF NOT EXISTS session_workspace_map (session_id TEXT PRIMARY KEY, workspace_id TEXT)'
+    )
+    expect(outer).toContain('DELETE FROM session_workspace_map')
+    // FK is centralized in the engine now — the migrator emits no PRAGMA toggles.
+    expect(outer).not.toContain('PRAGMA foreign_keys = OFF')
+    expect(outer).not.toContain('PRAGMA foreign_keys = ON')
+    // Raw INSERT statements for migrated tables (excludes specs with manualImport,
+    // which importLegacySessionMessages handles via Drizzle helpers, not run()).
+    const tableInserts = outer.filter((s: string) => typeof s === 'string' && s.startsWith('INSERT INTO '))
+    const expectedTableInserts = AGENTS_TABLE_MIGRATION_SPECS.filter((spec) => !spec.manualImport).length
+    expect(tableInserts).toHaveLength(expectedTableInserts)
     // No old-prefix IDs returned → no UPDATE calls
     expect(update).not.toHaveBeenCalled()
-    const postCopy = outer.slice(commitIndex + 1, -2)
-    expect(postCopy).toEqual(['PRAGMA foreign_keys = OFF', 'BEGIN', 'COMMIT', 'PRAGMA foreign_keys = ON'])
+    // Agent-domain FK self-check ran (one foreign_key_check per AGENT_TABLES entry)
+    expect(all).toHaveBeenCalled()
   })
 
   it('backfills agent order keys from legacy sort_order before id remap', async () => {
@@ -180,27 +181,15 @@ describe('AgentsMigrator', () => {
     expect(run).toHaveBeenCalledTimes(2)
   })
 
-  it('backfills agent order keys from legacy sort_order before id remap', async () => {
-    const all = vi.fn().mockResolvedValue([{ id: 'agent-b' }, { id: 'agent-a' }])
-    const run = vi.fn().mockResolvedValue(undefined)
-
-    await backfillAgentOrderKeys({ all, run } as never)
-
-    const [query] = all.mock.calls[0]
-    expect(query.queryChunks[0]?.value?.[0]).toContain('LEFT JOIN agents_legacy.agents')
-    expect(query.queryChunks[0]?.value?.[0]).toContain('ORDER BY COALESCE(s.sort_order, 0) ASC')
-    expect(run).toHaveBeenCalledTimes(2)
-  })
-
-  it('re-enables FK and detaches when an import statement fails inside the transaction', async () => {
-    // First 3 calls succeed (ATTACH, FK_OFF, BEGIN), 4th (first INSERT) fails
+  it('rolls back and detaches when an import statement fails inside the transaction', async () => {
+    // First 2 calls succeed (ATTACH, BEGIN), 3rd (first INSERT) fails. FK is managed
+    // globally by the engine now, so no per-migrator FK pragma appears in this sequence.
     const run = vi
       .fn()
       .mockResolvedValueOnce(undefined) // ATTACH
-      .mockResolvedValueOnce(undefined) // PRAGMA foreign_keys = OFF
       .mockResolvedValueOnce(undefined) // BEGIN
       .mockRejectedValueOnce(new Error('insert failed')) // first INSERT fails
-      .mockResolvedValue(undefined) // ROLLBACK, FK_ON, DETACH
+      .mockResolvedValue(undefined) // ROLLBACK, DETACH
 
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
@@ -211,7 +200,7 @@ describe('AgentsMigrator', () => {
 
     const executed = getExecutedSql(run)
     expect(executed).toContain('ROLLBACK')
-    expect(executed).toContain('PRAGMA foreign_keys = ON')
+    expect(executed).not.toContain('PRAGMA foreign_keys = ON')
     expect(executed.at(-1)).toBe('DETACH DATABASE agents_legacy')
     expect(executed.some((stmt) => stmt?.startsWith('DELETE FROM agent'))).toBe(false)
   })

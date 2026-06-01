@@ -1,25 +1,44 @@
 import { agentTable } from '@data/db/schemas/agent'
-import { agentChannelTable } from '@data/db/schemas/agentChannel'
+import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { loggerService } from '@logger'
 import { eq, sql } from 'drizzle-orm'
+import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 
 const logger = loggerService.withContext('remapAgentPrefixIds')
 
-/** Remap old prefix IDs and hardcoded builtin IDs to UUID v4, updating all FK references.
- *  Uses manual BEGIN/COMMIT (not db.transaction()) so PRAGMA foreign_keys = OFF and all
- *  DML share the same connection — db.transaction() may open a fresh connection in libsql.
- *  Idempotent. */
+/**
+ * Every agent-domain table this remap touches. AgentsMigrator passes these to
+ * `assertOwnedForeignKeys()` to verify agent-domain referential integrity once the
+ * remap completes — keeping the FK self-check scoped to exactly the tables this
+ * function rewrites.
+ */
+export const AGENT_TABLES: SQLiteTable[] = [
+  agentTable,
+  agentSessionTable,
+  agentSkillTable,
+  agentChannelTable,
+  agentSessionMessageTable,
+  agentChannelTaskTable
+]
+
+/**
+ * Remap old prefix IDs and hardcoded builtin IDs to UUID v4, updating all FK references.
+ *
+ * Runs inside AgentsMigrator's ATTACH window, so it uses manual BEGIN/COMMIT — never
+ * `db.transaction()`, which would swap to a fresh libsql connection, making `agents_legacy`
+ * invisible and breaking the subsequent DETACH. Foreign keys are already OFF for the entire
+ * migration (MigrationDbService registers `foreign_keys = OFF` via setPragma), so this does
+ * not toggle FK itself; AgentsMigrator asserts agent-domain FK integrity via
+ * `assertOwnedForeignKeys(AGENT_TABLES)` after this returns. Idempotent.
+ */
 export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<void> {
-  // PRAGMA foreign_keys cannot be changed inside a transaction; must be set before BEGIN.
-  await db.run(sql.raw('PRAGMA foreign_keys = OFF'))
   let committed = false
-  let pendingError: unknown = null
   try {
     await db.run(sql.raw('BEGIN'))
 
@@ -66,26 +85,6 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
       await db.update(agentChannelTable).set({ sessionId: newId }).where(eq(agentChannelTable.sessionId, oldId))
     }
 
-    // Final FK integrity check inside the FK=OFF window: if any FK update missed
-    // rows we'd otherwise commit a corrupted state and re-enable FKs as if all
-    // were well. PRAGMA foreign_key_check returns one row per violation; an empty
-    // result means every (table, rowid, parent, fkid) tuple satisfies its FK.
-    const fkViolations = await db.all<{
-      table: string
-      rowid: number | null
-      parent: string
-      fkid: number
-    }>(sql.raw('PRAGMA foreign_key_check'))
-    if (fkViolations.length > 0) {
-      throw new Error(
-        `remapAgentPrefixIds left ${fkViolations.length} foreign-key violation(s): ` +
-          fkViolations
-            .slice(0, 5)
-            .map((v) => `${v.table}->${v.parent} (rowid=${v.rowid})`)
-            .join(', ')
-      )
-    }
-
     await db.run(sql.raw('COMMIT'))
     committed = true
   } catch (error) {
@@ -99,18 +98,6 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
         )
       }
     }
-    pendingError = error
+    throw error
   }
-
-  try {
-    await db.run(sql.raw('PRAGMA foreign_keys = ON'))
-  } catch (pragmaError) {
-    logger.error(
-      'Failed to re-enable foreign_keys after remapAgentPrefixIds — aborting migration',
-      pragmaError as Error
-    )
-    if (!pendingError) pendingError = pragmaError
-  }
-
-  if (pendingError) throw pendingError
 }
