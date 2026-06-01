@@ -33,6 +33,7 @@ import { PromptBuilder } from '@main/ai/agents/cherryclaw/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import ClawServer from '@main/ai/mcp/servers/claw'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
+import { skillService } from '@main/ai/skills/SkillService'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { application } from '@main/core/application'
 import { isLinux, isWin } from '@main/core/platform'
@@ -176,6 +177,7 @@ export async function buildClaudeCodeSessionSettings(
     throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
   }
   assertClaudeCodeWorkspaceDirectory(session.id, cwd)
+  await skillService.reconcileAgentSkills(session.agentId, cwd)
 
   // 2. Environment variables
   const env = await buildEnvironment(provider, agent)
