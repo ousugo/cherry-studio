@@ -2,9 +2,9 @@ import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
+import { useCommandHandler } from '@renderer/commands'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isDev } from '@renderer/config/constant'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
 import { first } from 'lodash'
@@ -787,6 +787,6 @@ function ShortcutBinding({
   shortcut: NonNullable<ModelSelectorProps['shortcut']>
   onTrigger: () => void
 }) {
-  useShortcut(shortcut, onTrigger)
+  useCommandHandler(shortcut, onTrigger)
   return null
 }

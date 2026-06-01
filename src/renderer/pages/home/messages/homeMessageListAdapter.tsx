@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useCommandHandler } from '@renderer/commands'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks'
 import type {
   MessageGroupRuntime,
@@ -24,7 +25,6 @@ import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useMessageActivityState } from '@renderer/pages/shared/messages/hooks/useMessageActivityState'
 import { useMessageEditorCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageEditorCapabilities'
 import { useMessageEditorConfig } from '@renderer/pages/shared/messages/hooks/useMessageEditorConfig'
@@ -194,7 +194,7 @@ export function useHomeMessageListProviderValue({
     requestAnimationFrame(() => onComponentUpdate?.())
   }, [onComponentUpdate])
 
-  useShortcut('chat.copy_last_message', () => {
+  useCommandHandler('chat.message.copy_last', () => {
     const lastMessage = last(messageItems)
     if (lastMessage) {
       const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
@@ -209,7 +209,7 @@ export function useHomeMessageListProviderValue({
     }
   })
 
-  useShortcut('chat.edit_last_user_message', () => {
+  useCommandHandler('chat.message.edit_last_user', () => {
     const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
     if (lastUserMessage) {
       void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)

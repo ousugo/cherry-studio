@@ -1,8 +1,8 @@
 import '@renderer/databases'
 
+import { useCommandHandler } from '@renderer/commands'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
@@ -25,7 +25,7 @@ export const AppShell = () => {
     void SearchPopup.show()
   }, [])
 
-  useShortcut('general.search', handleOpenGlobalSearch)
+  useCommandHandler('app.search', handleOpenGlobalSearch)
 
   const recordRouteVisit = useCallback(
     (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {

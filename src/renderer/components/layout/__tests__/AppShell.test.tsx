@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   setRecentItems: vi.fn(),
-  shortcutHandlers: new Map<string, () => void>(),
+  commandHandlers: new Map<string, () => void>(),
   showSearchPopup: vi.fn()
 }))
 
@@ -16,9 +16,9 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => false
 }))
 
-vi.mock('@renderer/hooks/useShortcuts', () => ({
-  useShortcut: (key: string, handler: () => void) => {
-    mocks.shortcutHandlers.set(key, handler)
+vi.mock('@renderer/commands', () => ({
+  useCommandHandler: (command: string, handler: () => void) => {
+    mocks.commandHandlers.set(command, handler)
   }
 }))
 
@@ -79,14 +79,14 @@ import { AppShell } from '../AppShell'
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  mocks.shortcutHandlers.clear()
+  mocks.commandHandlers.clear()
 })
 
 describe('AppShell', () => {
   it('opens global search from the shell-level shortcut', () => {
     render(<AppShell />)
 
-    mocks.shortcutHandlers.get('general.search')?.()
+    mocks.commandHandlers.get('app.search')?.()
 
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })

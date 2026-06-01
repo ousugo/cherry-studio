@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useCommandHandler } from '@renderer/commands'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import {
   createRecentSessionEntryFromSession,
@@ -11,7 +12,6 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession, useSession } from '@renderer/hooks/agents/useSession'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversationDefaults, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -126,13 +126,13 @@ const AgentPage = () => {
     isTemporary: isTemporaryView
   })
 
-  useShortcut('general.toggle_sidebar', () => {
+  useCommandHandler('app.sidebar.toggle', () => {
     if (isMessageOnlyView) return
 
     toggleShowSidebar()
   })
 
-  useShortcut('topic.toggle_show_topics', () => {
+  useCommandHandler('topic.sidebar.toggle', () => {
     if (isMessageOnlyView) return
 
     void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)

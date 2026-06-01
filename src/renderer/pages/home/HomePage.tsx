@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useCommandHandler } from '@renderer/commands'
 import { ChatAppShell, EmptyState, LoadingState } from '@renderer/components/chat'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import {
@@ -11,7 +12,6 @@ import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { type TemporaryConversation, useTemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
@@ -266,7 +266,7 @@ const HomePage: FC = () => {
     },
     [persistTemporaryConversation, refreshTopics]
   )
-  useShortcut('general.toggle_sidebar', () => {
+  useCommandHandler('app.sidebar.toggle', () => {
     if (isMessageOnlyView) return
 
     if (!showSidebar) {
@@ -280,7 +280,7 @@ const HomePage: FC = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('topic.toggle_show_topics', () => {
+  useCommandHandler('topic.sidebar.toggle', () => {
     if (isMessageOnlyView) return
 
     if (!showSidebar) {

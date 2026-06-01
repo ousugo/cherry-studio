@@ -1,12 +1,12 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useCommandHandler } from '@renderer/commands'
 import { type ChatPanePosition, ConversationShell } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
@@ -68,7 +68,7 @@ const ChatInner: FC<Props> = (props) => {
     contentSearchRef.current?.disable()
   })
 
-  useShortcut('chat.search_message', () => {
+  useCommandHandler('chat.message.search', () => {
     try {
       const selectedText = window.getSelection()?.toString().trim()
       contentSearchRef.current?.enable(selectedText)
@@ -77,7 +77,7 @@ const ChatInner: FC<Props> = (props) => {
     }
   })
 
-  useShortcut('topic.rename', async () => {
+  useCommandHandler('topic.rename', async () => {
     const topic = props.activeTopic
     if (!topic) return
 
