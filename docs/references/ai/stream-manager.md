@@ -17,44 +17,22 @@ manager replays any chunks that landed in between.
 "streaming" is one phase of a topic, and every subscriber on a topic is
 equal — there is no "owner" window.
 
-## What it solves
+## Why it exists
 
-The v1 stream was a single-use pipeline: renderer IPC → `AiService`
-coupled to `event.sender` → per-chunk `wc.send` → release on end. Three
-structural problems:
+v1 ran the stream lifecycle, fan-out, and persistence on the **renderer**,
+which produced three structural bug classes:
 
-### 1. Stream life cycle bound to the window
+- **Window-bound lifecycle** — unmounting the chat (topic switch, window
+  close, route change) cancelled the transport stream, which aborted the
+  upstream request and dropped the in-flight reply.
+- **No reconnect** — `reconnectToStream()` always returned `null`, so
+  returning to a topic lost live progress until the row hit the DB.
+- **Renderer-owned persistence** — the DB write lived in the renderer, so a
+  crash/close between stream-end and commit lost the reply.
 
-AI SDK's `useChat` holds the `Chat` instance in a `useRef`, which holds
-the transport's `ReadableStream`. When a React component unmounts:
-
-1. The `Chat` ref is GC'd along with the component.
-2. The transport's `ReadableStream` loses its consumer and fires `cancel()`.
-3. Main's stream pipeline sees the reader cancel and aborts the upstream
-   AI request via the `AbortSignal`.
-4. The in-flight reply is discarded; nothing persists.
-
-Observable: switching topics, closing windows, or route changes silently
-drop the in-flight reply.
-
-### 2. No reconnect
-
-The renderer's `IpcChatTransport.reconnectToStream()` always returned
-`null`. AI SDK's `useChat` calls it on mount to check for an "in-flight
-stream"; `null` means "no active stream for this topic".
-
-Observable: leaving and returning to a topic loses live progress even
-when Main is still generating — the user has to wait until the row
-lands in the DB.
-
-### 3. Persistence on the renderer side
-
-`ChatSessionManager.handleFinish` (~440 lines on the renderer) owned the
-DB write. Its survival depended on the window — a renderer crash, window
-close, or page refresh between stream-end and DB-commit lost the reply.
-
-**Goal.** Stream life cycle, multicast fan-out, and persistence move to
-Main. The renderer's only job is rendering chunks.
+**Goal:** move stream lifecycle, multicast fan-out, and persistence to Main;
+the renderer's only job is rendering chunks. The sections below are the
+reference for that Main-side design.
 
 ## Architecture
 
@@ -223,7 +201,7 @@ src/main/ai/streamManager/
         └── TranslationBackend.ts      attach `data-translation` part to a target message
 ```
 
-Agent session persistence is implemented under `agent-session/persistence`
+Agent session persistence is implemented under `agentSession/persistence`
 because it writes the agent-session domain tables.
 
 ## StreamListener interface
@@ -616,161 +594,33 @@ still generating):
   queues mean no race for a single shared copy.
 - Every model sees the full follow-up sequence.
 
-## End-to-end data flows
+## End-to-end flows
 
-### Submit message (standard path)
+One row per flow. The two with dedicated docs are cross-linked rather than
+duplicated; the rest are stream-manager-specific.
 
-```
-Renderer                           Main
-────────                           ────
-1. transport.sendMessages()
-2. Ai_Stream_Open ────────────→  dispatchStreamRequest(subscriber, req)
-                                    │
-                                    └─ provider.prepareDispatch(subscriber, req, ctx)
-                                         ├─ persist user message
-                                         ├─ reserve assistant placeholder(s)
-                                         ├─ build listeners + models
-                                         └─ return PreparedDispatch
-                                    │
-                                    └─ manager.send(prepared)
-                                         ├─ create ActiveStream + N executions
-                                         └─ each execution starts runExecutionLoop
-                                              │
-3. ←── Ai_StreamChunk ──── WebContentsListener ←── onChunk broadcast
-4. ←── Ai_StreamChunk ──── ...
-                                              │
-                                          (stream ends)
-                                              │
-5. ←── Ai_StreamDone ──── WebContentsListener ←── onExecutionDone
-                          PersistenceListener ←── onExecutionDone
-                             └─ backend.persistAssistant(...)
-                                              │
-                                          chat lifecycle → scheduleCleanup(30 s)
-```
+| Flow | Trigger | Mechanism | Terminal / result |
+|---|---|---|---|
+| Submit (standard) | `Ai_Stream_Open` | `dispatchStreamRequest` → `prepareDispatch` (persist user msg, reserve placeholders, build listeners + models) → `manager.send` → N × `runExecutionLoop` | `Ai_StreamDone`; `PersistenceListener.persistAssistant`; chat lifecycle `scheduleCleanup(30 s)` |
+| Mid-stream injection | `Ai_Stream_Open` on a live topic | `manager.send` → `pendingMessages.push` per execution, listeners upsert-by-id → `{ mode: 'injected' }`; each consumer drains its queue between iterations | merges into the running turn — see [Agent Loop](./agent-loop.md#pending-messages) |
+| Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `Ai_ToolApproval_Respond`; Claude-Agent unblocks `canUseTool`, MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
+| Reconnect | `Ai_Stream_Attach` on mount | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | live chunks resume, or the final row is returned |
+| Abort — user stop | `Ai_Stream_Abort` | per exec: close `pendingMessages`, `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done` | partial persisted as **`paused`**; topic status → `aborted` (or `awaiting-approval` if an exec had it set) |
+| Abort — no subscribers | last `WebContentsListener` dies + `backgroundMode === 'abort'` | `onChunk` prunes dead listeners; `listeners.size === 0` → auto `abort(topicId, 'no-subscribers')` | partial persisted as **`paused`** — never silently `success` or leaked |
+| Multi-window | window B opens a live topic | B sends `Ai_Stream_Attach` → compact replay + its own `WebContentsListener`; each chunk fans out to A and B | both windows render the same chunks in sync |
+| Channel / Agent | `AiStreamManager.send` in-process (no IPC) | scenario differs only by listener composition (table below) | per-listener effect |
 
-### Tool-approval pause + resume
+**Topic status needs no `attach`.** Observers that only care "is this topic
+live?" (sidebar loading indicators, topic-list status dots) don't register a
+`WebContentsListener`. Every status transition writes the SharedCache key
+`topic.stream.statuses.${topicId}`; observers read it via `useSharedCache`
+directly. `Ai_Stream_Attach` is only needed when a window wants live chunks.
 
-```
-Renderer                           Main
-────────                           ────
-                                   Stream emits `tool-approval-request` chunk
-                                     └─ exec.awaitingApproval = true
-                                     └─ ChatStreamLifecycle broadcasts:
-                                          { status, awaitingApprovalAnchors: [{ executionId, anchorMessageId }] }
-                                     └─ stream ends (cleanly, via onExecutionDone)
-                                     └─ resolveTerminalStatus → 'awaiting-approval'
-   useTopicAwaitingApproval(topic).isAwaitingApproval = true
-   → UI shows approval card
-1. Ai_ToolApproval_Respond ───→  AiService handler
-                                     ├─ apply decisions to anchor.data.parts (DB authoritative)
-                                     ├─ if all approvals decided:
-                                     │    Claude-Agent: toolApprovalRegistry.dispatch unblocks canUseTool
-                                     │    MCP:          dispatchStreamRequest(continue-conversation request)
-                                     │                  └─ persistent provider resumes against anchor
-                                     └─ new stream onCreated → broadcasts 'pending'
-                                          → cross-window cache flips back
-                                          → renderer hides approval card
-```
-
-### Mid-stream message injection
-
-```
-Renderer                           Main
-────────                           ────
-Stream still running...
-1. Ai_Stream_Open ────────────→  provider.prepareDispatch → PreparedDispatch
-                                    │
-                                    └─ manager.send (live stream)
-                                         ├─ each execution: pendingMessages.push(userMessage)
-                                         ├─ listeners upsert (by id)
-                                         └─ return { mode: 'injected', executionIds }
-                                    │
-                                    Each execution's consumer (agent loop or Claude Code)
-                                    drains its own queue between iterations and appends
-                                    the messages to its history.
-```
-
-### Reconnect (returning to a topic)
-
-```
-Renderer                           Main
-────────                           ────
-useChat mounts → transport.reconnectToStream()
-Ai_Stream_Attach ──────────→  manager.attach(sender, { topicId })
-                                 ├─ no stream      → { status: 'not-found' }
-                                 ├─ streaming      → register WebContentsListener;
-                                 │                    return compact replay per execution
-                                 ├─ done / paused  → { finalMessage, finalMessages }
-                                 └─ error          → { error }
-```
-
-### Abort & backgroundMode
-
-**User stop (`Ai_Stream_Abort`).**
-
-1. `manager.abort(topicId, 'user-requested')`.
-2. Per execution:
-   - Close `exec.pendingMessages` (unblocks any consumer waiting on `next()`).
-   - `exec.status = 'aborted'`.
-   - `abortController.abort(reason)` → execution loop's `signal` is
-     aborted → broadcast reader's `cancel()` → main read loop returns
-     `done`.
-3. Exit path is "signal aborted + status === 'aborted'" →
-   `onExecutionPaused` → partial finalMessage persisted as `paused`.
-4. Topic-level `stream.status` derives to `aborted` (or
-   `awaiting-approval` if any exec had `awaitingApproval` set).
-
-**Every listener dies + `config.backgroundMode === 'abort'`.**
-
-Scenario: every observing window closed (every
-`WebContentsListener.isAlive()` returns false).
-
-1. `onChunk` removes dead listeners before each broadcast.
-2. If `stream.listeners.size === 0` after cleanup, manager auto-calls
-   `abort(topicId, 'no-subscribers')`.
-3. Same path as user stop — partial persisted as `paused`.
-
-Guarantee: with every window closed, the partial reply is correctly
-marked `paused`, never silently labelled `success` or leaked.
-
-### Multi-window observation
-
-```
-Window A                            Window B
-──────                              ──────
-Ai_Stream_Open                      (later)
-  → WebContentsListener(A) +        opens same topic
-    PersistenceListener             Ai_Stream_Attach
-                                     → returns compact replay
-                                     → register WebContentsListener(B)
-
-chunk arrives:
-  WebContentsListener(A) → A renders
-  WebContentsListener(B) → B renders  (same chunk, both windows in sync)
-```
-
-**Topic status needs no `attach`.** Observers that only care "is this
-topic live?" (sidebar loading indicators, topic list status dots, …)
-don't register a `WebContentsListener`. Every status transition writes
-to the SharedCache key `topic.stream.statuses.${topicId}`; observers
-just `useSharedCache(...)` directly. `Ai_Stream_Attach` is only
-needed when a window wants live chunks (e.g. rendering the in-flight
-message).
-
-### Channel / Agent integration
+### Channel / Agent listener composition
 
 Channel adapters and the agent scheduler call `AiStreamManager.send`
-directly inside Main — no IPC:
-
-```typescript
-aiStreamManager.send({
-  topicId,
-  models: [{ modelId: uniqueModelId, request: {...} }],
-  listeners: [new ChannelAdapterListener(adapter, chatId), sentinelListener]
-})
-```
-
-The scenario differences are entirely in the listener composition:
+directly inside Main — no IPC. The scenario differences are entirely in the
+listener composition:
 
 | Scenario | Listeners | Effect |
 |---|---|---|

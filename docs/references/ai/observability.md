@@ -1,4 +1,8 @@
-# Trace
+# Observability
+
+The `src/main/ai/observability/` subsystem: OTel tracing, the local span
+projection (trace viewer), and the sink registry. "Trace / telemetry" is the
+user-facing surface; this doc covers the whole subsystem.
 
 ## What's instrumented
 
@@ -21,8 +25,8 @@ path without going through the AI SDK adapter.
 The main-process observability boundary is `src/main/ai/observability`:
 
 - `core/` creates Cherry-owned turn roots and common `cs.*` attributes.
-- `adapters/ai-sdk/` interprets AI SDK child spans.
-- `adapters/claude-code/` interprets Claude Code OTLP spans and logs.
+- `adapters/aiSdk/` interprets AI SDK child spans.
+- `adapters/claudeCode/` interprets Claude Code OTLP spans and logs.
 - `cache/` keeps the trace-window projection and JSONL-compatible history.
 - `sinks/` defines the extension point for local and future external export.
 
@@ -57,8 +61,10 @@ by the global provider. On every `startSpan` / `startActiveSpan` it:
 
 `AdapterTracer` is intentionally only for AI SDK child spans:
 
-- `buildTelemetry` (`runtime/ai-sdk/params/buildTelemetry.ts`) — passed to AI
+- `buildTelemetry` (`runtime/aiSdk/params/buildTelemetry.ts`) — passed to AI
   SDK as `experimental_telemetry.tracer`. Captures every AI SDK auto-span.
+  Returns `undefined` (no telemetry, no tracer) when there is no `topicId`
+  or developer mode is off — see below.
 
 ## AiSdkSpanAdapter
 
@@ -68,8 +74,10 @@ shape the dev-tools UI consumes:
 - Reads span name, attributes, events, status, links.
 - Recovers AI SDK's hierarchical attribute conventions:
   `ai.xxx` is a level, `ai.xxx.yyy` is a sub-level under it.
-- Normalises usage attributes (`ai.usage.input_tokens` /
-  `output_tokens` / `reasoning_tokens` / …) across providers.
+- Normalises usage attributes across the base and LLM spans: input from
+  `ai.usage.promptTokens` / `gen_ai.usage.input_tokens`, output from
+  `ai.usage.completionTokens` / `gen_ai.usage.output_tokens`. (There is no
+  reasoning-token extraction.)
 
 Claude Code Agent SDK spans do not go through `AiSdkSpanAdapter`; they are
 converted by `src/main/ai/observability/adapters/claudeCode/ClaudeCodeOtlpAdapter.ts`.
@@ -77,10 +85,11 @@ converted by `src/main/ai/observability/adapters/claudeCode/ClaudeCodeOtlpAdapte
 ## Where it shows up in the UI
 
 Dev mode only. The dev-tools span viewer reads from the local observability
-projection (`SpanCacheService`) and renders the per-topic tree. Disabled in
-production builds — the adapter tracer is still attached, but the local
-projection is short-circuited. Viewer mount, tab close, and window close are
-not part of the trace persistence lifecycle.
+projection (`SpanCacheService`) and renders the per-topic tree. Outside
+developer mode `buildTelemetry` returns `undefined`, so **no tracer is
+attached at all** and the AI SDK emits no spans — there is nothing to
+project. Viewer mount, tab close, and window close are not part of the
+trace persistence lifecycle.
 
 ## Where to read more
 

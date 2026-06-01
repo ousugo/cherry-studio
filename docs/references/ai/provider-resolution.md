@@ -47,16 +47,31 @@ export function resolveAiSdkProviderId(provider, endpointType) {
 
 ## Variants
 
-Some adapters expose multiple variants (different endpoints, same SDK
-package). Variant suffix is appended to the base id:
+Some bases expose variant ids (a different endpoint on the same base).
+`resolveProviderVariant` knows two suffix rules and applies one only when
+the resulting `<base>-<suffix>` id is actually registered — otherwise it
+returns the base unchanged:
 
-| Base | Variants | When picked |
-|---|---|---|
-| `openai` | `openai-chat`, `openai-responses` | endpoint = `openai-chat-completions` / `openai-responses` |
-| `azure` | `azure-responses` | endpoint = `openai-responses` |
-| `ollama` | `ollama-chat` | endpoint = `ollama-chat` |
+| Endpoint type | Suffix tried |
+|---|---|
+| `openai-chat-completions`, `ollama-chat` | `-chat` |
+| `openai-responses` | `-responses` |
 
-`resolveProviderVariant(baseId, endpointType)` does the mapping and is
+Variants registered today (declared in each provider extension's
+`variants` array, `packages/aiCore/src/core/providers/core/initialization.ts`):
+
+| Base | Variant id(s) |
+|---|---|
+| `openai` | `openai-chat` (the base `openai` is itself the Responses API) |
+| `azure` | `azure-responses`, `azure-anthropic` |
+| `xai` | `xai-responses` |
+| `cherryin` | `cherryin-chat` |
+
+`ollama` has no registered variant, so an `ollama-chat` endpoint resolves
+to the base `ollama`. Likewise there is **no `openai-responses` variant**
+(the base already is). `azure-anthropic` is not reached through the suffix
+rule — it is selected inside `buildAzureConfig` when the model is a Claude
+model (see below). `resolveProviderVariant(baseId, endpointType)` is
 idempotent when the base id is already a variant.
 
 ## Provider config
@@ -64,13 +79,28 @@ idempotent when the base id is already a variant.
 `providerToAiSdkConfig(provider, model)`
 (`src/main/ai/provider/config.ts`) returns
 `{ providerId: AppProviderId, providerSettings: AppProviderSettingsMap[id] }`.
-It calls `resolveAiSdkProviderId` internally and then builds the
-provider-specific settings object (apiKey, baseURL, organization,
-headers, ...).
+It calls `resolveAiSdkProviderId` internally, then dispatches through an
+ordered `{ match, build }` table to build the provider-specific settings
+object (apiKey, baseURL, organization, headers, ...). There is **no
+"gateway" branch**.
 
-Special cases:
+The builder table (`config.ts`, first match wins):
 
-- **Gateway** — settings built asynchronously (model-list dependent).
+| Match | Builder | Notes |
+|---|---|---|
+| `id === copilot` | `buildCopilotConfig` | async — fetches a Copilot token |
+| `id === 'cherryai'` | `buildCherryAIConfig` | |
+| `isOllamaProvider` | `buildOllamaConfig` | |
+| `isAzureOpenAIProvider` | `buildAzureConfig` | returns `azure` / `azure-responses` / `azure-anthropic` (Claude on Azure) |
+| `id === 'bedrock'` | `buildBedrockConfig` | |
+| `id === 'google-vertex'` | `buildVertexConfig` | returns `google-vertex` or `google-vertex-anthropic` for Claude |
+| `id === 'cherryin'` | `buildCherryinConfig` | async — resolves relay base URLs |
+| `id === 'newapi'` | `buildNewApiConfig` | |
+| `id === 'aihubmix'` | `buildAiHubMixConfig` | |
+| _(no match)_ | `buildGenericProviderConfig` / `buildOpenAICompatibleConfig` | generic fallback |
+
+Several builders are `async` (Copilot token, CherryIN relay URLs), which is
+why `providerToAiSdkConfig` returns a promise.
 
 ## Custom providers
 

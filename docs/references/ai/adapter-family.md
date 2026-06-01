@@ -1,9 +1,11 @@
 # Adapter Family
 
-`adapterFamily` is the field on every `EndpointConfig` that picks the
-`@ai-sdk/*` package implementing that endpoint's protocol. The runtime
-resolver reads it; UI and migrator code derive it; the schema enforces
-its presence.
+`adapterFamily` is the optional field on each `EndpointConfig` that picks
+the `@ai-sdk/*` package implementing that endpoint's protocol. The runtime
+resolver reads it; the catalog seeder and the v1→v2 migrator write it. The
+schema declares it `optional`, and the resolver has a total fallback
+(`openai-compatible`) for endpoints that omit it — so no write path is
+obligated to set it.
 
 ## Identity stack
 
@@ -60,31 +62,37 @@ export function inferAdapterFamily(endpointType, catalogConfig?): string {
 | `openai-responses` | `openai` |
 | everything else | `openai-compatible` (terminal fallback) |
 
-### Three write paths
+### Write paths
+
+Only two paths write `adapterFamily`; both run in the **main** process at
+row-write time:
 
 1. **Catalog (new installs)** — `packages/provider-registry/data/providers.json`
    declares `adapterFamily` per endpoint per provider. The seeder copies
    it through via `buildRuntimeEndpointConfigs`.
 2. **v1 → v2 migration (existing users)** —
-   `src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts::buildEndpointConfigs`
-   looks up the catalog by legacy id, falls back to legacy
-   `provider.type`, finally to the endpoint-type default. The
-   `ANTHROPIC_MESSAGES` endpoint skips the legacy-type hint because v1
-   custom anthropic relays carried `legacy.type='openai'` even when the
-   endpoint was anthropic-format.
-3. **UI custom provider creation** — the form calls
-   `inferAdapterFamily(userPickedEndpoint, catalogConfigIfAny)`. The
-   user never picks `adapterFamily` directly — they pick
-   `endpointType` from a dropdown, which determines the family.
+   `src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts`
+   looks up the catalog by legacy id and, on a miss, calls
+   `inferAdapterFamily(endpointType)` for the endpoint-type default
+   (`ProviderModelMigrator.ts` carries a preset's `adapterFamily` forward
+   on merge). The `ANTHROPIC_MESSAGES` endpoint skips the legacy-type hint
+   because v1 custom anthropic relays carried `legacy.type='openai'` even
+   when the endpoint was anthropic-format.
+
+The renderer's custom-provider form does **not** set `adapterFamily`:
+`ProviderEditorDrawer.tsx` writes only `baseUrl` into the endpoint config,
+leaving the field absent so the resolver's `openai-compatible` fallback
+applies. `inferAdapterFamily` has **no renderer callers** — it is invoked
+only by the migrator above.
 
 ## Schema
 
-`packages/shared/data/types/provider.ts::EndpointConfigSchema`:
+`src/shared/data/types/provider.ts::EndpointConfigSchema`:
 
 ```ts
 EndpointConfigSchema = z.object({
-  baseUrl: z.string(),
-  adapterFamily: z.string(),       // required
+  baseUrl: z.string().optional(),
+  adapterFamily: z.string().optional(),   // optional — resolver falls back to openai-compatible
   // ... other endpoint-config fields
 })
 ```
@@ -103,6 +111,5 @@ mirrors this for catalog entries.
 
 ## Where to read more
 
-- Reviewer narrative (why this design): `v2-refactor-temp/docs/ai/adapter-family.md`
 - Runtime usage: [Provider Resolution](./provider-resolution.md)
 - Catalog: `packages/provider-registry/data/providers.json`
