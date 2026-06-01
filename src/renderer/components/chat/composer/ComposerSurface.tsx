@@ -88,6 +88,7 @@ export interface ComposerSurfaceProps {
   suggestionSources?: readonly ComposerSuggestionSource[]
   queueContent?: React.ReactNode
   rootPanelAdditionalItems?: readonly QuickPanelListItem[]
+  onRootPanelOpen?: () => void
   onToolLauncherSelect?: ComposerRootPanelSelectHandler
   renderLeftControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
   renderBelowControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
@@ -316,6 +317,7 @@ export default function ComposerSurface({
   suggestionSources = [],
   queueContent,
   rootPanelAdditionalItems,
+  onRootPanelOpen,
   onToolLauncherSelect,
   renderLeftControls,
   renderBelowControls
@@ -325,6 +327,8 @@ export default function ComposerSurface({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
+  const quickPanelRef = useRef(quickPanel)
+  quickPanelRef.current = quickPanel
   const { forceWideLayout } = useChatLayoutMode()
   const { setTimeoutTimer } = useTimer()
   const editorMinHeight = getComposerEditorMinHeight(fontSize)
@@ -505,13 +509,21 @@ export default function ComposerSurface({
     })
   }, [handleTextChangeFromTool, handleToggleExpanded, insertToken, onActionsChange, removeToken])
 
+  const rootPanelOpenRefreshRequestedRef = useRef(false)
   const rootSuggestionStateRef = useRef({
     getToolLaunchers,
+    onRootPanelOpen,
     onToolLauncherSelect,
     quickPanel,
     rootPanelAdditionalItems
   })
-  rootSuggestionStateRef.current = { getToolLaunchers, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems }
+  rootSuggestionStateRef.current = {
+    getToolLaunchers,
+    onRootPanelOpen,
+    onToolLauncherSelect,
+    quickPanel,
+    rootPanelAdditionalItems
+  }
 
   const rootSuggestionSource = useMemo<ComposerSuggestionSource>(
     () => ({
@@ -522,7 +534,7 @@ export default function ComposerSurface({
       allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
       items: () => [],
       onActiveChange: ({ editor, query, range, text }) => {
-        const { getToolLaunchers, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems } =
+        const { getToolLaunchers, onRootPanelOpen, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems } =
           rootSuggestionStateRef.current
         const launchers = getToolLaunchers?.() ?? []
         const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
@@ -551,6 +563,11 @@ export default function ComposerSurface({
           originalText: triggerText
         } as const
 
+        if (!rootPanelOpenRefreshRequestedRef.current) {
+          rootPanelOpenRefreshRequestedRef.current = true
+          onRootPanelOpen?.()
+        }
+
         quickPanel.open(
           createRootQuickPanelOpenOptions(launchers, {
             onToolLauncherSelect,
@@ -567,6 +584,7 @@ export default function ComposerSurface({
         return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
       },
       onExit: () => {
+        rootPanelOpenRefreshRequestedRef.current = false
         window.setTimeout(() => {
           const { quickPanel } = rootSuggestionStateRef.current
           if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.Root) {
@@ -940,6 +958,38 @@ export default function ComposerSurface({
       }
     }
   }, [editor])
+
+  const isRootQuickPanelVisible =
+    quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.Root
+  const rootQuickPanelQueryAnchor = quickPanel.queryAnchor
+  const rootQuickPanelTriggerInfo = quickPanel.triggerInfo
+
+  useEffect(() => {
+    if (!isRootQuickPanelVisible) return
+
+    const currentQuickPanel = quickPanelRef.current
+    const launchers = getToolLaunchers?.() ?? []
+    currentQuickPanel.updateList(
+      createRootQuickPanelOpenOptions(launchers, {
+        onToolLauncherSelect,
+        inputAdapter,
+        quickPanel: currentQuickPanel,
+        title: t('settings.quickPanel.title'),
+        additionalItems: rootPanelAdditionalItems,
+        queryAnchor: rootQuickPanelQueryAnchor,
+        triggerInfo: rootQuickPanelTriggerInfo
+      }).list
+    )
+  }, [
+    getToolLaunchers,
+    inputAdapter,
+    isRootQuickPanelVisible,
+    onToolLauncherSelect,
+    rootPanelAdditionalItems,
+    rootQuickPanelQueryAnchor,
+    rootQuickPanelTriggerInfo,
+    t
+  ])
 
   useEffect(() => {
     PasteService.init()

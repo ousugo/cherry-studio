@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   enqueueDraft: vi.fn(),
   insertToken: vi.fn(),
   availableSkills: [] as LocalSkill[],
+  availableSkillsRefresh: vi.fn(),
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
@@ -252,7 +253,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
     skills: mocks.availableSkills,
     loading: false,
     error: null,
-    refresh: vi.fn()
+    refresh: mocks.availableSkillsRefresh
   })
 }))
 
@@ -396,6 +397,8 @@ describe('AgentComposer', () => {
     mocks.enqueueDraft.mockResolvedValue(undefined)
     mocks.insertToken.mockReset()
     mocks.availableSkills = []
+    mocks.availableSkillsRefresh.mockReset()
+    mocks.availableSkillsRefresh.mockResolvedValue(undefined)
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
@@ -578,6 +581,8 @@ describe('AgentComposer', () => {
       })
     )
     expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'skill'])
+    mocks.surfaceProps?.onRootPanelOpen?.()
+    expect(mocks.availableSkillsRefresh).toHaveBeenCalledOnce()
 
     const inputAdapter = {
       getText: vi.fn(() => ''),

@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   quickPanelIsVisible: false,
   quickPanelOpen: vi.fn(),
   quickPanelSymbol: '',
+  quickPanelUpdateList: vi.fn(),
   selection: { from: 1 } as any,
   transaction: undefined as any
 }))
@@ -74,7 +75,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
     isVisible: mocks.quickPanelIsVisible,
     open: mocks.quickPanelOpen,
     symbol: mocks.quickPanelSymbol,
-    updateList: vi.fn()
+    updateList: mocks.quickPanelUpdateList
   })
 }))
 
@@ -263,6 +264,7 @@ describe('ComposerSurface', () => {
     mocks.quickPanelIsVisible = false
     mocks.quickPanelOpen.mockReset()
     mocks.quickPanelSymbol = ''
+    mocks.quickPanelUpdateList.mockReset()
     mocks.selection = { from: 1, to: 1, $to: {} }
     mocks.transaction = {
       doc: {},
@@ -653,11 +655,13 @@ describe('ComposerSurface', () => {
   })
 
   it('appends additional items at the end of the QuickPanel root list', async () => {
+    const onRootPanelOpen = vi.fn()
     render(
       <ComposerSurface
         {...baseProps}
         quickPanelEnabled
         enableQuickPanelTriggers
+        onRootPanelOpen={onRootPanelOpen}
         getToolLaunchers={() => [
           {
             id: 'generate-image',
@@ -681,7 +685,7 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
 
     const rootSource = mocks.editorPresetOptions.suggestionSources[0]
-    rootSource.onActiveChange({
+    const activeChangeOptions = {
       editor: {
         state: {
           doc: {
@@ -693,8 +697,11 @@ describe('ComposerSurface', () => {
       query: '',
       text: '/',
       items: []
-    })
+    }
+    rootSource.onActiveChange(activeChangeOptions)
+    rootSource.onActiveChange(activeChangeOptions)
 
+    expect(onRootPanelOpen).toHaveBeenCalledOnce()
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         list: [
@@ -703,6 +710,73 @@ describe('ComposerSurface', () => {
         ]
       })
     )
+
+    rootSource.onExit(activeChangeOptions)
+    rootSource.onActiveChange(activeChangeOptions)
+    expect(onRootPanelOpen).toHaveBeenCalledTimes(2)
+  })
+
+  it('updates the open QuickPanel root list when additional items change', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = 'root'
+
+    const getToolLaunchers = () => [
+      {
+        id: 'generate-image',
+        kind: 'command' as const,
+        label: 'Generate image',
+        description: 'Generate an image',
+        icon: 'image'
+      }
+    ]
+
+    const { rerender } = render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={getToolLaunchers}
+        rootPanelAdditionalItems={[
+          {
+            id: 'skill:pdf',
+            label: 'pdf',
+            description: 'Read PDFs',
+            icon: 'sparkles'
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
+        expect.objectContaining({ label: 'Generate image' }),
+        expect.objectContaining({ id: 'skill:pdf', label: 'pdf', description: 'Read PDFs' })
+      ])
+    })
+
+    mocks.quickPanelUpdateList.mockClear()
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={getToolLaunchers}
+        rootPanelAdditionalItems={[
+          {
+            id: 'skill:docx',
+            label: 'docx',
+            description: 'Read DOCX files',
+            icon: 'sparkles'
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
+        expect.objectContaining({ label: 'Generate image' }),
+        expect.objectContaining({ id: 'skill:docx', label: 'docx', description: 'Read DOCX files' })
+      ])
+    })
   })
 
   it('syncs external managed file and skill tokens into the editor document', async () => {
