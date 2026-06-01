@@ -108,6 +108,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.145
         version: 0.3.145(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(zod@4.3.4)
+      '@cherrystudio/ripgrep':
+        specifier: ^1.0.0
+        version: 1.0.0
       '@expo/sudo-prompt':
         specifier: ^9.3.2
         version: 9.3.2
@@ -340,9 +343,6 @@ importers:
       '@cherrystudio/provider-registry':
         specifier: workspace:*
         version: link:packages/provider-registry
-      '@cherrystudio/ripgrep':
-        specifier: ^1.0.0
-        version: 1.0.0
       '@cherrystudio/ui':
         specifier: workspace:*
         version: link:packages/ui
