@@ -22,7 +22,6 @@ import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmixProvider'
-import { createDashScope, type DashScopeProviderSettings } from '../custom/dashscopeProvider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
 
 export const GoogleVertexExtension = ProviderExtension.create({
@@ -141,13 +140,6 @@ export const NewApiExtension = ProviderExtension.create({
   create: createNewApi
 } as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ProviderV3, 'newapi'>)
 
-/** DashScope/Bailian — OpenAI-compatible chat with provider-specific rerank endpoint. */
-export const DashScopeExtension = ProviderExtension.create({
-  name: 'dashscope',
-  supportsImageGeneration: true,
-  create: createDashScope
-} as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'dashscope'>)
-
 export const TogetherAIExtension = ProviderExtension.create({
   name: 'togetherai',
   aliases: [SystemProviderIds.together] as const,
@@ -176,7 +168,6 @@ export const extensions = [
   OllamaExtension,
   AiHubMixExtension,
   NewApiExtension,
-  DashScopeExtension,
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension

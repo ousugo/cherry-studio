@@ -1,4 +1,4 @@
-import type { ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type { ProviderV3 } from '@ai-sdk/provider'
 import QuickLRU from 'quick-lru'
 
 import { deepMergeObjects } from '../../utils'
@@ -51,9 +51,6 @@ interface ProviderExtensionConfigBase<
    * 工具工厂从 provider 实例的 .tools 属性提取
    */
   toolFactories?: ToolFactoryMap<TProvider>
-
-  /** Creates provider.rerankingModel when the SDK provider does not expose it natively. */
-  createRerankingModel?: (modelId: string, settings: TSettings) => RerankingModelV3
 }
 
 /**
@@ -254,8 +251,6 @@ export class ProviderExtension<
       throw new Error(`ProviderExtension "${this.config.name}": cannot create provider, invalid configuration`)
     }
 
-    this.attachRerankingModel(baseProvider as TProvider, mergedSettings)
-
     let finalProvider: TProvider
     if (variantSuffix) {
       const variant = this.getVariant(variantSuffix)!
@@ -274,19 +269,9 @@ export class ProviderExtension<
       finalProvider = baseProvider as TProvider
     }
 
-    this.attachRerankingModel(finalProvider, mergedSettings)
     this.instances.set(hash, finalProvider)
 
     return finalProvider
-  }
-
-  private attachRerankingModel(provider: TProvider, settings: TSettings): void {
-    const { createRerankingModel } = this.config
-    if (!createRerankingModel || provider.rerankingModel) {
-      return
-    }
-
-    provider.rerankingModel = (modelId: string) => createRerankingModel(modelId, settings)
   }
 
   /**

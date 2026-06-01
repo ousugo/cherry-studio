@@ -9,7 +9,6 @@ import {
   embedMany as _embedMany,
   generateImage as _generateImage,
   generateText as _generateText,
-  rerank as _rerank,
   streamText as _streamText
 } from 'ai'
 
@@ -24,8 +23,6 @@ import type {
   generateImageParams,
   generateImageResult,
   generateTextParams,
-  RerankParams,
-  RerankResult,
   RuntimeConfig,
   streamTextParams
 } from './types'
@@ -186,20 +183,6 @@ export class RuntimeExecutor<
 
     return _embedMany({
       model: embeddingModel,
-      ...options
-    })
-  }
-
-  async rerank(params: RerankParams): Promise<RerankResult> {
-    const { model: modelOrId, ...options } = params
-
-    const rerankingModel =
-      typeof modelOrId === 'string'
-        ? this.registry.rerankingModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
-        : modelOrId
-
-    return _rerank({
-      model: rerankingModel,
       ...options
     })
   }

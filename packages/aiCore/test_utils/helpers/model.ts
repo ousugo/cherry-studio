@@ -8,8 +8,7 @@ import type {
   ImageModelV3,
   LanguageModelV3,
   LanguageModelV3Middleware,
-  ProviderV3,
-  RerankingModelV3
+  ProviderV3
 } from '@ai-sdk/provider'
 import type { Tool, ToolSet } from 'ai'
 import { tool } from 'ai'
@@ -120,22 +119,6 @@ export function createMockEmbeddingModel(overrides?: Partial<EmbeddingModelV3>):
   } as EmbeddingModelV3
 }
 
-export function createMockRerankingModel(overrides?: Partial<RerankingModelV3>): RerankingModelV3 {
-  return {
-    specificationVersion: 'v3',
-    provider: 'mock-provider',
-    modelId: 'mock-reranking-model',
-    doRerank: vi.fn().mockResolvedValue({
-      ranking: [
-        { index: 1, relevanceScore: 0.9 },
-        { index: 0, relevanceScore: 0.2 }
-      ],
-      response: { headers: {} }
-    }),
-    ...overrides
-  } as RerankingModelV3
-}
-
 /**
  * Creates a complete mock ProviderV3 with all model types
  * Useful for testing provider registration and management
@@ -154,7 +137,6 @@ export function createMockProviderV3(overrides?: {
   languageModel?: (modelId: string) => LanguageModelV3
   imageModel?: (modelId: string) => ImageModelV3
   embeddingModel?: (modelId: string) => EmbeddingModelV3
-  rerankingModel?: (modelId: string) => RerankingModelV3
 }): ProviderV3 {
   const defaultLanguageModel = (modelId: string) =>
     ({
@@ -238,20 +220,13 @@ export function createMockProviderV3(overrides?: {
       })
     }) as EmbeddingModelV3
 
-  const defaultRerankingModel = (modelId: string) =>
-    createMockRerankingModel({
-      provider: overrides?.provider ?? 'mock-provider',
-      modelId
-    })
-
   return {
     specificationVersion: 'v3',
     provider: overrides?.provider ?? 'mock-provider',
 
     languageModel: vi.fn(overrides?.languageModel ?? defaultLanguageModel),
     imageModel: vi.fn(overrides?.imageModel ?? defaultImageModel),
-    embeddingModel: vi.fn(overrides?.embeddingModel ?? defaultEmbeddingModel),
-    rerankingModel: vi.fn(overrides?.rerankingModel ?? defaultRerankingModel)
+    embeddingModel: vi.fn(overrides?.embeddingModel ?? defaultEmbeddingModel)
   } as ProviderV3
 }
 

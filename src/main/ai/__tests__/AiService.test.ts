@@ -1,31 +1,13 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGenerateImage = vi.fn()
-const mockRerank = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
-const mockProviderGetByProviderId = vi.fn()
-const mockProviderGetRotatedApiKey = vi.fn()
-const mockModelGetByKey = vi.fn()
 
 vi.mock('@main/core/application', () => ({
   application: {
     get: mockApplicationGet
-  }
-}))
-
-vi.mock('@main/data/services/ProviderService', () => ({
-  providerService: {
-    getByProviderId: (...args: unknown[]) => mockProviderGetByProviderId(...args),
-    getRotatedApiKey: (...args: unknown[]) => mockProviderGetRotatedApiKey(...args)
-  }
-}))
-
-vi.mock('@main/data/services/ModelService', () => ({
-  modelService: {
-    getByKey: (...args: unknown[]) => mockModelGetByKey(...args)
   }
 }))
 
@@ -36,8 +18,7 @@ vi.mock('@main/utils/downloadAsBase64', () => ({
 vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: vi.fn(),
   embedMany: vi.fn(),
-  generateImage: (...args: unknown[]) => mockGenerateImage(...args),
-  rerank: (...args: unknown[]) => mockRerank(...args)
+  generateImage: (...args: unknown[]) => mockGenerateImage(...args)
 }))
 
 const { AiService } = await import('../AiService')
@@ -54,32 +35,6 @@ function createService(): InstanceType<typeof AiService> {
 describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockProviderGetRotatedApiKey.mockResolvedValue('test-key')
-    mockProviderGetByProviderId.mockResolvedValue({
-      id: 'test-provider',
-      name: 'Test Provider',
-      apiKeys: [],
-      authType: 'api-key',
-      apiFeatures: {
-        arrayContent: true,
-        streamOptions: true,
-        developerRole: false,
-        serviceTier: false,
-        verbosity: false
-      },
-      settings: {},
-      isEnabled: true
-    })
-    mockModelGetByKey.mockResolvedValue({
-      id: 'test-provider::test-model',
-      providerId: 'test-provider',
-      apiModelId: 'test-model',
-      name: 'Test Model',
-      capabilities: [],
-      supportsStreaming: true,
-      isEnabled: true,
-      isHidden: false
-    })
   })
 
   it('routes agent-session runtime requests directly to the runtime service', async () => {
@@ -197,93 +152,5 @@ describe('AiService', () => {
     expect(result).toEqual({
       images: [{ kind: 'base64', data: 'data:image/png;base64,abc123', mediaType: 'image/png' }]
     })
-  })
-
-  it('routes rerank requests through ai-core rerank', async () => {
-    const service = createService()
-    const abortController = new AbortController()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: {
-        providerId: 'test-provider',
-        providerSettings: {},
-        modelId: 'test-reranker'
-      },
-      options: {
-        headers: { 'x-test': 'yes' },
-        maxRetries: 0
-      }
-    } as never)
-
-    mockRerank.mockResolvedValue({
-      ranking: [
-        { originalIndex: 1, score: 0.9, document: 'beta' },
-        { originalIndex: 0, score: 0.2, document: 'alpha' }
-      ]
-    })
-
-    await expect(
-      service.rerank({
-        uniqueModelId: 'test-provider::test-reranker',
-        query: 'hello',
-        documents: ['alpha', 'beta'],
-        topN: 2,
-        requestOptions: {
-          headers: { 'x-test': 'yes' },
-          maxRetries: 0,
-          signal: abortController.signal
-        }
-      })
-    ).resolves.toEqual({
-      ranking: [
-        { originalIndex: 1, score: 0.9, document: 'beta' },
-        { originalIndex: 0, score: 0.2, document: 'alpha' }
-      ]
-    })
-
-    expect(mockRerank).toHaveBeenCalledWith(
-      'test-provider',
-      {},
-      expect.objectContaining({
-        model: 'test-reranker',
-        query: 'hello',
-        documents: ['alpha', 'beta'],
-        topN: 2,
-        headers: { 'x-test': 'yes' },
-        maxRetries: 0,
-        abortSignal: abortController.signal
-      })
-    )
-  })
-
-  it('checks rerank models with rerank before embedding or text generation', async () => {
-    const service = createService()
-    const rerankSpy = vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [] })
-    const embedSpy = vi.spyOn(service, 'embedMany')
-    const generateSpy = vi.spyOn(service, 'generateText')
-
-    mockModelGetByKey.mockResolvedValue({
-      id: 'test-provider::test-reranker',
-      providerId: 'test-provider',
-      apiModelId: 'test-reranker',
-      name: 'Test Reranker',
-      capabilities: [MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.EMBEDDING],
-      supportsStreaming: false,
-      isEnabled: true,
-      isHidden: false
-    })
-
-    await service.checkModel({
-      uniqueModelId: 'test-provider::test-reranker'
-    })
-
-    expect(rerankSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        query: 'test',
-        documents: ['test'],
-        topN: 1
-      })
-    )
-    expect(embedSpy).not.toHaveBeenCalled()
-    expect(generateSpy).not.toHaveBeenCalled()
   })
 })

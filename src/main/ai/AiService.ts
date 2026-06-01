@@ -1,8 +1,4 @@
-import {
-  embedMany as aiCoreEmbedMany,
-  generateImage as aiCoreGenerateImage,
-  rerank as aiCoreRerank
-} from '@cherrystudio/ai-core'
+import { embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
@@ -16,7 +12,7 @@ import { applyApprovalDecisions } from '@shared/ai/transport'
 import { type Assistant } from '@shared/data/types/assistant'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
+import { isEmbeddingModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -108,20 +104,6 @@ export interface AiEmbedRequest extends AiBaseRequest {
 export interface AiEmbedResult {
   embeddings: number[][]
   usage?: EmbeddingModelUsage
-}
-
-export interface AiRerankRequest extends AiBaseRequest {
-  query: string
-  documents: string[]
-  topN?: number
-}
-
-export interface AiRerankResult {
-  ranking: Array<{
-    originalIndex: number
-    score: number
-    document: string
-  }>
 }
 
 // ── Service ────────────────────────────────────────────────────────
@@ -457,45 +439,6 @@ export class AiService extends BaseService {
     return { embeddings: result.embeddings, usage: result.usage }
   }
 
-  // ── Reranking ──
-
-  async rerank(request: AsInProcess<AiRerankRequest>): Promise<AiRerankResult> {
-    logger.info('rerank started', { assistantId: request.assistantId, count: request.documents.length })
-    const signal = request.requestOptions?.signal
-
-    const { sdkConfig, options = {} } = await this.buildAgentParamsFor(request, signal)
-    const headers = options.headers
-      ? (Object.fromEntries(Object.entries(options.headers).filter(([, value]) => value !== undefined)) as Record<
-          string,
-          string
-        >)
-      : undefined
-
-    const rerankParams = {
-      model: sdkConfig.modelId,
-      query: request.query,
-      documents: request.documents,
-      ...(request.topN !== undefined ? { topN: request.topN } : {}),
-      ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
-      ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
-      ...(signal ? { abortSignal: signal } : {})
-    }
-
-    const result = await aiCoreRerank<AppProviderSettingsMap>(
-      sdkConfig.providerId,
-      sdkConfig.providerSettings,
-      rerankParams
-    )
-
-    return {
-      ranking: result.ranking.map((item) => ({
-        originalIndex: item.originalIndex,
-        score: item.score,
-        document: request.documents[item.originalIndex] ?? String(item.document)
-      }))
-    }
-  }
-
   // ── Model listing ──
   async listModels(request: ListModelsRequest): Promise<Partial<Model>[]> {
     let providerId = request.providerId
@@ -534,14 +477,9 @@ export class AiService extends BaseService {
       ...request,
       requestOptions: { ...request.requestOptions, signal: controller.signal }
     }
-    let probe: Promise<unknown>
-    if (isRerankModel(model)) {
-      probe = this.rerank({ ...probeRequest, query: 'test', documents: ['test'], topN: 1 })
-    } else if (isEmbeddingModel(model)) {
-      probe = this.embedMany({ ...probeRequest, values: ['test'] })
-    } else {
-      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
-    }
+    const probe = isEmbeddingModel(model)
+      ? this.embedMany({ ...probeRequest, values: ['test'] })
+      : this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
 
     try {
       await Promise.race([probe, timeoutPromise])
