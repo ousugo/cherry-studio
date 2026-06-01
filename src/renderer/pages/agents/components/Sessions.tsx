@@ -1448,6 +1448,7 @@ const Sessions = ({
       <ResourceList.Header className="gap-1 px-1.5 pb-0">
         <ResourceList.HeaderItem
           type="button"
+          command="topic.create"
           aria-label={t('chat.conversation.new')}
           disabled={creatingSession || !headerCreateSessionSeed}
           icon={<SquarePen />}

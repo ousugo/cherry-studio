@@ -126,17 +126,15 @@ const AgentPage = () => {
     isTemporary: isTemporaryView
   })
 
-  useCommandHandler('app.sidebar.toggle', () => {
-    if (isMessageOnlyView) return
+  useCommandHandler(
+    'app.sidebar.toggle',
+    () => {
+      if (isMessageOnlyView) return
 
-    toggleShowSidebar()
-  })
-
-  useCommandHandler('topic.sidebar.toggle', () => {
-    if (isMessageOnlyView) return
-
-    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-  })
+      toggleShowSidebar()
+    },
+    { enabled: isActiveTab }
+  )
 
   useEffect(() => {
     if (isMessageOnlyView) return
@@ -276,6 +274,17 @@ const AgentPage = () => {
       t,
       temporaryAgentConversation
     ]
+  )
+
+  useCommandHandler(
+    'topic.create',
+    () => {
+      if (isMessageOnlyView) return
+      const agentId = visibleSession?.agentId ?? lastUsedAgentId ?? agents?.[0]?.id
+      if (!agentId) return
+      void startTemporarySession({ agentId, ...getSessionWorkspaceDefaults(visibleSession) })
+    },
+    { enabled: isActiveTab }
   )
 
   useEffect(() => {

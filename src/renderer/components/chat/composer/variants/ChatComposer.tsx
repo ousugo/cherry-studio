@@ -21,6 +21,7 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { AssistantSelector, ModelSelector } from '@renderer/components/Selector'
 import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/config/models'
+import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
@@ -734,9 +735,14 @@ const ChatComposerInner = ({
     })
   }, [handleQuote])
 
-  useCommandHandler('topic.create', () => {
-    addNewTopic()
-  })
+  const isActiveTab = useIsActiveTab()
+  useCommandHandler(
+    'topic.create',
+    () => {
+      addNewTopic()
+    },
+    { enabled: isActiveTab }
+  )
 
   useEffect(() => {
     const scopeChanged = selectedKnowledgeBasesScopeKeyRef.current !== selectedKnowledgeBasesScopeKey

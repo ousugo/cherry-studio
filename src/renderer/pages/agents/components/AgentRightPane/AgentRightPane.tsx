@@ -8,6 +8,7 @@ import ArtifactPane, {
 } from '@renderer/components/chat/panes/ArtifactPane'
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
 import { TracePane, type TracePanePayload } from '@renderer/components/chat/trace/TracePane'
+import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
@@ -632,7 +633,8 @@ function AgentRightPaneMaximizedOverlay() {
 }
 
 function AgentRightPaneFilesToggle() {
-  return <Shell.Toggle tab="files" />
+  const isActiveTab = useIsActiveTab()
+  return <Shell.Toggle tab="files" command="topic.sidebar.toggle" commandEnabled={isActiveTab} />
 }
 
 // `AgentRightPane` is the provider itself, with the other parts attached as

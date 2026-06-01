@@ -280,20 +280,6 @@ const HomePage: FC = () => {
     void setShowSidebar(false)
   })
 
-  useCommandHandler('topic.sidebar.toggle', () => {
-    if (isMessageOnlyView) return
-
-    if (!showSidebar) {
-      void setShowSidebar(true)
-      requestAnimationFrame(() => {
-        void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-      })
-      return
-    }
-
-    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-  })
-
   useEffect(() => {
     NavigationService.setNavigate(navigate)
   }, [navigate])

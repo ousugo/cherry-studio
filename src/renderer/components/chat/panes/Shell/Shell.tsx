@@ -1,7 +1,9 @@
 import { HorizontalScrollContainer, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
+import { CommandTooltip, useCommandHandler } from '@renderer/commands'
 import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { cn } from '@renderer/utils'
+import type { CommandId } from '@shared/commands'
 import { Maximize2, Minimize2, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode } from 'react'
@@ -192,7 +194,32 @@ function ShellMaximizedOverlay({ children }: { children: ReactNode }) {
 }
 
 // Navbar button that opens the side pane to a given tab (or collapses it).
-function ShellToggle({ tab, disabled = false }: { tab: string; disabled?: boolean }) {
+/** Registers the side-pane toggle as a keyboard command; renders nothing. */
+function ShellToggleShortcut({
+  command,
+  onTrigger,
+  enabled
+}: {
+  command: CommandId
+  onTrigger: () => void
+  enabled: boolean
+}) {
+  useCommandHandler(command, onTrigger, { enabled })
+  return null
+}
+
+function ShellToggle({
+  tab,
+  disabled = false,
+  command,
+  commandEnabled = true
+}: {
+  tab: string
+  disabled?: boolean
+  command?: CommandId
+  /** Gates the keyboard command (e.g. only the active tab handles it); the button stays clickable. */
+  commandEnabled?: boolean
+}) {
   const { state, actions } = useShell()
   const { t } = useTranslation()
   const pressed = state.open
@@ -206,18 +233,33 @@ function ShellToggle({ tab, disabled = false }: { tab: string; disabled?: boolea
     actions.openTab(tab)
   }, [actions, state.open, tab])
 
+  const button = (
+    <NavbarIcon
+      tone="conversation"
+      active={pressed}
+      disabled={disabled}
+      onClick={handleClick}
+      aria-pressed={pressed}
+      aria-label={toggleLabel}
+      data-state={pressed ? 'open' : 'closed'}>
+      <ToggleIcon />
+    </NavbarIcon>
+  )
+
+  if (command) {
+    return (
+      <>
+        <ShellToggleShortcut command={command} onTrigger={handleClick} enabled={commandEnabled && !disabled} />
+        <CommandTooltip command={command} label={toggleLabel} delay={800}>
+          {button}
+        </CommandTooltip>
+      </>
+    )
+  }
+
   return (
     <Tooltip content={toggleLabel} delay={800}>
-      <NavbarIcon
-        tone="conversation"
-        active={pressed}
-        disabled={disabled}
-        onClick={handleClick}
-        aria-pressed={pressed}
-        aria-label={toggleLabel}
-        data-state={pressed ? 'open' : 'closed'}>
-        <ToggleIcon />
-      </NavbarIcon>
+      {button}
     </Tooltip>
   )
 }

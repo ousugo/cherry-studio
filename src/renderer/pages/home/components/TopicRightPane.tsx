@@ -1,6 +1,7 @@
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
 import { TracePane, type TracePanePayload } from '@renderer/components/chat/trace/TracePane'
+import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { createContext, use, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -208,7 +209,8 @@ function TopicRightPaneMaximizedOverlay(props: TopicRightPaneSurfaceProps) {
 }
 
 function TopicRightPaneToggle({ disabled }: { disabled?: boolean }) {
-  return <Shell.Toggle tab="branch" disabled={disabled} />
+  const isActiveTab = useIsActiveTab()
+  return <Shell.Toggle tab="branch" command="topic.sidebar.toggle" commandEnabled={isActiveTab} disabled={disabled} />
 }
 
 export const TopicRightPane = Object.assign(TopicRightPaneProvider, {
