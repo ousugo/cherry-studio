@@ -484,6 +484,13 @@
       },
       "status": "classified",
       "description": "Command shortcut: topic.sidebar.toggle (unified command system)"
+    },
+    {
+      "targetKey": "menu.presentation_mode",
+      "type": "PreferenceTypes.MenuPresentationMode",
+      "defaultValue": "cherry",
+      "status": "classified",
+      "description": "Global menu presentation mode: native system menus or Cherry custom menus"
     }
   ]
 }
