@@ -3379,6 +3379,10 @@
         "label": "消息样式",
         "plain": "简洁"
       },
+      "user_content": {
+        "collapse": "收起",
+        "expand": "展开"
+      },
       "video": {
         "error": {
           "local_file_missing": "本地视频文件路径不存在",

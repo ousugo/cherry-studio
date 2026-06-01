@@ -13,8 +13,9 @@ import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
-import { Boxes, Code2, FileText, Globe2, TextQuote, Zap } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Boxes, ChevronDown, Code2, FileText, Globe2, TextQuote, Zap } from 'lucide-react'
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
@@ -43,6 +44,7 @@ const composerTokenIcon = {
 
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
+const USER_MESSAGE_PREVIEW_EFFECTIVE_LINE_COUNT = 5
 
 function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
   const Icon = composerTokenIcon[token.kind]
@@ -142,6 +144,80 @@ function buildComposerMessageMarkdownContent(content: string, composer: Composer
   return { markdown, tokens }
 }
 
+function buildUserMessagePreview(content: string) {
+  let effectiveLineCount = 0
+  const lineRegex = /([^\r\n]*)(\r\n|\r|\n|$)/g
+
+  for (const match of content.matchAll(lineRegex)) {
+    const [lineWithEnding, line] = match
+    if (lineWithEnding.length === 0) break
+    if (line.trim().length === 0) continue
+
+    effectiveLineCount += 1
+
+    if (effectiveLineCount === USER_MESSAGE_PREVIEW_EFFECTIVE_LINE_COUNT) {
+      const remainingStart = match.index + lineWithEnding.length
+      const hasMoreEffectiveLines = content
+        .slice(remainingStart)
+        .split(/\r\n|\r|\n/)
+        .some((remainingLine) => remainingLine.trim().length > 0)
+
+      return {
+        content: hasMoreEffectiveLines ? content.slice(0, match.index + line.length) : content,
+        isTruncated: hasMoreEffectiveLines
+      }
+    }
+  }
+
+  return {
+    content,
+    isTruncated: false
+  }
+}
+
+function CollapsibleUserMessageContent({
+  children,
+  isCollapsible,
+  isExpanded,
+  onToggle
+}: {
+  children: React.ReactNode
+  isCollapsible: boolean
+  isExpanded: boolean
+  onToggle: () => void
+}) {
+  const { t } = useTranslation()
+  const contentId = useId()
+
+  return (
+    <div className="flex max-w-full flex-col items-start">
+      <div
+        id={contentId}
+        data-user-message-collapsible-content-preview
+        className="max-w-full [&>*:last-child]:mb-0! [&_.markdown>*:last-child]:mb-0!">
+        {children}
+      </div>
+      {isCollapsible && (
+        <button
+          type="button"
+          aria-expanded={isExpanded}
+          aria-controls={contentId}
+          className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-foreground-secondary focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          onClick={onToggle}>
+          <span className="shrink-0 font-normal leading-5">
+            {t(isExpanded ? 'message.message.user_content.collapse' : 'message.message.user_content.expand')}
+          </span>
+          <ChevronDown
+            aria-hidden="true"
+            size={16}
+            className={`shrink-0 text-foreground-muted opacity-70 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+          />
+        </button>
+      )}
+    </div>
+  )
+}
+
 const MainTextBlock: React.FC<Props> = ({
   id,
   content,
@@ -154,6 +230,17 @@ const MainTextBlock: React.FC<Props> = ({
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
   const shouldRenderComposerTokens = role === 'user' && !!composer?.tokens.length
+  const userMessagePreview = useMemo(() => buildUserMessagePreview(content), [content])
+  const isUserContentCollapsible = role === 'user' && userMessagePreview.isTruncated
+  const [isUserContentExpanded, setIsUserContentExpanded] = useState(false)
+
+  useEffect(() => {
+    if (!isUserContentCollapsible) {
+      setIsUserContentExpanded(false)
+    }
+  }, [isUserContentCollapsible])
+
+  const userDisplayContent = isUserContentCollapsible && !isUserContentExpanded ? userMessagePreview.content : content
 
   const [smoothedContent, setSmoothedContent] = useState(content)
   const { update: updateSmoothStream } = useSmoothStream({
@@ -167,7 +254,7 @@ const MainTextBlock: React.FC<Props> = ({
 
   const block: MarkdownSource = {
     id,
-    content: smoothedContent,
+    content: role === 'user' ? userDisplayContent : smoothedContent,
     status: isStreaming ? 'streaming' : 'success'
   }
 
@@ -181,8 +268,8 @@ const MainTextBlock: React.FC<Props> = ({
   )
   const composerMarkdownContent = useMemo(() => {
     if (!shouldRenderComposerTokens || !renderInputMessageAsMarkdown || !composer) return undefined
-    return buildComposerMessageMarkdownContent(content, composer, id)
-  }, [composer, content, id, renderInputMessageAsMarkdown, shouldRenderComposerTokens])
+    return buildComposerMessageMarkdownContent(userDisplayContent, composer, id)
+  }, [composer, id, renderInputMessageAsMarkdown, shouldRenderComposerTokens, userDisplayContent])
   const composerMarkdownComponents = useMemo<Partial<Components>>(
     () => ({
       span: ({ children, ...props }) => {
@@ -212,16 +299,27 @@ const MainTextBlock: React.FC<Props> = ({
           ))}
         </Flex>
       )}
-      {composerMarkdownContent ? (
-        <ChatMarkdown
-          block={{ ...block, content: composerMarkdownContent.markdown }}
-          components={composerMarkdownComponents}
-          postProcess={processContent}
-        />
-      ) : role === 'user' && (shouldRenderComposerTokens || !renderInputMessageAsMarkdown) ? (
-        <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
-          {shouldRenderComposerTokens ? renderComposerMessageContent(content, composer) : content}
-        </p>
+      {role === 'user' ? (
+        <CollapsibleUserMessageContent
+          isCollapsible={isUserContentCollapsible}
+          isExpanded={isUserContentExpanded}
+          onToggle={() => setIsUserContentExpanded((expanded) => !expanded)}>
+          {composerMarkdownContent ? (
+            <ChatMarkdown
+              block={{ ...block, content: composerMarkdownContent.markdown }}
+              components={composerMarkdownComponents}
+              postProcess={processContent}
+            />
+          ) : shouldRenderComposerTokens || !renderInputMessageAsMarkdown ? (
+            <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
+              {shouldRenderComposerTokens
+                ? renderComposerMessageContent(userDisplayContent, composer)
+                : userDisplayContent}
+            </p>
+          ) : (
+            <ChatMarkdown block={block} postProcess={processContent} />
+          )}
+        </CollapsibleUserMessageContent>
       ) : (
         <ChatMarkdown block={block} postProcess={processContent} />
       )}
