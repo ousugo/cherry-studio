@@ -27,6 +27,7 @@ import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useSession, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { AgentLabel } from '@renderer/pages/agents/components/AgentLabel'
@@ -313,6 +314,15 @@ const AgentComposerRoot = ({
   const { agent } = useAgent(agentId)
   const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
+  const handleNewSessionShortcut = useCallback(() => {
+    void onNewSessionDraft?.()
+  }, [onNewSessionDraft])
+
+  useShortcut('topic.new', handleNewSessionShortcut, {
+    preventDefault: true,
+    enableOnFormTags: true,
+    enabled: Boolean(session && agent && onNewSessionDraft)
+  })
 
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
@@ -476,6 +486,7 @@ const AgentComposerContextControls = ({
           open={agentModelSelectorOpen}
           onOpenChange={setAgentModelSelectorOpen}
           filter={modelFilter}
+          shortcut="chat.select_model"
           side={side}
           align="start"
           mountStrategy="lazy-keep"
