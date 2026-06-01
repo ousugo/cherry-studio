@@ -632,9 +632,9 @@ function AgentRightPaneMaximizedOverlay() {
   )
 }
 
-function AgentRightPaneFilesToggle() {
+function AgentRightPaneFilesToggle({ disabled }: { disabled?: boolean }) {
   const isActiveTab = useIsActiveTab()
-  return <Shell.Toggle tab="files" command="topic.sidebar.toggle" commandEnabled={isActiveTab} />
+  return <Shell.Toggle tab="files" command="topic.sidebar.toggle" commandEnabled={isActiveTab} disabled={disabled} />
 }
 
 // `AgentRightPane` is the provider itself, with the other parts attached as

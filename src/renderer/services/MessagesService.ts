@@ -33,7 +33,6 @@ export async function locateToMessage(navigate: UseNavigateResult<string>, messa
 
   void navigate({ to: '/app/chat', search: { assistantId, topicId: topic?.id } })
 
-  setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 300)
 }
 

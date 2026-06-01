@@ -3379,6 +3379,10 @@
         "label": "消息样式",
         "plain": "简洁"
       },
+      "user_content": {
+        "collapse": "收起",
+        "expand": "展开"
+      },
       "video": {
         "error": {
           "local_file_missing": "本地视频文件路径不存在",
@@ -5993,17 +5997,6 @@
         "title": "数据备份与恢复"
       },
       "common": {
-        "menu": {
-          "presentation_mode": {
-            "cherry": "Cherry",
-            "native": "系统原生",
-            "restart": {
-              "content": "更改右键菜单样式需要重启应用才能完全生效。是否立即重启？",
-              "title": "需要重启"
-            },
-            "title": "右键菜单样式"
-          }
-        },
         "sections": {
           "chat_settings": "对话设置",
           "custom_css": "自定义 CSS",
@@ -7194,9 +7187,9 @@
       "show_app": "显示 / 隐藏应用",
       "show_settings": "打开设置",
       "title": "快捷键",
+      "toggle_left_sidebar": "切换左侧边栏",
       "toggle_new_context": "清除上下文",
       "toggle_right_sidebar": "切换右侧边栏",
-      "toggle_sidebar": "切换侧边栏",
       "zoom_in": "放大界面",
       "zoom_out": "缩小界面",
       "zoom_reset": "重置缩放"

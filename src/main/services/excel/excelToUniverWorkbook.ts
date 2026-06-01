@@ -1,4 +1,13 @@
-import type { ExcelImportDiagnostic, ExcelWorkbookPreviewData } from '@shared/excelPreview'
+import type {
+  ExcelImportDiagnostic,
+  ExcelPreviewCellCustom,
+  ExcelPreviewImageAnchor,
+  ExcelPreviewImageRenderData,
+  ExcelPreviewTable,
+  ExcelPreviewTableColumn,
+  ExcelPreviewTableRange,
+  ExcelWorkbookPreviewData
+} from '@shared/excelPreview'
 import {
   BooleanNumber,
   BorderStyleTypes,
@@ -13,7 +22,7 @@ import {
   VerticalAlign,
   WrapStrategy
 } from '@univerjs/core'
-import type ExcelJS from 'exceljs'
+import ExcelJS from 'exceljs'
 
 const UNIVER_MODEL_VERSION = '0.25.0'
 const DEFAULT_ROW_COUNT = 100
@@ -30,6 +39,42 @@ type CellMatrix = NonNullable<IWorksheetData['cellData']>
 type RowData = NonNullable<IWorksheetData['rowData']>
 type ColumnData = NonNullable<IWorksheetData['columnData']>
 type MergeRange = NonNullable<IWorksheetData['mergeData']>[number]
+export type ExcelWorksheetColumnData = NonNullable<IWorksheetData['columnData']>
+export type ExcelWorksheetMergeData = NonNullable<IWorksheetData['mergeData']>
+type ExcelWorksheetImage = ReturnType<ExcelJS.Worksheet['getImages']>[number] & {
+  imageId: number | string
+  range: ExcelJS.ImageRange & {
+    ext?: { height: number; width: number }
+  }
+}
+type ExcelWorkbookImage = ExcelJS.Image
+type StreamWorksheetReader = ExcelJS.stream.xlsx.WorksheetReader & {
+  id?: number | string
+  name?: string
+  state?: string
+}
+export type ExcelWorksheetTableData = Omit<ExcelPreviewTable, 'sheetId'>
+
+interface WorksheetImageRenderData {
+  imagesByCellKey: Map<string, ExcelPreviewImageRenderData[]>
+  maxColumn: number
+  maxRow: number
+}
+
+export interface ExcelStreamSheetMetadata {
+  columnData?: ExcelWorksheetColumnData
+  mergeData?: ExcelWorksheetMergeData
+  name?: string
+  state?: string
+  tableData?: ExcelWorksheetTableData[]
+}
+
+type ExcelStreamSheetMetadataMap = Record<string, ExcelStreamSheetMetadata | undefined>
+
+export interface ExcelStreamSheetMetadataIndex {
+  byFileNumber: ExcelStreamSheetMetadataMap
+  bySheetId: ExcelStreamSheetMetadataMap
+}
 
 export interface ExcelWorkbookPreviewBudget {
   maxCells?: number
@@ -82,6 +127,19 @@ const normalizeBudget = (budget?: ExcelWorkbookPreviewBudget): NormalizedExcelWo
   ...budget
 })
 
+const createWorkbookBuildContext = (date1904: boolean, budget?: ExcelWorkbookPreviewBudget): WorkbookBuildContext => ({
+  budget: normalizeBudget(budget),
+  counters: {
+    cells: 0,
+    merges: 0,
+    payloadBytes: 0,
+    styles: 0
+  },
+  date1904,
+  styles: {},
+  styleIdsByKey: new Map()
+})
+
 const assertBudget = (condition: boolean, message: string): void => {
   if (!condition) throw new ExcelWorkbookPreviewBudgetExceededError(message)
 }
@@ -108,6 +166,8 @@ const dateToExcelSerial = (value: Date, date1904: boolean): number => {
 
 const toBooleanNumber = (value: boolean | undefined) => (value ? BooleanNumber.TRUE : BooleanNumber.FALSE)
 
+const toCellKey = (row: number, column: number): string => `${row}:${column}`
+
 const toWorkbookName = (fileName?: string): string => {
   if (!fileName) return 'Workbook'
   return fileName.replace(/\.(xlsx|xlsm)$/i, '') || fileName
@@ -119,6 +179,75 @@ const normalizeFormula = (formula: string | undefined): string | undefined => {
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
+const toImageMimeType = (extension: string | undefined): string | undefined => {
+  switch (extension?.toLowerCase()) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg'
+    case 'png':
+      return 'image/png'
+    case 'gif':
+      return 'image/gif'
+    case 'webp':
+      return 'image/webp'
+    case 'bmp':
+      return 'image/bmp'
+    default:
+      return undefined
+  }
+}
+
+const toImageDataUrl = (image: ExcelWorkbookImage | undefined): string | undefined => {
+  if (!image) return undefined
+
+  if (image.base64) {
+    if (image.base64.startsWith('data:image/')) return image.base64
+
+    const mimeType = toImageMimeType(image.extension)
+    return mimeType ? `data:${mimeType};base64,${image.base64}` : undefined
+  }
+
+  if (image.buffer) {
+    const mimeType = toImageMimeType(image.extension)
+    return mimeType ? `data:${mimeType};base64,${Buffer.from(image.buffer).toString('base64')}` : undefined
+  }
+
+  return undefined
+}
+
+const toImageAnchor = (anchor: ExcelJS.Anchor): ExcelPreviewImageAnchor => {
+  const column = Math.max(0, Math.floor(anchor.col))
+  const row = Math.max(0, Math.floor(anchor.row))
+
+  return {
+    column,
+    columnOffset: Math.max(0, anchor.col - column),
+    row,
+    rowOffset: Math.max(0, anchor.row - row)
+  }
+}
+
+const addImageToCell = (
+  cellData: CellMatrix,
+  row: number,
+  column: number,
+  images: ExcelPreviewImageRenderData[]
+): void => {
+  if (!images.length) return
+
+  cellData[row] ??= {}
+  const existingCell = cellData[row][column] ?? {}
+  const existingCustom = (isObject(existingCell.custom) ? existingCell.custom : {}) as ExcelPreviewCellCustom
+
+  cellData[row][column] = {
+    ...existingCell,
+    custom: {
+      ...existingCustom,
+      excelImages: [...(existingCustom.excelImages ?? []), ...images]
+    }
+  }
+}
 
 const isErrorValue = (value: ExcelJS.CellValue): value is ExcelJS.CellErrorValue => {
   return isObject(value) && typeof value.error === 'string'
@@ -384,6 +513,33 @@ const toColumnData = (worksheet: ExcelJS.Worksheet, columnCount: number): Column
   return columnData
 }
 
+const getStreamWorksheetColumns = (worksheet: ExcelJS.stream.xlsx.WorksheetReader): ExcelJS.Column[] => {
+  const columns = (worksheet as unknown as { columns?: ExcelJS.Column[] | null }).columns
+  return Array.isArray(columns) ? columns : []
+}
+
+const getStreamWorkbookDate1904 = (worksheet: ExcelJS.stream.xlsx.WorksheetReader): boolean => {
+  const workbook = (worksheet as unknown as { workbook?: { properties?: { model?: { date1904?: boolean } } } }).workbook
+  return workbook?.properties?.model?.date1904 === true
+}
+
+const toStreamColumnData = (columns: ExcelJS.Column[], columnCount: number): ColumnData => {
+  const columnData: ColumnData = {}
+
+  for (let index = 1; index <= Math.max(columnCount, columns.length); index += 1) {
+    const column = columns[index - 1]
+    const width = column?.width ? Math.round(column.width * 8) : undefined
+    if (!width && !column?.hidden) continue
+
+    columnData[index - 1] = {
+      ...(width ? { w: width } : {}),
+      ...(column?.hidden ? { hd: BooleanNumber.TRUE } : {})
+    }
+  }
+
+  return columnData
+}
+
 const decodeColumn = (letters: string): number | null => {
   let column = 0
   for (const char of letters.toUpperCase()) {
@@ -419,11 +575,157 @@ const decodeMergeRange = (range: string): MergeRange | null => {
   }
 }
 
+const toExcelPreviewTableRange = (range: string): ExcelPreviewTableRange | null => {
+  const decodedRange = decodeMergeRange(range)
+  return decodedRange ? { ...decodedRange } : null
+}
+
+const toSafeTableIdentifier = (value: string): string => {
+  return value
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+const toSheetTableId = (sheetId: string, tableName: string, index: number): string => {
+  return `excel-table-${sheetId}-${toSafeTableIdentifier(tableName) || index + 1}`
+}
+
+const withSheetTableIdentity = (table: ExcelWorksheetTableData, sheetId: string, index: number): ExcelPreviewTable => {
+  const tableId = toSheetTableId(sheetId, table.name, index)
+
+  return {
+    ...table,
+    columns: table.columns.map((column, columnIndex) => ({
+      ...column,
+      id: `${tableId}-column-${columnIndex + 1}`
+    })),
+    id: tableId,
+    sheetId
+  }
+}
+
+const normalizeTableStyleId = (theme: string | undefined): string | undefined => {
+  // Excel exposes built-in table style names like TableStyleMedium2, not their
+  // resolved colors. Univer's closest neutral fallback is its default blue.
+  return theme ? 'table-default-0' : undefined
+}
+
+const toTableColumnData = (columns: Array<{ name?: string }>, tableId: string): ExcelPreviewTableColumn[] => {
+  return columns.map((column, index) => ({
+    displayName: column.name || `Column ${index + 1}`,
+    id: `${tableId}-column-${index + 1}`
+  }))
+}
+
+type ExcelJsTableModel = {
+  columns?: Array<{ name?: string }>
+  displayName?: string
+  headerRow?: boolean
+  name?: string
+  style?: { theme?: string }
+  tableRef?: string
+  totalsRow?: boolean
+}
+
+type ExcelJsWorksheetModelWithTables = ExcelJS.Worksheet['model'] & {
+  tables?: ExcelJsTableModel[]
+}
+
+const getWorksheetTableModels = (worksheet: ExcelJS.Worksheet): ExcelJsTableModel[] => {
+  const models = (worksheet.model as ExcelJsWorksheetModelWithTables).tables
+  return Array.isArray(models) ? models : []
+}
+
+const tableRangeKey = (table: Pick<ExcelWorksheetTableData, 'range'>): string => {
+  return `${table.range.startRow}:${table.range.startColumn}:${table.range.endRow}:${table.range.endColumn}`
+}
+
+const mergeTableData = (
+  worksheet: ExcelJS.Worksheet,
+  sheetId: string,
+  metadata?: ExcelStreamSheetMetadata
+): ExcelPreviewTable[] => {
+  const metadataTables = metadata?.tableData ?? []
+  const metadataByRange = new Map(metadataTables.map((table) => [tableRangeKey(table), table]))
+  const tables = getWorksheetTableModels(worksheet).flatMap((tableModel, index): ExcelPreviewTable[] => {
+    const tableName = tableModel.name || tableModel.displayName || `Table${index + 1}`
+    const range = tableModel.tableRef ? toExcelPreviewTableRange(tableModel.tableRef) : null
+    if (!range) return []
+
+    const baseId = toSheetTableId(sheetId, tableName, index)
+    const metadataTable = metadataByRange.get(tableRangeKey({ range }))
+    const columns = tableModel.columns?.length ? toTableColumnData(tableModel.columns, baseId) : metadataTable?.columns
+
+    return [
+      {
+        columns: columns ?? [],
+        id: baseId,
+        name: tableName,
+        range,
+        sheetId,
+        showFooter: tableModel.totalsRow,
+        showHeader: tableModel.headerRow,
+        tableStyleId: normalizeTableStyleId(tableModel.style?.theme),
+        ...(metadataTable?.filters ? { filters: metadataTable.filters } : {})
+      }
+    ]
+  })
+
+  const knownKeys = new Set(tables.map(tableRangeKey))
+  const archiveOnlyTables = metadataTables
+    .filter((table) => !knownKeys.has(tableRangeKey(table)))
+    .map((table, index) => withSheetTableIdentity(table, sheetId, index))
+
+  return [...tables, ...archiveOnlyTables]
+}
+
 const toMergeData = (worksheet: ExcelJS.Worksheet): MergeRange[] => {
   return (worksheet.model.merges ?? []).flatMap((range) => {
     const merge = decodeMergeRange(range)
     return merge ? [merge] : []
   })
+}
+
+const collectWorksheetImages = (
+  worksheet: ExcelJS.Worksheet,
+  sheetId: string,
+  context: WorkbookBuildContext
+): WorksheetImageRenderData => {
+  const imagesByCellKey = new Map<string, ExcelPreviewImageRenderData[]>()
+  const worksheetImages = worksheet.getImages() as ExcelWorksheetImage[]
+  let maxRow = -1
+  let maxColumn = -1
+
+  worksheetImages.forEach((worksheetImage, index) => {
+    const source = toImageDataUrl(worksheet.workbook.getImage(Number(worksheetImage.imageId)))
+    if (!source) return
+
+    registerPayloadBytes(context, source.length * 2 + 128)
+
+    const from = toImageAnchor(worksheetImage.range.tl)
+    const to = worksheetImage.range.br ? toImageAnchor(worksheetImage.range.br) : undefined
+    const image: ExcelPreviewImageRenderData = {
+      from,
+      id: `${sheetId}-image-${index + 1}`,
+      source,
+      ...(worksheetImage.range.ext
+        ? {
+            size: {
+              height: worksheetImage.range.ext.height,
+              width: worksheetImage.range.ext.width
+            }
+          }
+        : {}),
+      ...(to ? { to } : {})
+    }
+    const key = toCellKey(from.row, from.column)
+    imagesByCellKey.set(key, [...(imagesByCellKey.get(key) ?? []), image])
+    maxRow = Math.max(maxRow, from.row, to?.row ?? from.row)
+    maxColumn = Math.max(maxColumn, from.column, to?.column ?? from.column)
+  })
+
+  return { imagesByCellKey, maxColumn, maxRow }
 }
 
 const toWorksheetData = (
@@ -432,11 +734,13 @@ const toWorksheetData = (
   context: WorkbookBuildContext
 ): Partial<IWorksheetData> => {
   const cellData: CellMatrix = {}
-  const rowCount = Math.max(worksheet.rowCount, worksheet.actualRowCount, DEFAULT_ROW_COUNT)
+  const worksheetImages = collectWorksheetImages(worksheet, sheetId, context)
+  const rowCount = Math.max(worksheet.rowCount, worksheet.actualRowCount, worksheetImages.maxRow + 1, DEFAULT_ROW_COUNT)
   const columnCount = Math.max(
     worksheet.columnCount,
     worksheet.actualColumnCount,
     worksheet.columns?.length ?? 0,
+    worksheetImages.maxColumn + 1,
     DEFAULT_COLUMN_COUNT
   )
   assertBudget(rowCount <= context.budget.maxRowsPerSheet, `Worksheet "${worksheet.name}" has too many rows.`)
@@ -454,6 +758,10 @@ const toWorksheetData = (
       cellData[rowNumber - 1] ??= {}
       cellData[rowNumber - 1][columnNumber - 1] = univerCell
     })
+  })
+  worksheetImages.imagesByCellKey.forEach((images, key) => {
+    const [row, column] = key.split(':').map(Number)
+    addImageToCell(cellData, row, column, images)
   })
 
   const mergeData = toMergeData(worksheet)
@@ -490,19 +798,39 @@ const toWorksheetData = (
   }
 }
 
-const collectImportDiagnostics = (workbook: ExcelJS.Workbook): ExcelImportDiagnostic[] => {
-  const imageCount = workbook.worksheets.reduce((count, worksheet) => count + worksheet.getImages().length, 0)
+const collectImportDiagnostics = (): ExcelImportDiagnostic[] => {
+  return []
+}
 
-  if (!imageCount) return []
+export const createUnsupportedExcelChartsDiagnostic = (count: number): ExcelImportDiagnostic => ({
+  code: 'unsupported_excel_charts',
+  count,
+  message: 'Charts are not rendered in Excel preview yet.',
+  severity: 'warning'
+})
 
-  return [
-    {
-      code: 'unsupported_excel_images',
-      count: imageCount,
-      message: 'Images are not rendered in Excel preview yet.',
-      severity: 'warning'
-    }
-  ]
+export const mergeExcelImportDiagnostics = (
+  ...diagnosticSets: Array<ExcelImportDiagnostic[] | undefined>
+): ExcelImportDiagnostic[] => {
+  const diagnosticsByCode = new Map<ExcelImportDiagnostic['code'], ExcelImportDiagnostic>()
+
+  diagnosticSets
+    .flatMap((diagnostics) => diagnostics ?? [])
+    .forEach((diagnostic) => {
+      const existing = diagnosticsByCode.get(diagnostic.code)
+      if (!existing) {
+        diagnosticsByCode.set(diagnostic.code, diagnostic)
+        return
+      }
+
+      diagnosticsByCode.set(diagnostic.code, {
+        ...existing,
+        count: Math.max(existing.count ?? 0, diagnostic.count ?? 0) || undefined,
+        severity: existing.severity === 'error' || diagnostic.severity === 'error' ? 'error' : 'warning'
+      })
+    })
+
+  return Array.from(diagnosticsByCode.values())
 }
 
 export function excelJsWorkbookToUniverWorkbook(
@@ -510,18 +838,7 @@ export function excelJsWorkbookToUniverWorkbook(
   fileName?: string,
   budget?: ExcelWorkbookPreviewBudget
 ): IWorkbookData {
-  const context: WorkbookBuildContext = {
-    budget: normalizeBudget(budget),
-    counters: {
-      cells: 0,
-      merges: 0,
-      payloadBytes: 0,
-      styles: 0
-    },
-    date1904: workbook.properties.date1904 === true,
-    styles: {},
-    styleIdsByKey: new Map()
-  }
+  const context = createWorkbookBuildContext(workbook.properties.date1904 === true, budget)
   const sheets: IWorkbookData['sheets'] = {}
   const sheetOrder: string[] = []
 
@@ -544,14 +861,168 @@ export function excelJsWorkbookToUniverWorkbook(
   }
 }
 
+const streamWorksheetToWorksheetData = async (
+  worksheet: StreamWorksheetReader,
+  sheetId: string,
+  context: WorkbookBuildContext,
+  metadata?: ExcelStreamSheetMetadata
+): Promise<Partial<IWorksheetData>> => {
+  const cellData: CellMatrix = {}
+  const rowData: RowData = {}
+  let maxRowNumber = 0
+  let maxColumnNumber = 0
+
+  for await (const row of worksheet) {
+    maxRowNumber = Math.max(maxRowNumber, row.number)
+    if (row.height || row.hidden) {
+      rowData[row.number - 1] = {
+        ...(row.height ? { h: Math.round((row.height * 96) / 72) } : {}),
+        ...(row.hidden ? { hd: BooleanNumber.TRUE } : {})
+      }
+    }
+
+    row.eachCell({ includeEmpty: false }, (cell, columnNumber) => {
+      maxColumnNumber = Math.max(maxColumnNumber, columnNumber)
+      const univerCell = toUniverCell(cell, context)
+      if (!univerCell) return
+
+      context.counters.cells += 1
+      assertBudget(context.counters.cells <= context.budget.maxCells, 'Excel workbook has too many cells to preview.')
+      registerPayloadBytes(context, estimateCellPayloadBytes(univerCell))
+
+      cellData[row.number - 1] ??= {}
+      cellData[row.number - 1][columnNumber - 1] = univerCell
+    })
+  }
+
+  const columns = getStreamWorksheetColumns(worksheet)
+  const archiveColumnData = metadata?.columnData ?? {}
+  const mergeData = metadata?.mergeData ?? []
+  const maxArchiveColumn = Object.keys(archiveColumnData).reduce((max, key) => {
+    const column = Number(key)
+    return Number.isInteger(column) ? Math.max(max, column) : max
+  }, -1)
+  const maxMergeRow = mergeData.reduce((max, merge) => Math.max(max, merge.endRow), -1)
+  const maxMergeColumn = mergeData.reduce((max, merge) => Math.max(max, merge.endColumn), -1)
+  const rowCount = Math.max(maxRowNumber, maxMergeRow + 1, DEFAULT_ROW_COUNT)
+  const columnCount = Math.max(
+    maxColumnNumber,
+    columns.length,
+    maxArchiveColumn + 1,
+    maxMergeColumn + 1,
+    DEFAULT_COLUMN_COUNT
+  )
+  assertBudget(rowCount <= context.budget.maxRowsPerSheet, `Worksheet "${worksheet.name}" has too many rows.`)
+  assertBudget(columnCount <= context.budget.maxColumnsPerSheet, `Worksheet "${worksheet.name}" has too many columns.`)
+  context.counters.merges += mergeData.length
+  assertBudget(context.counters.merges <= context.budget.maxMerges, 'Excel workbook has too many merged ranges.')
+  registerPayloadBytes(context, mergeData.length * 48)
+  const sheetName = metadata?.name || worksheet.name || String(worksheet.id ?? sheetId)
+  const sheetState = metadata?.state ?? worksheet.state
+
+  return {
+    id: sheetId,
+    name: sheetName,
+    tabColor: '',
+    hidden: toBooleanNumber(sheetState !== undefined && sheetState !== 'visible'),
+    freeze: {
+      startRow: -1,
+      startColumn: -1,
+      ySplit: 0,
+      xSplit: 0
+    },
+    rowCount,
+    columnCount,
+    zoomRatio: 1,
+    scrollTop: 0,
+    scrollLeft: 0,
+    defaultColumnWidth: DEFAULT_COLUMN_WIDTH,
+    defaultRowHeight: DEFAULT_ROW_HEIGHT,
+    mergeData,
+    cellData,
+    rowData,
+    columnData: Object.keys(archiveColumnData).length ? archiveColumnData : toStreamColumnData(columns, columnCount),
+    rowHeader: { width: DEFAULT_ROW_HEADER_WIDTH, hidden: BooleanNumber.FALSE },
+    columnHeader: { height: DEFAULT_COLUMN_HEADER_HEIGHT, hidden: BooleanNumber.FALSE },
+    showGridlines: BooleanNumber.TRUE,
+    rightToLeft: BooleanNumber.FALSE
+  }
+}
+
+export async function excelJsStreamingWorkbookToPreviewData(
+  filePath: string,
+  fileName: string,
+  budget?: ExcelWorkbookPreviewBudget,
+  diagnostics: ExcelImportDiagnostic[] = [],
+  sheetMetadataIndex: ExcelStreamSheetMetadataIndex = { byFileNumber: {}, bySheetId: {} }
+): Promise<ExcelWorkbookPreviewData> {
+  const context = createWorkbookBuildContext(false, budget)
+  const sheets: IWorkbookData['sheets'] = {}
+  const sheetOrder: string[] = []
+  const tables: ExcelPreviewTable[] = []
+  const reader = new ExcelJS.stream.xlsx.WorkbookReader(filePath, {
+    hyperlinks: 'cache',
+    sharedStrings: 'cache',
+    styles: 'cache',
+    worksheets: 'emit'
+  })
+
+  for await (const worksheet of reader) {
+    const streamWorksheet = worksheet as StreamWorksheetReader
+    context.date1904 = getStreamWorkbookDate1904(streamWorksheet)
+    assertBudget(sheetOrder.length < context.budget.maxSheets, 'Excel workbook has too many sheets to preview.')
+
+    const sheetId = `sheet-${sheetOrder.length + 1}`
+    const streamWorksheetId = streamWorksheet.id !== undefined ? String(streamWorksheet.id) : undefined
+    const sheetIdMetadata = streamWorksheetId ? sheetMetadataIndex.bySheetId[streamWorksheetId] : undefined
+    const fileNumberMetadata = streamWorksheetId ? sheetMetadataIndex.byFileNumber[streamWorksheetId] : undefined
+    const sequentialFileNumberMetadata = sheetMetadataIndex.byFileNumber[String(sheetOrder.length + 1)]
+    const metadata =
+      sheetIdMetadata && (!streamWorksheet.name || streamWorksheet.name === sheetIdMetadata.name)
+        ? sheetIdMetadata
+        : (fileNumberMetadata ?? sequentialFileNumberMetadata)
+    sheets[sheetId] = await streamWorksheetToWorksheetData(streamWorksheet, sheetId, context, metadata)
+    tables.push(...(metadata?.tableData ?? []).map((table, index) => withSheetTableIdentity(table, sheetId, index)))
+    sheetOrder.push(sheetId)
+  }
+
+  return {
+    diagnostics,
+    fileName,
+    ...(tables.length ? { tables } : {}),
+    workbookData: {
+      id: 'excel-preview-workbook',
+      name: toWorkbookName(fileName),
+      appVersion: UNIVER_MODEL_VERSION,
+      locale: LocaleType.EN_US,
+      styles: context.styles,
+      sheetOrder,
+      sheets
+    }
+  }
+}
+
 export function excelJsWorkbookToPreviewData(
   workbook: ExcelJS.Workbook,
   fileName: string,
-  budget?: ExcelWorkbookPreviewBudget
+  budget?: ExcelWorkbookPreviewBudget,
+  sheetMetadataIndex: ExcelStreamSheetMetadataIndex = { byFileNumber: {}, bySheetId: {} }
 ): ExcelWorkbookPreviewData {
+  const tables = workbook.worksheets.flatMap((worksheet, index) => {
+    const sheetId = `sheet-${index + 1}`
+    const worksheetSheetId = worksheet.id !== undefined ? String(worksheet.id) : undefined
+    const metadata =
+      (worksheetSheetId ? sheetMetadataIndex.bySheetId[worksheetSheetId] : undefined) ??
+      (worksheetSheetId ? sheetMetadataIndex.byFileNumber[worksheetSheetId] : undefined) ??
+      sheetMetadataIndex.byFileNumber[String(index + 1)]
+
+    return mergeTableData(worksheet, sheetId, metadata)
+  })
+
   return {
-    diagnostics: collectImportDiagnostics(workbook),
+    diagnostics: collectImportDiagnostics(),
     fileName,
+    ...(tables.length ? { tables } : {}),
     workbookData: excelJsWorkbookToUniverWorkbook(workbook, fileName, budget)
   }
 }

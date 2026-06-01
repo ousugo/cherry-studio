@@ -5,14 +5,27 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { AbsolutePathSchema } from '@shared/data/types/file'
 import type {
+  ExcelImportDiagnostic,
   ExcelImportDiagnosticCode,
+  ExcelPreviewTableFilter,
+  ExcelPreviewTableRange,
+  ExcelPreviewTableStringFilterInfo,
   ExcelWorkbookPreviewRequest,
   ExcelWorkbookPreviewResult
 } from '@shared/excelPreview'
 import { IpcChannel } from '@shared/IpcChannel'
+import { XMLParser } from 'fast-xml-parser'
+import StreamZip from 'node-stream-zip'
 import * as z from 'zod'
 
-import type { ExcelWorkbookPreviewBudget } from './excelToUniverWorkbook'
+import type {
+  ExcelStreamSheetMetadata,
+  ExcelStreamSheetMetadataIndex,
+  ExcelWorkbookPreviewBudget,
+  ExcelWorksheetColumnData,
+  ExcelWorksheetMergeData,
+  ExcelWorksheetTableData
+} from './excelToUniverWorkbook'
 
 export const EXCEL_PREVIEW_MAX_SIZE_BYTES = 25 * 1024 * 1024
 
@@ -24,6 +37,125 @@ const ExcelWorkbookPreviewRequestSchema = z.strictObject({
 })
 
 const logger = loggerService.withContext('ExcelPreviewService')
+const XLSX_CHART_ENTRY_PATTERN = /^xl\/charts\/[^/]+[.]xml$/i
+const excelArchiveXmlParser = new XMLParser({
+  attributeNamePrefix: '',
+  ignoreAttributes: false,
+  parseAttributeValue: false,
+  removeNSPrefix: true
+})
+
+interface ParsedWorkbookSheet {
+  id?: string
+  name?: string
+  sheetId?: string
+  state?: string
+}
+
+interface ParsedWorkbookXml {
+  workbook?: {
+    sheets?: {
+      sheet?: ParsedWorkbookSheet | ParsedWorkbookSheet[]
+    }
+  }
+}
+
+interface ParsedWorkbookRelationship {
+  Id?: string
+  Target?: string
+  Type?: string
+}
+
+interface ParsedWorkbookRelationshipsXml {
+  Relationships?: {
+    Relationship?: ParsedWorkbookRelationship | ParsedWorkbookRelationship[]
+  }
+}
+
+interface ParsedWorksheetMergeCell {
+  ref?: string
+}
+
+interface ParsedWorksheetColumn {
+  hidden?: boolean | number | string
+  max?: number | string
+  min?: number | string
+  width?: number | string
+}
+
+interface ParsedWorksheetXml {
+  worksheet?: {
+    cols?: {
+      col?: ParsedWorksheetColumn | ParsedWorksheetColumn[]
+    }
+    mergeCells?: {
+      mergeCell?: ParsedWorksheetMergeCell | ParsedWorksheetMergeCell[]
+    }
+    tableParts?: {
+      tablePart?: ParsedWorksheetTablePart | ParsedWorksheetTablePart[]
+    }
+  }
+}
+
+interface ExcelArchiveWorksheetMetadata {
+  columnData: ExcelWorksheetColumnData
+  mergeData: ExcelWorksheetMergeData
+  tableData: ExcelWorksheetTableData[]
+}
+
+interface ParsedWorksheetTablePart {
+  id?: string
+}
+
+interface ParsedTableColumn {
+  id?: number | string
+  name?: string
+}
+
+interface ParsedTableFilter {
+  val?: string
+}
+
+interface ParsedTableCustomFilter {
+  operator?: string
+  val?: string
+}
+
+interface ParsedTableFilterColumn {
+  colId?: number | string
+  customFilters?: {
+    and?: boolean | number | string
+    customFilter?: ParsedTableCustomFilter | ParsedTableCustomFilter[]
+  }
+  filters?: {
+    filter?: ParsedTableFilter | ParsedTableFilter[]
+  }
+  hiddenButton?: boolean | number | string
+}
+
+interface ParsedTableXml {
+  table?: {
+    autoFilter?: {
+      filterColumn?: ParsedTableFilterColumn | ParsedTableFilterColumn[]
+    }
+    displayName?: string
+    headerRowCount?: number | string
+    name?: string
+    ref?: string
+    tableColumns?: {
+      tableColumn?: ParsedTableColumn | ParsedTableColumn[]
+    }
+    tableStyleInfo?: {
+      name?: string
+    }
+    totalsRowCount?: number | string
+  }
+}
+
+interface ExcelArchiveMetadata {
+  diagnostics: ExcelImportDiagnostic[]
+  sheetMetadataIndex: ExcelStreamSheetMetadataIndex
+}
 
 const fail = (code: ExcelImportDiagnosticCode, message: string): ExcelWorkbookPreviewResult => ({
   success: false,
@@ -35,6 +167,462 @@ const toError = (err: unknown) => (err instanceof Error ? err : new Error(String
 
 const normalizeFileName = (request: ExcelWorkbookPreviewRequest) => {
   return request.fileName || path.basename(request.filePath)
+}
+
+const isUnsupportedExcelDrawingError = (error: Error): boolean => {
+  return error.message.includes("reading 'anchors'") || error.message.includes('reading "anchors"')
+}
+
+const asArray = <T>(value: T | T[] | undefined): T[] => {
+  if (value === undefined) return []
+  return Array.isArray(value) ? value : [value]
+}
+
+const readArchiveEntryText = async (zip: StreamZip.StreamZipAsync, entryName: string): Promise<string | undefined> => {
+  try {
+    const entry = await zip.entry(entryName)
+    if (!entry) return undefined
+
+    return (await zip.entryData(entry)).toString('utf8')
+  } catch (err) {
+    logger.warn(`Failed to read Excel archive entry: ${entryName}`, toError(err))
+    return undefined
+  }
+}
+
+const getWorksheetFileNumberFromRelationshipTarget = (target: string | undefined): string | undefined => {
+  if (!target) return undefined
+
+  const normalizedTarget = target.startsWith('/')
+    ? target.slice(1)
+    : path.posix.normalize(path.posix.join('xl', target.replace(/\\/g, '/')))
+  const match = /^xl\/worksheets\/sheet(\d+)[.]xml$/i.exec(normalizedTarget)
+  return match?.[1]
+}
+
+const decodeColumn = (letters: string): number | null => {
+  let column = 0
+  for (const char of letters.toUpperCase()) {
+    const code = char.charCodeAt(0)
+    if (code < 65 || code > 90) return null
+    column = column * 26 + code - 64
+  }
+  return column - 1
+}
+
+const decodeCellAddress = (address: string): { column: number; row: number } | null => {
+  const match = /^([A-Z]+)(\d+)$/i.exec(address.replace(/\$/g, ''))
+  if (!match) return null
+
+  const column = decodeColumn(match[1])
+  const row = Number(match[2])
+  if (column === null || !Number.isInteger(row) || row < 1) return null
+
+  return { column, row: row - 1 }
+}
+
+const decodeMergeRange = (range: string): ExcelWorksheetMergeData[number] | null => {
+  const [startRaw, endRaw = startRaw] = range.split(':')
+  const start = decodeCellAddress(startRaw)
+  const end = decodeCellAddress(endRaw)
+  if (!start || !end) return null
+
+  return {
+    startRow: Math.min(start.row, end.row),
+    startColumn: Math.min(start.column, end.column),
+    endRow: Math.max(start.row, end.row),
+    endColumn: Math.max(start.column, end.column)
+  }
+}
+
+const decodeTableRange = (range: string | undefined): ExcelPreviewTableRange | null => {
+  const decodedRange = range ? decodeMergeRange(range) : null
+  return decodedRange ? { ...decodedRange } : null
+}
+
+const parseExcelBooleanAttribute = (value: boolean | number | string | undefined): boolean => {
+  return value === true || value === 1 || value === '1' || value === 'true'
+}
+
+const parseExcelNumberAttribute = (value: number | string | undefined): number | undefined => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+const parseExcelIntegerAttribute = (value: number | string | undefined): number | undefined => {
+  const parsed = parseExcelNumberAttribute(value)
+  return parsed !== undefined && Number.isInteger(parsed) ? parsed : undefined
+}
+
+const parseWorksheetColumnData = (worksheet: ParsedWorksheetXml): ExcelWorksheetColumnData => {
+  const columnData: ExcelWorksheetColumnData = {}
+  const columnDefinitions = asArray(worksheet.worksheet?.cols?.col)
+
+  columnDefinitions.forEach((columnDefinition) => {
+    const min = parseExcelIntegerAttribute(columnDefinition.min)
+    const max = parseExcelIntegerAttribute(columnDefinition.max)
+    if (!min || !max || min < 1 || max < min) return
+
+    const width = parseExcelNumberAttribute(columnDefinition.width)
+    const hidden = parseExcelBooleanAttribute(columnDefinition.hidden)
+    if (!width && !hidden) return
+
+    for (let column = min; column <= max; column += 1) {
+      columnData[column - 1] = {
+        ...(width ? { w: Math.round(width * 8) } : {}),
+        ...(hidden ? { hd: 1 } : {})
+      }
+    }
+  })
+
+  return columnData
+}
+
+const parseWorksheetMergeData = (worksheet: ParsedWorksheetXml): ExcelWorksheetMergeData => {
+  const mergeCells = asArray(worksheet.worksheet?.mergeCells?.mergeCell)
+
+  return mergeCells.flatMap((mergeCell) => {
+    const merge = decodeMergeRange(mergeCell.ref ?? '')
+    return merge ? [merge] : []
+  })
+}
+
+const toArchiveTargetPath = (baseDir: string, target: string | undefined): string | undefined => {
+  if (!target) return undefined
+
+  const normalizedTarget = target.replace(/\\/g, '/')
+  return normalizedTarget.startsWith('/')
+    ? normalizedTarget.slice(1)
+    : path.posix.normalize(path.posix.join(baseDir, normalizedTarget))
+}
+
+const toSafeTableIdentifier = (value: string): string => {
+  return value
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+const normalizeTableStyleId = (theme: string | undefined): string | undefined => {
+  // Excel exposes built-in table style names like TableStyleMedium2, not their
+  // resolved colors. Univer's closest neutral fallback is its default blue.
+  return theme ? 'table-default-0' : undefined
+}
+
+const toNumberFilterCompareType = (
+  operator: string | undefined
+): 'equal' | 'notEqual' | 'greaterThan' | 'greaterThanOrEqual' | 'lessThan' | 'lessThanOrEqual' => {
+  switch (operator) {
+    case 'notEqual':
+      return 'notEqual'
+    case 'greaterThan':
+      return 'greaterThan'
+    case 'greaterThanOrEqual':
+      return 'greaterThanOrEqual'
+    case 'lessThan':
+      return 'lessThan'
+    case 'lessThanOrEqual':
+      return 'lessThanOrEqual'
+    default:
+      return 'equal'
+  }
+}
+
+const unescapeExcelWildcardValue = (value: string): string => value.replace(/~([*?~])/g, '$1')
+
+const getUnescapedExcelWildcardPositions = (value: string, wildcard: '*' | '?'): number[] => {
+  const positions: number[] = []
+  let escaped = false
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+
+    if (char === '~') {
+      escaped = true
+      continue
+    }
+
+    if (char === wildcard) {
+      positions.push(index)
+    }
+  }
+
+  return positions
+}
+
+const toStringFilterInfo = (operator: string | undefined, value: string): ExcelPreviewTableStringFilterInfo => {
+  const starPositions = getUnescapedExcelWildcardPositions(value, '*')
+  const hasQuestionWildcard = getUnescapedExcelWildcardPositions(value, '?').length > 0
+
+  if (value.length > 1 && !hasQuestionWildcard) {
+    const excludesMatches = operator === 'notEqual'
+    const hasLeadingWildcard = starPositions.includes(0)
+    const hasTrailingWildcard = starPositions.includes(value.length - 1)
+    const hasOnlyBoundaryWildcards = starPositions.every((position) => position === 0 || position === value.length - 1)
+
+    if (hasOnlyBoundaryWildcards && hasLeadingWildcard && hasTrailingWildcard && value.length > 2) {
+      return {
+        conditionType: 'string',
+        compareType: excludesMatches ? 'notContains' : 'contains',
+        expectedValue: unescapeExcelWildcardValue(value.slice(1, -1))
+      }
+    }
+
+    if (hasOnlyBoundaryWildcards && !excludesMatches && hasTrailingWildcard) {
+      return {
+        conditionType: 'string',
+        compareType: 'startsWith',
+        expectedValue: unescapeExcelWildcardValue(value.slice(0, -1))
+      }
+    }
+
+    if (hasOnlyBoundaryWildcards && !excludesMatches && hasLeadingWildcard) {
+      return {
+        conditionType: 'string',
+        compareType: 'endsWith',
+        expectedValue: unescapeExcelWildcardValue(value.slice(1))
+      }
+    }
+  }
+
+  return {
+    conditionType: 'string',
+    compareType: operator === 'notEqual' ? 'notEqual' : 'equal',
+    expectedValue: unescapeExcelWildcardValue(value)
+  }
+}
+
+const isNumericFilterValue = (value: string): boolean => {
+  return value.trim() !== '' && Number.isFinite(Number(value))
+}
+
+const parseCustomFilter = (filter: ParsedTableCustomFilter): ExcelPreviewTableFilter | null => {
+  if (filter.val === undefined) return null
+
+  if (isNumericFilterValue(filter.val)) {
+    return {
+      filterType: 'condition',
+      filterInfo: {
+        conditionType: 'number',
+        compareType: toNumberFilterCompareType(filter.operator),
+        expectedValue: Number(filter.val)
+      }
+    }
+  }
+
+  return {
+    filterType: 'condition',
+    filterInfo: toStringFilterInfo(filter.operator, filter.val)
+  }
+}
+
+const parseCustomFilters = (filters: ParsedTableFilterColumn['customFilters']): ExcelPreviewTableFilter | null => {
+  const customFilters = asArray(filters?.customFilter)
+  if (customFilters.length === 1) return parseCustomFilter(customFilters[0])
+
+  const numericFilters = customFilters.filter((filter) => filter.val !== undefined && isNumericFilterValue(filter.val))
+  if (numericFilters.length !== 2 || !parseExcelBooleanAttribute(filters?.and)) return null
+
+  const lower = numericFilters.find(
+    (filter) => filter.operator === 'greaterThanOrEqual' || filter.operator === 'greaterThan'
+  )
+  const upper = numericFilters.find((filter) => filter.operator === 'lessThanOrEqual' || filter.operator === 'lessThan')
+  if (!lower?.val || !upper?.val) return null
+
+  return {
+    filterType: 'condition',
+    filterInfo: {
+      conditionType: 'number',
+      compareType: 'between',
+      expectedValue: [Number(lower.val), Number(upper.val)]
+    }
+  }
+}
+
+const parseTableFilterColumn = (filterColumn: ParsedTableFilterColumn): ExcelPreviewTableFilter | null => {
+  const manualValues = asArray(filterColumn.filters?.filter)
+    .map((filter) => filter.val)
+    .filter((value): value is string => value !== undefined)
+
+  if (manualValues.length) {
+    return {
+      filterType: 'manual',
+      values: manualValues
+    }
+  }
+
+  return parseCustomFilters(filterColumn.customFilters)
+}
+
+const parseTableFilters = (table: ParsedTableXml): Array<ExcelPreviewTableFilter | null> | undefined => {
+  const filterColumns = asArray(table.table?.autoFilter?.filterColumn)
+  if (!filterColumns.length) return undefined
+
+  const filters: Array<ExcelPreviewTableFilter | null> = []
+  filterColumns.forEach((filterColumn) => {
+    const columnIndex = parseExcelIntegerAttribute(filterColumn.colId)
+    if (columnIndex === undefined || columnIndex < 0) return
+
+    filters[columnIndex] = parseTableFilterColumn(filterColumn)
+  })
+
+  return filters.some(Boolean) ? filters.map((filter) => filter ?? null) : undefined
+}
+
+const parseArchiveTableData = (tableXml: string, fallbackIndex: number): ExcelWorksheetTableData | null => {
+  const table = excelArchiveXmlParser.parse(tableXml) as ParsedTableXml
+  const tableName = table.table?.name || table.table?.displayName || `Table${fallbackIndex + 1}`
+  const range = decodeTableRange(table.table?.ref)
+  if (!range) return null
+
+  const tableId = `excel-table-${toSafeTableIdentifier(tableName) || fallbackIndex + 1}`
+  const columns = asArray(table.table?.tableColumns?.tableColumn).map((column, index) => ({
+    displayName: column.name || `Column ${index + 1}`,
+    id: `${tableId}-column-${index + 1}`
+  }))
+  const filters = parseTableFilters(table)
+
+  return {
+    columns,
+    id: tableId,
+    name: tableName,
+    range,
+    showFooter: parseExcelBooleanAttribute(table.table?.totalsRowCount),
+    showHeader: table.table?.headerRowCount !== '0' && table.table?.headerRowCount !== 0,
+    tableStyleId: normalizeTableStyleId(table.table?.tableStyleInfo?.name),
+    ...(filters ? { filters } : {})
+  }
+}
+
+const collectWorksheetTableData = async (
+  zip: StreamZip.StreamZipAsync,
+  fileNumber: string,
+  worksheet: ParsedWorksheetXml
+): Promise<ExcelWorksheetTableData[]> => {
+  const tableParts = asArray(worksheet.worksheet?.tableParts?.tablePart)
+  if (!tableParts.length) return []
+
+  const relsXml = await readArchiveEntryText(zip, `xl/worksheets/_rels/sheet${fileNumber}.xml.rels`)
+  if (!relsXml) return []
+
+  const relationships = asArray(
+    (excelArchiveXmlParser.parse(relsXml) as ParsedWorkbookRelationshipsXml).Relationships?.Relationship
+  )
+  const relationshipsById = new Map(relationships.map((relationship) => [relationship.Id, relationship]))
+
+  const tableData: ExcelWorksheetTableData[] = []
+  for (const [index, tablePart] of tableParts.entries()) {
+    const relationship = tablePart.id ? relationshipsById.get(tablePart.id) : undefined
+    const tablePath = toArchiveTargetPath('xl/worksheets', relationship?.Target)
+    if (!tablePath) continue
+
+    const tableXml = await readArchiveEntryText(zip, tablePath)
+    const parsedTable = tableXml ? parseArchiveTableData(tableXml, index) : null
+    if (parsedTable) tableData.push(parsedTable)
+  }
+
+  return tableData
+}
+
+const collectArchiveWorksheetMetadata = async (
+  zip: StreamZip.StreamZipAsync,
+  fileNumber: string
+): Promise<ExcelArchiveWorksheetMetadata> => {
+  const worksheetXml = await readArchiveEntryText(zip, `xl/worksheets/sheet${fileNumber}.xml`)
+  if (!worksheetXml) return { columnData: {}, mergeData: [], tableData: [] }
+
+  const worksheet = excelArchiveXmlParser.parse(worksheetXml) as ParsedWorksheetXml
+
+  return {
+    columnData: parseWorksheetColumnData(worksheet),
+    mergeData: parseWorksheetMergeData(worksheet),
+    tableData: await collectWorksheetTableData(zip, fileNumber, worksheet)
+  }
+}
+
+const collectArchiveSheetMetadata = async (zip: StreamZip.StreamZipAsync): Promise<ExcelStreamSheetMetadataIndex> => {
+  const [workbookXml, workbookRelsXml] = await Promise.all([
+    readArchiveEntryText(zip, 'xl/workbook.xml'),
+    readArchiveEntryText(zip, 'xl/_rels/workbook.xml.rels')
+  ])
+  const sheetMetadataIndex: ExcelStreamSheetMetadataIndex = {
+    byFileNumber: {},
+    bySheetId: {}
+  }
+  if (!workbookXml) return sheetMetadataIndex
+
+  const workbook = excelArchiveXmlParser.parse(workbookXml) as ParsedWorkbookXml
+  const sheets = asArray(workbook.workbook?.sheets?.sheet)
+  if (!sheets.length) return sheetMetadataIndex
+
+  const relationships = workbookRelsXml
+    ? asArray(
+        (excelArchiveXmlParser.parse(workbookRelsXml) as ParsedWorkbookRelationshipsXml).Relationships?.Relationship
+      )
+    : []
+  const relationshipsById = new Map(relationships.map((relationship) => [relationship.Id, relationship]))
+
+  for (const [index, sheet] of sheets.entries()) {
+    if (!sheet.name) continue
+
+    const relationship = sheet.id ? relationshipsById.get(sheet.id) : undefined
+    const fileNumber = getWorksheetFileNumberFromRelationshipTarget(relationship?.Target) ?? String(index + 1)
+    const worksheetMetadata = await collectArchiveWorksheetMetadata(zip, fileNumber)
+    const metadata: ExcelStreamSheetMetadata = {
+      ...(Object.keys(worksheetMetadata.columnData).length ? { columnData: worksheetMetadata.columnData } : {}),
+      ...(worksheetMetadata.mergeData.length ? { mergeData: worksheetMetadata.mergeData } : {}),
+      ...(worksheetMetadata.tableData.length ? { tableData: worksheetMetadata.tableData } : {}),
+      name: sheet.name,
+      ...(sheet.state ? { state: sheet.state } : {})
+    }
+    sheetMetadataIndex.byFileNumber[fileNumber] = metadata
+    if (sheet.sheetId) {
+      sheetMetadataIndex.bySheetId[sheet.sheetId] = metadata
+    }
+  }
+
+  return sheetMetadataIndex
+}
+
+const collectArchiveMetadata = async (filePath: string): Promise<ExcelArchiveMetadata> => {
+  const zip = new StreamZip.async({ file: filePath })
+
+  try {
+    const entries = await zip.entries()
+    const entryNames = Object.keys(entries)
+    const chartCount = entryNames.filter((entryName) => XLSX_CHART_ENTRY_PATTERN.test(entryName)).length
+
+    return {
+      diagnostics: [
+        ...(chartCount
+          ? [
+              {
+                code: 'unsupported_excel_charts' as const,
+                count: chartCount,
+                message: 'Charts are not rendered in Excel preview yet.',
+                severity: 'warning' as const
+              }
+            ]
+          : [])
+      ],
+      sheetMetadataIndex: await collectArchiveSheetMetadata(zip)
+    }
+  } finally {
+    await zip.close()
+  }
+}
+
+const getArchiveMetadata = async (filePath: string): Promise<ExcelArchiveMetadata> => {
+  try {
+    return await collectArchiveMetadata(filePath)
+  } catch (err) {
+    logger.warn(`Failed to inspect Excel archive metadata: ${filePath}`, toError(err))
+    return { diagnostics: [], sheetMetadataIndex: { byFileNumber: {}, bySheetId: {} } }
+  }
 }
 
 export const EXCEL_PREVIEW_COMPLEXITY_BUDGET = {
@@ -77,20 +665,49 @@ export async function readExcelWorkbookPreview(
       return fail('excel_file_too_large', 'Excel preview supports files up to 25 MB.')
     }
 
-    const [{ default: ExcelJS }, { excelJsWorkbookToPreviewData }] = await Promise.all([
-      import('exceljs'),
-      import('./excelToUniverWorkbook')
-    ])
+    const archiveMetadata = await getArchiveMetadata(normalizedRequest.filePath)
+    const [
+      { default: ExcelJS },
+      { excelJsStreamingWorkbookToPreviewData, excelJsWorkbookToPreviewData, mergeExcelImportDiagnostics }
+    ] = await Promise.all([import('exceljs'), import('./excelToUniverWorkbook')])
     const workbook = new ExcelJS.Workbook()
-    await workbook.xlsx.readFile(normalizedRequest.filePath)
+    try {
+      await workbook.xlsx.readFile(normalizedRequest.filePath)
+    } catch (err) {
+      const error = toError(err)
+      const hasUnsupportedCharts = archiveMetadata.diagnostics.some(
+        (diagnostic) => diagnostic.code === 'unsupported_excel_charts'
+      )
+      if (!hasUnsupportedCharts || !isUnsupportedExcelDrawingError(error)) {
+        throw error
+      }
+
+      logger.warn(
+        `Excel workbook contains unsupported chart drawings; using cell-only preview: ${normalizedRequest.filePath}`
+      )
+      return {
+        success: true,
+        data: await excelJsStreamingWorkbookToPreviewData(
+          normalizedRequest.filePath,
+          normalizeFileName(normalizedRequest),
+          options.budget ?? EXCEL_PREVIEW_COMPLEXITY_BUDGET,
+          archiveMetadata.diagnostics,
+          archiveMetadata.sheetMetadataIndex
+        )
+      }
+    }
+
+    const data = excelJsWorkbookToPreviewData(
+      workbook,
+      normalizeFileName(normalizedRequest),
+      options.budget ?? EXCEL_PREVIEW_COMPLEXITY_BUDGET,
+      archiveMetadata.sheetMetadataIndex
+    )
+    data.diagnostics = mergeExcelImportDiagnostics(data.diagnostics, archiveMetadata.diagnostics)
 
     return {
       success: true,
-      data: excelJsWorkbookToPreviewData(
-        workbook,
-        normalizeFileName(normalizedRequest),
-        options.budget ?? EXCEL_PREVIEW_COMPLEXITY_BUDGET
-      )
+      data
     }
   } catch (err) {
     const error = toError(err)

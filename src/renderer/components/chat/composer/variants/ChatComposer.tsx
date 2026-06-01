@@ -36,6 +36,7 @@ import type { FileMetadata, Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn, getLeadingEmoji } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import { canModelUseAssistantWebSearch } from '@renderer/utils/modelReconcile'
 import type { ComposerQueuedMessagePayload, ComposerQueueItem, StreamPendingQueueItem } from '@shared/ai/transport'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -43,7 +44,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
-import { isNonChatModel, isWebSearchModel } from '@shared/utils/model'
+import { isNonChatModel } from '@shared/utils/model'
 import { Bot } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -659,7 +660,7 @@ const ChatComposerInner = ({
       if (!nextModel) return
       if (!assistant) return
 
-      const enabledWebSearch = isWebSearchModel(nextModel)
+      const enabledWebSearch = canModelUseAssistantWebSearch(nextModel, assistant.settings)
       setModel(nextModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
     },
     [assistant, setModel]

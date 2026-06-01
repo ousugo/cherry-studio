@@ -3379,6 +3379,10 @@
         "label": "訊息樣式",
         "plain": "簡潔"
       },
+      "user_content": {
+        "collapse": "收起",
+        "expand": "展開"
+      },
       "video": {
         "error": {
           "local_file_missing": "本機影片檔案路徑不存在",
@@ -5993,17 +5997,6 @@
         "title": "資料備份與復原"
       },
       "common": {
-        "menu": {
-          "presentation_mode": {
-            "cherry": "Cherry",
-            "native": "系統原生",
-            "restart": {
-              "content": "變更右鍵選單樣式需要重新啟動應用程式才能完全生效。是否立即重新啟動？",
-              "title": "需要重新啟動"
-            },
-            "title": "右鍵選單樣式"
-          }
-        },
         "sections": {
           "chat_settings": "對話設定",
           "custom_css": "自訂 CSS",
@@ -7194,9 +7187,9 @@
       "show_app": "顯示 / 隱藏應用程式",
       "show_settings": "開啟設定",
       "title": "快捷鍵",
+      "toggle_left_sidebar": "切換左側邊欄",
       "toggle_new_context": "清除上下文",
       "toggle_right_sidebar": "切換右側邊欄",
-      "toggle_sidebar": "切換側邊欄",
       "zoom_in": "放大介面",
       "zoom_out": "縮小介面",
       "zoom_reset": "重設縮放"

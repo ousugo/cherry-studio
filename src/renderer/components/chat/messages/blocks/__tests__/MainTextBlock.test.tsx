@@ -2,7 +2,7 @@ import type * as CherryUI from '@cherrystudio/ui'
 import type { Citation, Model } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { Fragment, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,6 +11,11 @@ import MainTextBlock from '../MainTextBlock'
 // Mock dependencies
 const mockRenderConfig = vi.hoisted(() => ({
   renderInputMessageAsMarkdown: false
+}))
+
+const mockTranslations = vi.hoisted(() => ({
+  'message.message.user_content.expand': 'Expand',
+  'message.message.user_content.collapse': 'Collapse'
 }))
 
 vi.mock('../../MessageListProvider', () => ({
@@ -44,6 +49,12 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     )
   }
 })
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => mockTranslations[key as keyof typeof mockTranslations] ?? key
+  })
+}))
 
 // Mock citation utilities
 vi.mock('@renderer/utils/citation', () => ({
@@ -272,6 +283,120 @@ describe('MainTextBlock', () => {
       }).not.toThrow()
 
       expect(getRenderedMarkdown()).toBeInTheDocument()
+    })
+
+    it('should not show the collapse toggle for user messages with up to five effective lines', () => {
+      const fiveEffectiveLines = ['Line 1', '', 'Line 2', 'Line 3', 'Line 4', 'Line 5'].join('\n')
+
+      renderMainTextBlock({ content: fiveEffectiveLines, role: 'user' })
+
+      expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Collapse' })).not.toBeInTheDocument()
+      expect(document.body).toHaveTextContent('Line 5')
+    })
+
+    it('should preview the first five effective lines for long plain text user messages', () => {
+      const longContent = [
+        'Line 1',
+        '',
+        '',
+        'Line 2',
+        'Line 3',
+        'Line 4',
+        'Line 5',
+        'Line 6',
+        'Line 7',
+        'Line 8',
+        'Line 9',
+        'Line 10',
+        'Line 11'
+      ].join('\n')
+
+      renderMainTextBlock({ content: longContent, role: 'user' })
+
+      const content = screen
+        .getByText(/Line 1/)
+        .closest('[data-user-message-collapsible-content-preview]') as HTMLElement
+      const button = screen.getByRole('button', { name: 'Expand' })
+
+      expect(content.style.maxHeight).toBe('')
+      expect(content.style.overflow).toBe('')
+      expect(content).toHaveClass('[&>*:last-child]:mb-0!', '[&_.markdown>*:last-child]:mb-0!')
+      expect(content.textContent).toContain('Line 1\n\n\nLine 2')
+      expect(document.body).toHaveTextContent('Line 5')
+      expect(document.body).not.toHaveTextContent('Line 6')
+      expect(button).toHaveAttribute('aria-expanded', 'false')
+      expect(button).toHaveClass(
+        'flex',
+        'min-h-7',
+        'w-full',
+        'items-center',
+        'justify-start',
+        'gap-1.5',
+        'bg-transparent',
+        'px-0',
+        'py-0.5',
+        'text-left'
+      )
+
+      fireEvent.click(button)
+
+      expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
+      expect(document.body).toHaveTextContent('Line 11')
+    })
+
+    it('should preview long markdown-rendered user messages without rendering the full markdown DOM', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({
+        content: Array.from({ length: 11 }, (_, index) => `User **bold** content ${index + 1}`).join('\n'),
+        role: 'user'
+      })
+
+      expect(getRenderedMarkdown()).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+      expect(getRenderedMarkdown()).toHaveAttribute(
+        'data-content',
+        Array.from({ length: 5 }, (_, index) => `User **bold** content ${index + 1}`).join('\n')
+      )
+      expect(getRenderedMarkdown()).not.toHaveAttribute('data-content', expect.stringContaining('content 11'))
+    })
+
+    it('should preview long user messages that render composer tokens', () => {
+      const tokenPrefix = 'Intro line\n\n\nOpen '
+      const content = [tokenPrefix + 'src/chat.ts now']
+        .concat(Array.from({ length: 9 }, (_, index) => `Line ${index + 3}`))
+        .join('\n')
+      renderMainTextBlock({
+        content,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'file-1',
+              kind: 'file',
+              label: 'chat.ts',
+              index: 0,
+              textOffset: tokenPrefix.length,
+              promptText: 'src/chat.ts'
+            }
+          ]
+        }
+      })
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+      expect(document.body).toHaveTextContent('Line 5')
+      expect(document.body).not.toHaveTextContent('Line 6')
+    })
+
+    it('should not collapse assistant messages', () => {
+      const content = Array.from({ length: 11 }, (_, index) => `Assistant response ${index + 1}`).join('\n')
+      renderMainTextBlock({ content, role: 'assistant' })
+
+      expect(getRenderedMarkdown()).toBeInTheDocument()
+      expect(document.body).toHaveTextContent('Assistant response 11')
+      expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument()
     })
 
     it('should render composer tokens as inline chips without leaking hidden prompt text', () => {

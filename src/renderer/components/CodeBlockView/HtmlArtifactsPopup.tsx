@@ -18,6 +18,7 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
+import CodeViewer from '@renderer/components/CodeViewer'
 import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -36,13 +37,22 @@ interface CodePanelProps {
   theme: React.ComponentProps<typeof CodeEditor>['theme']
   fontSize: number
   onSave?: (html: string) => void
+  editable: boolean
   saved: boolean
   onClickSave: () => void
   saveLabel: string
 }
 
 const CodePanel = memo<CodePanelProps>(
-  ({ codeEditorRef, html, theme, fontSize, onSave, saved, onClickSave, saveLabel }) => {
+  ({ codeEditorRef, html, theme, fontSize, onSave, editable, saved, onClickSave, saveLabel }) => {
+    if (!editable) {
+      return (
+        <div className="grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">
+          <CodeViewer value={html} language="html" fontSize={fontSize} height="100%" expanded={false} wrapped />
+        </div>
+      )
+    }
+
     return (
       <div className="relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden">
         <CodeEditor
@@ -84,12 +94,20 @@ interface HtmlArtifactsPopupProps {
   title: string
   html: string
   onSave?: (html: string) => void
+  editable?: boolean
   onClose: () => void
 }
 
 type ViewMode = 'split' | 'code' | 'preview'
 
-const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, html, onSave, onClose }) => {
+const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
+  open,
+  title,
+  html,
+  onSave,
+  editable = true,
+  onClose
+}) => {
   const { t } = useTranslation()
   const { activeCmTheme } = useCodeStyle()
   const [fontSize] = usePreference('chat.message.font_size')
@@ -150,6 +168,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       theme={activeCmTheme}
       fontSize={fontSize - 1}
       onSave={onSave}
+      editable={editable}
       saved={saved}
       onClickSave={handleSave}
       saveLabel={t('code_block.edit.save.label')}

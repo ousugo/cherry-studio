@@ -1,6 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
+import { useCommandHandler } from '@renderer/commands'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerMessageQueuePanel from '@renderer/components/chat/composer/ComposerMessageQueuePanel'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
@@ -20,6 +21,7 @@ import { formatQuoteTokenPromptText } from '@renderer/components/chat/utils/quot
 import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { AgentSelector, ModelSelector, WorkspaceSelector } from '@renderer/components/Selector'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
+import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { isSoulModeEnabled } from '@renderer/hooks/agents/agentConfiguration'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agents/useAgent'
@@ -313,6 +315,14 @@ const AgentComposerRoot = ({
   const { agent } = useAgent(agentId)
   const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
+  const handleNewSessionShortcut = useCallback(() => {
+    void onNewSessionDraft?.()
+  }, [onNewSessionDraft])
+
+  const isActiveTab = useIsActiveTab()
+  useCommandHandler('topic.create', handleNewSessionShortcut, {
+    enabled: isActiveTab && Boolean(session && agent && onNewSessionDraft)
+  })
 
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
@@ -476,6 +486,7 @@ const AgentComposerContextControls = ({
           open={agentModelSelectorOpen}
           onOpenChange={setAgentModelSelectorOpen}
           filter={modelFilter}
+          shortcut="chat.model.select"
           side={side}
           align="start"
           mountStrategy="lazy-keep"

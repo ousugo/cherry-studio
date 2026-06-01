@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   availableSkillsRefresh: vi.fn(),
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
+  shortcutHandlers: new Map<string, () => void>(),
+  shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   runtimeHostProps: undefined as
@@ -257,6 +259,13 @@ vi.mock('@renderer/hooks/useSkills', () => ({
   })
 }))
 
+vi.mock('@renderer/commands', () => ({
+  useCommandHandler: (key: string, handler: () => void, options?: Record<string, unknown>) => {
+    mocks.shortcutHandlers.set(key, handler)
+    mocks.shortcutOptions.set(key, options)
+  }
+}))
+
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <span data-testid="model-avatar" />
 }))
@@ -270,8 +279,8 @@ vi.mock('@renderer/components/Selector', () => ({
       </button>
     </div>
   ),
-  ModelSelector: ({ onSelect, trigger, open, onOpenChange }: any) => (
-    <div data-testid="agent-model-selector" data-open={String(Boolean(open))}>
+  ModelSelector: ({ onSelect, trigger, open, onOpenChange, shortcut }: any) => (
+    <div data-testid="agent-model-selector" data-open={String(Boolean(open))} data-shortcut={shortcut ?? ''}>
       {trigger}
       {onOpenChange ? (
         <>
@@ -402,6 +411,8 @@ describe('AgentComposer', () => {
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
+    mocks.shortcutHandlers.clear()
+    mocks.shortcutOptions.clear()
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
@@ -436,6 +447,39 @@ describe('AgentComposer', () => {
     expect(mocks.modelLookupId).toBe('anthropic::claude-sonnet-4-5')
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
+  })
+
+  it('passes the chat model shortcut to the model selector', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
+  })
+
+  it('routes new session shortcuts through the explicit parent action', () => {
+    const onNewSessionDraft = vi.fn()
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        onNewSessionDraft={onNewSessionDraft}
+        isStreaming={false}
+      />
+    )
+
+    mocks.shortcutHandlers.get('topic.create')?.()
+
+    expect(onNewSessionDraft).toHaveBeenCalledTimes(1)
   })
 
   it('passes attachment capabilities through the provider without effect mirroring', () => {

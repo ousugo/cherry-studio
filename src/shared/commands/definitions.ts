@@ -31,8 +31,8 @@ export const COMMAND_DEFINITIONS = [
   }),
   defineCommand({
     id: 'app.sidebar.toggle',
-    titleKey: 'settings.shortcuts.toggle_sidebar',
-    categoryKey: 'settings.shortcuts.general',
+    titleKey: 'settings.shortcuts.toggle_left_sidebar',
+    categoryKey: 'settings.shortcuts.topic',
     scope: 'renderer',
     keybinding: {
       defaultBinding: ['CommandOrControl', '[']

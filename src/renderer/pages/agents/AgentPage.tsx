@@ -276,17 +276,6 @@ const AgentPage = () => {
     ]
   )
 
-  useCommandHandler(
-    'topic.create',
-    () => {
-      if (isMessageOnlyView) return
-      const agentId = visibleSession?.agentId ?? lastUsedAgentId ?? agents?.[0]?.id
-      if (!agentId) return
-      void startTemporarySession({ agentId, ...getSessionWorkspaceDefaults(visibleSession) })
-    },
-    { enabled: isActiveTab }
-  )
-
   useEffect(() => {
     if (initialTemporarySessionEvaluatedRef.current) {
       return

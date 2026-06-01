@@ -6,6 +6,7 @@ export type ExcelImportDiagnosticCode =
   | 'unsupported_xls_format'
   | 'excel_file_too_large'
   | 'excel_preview_too_complex'
+  | 'unsupported_excel_charts'
   | 'unsupported_excel_images'
   | 'excel_parse_error'
 
@@ -18,6 +19,79 @@ export interface ExcelImportDiagnostic {
   severity: ExcelImportDiagnosticSeverity
 }
 
+export interface ExcelPreviewImageAnchor {
+  column: number
+  columnOffset: number
+  row: number
+  rowOffset: number
+}
+
+export interface ExcelPreviewImageSize {
+  height: number
+  width: number
+}
+
+export interface ExcelPreviewImageRenderData {
+  from: ExcelPreviewImageAnchor
+  id: string
+  size?: ExcelPreviewImageSize
+  source: string
+  to?: ExcelPreviewImageAnchor
+}
+
+export interface ExcelPreviewCellCustom {
+  excelImages?: ExcelPreviewImageRenderData[]
+}
+
+export interface ExcelPreviewTableRange {
+  startRow: number
+  startColumn: number
+  endRow: number
+  endColumn: number
+}
+
+export interface ExcelPreviewTableColumn {
+  displayName: string
+  id: string
+}
+
+export interface ExcelPreviewTableManualFilter {
+  filterType: 'manual'
+  isAllSelected?: boolean
+  values: string[]
+}
+
+export interface ExcelPreviewTableNumberFilterInfo {
+  compareType: 'equal' | 'notEqual' | 'greaterThan' | 'greaterThanOrEqual' | 'lessThan' | 'lessThanOrEqual' | 'between'
+  conditionType: 'number'
+  expectedValue: number | [number, number]
+}
+
+export interface ExcelPreviewTableStringFilterInfo {
+  compareType: 'equal' | 'notEqual' | 'contains' | 'notContains' | 'startsWith' | 'endsWith'
+  conditionType: 'string'
+  expectedValue: string
+}
+
+export interface ExcelPreviewTableConditionFilter {
+  filterInfo: ExcelPreviewTableNumberFilterInfo | ExcelPreviewTableStringFilterInfo
+  filterType: 'condition'
+}
+
+export type ExcelPreviewTableFilter = ExcelPreviewTableManualFilter | ExcelPreviewTableConditionFilter
+
+export interface ExcelPreviewTable {
+  columns: ExcelPreviewTableColumn[]
+  filters?: Array<ExcelPreviewTableFilter | null>
+  id: string
+  name: string
+  range: ExcelPreviewTableRange
+  sheetId: string
+  showFooter?: boolean
+  showHeader?: boolean
+  tableStyleId?: string
+}
+
 export interface ExcelWorkbookPreviewRequest {
   fileName?: string
   filePath: string
@@ -26,6 +100,7 @@ export interface ExcelWorkbookPreviewRequest {
 export interface ExcelWorkbookPreviewData {
   diagnostics: ExcelImportDiagnostic[]
   fileName: string
+  tables?: ExcelPreviewTable[]
   workbookData: IWorkbookData
 }
 

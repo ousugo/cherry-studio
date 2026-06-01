@@ -15,6 +15,8 @@
  */
 import {
   getThinkModelType,
+  isFunctionCallingModel,
+  isOpenRouterBuiltInWebSearchModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel,
@@ -27,6 +29,16 @@ import type { Model } from '@shared/data/types/model'
 
 export type ReasoningEffortPatch = {
   reasoning_effort?: string
+}
+
+type WebSearchModelSettings = Partial<Pick<AssistantSettings, 'toolUseMode'>>
+
+export function hasModelBuiltinWebSearch(model: Model): boolean {
+  return isWebSearchModel(model) || isOpenRouterBuiltInWebSearchModel(model)
+}
+
+export function canModelUseAssistantWebSearch(model: Model, current: WebSearchModelSettings): boolean {
+  return hasModelBuiltinWebSearch(model) || isFunctionCallingModel(model) || current.toolUseMode === 'prompt'
 }
 
 export function reconcileReasoningEffortForModel(
@@ -65,9 +77,9 @@ export function reconcileReasoningEffortForModel(
 
 export function reconcileWebSearchForModel(
   nextModel: Model,
-  current: Pick<AssistantSettings, 'enableWebSearch'>
+  current: Pick<AssistantSettings, 'enableWebSearch'> & WebSearchModelSettings
 ): { enableWebSearch: false } | null {
   if (!current.enableWebSearch) return null
-  if (isWebSearchModel(nextModel)) return null
+  if (canModelUseAssistantWebSearch(nextModel, current)) return null
   return { enableWebSearch: false }
 }

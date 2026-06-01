@@ -10,7 +10,6 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Citation, Topic } from '@renderer/types'
 import type { FC, ReactNode } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -80,8 +79,6 @@ const ChatInner: FC<Props> = (props) => {
   useCommandHandler('topic.rename', async () => {
     const topic = props.activeTopic
     if (!topic) return
-
-    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
 
     const name = await PromptPopup.show({
       title: t('chat.topics.edit.title'),

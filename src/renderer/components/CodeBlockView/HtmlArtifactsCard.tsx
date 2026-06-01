@@ -15,10 +15,11 @@ const logger = loggerService.withContext('HtmlArtifactsCard')
 interface Props {
   html: string
   onSave?: (html: string) => void
+  editable?: boolean
   isStreaming?: boolean
 }
 
-const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => {
+const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreaming = false }) => {
   const { t } = useTranslation()
   const title = extractHtmlTitle(html) || 'HTML Artifacts'
   const [isPopupOpen, setIsPopupOpen] = useState(false)
@@ -124,6 +125,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
         title={title}
         html={htmlContent}
         onSave={onSave}
+        editable={editable}
         onClose={() => setIsPopupOpen(false)}
       />
     </>

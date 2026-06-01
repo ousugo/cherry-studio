@@ -74,15 +74,6 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   })
 }))
 
-vi.mock('@renderer/services/EventService', () => ({
-  EVENT_NAMES: {
-    SHOW_TOPIC_SIDEBAR: 'SHOW_TOPIC_SIDEBAR'
-  },
-  EventEmitter: {
-    emit: vi.fn()
-  }
-}))
-
 vi.mock('react-hotkeys-hook', () => ({
   useHotkeys: vi.fn()
 }))

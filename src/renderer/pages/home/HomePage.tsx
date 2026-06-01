@@ -269,15 +269,15 @@ const HomePage: FC = () => {
   useCommandHandler('app.sidebar.toggle', () => {
     if (isMessageOnlyView) return
 
-    if (!showSidebar) {
-      void setShowSidebar(true)
-      requestAnimationFrame(() => {
-        void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
-      })
+    if (showSidebar) {
+      void setShowSidebar(false)
       return
     }
 
-    void setShowSidebar(false)
+    void setShowSidebar(true)
+    requestAnimationFrame(() => {
+      void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
+    })
   })
 
   useEffect(() => {
@@ -304,7 +304,6 @@ const HomePage: FC = () => {
           if (!hasExplicitAssistantTarget || currentAssistantId === targetAssistantId) {
             setIgnoredTemporaryTopicId(null)
             setActiveTopic(buildPendingTemporaryTopic(temporaryTopicConversation.topicId, currentAssistantId))
-            void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
             return
           }
         }
@@ -315,7 +314,6 @@ const HomePage: FC = () => {
           if (!hasExplicitAssistantTarget || pendingAssistantId === targetAssistantId) {
             setIgnoredTemporaryTopicId(null)
             setActiveTopic(buildPendingTemporaryTopic(pending.topicId, pendingAssistantId))
-            void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
             return
           }
         }
@@ -324,7 +322,6 @@ const HomePage: FC = () => {
           if (startingTemporaryAssistantIdRef.current !== targetAssistantId) {
             queuedTemporaryTopicTargetRef.current = { assistantId: targetAssistantId }
           }
-          void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
           return
         }
 
@@ -335,7 +332,6 @@ const HomePage: FC = () => {
         setIgnoredTemporaryTopicId(null)
         pendingTemporaryTopicRef.current = { topicId: next.topicId, assistantId: next.assistantId }
         setActiveTopic(buildPendingTemporaryTopic(next.topicId, next.assistantId))
-        void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
       } catch (err) {
         logger.error('Failed to start temporary topic', err as Error)
       } finally {

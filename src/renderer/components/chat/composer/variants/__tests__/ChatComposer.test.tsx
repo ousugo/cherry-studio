@@ -1,7 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import type { ComposerQueueItem } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { isValidElement, type ReactNode, useEffect } from 'react'
@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   assistantLoading: false,
   modelPending: false,
   modelMissing: undefined as boolean | undefined,
+  selectedModel: undefined as Model | undefined,
   topicPending: false,
   draftItems: [] as ComposerQueueItem[],
   canSteerDraft: false,
@@ -81,6 +82,11 @@ const modelB = {
   supportsStreaming: true,
   isEnabled: true,
   isHidden: false
+} satisfies Model
+
+const modelBWithFunctionCall = {
+  ...modelB,
+  capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
 } satisfies Model
 
 vi.mock('@data/CacheService', () => ({
@@ -266,7 +272,8 @@ vi.mock('@renderer/components/Selector', () => ({
       <button
         type="button"
         onClick={() => {
-          onSelect(multiple ? [modelB] : modelB)
+          const selectedModel = mocks.selectedModel ?? modelB
+          onSelect(multiple ? [selectedModel] : selectedModel)
         }}>
         select model 2
       </button>
@@ -288,12 +295,21 @@ vi.mock('@renderer/components/Selector', () => ({
 }))
 
 vi.mock('@renderer/config/models', () => ({
+  getThinkModelType: () => 'default',
   isEmbeddingModel: () => false,
+  isFunctionCallingModel: (currentModel?: Model) =>
+    currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
   isGenerateImageModel: () => false,
   isGenerateImageModels: () => false,
+  isOpenRouterBuiltInWebSearchModel: () => false,
   isRerankModel: () => false,
+  isSupportedReasoningEffortModel: () => false,
+  isSupportedThinkingTokenModel: () => false,
   isVisionModel: () => false,
-  isVisionModels: () => false
+  isVisionModels: () => false,
+  isWebSearchModel: () => false,
+  MODEL_SUPPORTED_OPTIONS: { default: ['none'] },
+  MODEL_SUPPORTED_REASONING_EFFORT: { default: ['none'] }
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
@@ -391,6 +407,8 @@ vi.mock('@renderer/components/chat/composer/useComposerMessageQueue', () => ({
 }))
 
 vi.mock('@shared/utils/model', () => ({
+  isFunctionCallingModel: (currentModel?: Model) =>
+    currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
   isNonChatModel: () => false,
   isWebSearchModel: () => false
 }))
@@ -483,6 +501,7 @@ describe('ChatComposer', () => {
     mocks.assistantLoading = false
     mocks.modelPending = false
     mocks.modelMissing = undefined
+    mocks.selectedModel = undefined
     mocks.topicPending = false
     mocks.draftItems = []
     mocks.canSteerDraft = false
@@ -602,6 +621,16 @@ describe('ChatComposer', () => {
     fireEvent.click(screen.getByText('select model 2'))
 
     expect(mocks.setModel).toHaveBeenCalledWith(modelB, { enableWebSearch: false })
+  })
+
+  it('keeps web search enabled when switching to a function-calling model', () => {
+    mocks.selectedModel = modelBWithFunctionCall
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('select model 2'))
+
+    expect(mocks.setModel).toHaveBeenCalledWith(modelBWithFunctionCall, { enableWebSearch: true })
   })
 
   it('uses mentioned-model multi-select when requested by the composer toolbar', () => {

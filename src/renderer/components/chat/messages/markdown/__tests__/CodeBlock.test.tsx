@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => {
     getCodeBlockId: vi.fn(),
     isCodeFenceIncomplete: false,
     renderConfig: { codeFancyBlock: true },
+    messageListUi: { readonly: false },
     isWin: false,
     CodeBlockView: vi.fn(({ onSave, children }) => (
       <div>
@@ -36,7 +37,8 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => mocks.renderConfig,
-  useOptionalMessageListActions: () => mocks.messageListActions
+  useOptionalMessageListActions: () => mocks.messageListActions,
+  useOptionalMessageListUi: () => mocks.messageListUi
 }))
 
 vi.mock('@renderer/config/constant', () => ({
@@ -86,6 +88,7 @@ describe('CodeBlock', () => {
     vi.clearAllMocks()
     mocks.isWin = false
     mocks.messageListActions = { saveCodeBlock: mocks.saveCodeBlock }
+    mocks.messageListUi = { readonly: false }
     // Default mock return values
     mocks.getCodeBlockId.mockReturnValue('test-code-block-id')
     mocks.isCodeFenceIncomplete = false
@@ -192,10 +195,55 @@ describe('CodeBlock', () => {
       expect(mocks.CodeBlockView.mock.calls[0][0]).toEqual(
         expect.objectContaining({
           language: 'mermaid',
-          children: 'graph TD; A-->B;'
+          children: 'graph TD; A-->B;',
+          editable: true
         })
       )
       expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+    })
+
+    it('should pass editable=false for standard code blocks in readonly surfaces', () => {
+      mocks.messageListUi = { readonly: true }
+
+      render(<CodeBlock {...defaultProps} />)
+
+      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          editable: false
+        }),
+        undefined
+      )
+    })
+
+    it('should pass editable=false for standard code blocks when saving is unavailable', () => {
+      mocks.messageListActions = {}
+
+      render(<CodeBlock {...defaultProps} />)
+
+      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          editable: false
+        }),
+        undefined
+      )
+    })
+
+    it('should pass editable=false for HTML artifacts in readonly surfaces', () => {
+      mocks.messageListUi = { readonly: true }
+      const htmlProps = {
+        ...defaultProps,
+        className: 'language-html',
+        children: '<h1>Hello</h1>'
+      }
+
+      render(<CodeBlock {...htmlProps} />)
+
+      expect(mocks.HtmlArtifactsCard).toHaveBeenCalledWith(
+        expect.objectContaining({
+          editable: false
+        }),
+        undefined
+      )
     })
   })
 

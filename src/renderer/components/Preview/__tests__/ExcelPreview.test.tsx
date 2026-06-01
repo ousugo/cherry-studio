@@ -20,15 +20,6 @@ vi.mock('@renderer/components/chat', () => ({
   LoadingState: ({ label }: { label: string }) => <div data-testid="loading-state">{label}</div>
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Alert: ({ description, message, type }: { description?: string; message?: string; type?: string }) => (
-    <div data-testid="excel-preview-alert" data-type={type}>
-      <span>{message}</span>
-      <span>{description}</span>
-    </div>
-  )
-}))
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: mocks.t
@@ -40,6 +31,7 @@ vi.mock('@renderer/components/Excel', () => ({
     ariaLabel?: string
     onError?: (error: Error) => void
     readOnly?: boolean
+    tables?: unknown[]
     workbookData: IWorkbookData
   }) => {
     mocks.excelWorkbookView(props)
@@ -66,6 +58,15 @@ const makeWorkbookData = (overrides: Partial<IWorkbookData> = {}): IWorkbookData
 })
 
 const workbookData = makeWorkbookData()
+const tables = [
+  {
+    columns: [{ id: 'excel-table-sheet-1-Sales-column-1', displayName: 'Region' }],
+    id: 'excel-table-sheet-1-Sales',
+    name: 'Sales',
+    range: { startRow: 0, startColumn: 0, endRow: 2, endColumn: 0 },
+    sheetId: 'sheet-1'
+  }
+]
 
 describe('ExcelPreview', () => {
   beforeEach(() => {
@@ -75,6 +76,7 @@ describe('ExcelPreview', () => {
       data: {
         diagnostics: [],
         fileName: 'report.xlsx',
+        tables,
         workbookData
       }
     })
@@ -101,6 +103,7 @@ describe('ExcelPreview', () => {
       expect.objectContaining({
         ariaLabel: 'report.xlsx',
         readOnly: true,
+        tables,
         workbookData
       })
     )
@@ -163,7 +166,7 @@ describe('ExcelPreview', () => {
     expect(mocks.excelWorkbookView).not.toHaveBeenCalled()
   })
 
-  it('renders import diagnostics as a preview warning', async () => {
+  it('renders workbook view without a preview warning when import diagnostics are returned', async () => {
     mocks.readWorkbookPreview.mockResolvedValueOnce({
       success: true,
       data: {
@@ -182,12 +185,8 @@ describe('ExcelPreview', () => {
 
     render(<ExcelPreview filePath="/tmp/workspace/images.xlsx" fileName="images.xlsx" />)
 
-    await waitFor(() => expect(screen.getByTestId('excel-preview-alert')).toBeInTheDocument())
-    expect(screen.getByTestId('excel-preview-alert')).toHaveTextContent('agent.preview_pane.excel.warnings.title')
-    expect(screen.getByTestId('excel-preview-alert')).toHaveTextContent(
-      'agent.preview_pane.excel.warnings.unsupported_images'
-    )
-    expect(screen.getByTestId('excel-workbook-view')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTestId('excel-workbook-view')).toBeInTheDocument())
+    expect(screen.queryByTestId('excel-preview-alert')).not.toBeInTheDocument()
   })
 
   it('renders an error state when the workbook view reports an initialization failure', async () => {

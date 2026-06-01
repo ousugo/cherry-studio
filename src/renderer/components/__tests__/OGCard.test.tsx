@@ -99,6 +99,27 @@ describe('OgCard', () => {
     expect(screen.getByTestId('og-crd-description')).toHaveTextContent('https://example.com/article')
   })
 
+  it('uses document fallback metadata when Open Graph fields are absent', () => {
+    mocks.useMetaDataParser.mockReturnValue({
+      metadata: {
+        title: 'Fallback title',
+        description: 'Fallback description',
+        image: 'https://example.com/fallback.png'
+      },
+      isLoading: false,
+      parseMetadata: mocks.parseMetadata
+    })
+
+    render(<OgCard link="https://example.com/article" show />)
+
+    expect(screen.getByTestId('og-crd-title')).toHaveTextContent('Fallback title')
+    expect(screen.getByTestId('og-crd-description')).toHaveTextContent('Fallback description')
+    expect(screen.getByRole('img', { name: 'Fallback title' })).toHaveAttribute(
+      'src',
+      'https://example.com/fallback.png'
+    )
+  })
+
   it('keeps lazy metadata parsing behavior', () => {
     mocks.useMetaDataParser.mockReturnValue({
       metadata: {},

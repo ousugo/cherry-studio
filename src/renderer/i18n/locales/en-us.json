@@ -3379,6 +3379,10 @@
         "label": "Message style",
         "plain": "Plain"
       },
+      "user_content": {
+        "collapse": "Collapse",
+        "expand": "Expand"
+      },
       "video": {
         "error": {
           "local_file_missing": "Local video file path not found",
@@ -5993,17 +5997,6 @@
         "title": "Data Backup and Recovery"
       },
       "common": {
-        "menu": {
-          "presentation_mode": {
-            "cherry": "Cherry",
-            "native": "Native",
-            "restart": {
-              "content": "Changing the context menu style requires restarting the app to fully take effect. Do you want to restart now?",
-              "title": "Restart Required"
-            },
-            "title": "Context menu style"
-          }
-        },
         "sections": {
           "chat_settings": "Chat Settings",
           "custom_css": "Custom CSS",
@@ -7194,9 +7187,9 @@
       "show_app": "Show/Hide App",
       "show_settings": "Open Settings",
       "title": "Keyboard Shortcuts",
+      "toggle_left_sidebar": "Toggle Left Sidebar",
       "toggle_new_context": "Clear Context",
       "toggle_right_sidebar": "Toggle Right Sidebar",
-      "toggle_sidebar": "Toggle Sidebar",
       "zoom_in": "Zoom In",
       "zoom_out": "Zoom Out",
       "zoom_reset": "Reset Zoom"

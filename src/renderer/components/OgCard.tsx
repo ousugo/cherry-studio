@@ -10,9 +10,18 @@ type Props = {
   show: boolean
 }
 
+const METADATA_FIELDS = [
+  'og:title',
+  'og:description',
+  'og:image',
+  'og:imageAlt',
+  'title',
+  'description',
+  'image'
+] as const
+
 export const OgCard = ({ link, show }: Props) => {
-  const openGraph = ['og:title', 'og:description', 'og:image', 'og:imageAlt'] as const
-  const { metadata, isLoading, parseMetadata } = useMetaDataParser(link, openGraph)
+  const { metadata, isLoading, parseMetadata } = useMetaDataParser(link, METADATA_FIELDS)
 
   const hostname = useMemo(() => {
     try {
@@ -33,9 +42,9 @@ export const OgCard = ({ link, show }: Props) => {
     return <CardSkeleton />
   }
 
-  const title = metadata['og:title'] || hostname || link
-  const description = metadata['og:description'] || link
-  const imageUrl = metadata['og:image']
+  const title = metadata['og:title'] || metadata.title || hostname || link
+  const description = metadata['og:description'] || metadata.description || link
+  const imageUrl = metadata['og:image'] || metadata.image
   const thumbnail = imageUrl ? (
     <img
       src={imageUrl}
