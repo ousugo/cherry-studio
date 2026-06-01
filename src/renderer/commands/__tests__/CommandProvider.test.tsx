@@ -148,7 +148,16 @@ describe('CommandProvider', () => {
     expect(preventDefault).not.toHaveBeenCalled()
   })
 
-  it('skips composing events and contenteditable targets', () => {
+  it('skips composing events', () => {
+    const onExecute = vi.fn()
+    renderProvider(<RegisteredCommand command="topic.create" onExecute={onExecute} />)
+
+    dispatchShortcut({ isComposing: true } as KeyboardEventInit)
+
+    expect(onExecute).not.toHaveBeenCalled()
+  })
+
+  it('dispatches shortcuts even when focus is in a contenteditable input', () => {
     const onExecute = vi.fn()
     renderProvider(
       <>
@@ -157,11 +166,28 @@ describe('CommandProvider', () => {
       </>
     )
 
-    dispatchShortcut({ isComposing: true } as KeyboardEventInit)
     fireEvent.keyDown(screen.getByTestId('editable'), {
       key: 'n',
       code: 'KeyN',
       ctrlKey: true,
+      cancelable: true
+    })
+
+    expect(onExecute).toHaveBeenCalledOnce()
+  })
+
+  it('does not trigger a command for plain keystrokes while typing', () => {
+    const onExecute = vi.fn()
+    renderProvider(
+      <>
+        <RegisteredCommand command="topic.create" onExecute={onExecute} />
+        <div contentEditable="true" data-testid="editable" />
+      </>
+    )
+
+    fireEvent.keyDown(screen.getByTestId('editable'), {
+      key: 'n',
+      code: 'KeyN',
       cancelable: true
     })
 

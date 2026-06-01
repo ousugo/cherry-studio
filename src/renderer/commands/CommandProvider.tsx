@@ -47,14 +47,6 @@ const shortcutPreferenceKeys = Object.fromEntries(
   REGISTERED_KEYBINDINGS.map((rule) => [rule.command, rule.preferenceKey])
 ) as Record<CommandId, (typeof REGISTERED_KEYBINDINGS)[number]['preferenceKey']>
 
-const isEditableTarget = (target: EventTarget | null): boolean => {
-  if (!(target instanceof HTMLElement)) {
-    return false
-  }
-
-  return Boolean(target.closest('[contenteditable="true"], [contenteditable="plaintext-only"]'))
-}
-
 export function CommandProvider({ children }: { children: React.ReactNode }) {
   const contextSnapshot = useCommandContextSnapshot()
   const [shortcutPreferences] = useMultiplePreferences(shortcutPreferenceKeys)
@@ -133,7 +125,7 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing || isEditableTarget(event.target)) {
+      if (event.isComposing) {
         return
       }
 
