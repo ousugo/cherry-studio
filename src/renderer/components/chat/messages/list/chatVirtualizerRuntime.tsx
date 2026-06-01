@@ -30,6 +30,7 @@ import type { VListHandle } from 'virtua'
 import { useAtBottomTracker } from './useAtBottomTracker'
 import { useAutoStickToBottom } from './useAutoStickToBottom'
 import { useScrollAnchor } from './useScrollAnchor'
+import { useScrollPositionMemory } from './useScrollPositionMemory'
 import { useSmoothScrollAnimation } from './useSmoothScrollAnimation'
 
 export interface MessageVirtualListHandle {
@@ -52,6 +53,13 @@ export interface ChatVirtualizerRuntimeOptions<T> {
    * the viewport top. Typically the latest user message after send.
    */
   scrollToTopKey?: string
+  /**
+   * Topic id used to remember and restore this list's scroll position
+   * across remounts (topic / agent-session switches). Omit to disable.
+   */
+  topicId?: string
+  /** Padding reserved below the last message; used to restore to the bottom. */
+  bottomPadding: number
 }
 
 interface ScrollerEventHandlers {
@@ -99,7 +107,9 @@ export function useChatVirtualizerRuntime<T>({
   hasMoreTop,
   handleRef,
   topReachOverscanItems,
-  scrollToTopKey
+  scrollToTopKey,
+  topicId,
+  bottomPadding
 }: ChatVirtualizerRuntimeOptions<T>): ChatVirtualizerRuntime<T> {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
@@ -162,6 +172,30 @@ export function useChatVirtualizerRuntime<T>({
     return -1
   }, [])
 
+  // The spacer is appended after data items, so a wrapped index < data length
+  // is a data item; anything else (the spacer) maps to null.
+  const getDataKeyAtIndex = useCallback((index: number): string | null => {
+    const list = itemsRef.current
+    if (index < 0 || index >= list.length) return null
+    return getItemKeyRef.current(list[index], index)
+  }, [])
+
+  // ---- per-topic scroll position memory -------------------------------
+
+  const { save: saveScrollPosition } = useScrollPositionMemory({
+    topicId,
+    itemCount: items.length,
+    bottomPadding,
+    scrollerRef,
+    vlistHandleRef,
+    getDataKeyAtIndex,
+    findDataIndexByKey,
+    isAtBottom: atBottom.isAtBottom,
+    notifyProgrammaticStick: atBottom.notifyProgrammaticStick,
+    releaseAnchor: anchor.release,
+    isAnimating: smoothScroll.isAnimating
+  })
+
   // ---- ResizeObserver: dispatch to anchor + auto-stick ----------------
 
   useLayoutEffect(() => {
@@ -211,21 +245,9 @@ export function useChatVirtualizerRuntime<T>({
     anchor.pinTo(idx)
   }, [anchor, findDataIndexByKey, scrollToTopKey])
 
-  // ---- initial scroll: pin to bottom on mount -------------------------
-
-  const didInitialPinRef = useRef(false)
-  useEffect(() => {
-    if (didInitialPinRef.current) return
-    if (items.length === 0) return
-    didInitialPinRef.current = true
-    const raf = requestAnimationFrame(() => {
-      const el = scrollerRef.current
-      if (!el) return
-      el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight)
-      atBottom.notifyProgrammaticStick()
-    })
-    return () => cancelAnimationFrame(raf)
-  }, [atBottom, items.length])
+  // Initial scroll on mount is owned by `useScrollPositionMemory` above: it
+  // restores the saved anchor for this topic, or scrolls to the newest message
+  // when there is nothing to restore.
 
   // ---- scroll / wheel handlers ---------------------------------------
 
@@ -265,11 +287,15 @@ export function useChatVirtualizerRuntime<T>({
       wheelDir !== 'none' ? wheelDir : delta < 0 ? 'up' : delta > 0 ? 'down' : 'none'
     lastScrollOffsetRef.current = offset
     atBottom.notifyScroll({ offset, scrollSize, viewportSize, direction })
-  }, [anchor, atBottom, smoothScroll])
+    saveScrollPosition()
+  }, [anchor, atBottom, saveScrollPosition, smoothScroll])
 
   const onScrollEnd = useCallback(() => {
     lastWheelDirRef.current = 'none'
-  }, [])
+    // Scrolling has settled — capture the exact resting position, bypassing the
+    // throttle that paces the in-flight `onScroll` saves.
+    saveScrollPosition(true)
+  }, [saveScrollPosition])
 
   // ---- reach-top trigger ---------------------------------------------
 

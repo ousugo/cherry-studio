@@ -61,6 +61,11 @@ export interface MessageVirtualListProps<T> {
    * message's group key after the user sends.
    */
   forceScrollToBottomKey?: string
+  /**
+   * Topic id used to remember and restore this list's scroll position
+   * across remounts (topic / agent-session switches).
+   */
+  topicId?: string
 }
 
 export function MessageVirtualList<T>({
@@ -77,7 +82,8 @@ export function MessageVirtualList<T>({
   style,
   topPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX,
   bottomPadding = MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX,
-  forceScrollToBottomKey
+  forceScrollToBottomKey,
+  topicId
 }: MessageVirtualListProps<T>): React.ReactElement {
   const runtime = useChatVirtualizerRuntime({
     items,
@@ -87,7 +93,9 @@ export function MessageVirtualList<T>({
     hasMoreTop,
     handleRef,
     topReachOverscanItems: overscan,
-    scrollToTopKey: forceScrollToBottomKey
+    scrollToTopKey: forceScrollToBottomKey,
+    topicId,
+    bottomPadding
   })
   const setScrollerRef = useCallback(
     (element: HTMLDivElement | null) => {

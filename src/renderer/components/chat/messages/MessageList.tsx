@@ -448,6 +448,7 @@ const MessageList = () => {
               topPadding={topPadding}
               bottomPadding={bottomPadding}
               forceScrollToBottomKey={forceScrollToBottomKey}
+              topicId={topic.id}
               hasMoreTop={hasOlder}
               onScrollContainerReady={handleScrollContainerReady}
               onReachTop={loadMoreMessages}
