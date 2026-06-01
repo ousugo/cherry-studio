@@ -1,5 +1,5 @@
 import { render, waitFor } from '@testing-library/react'
-import type { IWorkbookData } from '@univerjs/core'
+import { type IWorkbookData, LocaleType } from '@univerjs/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ExcelWorkbookView from '../ExcelWorkbookView'
@@ -75,20 +75,21 @@ vi.mock('@univerjs/preset-sheets-core/locales/en-US', () => ({
   default: {}
 }))
 
-const makeWorkbookData = (id: string): IWorkbookData =>
-  ({
-    id,
-    name: `${id}.xlsx`,
-    sheetOrder: ['sheet-1'],
-    sheets: {
-      'sheet-1': {
-        cellData: {},
-        id: 'sheet-1',
-        name: 'Sheet1'
-      }
-    },
-    styles: {}
-  }) as unknown as IWorkbookData
+const makeWorkbookData = (id: string): IWorkbookData => ({
+  id,
+  name: `${id}.xlsx`,
+  appVersion: '0.25.0',
+  locale: LocaleType.EN_US,
+  sheetOrder: ['sheet-1'],
+  sheets: {
+    'sheet-1': {
+      cellData: {},
+      id: 'sheet-1',
+      name: 'Sheet1'
+    }
+  },
+  styles: {}
+})
 
 describe('ExcelWorkbookView', () => {
   beforeEach(() => {

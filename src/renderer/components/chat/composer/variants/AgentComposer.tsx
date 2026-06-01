@@ -677,7 +677,7 @@ const AgentComposerInner = ({
   const autoDispatchingQueueRef = useRef(false)
   const accessiblePaths = sessionData?.accessiblePaths ?? []
   const enableMentionModelTrigger = accessiblePaths.length > 0
-  const { skills: availableSkills } = useAvailableSkills(agentId, workspace?.path)
+  const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, workspace?.path)
 
   const isVisionAssistant = useMemo(() => (model ? isVisionModel(model) : false), [model])
   const isGenerateImageAssistant = useMemo(() => (model ? isGenerateImageModel(model) : false), [model])
@@ -823,6 +823,12 @@ const AgentComposerInner = ({
       }),
     [availableSkills, insertSkillToken, t]
   )
+
+  const handleRootPanelOpen = useCallback(() => {
+    void refreshAvailableSkills().catch((error) => {
+      logger.warn('Failed to refresh available skills when opening root panel', { error })
+    })
+  }, [refreshAvailableSkills])
 
   const handleQuote = useCallback(
     (selectedText: string) => {
@@ -1213,6 +1219,7 @@ const AgentComposerInner = ({
         getToolLaunchers={() => getLaunchers()}
         suggestionSources={suggestionSources}
         rootPanelAdditionalItems={rootPanelSkillItems}
+        onRootPanelOpen={handleRootPanelOpen}
         queueContent={
           <ComposerMessageQueuePanel
             draftItems={messageQueue.draftItems}

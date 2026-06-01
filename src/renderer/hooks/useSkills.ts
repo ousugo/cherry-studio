@@ -125,10 +125,17 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
   const [localSkills, setLocalSkills] = useState<LocalSkill[]>([])
   const [localLoading, setLocalLoading] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const localRequestIdRef = useRef(0)
+  const nextLocalRequestId = useCallback(() => {
+    localRequestIdRef.current += 1
+    return localRequestIdRef.current
+  }, [])
+  const invalidateLocalRequests = useCallback(() => {
+    localRequestIdRef.current += 1
+  }, [])
 
-  useEffect(() => {
-    let disposed = false
-
+  const refreshLocalSkills = useCallback(async () => {
+    const requestId = nextLocalRequestId()
     if (!workdir) {
       setLocalSkills([])
       setLocalError(null)
@@ -139,27 +146,31 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
     setLocalLoading(true)
     setLocalError(null)
 
-    void window.api.skill
-      .listLocal(workdir)
-      .then((result) => {
-        const data = unwrapSkillResult(result)
-        if (!disposed) setLocalSkills(data)
-      })
-      .catch((error) => {
-        if (disposed) return
-        const message = skillErrorMessage(error)
-        setLocalSkills([])
-        setLocalError(message)
-        logger.warn('Failed to list local skills', { workdir, error: message })
-      })
-      .finally(() => {
-        if (!disposed) setLocalLoading(false)
-      })
-
-    return () => {
-      disposed = true
+    try {
+      const result = await window.api.skill.listLocal(workdir)
+      const data = unwrapSkillResult(result)
+      if (requestId === localRequestIdRef.current) setLocalSkills(data)
+    } catch (error) {
+      if (requestId !== localRequestIdRef.current) return
+      const message = skillErrorMessage(error)
+      setLocalSkills([])
+      setLocalError(message)
+      logger.warn('Failed to list local skills', { workdir, error: message })
+    } finally {
+      if (requestId === localRequestIdRef.current) setLocalLoading(false)
     }
-  }, [workdir])
+  }, [nextLocalRequestId, workdir])
+
+  useEffect(() => {
+    void refreshLocalSkills()
+
+    return invalidateLocalRequests
+  }, [invalidateLocalRequests, refreshLocalSkills])
+
+  const refreshInstalledSkills = installed.refresh
+  const refresh = useCallback(async () => {
+    await Promise.all([Promise.resolve(refreshInstalledSkills()), refreshLocalSkills()])
+  }, [refreshInstalledSkills, refreshLocalSkills])
 
   const skills = useMemo(() => buildAvailableSkills(installed.skills, localSkills), [installed.skills, localSkills])
 
@@ -167,7 +178,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
     skills,
     loading: installed.loading || localLoading,
     error: installed.error ?? localError,
-    refresh: installed.refresh
+    refresh
   }
 }
 
