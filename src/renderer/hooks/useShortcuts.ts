@@ -19,6 +19,7 @@ import {
 } from '@shared/shortcuts/utils'
 import { useCallback, useMemo, useRef } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
+import { useTranslation } from 'react-i18next'
 
 interface UseShortcutOptions {
   preventDefault?: boolean
@@ -179,6 +180,7 @@ export const getAllShortcutDefaultPreferences = (): Record<ShortcutPreferenceKey
 }
 
 export const useAllShortcuts = () => {
+  const { t } = useTranslation()
   const [values, setValues] = useMultiplePreferences(shortcutPreferenceKeyMap)
   const [dependencyValues] = useMultiplePreferences(shortcutDependencyPreferenceKeyMap)
 
@@ -221,7 +223,8 @@ export const useAllShortcuts = () => {
           }
         ]
       }),
-    [dependencyValues, values]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dependencyValues, values, t]
   )
 
   return { shortcuts, updatePreference }

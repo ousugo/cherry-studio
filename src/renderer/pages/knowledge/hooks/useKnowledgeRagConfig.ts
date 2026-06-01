@@ -49,7 +49,8 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
       value: processor.id,
       label: getFileProcessorLabel(processor.id)
     }))
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t])
 
   const embeddingModelOptions = useMemo(() => {
     return embeddingModels.map((model) => ({

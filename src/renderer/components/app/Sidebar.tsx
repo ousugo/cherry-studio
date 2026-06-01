@@ -126,7 +126,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           }
         ]
       }),
-    [defaultPaintingProvider, visibleSidebarIcons]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [defaultPaintingProvider, visibleSidebarIcons, t]
   )
 
   const activeItem = resolveActiveItem(pathname)
