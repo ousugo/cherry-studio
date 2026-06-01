@@ -2,10 +2,12 @@ import {
   type Options,
   type Query,
   query as createClaudeQuery,
+  type SDKResultMessage,
   type SDKSystemMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
-import type { BetaUsage } from '@anthropic-ai/sdk/resources/beta/messages/messages'
+
+type BetaUsage = SDKResultMessage['usage']
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
   buildClaudeToolPolicy,
@@ -16,7 +18,6 @@ import { application } from '@main/core/application'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { Message } from '@shared/data/types/message'
-import type { UIMessageChunk } from 'ai'
 
 import type {
   AgentRuntimeConnectInput,
@@ -29,7 +30,7 @@ import type {
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
 import { AgentSessionWorkspaceError, assertClaudeCodeWorkspaceDirectory } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage } from './streamAdapter'
-import type { ToolApprovalEmitterHolder } from './types'
+import type { McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
   private readonly items: T[] = []
@@ -114,11 +115,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private query?: Query
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
-  private adapterMaxToolResultSize?: number
+  private approvalEmitter?: ToolApprovalEmitterHolder
+  private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private pendingInitMessage?: SDKSystemMessage
   private resumeToken?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
-  private approvalEmitter?: ToolApprovalEmitterHolder
 
   readonly events = this.eventQueue
 
@@ -157,19 +158,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       ? warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
-    this.adapterMaxToolResultSize = request.settings.maxToolResultSize
-    this.toolPolicySnapshot = request.settings.toolPolicySnapshot
-
-    // Bind the per-session approval emitter to this connection's event queue.
-    // `canUseTool` (settingsBuilder) calls `emit` to surface a
-    // `tool-approval-request` chunk; without this binding it has no emitter and
-    // denies every manual approval ("Approval emitter not ready").
     this.approvalEmitter = request.settings.approvalEmitter
-    if (this.approvalEmitter) {
-      this.approvalEmitter.emit = (event) =>
-        this.eventQueue.push({ type: 'chunk', chunk: event as unknown as UIMessageChunk })
-    }
-
+    this.mcpToolMetadata = request.settings.mcpToolMetadata
+    this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     void this.runQueryLoop()
     return this
   }
@@ -180,7 +171,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   send(input: AgentRuntimeUserInput): void {
-    this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId, this.adapterMaxToolResultSize)
+    this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
 
     if (this.pendingInitMessage) {
       this.adapter.handleMessage(this.pendingInitMessage)
@@ -207,9 +198,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   close(): void {
-    this.approvalEmitter?.dispose?.()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
+    this.disposeApprovalEmitter()
     this.query?.close()
     this.eventQueue.close()
   }
@@ -239,6 +230,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // the chunk shape identical to `attachUsageObserver` (AI SDK runtime).
           this.emitUsageMetadata(result.message.usage)
           this.adapter = undefined
+          this.disposeApprovalEmitter()
           this.eventQueue.push({ type: 'turn-complete' })
         }
       }
@@ -249,6 +241,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // instead of dropping the partial response and surfacing an error.
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
       this.adapter = undefined
+      this.disposeApprovalEmitter()
       this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
     } finally {
       this.query = undefined
@@ -256,16 +249,26 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  private createAdapter(modelId: string, maxToolResultSize: number | undefined): ClaudeCodeStreamAdapter {
+  private createAdapter(modelId: string): ClaudeCodeStreamAdapter {
+    this.bindApprovalEmitter()
     return new ClaudeCodeStreamAdapter({
       modelId,
-      settings: { maxToolResultSize },
       streamOptions: {} as never,
       sink: {
-        enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk: chunk as unknown as UIMessageChunk })
+        enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
       },
-      onSessionId: (resumeToken) => this.updateResumeToken(resumeToken)
+      onSessionId: (resumeToken) => this.updateResumeToken(resumeToken),
+      mcpToolMetadata: this.mcpToolMetadata
     })
+  }
+
+  private bindApprovalEmitter(): void {
+    if (!this.approvalEmitter) return
+    this.approvalEmitter.emit = (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
+  }
+
+  private disposeApprovalEmitter(): void {
+    this.approvalEmitter?.dispose?.()
   }
 
   private updateResumeToken(resumeToken: string): void {
@@ -322,7 +325,7 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     if (!cwd) {
       throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
     }
-    assertClaudeCodeWorkspaceDirectory(session.id, cwd)
+    void assertClaudeCodeWorkspaceDirectory(session.id, cwd)
   }
 
   async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {

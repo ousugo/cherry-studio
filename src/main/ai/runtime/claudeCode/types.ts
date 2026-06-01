@@ -2,6 +2,14 @@ import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 
+export type McpToolDisplayMetadata = {
+  type: 'mcp'
+  serverId: string
+  serverName: string
+  name: string
+  description?: string
+}
+
 export type {
   AgentMcpServerSpec,
   CanUseTool,
@@ -22,8 +30,6 @@ export type {
  * are managed by the language model internally.
  */
 export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'prompt' | 'outputFormat'> & {
-  /** Max chars for tool results in client stream. @default 10000 */
-  maxToolResultSize?: number
   /**
    * Per-stream holder for the controller's `enqueue` binding. `canUseTool`
    * calls `emit` to inject a `tool-approval-request` part into the live
@@ -45,6 +51,8 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
    * normal query options.
    */
   warmQueryInitializeTimeoutMs?: number
+  /** Display-only metadata for Claude Code MCP tool names. Not passed to the SDK. */
+  mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
 }
 
 export type ToolApprovalEmitterHolder = {
