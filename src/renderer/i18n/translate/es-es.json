@@ -352,6 +352,21 @@
         "description": "[to be translated]:Start chatting with the agent; generated code and live previews will appear here.",
         "title": "[to be translated]:Ready"
       },
+      "excel": {
+        "errors": {
+          "file_too_large": "[to be translated]:This Excel file exceeds the preview size limit.",
+          "invalid_request": "[to be translated]:The Excel preview request is invalid.",
+          "parse_failed": "[to be translated]:Unable to read this Excel file.",
+          "too_complex": "[to be translated]:This Excel file is too complex to preview.",
+          "unsupported_extension": "[to be translated]:Only .xlsx and .xlsm files can be previewed.",
+          "unsupported_xls": "[to be translated]:Legacy .xls files are not supported by Excel preview."
+        },
+        "warnings": {
+          "generic": "[to be translated]:Some workbook content may not be fully shown.",
+          "title": "[to be translated]:Preview notice",
+          "unsupported_images": "[to be translated]:Images are not shown in Excel preview yet."
+        }
+      },
       "file_tree": "[to be translated]:File tree",
       "items_one": "[to be translated]:{{count}} item",
       "items_other": "[to be translated]:{{count}} items",
@@ -477,9 +492,11 @@
       },
       "group": {
         "collapse": "[to be translated]:Collapse sessions",
+        "collapse_all": "[to be translated]:Collapse all",
         "conversation": "[to be translated]:Chats",
         "drag_hint": "[to be translated]:Drag to reorder. Drag sessions to adjust display and hidden groups.",
         "earlier": "[to be translated]:Earlier",
+        "expand_all": "[to be translated]:Expand all",
         "no_workdir": "[to be translated]:No workspace",
         "show_more": "[to be translated]:Show more sessions",
         "this_week": "[to be translated]:This week",
@@ -1726,7 +1743,9 @@
       },
       "group": {
         "collapse": "[to be translated]:Collapse display",
+        "collapse_all": "[to be translated]:Collapse all",
         "earlier": "[to be translated]:Earlier",
+        "expand_all": "[to be translated]:Expand all",
         "show_more": "[to be translated]:Expand display",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
@@ -2310,6 +2329,26 @@
       "agentSubtitle": "[to be translated]:{{count}} sessions",
       "agentTitle": "[to be translated]:Agent History",
       "assistantSubtitle": "[to be translated]:{{count}} topics",
+      "bulkDelete": "[to be translated]:Batch Delete",
+      "bulkDeleteSessions": {
+        "description": "[to be translated]:Delete {{count}} selected session(s)?",
+        "title": "[to be translated]:Delete selected sessions"
+      },
+      "bulkDeleteTopics": {
+        "description": "[to be translated]:Delete {{count}} selected topic(s)?",
+        "title": "[to be translated]:Delete selected topics"
+      },
+      "bulkMove": "[to be translated]:Batch Move",
+      "bulkMoveTopics": {
+        "confirm": "[to be translated]:Move",
+        "description": "[to be translated]:Move {{count}} selected topic(s) to the target assistant.",
+        "empty": "[to be translated]:No assistants available",
+        "error": "[to be translated]:Failed to move topics",
+        "placeholder": "[to be translated]:Select assistant",
+        "success": "[to be translated]:Moved {{count}} topic(s)",
+        "target": "[to be translated]:Target assistant",
+        "title": "[to be translated]:Move selected topics"
+      },
       "empty": {
         "description": "[to be translated]:No topics for the current filters.",
         "sessionsDescription": "[to be translated]:No sessions for the current filters.",
@@ -2337,6 +2376,7 @@
         "running": "[to be translated]:Running"
       },
       "table": {
+        "actions": "[to be translated]:Actions",
         "emptyValue": "[to be translated]:—",
         "messages": "[to be translated]:Messages",
         "session": "[to be translated]:Session",
@@ -5178,6 +5218,7 @@
         },
         "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
         "duration": "[to be translated]:{{seconds}}s",
+        "jobId": "[to be translated]:Job ID",
         "markdown": {
           "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
           "fileFilterName": "[to be translated]:Documents",
@@ -5199,13 +5240,14 @@
         "status": {
           "cancelled": "[to be translated]:Cancelled",
           "completed": "[to be translated]:Completed",
+          "delayed": "[to be translated]:Delayed",
           "failed": "[to be translated]:Failed",
           "idle": "[to be translated]:Idle",
           "pending": "[to be translated]:Pending",
           "processing": "[to be translated]:Processing",
+          "running": "[to be translated]:Running",
           "starting": "[to be translated]:Starting"
         },
-        "taskId": "[to be translated]:Task ID",
         "title": "[to be translated]:Document Parsing"
       },
       "label": "Laboratorio de Componentes",
@@ -5951,6 +5993,17 @@
         "title": "Copia de seguridad y restauración de datos"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "[to be translated]:Cherry",
+            "native": "[to be translated]:Native",
+            "restart": {
+              "content": "[to be translated]:Changing the context menu style requires restarting the app to fully take effect. Do you want to restart now?",
+              "title": "[to be translated]:Restart Required"
+            },
+            "title": "[to be translated]:Context menu style"
+          }
+        },
         "sections": {
           "chat_settings": "[to be translated]:Chat Settings",
           "custom_css": "CSS personalizado",
@@ -7062,6 +7115,14 @@
       "close": "Cerrar",
       "confirm": "Confirmar",
       "forward": "Adelante",
+      "mcp": {
+        "agentEmpty": "[to be translated]:No MCP servers configured for this agent",
+        "assistantEmpty": "[to be translated]:No MCP servers configured for this assistant",
+        "autoEmpty": "[to be translated]:No enabled MCP servers",
+        "description": "[to be translated]:View current MCP server status",
+        "disabled": "[to be translated]:MCP is disabled for this assistant",
+        "unknownServer": "[to be translated]:Unknown MCP server"
+      },
       "multiple": "Selección múltiple",
       "noResult": "No se encontraron resultados",
       "page": "Página",
@@ -7414,6 +7475,11 @@
       "reset": "Restablecer",
       "title": "Escala"
     }
+  },
+  "subWindow": {
+    "back_to_main": "[to be translated]:Back to Main Window",
+    "pin": "[to be translated]:Keep on Top",
+    "unpin": "[to be translated]:Cancel Keep on Top"
   },
   "tab": {
     "close": "Cerrar pestaña",

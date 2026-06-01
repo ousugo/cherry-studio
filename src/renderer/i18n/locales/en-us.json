@@ -5993,6 +5993,17 @@
         "title": "Data Backup and Recovery"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cherry",
+            "native": "Native",
+            "restart": {
+              "content": "Changing the context menu style requires restarting the app to fully take effect. Do you want to restart now?",
+              "title": "Restart Required"
+            },
+            "title": "Context menu style"
+          }
+        },
         "sections": {
           "chat_settings": "Chat Settings",
           "custom_css": "Custom CSS",

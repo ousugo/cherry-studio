@@ -5993,6 +5993,17 @@
         "title": "数据备份与恢复"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cherry",
+            "native": "系统原生",
+            "restart": {
+              "content": "更改右键菜单样式需要重启应用才能完全生效。是否立即重启？",
+              "title": "需要重启"
+            },
+            "title": "右键菜单样式"
+          }
+        },
         "sections": {
           "chat_settings": "对话设置",
           "custom_css": "自定义 CSS",
