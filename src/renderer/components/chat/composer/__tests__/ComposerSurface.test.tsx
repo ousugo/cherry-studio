@@ -323,7 +323,7 @@ describe('ComposerSurface', () => {
     expect(cornerLine).toHaveClass('top-0', 'right-0', 'size-[18px]', 'rounded-tr-[18px]')
     expect(cornerLine).toHaveClass('border-t-[1.5px]', 'border-r-[1.5px]', 'origin-top-right')
     expect(cornerLine).toHaveClass(
-      'transition-[opacity,transform]',
+      'transition-[opacity,scale]',
       'duration-200',
       'group-hover/expand-corner:scale-50',
       'group-hover/expand-corner:opacity-0'
@@ -337,6 +337,7 @@ describe('ComposerSurface', () => {
       '-translate-y-2.5',
       'rotate-[-8deg]',
       'scale-80',
+      'transition-[opacity,translate,scale,rotate,color,background-color]',
       'duration-300',
       'opacity-0'
     )
@@ -348,7 +349,7 @@ describe('ComposerSurface', () => {
       'group-hover/expand-corner:bg-accent/80',
       'group-hover/expand-corner:opacity-100'
     )
-    expect(expandButton.querySelector('svg')).toHaveClass('transition-transform', 'group-hover/expand-corner:scale-110')
+    expect(expandButton.querySelector('svg')).toHaveClass('transition-[scale]', 'group-hover/expand-corner:scale-110')
 
     fireEvent.click(expandButton)
 
