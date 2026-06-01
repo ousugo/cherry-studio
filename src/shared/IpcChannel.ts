@@ -250,6 +250,9 @@ export enum IpcChannel {
   // PDF
   Pdf_ExtractText = 'pdf:extractText',
 
+  // Excel
+  Excel_ReadWorkbookPreview = 'excel:readWorkbookPreview',
+
   // file service
   FileService_Upload = 'file-service:upload',
   FileService_List = 'file-service:list',

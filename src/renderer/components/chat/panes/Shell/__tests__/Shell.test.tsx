@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from 'react'
+import { useEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -65,7 +66,17 @@ vi.mock('@renderer/utils', () => ({
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => children,
   motion: {
-    div: ({ children }: { children: ReactNode }) => <div>{children}</div>
+    div: (
+      props: ComponentProps<'div'> & { animate?: unknown; exit?: unknown; initial?: unknown; transition?: unknown }
+    ) => {
+      const divProps = { ...props }
+      delete divProps.initial
+      delete divProps.animate
+      delete divProps.exit
+      delete divProps.transition
+      const { children, ...htmlProps } = divProps
+      return <div {...htmlProps}>{children}</div>
+    }
   },
   useReducedMotion: () => false
 }))
@@ -76,6 +87,11 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import {
+  ChatMaximizedOverlayInsetProvider,
+  useChatMaximizedOverlayBottomInset,
+  useSetChatMaximizedOverlayBottomInset
+} from '../../../layout/ChatViewportInsetContext'
 import { Shell, useShellActions, useShellState } from '../Shell'
 
 function CloseShellButton() {
@@ -96,6 +112,32 @@ function OpenTraceButton() {
       open trace
     </button>
   )
+}
+
+function ToggleMaximizedButton() {
+  const actions = useShellActions()
+
+  return (
+    <button type="button" onClick={actions.toggleMaximized}>
+      toggle maximized
+    </button>
+  )
+}
+
+function SetMaximizedOverlayBottomInset({ value }: { value: number }) {
+  const setBottomInset = useSetChatMaximizedOverlayBottomInset()
+
+  useEffect(() => {
+    setBottomInset(value)
+  }, [setBottomInset, value])
+
+  return null
+}
+
+function MaximizedOverlayBottomInsetSnapshot() {
+  const bottomInset = useChatMaximizedOverlayBottomInset()
+
+  return <div data-testid="maximized-overlay-bottom-inset">{String(bottomInset)}</div>
 }
 
 function ShellStateSnapshot() {
@@ -213,5 +255,55 @@ describe('Shell.TabList', () => {
     expect(minimizeButton.querySelector('svg')).not.toHaveAttribute('width', '15')
     expect(tabList).not.toHaveClass('pr-11')
     expect(tabList).toHaveClass('px-3')
+  })
+})
+
+describe('Shell.MaximizedOverlay', () => {
+  it('reserves the measured composer bottom inset while maximized', async () => {
+    const { container } = render(
+      <ChatMaximizedOverlayInsetProvider>
+        <Shell defaultTab="files">
+          <Shell.Toggle tab="files" />
+          <ToggleMaximizedButton />
+          <SetMaximizedOverlayBottomInset value={128} />
+          <Shell.MaximizedOverlay>
+            <div>maximized content</div>
+          </Shell.MaximizedOverlay>
+        </Shell>
+      </ChatMaximizedOverlayInsetProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'toggle maximized' }))
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-shell-maximized-overlay-content]')).toHaveStyle({
+        height: 'max(0px, calc(100% - 128px))'
+      })
+    })
+  })
+
+  it('does not rerender setter-only consumers when the measured bottom inset changes', async () => {
+    let setterOnlyRenderCount = 0
+
+    function SetterOnlyProbe() {
+      useSetChatMaximizedOverlayBottomInset()
+      setterOnlyRenderCount += 1
+
+      return null
+    }
+
+    render(
+      <ChatMaximizedOverlayInsetProvider>
+        <SetterOnlyProbe />
+        <SetMaximizedOverlayBottomInset value={128} />
+        <MaximizedOverlayBottomInsetSnapshot />
+      </ChatMaximizedOverlayInsetProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('maximized-overlay-bottom-inset')).toHaveTextContent('128')
+    })
+    expect(setterOnlyRenderCount).toBe(1)
   })
 })

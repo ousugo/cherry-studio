@@ -74,6 +74,7 @@ const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
 const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
 const HTML_EXT = new Set(['.html', '.htm'])
 const PDF_EXT = new Set(['.pdf'])
+const EXCEL_EXT = new Set(['.xlsx', '.xlsm'])
 
 const extOf = (name: string): string => {
   const dot = name.lastIndexOf('.')
@@ -83,6 +84,7 @@ const extOf = (name: string): string => {
 const isMarkdownFile = (name: string) => MARKDOWN_EXT.has(extOf(name))
 const isHtmlFile = (name: string) => HTML_EXT.has(extOf(name))
 const isPdfFile = (name: string) => PDF_EXT.has(extOf(name))
+const isExcelFile = (name: string) => EXCEL_EXT.has(extOf(name))
 
 const joinPath = (base: string, rel: string): string => {
   const trimmed = rel.replace(/^[/\\]+/, '')
@@ -231,6 +233,24 @@ const loadPdfPreviewPanel = () => {
   return pdfPreviewPanelPromise
 }
 
+type ExcelPreviewComponent = ComponentType<{
+  filePath: string
+  fileName?: string
+  refreshKey?: number
+}>
+
+let excelPreviewPromise: Promise<ExcelPreviewComponent> | null = null
+
+const loadExcelPreview = () => {
+  excelPreviewPromise ??= import('@renderer/components/Preview/ExcelPreview')
+    .then((module) => module.default)
+    .catch((err: unknown) => {
+      excelPreviewPromise = null
+      throw err
+    })
+  return excelPreviewPromise
+}
+
 function getArtifactFileTreeWidthBounds(artifactPaneWidth: number) {
   const minWidth = ARTIFACT_FILE_TREE_MIN_WIDTH
   const maxWidth = Math.max(minWidth, Math.round(artifactPaneWidth - ARTIFACT_FILE_TREE_MAX_WIDTH_OFFSET))
@@ -335,7 +355,10 @@ const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
 const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult => {
   const { root, version, isLoading, error } = useDirectoryTree(path, WORKSPACE_TREE_OPTIONS)
 
-  const tree = useMemo(() => projectArtifactTree(root, path), [root, version, path])
+  const tree = useMemo(() => {
+    void version
+    return projectArtifactTree(root, path)
+  }, [root, version, path])
 
   // The watcher attached by `DirectoryTreeBuilder` keeps the projection
   // current automatically (agent writes / external edits surface as
@@ -367,10 +390,13 @@ export function ArtifactFilePreview({
   const { t } = useTranslation()
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
+  const [ExcelPreview, setExcelPreview] = useState<ExcelPreviewComponent | null>(null)
+  const [excelPreviewLoadError, setExcelPreviewLoadError] = useState<Error | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
   const isPdfPreview = filePath ? isPdfFile(filePath) : false
+  const isExcelPreview = filePath ? isExcelFile(filePath) : false
   const oversizedForPreview =
-    !isPdfPreview && fileSize.status === 'ok' && fileSize.size > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
+    !isPdfPreview && !isExcelPreview && fileSize.status === 'ok' && fileSize.size > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
 
   useEffect(() => {
     if (!filePath || !workspacePath) {
@@ -379,8 +405,8 @@ export function ArtifactFilePreview({
       return
     }
 
-    // PDF renders straight from disk via PdfPreviewPanel; no readText needed.
-    if (isPdfFile(filePath)) {
+    // Binary previewers render straight from disk; no readText needed.
+    if (isPdfFile(filePath) || isExcelFile(filePath)) {
       setFileContent(null)
       setLoadingContent(false)
       return
@@ -437,6 +463,30 @@ export function ArtifactFilePreview({
     }
   }, [PdfPreviewPanel, isPdfPreview, pdfLayoutPending])
 
+  useEffect(() => {
+    if (!isExcelPreview || ExcelPreview) return
+
+    let cancelled = false
+    setExcelPreviewLoadError(null)
+
+    loadExcelPreview()
+      .then((component) => {
+        if (!cancelled) {
+          setExcelPreview(() => component)
+          setExcelPreviewLoadError(null)
+        }
+      })
+      .catch((err: unknown) => {
+        const normalized = err instanceof Error ? err : new Error(String(err))
+        logger.error('Failed to load Excel preview', normalized)
+        if (!cancelled) setExcelPreviewLoadError(normalized)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [ExcelPreview, contentRefreshKey, filePath, isExcelPreview])
+
   if (!workspacePath) {
     return (
       <EmptyState
@@ -465,6 +515,28 @@ export function ArtifactFilePreview({
         filePath={joinPath(workspacePath, filePath)}
         fileName={filePath}
         refreshKey={pdfLayoutRefreshKey}
+      />
+    )
+  }
+
+  // Excel: binary but renderable; bypass isText and text-size gating.
+  if (isExcelFile(filePath)) {
+    if (excelPreviewLoadError) {
+      return <EmptyState icon={AlertCircle} title={t('common.error')} description={excelPreviewLoadError.message} />
+    }
+    if (!ExcelPreview) {
+      return (
+        <div className="flex h-full w-full items-center justify-center">
+          <LoadingState label={t('common.loading')} />
+        </div>
+      )
+    }
+    return (
+      <ExcelPreview
+        key={`excel-${filePath}-${contentRefreshKey}`}
+        filePath={joinPath(workspacePath, filePath)}
+        fileName={filePath}
+        refreshKey={contentRefreshKey}
       />
     )
   }
@@ -643,17 +715,20 @@ const ArtifactPane = ({
     [nodeById, setSelectedFile]
   )
 
-  const isText = useIsTextFile(workspacePath, selectedFile)
-  const fileSize = useFileSize(workspacePath, selectedFile)
   const isPdfSelection = selectedFile ? isPdfFile(selectedFile) : false
+  const isExcelSelection = selectedFile ? isExcelFile(selectedFile) : false
+  const textPreviewFile = isExcelSelection ? null : selectedFile
+  const isText = useIsTextFile(workspacePath, textPreviewFile)
+  const fileSize = useFileSize(workspacePath, textPreviewFile)
 
   const handleRefresh = useCallback(() => {
     refresh()
-    if (workspacePath && selectedFile && isText === 'text') setContentRefreshToken((v) => v + 1)
-  }, [refresh, selectedFile, workspacePath, isText])
+    if (workspacePath && selectedFile && (isText === 'text' || isExcelSelection)) setContentRefreshToken((v) => v + 1)
+  }, [refresh, selectedFile, workspacePath, isText, isExcelSelection])
 
   const isSelectedHtmlPreview = selectedFile ? isHtmlFile(selectedFile) : false
   const isSelectedPdfPreview = isPdfSelection
+  const isSelectedExcelPreview = isExcelSelection
 
   const maximizeLabel = t(maximized ? 'agent.preview_pane.minimize' : 'agent.preview_pane.maximize')
   const FileTreeIcon = treeOpen ? FolderOpen : Folder
@@ -802,7 +877,9 @@ const ArtifactPane = ({
             data-artifact-right-pane
             className={cn(
               'min-h-0 min-w-0 flex-1',
-              isSelectedHtmlPreview || isSelectedPdfPreview ? 'overflow-hidden' : 'overflow-auto',
+              isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedExcelPreview
+                ? 'overflow-hidden'
+                : 'overflow-auto',
               isFileTreeResizing && 'pointer-events-none'
             )}>
             {renderRight()}

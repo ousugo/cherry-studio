@@ -24,6 +24,7 @@ import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { ComposerQueueService } from '@main/services/ComposerQueueService'
+import { ExcelPreviewService } from '@main/services/excel/ExcelPreviewService'
 import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import { FileProcessingOrchestrationService, TesseractRuntimeService } from '@main/services/fileProcessing'
@@ -86,6 +87,7 @@ export const services = {
   AppMenuService,
   CodeCliService,
   ComposerQueueService,
+  ExcelPreviewService,
   LanTransferService,
   FileManager,
   DirectoryTreeManager,

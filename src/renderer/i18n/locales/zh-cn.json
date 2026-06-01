@@ -352,6 +352,21 @@
         "description": "开始与智能体对话，生成的代码和实时预览将在此处显示。",
         "title": "准备就绪"
       },
+      "excel": {
+        "errors": {
+          "file_too_large": "这个 Excel 文件超出预览大小上限。",
+          "invalid_request": "Excel 预览请求无效。",
+          "parse_failed": "无法读取这个 Excel 文件。",
+          "too_complex": "这个 Excel 文件内容过于复杂，暂时无法预览。",
+          "unsupported_extension": "只支持预览 .xlsx 和 .xlsm 文件。",
+          "unsupported_xls": "暂时不支持旧版 .xls 文件预览。"
+        },
+        "warnings": {
+          "generic": "部分工作簿内容可能未完整显示。",
+          "title": "预览提示",
+          "unsupported_images": "图片暂未在 Excel 预览中显示。"
+        }
+      },
       "file_tree": "文件树",
       "items_one": "{{count}} 个项目",
       "items_other": "{{count}} 个项目",
