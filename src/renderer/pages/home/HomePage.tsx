@@ -277,7 +277,7 @@ const HomePage: FC = () => {
       return
     }
 
-    void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
+    void setShowSidebar(false)
   })
 
   useCommandHandler('topic.sidebar.toggle', () => {
