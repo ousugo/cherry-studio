@@ -1,11 +1,4 @@
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuItemContent,
-  ContextMenuSeparator,
-  ContextMenuTrigger
-} from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
@@ -111,7 +104,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     setIsDragOverSidebar
   })
 
-  const { renderMenuItems } = useNotesMenu({
+  const { getMenuItems } = useNotesMenu({
     renamingNodeIds,
     onCreateNote,
     onCreateFolder,
@@ -268,13 +261,13 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [isShowSearch, searchResults, t]
   )
 
-  const renderContextMenu = useCallback(
-    (node: FileTreeNode) => {
+  const getTreeNodeMenuItems = useCallback(
+    (node: FileTreeNode): readonly CommandContextMenuExtraItem[] => {
       const treeNode = findNode(notesTreeRef.current, node.id)
-      if (!treeNode) return null
-      return renderMenuItems(treeNode)
+      if (!treeNode) return []
+      return getMenuItems(treeNode)
     },
-    [renderMenuItems]
+    [getMenuItems]
   )
 
   const handleMove = useCallback(
@@ -284,22 +277,39 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [onMoveNode]
   )
 
-  const renderEmptyAreaMenuItems = () => (
-    <>
-      <ContextMenuItem onSelect={handleCreateNote}>
-        <ContextMenuItemContent icon={<FilePlus size={14} />}>{t('notes.new_note')}</ContextMenuItemContent>
-      </ContextMenuItem>
-      <ContextMenuItem onSelect={handleCreateFolder}>
-        <ContextMenuItemContent icon={<Folder size={14} />}>{t('notes.new_folder')}</ContextMenuItemContent>
-      </ContextMenuItem>
-      <ContextMenuSeparator />
-      <ContextMenuItem onSelect={handleSelectFiles}>
-        <ContextMenuItemContent icon={<Upload size={14} />}>{t('notes.upload_files')}</ContextMenuItemContent>
-      </ContextMenuItem>
-      <ContextMenuItem onSelect={handleSelectFolder}>
-        <ContextMenuItemContent icon={<FolderUp size={14} />}>{t('notes.upload_folder')}</ContextMenuItemContent>
-      </ContextMenuItem>
-    </>
+  const emptyAreaMenuItems = useMemo<CommandContextMenuExtraItem[]>(
+    () => [
+      {
+        type: 'item',
+        id: 'notes.new-note',
+        label: t('notes.new_note'),
+        icon: <FilePlus size={14} />,
+        onSelect: handleCreateNote
+      },
+      {
+        type: 'item',
+        id: 'notes.new-folder',
+        label: t('notes.new_folder'),
+        icon: <Folder size={14} />,
+        onSelect: handleCreateFolder
+      },
+      { type: 'separator' },
+      {
+        type: 'item',
+        id: 'notes.upload-files',
+        label: t('notes.upload_files'),
+        icon: <Upload size={14} />,
+        onSelect: handleSelectFiles
+      },
+      {
+        type: 'item',
+        id: 'notes.upload-folder',
+        label: t('notes.upload_folder'),
+        icon: <FolderUp size={14} />,
+        onSelect: handleSelectFolder
+      }
+    ],
+    [t, handleCreateNote, handleCreateFolder, handleSelectFiles, handleSelectFolder]
   )
 
   return (
@@ -353,24 +363,21 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         )}
 
         <div className="min-h-0 flex-1 px-2 pt-2">
-          <ContextMenu>
-            <ContextMenuTrigger asChild>
-              <div className="h-full min-h-0">
-                <FileTree
-                  nodes={fileTreeNodes}
-                  expandedIds={expandedIds}
-                  onExpandedChange={handleFileTreeExpandedChange}
-                  selectedId={selectedId}
-                  onSelectedChange={handleFileTreeSelectedChange}
-                  onMove={handleMove}
-                  renameSlot={renameSlot}
-                  renderRowExtras={renderRowExtras}
-                  renderContextMenu={renderContextMenu}
-                />
-              </div>
-            </ContextMenuTrigger>
-            <ContextMenuContent>{renderEmptyAreaMenuItems()}</ContextMenuContent>
-          </ContextMenu>
+          <CommandContextMenu location="webcontents.context" extraItems={emptyAreaMenuItems}>
+            <div className="h-full min-h-0">
+              <FileTree
+                nodes={fileTreeNodes}
+                expandedIds={expandedIds}
+                onExpandedChange={handleFileTreeExpandedChange}
+                selectedId={selectedId}
+                onSelectedChange={handleFileTreeSelectedChange}
+                onMove={handleMove}
+                renameSlot={renameSlot}
+                renderRowExtras={renderRowExtras}
+                getMenuItems={getTreeNodeMenuItems}
+              />
+            </div>
+          </CommandContextMenu>
         </div>
 
         {!isShowStarred && !isShowSearch && (

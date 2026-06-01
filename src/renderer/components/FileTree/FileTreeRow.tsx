@@ -1,6 +1,7 @@
-import { Button, ContextMenu, ContextMenuContent, ContextMenuTrigger, type RenderRowArgs } from '@cherrystudio/ui'
+import { Button, type RenderRowArgs } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Icon } from '@iconify/react'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { ChevronRight } from 'lucide-react'
 import type React from 'react'
@@ -11,7 +12,7 @@ interface FileTreeRowProps {
   args: RenderRowArgs<FileTreeNode>
   renameSlot?: FileTreeRenameSlot
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode
-  renderContextMenu?: (node: FileTreeNode) => React.ReactNode
+  getMenuItems?: (node: FileTreeNode) => readonly CommandContextMenuExtraItem[]
   fileIcon?: (node: FileTreeNode) => React.ReactNode
   folderIcon?: (node: FileTreeNode, expanded: boolean) => React.ReactNode
 }
@@ -23,7 +24,7 @@ const CHEVRON_SIZE_PX = 11
 const MATERIAL_ICON_PREFIX = 'material-icon-theme:'
 
 export function FileTreeRow(props: FileTreeRowProps) {
-  const { args, renameSlot, renderRowExtras, renderContextMenu, fileIcon, folderIcon } = props
+  const { args, renameSlot, renderRowExtras, getMenuItems, fileIcon, folderIcon } = props
   const { node, depth, isExpanded, isSelected, isDragging, dragPosition, toggleExpanded, selectNode, dragHandleProps } =
     args
 
@@ -132,14 +133,14 @@ export function FileTreeRow(props: FileTreeRowProps) {
     </div>
   )
 
-  if (!renderContextMenu) {
+  const menuItems = getMenuItems?.(node)
+  if (!menuItems || menuItems.length === 0) {
     return row
   }
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
-      <ContextMenuContent>{renderContextMenu(node)}</ContextMenuContent>
-    </ContextMenu>
+    <CommandContextMenu location="webcontents.context" extraItems={menuItems}>
+      {row}
+    </CommandContextMenu>
   )
 }

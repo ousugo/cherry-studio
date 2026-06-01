@@ -149,12 +149,12 @@ describe('FileTree - editable form (all callbacks)', () => {
     expect(screen.getByTestId('extra-a')).toBeInTheDocument()
   })
 
-  it('opens row context menu from the whole row when renderContextMenu is provided', () => {
+  it('opens row context menu from the whole row when getMenuItems is provided', () => {
     render(
       <FileTree
         nodes={nodes}
         defaultExpandedIds={new Set(['root'])}
-        renderContextMenu={(n) => <span data-testid={`menu-${n.id}`}>Menu for {n.name}</span>}
+        getMenuItems={(n) => [{ type: 'item', id: `menu-${n.id}`, label: `Menu for ${n.name}`, onSelect: () => {} }]}
         renderList={passthroughRenderList}
       />
     )
@@ -164,7 +164,7 @@ describe('FileTree - editable form (all callbacks)', () => {
       fireEvent.contextMenu(rootRow)
     })
 
-    expect(screen.getByTestId('menu-root')).toHaveTextContent('Menu for Root')
+    expect(screen.getByText('Menu for Root')).toBeInTheDocument()
   })
 })
 

@@ -1,4 +1,5 @@
 import type { DragPosition, TreeListSlotArgs } from '@cherrystudio/ui'
+import type { CommandContextMenuExtraItem } from '@renderer/commands'
 import type React from 'react'
 
 export type FileTreeNodeKind = 'file' | 'folder'
@@ -40,8 +41,8 @@ export interface FileTreeProps {
 
   /** Optional trailing slot per row - e.g. ContextMenu trigger, action buttons, badges. */
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode
-  /** Optional context menu content for the whole row. */
-  renderContextMenu?: (node: FileTreeNode) => React.ReactNode
+  /** Optional command-system context menu items for the whole row (Cherry/Native presentation). */
+  getMenuItems?: (node: FileTreeNode) => readonly CommandContextMenuExtraItem[]
 
   /** Override default folder/file icons. */
   fileIcon?: (node: FileTreeNode) => React.ReactNode
