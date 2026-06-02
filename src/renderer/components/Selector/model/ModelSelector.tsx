@@ -1,6 +1,5 @@
 import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { useCommandHandler } from '@renderer/commands'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -24,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { SelectorShell } from '../shell/SelectorShell'
 import { matchesModelTag, MODEL_SELECTOR_TAGS } from './filters'
 import { FreeTrialModelTag } from './FreeTrialModelTag'
-import { MODEL_SELECTOR_ROW_CHECKBOX_CLASS, ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
+import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { ModelTagChip } from './ModelTagChip'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
 import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps, ModelSelectorSelectionType } from './types'
@@ -184,9 +183,9 @@ function ModelRow({
   const checkbox = showCheckbox ? (
     <Checkbox
       checked={isSelected}
+      size="sm"
       tabIndex={-1}
       aria-hidden="true"
-      className={cn('pointer-events-none', MODEL_SELECTOR_ROW_CHECKBOX_CLASS)}
       data-testid={`model-selector-checkbox-${item.modelId}`}
     />
   ) : null

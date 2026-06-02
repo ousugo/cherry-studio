@@ -4,7 +4,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const { openAutoFocusEvents, popoverContentProps } = vi.hoisted(() => ({
   openAutoFocusEvents: [] as Array<{ preventDefault: ReturnType<typeof vi.fn>; defaultPrevented: boolean }>,
-  popoverContentProps: [] as Array<{ align?: string; side?: string; sideOffset?: number; collisionPadding?: number }>
+  popoverContentProps: [] as Array<{
+    align?: string
+    side?: string
+    sideOffset?: number
+    collisionPadding?: number
+    portalContainer?: unknown
+  }>
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -36,8 +42,7 @@ vi.mock('@cherrystudio/ui', () => ({
     forceMount?: unknown
     onInteractOutside?: unknown
   }) => {
-    popoverContentProps.push({ align, side, sideOffset, collisionPadding })
-    void portalContainer
+    popoverContentProps.push({ align, side, sideOffset, collisionPadding, portalContainer })
     void forceMount
     void onInteractOutside
     const event = {
@@ -58,6 +63,7 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
+import { SelectorPortalContainerProvider } from '../shell/SelectorPortalContainerContext'
 import { SelectorShell } from '../shell/SelectorShell'
 
 describe('SelectorShell', () => {
@@ -95,6 +101,50 @@ describe('SelectorShell', () => {
     )
 
     expect(popoverContentProps.at(-1)).toMatchObject({ collisionPadding: 24 })
+  })
+
+  it('uses the nearest page portal container by default', () => {
+    const pagePortalContainer = document.createElement('div')
+
+    render(
+      <SelectorPortalContainerProvider container={pagePortalContainer}>
+        <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
+          <div />
+        </SelectorShell>
+      </SelectorPortalContainerProvider>
+    )
+
+    expect(popoverContentProps.at(-1)?.portalContainer).toBe(pagePortalContainer)
+  })
+
+  it('falls back to a local portal container without a page provider', () => {
+    render(
+      <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
+        <div />
+      </SelectorShell>
+    )
+
+    expect(popoverContentProps.at(-1)?.portalContainer).toBeInstanceOf(HTMLElement)
+    expect(popoverContentProps.at(-1)?.portalContainer).not.toBe(document.body)
+  })
+
+  it('lets callers override the page portal container', () => {
+    const pagePortalContainer = document.createElement('div')
+    const portalContainer = document.createElement('div')
+
+    render(
+      <SelectorPortalContainerProvider container={pagePortalContainer}>
+        <SelectorShell
+          trigger={<button type="button">Open</button>}
+          open
+          onOpenChange={vi.fn()}
+          portalContainer={portalContainer}>
+          <div />
+        </SelectorShell>
+      </SelectorPortalContainerProvider>
+    )
+
+    expect(popoverContentProps.at(-1)?.portalContainer).toBe(portalContainer)
   })
 
   it('subtracts selector chrome from available list height', async () => {
