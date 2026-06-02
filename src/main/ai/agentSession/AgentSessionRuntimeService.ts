@@ -6,7 +6,8 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { Span } from '@opentelemetry/api'
 import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
-import type { CherryUIMessage, Message } from '@shared/data/types/message'
+import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
@@ -19,7 +20,6 @@ import {
   type AgentRuntimeTraceContext,
   runtimeDriverRegistry
 } from '../runtime'
-import { PendingMessageQueue } from '../runtime/aiSdk/loop/PendingMessageQueue'
 import { type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode/ToolApprovalRegistry'
 import { PersistenceListener } from '../streamManager/listeners/PersistenceListener'
 import { TraceFlushListener } from '../streamManager/listeners/TraceFlushListener'
@@ -40,13 +40,12 @@ export interface BeginAgentSessionTurnInput {
   agentType: string
   modelId: UniqueModelId
   assistantMessageId?: string
-  userMessage?: Message
+  userMessage?: AgentSessionMessageEntity
   traceId?: string
   rootSpanId?: string
 }
 
 export interface AgentSessionRuntimeHandle {
-  pendingMessages: PendingMessageQueue
   listeners: StreamListener[]
   turnId: string
 }
@@ -72,7 +71,7 @@ export interface AgentSessionRuntimeSnapshot {
 type AgentSessionTurn = {
   turnId: string
   assistantMessageId?: string
-  userMessage: Message
+  userMessage: AgentSessionMessageEntity
   modelId: UniqueModelId
   admitted: boolean
   terminalStatus?: AgentSessionRuntimeTerminalStatus
@@ -89,7 +88,7 @@ type AgentSessionRuntimeEntry = {
   agentType: string
   modelId: UniqueModelId
   status: AgentSessionRuntimeStatus
-  pendingMessages: PendingMessageQueue
+  pendingTurns: AgentSessionMessageEntity[]
   connection?: AgentRuntimeConnection
   connectionLoop?: Promise<void>
   currentTurn?: AgentSessionTurn
@@ -147,9 +146,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
-    const pendingMessages = new PendingMessageQueue((message) => this.enqueueUserMessage(input.sessionId, message))
     const turnId = crypto.randomUUID()
-    const userMessage = input.userMessage ?? createSyntheticUserMessage(input.topicId)
+    const userMessage = input.userMessage ?? createSyntheticUserMessage(input.sessionId)
     const existing = this.entries.get(input.sessionId)
     const turn: AgentSessionTurn = {
       turnId,
@@ -164,17 +162,15 @@ export class AgentSessionRuntimeService extends BaseService {
 
     if (existing?.status === 'idle') {
       this.clearIdleTimer(existing)
-      existing.pendingMessages.close()
+      existing.pendingTurns = []
       existing.topicId = input.topicId
       existing.agentId = input.agentId
       existing.agentType = input.agentType
       existing.modelId = input.modelId
       existing.status = 'active'
-      existing.pendingMessages = pendingMessages
       existing.currentTurn = turn
 
       return {
-        pendingMessages,
         listeners: [
           this.createPersistenceListener(existing, userMessage),
           new AgentSessionRuntimeTerminalListener(this, input.sessionId),
@@ -193,13 +189,12 @@ export class AgentSessionRuntimeService extends BaseService {
       agentType: input.agentType,
       modelId: input.modelId,
       status: 'active',
-      pendingMessages,
+      pendingTurns: [],
       currentTurn: turn
     }
     this.entries.set(input.sessionId, entry)
 
     return {
-      pendingMessages,
       listeners: [
         this.createPersistenceListener(entry, userMessage),
         new AgentSessionRuntimeTerminalListener(this, input.sessionId),
@@ -273,11 +268,11 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  enqueueUserMessage(sessionId: string, _message: Message): void {
-    void _message
+  enqueueUserMessage(sessionId: string, message: AgentSessionMessageEntity): void {
     const entry = this.entries.get(sessionId)
     if (!entry) return
 
+    entry.pendingTurns.push(message)
     entry.status = 'active'
     this.clearIdleTimer(entry)
 
@@ -311,7 +306,7 @@ export class AgentSessionRuntimeService extends BaseService {
       void this.closeConnection(entry)?.close()
     }
 
-    if (entry.pendingMessages.hasPending()) {
+    if (entry.pendingTurns.length > 0) {
       this.scheduleNextTurn(entry)
     } else {
       this.refreshIdleTimer(entry)
@@ -335,7 +330,7 @@ export class AgentSessionRuntimeService extends BaseService {
       topicId: entry.topicId,
       assistantMessageId: turn?.assistantMessageId,
       status: entry.status,
-      pendingMessageCount: entry.pendingMessages.list().length,
+      pendingMessageCount: entry.pendingTurns.length,
       lastTerminalStatus: entry.lastTerminalStatus,
       resumeToken: entry.lastResumeToken,
       activeToolCount: turn?.activeToolIds.size ?? 0,
@@ -446,7 +441,7 @@ export class AgentSessionRuntimeService extends BaseService {
     turn.admitted = true
     entry.status = 'active'
     await entry.connection?.send({ message: turn.userMessage })
-    if (entry.pendingMessages.hasPending()) {
+    if (entry.pendingTurns.length > 0) {
       queueMicrotask(() => this.requestInterruptWhenSafe(entry))
     }
   }
@@ -466,7 +461,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     turn.controller?.enqueue(chunk)
 
-    if (turn.activeToolIds.size === 0 && entry.pendingMessages.hasPending()) this.requestInterruptWhenSafe(entry)
+    if (turn.activeToolIds.size === 0 && entry.pendingTurns.length > 0) this.requestInterruptWhenSafe(entry)
   }
 
   private requestInterruptWhenSafe(entry: AgentSessionRuntimeEntry): void {
@@ -520,12 +515,11 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async startNextTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
-    const nextMessage = entry.pendingMessages.list()[0]
+    const nextMessage = entry.pendingTurns.shift()
     if (!nextMessage) {
       this.refreshIdleTimer(entry)
       return
     }
-    entry.pendingMessages.remove(nextMessage.id)
 
     const { rootSpan, traceId, rootSpanId } = this.startRuntimeRootSpan(entry)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
@@ -567,8 +561,7 @@ export class AgentSessionRuntimeService extends BaseService {
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages: createRuntimeSeedMessages(nextMessage, assistantMessageId),
-        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId },
-        pendingMessages: entry.pendingMessages
+        runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
       listeners: [
         this.createPersistenceListener(entry, nextMessage),
@@ -621,7 +614,10 @@ export class AgentSessionRuntimeService extends BaseService {
     return entry.connection?.shouldCloseAfterTurn?.() ?? false
   }
 
-  private createPersistenceListener(entry: AgentSessionRuntimeEntry, userMessage: Message): StreamListener {
+  private createPersistenceListener(
+    entry: AgentSessionRuntimeEntry,
+    userMessage: AgentSessionMessageEntity
+  ): StreamListener {
     const userText = extractMessageText(userMessage)
     return new PersistenceListener({
       topicId: entry.topicId,
@@ -665,7 +661,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private closeEntry(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
     this.closeCurrentTurn(entry, 'paused')
-    entry.pendingMessages.close()
+    entry.pendingTurns = []
 
     const connection = this.closeConnection(entry)
     entry.currentTurn = undefined
@@ -682,7 +678,10 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 }
 
-function createRuntimeSeedMessages(userMessage: Message, assistantMessageId: string): CherryUIMessage[] {
+function createRuntimeSeedMessages(
+  userMessage: AgentSessionMessageEntity,
+  assistantMessageId: string
+): CherryUIMessage[] {
   return [
     {
       id: userMessage.id,
@@ -697,23 +696,26 @@ function createRuntimeSeedMessages(userMessage: Message, assistantMessageId: str
   ] as CherryUIMessage[]
 }
 
-function createSyntheticUserMessage(topicId: string): Message {
+function createSyntheticUserMessage(sessionId: string): AgentSessionMessageEntity {
   const now = new Date().toISOString()
   return {
     id: uuidv7(),
-    topicId,
-    parentId: null,
+    sessionId,
     role: 'user',
     data: { parts: [] },
     status: 'success',
     searchableText: '',
-    siblingsGroupId: 0,
+    modelId: null,
+    modelSnapshot: null,
+    traceId: null,
+    stats: null,
+    runtimeResumeToken: null,
     createdAt: now,
     updatedAt: now
-  } as Message
+  }
 }
 
-function extractMessageText(message: Message): string {
+function extractMessageText(message: AgentSessionMessageEntity): string {
   return (
     message.data?.parts
       ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text' && 'text' in part)

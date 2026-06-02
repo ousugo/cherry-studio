@@ -8,7 +8,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { sessionService } from '@data/services/SessionService'
 import { application } from '@main/core/application'
-import type { Message } from '@shared/data/types/message'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/sessions'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -65,22 +65,26 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const userMessageParts = req.userMessageParts ?? [{ type: 'text', text: userText }]
     const createdAt = new Date().toISOString()
 
-    const userMessage: Message = {
+    const userMessage: AgentSessionMessageEntity = {
       id: userMessageId,
-      topicId: req.topicId,
-      parentId: null,
+      sessionId,
       role: 'user',
       data: { parts: userMessageParts },
-      searchableText: '',
       status: 'success',
-      siblingsGroupId: 0,
+      searchableText: '',
+      modelId: null,
+      modelSnapshot: null,
+      traceId: null,
+      stats: null,
+      runtimeResumeToken: null,
       createdAt,
       updatedAt: createdAt
     }
 
     if (ctx.hasLiveStream) {
-      // Inject path — placeholder + listener already exist on the in-flight execution.
-      // Adding new ones would orphan a pending row and clobber the listener mid-stream.
+      // Follow-up to a live turn: persist the user row, hand the message to the
+      // runtime so it opens the next turn (interrupt → re-dispatch), and attach
+      // the new subscriber. No new placeholder/model — that would orphan a row.
       await agentSessionMessageService.saveMessage({
         sessionId,
         message: {
@@ -91,10 +95,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       })
 
+      application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage)
+
       return {
         topicId: req.topicId,
         models: [],
-        userMessage,
+        userMessageId,
         listeners: [subscriber],
         isMultiModel: false
       }
@@ -167,13 +173,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
               { id: assistantMessageId, role: 'assistant', parts: [] }
             ],
             messageId: assistantMessageId,
-            runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId },
-            pendingMessages: runtime.pendingMessages
+            runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
           },
           rootSpan: turnTrace.rootSpan
         }
       ],
-      userMessage,
+      userMessageId,
       listeners: [subscriber, ...runtime.listeners],
       isMultiModel: false
     }

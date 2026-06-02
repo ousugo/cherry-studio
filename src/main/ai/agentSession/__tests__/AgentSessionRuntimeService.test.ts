@@ -126,7 +126,7 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
 
     const handle = service.beginTurn(baseTurnInput)
-    handle.pendingMessages.push(userMessage('user-2'))
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
 
     expect(terminalListener(handle).id).toBe('agent-runtime:session-1')
     expect(persistenceListener(handle).id).toContain('persistence:agents-db:agent-session:session-1')
@@ -206,10 +206,9 @@ describe('AgentSessionRuntimeService', () => {
     }
   })
 
-  it('reuses an idle runtime for the next fresh turn', async () => {
+  it('reuses an idle runtime for the next fresh turn', () => {
     const service = new AgentSessionRuntimeService()
     const first = service.beginTurn(baseTurnInput)
-    const closed = first.pendingMessages[Symbol.asyncIterator]().next()
     const entry = getEntry(service)
     const connection = { close: vi.fn(), send: vi.fn(), events: [] }
     entry.lastResumeToken = 'resume-1'
@@ -222,9 +221,9 @@ describe('AgentSessionRuntimeService', () => {
       userMessage: userMessage('user-2')
     })
 
-    await expect(closed).resolves.toMatchObject({ done: true })
-    expect(second.pendingMessages).not.toBe(first.pendingMessages)
+    expect(second).not.toBe(first)
     expect(getEntry(service).connection).toBe(connection)
+    expect(getEntry(service).pendingTurns).toEqual([])
     expect(service.inspect('session-1')).toMatchObject({
       assistantMessageId: 'assistant-2',
       status: 'active',
@@ -245,10 +244,9 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
-  it('closes the active queue and clears the runtime on closeSession', async () => {
+  it('clears the runtime and closes the connection on closeSession', () => {
     const service = new AgentSessionRuntimeService()
-    const handle = service.beginTurn(baseTurnInput)
-    const next = handle.pendingMessages[Symbol.asyncIterator]().next()
+    service.beginTurn(baseTurnInput)
     const connection = { close: vi.fn(), send: vi.fn(), events: [] }
     const entry = getEntry(service)
     entry.connection = connection
@@ -257,7 +255,6 @@ describe('AgentSessionRuntimeService', () => {
 
     service.closeSession('session-1')
 
-    await expect(next).resolves.toMatchObject({ done: true })
     expect(connection.close).toHaveBeenCalled()
     expect(entry.connection).toBeUndefined()
     expect(entry.connectionLoop).toBeUndefined()
@@ -570,7 +567,7 @@ describe('AgentSessionRuntimeService', () => {
     const entry = getEntry(service)
     entry.lastResumeToken = 'resume-1'
     entry.currentTurn.activeToolIds.add('tool-1')
-    entry.pendingMessages.push(userMessage('user-2'))
+    entry.pendingTurns.push(userMessage('user-2'))
 
     await (service as any).startNextTurn(entry)
 
@@ -598,8 +595,7 @@ describe('AgentSessionRuntimeService', () => {
           { id: 'user-2', role: 'user', parts: [{ type: 'text', text: 'hello' }] },
           { id: 'generated-message-id', role: 'assistant', parts: [] }
         ],
-        runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: expect.any(String) },
-        pendingMessages: entry.pendingMessages
+        runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: expect.any(String) }
       },
       listeners: [
         expect.objectContaining({ id: expect.stringContaining('persistence:agents-db:') }),

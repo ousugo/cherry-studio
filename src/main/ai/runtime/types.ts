@@ -1,7 +1,6 @@
 import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { Message } from '@shared/data/types/message'
+import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/sessions'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 
@@ -30,7 +29,7 @@ export interface AgentRuntimeConnectInput {
 }
 
 export interface AgentRuntimeUserInput {
-  message: Message
+  message: AgentSessionMessageEntity
 }
 
 export type AgentRuntimePolicyUpdate =

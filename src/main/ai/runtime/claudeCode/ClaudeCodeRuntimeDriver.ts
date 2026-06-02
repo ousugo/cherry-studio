@@ -16,8 +16,7 @@ import {
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { application } from '@main/core/application'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { Message } from '@shared/data/types/message'
+import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/sessions'
 
 import type {
   AgentRuntimeConnectInput,
@@ -302,7 +301,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 }
 
-function toSdkUserMessage(message: Message, resumeToken?: string): SDKUserMessage {
+function toSdkUserMessage(message: AgentSessionMessageEntity, resumeToken?: string): SDKUserMessage {
   return {
     type: 'user',
     message: { role: 'user', content: extractMessageText(message) },
@@ -311,7 +310,7 @@ function toSdkUserMessage(message: Message, resumeToken?: string): SDKUserMessag
   }
 }
 
-function extractMessageText(message: Message): string {
+function extractMessageText(message: AgentSessionMessageEntity): string {
   return (
     message.data?.parts
       ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text' && 'text' in part)

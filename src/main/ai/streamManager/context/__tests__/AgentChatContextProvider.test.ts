@@ -11,7 +11,8 @@ const mocks = vi.hoisted(() => ({
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   spanCacheSetTopicId: vi.fn(),
-  runtimeBeginTurn: vi.fn()
+  runtimeBeginTurn: vi.fn(),
+  runtimeEnqueueUserMessage: vi.fn()
 }))
 
 vi.mock('@data/services/SessionService', () => ({
@@ -81,11 +82,12 @@ describe('AgentChatContextProvider', () => {
     mocks.saveMessages.mockResolvedValue(undefined)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
-      if (name === 'AgentSessionRuntimeService') return { beginTurn: mocks.runtimeBeginTurn }
+      if (name === 'AgentSessionRuntimeService') {
+        return { beginTurn: mocks.runtimeBeginTurn, enqueueUserMessage: mocks.runtimeEnqueueUserMessage }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.runtimeBeginTurn.mockReturnValue({
-      pendingMessages: { kind: 'runtime-pending-messages' },
       listeners: [makeSubscriber('runtime:persistence'), makeSubscriber('runtime:terminal')],
       turnId: 'turn-1'
     })
@@ -113,7 +115,6 @@ describe('AgentChatContextProvider', () => {
       sessionId: 'session-1',
       turnId: 'turn-1'
     })
-    expect(prepared.models[0].request.pendingMessages).toEqual({ kind: 'runtime-pending-messages' })
     expect(prepared.models[0].request.messages).toEqual([
       { id: expect.any(String), role: 'user', parts: [{ type: 'text', text: 'hello' }] },
       { id: expect.any(String), role: 'assistant', parts: [] }
@@ -126,7 +127,7 @@ describe('AgentChatContextProvider', () => {
       agentType: 'claude-code',
       modelId: 'anthropic::claude-sonnet',
       assistantMessageId: prepared.models[0].request.messageId,
-      userMessage: prepared.userMessage,
+      userMessage: expect.objectContaining({ id: prepared.userMessageId, role: 'user', sessionId: 'session-1' }),
       traceId: savedMessages[1].traceId,
       rootSpanId: expect.any(String)
     })
@@ -145,8 +146,12 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.saveMessage).toHaveBeenCalledOnce()
     expect(mocks.saveMessages).not.toHaveBeenCalled()
     expect(mocks.runtimeBeginTurn).not.toHaveBeenCalled()
+    expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ role: 'user', sessionId: 'session-1' })
+    )
     expect(prepared.models).toEqual([])
-    expect(prepared.userMessage?.role).toBe('user')
+    expect(prepared.userMessageId).toEqual(expect.any(String))
     expect(prepared.listeners).toEqual([subscriber])
   })
 
