@@ -64,6 +64,7 @@ export function PromptEditorField({
         <div className="flex items-center gap-1.5">
           {actions}
           <Button
+            type="button"
             variant="ghost"
             onClick={() => setShowPreview((v) => !v)}
             disabled={value.length === 0}
