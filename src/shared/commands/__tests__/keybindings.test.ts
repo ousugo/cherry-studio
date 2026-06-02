@@ -65,7 +65,7 @@ describe('command definitions', () => {
       defaultBinding: [],
       global: true,
       scope: 'main',
-      supportedPlatforms: ['darwin', 'win32'],
+      supportedPlatforms: ['darwin', 'win32', 'linux'],
       whenSource: 'feature.selection.enabled'
     })
     expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'app.zoom.in')).toMatchObject({
