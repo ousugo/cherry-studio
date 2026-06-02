@@ -8,5 +8,5 @@ export {
   useCommandContextSnapshot
 } from './ContextKeyProvider'
 export type { CommandContextMenuExtraItem, MaybePromise } from './menus'
-export { CommandContextMenu, CommandMenuItems, useResolvedCommandMenu } from './menus'
+export { CommandContextMenu, CommandMenuItems, CommandPopupMenu, useResolvedCommandMenu } from './menus'
 export { CommandButton, CommandShortcut, CommandTooltip, useResolvedCommand } from './presentation'

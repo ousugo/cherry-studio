@@ -1,10 +1,5 @@
 import {
   Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
   MenuDivider,
   MenuItem,
   MenuList,
@@ -14,8 +9,8 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { CommandPopupMenu } from '@renderer/commands'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
-import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
   remapResourceListExpandedGroupIds,
   ResourceList,
@@ -44,15 +39,10 @@ import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/util
 import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import { Folder, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
-import { Fragment, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  type AgentGroupAction,
-  type AgentGroupActionContext,
-  executeAgentGroupAction,
-  resolveAgentGroupActions
-} from './agentGroupActions'
+import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
 import SessionItem from './SessionItem'
 import {
   type AgentSessionDisplayMode,
@@ -83,7 +73,6 @@ import {
 import {
   executeWorkdirGroupAction,
   resolveWorkdirGroupActions,
-  type WorkdirGroupAction,
   type WorkdirGroupActionContext
 } from './workdirGroupActions'
 
@@ -191,41 +180,6 @@ function SessionListOptionsMenu({
   )
 }
 
-function GroupMoreDropdownMenuContent<TAction extends ResolvedAction>({
-  actions,
-  onAction
-}: {
-  actions: readonly TAction[]
-  onAction: (action: TAction) => void
-}) {
-  let previousGroup: string | undefined
-
-  return (
-    <>
-      {actions.map((action, index) => {
-        const separatorBefore = index > 0 && action.group !== previousGroup
-        previousGroup = action.group
-
-        return (
-          <Fragment key={action.id}>
-            {separatorBefore && <DropdownMenuSeparator />}
-            <DropdownMenuItem
-              disabled={!action.availability.enabled}
-              variant={action.danger ? 'destructive' : 'default'}
-              onSelect={(event) => {
-                event.stopPropagation()
-                onAction(action)
-              }}>
-              {action.icon}
-              <span>{action.label}</span>
-            </DropdownMenuItem>
-          </Fragment>
-        )
-      })}
-    </>
-  )
-}
-
 function AgentGroupMoreMenu({
   agentId,
   deleteSessionsDisabled,
@@ -255,24 +209,19 @@ function AgentGroupMoreMenu({
     t
   }
   const actions = resolveAgentGroupActions(actionContext)
-  const handleAction = (action: AgentGroupAction) => {
+  const extraItems = actionsToCommandMenuExtraItems(actions, (action) => {
     void executeAgentGroupAction(action, actionContext)
-  }
+  })
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <ResourceList.GroupHeaderActionButton
-          type="button"
-          aria-label={t('common.more')}
-          onClick={(event) => event.stopPropagation()}>
-          <MoreHorizontal className="block" />
-        </ResourceList.GroupHeaderActionButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="bottom">
-        <GroupMoreDropdownMenuContent actions={actions} onAction={handleAction} />
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
+      <ResourceList.GroupHeaderActionButton
+        type="button"
+        aria-label={t('common.more')}
+        onClick={(event) => event.stopPropagation()}>
+        <MoreHorizontal className="block" />
+      </ResourceList.GroupHeaderActionButton>
+    </CommandPopupMenu>
   )
 }
 
@@ -311,24 +260,19 @@ function WorkdirGroupMoreMenu({
     workdirPath
   }
   const actions = resolveWorkdirGroupActions(actionContext)
-  const handleAction = (action: WorkdirGroupAction) => {
+  const extraItems = actionsToCommandMenuExtraItems(actions, (action) => {
     void executeWorkdirGroupAction(action, actionContext)
-  }
+  })
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <ResourceList.GroupHeaderActionButton
-          type="button"
-          aria-label={t('common.more')}
-          onClick={(event) => event.stopPropagation()}>
-          <MoreHorizontal className="block" />
-        </ResourceList.GroupHeaderActionButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="bottom">
-        <GroupMoreDropdownMenuContent actions={actions} onAction={handleAction} />
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
+      <ResourceList.GroupHeaderActionButton
+        type="button"
+        aria-label={t('common.more')}
+        onClick={(event) => event.stopPropagation()}>
+        <MoreHorizontal className="block" />
+      </ResourceList.GroupHeaderActionButton>
+    </CommandPopupMenu>
   )
 }
 

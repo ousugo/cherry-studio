@@ -8,7 +8,16 @@ import {
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
-  ContextMenuTrigger
+  ContextMenuTrigger,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger
 } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -561,5 +570,235 @@ export function CommandContextMenu({
         )}
       </ContextMenuContent>
     </ContextMenu>
+  )
+}
+
+function CommandDropdownMenuItemView({
+  item,
+  onExecute,
+  renderIcon
+}: {
+  item: ResolvedMenuItem<CommandId>
+  onExecute: (command: CommandId) => void
+  renderIcon?: CommandIconRenderer
+}): React.ReactNode {
+  if (item.type === 'separator') {
+    return <DropdownMenuSeparator />
+  }
+
+  if (item.type === 'submenu') {
+    return (
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger disabled={!item.enabled}>
+          <ContextMenuItemContent icon={renderIcon?.(item.iconKey)}>{item.label}</ContextMenuItemContent>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          {item.children.map((child, index) => (
+            <CommandDropdownMenuItemView
+              key={`${child.type}-${index}`}
+              item={child}
+              onExecute={onExecute}
+              renderIcon={renderIcon}
+            />
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    )
+  }
+
+  const content = (
+    <ContextMenuItemContent icon={renderIcon?.(item.iconKey)} shortcut={item.shortcutLabel || undefined}>
+      {item.label}
+    </ContextMenuItemContent>
+  )
+
+  if (item.checked !== undefined) {
+    return (
+      <DropdownMenuCheckboxItem
+        checked={item.checked}
+        disabled={!item.enabled}
+        onCheckedChange={() => onExecute(item.command)}>
+        {content}
+      </DropdownMenuCheckboxItem>
+    )
+  }
+
+  return (
+    <DropdownMenuItem
+      disabled={!item.enabled}
+      variant={item.destructive ? 'destructive' : 'default'}
+      onSelect={() => onExecute(item.command)}>
+      {content}
+    </DropdownMenuItem>
+  )
+}
+
+function CommandDropdownExtraItemView({ item }: { item: CommandContextMenuExtraItem }): React.ReactNode {
+  if (item.type === 'separator') {
+    return <DropdownMenuSeparator />
+  }
+
+  if (item.type === 'submenu') {
+    return (
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger disabled={item.enabled === false}>
+          <ContextMenuItemContent icon={item.icon}>{item.label}</ContextMenuItemContent>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          {item.children.map((child, index) => (
+            <CommandDropdownExtraItemView key={`${child.type}-${index}`} item={child} />
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    )
+  }
+
+  return (
+    <DropdownMenuItem
+      disabled={item.enabled === false}
+      variant={item.destructive ? 'destructive' : 'default'}
+      onSelect={item.onSelect}>
+      <ContextMenuItemContent icon={item.icon} badge={item.badge} shortcut={item.shortcutLabel || undefined}>
+        {item.label}
+      </ContextMenuItemContent>
+    </DropdownMenuItem>
+  )
+}
+
+/**
+ * Click-triggered sibling of {@link CommandContextMenu}. Renders the same item
+ * model through Radix DropdownMenu in cherry mode, and (when location resolves
+ * to native) anchors a native OS popup at the trigger's bounding rect. Use this
+ * for "more" buttons so they share the same menu pipeline as right-click.
+ */
+export function CommandPopupMenu({
+  location,
+  children,
+  align,
+  side,
+  sideOffset,
+  contentClassName,
+  open,
+  defaultOpen,
+  onOpenChange,
+  disabled,
+  renderIcon,
+  extraItems = EMPTY_EXTRA_ITEMS
+}: {
+  location: MenuLocation
+  children: React.ReactNode
+  align?: 'start' | 'center' | 'end'
+  side?: 'top' | 'right' | 'bottom' | 'left'
+  sideOffset?: number
+  contentClassName?: string
+  open?: boolean
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
+  disabled?: boolean
+  renderIcon?: CommandIconRenderer
+  extraItems?: readonly CommandContextMenuExtraItem[]
+}): React.ReactNode {
+  const [preferredMode] = usePreference('menu.presentation_mode')
+  const context = useCommandContextReader()
+  const [shortcutPreferences] = useMultiplePreferences(shortcutPreferenceKeys)
+  const runtime = useCommandRuntime()
+  const model = useResolvedCommandMenu(location)
+  const mode = resolveMenuPresentationMode(location, preferredMode)
+  const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
+  const resolveShortcutLabel = useCallback(
+    (command: CommandId) => {
+      const rule = findKeybindingRule(command)
+      const preference = rule ? (shortcutPreferences[command] as PreferenceShortcutType | undefined) : undefined
+      return getCommandShortcutLabel(command, preference, {
+        context,
+        isMac,
+        platform: platform as SupportedPlatform
+      })
+    },
+    [context, shortcutPreferences]
+  )
+  const decoratedExtraItems = useMemo<readonly CommandContextMenuExtraItem[]>(() => {
+    const decorate = (source: readonly CommandContextMenuExtraItem[]): CommandContextMenuExtraItem[] =>
+      source.map((item) => {
+        if (item.type === 'submenu') {
+          return { ...item, children: decorate(item.children) }
+        }
+        if (item.type !== 'item' || !item.shortcutCommand) {
+          return item
+        }
+        return {
+          ...item,
+          shortcutLabel: item.shortcutLabel || resolveShortcutLabel(item.shortcutCommand) || undefined
+        }
+      })
+    return decorate(extraItems)
+  }, [extraItems, resolveShortcutLabel])
+  const combinedItems = useMemo<readonly CommandContextMenuItem[]>(
+    () => combineContextMenuItems(commandItems, decoratedExtraItems),
+    [commandItems, decoratedExtraItems]
+  )
+
+  const handleNativeClick = useCallback(
+    async (event: React.MouseEvent) => {
+      if (mode !== 'native') return
+      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+      const anchor = { x: Math.round(rect.left), y: Math.round(rect.bottom) }
+      const nativeItems = combinedItems.map(toNativePopupMenuItem)
+      if (!nativeItems.length) return
+      const model: NativePopupMenuModel<CommandId> = { location, items: nativeItems }
+      try {
+        const result = await window.api.command.showNativePopupMenu(model, anchor)
+        if (result?.type === 'command') {
+          runtime.execute(result.command)
+        } else if (result?.type === 'custom') {
+          getExtraItemActions(decoratedExtraItems).get(result.id)?.()
+        }
+      } catch (error) {
+        logger.error('Failed to show native command popup menu', error as Error)
+      }
+    },
+    [combinedItems, decoratedExtraItems, location, mode, runtime]
+  )
+
+  if (disabled) {
+    return <>{children}</>
+  }
+
+  if (mode === 'native') {
+    // asChild clone preserves the trigger's own onClick (e.g. stopPropagation) while
+    // attaching the native-popup handler on the same element — wrapping in a parent
+    // span would be blocked by the child's stopPropagation.
+    if (React.isValidElement(children)) {
+      const childProps = (children.props ?? {}) as { onClick?: (event: React.MouseEvent) => void }
+      return React.cloneElement(children as React.ReactElement<{ onClick?: (event: React.MouseEvent) => void }>, {
+        onClick: (event: React.MouseEvent) => {
+          childProps.onClick?.(event)
+          if (!event.defaultPrevented) {
+            void handleNativeClick(event)
+          }
+        }
+      })
+    }
+    return <>{children}</>
+  }
+
+  return (
+    <DropdownMenu defaultOpen={defaultOpen} {...(open !== undefined ? { open, onOpenChange } : { onOpenChange })}>
+      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuContent align={align} side={side} sideOffset={sideOffset} className={contentClassName}>
+        {combinedItems.map((item, index) =>
+          isExtraMenuItem(item) ? (
+            <CommandDropdownExtraItemView key={`extra-${item.id}`} item={item} />
+          ) : (
+            <CommandDropdownMenuItemView
+              key={`${item.type}-${index}`}
+              item={item}
+              onExecute={runtime.execute}
+              renderIcon={renderIcon}
+            />
+          )
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

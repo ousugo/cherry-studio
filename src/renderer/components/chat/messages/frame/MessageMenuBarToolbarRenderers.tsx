@@ -1,17 +1,8 @@
-import {
-  ConfirmDialog,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+import { ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/commands'
+import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ReactNode } from 'react'
-import { Fragment, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MessageActionButton } from './MessageActionButton'
@@ -169,74 +160,19 @@ const MessageActionMenuPopover = ({
   align?: 'start' | 'center' | 'end'
   children: ReactNode
   onAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
-}) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-    <DropdownMenuContent align={align} side="top">
-      <MessageActionMenuItems actions={actions} onAction={onAction} />
-    </DropdownMenuContent>
-  </DropdownMenu>
-)
-
-const MessageActionMenuItems = ({
-  actions,
-  onAction
-}: {
-  actions: MessageMenuBarResolvedAction[]
-  onAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
 }) => {
-  let previousGroup: string | undefined
-
-  return (
-    <>
-      {actions.map((action, index) => {
-        const separatorBefore = index > 0 && action.group !== previousGroup
-        previousGroup = action.group
-
-        return (
-          <Fragment key={action.id}>
-            {separatorBefore && <DropdownMenuSeparator />}
-            <MessageActionMenuItem action={action} onAction={onAction} />
-          </Fragment>
-        )
-      })}
-    </>
-  )
-}
-
-const MessageActionMenuItem = ({
-  action,
-  onAction
-}: {
-  action: MessageMenuBarResolvedAction
-  onAction: (action: MessageMenuBarResolvedAction) => void | Promise<void>
-}) => {
-  const disabled = !action.availability.enabled
-
-  if (action.children.length) {
-    return (
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger disabled={disabled}>
-          {action.icon}
-          <span>{action.label}</span>
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent>
-          <MessageActionMenuItems actions={action.children} onAction={onAction} />
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
-    )
-  }
-
-  return (
-    <DropdownMenuItem
-      disabled={disabled}
-      onSelect={(event) => {
-        event.stopPropagation()
+  const extraItems = useMemo(
+    () =>
+      actionsToCommandMenuExtraItems(actions, (action) => {
         void onAction(action)
-      }}>
-      {action.icon}
-      <span>{action.label}</span>
-    </DropdownMenuItem>
+      }),
+    [actions, onAction]
+  )
+
+  return (
+    <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align={align} side="top">
+      {children}
+    </CommandPopupMenu>
   )
 }
 
@@ -248,28 +184,30 @@ const TranslateMenuPopover = ({
   children: ReactNode
   items: MessageMenuBarTranslationItem[]
   align?: 'start' | 'center' | 'end'
-}) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-    <DropdownMenuContent align={align} side="top">
-      {items.map((item) => {
-        if (isMessageMenuBarTranslationDivider(item)) {
-          return <DropdownMenuSeparator key={item.key} />
-        }
-        return (
-          <DropdownMenuItem
-            key={item.key}
-            onSelect={(event) => {
-              event.stopPropagation()
-              void item.onSelect()
-            }}>
-            <span>{item.label}</span>
-          </DropdownMenuItem>
-        )
-      })}
-    </DropdownMenuContent>
-  </DropdownMenu>
-)
+}) => {
+  const extraItems = useMemo<readonly CommandContextMenuExtraItem[]>(
+    () =>
+      items.map((item) =>
+        isMessageMenuBarTranslationDivider(item)
+          ? { type: 'separator' as const }
+          : {
+              type: 'item' as const,
+              id: item.key,
+              label: item.label,
+              onSelect: () => {
+                void item.onSelect()
+              }
+            }
+      ),
+    [items]
+  )
+
+  return (
+    <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align={align} side="top">
+      {children}
+    </CommandPopupMenu>
+  )
+}
 
 export function renderDefaultToolbarAction({ action, executeAction, softHoverBg }: MessageMenuBarToolbarRenderContext) {
   return <ActionButtonWithConfirm action={action} executeAction={executeAction} softHoverBg={softHoverBg} />

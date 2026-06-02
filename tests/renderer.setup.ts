@@ -319,6 +319,24 @@ vi.mock('@cherrystudio/ui', () => {
         { ...props, type: 'button', onClick: onSelect, 'data-testid': 'dropdown-menu-item' },
         children
       ),
+    DropdownMenuCheckboxItem: ({ children, onCheckedChange, ...props }) =>
+      React.createElement(
+        'button',
+        {
+          ...props,
+          type: 'button',
+          onClick: () => onCheckedChange?.(true),
+          'data-testid': 'dropdown-menu-checkbox-item'
+        },
+        children
+      ),
+    DropdownMenuSeparator: (props) => React.createElement('hr', { ...props, 'data-testid': 'dropdown-menu-separator' }),
+    DropdownMenuSub: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'dropdown-menu-sub' }, children),
+    DropdownMenuSubTrigger: ({ children, ...props }) =>
+      React.createElement('button', { ...props, type: 'button', 'data-testid': 'dropdown-menu-sub-trigger' }, children),
+    DropdownMenuSubContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'dropdown-menu-sub-content' }, children),
     ConfirmDialog: ({
       cancelText = 'Cancel',
       confirmText = 'Confirm',

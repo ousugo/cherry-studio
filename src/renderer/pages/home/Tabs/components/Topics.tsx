@@ -1,21 +1,10 @@
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  MenuDivider,
-  MenuItem,
-  MenuList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { CommandPopupMenu } from '@renderer/commands'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
@@ -68,7 +57,6 @@ import {
 } from '../../messages/topicImageActionBus'
 import type { AddNewTopicPayload } from '../../types'
 import {
-  type AssistantGroupAction,
   type AssistantGroupActionContext,
   executeAssistantGroupAction,
   resolveAssistantGroupActions
@@ -133,32 +121,6 @@ function findLatestCreateTopicPayload(
   }
 
   return buildCreateTopicPayload(latestTopic, assistantById)
-}
-
-function AssistantGroupMoreDropdownMenuContent({
-  actions,
-  onAction
-}: {
-  actions: readonly AssistantGroupAction[]
-  onAction: (action: AssistantGroupAction) => void
-}) {
-  return (
-    <>
-      {actions.map((action) => (
-        <DropdownMenuItem
-          key={action.id}
-          disabled={!action.availability.enabled}
-          variant={action.danger ? 'destructive' : 'default'}
-          onSelect={(event) => {
-            event.stopPropagation()
-            onAction(action)
-          }}>
-          {action.icon}
-          <span>{action.label}</span>
-        </DropdownMenuItem>
-      ))}
-    </>
-  )
 }
 
 function resolveAssistantIdForTopicGroup(
@@ -273,24 +235,19 @@ function AssistantGroupMoreMenu({
     t
   }
   const actions = resolveAssistantGroupActions(actionContext)
-  const handleAction = (action: AssistantGroupAction) => {
+  const extraItems = actionsToCommandMenuExtraItems(actions, (action) => {
     void executeAssistantGroupAction(action, actionContext)
-  }
+  })
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <ResourceList.GroupHeaderActionButton
-          type="button"
-          aria-label={t('common.more')}
-          onClick={(event) => event.stopPropagation()}>
-          <MoreHorizontal className="block" />
-        </ResourceList.GroupHeaderActionButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="bottom">
-        <AssistantGroupMoreDropdownMenuContent actions={actions} onAction={handleAction} />
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
+      <ResourceList.GroupHeaderActionButton
+        type="button"
+        aria-label={t('common.more')}
+        onClick={(event) => event.stopPropagation()}>
+        <MoreHorizontal className="block" />
+      </ResourceList.GroupHeaderActionButton>
+    </CommandPopupMenu>
   )
 }
 
