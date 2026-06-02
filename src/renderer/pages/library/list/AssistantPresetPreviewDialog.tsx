@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import type { Assistant } from '@shared/data/types/assistant'
 import { useTranslation } from 'react-i18next'
 
 import type { AssistantCatalogPreset } from './useAssistantPresetCatalog'
@@ -16,11 +17,21 @@ interface Props {
   preset: AssistantCatalogPreset | null
   open: boolean
   adding?: boolean
+  addedAssistant?: Assistant
   onOpenChange: (open: boolean) => void
   onAdd: () => Promise<void> | void
+  onOpenAssistant: (assistant: Assistant) => void
 }
 
-export function AssistantPresetPreviewDialog({ preset, open, adding = false, onOpenChange, onAdd }: Props) {
+export function AssistantPresetPreviewDialog({
+  preset,
+  open,
+  adding = false,
+  addedAssistant,
+  onOpenChange,
+  onAdd,
+  onOpenAssistant
+}: Props) {
   const { t } = useTranslation()
 
   if (!preset) return null
@@ -81,8 +92,17 @@ export function AssistantPresetPreviewDialog({ preset, open, adding = false, onO
           <Button variant="outline" disabled={adding} onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>
-          <Button variant="emphasis" loading={adding} onClick={() => void onAdd()}>
-            {t('library.assistant_catalog.add')}
+          <Button
+            variant="emphasis"
+            loading={adding}
+            onClick={() => {
+              if (addedAssistant) {
+                onOpenAssistant(addedAssistant)
+              } else {
+                void onAdd()
+              }
+            }}>
+            {t(addedAssistant ? 'library.assistant_catalog.go_to_chat' : 'library.assistant_catalog.add')}
           </Button>
         </DialogFooter>
       </DialogContent>

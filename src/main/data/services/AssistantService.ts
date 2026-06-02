@@ -300,7 +300,7 @@ export class AssistantDataService {
   async create(dto: CreateAssistantDto): Promise<Assistant> {
     this.validateName(dto.name)
 
-    const { row, tags, modelName } = await this.db.transaction(async (tx) => {
+    const { row, tags, modelName } = await application.get('DbService').withWriteTx(async (tx) => {
       // Resolve modelId: explicit values strictly validated; omission falls
       // back to `chat.default_model_id` preference (stale → null with a
       // logger.warn).
@@ -310,10 +310,11 @@ export class AssistantDataService {
       // defaults; prompt/description stay omitted when undefined so DB DEFAULTs apply.
       // orderKey is omitted — `insertWithOrderKey` computes the next fractional
       // key from the existing max and injects it before the DB write.
-      const { mcpServerIds, knowledgeBaseIds, tagIds, ...columnDto } = dto
+      const { mcpServerIds, knowledgeBaseIds, tagIds, source, ...columnDto } = dto
       const insertValues: Omit<typeof assistantTable.$inferInsert, 'orderKey'> = {
         ...columnDto,
         modelId,
+        ...(source !== undefined ? { source } : {}),
         emoji: dto.emoji ?? '🌟',
         settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
       } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>
@@ -397,7 +398,7 @@ export class AssistantDataService {
 
     const aliveFilter = and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt))
 
-    const { row, tags, modelName } = await this.db.transaction(async (tx) => {
+    const { row, tags, modelName } = await application.get('DbService').withWriteTx(async (tx) => {
       // Pre-validate the new FK target before any write — same reasoning as
       // in `create`. Skipped when the caller is unbinding (null) or leaving
       // the existing modelId untouched (undefined/empty).
@@ -454,7 +455,7 @@ export class AssistantDataService {
 
   /** Move a single assistant within the active (non-deleted) assistant list. */
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    await this.db.transaction(async (tx) => {
+    await application.get('DbService').withWriteTx(async (tx) => {
       await applyMoves(tx, assistantTable, [{ id, anchor }], {
         pkColumn: assistantTable.id,
         scope: isNull(assistantTable.deletedAt)
@@ -466,7 +467,7 @@ export class AssistantDataService {
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
 
-    await this.db.transaction(async (tx) => {
+    await application.get('DbService').withWriteTx(async (tx) => {
       await applyMoves(tx, assistantTable, moves, {
         pkColumn: assistantTable.id,
         scope: isNull(assistantTable.deletedAt)
@@ -484,7 +485,7 @@ export class AssistantDataService {
   async delete(id: string): Promise<void> {
     await this.getActiveRowById(id)
 
-    await this.db.transaction(async (tx) => {
+    await application.get('DbService').withWriteTx(async (tx) => {
       await tx.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
       await tagService.purgeForEntityTx(tx, 'assistant', id)
       await pinService.purgeForEntityTx(tx, 'assistant', id)

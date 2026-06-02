@@ -81,6 +81,7 @@ const HomePage: FC = () => {
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const state = location.state as { topic?: Topic } | undefined
   const routeTopicId = routeSearch.topicId
+  const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   // In a detached window the user popped this topic out to focus on it — hide the
   // topic list pane and its toggle, locking the window to one topic.
@@ -152,7 +153,11 @@ const HomePage: FC = () => {
     (id: string | null) => {
       void navigate({
         to: '/app/chat',
-        search: (prev: ChatRouteSearch) => ({ ...prev, topicId: id ?? undefined }),
+        search: (prev: ChatRouteSearch) => ({
+          ...prev,
+          assistantId: id ? undefined : prev.assistantId,
+          topicId: id ?? undefined
+        }),
         replace: true
       })
     },
@@ -370,8 +375,16 @@ const HomePage: FC = () => {
     if (temporaryTopicSnapshot || activeTopic || isActiveTopicLoading) return
 
     firstTemporaryStartedRef.current = true
-    void startTemporaryTopic()
-  }, [activeTopic, isActiveTopicLoading, shouldUseTemporary, startTemporaryTopic, state?.topic, temporaryTopicSnapshot])
+    void startTemporaryTopic(routeAssistantId ? { assistantId: routeAssistantId } : undefined)
+  }, [
+    activeTopic,
+    isActiveTopicLoading,
+    routeAssistantId,
+    shouldUseTemporary,
+    startTemporaryTopic,
+    state?.topic,
+    temporaryTopicSnapshot
+  ])
 
   const setActiveTopicAndDiscardTemporary = useCallback(
     (topic: Topic) => {

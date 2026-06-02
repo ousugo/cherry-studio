@@ -1,4 +1,5 @@
 import { Badge, Button, EmptyState, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import type { Assistant } from '@shared/data/types/assistant'
 import type { VirtualItem } from '@tanstack/react-virtual'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
 import { useState } from 'react'
@@ -17,7 +18,9 @@ interface AssistantCatalogPresetContentProps {
   presets: AssistantCatalogPreset[]
   search: string
   addingPresetKeys: ReadonlySet<string>
+  getAddedAssistant?: (preset: AssistantCatalogPreset) => Assistant | undefined
   onAddPreset: (preset: AssistantCatalogPreset) => void
+  onOpenAssistant: (assistant: Assistant) => void
   onPreviewPreset: (preset: AssistantCatalogPreset) => void
   rows?: AssistantCatalogPreset[][]
   columnCount?: number
@@ -30,7 +33,9 @@ export function AssistantCatalogPresetContent({
   presets,
   search,
   addingPresetKeys,
+  getAddedAssistant,
   onAddPreset,
+  onOpenAssistant,
   onPreviewPreset,
   rows,
   columnCount,
@@ -81,7 +86,9 @@ export function AssistantCatalogPresetContent({
                     key={`${presetKey}-${virtualRow.index}-${index}`}
                     preset={preset}
                     adding={addingPresetKeys.has(presetKey)}
+                    addedAssistant={getAddedAssistant?.(preset)}
                     onAdd={onAddPreset}
+                    onOpenAssistant={onOpenAssistant}
                     onPreview={onPreviewPreset}
                   />
                 )
@@ -102,7 +109,9 @@ export function AssistantCatalogPresetContent({
             key={`${presetKey}-${index}`}
             preset={preset}
             adding={addingPresetKeys.has(presetKey)}
+            addedAssistant={getAddedAssistant?.(preset)}
             onAdd={onAddPreset}
+            onOpenAssistant={onOpenAssistant}
             onPreview={onPreviewPreset}
           />
         )
@@ -114,15 +123,25 @@ export function AssistantCatalogPresetContent({
 interface AssistantPresetCardProps {
   preset: AssistantCatalogPreset
   adding: boolean
+  addedAssistant?: Assistant
   onAdd: (preset: AssistantCatalogPreset) => void
+  onOpenAssistant: (assistant: Assistant) => void
   onPreview: (preset: AssistantCatalogPreset) => void
 }
 
-function AssistantPresetGridCard({ preset, adding, onAdd, onPreview }: AssistantPresetCardProps) {
+function AssistantPresetGridCard({
+  preset,
+  adding,
+  addedAssistant,
+  onAdd,
+  onOpenAssistant,
+  onPreview
+}: AssistantPresetCardProps) {
   const { t } = useTranslation()
   const summary = getPresetSummary(preset)
   const groups = (preset.group || []).slice(0, 2)
   const extraGroupCount = Math.max((preset.group || []).length - groups.length, 0)
+  const isAdded = Boolean(addedAssistant)
 
   return (
     <div
@@ -158,11 +177,15 @@ function AssistantPresetGridCard({ preset, adding, onAdd, onPreview }: Assistant
           disabled={adding}
           onClick={(e) => {
             e.stopPropagation()
-            onAdd(preset)
+            if (addedAssistant) {
+              onOpenAssistant(addedAssistant)
+            } else {
+              onAdd(preset)
+            }
           }}
           size="sm"
           className="shrink-0">
-          {t('library.assistant_catalog.add')}
+          {t(isAdded ? 'library.assistant_catalog.go_to_chat' : 'library.assistant_catalog.add')}
         </Button>
       </div>
     </div>

@@ -82,6 +82,7 @@ describe('useResourceLibrary model display names', () => {
       listResult([
         {
           id: 'assistant-1',
+          source: 'user',
           name: 'Assistant',
           description: '',
           emoji: '💬',
@@ -268,6 +269,7 @@ describe('useResourceLibrary model display names', () => {
       return listResult([
         {
           id: 'assistant-1',
+          source: 'user',
           name: 'Assistant',
           description: '',
           emoji: '💬',

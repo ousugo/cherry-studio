@@ -106,6 +106,7 @@ const createAssistant = (settings: Partial<Assistant['settings']> = {}): Assista
   description: '',
   emoji: '',
   id: 'assistant-1',
+  source: 'user',
   knowledgeBaseIds: [],
   mcpServerIds: [],
   modelId: null,

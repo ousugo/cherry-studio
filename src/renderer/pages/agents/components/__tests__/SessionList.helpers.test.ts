@@ -320,6 +320,7 @@ describe('SessionList helpers', () => {
       })
     ]
     const workspaces = [
+      makeWorkspace('/Users/jd/project-empty', { id: 'ws-empty', name: 'Empty Workspace', orderKey: '0' }),
       makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'DB Beta', orderKey: 'a' }),
       makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'DB Alpha', orderKey: 'b' })
     ]

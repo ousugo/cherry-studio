@@ -1,5 +1,5 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
-import type { Assistant } from '@shared/data/types/assistant'
+import { type Assistant, ASSISTANT_SOURCE_USER } from '@shared/data/types/assistant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const orchestratorSearch = vi.fn()
@@ -20,6 +20,7 @@ const entry = createKbSearchToolEntry()
 function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return {
     id: 'assistant-1',
+    source: ASSISTANT_SOURCE_USER,
     knowledgeBaseIds: [],
     ...overrides
   } as Assistant

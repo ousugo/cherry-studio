@@ -37,6 +37,7 @@ function createTag(id: string, name: string): Tag {
 function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return {
     id: 'ast-source',
+    source: 'user',
     name: '原助手',
     prompt: 'prompt',
     emoji: '💬',
@@ -109,5 +110,19 @@ describe('useAssistantMutations', () => {
         tagIds: ['tag-1', 'tag-2']
       }
     })
+  })
+
+  it('does not carry preset provenance when duplicating an assistant', async () => {
+    const presetSource = '550e8400-e29b-41d4-a716-446655440000'
+    const created = createAssistant({ id: 'ast-copy', source: 'user', tags: [] })
+    createTriggerMock.mockResolvedValue(created)
+
+    const { result } = renderHook(() => useAssistantMutations())
+
+    await act(async () => {
+      await result.current.duplicateAssistant(createAssistant({ source: presetSource }))
+    })
+
+    expect(createTriggerMock.mock.calls[0]?.[0].body).not.toHaveProperty('source')
   })
 })

@@ -5,8 +5,9 @@ import type * as ReactModule from 'react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AssistantPresetPreviewDialog } from '../AssistantPresetPreviewDialog'
 import { ResourceCardMenu } from '../ResourceCardMenu'
-import { ResourceCard } from '../ResourceCards'
+import { AssistantCatalogPresetContent, ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
 const { ensureTagsMock, updateAssistantMock } = vi.hoisted(() => ({
@@ -79,6 +80,12 @@ vi.mock('@cherrystudio/ui', async () => {
         {description && <div>{description}</div>}
       </div>
     ),
+    Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
+    DialogContent: ({ children }: { children?: ReactNode }) => <div role="dialog">{children}</div>,
+    DialogDescription: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    DialogFooter: ({ children }: { children?: ReactNode }) => <footer>{children}</footer>,
+    DialogHeader: ({ children }: { children?: ReactNode }) => <header>{children}</header>,
+    DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
     Input: (props: ComponentProps<'input'> & { className?: string }) => <input {...props} />,
     MenuDivider: () => <div data-testid="menu-divider" />,
     MenuList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -129,7 +136,10 @@ vi.mock('@cherrystudio/ui', async () => {
       return <span onPointerDownCapture={() => setOpen(!open)}>{children}</span>
     },
     Separator: () => <div />,
-    Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />
+    Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
+    Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    TabsList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    TabsTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>
   }
 })
 
@@ -313,6 +323,79 @@ describe('ResourceGrid card actions', () => {
     expect(screen.getByText('alpha')).toBeInTheDocument()
     expect(screen.getByText('beta')).toBeInTheDocument()
     expect(screen.getByText('+1')).toBeInTheDocument()
+  })
+})
+
+describe('ResourceGrid assistant catalog actions', () => {
+  const preset = {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    name: 'Catalog Assistant',
+    prompt: 'Prompt',
+    group: ['Tools']
+  }
+  const addedAssistant = {
+    id: 'assistant-added',
+    source: preset.id,
+    name: 'Catalog Assistant',
+    emoji: '🤖'
+  } as any
+
+  it('uses add before a preset is installed and go-to-chat after it is installed', async () => {
+    const user = userEvent.setup()
+    const onAddPreset = vi.fn()
+    const onOpenAssistant = vi.fn()
+    const { rerender } = render(
+      <AssistantCatalogPresetContent
+        presets={[preset]}
+        search=""
+        addingPresetKeys={new Set()}
+        getAddedAssistant={() => undefined}
+        onAddPreset={onAddPreset}
+        onOpenAssistant={onOpenAssistant}
+        onPreviewPreset={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'library.assistant_catalog.add' }))
+    expect(onAddPreset).toHaveBeenCalledWith(preset)
+    expect(onOpenAssistant).not.toHaveBeenCalled()
+
+    rerender(
+      <AssistantCatalogPresetContent
+        presets={[preset]}
+        search=""
+        addingPresetKeys={new Set()}
+        getAddedAssistant={() => addedAssistant}
+        onAddPreset={onAddPreset}
+        onOpenAssistant={onOpenAssistant}
+        onPreviewPreset={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'library.assistant_catalog.go_to_chat' }))
+    expect(onOpenAssistant).toHaveBeenCalledWith(addedAssistant)
+  })
+
+  it('shows go-to-chat in the preview dialog for installed presets', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    const onOpenAssistant = vi.fn()
+
+    render(
+      <AssistantPresetPreviewDialog
+        preset={preset}
+        open
+        addedAssistant={addedAssistant}
+        onOpenChange={vi.fn()}
+        onAdd={onAdd}
+        onOpenAssistant={onOpenAssistant}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'library.assistant_catalog.go_to_chat' }))
+
+    expect(onOpenAssistant).toHaveBeenCalledWith(addedAssistant)
+    expect(onAdd).not.toHaveBeenCalled()
   })
 })
 

@@ -664,23 +664,22 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     },
     [activeTopic?.id, filteredTopics, setActiveTopic]
   )
+  const getGroupHeaderClickBehavior = useCallback(
+    (group: { id: string }) =>
+      displayMode === 'assistant' && group.id !== TOPIC_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
+    [displayMode]
+  )
   const handleEmptyGroupHeaderClick = useCallback(
     (group: ResourceListGroup) => {
       if (displayMode !== 'assistant' || group.id === TOPIC_PINNED_GROUP_ID) return false
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
-      if (!assistantId || !assistantById.has(assistantId)) return false
-      if (!onNewTopic) return false
+      if (!assistantId || !assistantById.has(assistantId) || !onNewTopic) return false
 
       void onNewTopic({ assistantId })
       return true
     },
     [assistantById, displayMode, onNewTopic]
-  )
-  const getGroupHeaderClickBehavior = useCallback(
-    (group: { id: string }) =>
-      displayMode === 'assistant' && group.id !== TOPIC_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
-    [displayMode]
   )
 
   const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)

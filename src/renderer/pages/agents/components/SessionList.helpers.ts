@@ -217,11 +217,20 @@ export function createSessionWorkdirDisplayMaps(
   const pathByGroupId = new Map<string, string>()
   const rankByGroupId = new Map<string, number>()
   const workspaceIdByGroupId = new Map<string, string>()
+  const referencedWorkspaceIds = new Set(
+    sessions
+      .map((session) => session.workspaceId)
+      .filter((workspaceId): workspaceId is string => typeof workspaceId === 'string' && workspaceId.length > 0)
+  )
+  const referencedWorkspacePaths = new Set(
+    sessions.map(getPrimarySessionWorkdir).filter((path): path is string => typeof path === 'string')
+  )
 
   for (const workspace of workspaces) {
     if (workspace.type === 'system') continue
     const path = normalizeSessionWorkdirPath(workspace.path)
     if (!path || groupIdByWorkspaceId.has(workspace.id)) continue
+    if (!referencedWorkspaceIds.has(workspace.id) && !referencedWorkspacePaths.has(path)) continue
 
     const groupId = getWorkspaceSessionGroupId(workspace.id)
 
