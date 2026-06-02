@@ -28,10 +28,37 @@ import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBac
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
-const AGENT_RUNTIME_INTERRUPT_REASON = 'agent-runtime-interrupt'
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = 'success' | 'paused' | 'error'
+
+/**
+ * Why an in-flight turn is being stopped — selects how much runtime state to
+ * tear down (see {@link STOP_POLICY}). Derived from the service's own typed
+ * state (`turn.interruptRequested`), never from the abort signal's `reason`, so
+ * a user Stop can't be misread as a steer interrupt. An abort with nothing
+ * requested defaults to `user-stop` — the safe-failure direction (full teardown
+ * closes the connection, killing the runtime/subagent).
+ */
+type AgentTurnStopIntent = 'interrupt' | 'user-stop'
+
+interface TurnStopPolicy {
+  /** Terminal status stamped on the turn when the session survives the stop. */
+  turnStatus: AgentSessionRuntimeTerminalStatus
+  /** Tear the whole session down (connection + entry), not just the turn. */
+  closeSession: boolean
+}
+
+/**
+ * `interrupt` (steer): pause this turn but keep the connection + session so the
+ * queued message can open the next turn (the runtime was gracefully interrupted,
+ * not closed — the warm query survives). `user-stop`: tear the session down so
+ * `connection.close()` kills the runtime query and its subagent.
+ */
+const STOP_POLICY: Record<AgentTurnStopIntent, TurnStopPolicy> = {
+  interrupt: { turnStatus: 'paused', closeSession: false },
+  'user-stop': { turnStatus: 'paused', closeSession: true }
+}
 
 export interface BeginAgentSessionTurnInput {
   sessionId: string
@@ -246,7 +273,7 @@ export class AgentSessionRuntimeService extends BaseService {
           this.clearIdleTimer(entry)
           turn.controller = controller
 
-          const onAbort = () => this.handleTurnAbort(entry, input.signal.reason)
+          const onAbort = () => this.stopTurn(entry, turn.interruptRequested ? 'interrupt' : 'user-stop')
           if (input.signal.aborted) {
             onAbort()
             return
@@ -467,7 +494,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private requestInterruptWhenSafe(entry: AgentSessionRuntimeEntry): void {
     const turn = entry.currentTurn
     if (!turn || turn.terminalStatus || !turn.admitted || turn.interruptRequested) return
-    if (turn.activeToolIds.size > 0) return
+    const canInterrupt = entry.connection?.canInterruptNow?.() ?? turn.activeToolIds.size === 0
+    if (!canInterrupt) return
     turn.interruptRequested = true
     this.interruptCurrentTurn(entry)
   }
@@ -478,16 +506,16 @@ export class AgentSessionRuntimeService extends BaseService {
     void entry.connection?.interrupt?.().catch((error) => {
       logger.warn('Agent runtime interrupt failed', { sessionId: entry.sessionId, error })
     })
-    application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, AGENT_RUNTIME_INTERRUPT_REASON)
+    application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-runtime-interrupt')
   }
 
-  private handleTurnAbort(entry: AgentSessionRuntimeEntry, reason: unknown): void {
-    if (reason === AGENT_RUNTIME_INTERRUPT_REASON) {
-      this.closeCurrentTurn(entry, 'paused')
+  private stopTurn(entry: AgentSessionRuntimeEntry, intent: AgentTurnStopIntent): void {
+    const policy = STOP_POLICY[intent]
+    if (policy.closeSession) {
+      this.closeSession(entry.sessionId)
       return
     }
-
-    this.closeSession(entry.sessionId)
+    this.closeCurrentTurn(entry, policy.turnStatus)
   }
 
   private closeCurrentTurn(entry: AgentSessionRuntimeEntry, status: AgentSessionRuntimeTerminalStatus): void {

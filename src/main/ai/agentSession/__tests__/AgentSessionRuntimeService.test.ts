@@ -498,7 +498,7 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
-  it('keeps the runtime session alive when the active turn is aborted for an internal interrupt', async () => {
+  it('keeps the runtime session alive when a steer interrupt pauses the turn', async () => {
     const events = createAsyncQueue<any>()
     const connection = {
       events: events.iterable,
@@ -525,7 +525,9 @@ describe('AgentSessionRuntimeService', () => {
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
     await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
 
-    controller.abort('agent-runtime-interrupt')
+    // The steer path marks the turn before aborting; the abort reason is irrelevant.
+    getEntry(service).currentTurn.interruptRequested = true
+    controller.abort()
 
     await expect(reader.read()).resolves.toMatchObject({ done: true })
     expect(connection.close).not.toHaveBeenCalled()
@@ -534,6 +536,42 @@ describe('AgentSessionRuntimeService', () => {
       status: 'active'
     })
     service.closeSession('session-1')
+  })
+
+  it('tears the session down on abort with an interrupt-looking reason when none was requested', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn()
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const controller = new AbortController()
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: controller.signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
+
+    // Reason matches the old interrupt sentinel, but no interrupt was requested —
+    // teardown is driven by `interruptRequested`, not the signal reason.
+    controller.abort('agent-runtime-interrupt')
+
+    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+    expect(service.inspect('session-1')).toBeUndefined()
+    await reader.cancel().catch(() => undefined)
   })
 
   it('persists errored assistant turns with the latest resume token', async () => {

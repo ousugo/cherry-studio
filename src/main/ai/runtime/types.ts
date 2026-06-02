@@ -48,6 +48,13 @@ export interface AgentRuntimeConnection {
   applyPolicyUpdate?(update: AgentRuntimePolicyUpdate): Promise<boolean> | boolean
   interrupt?(): Promise<void>
   /**
+   * Runtime-specific predicate: is it safe to interrupt the current turn right
+   * now? The host falls back to "no tool is mid-execution" when a connection
+   * omits it, so existing runtimes keep their behaviour; lets a runtime that
+   * tracks its own tool state self-manage interruptibility.
+   */
+  canInterruptNow?(): boolean
+  /**
    * Runtime-specific policy: should the host tear this connection down once the
    * current turn ends? Lets a driver (e.g. Claude trace mode) own the decision
    * instead of the host reaching into driver internals. Omitted ⇒ keep open.
