@@ -812,6 +812,14 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const estimateSize = useCallback(() => ITEM_HEIGHT, [])
 
+  const handlePanelMouseMove = useCallback(() => {
+    scrollTriggerRef.current = 'initial'
+    if (!ctx.readOnly) {
+      setActiveIndex((active) => (active === -1 ? active : -1))
+    }
+    setIsMouseOver((prev) => (prev ? prev : true))
+  }, [ctx.readOnly])
+
   const rowRenderer = useCallback(
     (item: QuickPanelListItem, itemIndex: number) => {
       if (!item) return null
@@ -826,6 +834,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           active={!ctx.readOnly && itemIndex === activeIndex}
           contentClassName="max-w-[60%]"
           dataId={item.id}
+          hoverEnabled={isMouseOver}
           item={item}
           readOnly={ctx.readOnly}
           reserveIconSlot
@@ -834,7 +843,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         />
       )
     },
-    [activeIndex, ctx.readOnly, handleItemAction]
+    [activeIndex, ctx.readOnly, handleItemAction, isMouseOver]
   )
 
   return (
@@ -866,12 +875,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         )}
         onKeyDown={handlePanelKeyDown}
         onKeyUp={handlePanelKeyUp}
-        onMouseMove={() =>
-          setIsMouseOver((prev) => {
-            scrollTriggerRef.current = 'initial'
-            return prev ? prev : true
-          })
-        }>
+        onMouseMove={handlePanelMouseMove}>
         {ctx.readOnly ? <QuickPanelReadOnlyHeader title={ctx.title} onClose={() => handleClose('click')} /> : null}
         {collapsed ? (
           <div className="p-4 text-center text-[13px] text-muted-foreground">

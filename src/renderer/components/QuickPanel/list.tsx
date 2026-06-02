@@ -52,6 +52,7 @@ interface QuickPanelRowProps<T extends QuickPanelRowData> {
   className?: string
   contentClassName?: string
   dataId?: string
+  hoverEnabled?: boolean
   item: T
   onSelect: () => void
   reserveIconSlot?: boolean
@@ -174,6 +175,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
   className,
   contentClassName = 'max-w-[68%]',
   dataId,
+  hoverEnabled = true,
   item,
   onSelect,
   reserveIconSlot = false,
@@ -181,20 +183,25 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
   rowRef,
   selected = false
 }: QuickPanelRowProps<T>) {
+  const suffixContent = item.suffix ? (
+    item.suffix
+  ) : selected ? (
+    <Check />
+  ) : item.isMenu && !item.disabled && !readOnly ? (
+    <ChevronRight size={14} />
+  ) : null
+  const canHover = hoverEnabled && !readOnly && !item.disabled
+
   return (
     <div
       ref={rowRef}
       className={cn(
         'mx-[5px] mb-px flex h-[30px] items-center justify-between gap-5 rounded-md p-[5px] transition-colors duration-100',
-        readOnly
-          ? 'cursor-default'
-          : item.disabled
-            ? 'cursor-not-allowed opacity-40'
-            : 'cursor-pointer hover:bg-accent',
+        readOnly ? 'cursor-default' : item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
         !readOnly && selected && 'bg-muted',
         !readOnly && selected && active && 'bg-accent',
-        !readOnly && selected && !item.disabled && 'hover:bg-accent',
         !readOnly && !selected && active && 'bg-accent',
+        canHover && 'hover:bg-accent',
         className
       )}
       data-active={active}
@@ -219,15 +226,11 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
         {item.description ? (
           <span className="overflow-hidden text-ellipsis whitespace-nowrap">{item.description}</span>
         ) : null}
-        <span className="flex min-w-3 shrink-0 items-center justify-end gap-[3px] [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
-          {item.suffix ? (
-            item.suffix
-          ) : selected ? (
-            <Check />
-          ) : item.isMenu && !item.disabled && !readOnly ? (
-            <ChevronRight size={14} />
-          ) : null}
-        </span>
+        {suffixContent ? (
+          <span className="flex min-w-3 shrink-0 items-center justify-end gap-[3px] [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
+            {suffixContent}
+          </span>
+        ) : null}
       </div>
     </div>
   )
