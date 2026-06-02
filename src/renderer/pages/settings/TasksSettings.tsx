@@ -50,7 +50,7 @@ import {
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
 const logger = loggerService.withContext('TasksSettings')
 
@@ -244,7 +244,7 @@ const TaskDetail: FC<{
   }
 
   return (
-    <SettingContainer theme={theme}>
+    <SettingsContentColumn theme={theme}>
       {/* Header card */}
       <SettingGroup theme={theme}>
         <SettingTitle>
@@ -479,7 +479,7 @@ const TaskDetail: FC<{
         destructive
         onConfirm={() => onDelete(task.id)}
       />
-    </SettingContainer>
+    </SettingsContentColumn>
   )
 }
 
@@ -725,7 +725,7 @@ const CreateForm: FC<{
   }, [agentId, name, prompt, scheduleType, scheduleValue, timeoutMinutes, channelIds, onCreate])
 
   return (
-    <SettingContainer theme={theme}>
+    <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('agent.cherryClaw.tasks.add')}</SettingTitle>
         <SettingDivider />
@@ -877,7 +877,7 @@ const CreateForm: FC<{
           </div>
         </div>
       </SettingGroup>
-    </SettingContainer>
+    </SettingsContentColumn>
   )
 }
 
