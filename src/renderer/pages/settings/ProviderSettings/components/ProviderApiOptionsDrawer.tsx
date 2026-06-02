@@ -1,25 +1,6 @@
-import {
-  Button,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Switch,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { cn } from '@renderer/utils'
-import { toOptionValue, toRealValue } from '@renderer/utils/select'
-import type {
-  GroqServiceTier,
-  OpenAIServiceTier,
-  Provider,
-  ProviderSettings,
-  RuntimeApiFeatures,
-  ServiceTier
-} from '@shared/data/types/provider'
+import type { GroqServiceTier, OpenAIServiceTier, Provider, ProviderSettings } from '@shared/data/types/provider'
 import type { OpenAIReasoningSummary, OpenAIVerbosity } from '@shared/types/aiSdk'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -75,10 +56,10 @@ function apiOptionId(providerId: string, key: string): string {
   return `provider-api-option-${providerId}-${key}`
 }
 
-function OptionLabel({ id, label, help }: { id: string; label: string; help: string }) {
+function OptionTitle({ id, label, help }: { id: string; label: string; help: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
-      <label htmlFor={id} className="min-w-0 cursor-pointer truncate text-[13px] text-foreground/75 leading-[1.35]">
+    <span className="flex min-w-0 items-center gap-1.5">
+      <label htmlFor={id} className="min-w-0 cursor-pointer truncate">
         {label}
       </label>
       <Tooltip content={help}>
@@ -88,36 +69,7 @@ function OptionLabel({ id, label, help }: { id: string; label: string; help: str
           <Info className="size-3" aria-hidden />
         </span>
       </Tooltip>
-    </div>
-  )
-}
-
-interface SelectOptionRowProps {
-  id: string
-  label: string
-  help: string
-  value: string
-  options: ReadonlyArray<{ value: string; label: string }>
-  onValueChange: (value: string) => void
-}
-
-function SelectOptionRow({ id, label, help, value, options, onValueChange }: SelectOptionRowProps) {
-  return (
-    <div className="flex min-w-0 items-center justify-between gap-4 rounded-xl border border-[color:var(--section-border)] bg-muted/40 px-3 py-2.5">
-      <OptionLabel id={id} label={label} help={help} />
-      <Select value={value} onValueChange={onValueChange}>
-        <SelectTrigger id={id} size="sm" className="h-8 w-[160px] shrink-0 rounded-xl text-[13px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="text-[13px]">
-          {options.map((option) => (
-            <SelectItem className="text-[13px]" key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    </span>
   )
 }
 
@@ -381,25 +333,10 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   )
 
   if (!provider) {
-    return (
-      <ProviderSettingsDrawer
-        open={open}
-        onClose={onClose}
-        title={t('settings.provider.api.options.label')}
-        size="form"
-      />
-    )
+    return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('settings.provider.api.options.label')} />
   }
 
-  const {
-    isSupportAnthropicPromptCache,
-    showOpenAIServiceTierSetting,
-    showGroqServiceTierSetting,
-    showSummaryTextSetting,
-    showVerbositySetting,
-    showOpenAISettings,
-    showProviderValueSettings
-  } = getProviderApiOptionsVisibility(provider)
+  const { showProviderValueSettings } = getProviderApiOptionsVisibility(provider)
   const showCacheDetailOptions = effectiveCacheTokenThreshold > 0
   const cacheSystemMessage = cacheControl?.cacheSystemMessage ?? true
   const showApiFeatureSettings = options.length > 0
@@ -409,175 +346,109 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       open={open}
       onClose={onClose}
       title={t('settings.provider.api.options.label')}
-      footer={footer}
-      size="form">
-      <div className="flex min-w-0 flex-col gap-5 py-1">
-        {showApiFeatureSettings ? (
-          <div className="space-y-3">
-            {options.map((item) => {
-              const id = apiOptionId(providerId, item.key)
-              return (
-                <div
-                  key={item.key}
-                  className="flex min-w-0 items-center justify-between gap-4 rounded-xl border border-[color:var(--section-border)] bg-muted/40 px-3 py-2.5">
-                  <OptionLabel id={id} label={item.label} help={item.help} />
+      footer={footer}>
+      <div className="flex min-w-0 flex-col gap-5">
+        <div className="flex flex-col gap-5">
+          {options.map((item) => {
+            const id = apiOptionId(providerId, item.key)
+            return (
+              <PageSidePanelItem
+                key={item.key}
+                title={<OptionTitle id={id} label={item.label} help={item.help} />}
+                action={
                   <Switch
                     id={id}
                     checked={provider.apiFeatures[item.key]}
                     onCheckedChange={(checked) => updateApiFeature(item.key, checked)}
                   />
-                </div>
-              )
-            })}
-          </div>
-        ) : null}
-
-        {showProviderValueSettings ? (
-          <>
-            {showApiFeatureSettings ? <div className={drawerClasses.divider} /> : null}
-            <div className="space-y-3">
-              {showOpenAISettings ? (
-                <>
-                  <div className="px-1 font-medium text-[12px] text-muted-foreground/80 leading-[1.35]">
-                    {t('settings.openai.title')}
-                  </div>
-                  {showOpenAIServiceTierSetting ? (
-                    <SelectOptionRow
-                      id={apiOptionId(providerId, 'openai-service-tier')}
-                      label={t('settings.openai.service_tier.title')}
-                      help={t('settings.openai.service_tier.tip')}
-                      value={toOptionValue(provider.settings.serviceTier as ServiceTier)}
-                      options={openAIServiceTierOptions}
-                      onValueChange={(value) =>
-                        updateProviderSettings({
-                          serviceTier: toRealValue(value as OpenAIServiceTierOption['value'])
-                        })
-                      }
-                    />
-                  ) : null}
-                  {showSummaryTextSetting ? (
-                    <SelectOptionRow
-                      id={apiOptionId(providerId, 'openai-summary-text')}
-                      label={t('settings.openai.summary_text_mode.title')}
-                      help={t('settings.openai.summary_text_mode.tip')}
-                      value={toOptionValue(provider.settings.summaryText)}
-                      options={summaryTextOptions}
-                      onValueChange={(value) =>
-                        updateProviderSettings({
-                          summaryText: toRealValue(value as SummaryTextOption['value'])
-                        })
-                      }
-                    />
-                  ) : null}
-                  {showVerbositySetting ? (
-                    <SelectOptionRow
-                      id={apiOptionId(providerId, 'openai-verbosity')}
-                      label={t('settings.openai.verbosity.title')}
-                      help={t('settings.openai.verbosity.tip')}
-                      value={toOptionValue(provider.settings.verbosity as OpenAIVerbosity)}
-                      options={verbosityOptions}
-                      onValueChange={(value) =>
-                        updateProviderSettings({
-                          verbosity: toRealValue(value as VerbosityOption['value'])
-                        })
-                      }
-                    />
-                  ) : null}
-                </>
-              ) : null}
-              {showGroqServiceTierSetting ? (
-                <>
-                  <div className="px-1 font-medium text-[12px] text-muted-foreground/80 leading-[1.35]">
-                    {t('settings.groq.title')}
-                  </div>
-                  <SelectOptionRow
-                    id={apiOptionId(providerId, 'groq-service-tier')}
-                    label={t('settings.openai.service_tier.title')}
-                    help={t('settings.openai.service_tier.tip')}
-                    value={toOptionValue(provider.settings.serviceTier as ServiceTier)}
-                    options={groqServiceTierOptions}
-                    onValueChange={(value) =>
-                      updateProviderSettings({
-                        serviceTier: toRealValue(value as GroqServiceTierOption['value'])
-                      })
-                    }
-                  />
-                </>
-              ) : null}
-            </div>
-          </>
-        ) : null}
+                }
+              />
+            )
+          })}
+        </div>
 
         {isSupportAnthropicPromptCache ? (
           <>
-            {showApiFeatureSettings || showProviderValueSettings ? <div className={drawerClasses.divider} /> : null}
-            <div className="space-y-3">
-              <div className="flex min-w-0 items-center justify-between gap-4 rounded-xl border border-[color:var(--section-border)] bg-muted/40 px-3 py-2.5">
-                <OptionLabel
-                  id={apiOptionId(providerId, 'cache-token-threshold')}
-                  label={t('settings.provider.api.options.anthropic_cache.token_threshold')}
-                  help={t('settings.provider.api.options.anthropic_cache.token_threshold_help')}
-                />
-                <Input
-                  id={apiOptionId(providerId, 'cache-token-threshold')}
-                  type="number"
-                  min={0}
-                  max={CACHE_TOKEN_THRESHOLD_MAX}
-                  value={tokenThresholdDraft}
-                  onChange={(event) => setTokenThresholdDraft(event.target.value)}
-                  onBlur={commitTokenThreshold}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.currentTarget.blur()
-                    }
-                  }}
-                  className={cn(drawerClasses.input, 'h-9 w-28 shrink-0 rounded-xl px-3 py-1.5 text-right')}
-                />
-              </div>
+            <div className={drawerClasses.divider} />
+            <div className="flex flex-col gap-5">
+              <PageSidePanelItem
+                title={
+                  <OptionTitle
+                    id={apiOptionId(providerId, 'cache-token-threshold')}
+                    label={t('settings.provider.api.options.anthropic_cache.token_threshold')}
+                    help={t('settings.provider.api.options.anthropic_cache.token_threshold_help')}
+                  />
+                }
+                action={
+                  <Input
+                    id={apiOptionId(providerId, 'cache-token-threshold')}
+                    type="number"
+                    min={0}
+                    max={CACHE_TOKEN_THRESHOLD_MAX}
+                    value={tokenThresholdDraft}
+                    onChange={(event) => setTokenThresholdDraft(event.target.value)}
+                    onBlur={commitTokenThreshold}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.currentTarget.blur()
+                      }
+                    }}
+                    className={cn(drawerClasses.input, 'h-9 w-28 shrink-0 text-right')}
+                  />
+                }
+              />
 
               {showCacheDetailOptions ? (
                 <>
-                  <div className="flex min-w-0 items-center justify-between gap-4 rounded-xl border border-[color:var(--section-border)] bg-muted/40 px-3 py-2.5">
-                    <OptionLabel
-                      id={apiOptionId(providerId, 'cache-system-message')}
-                      label={t('settings.provider.api.options.anthropic_cache.cache_system')}
-                      help={t('settings.provider.api.options.anthropic_cache.cache_system_help')}
-                    />
-                    <Switch
-                      id={apiOptionId(providerId, 'cache-system-message')}
-                      checked={cacheSystemMessage}
-                      onCheckedChange={(checked) =>
-                        updateCacheSettings({
-                          enabled: effectiveCacheTokenThreshold > 0,
-                          tokenThreshold: effectiveCacheTokenThreshold,
-                          cacheSystemMessage: checked
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div className="flex min-w-0 items-center justify-between gap-4 rounded-xl border border-[color:var(--section-border)] bg-muted/40 px-3 py-2.5">
-                    <OptionLabel
-                      id={apiOptionId(providerId, 'cache-last-n')}
-                      label={t('settings.provider.api.options.anthropic_cache.cache_last_n')}
-                      help={t('settings.provider.api.options.anthropic_cache.cache_last_n_help')}
-                    />
-                    <Input
-                      id={apiOptionId(providerId, 'cache-last-n')}
-                      type="number"
-                      min={0}
-                      max={CACHE_LAST_N_MAX}
-                      value={cacheLastNDraft}
-                      onChange={(event) => setCacheLastNDraft(event.target.value)}
-                      onBlur={commitCacheLastNMessages}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.currentTarget.blur()
+                  <PageSidePanelItem
+                    title={
+                      <OptionTitle
+                        id={apiOptionId(providerId, 'cache-system-message')}
+                        label={t('settings.provider.api.options.anthropic_cache.cache_system')}
+                        help={t('settings.provider.api.options.anthropic_cache.cache_system_help')}
+                      />
+                    }
+                    action={
+                      <Switch
+                        id={apiOptionId(providerId, 'cache-system-message')}
+                        checked={cacheSystemMessage}
+                        onCheckedChange={(checked) =>
+                          updateCacheSettings({
+                            enabled: effectiveCacheTokenThreshold > 0,
+                            tokenThreshold: effectiveCacheTokenThreshold,
+                            cacheSystemMessage: checked
+                          })
                         }
-                      }}
-                      className={cn(drawerClasses.input, 'h-9 w-20 shrink-0 rounded-xl px-3 py-1.5 text-right')}
-                    />
-                  </div>
+                      />
+                    }
+                  />
+
+                  <PageSidePanelItem
+                    title={
+                      <OptionTitle
+                        id={apiOptionId(providerId, 'cache-last-n')}
+                        label={t('settings.provider.api.options.anthropic_cache.cache_last_n')}
+                        help={t('settings.provider.api.options.anthropic_cache.cache_last_n_help')}
+                      />
+                    }
+                    action={
+                      <Input
+                        id={apiOptionId(providerId, 'cache-last-n')}
+                        type="number"
+                        min={0}
+                        max={CACHE_LAST_N_MAX}
+                        value={cacheLastNDraft}
+                        onChange={(event) => setCacheLastNDraft(event.target.value)}
+                        onBlur={commitCacheLastNMessages}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.currentTarget.blur()
+                          }
+                        }}
+                        className={cn(drawerClasses.input, 'h-9 w-20 shrink-0 text-right')}
+                      />
+                    }
+                  />
                 </>
               ) : null}
             </div>

@@ -4,7 +4,7 @@ import AgentTodoListPanel from '@renderer/pages/agents/components/AgentTodoListP
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
+import { SettingDivider, SettingGroup, SettingsContentColumn, SettingTitle } from '..'
 import ComponentLabAgentSelectorSettings from './ComponentLabAgentSelectorSettings'
 import ComponentLabAskUserQuestionSettings from './ComponentLabAskUserQuestionSettings'
 import ComponentLabAssistantSelectorSettings from './ComponentLabAssistantSelectorSettings'
@@ -17,7 +17,7 @@ const ComponentLabSettings: FC = () => {
   const { theme } = useTheme()
 
   return (
-    <SettingContainer theme={theme}>
+    <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>
           <span className="font-semibold text-[15px]">{t('settings.componentLab.title')}</span>
@@ -57,7 +57,7 @@ const ComponentLabSettings: FC = () => {
           </TabsContent>
         </Tabs>
       </SettingGroup>
-    </SettingContainer>
+    </SettingsContentColumn>
   )
 }
 

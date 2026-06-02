@@ -54,24 +54,12 @@ vi.mock('@cherrystudio/ui', async () => {
       </button>
     ),
     Input: (props: any) => <input {...props} />,
-    Select: ({ children, disabled, onValueChange }: any) => (
-      <SelectContext value={disabled ? undefined : onValueChange}>{children}</SelectContext>
+    PageSidePanelItem: ({ title, action }: any) => (
+      <div>
+        {title}
+        {action}
+      </div>
     ),
-    SelectContent: ({ children }: any) => <div>{children}</div>,
-    SelectItem: ({ children, value, ...props }: any) => {
-      const onValueChange = React.use(SelectContext)
-      return (
-        <button type="button" onClick={() => onValueChange?.(value)} {...props}>
-          {children}
-        </button>
-      )
-    },
-    SelectTrigger: ({ children, ...props }: any) => (
-      <button type="button" {...props}>
-        {children}
-      </button>
-    ),
-    SelectValue: () => <span />,
     Switch: ({ checked, onCheckedChange, ...props }: any) => (
       <input type="checkbox" checked={checked} onChange={(event) => onCheckedChange(event.target.checked)} {...props} />
     ),
