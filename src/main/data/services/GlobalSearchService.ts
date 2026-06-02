@@ -176,7 +176,6 @@ export class GlobalSearchService {
       type: 'knowledge-base',
       id: item.id,
       title: item.name,
-      emoji: item.emoji,
       updatedAt: item.updatedAt,
       target: { knowledgeBaseId: item.id }
     }))

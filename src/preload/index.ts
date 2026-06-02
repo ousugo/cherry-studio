@@ -11,14 +11,8 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenRequest,
   AiStreamOpenResponse,
-  AiStreamQueueRemoveRequest,
-  AiStreamQueueReorderRequest,
-  AiStreamQueueUpdateRequest,
   AiToolApprovalRespondRequest,
   AiToolApprovalRespondResponse,
-  ComposerQueuedMessagePayload,
-  ComposerQueueItem,
-  ComposerQueueSnapshot,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload
@@ -891,12 +885,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Ai_Stream_Attach, req),
     streamDetach: (req: AiStreamDetachRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
     streamAbort: (req: AiStreamAbortRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req),
-    queueRemove: (req: AiStreamQueueRemoveRequest): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.Ai_Stream_Queue_Remove, req),
-    queueReorder: (req: AiStreamQueueReorderRequest): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.Ai_Stream_Queue_Reorder, req),
-    queueUpdate: (req: AiStreamQueueUpdateRequest): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.Ai_Stream_Queue_Update, req),
     prewarmAgentSession: (req: AiAgentSessionWarmRequest): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Ai_AgentSession_Prewarm, req),
     closeAgentSessionWarm: (req: AiAgentSessionWarmCloseRequest): Promise<void> =>
@@ -958,26 +946,6 @@ const api = {
     agent: {
       runTask: (taskId: string) => ipcRenderer.invoke(IpcChannel.Ai_Agent_RunTask, taskId)
     }
-  },
-  composerQueue: {
-    enqueue: (scopeId: string, payload: ComposerQueuedMessagePayload): Promise<ComposerQueueItem> =>
-      ipcRenderer.invoke(IpcChannel.ComposerQueue_Enqueue, scopeId, payload),
-    remove: (scopeId: string, itemId: string): Promise<ComposerQueueSnapshot> =>
-      ipcRenderer.invoke(IpcChannel.ComposerQueue_Remove, { scopeId, itemId }),
-    reorder: (scopeId: string, itemIds: string[]): Promise<ComposerQueueSnapshot> =>
-      ipcRenderer.invoke(IpcChannel.ComposerQueue_Reorder, { scopeId, itemIds }),
-    update: (
-      scopeId: string,
-      itemId: string,
-      payload: ComposerQueuedMessagePayload
-    ): Promise<ComposerQueueItem | null> =>
-      ipcRenderer.invoke(IpcChannel.ComposerQueue_Update, { scopeId, itemId, payload }),
-    claimNext: (scopeId: string): Promise<ComposerQueueItem | null> =>
-      ipcRenderer.invoke(IpcChannel.ComposerQueue_ClaimNext, scopeId),
-    complete: (scopeId: string, itemId: string): Promise<ComposerQueueSnapshot> =>
-      ipcRenderer.invoke(IpcChannel.ComposerQueue_Complete, { scopeId, itemId }),
-    fail: (scopeId: string, itemId: string, error?: string): Promise<ComposerQueueItem | null> =>
-      ipcRenderer.invoke(IpcChannel.ComposerQueue_Fail, { scopeId, itemId, error })
   },
   translate: {
     open: (req: {

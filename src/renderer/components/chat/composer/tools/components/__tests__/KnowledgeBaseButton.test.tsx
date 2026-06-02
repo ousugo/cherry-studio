@@ -58,7 +58,6 @@ vi.mock('react-i18next', () => ({
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> & Pick<KnowledgeBase, 'id' | 'name'>): KnowledgeBase =>
   ({
     documentCount: 0,
-    emoji: undefined,
     ...overrides
   }) as KnowledgeBase
 
@@ -75,7 +74,7 @@ describe('KnowledgeBaseToolRuntime', () => {
     mocks.language = 'en'
     mocks.translationSuffix = ''
     mocks.knowledgeBases = [
-      createKnowledgeBase({ id: 'kb-1', name: 'Knowledge One', documentCount: 2, emoji: '📚' }),
+      createKnowledgeBase({ id: 'kb-1', name: 'Knowledge One', documentCount: 2 }),
       createKnowledgeBase({ id: 'kb-2', name: 'Knowledge Two', documentCount: 5 })
     ]
   })

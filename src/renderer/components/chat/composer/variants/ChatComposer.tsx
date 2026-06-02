@@ -3,7 +3,6 @@ import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { useCommandHandler } from '@renderer/commands'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import ComposerMessageQueuePanel from '@renderer/components/chat/composer/ComposerMessageQueuePanel'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
   ComposerActiveToolControls,
@@ -27,7 +26,6 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useModels } from '@renderer/hooks/useModel'
 import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -37,7 +35,7 @@ import { TopicType } from '@renderer/types'
 import { cn, getLeadingEmoji } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { canModelUseAssistantWebSearch } from '@renderer/utils/modelReconcile'
-import type { ComposerQueuedMessagePayload, ComposerQueueItem, StreamPendingQueueItem } from '@shared/ai/transport'
+import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -51,7 +49,6 @@ import { useTranslation } from 'react-i18next'
 
 import { createComposerUserMessageParts } from '../composerDraft'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
-import { useComposerMessageQueue } from '../useComposerMessageQueue'
 import {
   chatComposerTokenId,
   fileToComposerToken,
@@ -386,7 +383,6 @@ const ChatComposerInner = ({
   } = useAssistant(topic.assistantId, { loadDefaultModel: false })
   const { updateTopic } = useTopicMutations()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
-  const { models: selectableModels } = useModels()
   const { providers } = useProviders()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
@@ -397,8 +393,6 @@ const ChatComposerInner = ({
   const { t } = useTranslation()
   const chatWrite = useChatWrite()
   const { isPending } = useTopicStreamStatus(topic.id)
-  const messageQueue = useComposerMessageQueue(topic.id)
-  const autoDispatchingQueueRef = useRef(false)
   const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '')
@@ -527,17 +521,6 @@ const ChatComposerInner = ({
     setTextState(nextText)
     cacheService.setCasual(INPUTBAR_DRAFT_CACHE_KEY, nextText, DRAFT_CACHE_TTL)
   }, [])
-
-  const setMentionedModelsWithSelector = useCallback(
-    (nextModels: Model[] | ((previousModels: Model[]) => Model[])) => {
-      const resolvedModels = typeof nextModels === 'function' ? nextModels(mentionedModelsRef.current) : nextModels
-      setMentionedModels(resolvedModels)
-      if (useMentionedModelSelector) {
-        setMentionedModelSelectorValue(resolvedModels)
-      }
-    },
-    [setMentionedModels, useMentionedModelSelector]
-  )
 
   const initializeMentionedModelSelector = useEffectEvent((isInitialSelection: boolean, selectedModel?: Model) => {
     const currentMentionedModels = mentionedModelsRef.current
@@ -818,15 +801,12 @@ const ChatComposerInner = ({
 
       if (sendDisabled) return
       if (runtimeModelPending) return
+      // The send queue was removed; while a turn is streaming we no longer buffer
+      // messages, so block sending until it finishes instead of dispatching concurrently.
+      if (loading) return
 
       const payload = buildQueuedPayload(draft)
       if (!payload) return
-
-      if (loading || messageQueue.hasDraftItems) {
-        await messageQueue.enqueueDraft(payload)
-        clearCurrentDraft()
-        return
-      }
 
       clearCurrentDraft()
       await sendQueuedPayload(payload)
@@ -836,7 +816,6 @@ const ChatComposerInner = ({
       buildQueuedPayload,
       clearCurrentDraft,
       loading,
-      messageQueue,
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
@@ -846,143 +825,6 @@ const ChatComposerInner = ({
       t
     ]
   )
-
-  const restoreQueuedPayload = useCallback(
-    (payload: ComposerQueuedMessagePayload) => {
-      setText(payload.text)
-      setFiles((payload.files ?? []) as unknown as FileMetadata[])
-      setMentionedModelsWithSelector(
-        selectableModels.filter((currentModel) => payload.mentionedModels?.includes(currentModel.id))
-      )
-      setSelectedKnowledgeBases(
-        allKnowledgeBases.filter((base): base is KnowledgeBase => payload.knowledgeBaseIds?.includes(base.id) ?? false)
-      )
-    },
-    [allKnowledgeBases, selectableModels, setFiles, setMentionedModelsWithSelector, setSelectedKnowledgeBases, setText]
-  )
-
-  const handleEditDraftQueueItem = useCallback(
-    async (item: ComposerQueueItem) => {
-      await messageQueue.removeDraft(item.id)
-      restoreQueuedPayload(item.payload)
-    },
-    [messageQueue, restoreQueuedPayload]
-  )
-
-  const handleSteerDraftQueueItem = useCallback(
-    async (item: ComposerQueueItem) => {
-      if (!messageQueue.canSteerDraft) {
-        window.toast?.error(
-          t('chat.input.queue.steer_unavailable', { defaultValue: 'No active response to insert into' })
-        )
-        return
-      }
-
-      const sent = await sendQueuedPayload(item.payload)
-      if (sent) {
-        await messageQueue.completeDraft(item.id)
-      } else {
-        await messageQueue.failDraft(item.id)
-      }
-    },
-    [messageQueue, sendQueuedPayload, t]
-  )
-
-  const handleEditPendingQueueItem = useCallback(
-    async (item: StreamPendingQueueItem) => {
-      const removed = await messageQueue.removePending(item.id)
-      if (!removed) {
-        window.toast?.error(
-          t('chat.input.queue.cancel_unavailable', { defaultValue: 'This item is already being used' })
-        )
-        return
-      }
-      restoreQueuedPayload(item.payload)
-    },
-    [messageQueue, restoreQueuedPayload, t]
-  )
-
-  const handleRemoveDraftQueueItem = useCallback(
-    async (item: ComposerQueueItem) => {
-      await messageQueue.removeDraft(item.id)
-    },
-    [messageQueue]
-  )
-
-  const handleRemovePendingQueueItem = useCallback(
-    async (item: StreamPendingQueueItem) => {
-      const removed = await messageQueue.removePending(item.id)
-      if (!removed) {
-        window.toast?.error(
-          t('chat.input.queue.cancel_unavailable', { defaultValue: 'This item is already being used' })
-        )
-      }
-    },
-    [messageQueue, t]
-  )
-
-  const handleReorderDraftQueueItems = useCallback(
-    async (itemIds: string[]) => {
-      await messageQueue.reorderDraft(itemIds)
-    },
-    [messageQueue]
-  )
-
-  const handleReorderPendingQueueItems = useCallback(
-    async (messageIds: string[]) => {
-      await messageQueue.reorderPending(messageIds)
-    },
-    [messageQueue]
-  )
-
-  useEffect(() => {
-    if (
-      loading ||
-      sendDisabled ||
-      searching ||
-      runtimeModelPending ||
-      !!missingAssistantMessage ||
-      !!missingModelMessage ||
-      !!missingSelectedModelMessage ||
-      !assistant ||
-      !runtimeModel
-    ) {
-      return
-    }
-
-    if (autoDispatchingQueueRef.current) return
-    if (!messageQueue.draftItems.some((item) => item.status !== 'failed')) return
-
-    autoDispatchingQueueRef.current = true
-    void (async () => {
-      try {
-        const item = await messageQueue.claimNextDraft()
-        if (!item) return
-
-        const sent = await sendQueuedPayload(item.payload)
-
-        if (sent) {
-          await messageQueue.completeDraft(item.id)
-        } else {
-          await messageQueue.failDraft(item.id)
-        }
-      } finally {
-        autoDispatchingQueueRef.current = false
-      }
-    })()
-  }, [
-    assistant,
-    loading,
-    messageQueue,
-    missingAssistantMessage,
-    missingModelMessage,
-    missingSelectedModelMessage,
-    runtimeModel,
-    runtimeModelPending,
-    searching,
-    sendDisabled,
-    sendQueuedPayload
-  ])
 
   if (isMultiSelectMode) return null
 
@@ -1021,6 +863,7 @@ const ChatComposerInner = ({
         placeholder={searching ? t('chat.input.translating') : placeholderText}
         sendDisabled={
           text.trim().length === 0 ||
+          loading ||
           sendDisabled ||
           searching ||
           runtimeModelPending ||
@@ -1050,20 +893,6 @@ const ChatComposerInner = ({
         onFocus={() => setSearching(false)}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
-        queueContent={
-          <ComposerMessageQueuePanel
-            draftItems={messageQueue.draftItems}
-            pendingItems={messageQueue.pendingItems}
-            canSteerDraft={messageQueue.canSteerDraft}
-            onSteerDraft={handleSteerDraftQueueItem}
-            onEditDraft={handleEditDraftQueueItem}
-            onEditPending={handleEditPendingQueueItem}
-            onRemoveDraft={handleRemoveDraftQueueItem}
-            onRemovePending={handleRemovePendingQueueItem}
-            onReorderDraft={handleReorderDraftQueueItems}
-            onReorderPending={handleReorderPendingQueueItems}
-          />
-        }
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}
       />

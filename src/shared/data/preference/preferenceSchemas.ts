@@ -525,7 +525,23 @@ export interface PreferenceSchemas {
 export const DefaultPreferences: PreferenceSchemas = {
   default: {
     'agent.session.display_mode': 'agent',
-    'agent.session.group_expansion': { agent: { expandedGroupIds: [], expandedSectionIds: ['session:section:pinned', 'session:section:agent'] }, time: { expandedGroupIds: ['session:pinned', 'session:time:today', 'session:time:yesterday', 'session:time:this-week', 'session:time:earlier'], expandedSectionIds: [] }, workdir: { expandedGroupIds: [], expandedSectionIds: ['session:section:pinned', 'session:section:workdir', 'session:section:no-project'] } },
+    'agent.session.group_expansion': {
+      agent: { expandedGroupIds: [], expandedSectionIds: ['session:section:pinned', 'session:section:agent'] },
+      time: {
+        expandedGroupIds: [
+          'session:pinned',
+          'session:time:today',
+          'session:time:yesterday',
+          'session:time:this-week',
+          'session:time:earlier'
+        ],
+        expandedSectionIds: []
+      },
+      workdir: {
+        expandedGroupIds: [],
+        expandedSectionIds: ['session:section:pinned', 'session:section:workdir', 'session:section:no-project']
+      }
+    },
     'app.developer_mode.enabled': false,
     'app.dist.auto_update.enabled': true,
     'app.dist.test_plan.channel': PreferenceTypes.UpgradeChannel.LATEST,
@@ -597,7 +613,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.web_search.default_search_keywords_provider': null,
     'chat.web_search.exclude_domains': [],
     'chat.web_search.max_results': 5,
-    'chat.web_search.provider_overrides': {  },
+    'chat.web_search.provider_overrides': {},
     'data.backup.general.skip_backup_file': false,
     'data.backup.local.auto_sync': false,
     'data.backup.local.dir': '',
@@ -691,7 +707,34 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.quick_assistant.enabled': false,
     'feature.quick_assistant.model_id': null,
     'feature.quick_assistant.read_clipboard_at_startup': true,
-    'feature.selection.action_items': [{ enabled: true, icon: 'languages', id: 'translate', isBuiltIn: true, name: 'selection.action.builtin.translate' }, { enabled: true, icon: 'file-question', id: 'explain', isBuiltIn: true, name: 'selection.action.builtin.explain' }, { enabled: true, icon: 'scan-text', id: 'summary', isBuiltIn: true, name: 'selection.action.builtin.summary' }, { enabled: true, icon: 'search', id: 'search', isBuiltIn: true, name: 'selection.action.builtin.search', searchEngine: 'Google|https://www.google.com/search?q={{queryString}}' }, { enabled: true, icon: 'clipboard-copy', id: 'copy', isBuiltIn: true, name: 'selection.action.builtin.copy' }, { enabled: false, icon: 'wand-sparkles', id: 'refine', isBuiltIn: true, name: 'selection.action.builtin.refine' }, { enabled: false, icon: 'quote', id: 'quote', isBuiltIn: true, name: 'selection.action.builtin.quote' }],
+    'feature.selection.action_items': [
+      {
+        enabled: true,
+        icon: 'languages',
+        id: 'translate',
+        isBuiltIn: true,
+        name: 'selection.action.builtin.translate'
+      },
+      {
+        enabled: true,
+        icon: 'file-question',
+        id: 'explain',
+        isBuiltIn: true,
+        name: 'selection.action.builtin.explain'
+      },
+      { enabled: true, icon: 'scan-text', id: 'summary', isBuiltIn: true, name: 'selection.action.builtin.summary' },
+      {
+        enabled: true,
+        icon: 'search',
+        id: 'search',
+        isBuiltIn: true,
+        name: 'selection.action.builtin.search',
+        searchEngine: 'Google|https://www.google.com/search?q={{queryString}}'
+      },
+      { enabled: true, icon: 'clipboard-copy', id: 'copy', isBuiltIn: true, name: 'selection.action.builtin.copy' },
+      { enabled: false, icon: 'wand-sparkles', id: 'refine', isBuiltIn: true, name: 'selection.action.builtin.refine' },
+      { enabled: false, icon: 'quote', id: 'quote', isBuiltIn: true, name: 'selection.action.builtin.quote' }
+    ],
     'feature.selection.action_window_opacity': 100,
     'feature.selection.auto_close': false,
     'feature.selection.auto_pin': false,
@@ -755,7 +798,19 @@ export const DefaultPreferences: PreferenceSchemas = {
     'topic.naming.model_id': null,
     'topic.naming_prompt': '',
     'topic.tab.display_mode': 'assistant',
-    'topic.tab.group_expansion': { assistant: { expandedGroupIds: [], expandedSectionIds: ['topic:section:pinned', 'topic:section:assistant'] }, time: { expandedGroupIds: ['topic:pinned', 'topic:time:today', 'topic:time:yesterday', 'topic:time:this-week', 'topic:time:earlier'], expandedSectionIds: [] } },
+    'topic.tab.group_expansion': {
+      assistant: { expandedGroupIds: [], expandedSectionIds: ['topic:section:pinned', 'topic:section:assistant'] },
+      time: {
+        expandedGroupIds: [
+          'topic:pinned',
+          'topic:time:today',
+          'topic:time:yesterday',
+          'topic:time:this-week',
+          'topic:time:earlier'
+        ],
+        expandedSectionIds: []
+      }
+    },
     'topic.tab.show': true,
     'ui.custom_css': '',
     'ui.sidebar.icons.invisible': [],
@@ -767,7 +822,6 @@ export const DefaultPreferences: PreferenceSchemas = {
     'ui.window_style': 'opaque'
   }
 }
-
 
 // === AUTO-GENERATED CONTENT END ===
 

@@ -3,7 +3,6 @@ import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { useCommandHandler } from '@renderer/commands'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import ComposerMessageQueuePanel from '@renderer/components/chat/composer/ComposerMessageQueuePanel'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
 import {
   ComposerActiveToolControls,
@@ -38,7 +37,7 @@ import { TopicType } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
-import type { ComposerQueuedMessagePayload, ComposerQueueItem, StreamPendingQueueItem } from '@shared/ai/transport'
+import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -54,7 +53,6 @@ import { useTranslation } from 'react-i18next'
 import { createComposerUserMessageParts, serializeComposerDocument } from '../composerDraft'
 import type { ComposerSuggestionSource } from '../quickPanel'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
-import { useComposerMessageQueue } from '../useComposerMessageQueue'
 import {
   agentComposerTokenId,
   agentFileToComposerToken,
@@ -683,8 +681,6 @@ const AgentComposerInner = ({
   const textRef = useRef(text)
   const draftTokensRef = useRef(draftTokens)
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
-  const messageQueue = useComposerMessageQueue(sessionTopicId)
-  const autoDispatchingQueueRef = useRef(false)
   const accessiblePaths = sessionData?.accessiblePaths ?? []
   const enableMentionModelTrigger = accessiblePaths.length > 0
   const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, workspace?.path)
@@ -939,6 +935,9 @@ const AgentComposerInner = ({
   const handleSendDraft = useCallback(
     (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
+      // The send queue was removed; while the session is streaming we no longer buffer
+      // messages, so block sending until it finishes instead of dispatching concurrently.
+      if (isStreaming) return
       if (!model) {
         window.toast?.error(t('code.model_required'))
         return
@@ -950,138 +949,13 @@ const AgentComposerInner = ({
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
-      if (isStreaming || messageQueue.hasDraftItems) {
-        void messageQueue
-          .enqueueDraft(payload)
-          .then(clearCurrentDraft)
-          .catch((error: unknown) => {
-            logger.warn('Failed to enqueue message:', error as Error)
-          })
-        return
-      }
-
       clearCurrentDraft()
       void sendQueuedPayload(payload).catch((error: unknown) => {
         logger.warn('Failed to send message:', error as Error)
       })
     },
-    [
-      buildQueuedPayload,
-      clearCurrentDraft,
-      isStreaming,
-      messageQueue,
-      model,
-      sendDisabled,
-      sendQueuedPayload,
-      t,
-      workspaceWarning
-    ]
+    [buildQueuedPayload, clearCurrentDraft, isStreaming, model, sendDisabled, sendQueuedPayload, t, workspaceWarning]
   )
-
-  const restoreQueuedPayload = useCallback(
-    (payload: ComposerQueuedMessagePayload) => {
-      setText(payload.text)
-      setFiles((payload.files ?? []) as unknown as FileMetadata[])
-    },
-    [setFiles, setText]
-  )
-
-  const handleEditDraftQueueItem = useCallback(
-    async (item: ComposerQueueItem) => {
-      await messageQueue.removeDraft(item.id)
-      restoreQueuedPayload(item.payload)
-    },
-    [messageQueue, restoreQueuedPayload]
-  )
-
-  const handleSteerDraftQueueItem = useCallback(
-    async (item: ComposerQueueItem) => {
-      if (!messageQueue.canSteerDraft) {
-        window.toast?.error(
-          t('chat.input.queue.steer_unavailable', { defaultValue: 'No active response to insert into' })
-        )
-        return
-      }
-
-      const sent = await sendQueuedPayload(item.payload)
-      if (sent) {
-        await messageQueue.completeDraft(item.id)
-      } else {
-        await messageQueue.failDraft(item.id)
-      }
-    },
-    [messageQueue, sendQueuedPayload, t]
-  )
-
-  const handleEditPendingQueueItem = useCallback(
-    async (item: StreamPendingQueueItem) => {
-      const removed = await messageQueue.removePending(item.id)
-      if (!removed) {
-        window.toast?.error(
-          t('chat.input.queue.cancel_unavailable', { defaultValue: 'This item is already being used' })
-        )
-        return
-      }
-      restoreQueuedPayload(item.payload)
-    },
-    [messageQueue, restoreQueuedPayload, t]
-  )
-
-  const handleRemoveDraftQueueItem = useCallback(
-    async (item: ComposerQueueItem) => {
-      await messageQueue.removeDraft(item.id)
-    },
-    [messageQueue]
-  )
-
-  const handleRemovePendingQueueItem = useCallback(
-    async (item: StreamPendingQueueItem) => {
-      const removed = await messageQueue.removePending(item.id)
-      if (!removed) {
-        window.toast?.error(
-          t('chat.input.queue.cancel_unavailable', { defaultValue: 'This item is already being used' })
-        )
-      }
-    },
-    [messageQueue, t]
-  )
-
-  const handleReorderDraftQueueItems = useCallback(
-    async (itemIds: string[]) => {
-      await messageQueue.reorderDraft(itemIds)
-    },
-    [messageQueue]
-  )
-
-  const handleReorderPendingQueueItems = useCallback(
-    async (messageIds: string[]) => {
-      await messageQueue.reorderPending(messageIds)
-    },
-    [messageQueue]
-  )
-
-  useEffect(() => {
-    if (sendDisabled || isStreaming || autoDispatchingQueueRef.current) return
-    if (!messageQueue.draftItems.some((item) => item.status !== 'failed')) return
-
-    autoDispatchingQueueRef.current = true
-    void (async () => {
-      try {
-        const item = await messageQueue.claimNextDraft()
-        if (!item) return
-
-        const sent = await sendQueuedPayload(item.payload)
-
-        if (sent) {
-          await messageQueue.completeDraft(item.id)
-        } else {
-          await messageQueue.failDraft(item.id)
-        }
-      } finally {
-        autoDispatchingQueueRef.current = false
-      }
-    })()
-  }, [isStreaming, messageQueue, sendDisabled, sendQueuedPayload])
 
   const resourceSuggestionStateRef = useRef({ accessiblePaths, files, setFiles, t })
   resourceSuggestionStateRef.current = { accessiblePaths, files, setFiles, t }
@@ -1209,7 +1083,9 @@ const AgentComposerInner = ({
         onTokensChange={handleTokensChange}
         resolveSkillMarker={resolveSkillMarker}
         placeholder={placeholderText}
-        sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)}
+        sendDisabled={
+          isStreaming || sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
+        }
         sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
         isLoading={isStreaming}
         onSendDraft={handleSendDraft}
@@ -1229,20 +1105,6 @@ const AgentComposerInner = ({
         suggestionSources={suggestionSources}
         rootPanelAdditionalItems={rootPanelSkillItems}
         onRootPanelOpen={handleRootPanelOpen}
-        queueContent={
-          <ComposerMessageQueuePanel
-            draftItems={messageQueue.draftItems}
-            pendingItems={messageQueue.pendingItems}
-            canSteerDraft={messageQueue.canSteerDraft}
-            onSteerDraft={handleSteerDraftQueueItem}
-            onEditDraft={handleEditDraftQueueItem}
-            onEditPending={handleEditPendingQueueItem}
-            onRemoveDraft={handleRemoveDraftQueueItem}
-            onRemovePending={handleRemovePendingQueueItem}
-            onReorderDraft={handleReorderDraftQueueItems}
-            onReorderPending={handleReorderPendingQueueItems}
-          />
-        }
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}
       />

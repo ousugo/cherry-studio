@@ -76,7 +76,6 @@ describe('GlobalSearchService', () => {
     await dbh.db.insert(knowledgeBaseTable).values({
       id: '55555555-5555-4555-8555-555555555555',
       name: 'Needle Knowledge',
-      emoji: '📁',
       dimensions: 1536,
       embeddingModelId: createUniqueModelId('openai', 'embed-model'),
       status: 'completed',
@@ -153,7 +152,6 @@ describe('GlobalSearchService', () => {
           type: 'knowledge-base',
           id: '55555555-5555-4555-8555-555555555555',
           title: 'Needle Knowledge',
-          emoji: '📁',
           target: {
             knowledgeBaseId: '55555555-5555-4555-8555-555555555555'
           }

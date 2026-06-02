@@ -174,7 +174,7 @@ export function createMcpStatusLauncher(
       : ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
           clearMcpStatusInputQuery(inputAdapter, queryAnchor, triggerInfo)
           quickPanel.open({
-            title: mode && mode !== 'disabled' ? `MCP / ${getMcpModeLabel(t, mode)}` : 'MCP',
+            title: mode ? `MCP / ${getMcpModeLabel(t, mode)}` : 'MCP',
             list: items,
             symbol: QuickPanelReservedSymbol.McpStatus,
             parentPanel,

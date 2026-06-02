@@ -51,28 +51,6 @@ export interface ComposerQueuedMessagePayload {
   knowledgeBaseIds?: string[]
 }
 
-export interface ComposerQueueItem {
-  id: string
-  scopeId: string
-  payload: ComposerQueuedMessagePayload
-  status: 'queued' | 'sending' | 'failed'
-  error?: string
-  createdAt: string
-  updatedAt: string
-}
-
-export interface ComposerQueueSnapshot {
-  scopeId: string
-  items: ComposerQueueItem[]
-}
-
-export interface StreamPendingQueueItem {
-  id: string
-  payload: ComposerQueuedMessagePayload
-  executionIds: UniqueModelId[]
-  createdAt?: string
-}
-
 /**
  * Per-topic stream state entry — stored under the shared
  * `topic.stream.statuses.${topicId}` template cache key.
@@ -95,7 +73,6 @@ export interface TopicStatusSnapshotEntry {
   turnId?: string
   activeExecutions: ActiveExecution[]
   awaitingApprovalAnchors: ActiveExecution[]
-  pendingQueue: StreamPendingQueueItem[]
   lastCompletedAt?: number
 }
 
@@ -187,22 +164,6 @@ export interface AiStreamDetachRequest {
 /** Abort the active generation on a topic. */
 export interface AiStreamAbortRequest {
   topicId: string
-}
-
-export interface AiStreamQueueRemoveRequest {
-  topicId: string
-  messageId: string
-}
-
-export interface AiStreamQueueReorderRequest {
-  topicId: string
-  messageIds: string[]
-}
-
-export interface AiStreamQueueUpdateRequest {
-  topicId: string
-  messageId: string
-  payload: ComposerQueuedMessagePayload
 }
 
 /** Prewarm the next Claude Agent SDK query for an agent session. */

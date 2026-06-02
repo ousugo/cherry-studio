@@ -25,7 +25,7 @@ import {
   type KnowledgeBase,
   KnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
-import { and, count as sqlCount, eq, type SQL, ne, sql, asc, desc, gte } from 'drizzle-orm'
+import { and, asc, count as sqlCount, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 

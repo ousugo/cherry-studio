@@ -3,12 +3,7 @@
 // marker is a separate cross-window shared cache key.
 
 import { useSharedCache } from '@renderer/data/hooks/useCache'
-import {
-  type ActiveExecution,
-  classifyTurn,
-  type StreamPendingQueueItem,
-  type TopicStreamStatus
-} from '@shared/ai/transport'
+import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 interface TopicStreamStatusView {
@@ -20,7 +15,6 @@ interface TopicStreamStatusView {
    * for "which message is the approval anchor".
    */
   awaitingApprovalAnchors: ActiveExecution[]
-  pendingQueue: StreamPendingQueueItem[]
   isPending: boolean
   /**
    * `done` AND this window's `lastSeenCompletion` does not match the
@@ -41,7 +35,6 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   const lastCompletedAt = entry?.lastCompletedAt ?? null
   const activeExecutions = useMemo(() => entry?.activeExecutions ?? [], [entry])
   const awaitingApprovalAnchors = useMemo(() => entry?.awaitingApprovalAnchors ?? [], [entry])
-  const pendingQueue = useMemo(() => entry?.pendingQueue ?? [], [entry])
 
   const flags = classifyTurn(status)
   const isPending = flags.isStreamLive
@@ -53,7 +46,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
     }
   }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
 
-  return { status, activeExecutions, awaitingApprovalAnchors, pendingQueue, isPending, isFulfilled, markSeen }
+  return { status, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen }
 }
 
 export function useTopicAwaitingApproval(topicId: string): boolean {

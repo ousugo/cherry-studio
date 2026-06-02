@@ -470,23 +470,11 @@ export enum IpcChannel {
   Ai_Stream_Detach = 'ai:stream:detach',
   /** Renderer → Main: abort the active generation on a topic */
   Ai_Stream_Abort = 'ai:stream:abort',
-  Ai_Stream_Queue_Remove = 'ai:stream:queue:remove',
-  Ai_Stream_Queue_Reorder = 'ai:stream:queue:reorder',
-  Ai_Stream_Queue_Update = 'ai:stream:queue:update',
   /** Renderer → Main: prewarm the next Claude Agent SDK query for an agent session */
   Ai_AgentSession_Prewarm = 'ai:agent-session:prewarm',
   /** Renderer → Main: close unused Claude Agent SDK warm query for an agent session */
   Ai_AgentSession_CloseWarm = 'ai:agent-session:close-warm',
   Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
-
-  // Composer draft queue
-  ComposerQueue_Enqueue = 'composer-queue:enqueue',
-  ComposerQueue_Remove = 'composer-queue:remove',
-  ComposerQueue_Reorder = 'composer-queue:reorder',
-  ComposerQueue_Update = 'composer-queue:update',
-  ComposerQueue_ClaimNext = 'composer-queue:claim-next',
-  ComposerQueue_Complete = 'composer-queue:complete',
-  ComposerQueue_Fail = 'composer-queue:fail',
 
   // AI Non-streaming
   Ai_GenerateText = 'ai:generate-text',

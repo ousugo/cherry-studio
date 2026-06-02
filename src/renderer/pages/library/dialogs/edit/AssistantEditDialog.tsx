@@ -89,15 +89,13 @@ const UI_DEFAULT_MAX_TOKENS = 4096
 const UI_DEFAULT_MAX_TOOL_CALLS = 20
 
 function KnowledgeBaseAvatar({
-  emoji,
   className = 'flex size-6 shrink-0 items-center justify-center rounded-md text-xs'
 }: {
-  emoji?: string | null
   className?: string
 }) {
   return (
     <span className={className} style={{ background: 'rgba(139, 92, 246, 0.125)' }}>
-      {emoji ? <span aria-hidden="true">{emoji}</span> : <Database size={14} strokeWidth={1.4} />}
+      <Database size={14} strokeWidth={1.4} />
     </span>
   )
 }
@@ -541,15 +539,14 @@ function AssistantKnowledgeFields({
         byId.get(id) ?? {
           id,
           name: `${id.slice(0, 8)}${t('library.config.knowledge.invalid_suffix')}`,
-          documentCount: 0,
-          emoji: undefined
+          documentCount: 0
         }
     )
     const items: CatalogItem[] = bases.map((base) => ({
       id: base.id,
       name: base.name,
       description: t('library.config.knowledge.doc_count', { count: base.documentCount ?? 0 }),
-      icon: <KnowledgeBaseAvatar emoji={base.emoji} />
+      icon: <KnowledgeBaseAvatar />
     }))
     return { catalog: items, linkedItems: linked }
   }, [bases, t, value])
@@ -587,10 +584,7 @@ function AssistantKnowledgeFields({
                   <div
                     key={kb.id}
                     className="group flex items-center gap-3 rounded-md border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
-                    <KnowledgeBaseAvatar
-                      emoji={kb.emoji}
-                      className="flex size-8 shrink-0 items-center justify-center rounded-md text-base leading-none"
-                    />
+                    <KnowledgeBaseAvatar className="flex size-8 shrink-0 items-center justify-center rounded-md text-base leading-none" />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-foreground text-sm">{kb.name}</div>
                       <div className="text-muted-foreground/80 text-xs">

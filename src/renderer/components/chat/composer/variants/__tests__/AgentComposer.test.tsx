@@ -23,7 +23,6 @@ const mocks = vi.hoisted(() => ({
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
-  enqueueDraft: vi.fn(),
   insertToken: vi.fn(),
   availableSkills: [] as LocalSkill[],
   availableSkillsRefresh: vi.fn(),
@@ -330,22 +329,6 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   })
 }))
 
-vi.mock('@renderer/components/chat/composer/useComposerMessageQueue', () => ({
-  useComposerMessageQueue: () => ({
-    draftItems: [],
-    pendingItems: [],
-    hasDraftItems: false,
-    enqueueDraft: mocks.enqueueDraft,
-    removeDraft: vi.fn(),
-    reorderDraft: vi.fn(),
-    claimNextDraft: vi.fn(),
-    completeDraft: vi.fn(),
-    failDraft: vi.fn(),
-    removePending: vi.fn(),
-    reorderPending: vi.fn()
-  })
-}))
-
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18nextModule>()
   return {
@@ -401,8 +384,6 @@ describe('AgentComposer', () => {
     mocks.updateModel.mockReset()
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
-    mocks.enqueueDraft.mockReset()
-    mocks.enqueueDraft.mockResolvedValue(undefined)
     mocks.insertToken.mockReset()
     mocks.availableSkills = []
     mocks.availableSkillsRefresh.mockReset()
@@ -958,7 +939,6 @@ describe('AgentComposer', () => {
         }
       }
     )
-    expect(mocks.enqueueDraft).not.toHaveBeenCalled()
   })
 
   it('bridges file tokens into the existing agent session message text protocol', () => {
@@ -1043,7 +1023,7 @@ describe('AgentComposer', () => {
     expect(mocks.stop).toHaveBeenCalledTimes(1)
   })
 
-  it('queues send drafts while the agent session is streaming', () => {
+  it('does not send while the agent session is streaming', () => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -1057,7 +1037,6 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('send'))
 
     expect(mocks.sendMessage).not.toHaveBeenCalled()
-    expect(mocks.enqueueDraft).toHaveBeenCalledWith(expect.objectContaining({ text: 'hello' }))
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {

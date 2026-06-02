@@ -112,7 +112,7 @@ describe('mcpStatusTool', () => {
     const autoItems = buildMcpStatusItems({
       assistant: {
         settings: { mcpMode: 'auto' },
-        mcpServerIds: []
+        mcpServerIds: [] as string[]
       } as Assistant,
       mcpServers: [],
       mcpStatuses: {},
@@ -124,7 +124,7 @@ describe('mcpStatusTool', () => {
     const manualItems = buildMcpStatusItems({
       assistant: {
         settings: { mcpMode: 'manual' },
-        mcpServerIds: []
+        mcpServerIds: [] as string[]
       } as Assistant,
       mcpServers: [],
       mcpStatuses: {},

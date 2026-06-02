@@ -859,7 +859,6 @@ describe('AiStreamManager', () => {
               status: string
               turnId?: string
               activeExecutions: Array<{ executionId: string; anchorMessageId?: string }>
-              pendingQueue?: Array<{ id: string }>
               lastCompletedAt?: number
             } | null
         )
@@ -997,38 +996,6 @@ describe('AiStreamManager', () => {
       // pending → error directly; we never fabricate a `streaming` transition
       // when no chunks ever flowed.
       expect(statusSequence('t')).toEqual(['pending', 'error'])
-    })
-
-    it('refreshes the pending queue snapshot when an injected message is consumed', () => {
-      startSingle(mgr, {
-        topicId: 't',
-        modelId: 'p::m',
-        request: req('t'),
-        listeners: [new FakeListener('l:t')]
-      })
-
-      expect(
-        mgr.injectMessage('t', {
-          id: 'inject-1',
-          topicId: 't',
-          parentId: null,
-          role: 'user',
-          data: { parts: [{ type: 'text', text: 'queued' }] },
-          status: 'success',
-          createdAt: '',
-          updatedAt: ''
-        } as any)
-      ).toBe(true)
-      expect(
-        statusWritesFor('t')
-          .at(-1)
-          ?.pendingQueue?.map((item) => item.id)
-      ).toEqual(['inject-1'])
-
-      const stream = (mgr as any).activeStreams.get('t')
-      const exec = stream.executions.get('p::m')
-      expect(exec.pendingMessages.drain().map((message: { id: string }) => message.id)).toEqual(['inject-1'])
-      expect(statusWritesFor('t').at(-1)?.pendingQueue).toEqual([])
     })
 
     it('multi-model: flips on first chunk from any execution and stays pending if an execution errors before any chunks', async () => {

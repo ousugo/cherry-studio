@@ -429,8 +429,7 @@ beforeEach(() => {
             {
               id: 'kb-1',
               name: 'Knowledge One',
-              documentCount: 3,
-              emoji: '📚'
+              documentCount: 3
             }
           ]
         },
@@ -589,11 +588,9 @@ describe('edit dialogs', () => {
     const addKnowledgeButton = screen.getByRole('button', { name: 'Add knowledge base' })
     expect(addKnowledgeButton).toHaveClass('w-fit')
     fireEvent.click(addKnowledgeButton)
-    expect(screen.getByText('📚')).toBeInTheDocument()
+    expect(screen.getByText('Knowledge One')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Knowledge One'))
-    expect(screen.getByText('📚')).toBeInTheDocument()
     expect(screen.getByText('Knowledge One').closest('.group')).toHaveClass('rounded-md')
-    expect(screen.getByText('📚').parentElement).toHaveClass('rounded-md')
     expect(screen.getByRole('button', { name: 'Remove knowledge base' })).toHaveClass('rounded-md')
 
     selectTab('MCP')

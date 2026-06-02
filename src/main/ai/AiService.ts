@@ -17,8 +17,8 @@ import {
   type ApprovalDecision
 } from '@shared/ai/transport'
 import { type Assistant } from '@shared/data/types/assistant'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/file/types/common'
 import { IpcChannel } from '@shared/IpcChannel'
