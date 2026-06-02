@@ -27,8 +27,10 @@ interface ContainerProps {
  */
 export const MessagesContainer = styled.div<ContainerProps>`
   display: flex;
+  flex: 1;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
   overflow: hidden;
   z-index: 1;
   position: relative;

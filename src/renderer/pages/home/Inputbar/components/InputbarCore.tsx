@@ -607,7 +607,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const quickPanelElement = config.enableQuickPanel ? <QuickPanelView setInputText={setText} /> : null
 
   return (
-    <NarrowLayout style={{ width: '100%' }}>
+    <NarrowLayout style={{ width: '100%', flexShrink: 0 }}>
       <Container
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}

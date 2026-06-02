@@ -158,7 +158,7 @@ describe('V2ChatContent', () => {
       activeExecutions: []
     })
 
-    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} />)
 
     await act(async () => {
       await capturedOnSend?.('hello')
@@ -179,7 +179,7 @@ describe('V2ChatContent', () => {
 
   it('disables persistent history loading for freshly leased temporary topics', () => {
     render(
-      <V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" onPersistTemporaryTopic={vi.fn()} />
+      <V2ChatContent topic={topic} setActiveTopic={vi.fn()} onPersistTemporaryTopic={vi.fn()} />
     )
 
     expect(mockUseTopicMessagesV2).toHaveBeenCalledWith('topic-1', { enabled: false })
@@ -214,7 +214,7 @@ describe('V2ChatContent', () => {
       activeExecutions: [{ executionId: 'pending-placeholder', anchorMessageId: 'pending-placeholder' }] as never
     })
 
-    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} />)
 
     // List reflects uiMessages exactly — no extra `live-*` entry appended.
     await waitFor(() => {
@@ -249,7 +249,7 @@ describe('V2ChatContent', () => {
       activeExecutions: [{ executionId: 'gemini-new-pending', anchorMessageId: 'gemini-new-pending' }] as never
     })
 
-    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} mainHeight="100px" />)
+    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} />)
 
     await waitFor(() => {
       expect(screen.getByTestId('messages')).toHaveTextContent('u-1,gemini-old,kimi,claude,gemini-new-pending')

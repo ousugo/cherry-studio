@@ -36,7 +36,6 @@ import Messages from './Messages/Messages'
 interface Props {
   topic: Topic
   setActiveTopic: (topic: Topic) => void
-  mainHeight: string
   /**
    * If the active topic is a freshly-leased temporary one, this callback
    * migrates it into SQLite (with the same id) before the first message
@@ -67,7 +66,7 @@ interface Props {
  * `ExecutionStreamCollector`s and are overlaid into the partsMap by
  * the rendering pipeline.
  */
-const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersistTemporaryTopic }) => {
+const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, onPersistTemporaryTopic }) => {
   const { t } = useTranslation()
   const [hasPersistedTemporaryTopic, setHasPersistedTemporaryTopic] = useState(false)
   useEffect(() => setHasPersistedTemporaryTopic(false), [topic.id])
@@ -85,9 +84,7 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersist
 
   if (isHistoryLoading) {
     return (
-      <div
-        className="flex flex-1 flex-col items-center justify-center"
-        style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
         <div className="text-sm" style={{ color: 'var(--color-text-3)' }}>
           {t('common.loading')}
         </div>
@@ -99,7 +96,6 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, mainHeight, onPersist
     <V2ChatContentInner
       topic={topic}
       setActiveTopic={setActiveTopic}
-      mainHeight={mainHeight}
       onPersistTemporaryTopic={onPersistTemporaryTopic}
       isFreshTemporaryTopic={isFreshTemporaryTopic}
       onTemporaryTopicPersisted={() => setHasPersistedTemporaryTopic(true)}
@@ -137,7 +133,6 @@ interface InnerProps extends Props {
 const V2ChatContentInner: FC<InnerProps> = ({
   topic,
   setActiveTopic,
-  mainHeight,
   onPersistTemporaryTopic,
   isFreshTemporaryTopic,
   onTemporaryTopicPersisted,
@@ -304,9 +299,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
               <PartsProvider value={mergedPartsMap}>
                 <ToolApprovalProvider value={respondToToolApproval}>
                   <ChatContextBridge topic={topic}>
-                    <div
-                      className="flex flex-1 flex-col justify-between"
-                      style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+                    <div className="flex min-h-0 flex-1 flex-col justify-between">
                       <Messages
                         key={topic.id}
                         topic={topic}

@@ -41,7 +41,6 @@ const Chat: FC<Props> = (props) => {
   const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
   const [showTopics] = usePreference('topic.tab.show')
-  const [isTopNavbar] = usePreference('ui.navbar.position')
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = useRef<ContentSearchRef>(null)
@@ -106,19 +105,16 @@ const Chat: FC<Props> = (props) => {
     })
   }
 
-  const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
-
   return (
     <div
       id="chat"
       className={classNames([
         messageStyle,
-        'flex h-[calc(100vh-var(--navbar-height))] flex-1 flex-col overflow-hidden',
-        '[navbar-position=top]_&:h-[calc(100vh-var(--navbar-height)-6px)]',
+        'flex min-h-0 flex-1 flex-col overflow-hidden',
         '[navbar-position=top]_&:bg-(--color-background)',
         '[navbar-position=top]_&:rounded-tl-[10px] [navbar-position=top]_&:rounded-bl-[10px]'
       ])}>
-      <RowFlex>
+      <RowFlex className="min-h-0 flex-1">
         <motion.div
           layout
           transition={{ duration: 0.3, ease: 'easeInOut' }}
@@ -126,15 +122,14 @@ const Chat: FC<Props> = (props) => {
           <div
             ref={mainRef}
             id="chat-main"
-            className="transform-[translateZ(0)] relative flex flex-1 flex-col justify-between"
-            style={{ height: mainHeight, width: '100%' }}>
+            className="transform-[translateZ(0)] relative flex h-full min-h-0 flex-1 flex-col justify-between"
+            style={{ width: '100%' }}>
             <QuickPanelProvider>
               <ChatNavbar assistantId={props.activeTopic.assistantId} topicId={props.activeTopic.id} />
               <V2ChatContent
                 key={props.activeTopic.id}
                 topic={props.activeTopic}
                 setActiveTopic={props.setActiveTopic}
-                mainHeight={mainHeight}
                 onPersistTemporaryTopic={props.onPersistTemporaryTopic}
               />
               <ContentSearch

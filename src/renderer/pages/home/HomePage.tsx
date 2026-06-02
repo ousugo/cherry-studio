@@ -182,6 +182,7 @@ const Container = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
+  min-height: 0;
   [navbar-position='left'] & {
     max-width: calc(100vw - var(--sidebar-width));
   }
@@ -194,6 +195,7 @@ const ContentContainer = styled.div`
   display: flex;
   flex: 1;
   flex-direction: row;
+  min-height: 0;
   overflow: hidden;
 
   [navbar-position='top'] & {

@@ -61,29 +61,6 @@ const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 
-function createRestoreBaseDto(sourceBase: KnowledgeBase, dto: RestoreKnowledgeBaseDto): CreateKnowledgeBaseDto {
-  const createDto: CreateKnowledgeBaseDto = {
-    name: dto.name?.trim() ?? sourceBase.name,
-    emoji: sourceBase.emoji,
-    dimensions: dto.dimensions,
-    embeddingModelId: dto.embeddingModelId,
-    rerankModelId: sourceBase.rerankModelId,
-    fileProcessorId: sourceBase.fileProcessorId,
-    chunkSize: sourceBase.chunkSize,
-    chunkOverlap: sourceBase.chunkOverlap,
-    threshold: sourceBase.threshold,
-    documentCount: sourceBase.documentCount,
-    searchMode: sourceBase.searchMode,
-    hybridAlpha: sourceBase.hybridAlpha
-  }
-
-  if (sourceBase.groupId) {
-    createDto.groupId = sourceBase.groupId
-  }
-
-  return createDto
-}
-
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['KnowledgeVectorStoreService', 'FileManager', 'JobManager', 'FileProcessingOrchestrationService'])
@@ -159,8 +136,22 @@ export class KnowledgeOrchestrationService extends BaseService {
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> {
     const sourceBase = await knowledgeBaseService.getById(dto.sourceBaseId)
 
-    const createDto = createRestoreBaseDto(sourceBase, dto)
-    const rootItems = await this.listRootItems(sourceBase.id)
+    const createDto: CreateKnowledgeBaseDto = {
+      name: dto.name?.trim() ?? sourceBase.name,
+      dimensions: dto.dimensions,
+      embeddingModelId: dto.embeddingModelId,
+      rerankModelId: sourceBase.rerankModelId,
+      fileProcessorId: sourceBase.fileProcessorId,
+      chunkSize: sourceBase.chunkSize,
+      chunkOverlap: sourceBase.chunkOverlap,
+      threshold: sourceBase.threshold,
+      documentCount: sourceBase.documentCount,
+      searchMode: sourceBase.searchMode,
+      hybridAlpha: sourceBase.hybridAlpha,
+      groupId: sourceBase.groupId ?? undefined
+    }
+
+    const rootItems = await knowledgeItemService.getRootItemsByBaseId(sourceBase.id)
     const inputs = rootItems.map((item) => {
       try {
         return KnowledgeRuntimeAddItemInputSchema.parse({
