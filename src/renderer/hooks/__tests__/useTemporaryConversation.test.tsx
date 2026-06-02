@@ -243,6 +243,44 @@ describe('useTemporaryConversation', () => {
     expect(mocks.dataApiDelete).toHaveBeenCalledWith('/temporary/topics/temp-topic-race')
   })
 
+  it('skips the redundant DELETE when unmount fires during persist', async () => {
+    const { result, unmount } = renderHook(() => useTemporaryConversation({ type: 'assistant' }))
+
+    mocks.dataApiPost.mockResolvedValueOnce({ id: 'temp-topic-persist', messages: [] })
+    await act(async () => {
+      await result.current.start({ assistantId: 'assistant-1' })
+    })
+
+    let resolvePersist!: () => void
+    mocks.dataApiPost.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolvePersist = resolve
+      })
+    )
+
+    let persistPromise!: Promise<unknown>
+    act(() => {
+      persistPromise = result.current.persist()
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(mocks.dataApiPost).toHaveBeenLastCalledWith('/temporary/topics/temp-topic-persist/persist', { body: {} })
+
+    // Unmount mid-persist — without the fix this would issue a DELETE for the
+    // topic id that main has already snapshot-and-cleared from its Map.
+    act(() => {
+      unmount()
+    })
+
+    await act(async () => {
+      resolvePersist()
+      await persistPromise
+    })
+
+    expect(mocks.dataApiDelete).not.toHaveBeenCalled()
+  })
+
   it('releases a temporary agent session when start resolves after unmount', async () => {
     let resolveSession!: (value: { id: string; agentId: string; name: string }) => void
     mocks.dataApiPost.mockReturnValueOnce(

@@ -172,12 +172,12 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
     if (!current) return null
 
     createRequestIdRef.current += 1
+    activeRef.current = null
     setIsPersisting(true)
     setPhase('persisting')
     try {
       if (current.type === 'assistant') {
         await dataApiService.post(`/temporary/topics/${current.id}/persist`, { body: {} })
-        activeRef.current = null
         setConversation(null)
         setPersistedConversation(current)
         setPhase('persisted')
@@ -208,14 +208,13 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
         name: session.name,
         session
       }
-      activeRef.current = null
       setConversation(null)
       setPersistedConversation(persisted)
       setPhase('persisted')
       return persisted
     } catch (err) {
-      if (activeRef.current) setPhase('leased')
-      else setPhase('idle')
+      activeRef.current = current
+      setPhase('leased')
       throw err
     } finally {
       setIsPersisting(false)
