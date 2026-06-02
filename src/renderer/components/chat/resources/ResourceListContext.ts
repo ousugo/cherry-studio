@@ -1,3 +1,4 @@
+import type { CommandContextMenuExtraItem } from '@renderer/commands'
 import { createContext, type ReactNode, use, useCallback, useSyncExternalStore } from 'react'
 
 import type {
@@ -136,7 +137,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   sections: ResourceListSection[]
   getSectionHeaderAction?: (section: ResourceListSection) => ReactNode
   getGroupHeaderAction?: (group: ResourceListGroup) => ReactNode
-  getGroupHeaderContextMenu?: (group: ResourceListGroup) => ReactNode
+  getGroupHeaderContextMenu?: (group: ResourceListGroup) => readonly CommandContextMenuExtraItem[] | null | undefined
   getGroupHeaderLeadingAction?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   getGroupHeaderIcon?: (group: ResourceListGroup, context: ResourceListGroupHeaderIconContext) => ReactNode
   getGroupHeaderClassName?: (group: ResourceListGroup) => string | undefined

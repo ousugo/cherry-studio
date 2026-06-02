@@ -16,7 +16,7 @@ import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ActionMenu } from '@renderer/components/chat/actions/ActionMenu'
+import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
   ResourceList,
@@ -839,14 +839,9 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       }
       const actions = resolveAssistantGroupActions(actionContext)
 
-      return (
-        <ActionMenu
-          actions={actions}
-          onAction={(action) => {
-            void executeAssistantGroupAction(action, actionContext)
-          }}
-        />
-      )
+      return actionsToCommandMenuExtraItems(actions, (action) => {
+        void executeAssistantGroupAction(action, actionContext)
+      })
     },
     [
       assistantById,

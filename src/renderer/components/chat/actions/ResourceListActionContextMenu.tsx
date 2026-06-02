@@ -1,4 +1,4 @@
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
+import { CommandContextMenu } from '@renderer/commands'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 
@@ -7,6 +7,7 @@ import {
   useResourceListActions,
   useResourceListItemAccessors
 } from '../resources/ResourceListContext'
+import { actionsToCommandMenuExtraItems } from './actionMenuItems'
 import type { ResolvedAction } from './actionTypes'
 
 type ResourceListActionContextMenuProps<T extends ResourceListItemBase, TActionContext = unknown> = {
@@ -58,43 +59,7 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
     [onAction]
   )
 
-  const extraItems = useMemo<CommandContextMenuExtraItem[]>(() => {
-    const toItems = (list: readonly ResolvedAction<TActionContext>[]): CommandContextMenuExtraItem[] => {
-      const items: CommandContextMenuExtraItem[] = []
-      let previousGroup: string | undefined
-      for (const action of list) {
-        if (!action.availability.visible) continue
-        if (items.length > 0 && action.group !== previousGroup) {
-          items.push({ type: 'separator' })
-        }
-        previousGroup = action.group
-        if (action.children.length > 0) {
-          items.push({
-            type: 'submenu',
-            id: action.id,
-            // Resource-list action labels resolve to plain strings.
-            label: action.label as string,
-            icon: action.icon,
-            enabled: action.availability.enabled,
-            children: toItems(action.children)
-          })
-        } else {
-          items.push({
-            type: 'item',
-            id: action.id,
-            label: action.label as string,
-            icon: action.icon,
-            enabled: action.availability.enabled,
-            destructive: action.danger,
-            shortcutLabel: action.shortcut,
-            onSelect: () => runAction(action)
-          })
-        }
-      }
-      return items
-    }
-    return toItems(actions)
-  }, [actions, runAction])
+  const extraItems = useMemo(() => actionsToCommandMenuExtraItems(actions, runAction), [actions, runAction])
 
   const handleOpenChange = useCallback(
     (open: boolean) => {

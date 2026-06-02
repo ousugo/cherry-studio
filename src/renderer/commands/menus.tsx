@@ -417,9 +417,25 @@ export function CommandContextMenu({
 
       const requestId = extraItemsRequestIdRef.current + 1
       extraItemsRequestIdRef.current = requestId
-      setResolvedExtraItems(pendingItems)
 
-      void Promise.resolve(getExtraItems(event))
+      let resolved: MaybePromise<readonly CommandContextMenuExtraItem[]>
+      try {
+        resolved = getExtraItems(event)
+      } catch (error) {
+        logger.warn('Failed to resolve command menu extra items', error as Error)
+        setResolvedExtraItems(EMPTY_EXTRA_ITEMS)
+        return
+      }
+
+      // Apply sync results immediately so the menu opens with items in the same tick
+      // (otherwise tests that fire contextMenu + assert synchronously would miss them).
+      if (!(resolved instanceof Promise) && typeof (resolved as PromiseLike<unknown>)?.then !== 'function') {
+        setResolvedExtraItems(resolved as readonly CommandContextMenuExtraItem[])
+        return
+      }
+
+      setResolvedExtraItems(pendingItems)
+      void Promise.resolve(resolved)
         .then((items) => {
           if (extraItemsRequestIdRef.current === requestId) {
             setResolvedExtraItems(items)

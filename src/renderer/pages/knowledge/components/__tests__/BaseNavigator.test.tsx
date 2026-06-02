@@ -11,6 +11,14 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react') as typeof ReactModule
 
   const PopoverContext = React.createContext(false)
+  const DropdownMenuContext = React.createContext<{ open: boolean; setOpen: (open: boolean) => void }>({
+    open: false,
+    setOpen: () => undefined
+  })
+  const ContextMenuContext = React.createContext<{ open: boolean; setOpen: (open: boolean) => void }>({
+    open: false,
+    setOpen: () => undefined
+  })
   const AccordionContext = React.createContext<{
     openValues: string[]
     toggleValue: (value: string) => void
@@ -176,6 +184,175 @@ vi.mock('@cherrystudio/ui', () => {
       return open ? <div>{children}</div> : null
     },
     PopoverTrigger: ({ children }: { children: ReactNode }) => children,
+    DropdownMenu: ({
+      children,
+      open: controlledOpen,
+      onOpenChange
+    }: {
+      children?: ReactNode
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => {
+      const [uncontrolled, setUncontrolled] = React.useState(false)
+      const open = controlledOpen ?? uncontrolled
+      const setOpen = (next: boolean) => {
+        setUncontrolled(next)
+        onOpenChange?.(next)
+      }
+      return React.createElement(DropdownMenuContext, { value: { open, setOpen } }, children)
+    },
+    DropdownMenuTrigger: ({
+      asChild,
+      children,
+      ...props
+    }: {
+      asChild?: boolean
+      children?: ReactNode
+      [key: string]: unknown
+    }) => {
+      const ctx = React.use(DropdownMenuContext)
+      const triggerProps = {
+        ...props,
+        onClick: (event: ReactMouseEvent<HTMLElement>) => {
+          ;(props.onClick as ((e: ReactMouseEvent<HTMLElement>) => void) | undefined)?.(event)
+          ctx.setOpen(true)
+        }
+      }
+      if (asChild && React.isValidElement(children)) {
+        return React.cloneElement(children, triggerProps)
+      }
+      return (
+        <button type="button" {...triggerProps}>
+          {children}
+        </button>
+      )
+    },
+    DropdownMenuContent: ({ children }: { children?: ReactNode }) => {
+      const ctx = React.use(DropdownMenuContext)
+      return ctx.open ? <div>{children}</div> : null
+    },
+    DropdownMenuItem: ({
+      children,
+      onSelect,
+      variant,
+      ...props
+    }: {
+      children?: ReactNode
+      onSelect?: () => void
+      variant?: string
+      [key: string]: unknown
+    }) => (
+      <button type="button" data-active="false" data-variant={variant} onClick={() => onSelect?.()} {...props}>
+        {children}
+      </button>
+    ),
+    DropdownMenuSeparator: () => <hr />,
+    DropdownMenuLabel: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    DropdownMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    DropdownMenuSubContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    DropdownMenuSubTrigger: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    ContextMenu: ({ children, onOpenChange }: { children?: ReactNode; onOpenChange?: (open: boolean) => void }) => {
+      const [open, setOpenState] = React.useState(false)
+      const setOpen = (next: boolean) => {
+        setOpenState(next)
+        onOpenChange?.(next)
+      }
+      return React.createElement(ContextMenuContext, { value: { open, setOpen } }, children)
+    },
+    ContextMenuTrigger: ({
+      asChild,
+      children,
+      ...props
+    }: {
+      asChild?: boolean
+      children?: ReactNode
+      [key: string]: unknown
+    }) => {
+      const ctx = React.use(ContextMenuContext)
+      const handleContextMenu = (event: ReactMouseEvent<HTMLElement>) => {
+        ;(props.onContextMenu as ((e: ReactMouseEvent<HTMLElement>) => void) | undefined)?.(event)
+        event.preventDefault()
+        ctx.setOpen(true)
+      }
+      if (asChild && React.isValidElement(children)) {
+        const childProps = (children.props ?? {}) as Record<string, unknown>
+        const merged: Record<string, unknown> = {
+          ...props,
+          ...childProps,
+          onContextMenu: (event: ReactMouseEvent<HTMLElement>) => {
+            ;(childProps.onContextMenu as ((e: ReactMouseEvent<HTMLElement>) => void) | undefined)?.(event)
+            if (!event.defaultPrevented) {
+              handleContextMenu(event)
+            }
+          }
+        }
+        return React.cloneElement(children, merged)
+      }
+      return (
+        <div onContextMenu={handleContextMenu} {...props}>
+          {children}
+        </div>
+      )
+    },
+    ContextMenuContent: ({ children }: { children?: ReactNode }) => {
+      const ctx = React.use(ContextMenuContext)
+      return ctx.open ? <div>{children}</div> : null
+    },
+    ContextMenuItem: ({
+      children,
+      onSelect,
+      variant,
+      ...props
+    }: {
+      children?: ReactNode
+      onSelect?: () => void
+      variant?: string
+      [key: string]: unknown
+    }) => (
+      <button type="button" data-active="false" data-variant={variant} onClick={() => onSelect?.()} {...props}>
+        {children}
+      </button>
+    ),
+    ContextMenuCheckboxItem: ({
+      children,
+      onCheckedChange,
+      ...props
+    }: {
+      children?: ReactNode
+      onCheckedChange?: (next: boolean) => void
+      [key: string]: unknown
+    }) => (
+      <button type="button" onClick={() => onCheckedChange?.(true)} {...props}>
+        {children}
+      </button>
+    ),
+    ContextMenuItemContent: ({
+      children,
+      icon,
+      shortcut
+    }: {
+      children?: ReactNode
+      icon?: ReactNode
+      shortcut?: string
+    }) => (
+      <span>
+        {icon}
+        <span>{children}</span>
+        {shortcut ? <span>{shortcut}</span> : null}
+      </span>
+    ),
+    ContextMenuSeparator: () => <hr />,
+    ContextMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    ContextMenuSubContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    ContextMenuSubTrigger: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
     Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
     ),
@@ -201,6 +378,11 @@ vi.mock('@cherrystudio/ui', () => {
     )
   }
 })
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: () => [undefined, () => undefined],
+  useMultiplePreferences: () => [{}, () => undefined]
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

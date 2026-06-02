@@ -14,7 +14,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ActionMenu } from '@renderer/components/chat/actions/ActionMenu'
+import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
   remapResourceListExpandedGroupIds,
@@ -1331,14 +1331,9 @@ const Sessions = ({
         }
         const actions = resolveAgentGroupActions(actionContext)
 
-        return (
-          <ActionMenu
-            actions={actions}
-            onAction={(action) => {
-              void executeAgentGroupAction(action, actionContext)
-            }}
-          />
-        )
+        return actionsToCommandMenuExtraItems(actions, (action) => {
+          void executeAgentGroupAction(action, actionContext)
+        })
       }
 
       if (displayMode !== 'workdir') return null
@@ -1360,14 +1355,9 @@ const Sessions = ({
       }
       const actions = resolveWorkdirGroupActions(actionContext)
 
-      return (
-        <ActionMenu
-          actions={actions}
-          onAction={(action) => {
-            void executeWorkdirGroupAction(action, actionContext)
-          }}
-        />
-      )
+      return actionsToCommandMenuExtraItems(actions, (action) => {
+        void executeWorkdirGroupAction(action, actionContext)
+      })
     },
     [
       agentById,
