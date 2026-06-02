@@ -148,7 +148,7 @@ export const COMMAND_DEFINITIONS = [
       defaultBinding: [],
       global: true,
       when: 'feature.selection.enabled',
-      supportedPlatforms: ['darwin', 'win32']
+      supportedPlatforms: ['darwin', 'win32', 'linux']
     }
   }),
   defineCommand({
@@ -161,7 +161,7 @@ export const COMMAND_DEFINITIONS = [
       defaultBinding: [],
       global: true,
       when: 'feature.selection.enabled',
-      supportedPlatforms: ['darwin', 'win32']
+      supportedPlatforms: ['darwin', 'win32', 'linux']
     }
   }),
   defineCommand({
