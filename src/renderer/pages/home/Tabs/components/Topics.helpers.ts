@@ -7,8 +7,7 @@ import {
   type ResourceListGroupReorderPayload,
   type ResourceListGroupResolver,
   type ResourceListItemReorderPayload,
-  type ResourceListTimeBucket,
-  sortByResourceGroupRank
+  type ResourceListTimeBucket
 } from '@renderer/components/chat/resources'
 import type { Topic } from '@renderer/types'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -291,11 +290,27 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
       .map(({ topic }) => topic)
   }
 
-  return sortByResourceGroupRank(topics, (topic) => {
-    if (topic.pinned === true) {
-      return 0
-    }
+  return topics
+    .map((topic, index) => ({
+      topic,
+      index,
+      rank: topic.pinned === true ? 0 : TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.updatedAt, options.now)],
+      updatedAtMs: Date.parse(topic.updatedAt)
+    }))
+    .sort((a, b) => {
+      const groupDelta = a.rank - b.rank
+      if (groupDelta !== 0) return groupDelta
 
-    return TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.updatedAt, options.now)]
-  })
+      if (a.topic.pinned === true || b.topic.pinned === true) {
+        return a.index - b.index
+      }
+
+      if (Number.isFinite(a.updatedAtMs) && Number.isFinite(b.updatedAtMs)) {
+        const updatedAtDelta = b.updatedAtMs - a.updatedAtMs
+        if (updatedAtDelta !== 0) return updatedAtDelta
+      }
+
+      return a.index - b.index
+    })
+    .map(({ topic }) => topic)
 }
