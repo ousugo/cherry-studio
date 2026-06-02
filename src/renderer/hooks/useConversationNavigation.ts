@@ -1,5 +1,10 @@
 import { emitResourceListReveal } from '@renderer/components/chat/resources/resourceListRevealEvents'
-import { getSidebarApp, tabBelongsToApp } from '@renderer/config/sidebar'
+import {
+  buildSidebarAppOpenMetadata,
+  getSidebarApp,
+  getSidebarAppTabInstanceKey,
+  tabBelongsToApp
+} from '@renderer/config/sidebar'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { useMemo } from 'react'
@@ -11,10 +16,8 @@ export interface ConversationNavigation {
    * to navigating the current tab instead of bouncing to itself.
    */
   focusExistingTab: (key: string, options?: { excludeTabId?: string }) => boolean
-  /** Focus the tab showing `key`, else open it in a NEW tab (keeps the current tab). */
-  openInNewTab: (key: string, title?: string) => void
-  /** Focus the tab showing `key`, else open it (no forceNew — reuses the matching url). */
-  focusOrOpen: (key: string, title?: string) => void
+  /** Focus the tab showing `key`, else open a new base-route tab with instance metadata. */
+  openConversationTab: (key: string, title?: string) => string | undefined
 }
 
 /**
@@ -39,7 +42,7 @@ export function useConversationNavigation(appId: SidebarIcon): ConversationNavig
               t.type === 'route' &&
               t.id !== excludeTabId &&
               tabBelongsToApp(app, t.url) &&
-              instanceKey.keyFromUrl(t.url) === key
+              getSidebarAppTabInstanceKey(app, t) === key
           )?.id
         : undefined
 
@@ -55,19 +58,20 @@ export function useConversationNavigation(appId: SidebarIcon): ConversationNavig
       return false
     }
 
+    const openConversationTab: ConversationNavigation['openConversationTab'] = (key, title) => {
+      if (!tabs || !app || !instanceKey) return
+      if (focusExistingTab(key)) return
+      const metadata = buildSidebarAppOpenMetadata(app, key)
+      const openedId = tabs.openTab(app.routePrefix, { forceNew: true, title, ...(metadata && { metadata }) })
+      if (openedId && (appId === 'assistants' || appId === 'agents')) {
+        emitResourceListReveal({ source: appId, tabId: openedId })
+      }
+      return openedId
+    }
+
     return {
       focusExistingTab,
-      openInNewTab: (key, title) => {
-        if (!tabs || !instanceKey) return
-        if (focusExistingTab(key)) return
-        tabs.openTab(instanceKey.urlForKey(key), { forceNew: true, title })
-      },
-      // openTab without forceNew dedupes by url (which encodes the key), so this
-      // focuses an existing tab for `key` or opens a fresh one.
-      focusOrOpen: (key, title) => {
-        if (!tabs || !instanceKey) return
-        tabs.openTab(instanceKey.urlForKey(key), { title })
-      }
+      openConversationTab
     }
   }, [appId, tabs])
 }

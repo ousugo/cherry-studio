@@ -43,12 +43,10 @@ import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
-import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Folder, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
 import { Fragment, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type AgentRouteSearch, parseAgentRouteSearch } from '../routeSearch'
 import {
   type AgentGroupAction,
   type AgentGroupActionContext,
@@ -89,14 +87,20 @@ import {
   type WorkdirGroupActionContext
 } from './workdirGroupActions'
 
-interface SessionsProps {
+type SessionsBaseProps = {
   onOpenHistory?: (origin?: DOMRectReadOnly) => void
   onSelectItem?: () => void
-  onDiscardTemporarySession?: () => void | Promise<void>
   onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
   revealRequest?: ResourceListRevealRequest
 }
+
+type ControlledSessionsProps = SessionsBaseProps & {
+  activeSessionId: string | null
+  setActiveSessionId: (id: string | null, session?: AgentSessionEntity | null) => void
+}
+
+type SessionsProps = ControlledSessionsProps
 
 const logger = loggerService.withContext('AgentSessions')
 
@@ -370,12 +374,13 @@ export function findLatestCreateSessionSeed(
 }
 
 const Sessions = ({
+  activeSessionId,
   onOpenHistory,
   onSelectItem,
-  onDiscardTemporarySession,
   onStartTemporarySession,
   onStartMissingAgentDraft,
-  revealRequest
+  revealRequest,
+  setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
   const conversationNav = useConversationNavigation('agents')
@@ -400,24 +405,7 @@ const Sessions = ({
     reorderSession,
     togglePin
   } = useSessions(undefined, { loadAll: true, pageSize: 200 })
-  const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
-  const navigate = useNavigate()
   const currentTabId = useCurrentTabId()
-  const activeSessionId = routeSearch.sessionId ?? null
-  const setActiveSessionId = useCallback(
-    (id: string | null) => {
-      // One tab per session: if this session is already open in another tab,
-      // focus that tab instead of navigating the current one (avoids a duplicate
-      // tab). Navigate the current tab only when it isn't open elsewhere.
-      if (id && conversationNav.focusExistingTab(id, { excludeTabId: currentTabId ?? undefined })) return
-      void navigate({
-        to: '/app/agents',
-        search: (prev: AgentRouteSearch) => ({ ...prev, sessionId: id ?? undefined }),
-        replace: true
-      })
-    },
-    [navigate, conversationNav, currentTabId]
-  )
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
@@ -474,6 +462,19 @@ const Sessions = ({
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
   }, [activeSessionId])
+
+  const setActiveSessionId = useCallback(
+    (id: string | null) => {
+      // One tab per session: if this session is already open in another tab,
+      // focus that tab instead of navigating the current one (avoids a duplicate
+      // tab). The page owns session changes and syncs the current instance key
+      // through tab metadata.
+      if (id && conversationNav.focusExistingTab(id, { excludeTabId: currentTabId ?? undefined })) return
+      const session = id ? (sessionItemsRef.current.find((candidate) => candidate.id === id) ?? null) : null
+      setControlledActiveSessionId(id, session)
+    },
+    [conversationNav, currentTabId, setControlledActiveSessionId]
+  )
 
   const { updateSession } = useUpdateSession()
 
@@ -929,7 +930,7 @@ const Sessions = ({
   }, [])
   const openSessionInNewTab = useCallback(
     (session: AgentSessionEntity) => {
-      conversationNav.openInNewTab(session.id, session.name || t('common.unnamed'))
+      conversationNav.openConversationTab(session.id, session.name || t('common.unnamed'))
     },
     [conversationNav, t]
   )
@@ -951,10 +952,9 @@ const Sessions = ({
 
   const handleSelectSession = useCallback(
     (id: string | null) => {
-      if (id) void onDiscardTemporarySession?.()
       setActiveSessionId(id)
     },
-    [onDiscardTemporarySession, setActiveSessionId]
+    [setActiveSessionId]
   )
   const getGroupHeaderClickBehavior = useCallback(
     (group: ResourceListGroup) =>

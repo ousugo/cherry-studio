@@ -7,6 +7,7 @@ import {
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { ConversationComposerPlacement } from '@renderer/components/chat/composer'
 import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
+import { useShellActions } from '@renderer/components/chat/panes/Shell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
@@ -381,6 +382,20 @@ interface AgentChatSessionFrameProps {
   onNewSessionDraft?: () => void | Promise<void>
 }
 
+const AgentRightPaneDisabledReset = ({ disabled }: { disabled: boolean }) => {
+  const actions = useShellActions()
+  const previousDisabledRef = useRef(disabled)
+
+  useEffect(() => {
+    if (disabled && !previousDisabledRef.current) {
+      actions.close()
+    }
+    previousDisabledRef.current = disabled
+  }, [actions, disabled])
+
+  return null
+}
+
 const AgentChatSessionFrame = ({
   className,
   pane,
@@ -492,7 +507,6 @@ const AgentChatSessionFrame = ({
 
   return (
     <AgentRightPane
-      key={rightPaneDisabled ? 'right-pane-disabled' : 'right-pane-enabled'}
       workspacePath={session.workspace?.path}
       messages={runtime.uiMessages}
       partsByMessageId={runtime.partsByMessageId}
@@ -502,6 +516,7 @@ const AgentChatSessionFrame = ({
       agentName={activeAgent?.name}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
       modelFallback={runtime.fallbackSnapshot}>
+      <AgentRightPaneDisabledReset disabled={rightPaneDisabled} />
       <ConversationShell
         className={className}
         pane={pane}

@@ -4,7 +4,13 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-type FakeTab = { id: string; type: 'route' | 'miniapp'; url: string; title: string }
+type FakeTab = {
+  id: string
+  type: 'route' | 'miniapp'
+  url: string
+  title: string
+  metadata?: Record<string, unknown>
+}
 
 const mocks = vi.hoisted(() => ({
   emitResourceListReveal: vi.fn(),
@@ -35,85 +41,6 @@ vi.mock('@data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/config/env', () => ({
   AppLogo: 'logo.png'
-}))
-
-type FakeNavCtx = { lastUsedTopicId?: string | null; lastUsedSessionId?: string | null }
-type FakeSidebarApp = {
-  id: string
-  routePrefix: string
-  resolveUrl?: (ctx: FakeNavCtx) => string
-  instanceKey?: {
-    keyFromUrl: (url: string) => string | undefined
-    defaultKey: (ctx: FakeNavCtx) => string | undefined
-    urlForKey: (key: string) => string
-  }
-}
-
-function searchParamGetter(name: string) {
-  return (url: string) => {
-    try {
-      return new URL(url, 'app://x').searchParams.get(name) ?? undefined
-    } catch {
-      return undefined
-    }
-  }
-}
-
-const fakeSidebarApps: Record<string, FakeSidebarApp> = {
-  assistants: {
-    id: 'assistants',
-    routePrefix: '/app/chat',
-    instanceKey: {
-      keyFromUrl: searchParamGetter('topicId'),
-      defaultKey: ({ lastUsedTopicId }) => lastUsedTopicId ?? undefined,
-      urlForKey: (key: string) => `/app/chat?topicId=${encodeURIComponent(key)}`
-    }
-  },
-  agents: {
-    id: 'agents',
-    routePrefix: '/app/agents',
-    instanceKey: {
-      keyFromUrl: searchParamGetter('sessionId'),
-      defaultKey: ({ lastUsedSessionId }) => lastUsedSessionId ?? undefined,
-      urlForKey: (key: string) => `/app/agents?sessionId=${encodeURIComponent(key)}`
-    }
-  },
-  translate: { id: 'translate', routePrefix: '/app/translate' },
-  files: { id: 'files', routePrefix: '/app/files' }
-}
-
-// Mirror the real (pure) helpers from config/sidebar over the fake apps — they take the
-// app as a param and don't read the registry, so re-implementing them keeps the test
-// isolated (no importOriginal pulling the real icon/preference deps).
-const fakeTabBelongsToApp = (app: FakeSidebarApp, url: string) =>
-  url === app.routePrefix || url.startsWith(`${app.routePrefix}/`) || url.startsWith(`${app.routePrefix}?`)
-
-vi.mock('@renderer/config/sidebar', () => ({
-  getSidebarApp: (id: string) => fakeSidebarApps[id],
-  getOrderedVisibleSidebarIcons: (icons: string[]) => icons,
-  getSidebarMenuPath: (icon: string) => fakeSidebarApps[icon]?.routePrefix ?? '',
-  resolveSidebarActiveItem: () => 'assistants',
-  tabBelongsToApp: (app: FakeSidebarApp, url: string) => fakeTabBelongsToApp(app, url),
-  findAppTabToFocus: (app: FakeSidebarApp, tabs: FakeTab[], ctx: FakeNavCtx) => {
-    const key = app.instanceKey?.defaultKey(ctx)
-    const existing = tabs.find(
-      (t) =>
-        t.type === 'route' &&
-        fakeTabBelongsToApp(app, t.url) &&
-        (app.instanceKey && key ? app.instanceKey.keyFromUrl(t.url) === key : true)
-    )
-    return existing?.id
-  },
-  resolveAppOpenUrl: (app: FakeSidebarApp, ctx: FakeNavCtx) => {
-    const key = app.instanceKey?.defaultKey(ctx)
-    return app.instanceKey && key ? app.instanceKey.urlForKey(key) : (app.resolveUrl?.(ctx) ?? app.routePrefix)
-  },
-  SIDEBAR_ICON_COMPONENTS: {
-    agents: () => <span data-testid="agents-icon" />,
-    assistants: () => <span data-testid="assistants-icon" />,
-    translate: () => <span data-testid="translate-icon" />,
-    files: () => <span data-testid="files-icon" />
-  }
 }))
 
 vi.mock('@renderer/hooks/useAvatar', () => ({
@@ -149,6 +76,14 @@ vi.mock('../../../hooks/useTabs', () => ({
       url: '/app/chat',
       title: 'Chat'
     },
+    tabs: mocks.tabs,
+    openTab: mocks.openTab,
+    setActiveTab: mocks.setActiveTab
+  })
+}))
+
+vi.mock('@renderer/context/TabsContext', () => ({
+  useOptionalTabsContext: () => ({
     tabs: mocks.tabs,
     openTab: mocks.openTab,
     setActiveTab: mocks.setActiveTab
@@ -218,6 +153,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { resolveSidebarAppTabEntryUrl } from '@renderer/config/sidebar'
+
 import Sidebar from '../Sidebar'
 
 afterEach(() => {
@@ -231,6 +168,30 @@ afterEach(() => {
 })
 
 describe('app Sidebar', () => {
+  it('derives conversation detach URLs from instance metadata', () => {
+    expect(
+      resolveSidebarAppTabEntryUrl({
+        url: '/app/chat?topicId=entry-topic',
+        metadata: { instanceAppId: 'assistants', instanceKey: 'current-topic' }
+      })
+    ).toBe('/app/chat?topicId=current-topic')
+    expect(
+      resolveSidebarAppTabEntryUrl({
+        url: '/app/agents?sessionId=entry-session',
+        metadata: { instanceAppId: 'agents', instanceKey: 'current-session' }
+      })
+    ).toBe('/app/agents?sessionId=current-session')
+  })
+
+  it('keeps a message-only detach URL when there is no normal instance key', () => {
+    expect(
+      resolveSidebarAppTabEntryUrl({
+        url: '/app/chat?topicId=t-1&view=message',
+        metadata: { instanceAppId: 'assistants', instanceKey: 'stale-topic' }
+      })
+    ).toBe('/app/chat?topicId=t-1&view=message')
+  })
+
   it('keeps the floating sidebar mounted for its closing animation before unmounting', () => {
     vi.useFakeTimers()
     render(<Sidebar />)
@@ -289,8 +250,9 @@ describe('app Sidebar', () => {
 
     expect(mocks.openTab).toHaveBeenCalledTimes(1)
     const [url, options] = mocks.openTab.mock.calls[0]
-    expect(url).toBe('/app/agents?sessionId=s-1')
-    expect(options?.forceNew).toBeUndefined()
+    expect(url).toBe('/app/agents')
+    expect(options?.forceNew).toBe(true)
+    expect(options?.metadata).toEqual({ instanceAppId: 'agents', instanceKey: 's-1' })
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
   })
 
@@ -347,9 +309,82 @@ describe('app Sidebar', () => {
 
     expect(mocks.openTab).toHaveBeenCalledTimes(1)
     const [url, options] = mocks.openTab.mock.calls[0]
-    expect(url).toBe('/app/chat?topicId=t-1')
-    expect(options?.forceNew).toBeUndefined()
+    expect(url).toBe('/app/chat')
+    expect(options?.forceNew).toBe(true)
+    expect(options?.metadata).toEqual({ instanceAppId: 'assistants', instanceKey: 't-1' })
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
+  })
+
+  it('keyed multi (assistants): opens forceNew when a stale URL belongs to a different current topic', () => {
+    mocks.visibleSidebarIcons = ['assistants']
+    mocks.lastUsedTopicId = 't-1'
+    mocks.tabs = [
+      {
+        id: 'chat-a',
+        type: 'route',
+        url: '/app/chat?topicId=t-1',
+        title: 'Chat A',
+        metadata: { instanceAppId: 'assistants', instanceKey: 't-2' }
+      }
+    ]
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-item-assistants'))
+
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/chat', {
+      forceNew: true,
+      title: 'Chat',
+      metadata: { instanceAppId: 'assistants', instanceKey: 't-1' }
+    })
+  })
+
+  it('keyed multi (assistants): does not fallback to stale URL when metadata marks no current instance', () => {
+    mocks.visibleSidebarIcons = ['assistants']
+    mocks.lastUsedTopicId = 't-1'
+    mocks.tabs = [
+      {
+        id: 'chat-temp',
+        type: 'route',
+        url: '/app/chat?topicId=t-1',
+        title: 'Draft',
+        metadata: { instanceAppId: 'assistants' }
+      }
+    ]
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-item-assistants'))
+
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/chat', {
+      forceNew: true,
+      title: 'Chat',
+      metadata: { instanceAppId: 'assistants', instanceKey: 't-1' }
+    })
+  })
+
+  it('keyed multi (assistants): does not reuse a message-only tab as the normal topic tab', () => {
+    mocks.visibleSidebarIcons = ['assistants']
+    mocks.lastUsedTopicId = 't-1'
+    mocks.tabs = [
+      {
+        id: 'chat-message',
+        type: 'route',
+        url: '/app/chat?topicId=t-1&view=message',
+        title: 'Message',
+        metadata: { instanceAppId: 'assistants', instanceKey: 't-1' }
+      }
+    ]
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-item-assistants'))
+
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/chat', {
+      forceNew: true,
+      title: 'Chat',
+      metadata: { instanceAppId: 'assistants', instanceKey: 't-1' }
+    })
   })
 
   it('keyed multi (assistants): with last_used=t-2 and tabs on t-1 and t-2, focuses t-2', () => {
@@ -364,6 +399,26 @@ describe('app Sidebar', () => {
     fireEvent.click(screen.getByTestId('sidebar-item-assistants'))
 
     expect(mocks.setActiveTab).toHaveBeenCalledWith('chat-b')
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('keyed multi (assistants): uses tab metadata when the entry URL is stale', () => {
+    mocks.visibleSidebarIcons = ['assistants']
+    mocks.lastUsedTopicId = 't-2'
+    mocks.tabs = [
+      {
+        id: 'chat-a',
+        type: 'route',
+        url: '/app/chat?topicId=t-1',
+        title: 'Chat A',
+        metadata: { instanceAppId: 'assistants', instanceKey: 't-2' }
+      }
+    ]
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-item-assistants'))
+
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('chat-a')
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 

@@ -260,7 +260,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     async (topicId: string) => {
       const apiTopic = await dataApiService.get(`/topics/${topicId}`)
       const topic = mapApiTopicToRendererTopic(apiTopic)
-      chatNav.focusOrOpen(topic.id)
+      chatNav.openConversationTab(topic.id)
       window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, topic)
       })
@@ -271,7 +271,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
   const openSession = useCallback(
     (sessionId: string) => {
-      agentNav.focusOrOpen(sessionId)
+      agentNav.openConversationTab(sessionId)
       window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, sessionId)
       })
@@ -294,7 +294,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
       await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: activeNodeId } })
       await invalidateCache(`/topics/${topicId}/messages`)
-      chatNav.focusOrOpen(topic.id)
+      chatNav.openConversationTab(topic.id)
       window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, { topic, messageId })
       })
@@ -307,7 +307,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     async (sessionId: string, messageId: string) => {
       await dataApiService.get(`/sessions/${sessionId}`)
       await invalidateCache(['/sessions', `/sessions/${sessionId}`, `/sessions/${sessionId}/messages`])
-      agentNav.focusOrOpen(sessionId)
+      agentNav.openConversationTab(sessionId)
       window.requestAnimationFrame(() => {
         void EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, { sessionId, messageId })
       })

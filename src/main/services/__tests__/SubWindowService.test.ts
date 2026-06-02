@@ -187,7 +187,18 @@ describe('SubWindowService', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)
 
-      svc.createWindow({ id: 'tab-3', url: 'cherry://agent', title: 'Agent', type: 'webview', isPinned: true })
+      svc.createWindow({
+        id: 'tab-3',
+        url: 'cherry://agent',
+        title: 'Agent',
+        type: 'webview',
+        isPinned: true,
+        metadata: {
+          instanceAppId: 'agents',
+          instanceKey: 'session-1',
+          internalOnly: 'drop-me'
+        }
+      })
 
       const { args } = lastOpenCall()
       expect(args.initData).toEqual({
@@ -195,8 +206,34 @@ describe('SubWindowService', () => {
         url: 'cherry://agent',
         title: 'Agent',
         type: 'webview',
-        isPinned: true
+        isPinned: true,
+        metadata: {
+          instanceAppId: 'agents',
+          instanceKey: 'session-1'
+        }
       })
+    })
+
+    it('drops malformed tab metadata from initData', () => {
+      const win = createMockWindow()
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({
+        id: 'tab-bad-metadata',
+        url: 'cherry://agent',
+        metadata: {
+          instanceAppId: 'agents',
+          instanceKey: 123
+        }
+      })
+
+      const { args } = lastOpenCall()
+      expect(args.initData).toMatchObject({
+        tabId: 'tab-bad-metadata',
+        url: 'cherry://agent',
+        type: 'route'
+      })
+      expect(args.initData).not.toHaveProperty('metadata')
     })
 
     it('coerces unknown tab type to "route" in initData (renderer relies on the narrow union)', () => {

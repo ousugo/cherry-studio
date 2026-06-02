@@ -1,6 +1,7 @@
 import '@renderer/databases'
 
 import { useCommandHandler } from '@renderer/commands'
+import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useTabs } from '@renderer/hooks/useTabs'
@@ -54,12 +55,19 @@ export const AppShell = () => {
   // session name + assistant / agent emoji), so we only sync the url and leave
   // title/icon alone, or navigating between topics would wipe them.
   const handleUrlChange = (tabId: string, url: string) => {
-    const patch = isPageTitledRoute(url)
+    const isPageTitled = isPageTitledRoute(url)
+    const tab = tabs.find((candidate) => candidate.id === tabId)
+    const patch = isPageTitled
       ? { url, lastAccessTime: Date.now() }
-      : { url, title: getDefaultRouteTitle(url), icon: undefined, lastAccessTime: Date.now() }
+      : {
+          url,
+          title: getDefaultRouteTitle(url),
+          icon: undefined,
+          lastAccessTime: Date.now(),
+          metadata: clearTabInstanceMetadata(tab?.metadata)
+        }
     updateTab(tabId, patch)
 
-    const tab = tabs.find((candidate) => candidate.id === tabId)
     if (tab) {
       recordRouteVisit({ ...tab, ...patch }, Date.now())
     }

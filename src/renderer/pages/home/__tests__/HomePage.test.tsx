@@ -38,14 +38,15 @@ const homeMocks = vi.hoisted(() => ({
       }
     | undefined,
   cacheSetPersist: vi.fn(),
+  currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
   discardTemporaryConversation: vi.fn(),
   activeTopicLoading: false,
   activeTopicOverride: undefined as Topic | undefined,
   activeTopicSource: 'query' as 'query' | 'pending' | 'none',
   forceActiveTopicUndefined: false,
+  focusExistingTab: vi.fn(() => false),
   historyTopic: undefined as Topic | undefined,
   locationState: undefined as { topic: Topic } | undefined,
-  navigate: vi.fn(),
   persistCacheValues: new Map<string, unknown>(),
   persistTemporaryConversation: vi.fn(),
   preferenceValues: new Map<string, unknown>(),
@@ -122,9 +123,17 @@ vi.mock('@renderer/hooks/useTemporaryConversation', () => ({
 }))
 
 vi.mock('@renderer/context/TabIdContext', () => ({
+  useCurrentTab: () => homeMocks.currentTab,
   useCurrentTabId: () => 'chat-tab',
   useIsActiveTab: () => homeMocks.isActiveTab,
   useTabSelfMetadata: vi.fn()
+}))
+
+vi.mock('@renderer/hooks/useConversationNavigation', () => ({
+  useConversationNavigation: () => ({
+    focusExistingTab: homeMocks.focusExistingTab,
+    openConversationTab: vi.fn()
+  })
 }))
 
 vi.mock('@renderer/hooks/useTopic', async () => {
@@ -167,7 +176,6 @@ vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({
     state: homeMocks.locationState
   }),
-  useNavigate: () => homeMocks.navigate,
   useSearch: () => homeMocks.routeSearch
 }))
 
@@ -276,12 +284,7 @@ vi.mock('@renderer/services/EventService', () => ({
   }
 }))
 
-vi.mock('@renderer/services/NavigationService', () => ({
-  default: {
-    setNavigate: vi.fn()
-  }
-}))
-
+import { useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 import HomePage from '../HomePage'
@@ -291,11 +294,13 @@ describe('HomePage', () => {
     vi.clearAllMocks()
     homeMocks.historyTopic = historyTopic
     homeMocks.locationState = { topic: initialTopic }
+    homeMocks.currentTab = undefined
     homeMocks.routeSearch = {}
     homeMocks.routeTopic = undefined
     homeMocks.routeTopicLoading = false
     homeMocks.activeTopicOptions = undefined
     homeMocks.persistCacheValues.clear()
+    homeMocks.focusExistingTab.mockReturnValue(false)
     homeMocks.isActiveTab = false
     homeMocks.persistTemporaryConversation.mockResolvedValue(null)
     homeMocks.replaceTemporaryConversation.mockResolvedValue({
@@ -442,6 +447,35 @@ describe('HomePage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
+  it('does not write locate state into the current tab before focusing an already-open topic message', () => {
+    homeMocks.locationState = undefined
+    homeMocks.focusExistingTab.mockReturnValue(true)
+    homeMocks.temporaryConversation = {
+      assistantId: 'assistant-1',
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    }
+
+    render(<HomePage />)
+
+    const topicMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target' })
+    })
+
+    expect(homeMocks.focusExistingTab).toHaveBeenCalledWith('topic-history', { excludeTabId: 'chat-tab' })
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+    expect(homeMocks.discardTemporaryConversation).not.toHaveBeenCalled()
+  })
+
   it('keeps the current topic visible while the active topic is reloading', async () => {
     const { rerender } = render(<HomePage />)
 
@@ -491,7 +525,7 @@ describe('HomePage', () => {
     expect(screen.queryByRole('button', { name: 'New topic' })).not.toBeInTheDocument()
     expect(homeMocks.activeTopicOptions).toMatchObject({
       passive: true,
-      activeTopicId: 'topic-message'
+      activeTopicId: null
     })
     expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
     expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
@@ -580,6 +614,13 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic')
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
     expect(screen.getByRole('button', { name: 'Switch temporary assistant' })).toBeInTheDocument()
+    expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        instanceAppId: 'assistants',
+        instanceKey: null,
+        isTemporary: true
+      })
+    )
     expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
   })
 
@@ -707,7 +748,20 @@ describe('HomePage', () => {
     expect(homeMocks.activeTopicOptions?.passive).toBe(false)
   })
 
-  it('writes the URL via navigate when setActiveTopicId fires', async () => {
+  it('uses tab metadata as the topic entry when the URL is the chat route', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.routeSearch = {}
+    homeMocks.currentTab = { metadata: { instanceAppId: 'assistants', instanceKey: 'topic-from-metadata' } }
+
+    await act(async () => {
+      render(<HomePage />)
+    })
+
+    expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-from-metadata')
+    expect(homeMocks.activeTopicOptions?.passive).toBe(false)
+  })
+
+  it('keeps same-tab topic changes local instead of writing the URL', async () => {
     homeMocks.locationState = undefined
     homeMocks.routeSearch = {}
 
@@ -722,18 +776,10 @@ describe('HomePage', () => {
       setActiveTopicId?.('topic-next')
     })
 
-    expect(homeMocks.navigate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: '/app/chat',
-        replace: true
-      })
-    )
-    const navArgs = homeMocks.navigate.mock.calls[0]?.[0]
-    expect(typeof navArgs?.search).toBe('function')
-    expect(navArgs?.search({ assistantId: 'a-1' })).toEqual({ assistantId: undefined, topicId: 'topic-next' })
+    await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-next'))
   })
 
-  it('clears URL topicId when setActiveTopicId is called with null', async () => {
+  it('clears the local active topic without mutating URL search', async () => {
     homeMocks.locationState = undefined
     homeMocks.routeSearch = { topicId: 'topic-x' }
 
@@ -745,7 +791,6 @@ describe('HomePage', () => {
       homeMocks.activeTopicOptions?.setActiveTopicId?.(null)
     })
 
-    const navArgs = homeMocks.navigate.mock.calls[0]?.[0]
-    expect(navArgs?.search({ topicId: 'topic-x' })).toEqual({ topicId: undefined })
+    await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBeNull())
   })
 })

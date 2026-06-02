@@ -1,6 +1,9 @@
 import { emojiTabIcon } from '@renderer/components/layout/tabIcons'
+import { buildTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
-import { createContext, type ReactNode, use, useEffect, useRef } from 'react'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import type { TabInstanceAppId } from '@shared/types/tabInstanceMetadata'
+import { createContext, type ReactNode, use, useEffect } from 'react'
 
 /**
  * Provides the id of the tab that owns the content rendered beneath it.
@@ -21,31 +24,66 @@ export function useCurrentTabId(): string | null {
   return use(TabIdContext)
 }
 
+export function useCurrentTab(): Tab | undefined {
+  const currentTabId = useCurrentTabId()
+  return useOptionalTabsContext()?.tabs.find((tab) => tab.id === currentTabId)
+}
+
 export interface TabSelfMetadata {
   title: string
   emoji?: string | null
   isTemporary: boolean
+  instanceAppId?: TabInstanceAppId
+  instanceKey?: string | null
+}
+
+function isMetadataEqual(
+  left: Record<string, unknown> | undefined,
+  right: Record<string, unknown> | undefined
+): boolean {
+  if (left === right) return true
+  if (!left || !right) return false
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  if (leftKeys.length !== rightKeys.length) return false
+  return leftKeys.every((key) => Object.is(left[key], right[key]))
 }
 
 /**
- * Sync this tab's own title / icon / isTemporary into the tab model. The owning page
- * passes its derived metadata; everything tab-specific (emoji → icon descriptor mapping,
- * which tab id, change dedupe) stays here so the page never touches the tab system or the
+ * Sync this tab's own title / icon / isTemporary / instance key into the tab model.
+ * The owning page passes its derived metadata; everything tab-specific
+ * (emoji → icon descriptor mapping, which tab id, change dedupe) stays here so
+ * the page never touches the tab system or the
  * `Tab` shape. No-op without a TabsProvider / TabIdProvider (tests, detached popups).
  */
-export function useTabSelfMetadata({ title, emoji, isTemporary }: TabSelfMetadata): void {
+export function useTabSelfMetadata({ title, emoji, isTemporary, instanceAppId, instanceKey }: TabSelfMetadata): void {
   const currentTabId = useCurrentTabId()
-  const updateTab = useOptionalTabsContext()?.updateTab
-  const signatureRef = useRef<string>('')
+  const tabsContext = useOptionalTabsContext()
+  const updateTab = tabsContext?.updateTab
+  const currentTab = tabsContext?.tabs.find((tab) => tab.id === currentTabId)
 
   useEffect(() => {
-    if (!currentTabId || !updateTab) return
+    if (!currentTabId || !updateTab || !currentTab) return
     const icon = emojiTabIcon(emoji)
-    const signature = `${title} ${icon ?? ''} ${isTemporary}`
-    if (signature === signatureRef.current) return
-    signatureRef.current = signature
-    updateTab(currentTabId, { title, icon, isTemporary })
-  }, [currentTabId, updateTab, title, emoji, isTemporary])
+    const metadata = buildTabInstanceMetadata(currentTab.metadata, {
+      appId: instanceAppId,
+      key: instanceKey
+    })
+    if (
+      currentTab.title === title &&
+      currentTab.icon === icon &&
+      currentTab.isTemporary === isTemporary &&
+      isMetadataEqual(currentTab.metadata, metadata)
+    ) {
+      return
+    }
+    updateTab(currentTabId, {
+      title,
+      icon,
+      isTemporary,
+      metadata
+    })
+  }, [currentTabId, currentTab, updateTab, title, emoji, isTemporary, instanceAppId, instanceKey])
 }
 
 /**

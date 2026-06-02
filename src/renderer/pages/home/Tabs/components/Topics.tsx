@@ -35,6 +35,7 @@ import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
+import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import {
@@ -65,7 +66,6 @@ import {
   type TopicImageActionRequest,
   type TopicImageActionType
 } from '../../messages/topicImageActionBus'
-import { buildChatTopicRouteUrl } from '../../routeSearch'
 import type { AddNewTopicPayload } from '../../types'
 import {
   type AssistantGroupAction,
@@ -297,6 +297,7 @@ function AssistantGroupMoreMenu({
 export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, setActiveTopic }: Props) {
   const { t } = useTranslation()
   const tabs = useOptionalTabsContext()
+  const conversationNav = useConversationNavigation('assistants')
   const [groupNow] = useState(() => dayjs())
   const { notesPath } = useNotesSettings()
   const {
@@ -670,12 +671,9 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   }, [])
   const openTopicInNewTab = useCallback(
     (topic: Topic) => {
-      tabs?.openTab(buildChatTopicRouteUrl(topic.id), {
-        forceNew: true,
-        title: topic.name || t('common.unnamed')
-      })
+      conversationNav.openConversationTab(topic.id, topic.name || t('common.unnamed'))
     },
-    [tabs, t]
+    [conversationNav, t]
   )
 
   const handleToggleAssistantPin = useCallback(

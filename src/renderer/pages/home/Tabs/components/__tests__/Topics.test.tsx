@@ -93,12 +93,16 @@ const notesSettingsMocks = vi.hoisted(() => ({
 vi.mock('@renderer/hooks/useNotesSettings', () => notesSettingsMocks)
 
 const tabsContextMocks = vi.hoisted(() => ({
-  openTab: vi.fn()
+  openTab: vi.fn(),
+  setActiveTab: vi.fn(),
+  tabs: [] as Array<{ id: string; type: string; url: string }>
 }))
 
 vi.mock('@renderer/context/TabsContext', () => ({
   useOptionalTabsContext: () => ({
-    openTab: tabsContextMocks.openTab
+    openTab: tabsContextMocks.openTab,
+    setActiveTab: tabsContextMocks.setActiveTab,
+    tabs: tabsContextMocks.tabs
   })
 }))
 
@@ -517,6 +521,8 @@ describe('Topics', () => {
     pinMutationMocks.deletePin.mockResolvedValue(undefined)
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
     tabsContextMocks.openTab.mockClear()
+    tabsContextMocks.setActiveTab.mockClear()
+    tabsContextMocks.tabs = []
     mockUseMutation.mockImplementation((method, path) => {
       if (method === 'POST' && path === '/pins') {
         return { trigger: pinMutationMocks.createPin, isLoading: false, error: undefined }
@@ -788,9 +794,10 @@ describe('Topics', () => {
         callback(0)
       }
     })
-    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat?topicId=topic-a', {
+    expect(tabsContextMocks.openTab).toHaveBeenCalledWith('/app/chat', {
       forceNew: true,
-      title: 'Alpha topic'
+      title: 'Alpha topic',
+      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-a' }
     })
     requestAnimationFrameSpy.mockRestore()
   })

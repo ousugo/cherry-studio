@@ -1,5 +1,11 @@
 import { OpenClawSidebarIcon } from '@renderer/components/Icons/SvgIcon'
 import type { SidebarMenuItem } from '@renderer/components/Sidebar/types'
+import {
+  buildTabInstanceMetadata,
+  getTabInstanceAppId,
+  getTabInstanceKey,
+  hasTabInstanceMetadataForApp
+} from '@renderer/config/tabInstanceMetadata'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
@@ -52,11 +58,21 @@ export interface SidebarApp {
   instanceKey?: SidebarInstanceKey
 }
 
-function getSearchParamFromUrl(url: string, name: string): string | undefined {
+function getNormalConversationSearchParamFromUrl(url: string, name: string): string | undefined {
   try {
-    return new URL(url, 'app://x').searchParams.get(name) ?? undefined
+    const params = new URL(url, 'app://x').searchParams
+    if (params.get('view') === 'message') return undefined
+    return params.get(name) ?? undefined
   } catch {
     return undefined
+  }
+}
+
+function isMessageOnlyConversationUrl(url: string): boolean {
+  try {
+    return new URL(url, 'app://x').searchParams.get('view') === 'message'
+  } catch {
+    return false
   }
 }
 
@@ -70,7 +86,7 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
     icon: MessageSquare,
     routePrefix: '/app/chat',
     instanceKey: {
-      keyFromUrl: (url) => getSearchParamFromUrl(url, 'topicId'),
+      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, 'topicId'),
       defaultKey: ({ lastUsedTopicId }) => lastUsedTopicId ?? undefined,
       urlForKey: (key) => `/app/chat?topicId=${encodeURIComponent(key)}`
     }
@@ -80,7 +96,7 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
     icon: MousePointerClick,
     routePrefix: '/app/agents',
     instanceKey: {
-      keyFromUrl: (url) => getSearchParamFromUrl(url, 'sessionId'),
+      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, 'sessionId'),
       defaultKey: ({ lastUsedSessionId }) => lastUsedSessionId ?? undefined,
       urlForKey: (key) => `/app/agents?sessionId=${encodeURIComponent(key)}`
     }
@@ -154,6 +170,29 @@ export function tabBelongsToApp(app: SidebarApp, url: string): boolean {
   return url === app.routePrefix || url.startsWith(`${app.routePrefix}/`) || url.startsWith(`${app.routePrefix}?`)
 }
 
+export function getSidebarAppTabInstanceKey(app: SidebarApp, tab: Pick<Tab, 'metadata' | 'url'>): string | undefined {
+  if (!app.instanceKey) return undefined
+  if (isMessageOnlyConversationUrl(tab.url)) return undefined
+  const metadataKey = getTabInstanceKey(tab, app.id)
+  if (metadataKey) return metadataKey
+  if (hasTabInstanceMetadataForApp(tab, app.id)) return undefined
+  return app.instanceKey.keyFromUrl(tab.url)
+}
+
+export function resolveSidebarAppTabEntryUrl(tab: Pick<Tab, 'metadata' | 'url'>): string {
+  if (isMessageOnlyConversationUrl(tab.url)) return tab.url
+
+  const appId = getTabInstanceAppId(tab)
+  const app = appId ? getSidebarApp(appId) : undefined
+  const key = app?.instanceKey ? getSidebarAppTabInstanceKey(app, tab) : undefined
+
+  if (app?.instanceKey && key && tabBelongsToApp(app, tab.url)) {
+    return app.instanceKey.urlForKey(key)
+  }
+
+  return tab.url
+}
+
 /**
  * The tab id to focus on a sidebar click, or undefined if none exists. Apps with
  * sub-instances narrow the match to the last-focused key (so clicking returns to
@@ -165,15 +204,21 @@ export function findAppTabToFocus(app: SidebarApp, tabs: Tab[], ctx: SidebarNavC
     (t) =>
       t.type === 'route' &&
       tabBelongsToApp(app, t.url) &&
-      (app.instanceKey && key ? app.instanceKey.keyFromUrl(t.url) === key : true)
+      (app.instanceKey && key ? getSidebarAppTabInstanceKey(app, t) === key : true)
   )
   return existing?.id
 }
 
-/** The url to open when no owned tab exists yet (instance key url, resolveUrl, or routePrefix). */
+/** The url to open when no owned tab exists yet (base route, resolveUrl, or routePrefix). */
 export function resolveAppOpenUrl(app: SidebarApp, ctx: SidebarNavContext): string {
   const key = app.instanceKey?.defaultKey(ctx)
-  return app.instanceKey && key ? app.instanceKey.urlForKey(key) : (app.resolveUrl?.(ctx) ?? app.routePrefix)
+  return app.instanceKey && key ? app.routePrefix : (app.resolveUrl?.(ctx) ?? app.routePrefix)
+}
+
+export function buildSidebarAppOpenMetadata(app: SidebarApp, key?: string): Tab['metadata'] {
+  if (!app.instanceKey || !key) return undefined
+  if (app.id !== 'assistants' && app.id !== 'agents') return undefined
+  return buildTabInstanceMetadata(undefined, { appId: app.id, key })
 }
 
 /**

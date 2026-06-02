@@ -8,7 +8,8 @@ import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
-import { useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
+import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
+import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
@@ -17,18 +18,17 @@ import { type TemporaryConversation, useTemporaryConversation } from '@renderer/
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import HistoryRecordsPage from '@renderer/pages/history/HistoryRecordsPage'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
+import { useLocation, useSearch } from '@tanstack/react-router'
 import type { FC } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import Chat from './Chat'
-import { type ChatRouteSearch, parseChatRouteSearch } from './routeSearch'
+import { parseChatRouteSearch } from './routeSearch'
 import HomeTabs from './Tabs'
 import type { AddNewTopicPayload } from './types'
 
@@ -60,7 +60,6 @@ function getTopicAssistantId(topic?: Pick<Topic, 'assistantId'> | null): string 
 
 const HomePage: FC = () => {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyOrigin, setHistoryOrigin] = useState<DOMRectReadOnly>()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
@@ -80,8 +79,10 @@ const HomePage: FC = () => {
 
   const location = useLocation()
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  const currentTab = useCurrentTab()
   const state = location.state as { topic?: Topic } | undefined
   const routeTopicId = routeSearch.topicId
+  const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   // In a detached window the user popped this topic out to focus on it — hide the
@@ -150,20 +151,12 @@ const HomePage: FC = () => {
     return temporaryTopic ?? pendingTemporaryTopicSnapshot
   }, [isMessageOnlyView, pendingTemporaryTopicSnapshot, state?.topic, temporaryTopic])
 
-  const setActiveTopicIdToUrl = useCallback(
-    (id: string | null) => {
-      void navigate({
-        to: '/app/chat',
-        search: (prev: ChatRouteSearch) => ({
-          ...prev,
-          assistantId: id ? undefined : prev.assistantId,
-          topicId: id ?? undefined
-        }),
-        replace: true
-      })
-    },
-    [navigate]
-  )
+  const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? tabMetadataTopicId ?? null)
+  const [activeTopicId, setActiveTopicId] = useState<string | null>(() => routeActiveTopicId)
+
+  useEffect(() => {
+    setActiveTopicId(routeActiveTopicId)
+  }, [routeActiveTopicId])
 
   const {
     activeTopic,
@@ -172,9 +165,8 @@ const HomePage: FC = () => {
     topicSource: activeTopicSource
   } = useActiveTopic({
     initialTopic,
-    // URL is the single source of truth — per-tab via Tab.url, no cross-tab leak.
-    activeTopicId: routeSearch.topicId ?? null,
-    setActiveTopicId: setActiveTopicIdToUrl,
+    activeTopicId,
+    setActiveTopicId,
     // Message-only view loads its target via useTopicById; the active hook
     // must not emit or expose a visible activeTopic.
     passive: isMessageOnlyView
@@ -262,10 +254,13 @@ const HomePage: FC = () => {
   // This tab shows an unpersisted temp topic → forbid "open in new window".
   const isTemporaryView =
     !isMessageOnlyView && !!temporaryTopicSnapshot && visibleTopic?.id === temporaryTopicSnapshot.id
+  const tabInstanceTopicId = !isMessageOnlyView && !isTemporaryView ? visibleTopic?.id : undefined
   useTabSelfMetadata({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
     emoji: visibleAssistant?.emoji,
-    isTemporary: isTemporaryView
+    isTemporary: isTemporaryView,
+    instanceAppId: 'assistants',
+    instanceKey: tabInstanceTopicId ?? null
   })
 
   useEffect(() => {
@@ -315,10 +310,6 @@ const HomePage: FC = () => {
       void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
     })
   })
-
-  useEffect(() => {
-    NavigationService.setNavigate(navigate)
-  }, [navigate])
 
   useEffect(() => {
     if (isMessageOnlyView) return
@@ -422,7 +413,7 @@ const HomePage: FC = () => {
       // One tab per topic: if this topic is already open in another tab, focus
       // that tab instead of navigating the current one (which would duplicate
       // it in the tab bar). The current tab keeps its own topic untouched.
-      if (conversationNav.focusExistingTab(topic.id, { excludeTabId: currentTabId ?? undefined })) return
+      if (conversationNav.focusExistingTab(topic.id, { excludeTabId: currentTabId ?? undefined })) return false
 
       const currentTemporaryTopicId =
         temporaryTopicConversation?.type === 'assistant'
@@ -435,6 +426,7 @@ const HomePage: FC = () => {
         void discardTemporaryConversation()
       }
       setActiveTopic(topic)
+      return true
     },
     [conversationNav, currentTabId, discardTemporaryConversation, setActiveTopic, temporaryTopicConversation]
   )
@@ -453,9 +445,10 @@ const HomePage: FC = () => {
   }, [])
   const closeHistory = useCallback(() => setHistoryOpen(false), [])
   const handleHistoryTopicSelect = useCallback(
-    (topic: Topic) => {
+    (topic: Topic, messageId?: string) => {
+      if (!setActiveTopicAndDiscardTemporary(topic)) return
       void setShowSidebar(true)
-      setActiveTopicAndDiscardTemporary(topic)
+      setPendingLocateMessageId(messageId)
       topicRevealRequestIdRef.current += 1
       setTopicRevealRequest({
         clearFilters: true,
@@ -466,25 +459,27 @@ const HomePage: FC = () => {
     },
     [setActiveTopicAndDiscardTemporary, setShowSidebar]
   )
+  const handleGlobalSearchTopicSelect = useEffectEvent((topic: Topic, messageId?: string) => {
+    handleHistoryTopicSelect(topic, messageId)
+  })
 
   useEffect(() => {
     const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, (topic) => {
-      setPendingLocateMessageId(undefined)
-      handleHistoryTopicSelect(topic as Topic)
+      handleGlobalSearchTopicSelect(topic as Topic)
     })
     const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, (payload) => {
       const { messageId, topic } = payload as { messageId?: string; topic?: Topic }
       if (!topic || !messageId) return
 
-      setPendingLocateMessageId(messageId)
-      handleHistoryTopicSelect(topic)
+      handleGlobalSearchTopicSelect(topic, messageId)
     })
 
     return () => {
       unsubscribe()
       unsubscribeMessage()
     }
-  }, [handleHistoryTopicSelect])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/topic state without resubscribing.
+  }, [])
 
   const handleLocateMessageHandled = useCallback(() => {
     setPendingLocateMessageId(undefined)

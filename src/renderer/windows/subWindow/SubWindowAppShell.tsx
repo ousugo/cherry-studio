@@ -4,6 +4,7 @@ import { SubWindowControls } from '@renderer/components/layout/SubWindowControls
 import { SubWindowTitle } from '@renderer/components/layout/SubWindowTitle'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
+import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { type WindowFrame, WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
@@ -49,6 +50,7 @@ export const SubWindowAppShell = () => {
       id: init.tabId,
       title: init.title,
       type: init.type || 'route',
+      metadata: init.metadata,
       forceNew: true
     })
   }, [init, openTab])
@@ -57,13 +59,19 @@ export const SubWindowAppShell = () => {
   // clear the per-entity icon override so a mini-app logo doesn't stick onto
   // an unrelated route after navigation inside the same tab.
   const handleUrlChange = (tabId: string, url: string) => {
+    const tab = tabs.find((candidate) => candidate.id === tabId)
     // Chat / agent tabs are page-titled (topic / session name + emoji set by
     // their page); only sync the url so navigating topics doesn't wipe them.
     if (isPageTitledRoute(url)) {
       updateTab(tabId, { url })
       return
     }
-    updateTab(tabId, { url, title: getDefaultRouteTitle(url), icon: undefined })
+    updateTab(tabId, {
+      url,
+      title: getDefaultRouteTitle(url),
+      icon: undefined,
+      metadata: clearTabInstanceMetadata(tab?.metadata)
+    })
   }
 
   // Chat / agent pages merge the window chrome into their own navbar (ConversationShell,

@@ -6,6 +6,7 @@ import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SubWindowInitData } from '@shared/types/subWindow'
+import { normalizeTabInstanceMetadata } from '@shared/types/tabInstanceMetadata'
 import { BrowserWindow, nativeImage, nativeTheme } from 'electron'
 
 import iconPath from '../../../build/icon.png?asset'
@@ -188,20 +189,23 @@ export class SubWindowService extends BaseService {
     title?: string
     type?: string
     isPinned?: boolean
+    metadata?: Record<string, unknown>
     x?: number
     y?: number
   }): string {
     const wm = application.get('WindowManager')
-    const { id: tabId, url, title, type, isPinned, x, y } = payload
+    const { id: tabId, url, title, type, isPinned, metadata, x, y } = payload
     const hasPosition = x !== undefined && y !== undefined
     const dark = nativeTheme.shouldUseDarkColors
+    const tabInstanceMetadata = normalizeTabInstanceMetadata(metadata)
 
     const initData: SubWindowInitData = {
       tabId,
       url,
       title,
       type: type === 'route' || type === 'webview' ? type : 'route',
-      isPinned
+      isPinned,
+      ...(tabInstanceMetadata && { metadata: tabInstanceMetadata })
     }
 
     // Dynamic options injected per-call (registry carries platform-static defaults only).

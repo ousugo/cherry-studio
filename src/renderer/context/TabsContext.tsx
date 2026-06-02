@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { resolveSidebarAppTabEntryUrl } from '@renderer/config/sidebar'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
@@ -50,6 +51,8 @@ export interface OpenTabOptions {
   id?: string
   /** Per-entity icon descriptor (e.g. mini-app logo string); rendered in the tab bar when set */
   icon?: string
+  /** Optional tab metadata copied into the newly-created tab. */
+  metadata?: Tab['metadata']
 }
 
 export interface TabsContextValue {
@@ -306,7 +309,7 @@ export function TabsProvider({
    */
   const openTab = useCallback(
     (url: string, options: OpenTabOptions = {}) => {
-      const { forceNew = false, title, type = 'route', id, icon } = options
+      const { forceNew = false, title, type = 'route', id, icon, metadata } = options
 
       if (!forceNew) {
         const existingTab = tabs.find((t) => t.type === type && t.url === url)
@@ -322,6 +325,7 @@ export function TabsProvider({
         url,
         title: title || getDefaultRouteTitle(url),
         icon,
+        metadata,
         lastAccessTime: Date.now(),
         isDormant: false
       }
@@ -402,7 +406,10 @@ export function TabsProvider({
       if (!tab) return
 
       // Send IPC message to create new window
-      window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, tab)
+      window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
+        ...tab,
+        url: resolveSidebarAppTabEntryUrl(tab)
+      })
 
       // Remove tab from current window — closeTab handles both pinned and normal tabs
       closeTab(tabId)

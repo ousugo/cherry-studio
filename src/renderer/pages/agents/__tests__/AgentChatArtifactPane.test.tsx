@@ -788,6 +788,49 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
   })
 
+  it('keeps the resource list pane mounted when switching from a temporary draft to a persisted session', () => {
+    const mountPane = vi.fn()
+    const unmountPane = vi.fn()
+    const PaneProbe = () => {
+      useEffect(() => {
+        mountPane()
+        return unmountPane
+      }, [])
+      return <aside data-testid="session-pane" />
+    }
+    const temporaryConversation = {
+      type: 'agent',
+      id: 'temp-session-1',
+      sessionId: 'temp-session-1',
+      topicId: 'agent-session:temp-session-1',
+      agentId: 'agent-1',
+      workspace: { path: '/tmp/workspace' },
+      name: 'Temp Session',
+      session: { id: 'temp-session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } }
+    } as any
+
+    const { rerender } = renderAgentChat({
+      pane: <PaneProbe />,
+      paneOpen: true,
+      panePosition: 'left',
+      temporaryConversation
+    })
+
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(mountPane).toHaveBeenCalledTimes(1)
+    expect(unmountPane).not.toHaveBeenCalled()
+
+    rerenderAgentChat(rerender, {
+      pane: <PaneProbe />,
+      paneOpen: true,
+      panePosition: 'left'
+    })
+
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
+    expect(mountPane).toHaveBeenCalledTimes(1)
+    expect(unmountPane).not.toHaveBeenCalled()
+  })
+
   it('reuses the docked composer frame during temporary session handoff', async () => {
     activeSessionMocks.result = {
       activeSessionId: null,

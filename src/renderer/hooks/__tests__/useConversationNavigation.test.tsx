@@ -18,7 +18,7 @@ vi.mock('@renderer/components/chat/resources/resourceListRevealEvents', () => ({
   emitResourceListReveal: tabsMock.emitResourceListReveal
 }))
 
-function makeCtx(tabs: Array<{ id: string; type: string; url: string }>) {
+function makeCtx(tabs: Array<{ id: string; type: string; url: string; metadata?: Record<string, unknown> }>) {
   return { tabs, openTab: vi.fn(), setActiveTab: vi.fn() }
 }
 
@@ -56,33 +56,105 @@ describe('useConversationNavigation', () => {
     expect(ctx.setActiveTab).not.toHaveBeenCalled()
   })
 
-  it('openInNewTab opens a forceNew tab when none exists', () => {
+  it('matches the current conversation key from tab metadata before the entry URL', () => {
+    const ctx = makeCtx([
+      {
+        id: 'tab-1',
+        type: 'route',
+        url: '/app/chat?topicId=entry-topic',
+        metadata: { instanceAppId: 'assistants', instanceKey: 'current-topic' }
+      }
+    ])
+    tabsMock.ctx = ctx
+    const { result } = renderHook(() => useConversationNavigation('assistants'))
+
+    expect(result.current.focusExistingTab('current-topic')).toBe(true)
+    expect(ctx.setActiveTab).toHaveBeenCalledWith('tab-1')
+  })
+
+  it('openConversationTab opens a forceNew base-route tab with metadata when none exists', () => {
     const ctx = makeCtx([])
+    ctx.openTab.mockReturnValue('new-agent-tab')
     tabsMock.ctx = ctx
     const { result } = renderHook(() => useConversationNavigation('agents'))
 
-    result.current.openInNewTab('s1', 'Session 1')
-    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents?sessionId=s1', { forceNew: true, title: 'Session 1' })
+    result.current.openConversationTab('s1', 'Session 1')
+    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents', {
+      forceNew: true,
+      title: 'Session 1',
+      metadata: { instanceAppId: 'agents', instanceKey: 's1' }
+    })
+    expect(tabsMock.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'new-agent-tab' })
   })
 
-  it('openInNewTab focuses an existing tab instead of duplicating', () => {
+  it('openConversationTab focuses an existing tab instead of duplicating', () => {
     const ctx = makeCtx([{ id: 'tab-x', type: 'route', url: '/app/agents?sessionId=s1' }])
     tabsMock.ctx = ctx
     const { result } = renderHook(() => useConversationNavigation('agents'))
 
-    result.current.openInNewTab('s1')
+    result.current.openConversationTab('s1')
     expect(ctx.setActiveTab).toHaveBeenCalledWith('tab-x')
     expect(tabsMock.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'tab-x' })
     expect(ctx.openTab).not.toHaveBeenCalled()
   })
 
-  it('focusOrOpen opens without forceNew (url dedupe)', () => {
+  it('openConversationTab opens a forceNew tab after metadata-aware lookup misses', () => {
     const ctx = makeCtx([])
     tabsMock.ctx = ctx
     const { result } = renderHook(() => useConversationNavigation('assistants'))
 
-    result.current.focusOrOpen('t1', 'Topic 1')
-    expect(ctx.openTab).toHaveBeenCalledWith('/app/chat?topicId=t1', { title: 'Topic 1' })
+    result.current.openConversationTab('t1', 'Topic 1')
+    expect(ctx.openTab).toHaveBeenCalledWith('/app/chat', {
+      forceNew: true,
+      title: 'Topic 1',
+      metadata: { instanceAppId: 'assistants', instanceKey: 't1' }
+    })
+  })
+
+  it('openConversationTab does not url-dedupe into a stale tab whose metadata points elsewhere', () => {
+    const ctx = makeCtx([
+      {
+        id: 'stale-url',
+        type: 'route',
+        url: '/app/chat?topicId=t1',
+        metadata: { instanceAppId: 'assistants', instanceKey: 't2' }
+      }
+    ])
+    tabsMock.ctx = ctx
+    const { result } = renderHook(() => useConversationNavigation('assistants'))
+
+    result.current.openConversationTab('t1', 'Topic 1')
+    expect(ctx.setActiveTab).not.toHaveBeenCalled()
+    expect(ctx.openTab).toHaveBeenCalledWith('/app/chat', {
+      forceNew: true,
+      title: 'Topic 1',
+      metadata: { instanceAppId: 'assistants', instanceKey: 't1' }
+    })
+  })
+
+  it('focusExistingTab ignores stale URL fallback when metadata marks the app instance as cleared', () => {
+    const ctx = makeCtx([
+      {
+        id: 'temp-tab',
+        type: 'route',
+        url: '/app/chat?topicId=t1',
+        metadata: { instanceAppId: 'assistants' }
+      }
+    ])
+    tabsMock.ctx = ctx
+    const { result } = renderHook(() => useConversationNavigation('assistants'))
+
+    expect(result.current.focusExistingTab('t1')).toBe(false)
+    expect(ctx.setActiveTab).not.toHaveBeenCalled()
+  })
+
+  it('focusExistingTab ignores message-only route URLs for normal conversation matching', () => {
+    const ctx = makeCtx([{ id: 'message-tab', type: 'route', url: '/app/agents?sessionId=s1&view=message' }])
+    tabsMock.ctx = ctx
+    const { result } = renderHook(() => useConversationNavigation('agents'))
+
+    expect(result.current.focusExistingTab('s1')).toBe(false)
+    expect(ctx.setActiveTab).not.toHaveBeenCalled()
   })
 
   it('no-ops without a tabs provider', () => {
@@ -90,7 +162,6 @@ describe('useConversationNavigation', () => {
     const { result } = renderHook(() => useConversationNavigation('assistants'))
 
     expect(result.current.focusExistingTab('t1')).toBe(false)
-    expect(() => result.current.openInNewTab('t1')).not.toThrow()
-    expect(() => result.current.focusOrOpen('t1')).not.toThrow()
+    expect(() => result.current.openConversationTab('t1')).not.toThrow()
   })
 })
