@@ -1,13 +1,13 @@
-# Messages, Trace & Utils — Reviewer Cluster
+# Messages, Observability & Utils — Reviewer Cluster
 
 ## Scope
 
 | Subpath | Files | Role |
 |---|---|---|
 | `src/main/ai/messages/` | `messageConverter.ts` (96), `fileProcessor.ts` (86) | UI `CherryMessagePart[]` → AI SDK `ModelMessage[]` |
-| `src/main/ai/prompts/` | `deferredTools.ts` (38) | Static `<DEFERRED_TOOLS>` system-prompt section + namespace list |
+| `src/main/ai/runtime/aiSdk/prompts/` | `deferredTools.ts` (38) | Static `<DEFERRED_TOOLS>` system-prompt section + namespace list |
 | `src/main/ai/observability/adapters/aiSdk/` | `adapterTracer.ts`, `aiSdkSpanAdapter.ts` | AI SDK telemetry adapter feeding AI observability |
-| `src/main/ai/utils/` | `reasoning.ts` (1092), `options.ts` (445), `modelParameters.ts` (146), `websearch.ts` (142), `provider.ts` (81), `anthropicHeaders.ts` (44), `image.ts` (5) | Shared helpers used across `agent/params/features/` |
+| `src/main/ai/utils/` | `reasoning.ts` (1092), `options.ts` (445), `modelParameters.ts` (146), `websearch.ts` (142), `provider.ts` (81), `anthropicHeaders.ts` (44), `image.ts` (5) | Shared helpers used across `runtime/aiSdk/params/features/` |
 | Tests | `messages/__tests__/messageConverter.test.ts` (122), `observability/**/__tests__/`, `utils/__tests__/` | Per-file coverage |
 
 The `messages/largeFileUpload.ts` placeholder was deleted in this pass —
@@ -15,11 +15,11 @@ its porting plan moved to [`large-file-upload-port.md`](./large-file-upload-port
 
 ## Intent
 
-These are the shared helpers `agent/params/features/` rely on. They
+These are the shared helpers `runtime/aiSdk/params/features/` rely on. They
 were extracted from v1's renderer-side `prepareParams` + reasoning helpers
 in `AiProvider` + per-provider `…APIClient` logic, then trimmed.
 
-The trace cluster is small but standalone: AI SDK's
+The observability cluster is small but standalone: AI SDK's
 `experimental_telemetry` gives us auto-spans for free; the adapter
 captures them into the dev-tools cache.
 
@@ -52,7 +52,7 @@ upload path is queued as
 namespace; used by `assembleSystemPrompt` (params cluster) when
 `tool_search` is in the final tool set.
 
-### `observability/adapters/ai-sdk/adapterTracer.ts`
+### `observability/adapters/aiSdk/adapterTracer.ts`
 
 Wraps an OTel tracer. On every span start, patches `span.end()` to also
 convert via `AiSdkSpanAdapter.convertToSpanEntity(...)` and persist via
@@ -100,7 +100,6 @@ inline sole-use checkWebSearchAvailability, delete dead module`).
 ## Validation
 
 - `messages/__tests__/messageConverter.test.ts` (122)
-- `trace/__tests__/aiSdkSpanAdapter.test.ts`
 - `utils/__tests__/options.test.ts` (141)
 - `utils/__tests__/modelParameters.test.ts` (111)
 - `utils/__tests__/provider.test.ts` (102)

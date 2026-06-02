@@ -3,7 +3,7 @@
 ## Purpose
 
 Agent-session streams need a stable host for UI turns, persistence, live
-inject, interrupt, and recovery. The host must not know whether the
+follow-ups, interrupt, and recovery. The host must not know whether the
 underlying agent uses a long-lived process, a websocket, one HTTP request
 per turn, or Claude Code's SDK `query`.
 
@@ -19,10 +19,10 @@ queue, and `resume` handling are driver internals.
 
 | Owner | Responsibility |
 |---|---|
-| `AgentChatContextProvider` | Validates the agent session, persists the user row plus pending assistant row, and starts or injects through the runtime. |
+| `AgentChatContextProvider` | Validates the agent session, persists the user row (plus a pending assistant row on a fresh turn), and either starts a turn or enqueues a follow-up through the runtime. |
 | `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
 | `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, optional `interrupt`, `close`, and an event stream. |
-| `AiStreamManager` | Keeps the normal topic stream contract: start, live inject, pause current runtime turn, and start the next runtime turn. |
+| `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
 | `ClaudeCodeRuntimeDriver` | Converts Claude SDK messages into generic runtime events and maps opaque resume tokens to Claude SDK `resume`. |
 
@@ -39,14 +39,14 @@ queue, and `resume` handling are driver internals.
    - a pending `assistant` message with the selected model id.
 4. The provider calls `AgentSessionRuntimeService.beginTurn(...)`.
 5. `beginTurn()` returns:
-   - a `PendingMessageQueue` for later live injects;
    - a runtime persistence listener;
    - a runtime terminal listener;
    - a trace flush listener for `agent-session:${sessionId}` history files;
    - a `turnId`.
+   Follow-up messages are not queued here — they live on the session
+   entry's `pendingTurns`, appended by `enqueueUserMessage()`.
 6. The prepared model request includes:
    - `runtime: { kind: 'agent-session', sessionId, turnId }`;
-   - `pendingMessages`;
    - `messageId` set to the pending assistant row;
    - seed `messages`: the user row plus the empty assistant row.
 7. `AiStreamManager` starts the execution. `AiService.streamText()`
@@ -55,40 +55,41 @@ queue, and `resume` handling are driver internals.
 8. `openTurnStream()` ensures there is a runtime connection and admits
    the turn by calling `connection.send({ message })`.
 
-## Live inject
+## Live follow-up
 
 If the same topic already has a live stream, `AgentChatContextProvider`
-does not create a new assistant placeholder and does not call
-`beginTurn()` again. It only saves the new user message and returns a
-request that lets `AiStreamManager.send()` take the inject path.
+does **not** create a new assistant placeholder and does **not** call
+`beginTurn()` again. It persists the new user row, hands the message to
+`AgentSessionRuntimeService.enqueueUserMessage(sessionId, message)`, and
+returns a `PreparedDispatch` with `models: []` so `AiStreamManager.send()`
+takes the **inject** path — which for agent sessions only upserts the new
+subscriber onto the running stream (no message is injected into the
+execution; chat's abort-and-restart does not apply here).
 
-The manager pushes that user message into each execution's
-`pendingMessages`. For agent-session executions, that queue is wired to
-`AgentSessionRuntimeService.enqueueUserMessage()`.
+`enqueueUserMessage()` appends the message to the session entry's
+`pendingTurns`, then acts on the current turn:
 
-The host then:
+1. if the turn is already terminal (or absent) — schedules the next turn;
+2. if the turn is mid-tool-call (`activeToolIds` non-empty) — leaves it
+   alone; the next turn is scheduled when the turn settles;
+3. otherwise — requests an interrupt when safe (`connection.interrupt()`
+   if the driver supports it), which terminalizes the current UI turn.
 
-1. leaves the current turn alone while tool calls are active;
-2. calls `connection.interrupt()` once the turn is safe to interrupt, if
-   the driver supports it;
-3. asks `AiStreamManager.pauseRuntimeTurn()` to terminalize the current
-   UI turn;
-4. starts the next UI turn from the pending queue.
-
+Once the current turn is paused or terminal, `startNextTurn()` drains the
+next message off `pendingTurns` and starts a fresh runtime turn (below).
 This keeps the renderer protocol unchanged while each driver decides how
 to interrupt its own runtime.
 
 ## Starting the next runtime turn
 
-When a paused, aborted, or completed runtime turn still has pending user
-messages, `AgentSessionRuntimeService.startNextTurn()`:
+When a paused, aborted, or completed runtime turn still has queued
+follow-ups, `AgentSessionRuntimeService.startNextTurn()`:
 
-1. removes the next user message from the pending queue;
+1. shifts the next user message off the session entry's `pendingTurns`;
 2. saves a new pending assistant row;
 3. creates a fresh `turnId`;
 4. calls `AiStreamManager.startRuntimeTurn(...)` with:
-   - the same topic id;
-   - the same runtime pending queue;
+   - the same topic id and model id;
    - `runtime: { kind: 'agent-session', sessionId, turnId }`;
    - seed messages containing the user row and empty assistant row.
 
@@ -153,14 +154,14 @@ For a short idle window it keeps:
 
 - the runtime connection, if it is still alive;
 - `lastResumeToken`;
-- the session-level pending queue state.
+- the session entry's `pendingTurns`.
 
 If a new turn arrives during that window, `beginTurn()` reuses the same
 entry and only swaps the current UI turn plus the UI pending queue.
 
 When the idle timer expires, the runtime closes the entry:
 
-- closes pending queues;
+- clears `pendingTurns`;
 - closes the runtime connection;
 - prewarms Claude Code when a latest resume token is known.
 

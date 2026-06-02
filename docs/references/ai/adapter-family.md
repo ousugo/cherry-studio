@@ -105,9 +105,9 @@ mirrors this for catalog entries.
 | Target | File | Cases |
 |---|---|---|
 | `inferAdapterFamily` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` | 5 |
-| Migrator backfill | `src/main/data/migration/v2/migrators/mappings/__tests__/ProviderModelMappings.test.ts` | 9 |
+| Migrator backfill | `src/main/data/migration/v2/migrators/mappings/__tests__/ProviderModelMappings.test.ts` | 4 |
 | Runtime resolver | `src/main/ai/provider/__tests__/endpoint.test.ts` | 54 |
-| `buildRuntimeEndpointConfigs` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` | 9 |
+| `buildRuntimeEndpointConfigs` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` | 10 |
 
 ## Where to read more
 

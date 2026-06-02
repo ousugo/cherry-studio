@@ -5,16 +5,21 @@
 `IpcChatTransport`
 (`src/renderer/transport/IpcChatTransport.ts`) implements AI SDK's
 `ChatTransport<CherryUIMessage>` over Electron IPC. The renderer feeds
-it into `useChat({ id: topicId, transport: ... })`; AI SDK calls
-`sendMessages` / `reconnectToStream` / `cancel`, the transport relays
-each over `window.api.ai.stream*` to Main's `AiStreamManager`.
+it into `useChat({ id: topicId, transport: ... })`. The `ChatTransport`
+interface has only two methods — `sendMessages` / `reconnectToStream`;
+the transport relays each over `window.api.ai.stream*` to Main's
+`AiStreamManager`. `cancel` is **not** a transport method: it is the
+`cancel` callback of the `ReadableStream` that `sendMessages` returns
+(AI SDK invokes it on unmount/disposal), and abort is driven by the
+request's `abortSignal`.
 
 ```
 useChat({ id: topicId, transport: new IpcChatTransport(defaultBody) })
-   │
+   │  transport methods
    ├─ sendMessages         → window.api.ai.streamOpen   (Ai_Stream_Open)
    ├─ reconnectToStream    → window.api.ai.streamAttach (Ai_Stream_Attach)
-   ├─ cancel               → window.api.ai.streamDetach (Ai_Stream_Detach)
+   │  returned-stream / signal callbacks
+   ├─ stream cancel()      → window.api.ai.streamDetach (Ai_Stream_Detach)
    └─ request abort signal → window.api.ai.streamAbort  (Ai_Stream_Abort)
 ```
 
@@ -50,8 +55,10 @@ that need to join optimistic UI bubbles, rather than being thrown away by
 AI SDK's transport interface.
 
 It does **not** serialize sends — there is no single-in-flight guard in the
-coordinator. Concurrency for a topic is arbitrated on the Main side by
-`AiStreamManager` (inject-vs-start).
+coordinator. Concurrency for a topic is arbitrated on the Main side: a chat
+resubmit to a live topic is aborted-and-restarted by `dispatch`
+(`AiStreamManager.abortAndAwait`), while an agent-session follow-up attaches
+to the running stream.
 
 ## Per-execution demux
 
@@ -78,8 +85,9 @@ the cross-window source of truth for:
 - `pending` / `streaming` / `awaiting-approval` / `done` / `error` / `aborted`
 - broadcast-completion anchor ids
 
-`classifyTurn(status)` decodes the status into the predicates the UI
-consumes (`isStreaming`, `isAwaitingApproval`, `isTerminal`, …).
+`classifyTurn(status)` decodes the status into the `TurnStateFlags`
+predicates the UI consumes (`isStreamLive`, `isTurnActive`,
+`isAwaitingApproval`, `isTerminal`).
 
 ## Where to read more
 

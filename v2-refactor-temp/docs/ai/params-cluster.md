@@ -4,8 +4,8 @@
 
 | Subpath | Files | Role |
 |---|---|---|
-| `agent/params/` | `buildAgentParams.ts` (222), `feature.ts` (24), `scope.ts` (44), `capabilities.ts` (128), `assembleSystemPrompt.ts`, `collectFromFeatures.ts`, `composeHooks.ts`, `buildTelemetry.ts` | The orchestrator + scope + feature interface |
-| `agent/params/features/` | `index.ts` + 16 feature files (~50 LOC each) | The internal `RequestFeature` set |
+| `runtime/aiSdk/params/` | `buildAgentParams.ts` (222), `feature.ts` (24), `scope.ts` (44), `capabilities.ts` (128), `assembleSystemPrompt.ts`, `collectFromFeatures.ts`, `composeHooks.ts`, `buildTelemetry.ts` | The orchestrator + scope + feature interface |
+| `runtime/aiSdk/params/features/` | `index.ts` + 16 feature files (~50 LOC each) | The internal `RequestFeature` set |
 | Tests | `params/__tests__/`, `params/features/__tests__/` | Per-file coverage |
 
 ## Intent

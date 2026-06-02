@@ -95,11 +95,11 @@ by stream-manager.
 
 ### `pipeStreamLoop`
 
-Shared chunk-pipe primitive used by both the chat read-loop
-(`AiStreamManager.runExecutionLoop`) and the ad-hoc prompt-stream
-handler (`AiService.runPromptStream`). Tees the broadcast reader from
-the `readUIMessageStream` accumulator. Behaviour contract is in the
-file header — focus check: never-throws, captures `streamErrorText` for
+Shared chunk-pipe primitive driven from `AiStreamManager.runExecutionLoop`
+— every execution runs through it, chat turns and ad-hoc prompt streams
+(`streamPrompt`) alike. Tees the broadcast reader from the
+`readUIMessageStream` accumulator. Behaviour contract is in the file
+header — focus check: never-throws, captures `streamErrorText` for
 in-stream `chunk.type === 'error'`, returns `threw` for setup errors.
 
 ## Invariants reviewers should check

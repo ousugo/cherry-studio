@@ -61,8 +61,9 @@ export const INTERNAL_FEATURES = [
 ]
 ```
 
-Callers can append per-request `extraFeatures` (AiService analytics is the
-main one); those run after the internal set.
+Callers can append per-request `extraFeatures`; those run after the
+internal set. (AiService's analytics is *not* one of these — it is injected
+separately as a `hookParts` entry, not a `RequestFeature`.)
 
 ## RequestScope
 

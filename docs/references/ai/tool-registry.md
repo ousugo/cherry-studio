@@ -15,9 +15,10 @@ interface ToolEntry {
 
 `registry` (`src/main/ai/tools/adapters/aiSdk/registry.ts`) is a
 process-wide singleton. Tool files register at module-import time; the
-registry is read at request time by `buildAgentParams`. A parallel
-adapter, `tools/adapters/claudeCode/agentTools.ts`, maps the same registry
-entries onto the Claude Code runtime.
+registry is read at request time by `buildAgentParams`. The Claude Code
+runtime has a *separate* tool system — `tools/adapters/claudeCode/agentTools.ts`
+builds its descriptors from MCP servers and built-in descriptors directly;
+it does not consume this aiSdk `ToolRegistry`.
 
 Tests construct their own `new ToolRegistry()` to avoid singleton pollution.
 
@@ -112,9 +113,10 @@ behind an explicit Preference key once there is a concrete need.
   `registry.selectActive`. Throws are caught and treated as "inactive"
   with a warning log.
 - `createAiRepair(...)` (`tools/adapters/aiSdk/repair.ts`) — passed to AI SDK as
-  `repairToolCall`. When the model emits an unknown tool name or
-  malformed args, the repair function gets one chance to fix it via a
-  follow-up LLM call.
+  `repairToolCall`. When the model emits **malformed args**
+  (`InvalidToolInputError`), the repair function gets one chance to fix it via a
+  follow-up LLM call. Other failures (e.g. an unknown tool name) are
+  returned unrepaired.
 
 ## Where to read more
 

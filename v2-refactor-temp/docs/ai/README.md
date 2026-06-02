@@ -26,11 +26,11 @@ Each cluster doc:
 | Cluster | What it covers | Doc |
 |---|---|---|
 | Stream Manager | `AiStreamManager`, listeners, persistence backends, lifecycle, dispatcher, context providers | [stream-manager-cluster.md](./stream-manager-cluster.md) |
-| Agent Loop | `Agent` class, hooks composition, `PendingMessageQueue`, observers, tool-execution events | [agent-cluster.md](./agent-cluster.md) |
+| Agent Loop | `Agent` class, hooks composition, single-pass stream, observers, tool-execution events | [agent-cluster.md](./agent-cluster.md) |
 | Params Pipeline | `buildAgentParams`, `RequestFeature` set, capability resolution, system-prompt assembly | [params-cluster.md](./params-cluster.md) |
 | Tool Registry | Registry, built-in tools, MCP sync, meta-tools, defer exposition, tool-call repair | [tool-cluster.md](./tool-cluster.md) |
 | Provider Resolution | `provider/config.ts`, `endpoint.ts`, extensions, custom providers (aihubmix, newapi), Claude Code runtime helpers | [provider-cluster.md](./provider-cluster.md) |
-| Messages & Trace | UI part conversion, file processor, OTel span adapter | [messages-trace-cluster.md](./messages-trace-cluster.md) |
+| Messages & Observability | UI part conversion, file processor, OTel span adapter | [messages-observability-cluster.md](./messages-observability-cluster.md) |
 | AiService & IPC | `AiService` lifecycle wiring, IPC handlers, request-type schemas | [ai-service-cluster.md](./ai-service-cluster.md) |
 | Renderer Transport | `IpcChatTransport`, dispatch coordinator, topic-level subscription, awaiting-approval bridge | [renderer-transport-cluster.md](./renderer-transport-cluster.md) |
 | Renderer V2 Chat UI | Parts-based rendering, approval cards, branch navigation, execution overlay | [renderer-ui-cluster.md](./renderer-ui-cluster.md) |
@@ -54,6 +54,8 @@ docs above reference them:
   estimation behind the input-bar badge.
 - [`large-file-upload-port.md`](./large-file-upload-port.md) — outstanding
   port from renderer for Gemini/OpenAI File APIs.
+- [`tool-approval-defer-fix.md`](./tool-approval-defer-fix.md) — fix design
+  for the defer-exposition approval-gate bypass (review #1).
 
 ## Suggested review order
 

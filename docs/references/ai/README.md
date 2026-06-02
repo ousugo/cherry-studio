@@ -11,15 +11,15 @@ translate, summarisation) and the renderer-side transport that connects to it.
 | Document | What it covers |
 |---|---|
 | [Core Architecture](./core-architecture.md) | End-to-end call flow: `Ai_Stream_Open` IPC → context provider → AiStreamManager → Agent loop → `@ai-sdk/*` → broadcast / persist |
-| [Stream Manager](./stream-manager.md) | Active-stream registry, listeners, reconnect, abort, mid-stream injection, persistence backends |
-| [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, pending queue injection, resume token persistence, Claude Code driver fallback |
+| [Stream Manager](./stream-manager.md) | Active-stream registry, listeners, reconnect, abort, abort-and-restart steering, persistence backends |
+| [Agent Session Runtime](./agent-session-runtime.md) | Agent-session host/driver split, `pendingTurns` follow-up queue, resume token persistence, Claude Code driver fallback |
 | [Adapter Family](./adapter-family.md) | How `provider.endpointConfigs[ep].adapterFamily` picks the right `@ai-sdk/*` package per request |
 
 ### Subsystems
 
 | Document | What it covers |
 |---|---|
-| [Agent Loop](./agent-loop.md) | Main-process `Agent.stream()`: pendingMessages queue, hook composition, observer pattern, error/abort semantics |
+| [Agent Loop](./agent-loop.md) | Main-process `Agent.stream()`: single-pass stream, hook composition, observer pattern, error/abort semantics |
 | [Params Pipeline](./params-pipeline.md) | `buildAgentParams` + `RequestFeature` model: how capabilities, plugins, tools, and provider-specific quirks are composed |
 | [Tool Registry](./tool-registry.md) | Built-in tools (knowledge / web search), MCP tools, meta-tools (`tool_search` / `tool_inspect` / `tool_invoke` / `tool_exec`), deferred exposition |
 | [Provider Resolution](./provider-resolution.md) | `Provider.endpointConfigs` schema, endpoint resolution chain, variant suffixes, custom provider extensions (aihubmix, newapi) |
@@ -29,7 +29,7 @@ translate, summarisation) and the renderer-side transport that connects to it.
 
 | Document | What it covers |
 |---|---|
-| [IPC Transport](./ipc-transport.md) | `useChat` + `IpcChatTransport`: `sendMessages` / `reconnect` / `cancel`, dispatch coordinator, topic-status mirror |
+| [IPC Transport](./ipc-transport.md) | `useChat` + `IpcChatTransport`: `sendMessages` / `reconnectToStream`, dispatch coordinator, topic-status mirror |
 | [Execution Overlay](./execution-overlay.md) | `TopicStreamSubscription` + `useExecutionOverlay`: ref-counted attach, per-execution demux, one-shot `readUIMessageStream` per turn (the renderer half of the same merge function Main uses) |
 | [Tool Approval](./tool-approval.md) | Approval registry, Main-as-writer model, persistent decisions, `useToolApproval` hook |
 
@@ -82,7 +82,7 @@ src/main/ai/
 ## How a chat turn flows
 
 1. Renderer `useChat({ transport: IpcChatTransport })` calls `sendMessages` →
-   IPC `Ai_Stream_Open` (`{ topicId, parts, parentAnchorId, models }`).
+   IPC `Ai_Stream_Open` (`{ topicId, trigger, userMessageParts, parentAnchorId?, mentionedModelIds? }`).
 2. `AiStreamManager.onInit` registered the `Ai_Stream_Open` handler; it
    wraps the sender in a `WebContentsListener` and calls
    `dispatchStreamRequest(manager, subscriber, req)`. (The stream IPC —
@@ -92,9 +92,11 @@ src/main/ai/
    `canHandle(topicId)` matches (persistent chat / temporary / agent
    session) and calls `prepareDispatch` — that resolves models, persists
    the user message, builds listeners, and returns a `PreparedDispatch`.
-4. `AiStreamManager.send(input)` either **injects** (running stream) or
-   **starts** (no active stream): creates an `ActiveStream`, launches one
-   `StreamExecution` per model.
+4. `AiStreamManager.send(input)` **starts** a turn (no active stream): creates
+   an `ActiveStream`, launches one `StreamExecution` per model. (A chat
+   resubmit on a live topic is restarted upstream — `dispatch` calls
+   `abortAndAwait` first; only an agent-session follow-up takes the
+   **inject** path, which just upserts listeners.)
 5. Each execution calls `Agent.stream(buildAgentParams(...))`. `Agent.stream`
    composes hooks from `RequestFeature[]` (anthropic cache, gateway usage
    normalisation, reasoning extraction, …), opens the AI SDK stream, and

@@ -103,13 +103,13 @@ the design rationale.
 the in-process shape. Used on `AiService.*` method signatures so the
 type system rejects the renderer trying to pass a signal across IPC.
 
-### `runPromptStream`
+### Ad-hoc prompt streams
 
-`AiService.runPromptStream` is the entry point for ad-hoc one-shot
-streams (translate, summarisation, model probes). Bypasses
-`dispatchStreamRequest`; calls `AiStreamManager.streamPrompt(...)`
-directly with a synthetic topicId and the caller's WebContentsListener.
-Uses `promptStreamLifecycle` (no status broadcast, no grace period).
+Ad-hoc one-shot streams (translate, summarisation, model probes) do **not**
+go through `AiService`. Callers invoke `AiStreamManager.streamPrompt(...)`
+directly (e.g. `translateService.ts`) with a synthetic topicId and their own
+`WebContentsListener`, using `promptStreamLifecycle` (no status broadcast, no
+grace period). See [Stream Manager](./stream-manager-cluster.md).
 
 ### Types
 
