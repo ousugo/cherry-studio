@@ -36,9 +36,11 @@ describe('AgentSessionMessageService', () => {
       .select()
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
 
     expect(row.createdAt).toBe(1_700_000_000_000)
     expect(row.updatedAt).toBe(1_700_000_000_000)
+    expect(session.updatedAt).toBe(1_700_000_000_000)
     expect(saved.createdAt).toBe('2023-11-14T22:13:20.000Z')
     expect(saved.updatedAt).toBe('2023-11-14T22:13:20.000Z')
   })
@@ -67,9 +69,11 @@ describe('AgentSessionMessageService', () => {
       .select()
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
 
     expect(row.createdAt).toBe(1_700_000_000_000)
     expect(row.updatedAt).toBe(1_700_000_000_500)
+    expect(session.updatedAt).toBe(1_700_000_000_500)
     expect(updated.createdAt).toBe(created.createdAt)
     expect(updated.updatedAt).toBe('2023-11-14T22:13:20.500Z')
   })
@@ -95,10 +99,12 @@ describe('AgentSessionMessageService', () => {
     })
 
     const rows = await dbh.db.select().from(agentSessionMessageTable)
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
 
     expect(rows).toHaveLength(2)
     expect(rows.map((row) => row.createdAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
     expect(rows.map((row) => row.updatedAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
+    expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 
   it('keeps searchable_text and FTS index in sync from message data', async () => {
