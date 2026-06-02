@@ -1,8 +1,6 @@
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatTransport, UIMessage } from 'ai'
 
-import type { PendingMessageQueue } from '../runtime/aiSdk/loop/PendingMessageQueue'
-
 /**
  * IPC-safe per-request transport config. Every field here survives
  * Electron's structured-clone — used on preload-bridge / IPC-handler
@@ -46,5 +44,4 @@ export interface AiStreamRequest extends AiBaseRequest {
   messageId?: string
   messages?: UIMessage[]
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
-  pendingMessages?: PendingMessageQueue
 }

@@ -301,7 +301,6 @@ export class AiService extends BaseService {
       tools,
       system,
       options,
-      pendingMessages: request.pendingMessages,
       hookParts: [this.analyticsHookPart(model), ...hookParts]
     })
 

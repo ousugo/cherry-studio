@@ -7,6 +7,7 @@
 import { loggerService } from '@logger'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 
+import { isAgentSessionTopic } from '../../agentSession/topic'
 import { isAgentSessionWorkspaceError } from '../../runtime/claudeCode/settingsBuilder'
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
@@ -68,6 +69,10 @@ export async function dispatchStreamRequest(
   })
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
+  }
+
+  if (hasLiveStream && !isAgentSessionTopic(req.topicId)) {
+    await manager.abortAndAwait(req.topicId, 'steer-restart')
   }
 
   const result = manager.send({

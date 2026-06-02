@@ -13,13 +13,12 @@ import type {
   AiStreamOpenRequest
 } from '@shared/ai/transport'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
-import type { CherryMessagePart, Message } from '@shared/data/types/message'
+import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
 
-import { PendingMessageQueue } from '../runtime/aiSdk/loop/PendingMessageQueue'
 import type { AiStreamRequest } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest } from './context'
@@ -74,7 +73,7 @@ export interface SendInput {
   models: ReadonlyArray<SendModelSpec>
   /** Upserted by id. */
   listeners: StreamListener[]
-  /** Follow-up message fanned out to every execution queue on the inject path. Ignored on `started`. */
+  /** Persisted user row for the turn. Not consumed by `send()`; callers carry it for their own bookkeeping. */
   userMessage?: Message
   siblingsGroupId?: number
   /** Defaults to chat lifecycle. `streamPrompt` passes `promptStreamLifecycle`. */
@@ -82,7 +81,7 @@ export interface SendInput {
 }
 
 export interface SendResult {
-  /** `started` = freshly launched executions; `injected` = pushed onto running executions. */
+  /** `started` = freshly launched executions; `injected` = listeners attached to a running stream. */
   mode: 'started' | 'injected'
   /** `started` → fresh ids; `injected` → ids already running on the topic. */
   executionIds: UniqueModelId[]
@@ -105,7 +104,6 @@ export interface ExecutionSnapshot {
   readonly status: StreamExecution['status']
   /** Observer-only — execution's own `AbortController.signal`. */
   readonly abortSignal: AbortSignal
-  readonly pendingMessageCount: number
   readonly bufferedChunkCount: number
   readonly droppedChunks: number
   readonly siblingsGroupId?: number
@@ -134,29 +132,6 @@ function isLiveStatus(status: ActiveStream['status']): boolean {
 
 function errorFromStreamChunk(errorText: string): SerializedError {
   return { name: 'StreamError', message: errorText, stack: null }
-}
-
-function createInjectedUserMessage(topicId: string, models: ReadonlyArray<SendModelSpec>): Message | undefined {
-  for (const model of models) {
-    const lastUserMessage = [...(model.request.messages ?? [])].reverse().find((message) => message.role === 'user')
-    if (!lastUserMessage) continue
-
-    const parts = (lastUserMessage.parts ?? []) as CherryMessagePart[]
-    const now = new Date().toISOString()
-    return {
-      id: lastUserMessage.id ?? randomUUID(),
-      topicId,
-      parentId: null,
-      role: 'user',
-      data: { parts },
-      searchableText: '',
-      status: 'success',
-      siblingsGroupId: 0,
-      createdAt: now,
-      updatedAt: now
-    }
-  }
-  return undefined
 }
 
 function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
@@ -244,25 +219,20 @@ export class AiStreamManager extends BaseService {
   // ── Public: unified send ──────────────────────────────────────────
 
   /**
-   * Single entry point. Live topic → inject (push `userMessage` to every
-   * execution queue, upsert listeners, `models` ignored). Otherwise →
-   * start (evict any grace-period stream, launch one execution per
-   * `models` entry). Multi-model is detected from `models.length > 1`.
+   * Single entry point. Live topic → inject (upsert listeners onto the
+   * running stream, `models` ignored). Otherwise → start (evict any
+   * grace-period stream, launch one execution per `models` entry).
+   * Multi-model is detected from `models.length > 1`.
    */
   send(input: SendInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
 
     if (existing && isLiveStatus(existing.status)) {
-      // Fan the message out per execution so each runtime consumer sees it.
-      const injectedMessage = input.userMessage ?? createInjectedUserMessage(input.topicId, input.models)
-      if (injectedMessage) {
-        for (const exec of existing.executions.values()) exec.pendingMessages.push(injectedMessage)
-      }
+      // Only agent sessions reach send() while live: the dispatcher aborts+evicts a
+      // live chat turn before re-dispatching, and an agent-session follow-up was
+      // already enqueued by its provider. Just attach the new subscriber.
       for (const listener of input.listeners) this.addListener(input.topicId, listener)
-      return {
-        mode: 'injected',
-        executionIds: [...existing.executions.keys()]
-      }
+      return { mode: 'injected', executionIds: [...existing.executions.keys()] }
     }
 
     // Evict any grace-period stream so two streams never coexist on one topic.
@@ -333,14 +303,6 @@ export class AiStreamManager extends BaseService {
       listeners: Array.isArray(input.listener) ? input.listener : [input.listener],
       lifecycle: promptStreamLifecycle
     })
-  }
-
-  /** Returns false if the topic has no live stream. */
-  injectMessage(topicId: string, message: Message): boolean {
-    const stream = this.activeStreams.get(topicId)
-    if (!stream || !isLiveStatus(stream.status)) return false
-    for (const exec of stream.executions.values()) exec.pendingMessages.push(message)
-    return true
   }
 
   startRuntimeTurn(input: StartRuntimeTurnInput): SendResult {
@@ -415,13 +377,23 @@ export class AiStreamManager extends BaseService {
     if (!stream || !isLiveStatus(stream.status)) return
     logger.info('Aborting stream', { topicId, reason })
     for (const exec of stream.executions.values()) {
-      exec.pendingMessages.close()
       if (exec.status === 'streaming') {
         exec.status = 'aborted'
         exec.abortController.abort(reason)
       }
     }
     stream.status = 'aborted'
+  }
+
+  /** Abort a live turn and wait for its executions to fully settle (persist as
+   *  paused) before the caller re-dispatches — used by the dispatcher to restart
+   *  a chat turn when a new message arrives mid-stream. */
+  async abortAndAwait(topicId: string, reason: string): Promise<void> {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || !isLiveStatus(stream.status)) return
+    this.abort(topicId, reason)
+    await Promise.allSettled([...stream.executions.values()].map((exec) => exec.loopPromise))
+    this.evictStream(topicId)
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────
@@ -573,7 +545,6 @@ export class AiStreamManager extends BaseService {
         modelId: exec.modelId,
         status: exec.status,
         abortSignal: exec.abortController.signal,
-        pendingMessageCount: exec.pendingMessages.list().length,
         bufferedChunkCount: exec.buffer.length,
         droppedChunks: exec.droppedChunks,
         siblingsGroupId: exec.siblingsGroupId,
@@ -674,7 +645,6 @@ export class AiStreamManager extends BaseService {
     siblingsGroupId?: number,
     rootSpan?: Span
   ): StreamExecution {
-    const pendingMessages = request.pendingMessages ?? new PendingMessageQueue()
     // `loopPromise` is overwritten right after launch; initialise to a resolved sentinel
     // so the `exec` object reference is stable inside the arrow function below.
     const exec: StreamExecution = {
@@ -682,7 +652,6 @@ export class AiStreamManager extends BaseService {
       anchorMessageId: request.messageId,
       abortController: new AbortController(),
       status: 'streaming',
-      pendingMessages,
       buffer: [],
       droppedChunks: 0,
       siblingsGroupId,
@@ -690,14 +659,13 @@ export class AiStreamManager extends BaseService {
       loopPromise: Promise.resolve(),
       rootSpan
     }
-    const requestWithQueue: AiStreamRequest = { ...request, pendingMessages }
 
     const launchLoop = rootSpan
       ? () =>
           otelContext.with(trace.setSpan(otelContext.active(), rootSpan), () =>
-            this.runExecutionLoop(topicId, modelId, requestWithQueue, exec)
+            this.runExecutionLoop(topicId, modelId, request, exec)
           )
-      : () => this.runExecutionLoop(topicId, modelId, requestWithQueue, exec)
+      : () => this.runExecutionLoop(topicId, modelId, request, exec)
 
     exec.loopPromise = launchLoop().catch((err) => {
       // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).

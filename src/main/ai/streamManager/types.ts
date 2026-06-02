@@ -5,7 +5,6 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
-import type { PendingMessageQueue } from '../runtime/aiSdk/loop/PendingMessageQueue'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 
 // ── Re-export shared types for consumers ────────────────────────────
@@ -93,11 +92,6 @@ export interface StreamListener {
  * One model's execution within an ActiveStream. Single-model topics have
  * one entry; multi-model (`@gpt-4o @claude-sonnet`) have N entries
  * running independently against the same listeners and siblingsGroupId.
- *
- * Each execution has a `pendingMessages` queue. Callers may provide a
- * session-level queue, otherwise the manager creates an execution-local one.
- * Injected follow-up messages fan out to every queue so each runtime consumer
- * sees the message.
  */
 export interface StreamExecution {
   /** Format: "providerId::modelId". */
@@ -107,7 +101,6 @@ export interface StreamExecution {
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
-  pendingMessages: PendingMessageQueue
   /** Per-execution chunk ring (cap = `maxBufferChunks`); overflow drops oldest and bumps `droppedChunks`. */
   buffer: StreamChunkPayload[]
   droppedChunks: number

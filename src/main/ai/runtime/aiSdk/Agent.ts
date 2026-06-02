@@ -10,7 +10,6 @@ import { convertToModelMessages } from 'ai'
 import type { AppProviderSettingsMap } from '../../types'
 import type { AgentLoopHooks, AgentLoopParams } from './loop'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/internal'
-import { attachSteeringObserver } from './observers/steering'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
 
@@ -26,9 +25,6 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
 
   constructor(public readonly params: AgentLoopParams<T>) {
     attachUsageObserver(this as Agent)
-    if (params.pendingMessages) {
-      attachSteeringObserver(this as Agent, params.pendingMessages)
-    }
   }
 
   /** Internal observer — composes ahead of caller hookParts via `composeHooks`. */
@@ -144,12 +140,6 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       writerSettled = true
       this.currentWriter = undefined
       try {
-        params.pendingMessages?.close()
-      } catch {
-        // pendingMessages.close() already idempotent in practice — swallow
-        // defensively; we don't want cleanup to block stream termination.
-      }
-      try {
         if (err === undefined) {
           await writer.close()
         } else {
@@ -176,70 +166,42 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     ;(async () => {
       await safeCall('onStart', hooks.onStart)
 
-      // Build once — config doesn't change across tail-recheck rounds.
       const aiAgent = await this.buildAiSdkAgent(hooks)
 
-      let messages = initialMessages
-      let modelMessages = await convertToModelMessages(initialMessages)
+      const messages = initialMessages
+      const modelMessages = await convertToModelMessages(initialMessages)
       let hasUsedProvidedMessageId = false
 
-      // Most runs exit after one iteration. A second round only happens
-      // when the user injected a follow-up after AI SDK's last `prepareStep`
-      // fired — the steering observer can't catch that race; the post-stream
-      // drain below does.
-      while (!signal.aborted) {
-        const result = await aiAgent.stream({
-          messages: modelMessages,
-          abortSignal: signal
-        })
+      const result = await aiAgent.stream({
+        messages: modelMessages,
+        abortSignal: signal
+      })
 
-        const uiStream = result.toUIMessageStream({
-          originalMessages: messages,
-          generateMessageId: () => {
-            if (!hasUsedProvidedMessageId && params.messageId) {
-              hasUsedProvidedMessageId = true
-              return params.messageId
-            }
-            return crypto.randomUUID()
+      const uiStream = result.toUIMessageStream({
+        originalMessages: messages,
+        generateMessageId: () => {
+          if (!hasUsedProvidedMessageId && params.messageId) {
+            hasUsedProvidedMessageId = true
+            return params.messageId
           }
-        })
-        const reader = uiStream.getReader()
-        let readError: unknown
-        try {
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done || signal.aborted) break
-            await writer.write(value)
-          }
-        } catch (error) {
-          readError = error
-        } finally {
-          reader.releaseLock()
+          return crypto.randomUUID()
         }
-        if (readError) throw readError
-
-        const response = await result.response
-
-        // Tail recheck: anything injected after the steering observer's last drain?
-        const tail = params.pendingMessages?.drain() ?? []
-        if (tail.length === 0) break
-
-        const tailUI: UIMessage[] = tail.map((msg) => ({
-          id: msg.id,
-          role: 'user' as const,
-          parts: msg.data?.parts ?? []
-        }))
-        const tailModel = await convertToModelMessages(tailUI)
-        const assistantPlaceholderUI: UIMessage = {
-          id: response.id,
-          role: 'assistant',
-          parts: []
+      })
+      const reader = uiStream.getReader()
+      let readError: unknown
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done || signal.aborted) break
+          await writer.write(value)
         }
-        messages = [...messages, assistantPlaceholderUI, ...tailUI]
-        modelMessages = [...modelMessages, ...(response.messages as ModelMessage[]), ...tailModel]
+      } catch (error) {
+        readError = error
+      } finally {
+        reader.releaseLock()
       }
+      if (readError) throw readError
 
-      // Cleanup is centralised in `settleWriter`; don't close `pendingMessages` here.
       await safeCall('onFinish', hooks.onFinish)
     })()
       .then(() => settleWriter())
