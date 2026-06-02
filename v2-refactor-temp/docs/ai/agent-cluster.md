@@ -4,12 +4,12 @@
 
 | Subpath | Files | Role |
 |---|---|---|
-| `src/main/ai/agent/` | `Agent.ts` (303) | The class, hooks composition, write() forwarding |
-| `agent/loop/` | `index.ts` (types), `internal.ts` (hook wrappers) | Loop primitives, hook wrappers |
-| `agent/observers/` | `usage.ts` | Internal `Agent.on(...)` registrations |
+| `src/main/ai/runtime/aiSdk/` | `Agent.ts` | The class, hooks composition, write() forwarding |
+| `runtime/aiSdk/loop/` | `index.ts` (types), `internal.ts` (hook wrappers) | Loop primitives, hook wrappers |
+| `runtime/aiSdk/observers/` | `usage.ts` | Internal `Agent.on(...)` registrations |
 | Tests | `loop/__tests__/agentLoop.test.ts` | Single-pass stream + hook composition |
 
-The params side (`agent/params/`) is reviewed separately in
+The params side (`runtime/aiSdk/params/`) is reviewed separately in
 [params-cluster.md](./params-cluster.md) so this cluster stays focused on
 the loop semantics.
 
@@ -52,11 +52,15 @@ onFinish, onError
 `composeHooks(parts: ReadonlyArray<Partial<AgentLoopHooks>>)`
 (`params/composeHooks.ts`) folds them. Per-key semantics:
 
-- `onStart` / `onFinish` — sequential await, errors logged, swallowed.
-- `prepareStep` — chained (each invocation receives the previous return).
-- `onStepFinish` / `onToolExecutionStart` / `onToolExecutionEnd` —
-  parallel `Promise.allSettled`.
-- `onError` — first non-`abort` wins; default `abort`.
+- `onStart` / `onStepFinish` / `onToolExecutionStart` / `onToolExecutionEnd`
+  / `onFinish` — `chainVoid`: sequential `for`-loop await; a per-hook throw
+  is `logger.warn`'d and swallowed, the chain continues. No parallel /
+  `Promise.allSettled` path.
+- `prepareStep` — `chainPrepareStep`: sequential; each handler receives the
+  previous handler's mutated options, results shallow-merged (`messages`
+  threaded forward).
+- `onError` — `chainOnError`: sequential; any handler returning `'retry'`
+  makes the result `'retry'`, otherwise `'abort'`.
 
 Observer hooks (`agent.on(key, fn)`) compose into the same pass via
 `Agent.composedHooks()`. Observers always run ahead of caller hookParts.
