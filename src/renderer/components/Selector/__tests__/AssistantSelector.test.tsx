@@ -136,6 +136,7 @@ const ASSISTANTS_RESPONSE = {
   items: [
     {
       id: ALPHA_ASSISTANT_ID,
+      source: 'user',
       name: 'Alpha Assistant',
       prompt: 'Original alpha prompt',
       emoji: 'A',
@@ -175,6 +176,7 @@ const ASSISTANTS_RESPONSE = {
     },
     {
       id: BETA_ASSISTANT_ID,
+      source: 'user',
       name: 'Beta Assistant',
       prompt: 'Original beta prompt',
       emoji: 'B',

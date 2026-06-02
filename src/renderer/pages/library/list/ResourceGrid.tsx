@@ -1,5 +1,6 @@
 import { Button, EmptyState, Input, Skeleton } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import type { Assistant } from '@shared/data/types/assistant'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Plus, Search, Tag, Upload, X } from 'lucide-react'
 import type { FC, RefObject } from 'react'
@@ -29,6 +30,8 @@ interface AssistantCatalogGridState {
   presets: AssistantCatalogPreset[]
   onTabChange: (tabId: string) => void
   onAddPreset: (preset: AssistantCatalogPreset) => Promise<void> | void
+  onOpenAssistant: (assistant: Assistant) => void
+  getAddedAssistant: (preset: AssistantCatalogPreset) => Assistant | undefined
   onPreviewPreset: (preset: AssistantCatalogPreset) => void
 }
 
@@ -292,7 +295,9 @@ export const ResourceGrid: FC<Props> = ({
             presets={assistantCatalog.presets}
             search={search}
             addingPresetKeys={addingPresetKeys}
+            getAddedAssistant={assistantCatalog.getAddedAssistant}
             onAddPreset={(preset) => void handleAddPreset(preset)}
+            onOpenAssistant={assistantCatalog.onOpenAssistant}
             onPreviewPreset={assistantCatalog.onPreviewPreset}
           />
         ) : isLoading ? (
@@ -426,7 +431,9 @@ interface VirtualizedAssistantPresetGridProps {
   presets: AssistantCatalogPreset[]
   search: string
   addingPresetKeys: ReadonlySet<string>
+  getAddedAssistant: (preset: AssistantCatalogPreset) => Assistant | undefined
   onAddPreset: (preset: AssistantCatalogPreset) => void
+  onOpenAssistant: (assistant: Assistant) => void
   onPreviewPreset: (preset: AssistantCatalogPreset) => void
 }
 
@@ -436,7 +443,9 @@ function VirtualizedAssistantPresetGrid({
   presets,
   search,
   addingPresetKeys,
+  getAddedAssistant,
   onAddPreset,
+  onOpenAssistant,
   onPreviewPreset
 }: VirtualizedAssistantPresetGridProps) {
   const rows = useMemo(() => {
@@ -459,7 +468,9 @@ function VirtualizedAssistantPresetGrid({
       presets={presets}
       search={search}
       addingPresetKeys={addingPresetKeys}
+      getAddedAssistant={getAddedAssistant}
       onAddPreset={onAddPreset}
+      onOpenAssistant={onOpenAssistant}
       onPreviewPreset={onPreviewPreset}
       virtualRows={rowVirtualizer.getVirtualItems()}
       totalHeight={rowVirtualizer.getTotalSize()}

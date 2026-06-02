@@ -974,7 +974,6 @@ const Sessions = ({
       onStartTemporarySession
     ]
   )
-
   const canDragSessionItem = useCallback(
     ({ item }: { item: SessionListItem }) => itemDragReady && !item.pinned,
     [itemDragReady]

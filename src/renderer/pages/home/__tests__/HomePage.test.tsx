@@ -599,6 +599,23 @@ describe('HomePage', () => {
     })
   })
 
+  it('seeds the first-launch temporary topic from the route assistantId', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.routeSearch = { assistantId: 'assistant-route' }
+    homeMocks.startTemporaryConversation.mockResolvedValue({
+      assistantId: 'assistant-route',
+      id: 'temp-topic',
+      topicId: 'temp-topic',
+      type: 'assistant'
+    })
+
+    render(<HomePage />)
+
+    await waitFor(() => {
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-route' })
+    })
+  })
+
   it('does not lease another temporary topic while the active temporary topic is still empty', async () => {
     homeMocks.locationState = undefined
     homeMocks.temporaryConversation = {
@@ -682,7 +699,7 @@ describe('HomePage', () => {
     )
     const navArgs = homeMocks.navigate.mock.calls[0]?.[0]
     expect(typeof navArgs?.search).toBe('function')
-    expect(navArgs?.search({ assistantId: 'a-1' })).toEqual({ assistantId: 'a-1', topicId: 'topic-next' })
+    expect(navArgs?.search({ assistantId: 'a-1' })).toEqual({ assistantId: undefined, topicId: 'topic-next' })
   })
 
   it('clears URL topicId when setActiveTopicId is called with null', async () => {

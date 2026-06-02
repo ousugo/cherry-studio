@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS: AssistantSettings = {
 describe('assistant', () => {
   const assistant: Assistant = {
     id: 'assistant',
+    source: 'user',
     name: 'assistant',
     prompt: '',
     emoji: '🌟',

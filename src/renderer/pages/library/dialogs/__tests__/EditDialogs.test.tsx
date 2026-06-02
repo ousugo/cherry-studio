@@ -332,6 +332,7 @@ import { AssistantEditDialog } from '../edit/AssistantEditDialog'
 
 const ASSISTANT: Assistant = {
   id: 'assistant-1',
+  source: 'user',
   name: 'Alpha Assistant',
   prompt: 'Original prompt',
   emoji: '💬',
