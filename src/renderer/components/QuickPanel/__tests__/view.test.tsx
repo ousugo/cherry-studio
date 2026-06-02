@@ -517,6 +517,42 @@ describe('QuickPanelView', () => {
     )
   })
 
+  it('uses either mouse hover or keyboard active state, not both', async () => {
+    const captureDispatch = vi.fn()
+    const items: QuickPanelListItem[] = [
+      { id: 'first', label: 'First action', icon: '1', action: vi.fn() },
+      { id: 'second', label: 'Second action', icon: '2', action: vi.fn() }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('First action')
+    const firstRow = screen.getByText('First action').closest('[data-id="first"]')
+    expect(firstRow).toHaveAttribute('data-active', 'true')
+    expect(firstRow?.className).not.toContain('hover:bg-accent')
+
+    fireEvent.mouseMove(screen.getByTestId('quick-panel-body'))
+
+    await waitFor(() => {
+      expect(firstRow).toHaveAttribute('data-active', 'false')
+    })
+    expect(firstRow?.className).toContain('hover:bg-accent')
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('ArrowDown').event)
+    })
+
+    await waitFor(() => {
+      expect(firstRow).toHaveAttribute('data-active', 'true')
+    })
+    expect(firstRow?.className).not.toContain('hover:bg-accent')
+  })
+
   it('does not select always-visible items with Tab when the panel is collapsed', async () => {
     const action = vi.fn()
     const captureDispatch = vi.fn()

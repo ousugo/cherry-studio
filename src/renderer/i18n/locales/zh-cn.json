@@ -381,6 +381,12 @@
       "too_large": {
         "description": "文件超过 {{limit}} 预览上限。",
         "title": "文件太大，无法预览"
+      },
+      "word": {
+        "errors": {
+          "parse_failed": "无法渲染这个 Word 文档。",
+          "read_failed": "无法读取这个 Word 文档。"
+        }
       }
     },
     "reorder": {
@@ -5072,12 +5078,12 @@
   "selector": {
     "agent": {
       "create_new": "新建智能体",
-      "empty_text": "暂无智能体",
+      "empty_text": "暂无智能体，可先新建一个智能体",
       "search_placeholder": "搜索智能体…"
     },
     "assistant": {
       "create_new": "新建助手",
-      "empty_text": "暂无助手",
+      "empty_text": "暂无助手，可先新建一个助手",
       "multi_hint": "（与多模型互斥）",
       "multi_label": "多助手并行",
       "search_placeholder": "搜索助手…"
@@ -6780,7 +6786,8 @@
       },
       "title": "提示词管理",
       "titleLabel": "标题",
-      "titlePlaceholder": "请输入提示词标题"
+      "titlePlaceholder": "请输入提示词标题",
+      "variablePlaceholder": "${变量}"
     },
     "provider": {
       "add": {

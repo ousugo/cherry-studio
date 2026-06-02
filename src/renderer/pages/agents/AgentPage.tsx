@@ -2,11 +2,12 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCommandHandler } from '@renderer/commands'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import {
   createRecentSessionEntryFromSession,
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
-import { useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
+import { useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
@@ -22,12 +23,11 @@ import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/const
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { PropsWithChildren } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
-import { AgentEmpty } from './components/status'
 import { type AgentRouteSearch, parseAgentRouteSearch } from './routeSearch'
 
 const logger = loggerService.withContext('AgentPage')
@@ -58,7 +58,7 @@ const AgentPage = () => {
   const { session: routeSession, isLoading: isRouteSessionLoading } = useSession(
     isMessageOnlyView ? routeSessionId : null
   )
-  const { agents } = useAgents()
+  const { agents, isLoading: isAgentsLoading } = useAgents()
   const navigate = useNavigate()
   const activeSessionId = isMessageOnlyView ? null : (routeSessionId ?? null)
   const setActiveSessionId = useCallback(
@@ -82,6 +82,7 @@ const AgentPage = () => {
   const initialTemporarySessionEvaluatedRef = useRef(false)
   const [replacingTemporaryAgent, setReplacingTemporaryAgent] = useState(false)
   const [replacingTemporaryWorkspace, setReplacingTemporaryWorkspace] = useState(false)
+  const [missingAgentDraft, setMissingAgentDraft] = useState(false)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
   const temporaryConversation = useTemporaryConversation({ type: 'agent' })
@@ -114,6 +115,42 @@ const AgentPage = () => {
   // All non-dormant tabs mount at once (Activity keep-alive), so each agent tab runs its
   // own AgentPage. `useIsActiveTab` answers "am I the globally-focused tab" (gates last_used).
   const isActiveTab = useIsActiveTab()
+  const currentTabId = useCurrentTabId()
+
+  const clearSessionRevealRequestAfterPaint = useCallback((requestId: number) => {
+    const clear = () => {
+      setSessionRevealRequest((current) => (current?.requestId === requestId ? undefined : current))
+    }
+
+    if (window.requestAnimationFrame) {
+      window.requestAnimationFrame(clear)
+      return
+    }
+
+    window.setTimeout(clear, 0)
+  }, [])
+
+  const revealActiveSessionInResourceList = useEffectEvent(() => {
+    if (isMessageOnlyView || !activeSessionId) return
+    const requestId = sessionRevealRequestIdRef.current + 1
+    sessionRevealRequestIdRef.current = requestId
+    setSessionRevealRequest({
+      itemId: activeSessionId,
+      requestId
+    })
+    clearSessionRevealRequestAfterPaint(requestId)
+  })
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.REVEAL_ACTIVE_RESOURCE_LIST, (payload) => {
+      const { source, tabId } = payload as ResourceListRevealPayload
+      if (source !== 'agents' || tabId !== currentTabId) return
+      revealActiveSessionInResourceList()
+    })
+
+    return unsubscribe
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest session without resubscribing.
+  }, [currentTabId])
   // Label this tab with its agent emoji + session name so multiple agent tabs
   // are distinguishable (every tab labels itself — not gated on active).
   const { agent: visibleAgent } = useAgent(visibleSession?.agentId ?? null)
@@ -185,6 +222,7 @@ const AgentPage = () => {
     (sessionId: string | null) => {
       void setShowSidebar(true)
       void discardTemporaryConversation()
+      setMissingAgentDraft(false)
       setActiveSessionId(sessionId)
 
       if (!sessionId) return
@@ -263,6 +301,7 @@ const AgentPage = () => {
           setLastUsedWorkspaceId(started.session.workspaceId)
         }
       }
+      setMissingAgentDraft(false)
       setActiveSessionId(null)
     },
     [
@@ -276,6 +315,21 @@ const AgentPage = () => {
     ]
   )
 
+  const startMissingAgentDraft = useCallback(() => {
+    setPendingLocateMessageId(undefined)
+    void discardTemporaryConversation()
+    setActiveSessionId(null)
+    setMissingAgentDraft(true)
+  }, [discardTemporaryConversation, setActiveSessionId])
+
+  const startMissingAgentDraftSession = useCallback(
+    async (agentId: string | null) => {
+      if (!agentId) return
+      await startTemporarySession({ agentId })
+    },
+    [startTemporarySession]
+  )
+
   useEffect(() => {
     if (initialTemporarySessionEvaluatedRef.current) {
       return
@@ -286,18 +340,38 @@ const AgentPage = () => {
       return
     }
 
-    if (activeSessionId || temporaryAgentConversation) {
+    if (isAgentsLoading) return
+
+    if (!agents.length) {
+      initialTemporarySessionEvaluatedRef.current = true
+      if (activeSessionId) {
+        setActiveSessionId(null)
+      }
+      setMissingAgentDraft(true)
+      return
+    }
+
+    if (missingAgentDraft || activeSessionId || temporaryAgentConversation) {
       initialTemporarySessionEvaluatedRef.current = true
       return
     }
 
     const rememberedAgent = lastUsedAgentId ? agents?.find((agent) => agent.id === lastUsedAgentId) : undefined
     const defaultAgent = rememberedAgent ?? agents?.[0]
-    if (!defaultAgent) return
 
     initialTemporarySessionEvaluatedRef.current = true
     void startTemporarySession({ agentId: defaultAgent.id })
-  }, [activeSessionId, agents, isMessageOnlyView, lastUsedAgentId, startTemporarySession, temporaryAgentConversation])
+  }, [
+    activeSessionId,
+    agents,
+    isAgentsLoading,
+    isMessageOnlyView,
+    lastUsedAgentId,
+    missingAgentDraft,
+    setActiveSessionId,
+    startTemporarySession,
+    temporaryAgentConversation
+  ])
 
   const persistTemporarySession = useCallback(
     async (initialName?: string) => {
@@ -406,15 +480,6 @@ const AgentPage = () => {
     />
   )
 
-  if (agents && agents.length === 0) {
-    return (
-      <Container>
-        <AgentEmpty />
-        {historyOverlay}
-      </Container>
-    )
-  }
-
   const panePosition = 'left'
 
   return (
@@ -430,6 +495,7 @@ const AgentPage = () => {
               revealRequest={sessionRevealRequest}
               onDiscardTemporarySession={discardTemporaryConversation}
               onStartTemporarySession={startTemporarySession}
+              onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
             />
           }
           lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
@@ -439,7 +505,11 @@ const AgentPage = () => {
           onPaneCollapse={() => void setShowSidebar(false)}
           showResourceListControls={!isMessageOnlyView && !isWindowFrame}
           temporaryConversation={isMessageOnlyView ? null : temporaryAgentConversation}
+          missingAgentDraft={
+            !isMessageOnlyView && missingAgentDraft && !visibleSession && temporaryAgentConversation?.type !== 'agent'
+          }
           onStartTemporarySession={isMessageOnlyView ? undefined : startTemporarySession}
+          onMissingAgentDraftAgentChange={isMessageOnlyView ? undefined : startMissingAgentDraftSession}
           onPersistTemporarySession={isMessageOnlyView ? undefined : persistTemporarySession}
           onDraftAgentChange={isMessageOnlyView ? undefined : replaceTemporaryAgent}
           onDraftWorkspaceChange={isMessageOnlyView ? undefined : replaceTemporaryWorkspace}

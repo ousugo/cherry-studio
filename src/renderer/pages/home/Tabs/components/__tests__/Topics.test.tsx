@@ -301,18 +301,41 @@ import {
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '../Topics.helpers'
 
-const DEFAULT_EXPANDED_TOPIC_GROUP_IDS = [
-  TOPIC_PINNED_SECTION_ID,
-  TOPIC_ASSISTANT_SECTION_ID,
-  TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
+const TOPIC_GROUP_EXPANSION_KEY = 'topic.tab.group_expansion'
+
+const DEFAULT_EXPANDED_TOPIC_TIME_SECTION_IDS: string[] = []
+const DEFAULT_EXPANDED_TOPIC_TIME_GROUP_IDS = [
   TOPIC_PINNED_GROUP_ID,
-  'topic:assistant:assistant-1',
-  'topic:assistant:assistant-2',
   'topic:time:today',
   'topic:time:yesterday',
   'topic:time:this-week',
   'topic:time:earlier'
 ]
+const DEFAULT_EXPANDED_TOPIC_ASSISTANT_SECTION_IDS = [TOPIC_PINNED_SECTION_ID, TOPIC_ASSISTANT_SECTION_ID]
+const DEFAULT_EXPANDED_TOPIC_ASSISTANT_GROUP_IDS = [
+  TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
+  'topic:assistant:assistant-1',
+  'topic:assistant:assistant-2'
+]
+
+function createExpandedTopicGroupExpansionFixture() {
+  return {
+    time: {
+      expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_TIME_SECTION_IDS],
+      expandedGroupIds: [...DEFAULT_EXPANDED_TOPIC_TIME_GROUP_IDS]
+    },
+    assistant: {
+      expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_ASSISTANT_SECTION_IDS],
+      expandedGroupIds: [...DEFAULT_EXPANDED_TOPIC_ASSISTANT_GROUP_IDS]
+    }
+  }
+}
+
+function getTopicGroupExpansionPreference() {
+  return MockUsePreferenceUtils.getPreferenceValue(TOPIC_GROUP_EXPANSION_KEY as never) as ReturnType<
+    typeof createExpandedTopicGroupExpansionFixture
+  >
+}
 
 function createApiTopic(overrides: Partial<ApiTopic> = {}) {
   return {
@@ -477,7 +500,7 @@ describe('Topics', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'topic.tab.display_mode': 'assistant',
-      'topic.tab.collapsed_group_ids': DEFAULT_EXPANDED_TOPIC_GROUP_IDS,
+      [TOPIC_GROUP_EXPANSION_KEY]: createExpandedTopicGroupExpansionFixture(),
       'data.export.menus.docx': true,
       'data.export.menus.image': true,
       'data.export.menus.joplin': true,
@@ -1011,6 +1034,54 @@ describe('Topics', () => {
     expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
   })
 
+  it('keeps the expanded topic window after selecting a topic revealed by show more', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+    mockUseQuery.mockImplementation((path) => {
+      if (path === '/pins') {
+        return {
+          data: [],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return {
+        data: [],
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: createTopicPageItems(11) }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { rerenderTopicList, setActiveTopic } = renderTopicList()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more topics' }))
+    fireEvent.click(getTopicRow('Topic 6'))
+
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-6' }))
+
+    rerenderTopicList(undefined, createRendererTopic({ id: 'topic-6', name: 'Topic 6' }))
+
+    expect(screen.getByText('Topic 10')).toBeInTheDocument()
+    expect(screen.getByText('Topic 11')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse topics' })).toBeInTheDocument()
+  })
+
   it('collapses assistant groups from the display options menu', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
@@ -1069,10 +1140,10 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Alpha topic 1')).not.toBeInTheDocument()
     expect(screen.queryByText('Beta topic 1')).not.toBeInTheDocument()
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual(
+    expect(getTopicGroupExpansionPreference().assistant.expandedSectionIds).toEqual(
       expect.arrayContaining([TOPIC_ASSISTANT_SECTION_ID])
     )
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).not.toEqual(
+    expect(getTopicGroupExpansionPreference().assistant.expandedGroupIds).not.toEqual(
       expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
     )
 
@@ -1156,6 +1227,10 @@ describe('Topics', () => {
 
   it('keeps the pinned group first and lets each group collapse independently', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+    MockUsePreferenceUtils.setPreferenceValue(
+      TOPIC_GROUP_EXPANSION_KEY as never,
+      createExpandedTopicGroupExpansionFixture()
+    )
     const { rerenderTopicList } = renderTopicList()
 
     const groupButtons = screen.getAllByRole('button', { expanded: true })
@@ -1179,7 +1254,13 @@ describe('Topics', () => {
 
   it('restores and persists expanded topic groups from preference', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, ['topic:time:today'])
+    MockUsePreferenceUtils.setPreferenceValue(TOPIC_GROUP_EXPANSION_KEY as never, {
+      ...createExpandedTopicGroupExpansionFixture(),
+      time: {
+        expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_TIME_SECTION_IDS],
+        expandedGroupIds: ['topic:time:today']
+      }
+    })
 
     const { rerenderTopicList } = renderTopicList()
 
@@ -1189,14 +1270,13 @@ describe('Topics', () => {
     expect(screen.queryByText('Beta pinned')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Today' }))
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([])
+    expect(getTopicGroupExpansionPreference().time.expandedGroupIds).toEqual([])
     rerenderTopicList()
     expect(screen.getByRole('button', { name: 'Today' }).querySelector('.lucide-chevron-down')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
-      'topic:pinned'
-    ])
+    expect(getTopicGroupExpansionPreference().time.expandedGroupIds).toEqual(['topic:pinned'])
     rerenderTopicList()
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
   })
@@ -1301,7 +1381,13 @@ describe('Topics', () => {
 
   it('reveals a history-selected topic hidden by show-more', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, ['topic:time:today'])
+    MockUsePreferenceUtils.setPreferenceValue(TOPIC_GROUP_EXPANSION_KEY as never, {
+      ...createExpandedTopicGroupExpansionFixture(),
+      time: {
+        expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_TIME_SECTION_IDS],
+        expandedGroupIds: ['topic:time:today']
+      }
+    })
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
@@ -1457,7 +1543,13 @@ describe('Topics', () => {
 
   it('renders assistant groups and creates topics with the selected assistant payload', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    MockUsePreferenceUtils.setPreferenceValue('topic.tab.collapsed_group_ids' as never, [])
+    MockUsePreferenceUtils.setPreferenceValue(TOPIC_GROUP_EXPANSION_KEY as never, {
+      ...createExpandedTopicGroupExpansionFixture(),
+      assistant: {
+        expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_ASSISTANT_SECTION_IDS],
+        expandedGroupIds: []
+      }
+    })
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
         return {
@@ -1566,7 +1658,7 @@ describe('Topics', () => {
     expect(screen.queryByRole('button', { name: 'Default Assistant' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Gamma Assistant' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Gamma Assistant' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toBeInTheDocument()
     const assistantSectionButton = screen
       .getAllByRole('button', { name: 'Assistant' })
@@ -1575,7 +1667,6 @@ describe('Topics', () => {
     expect(assistantSectionButton).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Gamma Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByText('Pinned unknown')).toBeInTheDocument()
     expect(screen.queryByText('Known alpha')).not.toBeInTheDocument()
@@ -1583,28 +1674,17 @@ describe('Topics', () => {
     expect(screen.queryByText('Default topic')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')).toHaveTextContent('🧪')
     expect(screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')).toHaveTextContent('✍️')
-    expect(screen.getByRole('button', { name: 'Gamma Assistant' }).closest('div')).toHaveTextContent('🧭')
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
 
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual([
-      TOPIC_PINNED_SECTION_ID,
-      TOPIC_ASSISTANT_SECTION_ID,
-      'topic:assistant:assistant-1'
+    expect(getTopicGroupExpansionPreference().assistant.expandedSectionIds).toEqual([
+      ...DEFAULT_EXPANDED_TOPIC_ASSISTANT_SECTION_IDS
     ])
+    expect(getTopicGroupExpansionPreference().assistant.expandedGroupIds).toEqual(['topic:assistant:assistant-1'])
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     expect(assistantHeader).toBeInTheDocument()
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
-
-    const emptyAssistantHeader = screen.getByRole('button', { name: 'Gamma Assistant' }).closest('div')
-    expect(emptyAssistantHeader).toBeInTheDocument()
-    fireEvent.click(within(emptyAssistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
-    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-3' })
-
-    vi.mocked(onNewTopic).mockClear()
-    fireEvent.click(screen.getByRole('button', { name: 'Gamma Assistant' }))
-    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-3' })
 
     for (const groupName of ['Pinned', 'Unlinked Assistant'] as const) {
       const header = screen.getByRole('button', { name: groupName }).closest('div')
@@ -1741,9 +1821,7 @@ describe('Topics', () => {
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
     expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never) ?? []).toContain(
-      'topic:assistant:assistant-2'
-    )
+    expect(getTopicGroupExpansionPreference().assistant.expandedGroupIds).toContain('topic:assistant:assistant-2')
 
     rerenderTopicList(
       undefined,
@@ -1755,9 +1833,7 @@ describe('Topics', () => {
     expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
 
     fireEvent.click(selectedBetaGroupButton)
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).not.toContain(
-      'topic:assistant:assistant-2'
-    )
+    expect(getTopicGroupExpansionPreference().assistant.expandedGroupIds).not.toContain('topic:assistant:assistant-2')
 
     rerenderTopicList(
       undefined,
@@ -1840,7 +1916,13 @@ describe('Topics', () => {
   it('persists assistant group expansion state without affecting time groups', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'topic.tab.display_mode': 'assistant',
-      'topic.tab.collapsed_group_ids': ['topic:assistant:assistant-2']
+      [TOPIC_GROUP_EXPANSION_KEY]: {
+        ...createExpandedTopicGroupExpansionFixture(),
+        assistant: {
+          expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_ASSISTANT_SECTION_IDS],
+          expandedGroupIds: ['topic:assistant:assistant-2']
+        }
+      }
     })
 
     renderTopicList()
@@ -1851,9 +1933,10 @@ describe('Topics', () => {
     expect(screen.getByText('Gamma topic')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.collapsed_group_ids' as never)).toEqual(
+    expect(getTopicGroupExpansionPreference().assistant.expandedGroupIds).toEqual(
       expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
     )
+    expect(getTopicGroupExpansionPreference().time.expandedGroupIds).toEqual(DEFAULT_EXPANDED_TOPIC_TIME_GROUP_IDS)
   })
 
   it('persists assistant group reorder and applies the assistant order optimistically', async () => {

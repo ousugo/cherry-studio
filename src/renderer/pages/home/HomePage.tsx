@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { useCommandHandler } from '@renderer/commands'
 import { ChatAppShell, EmptyState, LoadingState } from '@renderer/components/chat'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
@@ -22,7 +23,7 @@ import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -212,6 +213,41 @@ const HomePage: FC = () => {
   const currentTabId = useCurrentTabId()
   const conversationNav = useConversationNavigation('assistants')
   const isActiveTab = useIsActiveTab()
+
+  const clearTopicRevealRequestAfterPaint = useCallback((requestId: number) => {
+    const clear = () => {
+      setTopicRevealRequest((current) => (current?.requestId === requestId ? undefined : current))
+    }
+
+    if (window.requestAnimationFrame) {
+      window.requestAnimationFrame(clear)
+      return
+    }
+
+    window.setTimeout(clear, 0)
+  }, [])
+
+  const revealActiveTopicInResourceList = useEffectEvent(() => {
+    if (isMessageOnlyView || !visibleTopic?.id) return
+    const requestId = topicRevealRequestIdRef.current + 1
+    topicRevealRequestIdRef.current = requestId
+    setTopicRevealRequest({
+      itemId: visibleTopic.id,
+      requestId
+    })
+    clearTopicRevealRequestAfterPaint(requestId)
+  })
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.REVEAL_ACTIVE_RESOURCE_LIST, (payload) => {
+      const { source, tabId } = payload as ResourceListRevealPayload
+      if (source !== 'assistants' || tabId !== currentTabId) return
+      revealActiveTopicInResourceList()
+    })
+
+    return unsubscribe
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest topic without resubscribing.
+  }, [currentTabId])
 
   useEffect(() => {
     // Track "last focused topic" only for persisted topics — temp ids are

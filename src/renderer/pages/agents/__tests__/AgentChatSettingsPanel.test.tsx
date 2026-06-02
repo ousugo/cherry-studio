@@ -9,6 +9,15 @@ const partsByMessageIdMock = vi.hoisted(() => ({
   value: {} as Record<string, unknown[]>
 }))
 
+const activeAgentMock = vi.hoisted(() => ({
+  value: { id: 'agent-1', model: 'provider:model-1' } as any
+}))
+const agentRightPanePropsMock = vi.hoisted(() => ({
+  last: undefined as any,
+  openAgentToolFlow: vi.fn(),
+  openArtifactFile: vi.fn(),
+  openTrace: vi.fn()
+}))
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
 const agentSessionRefreshMock = vi.hoisted(() => vi.fn())
 const toastWarningMock = vi.hoisted(() => vi.fn())
@@ -104,7 +113,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 
 vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useAgent: () => ({
-    agent: { id: 'agent-1', model: 'provider:model-1' },
+    agent: activeAgentMock.value,
     isLoading: false
   }),
   useAgents: () => ({
@@ -169,6 +178,33 @@ vi.mock('../components/AgentChatNavbar', () => ({
   default: () => <div data-testid="agent-navbar" />
 }))
 
+vi.mock('../components/AgentRightPane', () => {
+  const MockAgentRightPane = Object.assign(
+    ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => {
+      agentRightPanePropsMock.last = props
+      return <div data-testid="agent-right-pane">{children}</div>
+    },
+    {
+      Host: () => <div data-testid="agent-right-pane-host" />,
+      MaximizedOverlay: () => <div data-testid="agent-right-pane-overlay" />,
+      FilesToggle: ({ disabled }: { disabled?: boolean }) => (
+        <button type="button" disabled={disabled}>
+          Files
+        </button>
+      )
+    }
+  )
+
+  return {
+    AgentRightPane: MockAgentRightPane,
+    useAgentRightPaneActions: () => ({
+      openAgentToolFlow: agentRightPanePropsMock.openAgentToolFlow,
+      openArtifactFile: agentRightPanePropsMock.openArtifactFile,
+      openTrace: agentRightPanePropsMock.openTrace
+    })
+  }
+})
+
 vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
   default: () => <div data-testid="agent-composer" />,
   AgentHomeComposer: () => <div data-testid="agent-home-composer" />
@@ -212,6 +248,11 @@ describe('AgentChat settings panel', () => {
 
   beforeEach(() => {
     partsByMessageIdMock.value = {}
+    activeAgentMock.value = { id: 'agent-1', model: 'provider:model-1' }
+    agentRightPanePropsMock.last = undefined
+    agentRightPanePropsMock.openAgentToolFlow.mockReset()
+    agentRightPanePropsMock.openArtifactFile.mockReset()
+    agentRightPanePropsMock.openTrace.mockReset()
     toolApprovalRespondMock.mockReset()
     toolApprovalRespondMock.mockResolvedValue({ ok: true })
     agentSessionRefreshMock.mockReset()
@@ -245,6 +286,19 @@ describe('AgentChat settings panel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('normalizes blank agent avatars before passing them to the right pane', () => {
+    activeAgentMock.value = {
+      id: 'agent-1',
+      name: 'Blank avatar agent',
+      model: 'provider:model-1',
+      configuration: { avatar: '   ' }
+    }
+
+    renderAgentChat()
+
+    expect(agentRightPanePropsMock.last?.agentAvatar).toBe('🤖')
   })
 
   it('replaces the agent inputbar with AskUserQuestionComposer for pending requests', () => {

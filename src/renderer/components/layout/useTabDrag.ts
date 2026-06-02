@@ -28,7 +28,7 @@ export interface UseTabDragReturn {
   noTransition: boolean
   getTranslateX: (tabId: string, tabType: 'pinned' | 'normal') => number
   handlePointerDown: (e: React.PointerEvent, tab: Tab, tabType: 'pinned' | 'normal') => void
-  handleTabClick: (tabId: string) => void
+  handleTabClick: (tabId: string) => boolean
   isDragging: (tabId: string) => boolean
   isGhost: (tabId: string) => boolean
 }
@@ -168,9 +168,10 @@ export function useTabDrag({
     (tabId: string) => {
       if (didDragRef.current) {
         didDragRef.current = false
-        return
+        return false
       }
       setActiveTab(tabId)
+      return true
     },
     [setActiveTab]
   )

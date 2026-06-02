@@ -19,7 +19,7 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 import dayjs from 'dayjs'
-import { ArrowRight, Bot, MessageSquareText, PinIcon, Trash2, Wrench } from 'lucide-react'
+import { Bot, MessageSquareText, PinIcon, Trash2, Wrench } from 'lucide-react'
 import type { ReactElement, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -61,7 +61,7 @@ type RenameTarget =
     }
 
 const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shadow-none'
-const historyTableGridClassName = 'grid min-w-[760px] grid-cols-[44px_minmax(284px,1fr)_160px_96px_104px]'
+const historyTableGridClassName = 'grid min-w-[760px] grid-cols-[44px_minmax(284px,1fr)_160px_96px_76px]'
 const historyHeaderClassName =
   'sticky top-0 z-10 border-border-muted border-b bg-card text-muted-foreground text-xs leading-4'
 const historyHeaderCellClassName = 'flex h-10 min-w-0 items-center px-3 py-2 font-semibold'
@@ -285,7 +285,6 @@ const HistoryResultList = ({
           isPinned={isTopicPinned(topic.id)}
           isSelected={selectedTopicIdSet.has(topic.id)}
           deleteLabel={t('common.delete', '删除')}
-          openLabel={t('common.open', '打开')}
           pinLabel={t('chat.topics.pin', '固定话题')}
           selectLabel={`${t('common.select', '选择')} ${topic.name || t('chat.default.topic.name', '新话题')}`}
           showFixedActionShadow={showFixedActionShadow}
@@ -329,7 +328,6 @@ const HistoryResultList = ({
           isPinned={isSessionPinned(session.id)}
           isSelected={selectedSessionIdSet.has(session.id)}
           deleteLabel={t('common.delete', '删除')}
-          openLabel={t('common.open', '打开')}
           pinLabel={t('selector.common.pin', '固定')}
           selectLabel={`${t('common.select', '选择')} ${session.name || t('common.unnamed', '未命名')}`}
           session={session}
@@ -526,7 +524,6 @@ interface HistoryTopicRowProps {
   deleteLabel: string
   isPinned: boolean
   isSelected: boolean
-  openLabel: string
   pinLabel: string
   selectLabel: string
   showFixedActionShadow: boolean
@@ -546,7 +543,6 @@ const HistoryTopicRow = ({
   deleteLabel,
   isPinned,
   isSelected,
-  openLabel,
   pinLabel,
   selectLabel,
   showFixedActionShadow,
@@ -566,7 +562,7 @@ const HistoryTopicRow = ({
     <HistorySelectionCell checked={isSelected} label={selectLabel} onCheckedChange={onSelectedChange} />
     <div className={historyBodyCellClassName} role="cell">
       <div className="flex min-w-0 items-center" data-testid="history-topic-rename-field">
-        <span className="truncate font-medium text-foreground-secondary">{title}</span>
+        <HistoryTitleButton title={title} onOpen={onOpen} />
       </div>
     </div>
     <div className={historyBodyCellClassName} role="cell">
@@ -591,11 +587,9 @@ const HistoryTopicRow = ({
         actions={actions}
         deleteLabel={deleteLabel}
         isPinned={isPinned}
-        openLabel={openLabel}
         pinLabel={pinLabel}
         unpinLabel={unpinLabel}
         onAction={onAction}
-        onOpen={onOpen}
         onTogglePin={onTogglePin}
       />
     </div>
@@ -608,7 +602,6 @@ interface HistorySessionRowProps {
   deleteLabel: string
   isPinned: boolean
   isSelected: boolean
-  openLabel: string
   pinLabel: string
   selectLabel: string
   session: AgentSessionEntity
@@ -629,7 +622,6 @@ const HistorySessionRow = ({
   deleteLabel,
   isPinned,
   isSelected,
-  openLabel,
   pinLabel,
   selectLabel,
   session,
@@ -655,7 +647,7 @@ const HistorySessionRow = ({
         <div className="flex min-w-0 items-center">
           <span className="min-w-0 flex-1" data-testid="history-session-rename-field">
             <span className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate font-medium text-foreground-secondary">{title}</span>
+              <HistoryTitleButton title={title} onOpen={onOpen} />
             </span>
             {session.description && (
               <span className="mt-0.5 block truncate text-foreground-muted text-xs leading-4">
@@ -687,11 +679,9 @@ const HistorySessionRow = ({
           actions={actions}
           deleteLabel={deleteLabel}
           isPinned={isPinned}
-          openLabel={openLabel}
           pinLabel={pinLabel}
           unpinLabel={unpinLabel}
           onAction={onAction}
-          onOpen={onOpen}
           onTogglePin={onTogglePin}
         />
       </div>
@@ -715,6 +705,31 @@ const HistorySelectionCell = ({ checked, label, onCheckedChange }: HistorySelect
       onClick={(event) => event.stopPropagation()}
     />
   </div>
+)
+
+interface HistoryTitleButtonProps {
+  title: string
+  onOpen?: () => void
+}
+
+const HistoryTitleButton = ({ title, onOpen }: HistoryTitleButtonProps) => (
+  <span
+    role="button"
+    tabIndex={0}
+    className="-mx-1 min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+    title={title}
+    onClick={(event) => {
+      event.stopPropagation()
+      onOpen?.()
+    }}
+    onKeyDown={(event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return
+      event.preventDefault()
+      event.stopPropagation()
+      onOpen?.()
+    }}>
+    {title}
+  </span>
 )
 
 interface HistoryActionContextMenuProps<TContext = unknown> {
@@ -799,11 +814,9 @@ interface HistoryActionsCellProps<TContext = unknown> {
   actions: readonly ResolvedAction<TContext>[]
   deleteLabel: string
   isPinned: boolean
-  openLabel: string
   pinLabel: string
   unpinLabel: string
   onAction: (action: ResolvedAction<TContext>) => void | Promise<void>
-  onOpen?: () => void
   onTogglePin?: () => void | Promise<void>
 }
 
@@ -811,11 +824,9 @@ function HistoryActionsCell<TContext = unknown>({
   actions,
   deleteLabel,
   isPinned,
-  openLabel,
   pinLabel,
   unpinLabel,
   onAction,
-  onOpen,
   onTogglePin
 }: HistoryActionsCellProps<TContext>) {
   const [pendingDeleteAction, setPendingDeleteAction] = useState<ResolvedAction<TContext> | undefined>()
@@ -832,7 +843,6 @@ function HistoryActionsCell<TContext = unknown>({
   return (
     <>
       <div className="flex items-center justify-center gap-1" onClick={(event) => event.stopPropagation()}>
-        <OpenActionButton label={openLabel} onClick={onOpen} />
         <PinActionButton isPinned={isPinned} pinLabel={pinLabel} unpinLabel={unpinLabel} onClick={onTogglePin} />
         <DeleteActionButton
           action={deleteAction}
@@ -867,28 +877,6 @@ function HistoryActionsCell<TContext = unknown>({
 function isDeleteAction<TContext>(action: ResolvedAction<TContext>) {
   return action.id.endsWith('.delete') || action.commandId?.endsWith('.delete')
 }
-
-interface OpenActionButtonProps {
-  label: string
-  onClick?: () => void
-}
-
-const OpenActionButton = ({ label, onClick }: OpenActionButtonProps) => (
-  <Button
-    type="button"
-    aria-label={label}
-    className="text-foreground-muted hover:bg-accent/70 hover:text-foreground"
-    data-testid="history-open-button"
-    size="icon-sm"
-    title={label}
-    variant="ghost"
-    onClick={(event) => {
-      event.stopPropagation()
-      onClick?.()
-    }}>
-    <ArrowRight className="size-4" />
-  </Button>
-)
 
 interface DeleteActionButtonProps<TContext = unknown> {
   action?: ResolvedAction<TContext>

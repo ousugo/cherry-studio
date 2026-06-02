@@ -7,8 +7,7 @@ import {
   type ResourceListGroupReorderPayload,
   type ResourceListGroupResolver,
   type ResourceListItemReorderPayload,
-  type ResourceListTimeBucket,
-  sortByResourceGroupRank
+  type ResourceListTimeBucket
 } from '@renderer/components/chat/resources'
 import type { Topic } from '@renderer/types'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -61,7 +60,6 @@ const TOPIC_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
 export const TOPIC_PINNED_GROUP_ID = 'topic:pinned'
 export const TOPIC_PINNED_SECTION_ID = 'topic:section:pinned'
 export const TOPIC_ASSISTANT_SECTION_ID = 'topic:section:assistant'
-export const TOPIC_TODAY_GROUP_ID = 'topic:time:today'
 export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
@@ -174,15 +172,6 @@ export function normalizeTopicDropPayload(payload: ResourceListItemReorderPayloa
   return payload
 }
 
-export function normalizeTopicCollapsedGroupIds(groupIds: readonly string[], mode: TopicDisplayMode): string[] {
-  const pinnedCollapseId = mode === 'time' ? TOPIC_PINNED_GROUP_ID : TOPIC_PINNED_SECTION_ID
-  const normalizedGroupIds = groupIds.map((groupId) =>
-    groupId === TOPIC_PINNED_GROUP_ID || groupId === TOPIC_PINNED_SECTION_ID ? pinnedCollapseId : groupId
-  )
-
-  return Array.from(new Set(normalizedGroupIds))
-}
-
 export function groupTopicByPinned(topic: Pick<Topic, 'pinned'>, pinnedLabel: string, topicLabel: string) {
   if (topic.pinned) {
     return { id: 'pinned', label: pinnedLabel }
@@ -212,10 +201,6 @@ export function getAssistantIdFromTopicGroupId(groupId: string): string | undefi
   }
 
   return groupId.slice(TOPIC_ASSISTANT_GROUP_ID_PREFIX.length)
-}
-
-export function getTopicAssistantGroupId(assistantId: string) {
-  return `${TOPIC_ASSISTANT_GROUP_ID_PREFIX}${assistantId}`
 }
 
 export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>({
@@ -305,11 +290,27 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
       .map(({ topic }) => topic)
   }
 
-  return sortByResourceGroupRank(topics, (topic) => {
-    if (topic.pinned === true) {
-      return 0
-    }
+  return topics
+    .map((topic, index) => ({
+      topic,
+      index,
+      rank: topic.pinned === true ? 0 : TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.updatedAt, options.now)],
+      updatedAtMs: Date.parse(topic.updatedAt)
+    }))
+    .sort((a, b) => {
+      const groupDelta = a.rank - b.rank
+      if (groupDelta !== 0) return groupDelta
 
-    return TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.updatedAt, options.now)]
-  })
+      if (a.topic.pinned === true || b.topic.pinned === true) {
+        return a.index - b.index
+      }
+
+      if (Number.isFinite(a.updatedAtMs) && Number.isFinite(b.updatedAtMs)) {
+        const updatedAtDelta = b.updatedAtMs - a.updatedAtMs
+        if (updatedAtDelta !== 0) return updatedAtDelta
+      }
+
+      return a.index - b.index
+    })
+    .map(({ topic }) => topic)
 }

@@ -5,10 +5,17 @@ import { useConversationNavigation } from '../useConversationNavigation'
 
 // Drive the boundary over a fake tabs context; config/sidebar (the identity↔url registry)
 // runs for real, so these tests also lock the assistants/agents instanceKey wiring.
-const tabsMock = vi.hoisted(() => ({ ctx: null as ReturnType<typeof makeCtx> | null }))
+const tabsMock = vi.hoisted(() => ({
+  ctx: null as ReturnType<typeof makeCtx> | null,
+  emitResourceListReveal: vi.fn()
+}))
 
 vi.mock('@renderer/context/TabsContext', () => ({
   useOptionalTabsContext: () => tabsMock.ctx
+}))
+
+vi.mock('@renderer/components/chat/resources/resourceListRevealEvents', () => ({
+  emitResourceListReveal: tabsMock.emitResourceListReveal
 }))
 
 function makeCtx(tabs: Array<{ id: string; type: string; url: string }>) {
@@ -17,6 +24,7 @@ function makeCtx(tabs: Array<{ id: string; type: string; url: string }>) {
 
 beforeEach(() => {
   tabsMock.ctx = null
+  tabsMock.emitResourceListReveal.mockClear()
 })
 
 describe('useConversationNavigation', () => {
@@ -27,6 +35,7 @@ describe('useConversationNavigation', () => {
 
     expect(result.current.focusExistingTab('t1')).toBe(true)
     expect(ctx.setActiveTab).toHaveBeenCalledWith('tab-1')
+    expect(tabsMock.emitResourceListReveal).toHaveBeenCalledWith({ source: 'assistants', tabId: 'tab-1' })
   })
 
   it('returns false without focusing when no tab matches', () => {
@@ -63,6 +72,7 @@ describe('useConversationNavigation', () => {
 
     result.current.openInNewTab('s1')
     expect(ctx.setActiveTab).toHaveBeenCalledWith('tab-x')
+    expect(tabsMock.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'tab-x' })
     expect(ctx.openTab).not.toHaveBeenCalled()
   })
 

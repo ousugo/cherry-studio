@@ -29,13 +29,12 @@ interface PromptEditDialogProps {
   onCancel: () => void
 }
 
-const VARIABLE_PLACEHOLDER = '${变量}'
-
 const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onSave, onCancel }) => {
   const { t } = useTranslation()
   const [formData, setFormData] = useState<FormData>({ title: '', content: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
+  const variablePlaceholder = t('settings.prompts.variablePlaceholder')
 
   const isEdit = !!prompt
   const trimmedTitleLength = formData.title.trim().length
@@ -90,11 +89,11 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
 
       return {
         ...current,
-        content: `${current.content}${separator}${VARIABLE_PLACEHOLDER}`
+        content: `${current.content}${separator}${variablePlaceholder}`
       }
     })
     setResetPreviewKey((key) => key + 1)
-  }, [])
+  }, [variablePlaceholder])
 
   const promptActions = (
     <Tooltip content={t('library.config.prompt.insert_variable')}>

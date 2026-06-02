@@ -69,6 +69,7 @@ interface ArtifactFilePreviewProps {
   filePath?: string | null
   isText: IsTextState
   fileSize: FileSizeState
+  wordFileSize?: FileSizeState
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   contentRefreshKey?: number
@@ -77,6 +78,9 @@ interface ArtifactFilePreviewProps {
 /** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
 export const ARTIFACT_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
+/** DOCX parsing/rendering is heavier than text preview but valid Word files commonly exceed 2 MB. */
+export const WORD_PREVIEW_MAX_SIZE_BYTES = 25 * 1024 * 1024
+const WORD_PREVIEW_MAX_SIZE_LABEL = '25 MB'
 
 // Extensions below drive special-case rendering (Markdown / iframe / PdfPreviewPanel),
 // not text-vs-binary classification. Text detection lives in `useIsTextFile`.
@@ -84,6 +88,7 @@ const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
 const HTML_EXT = new Set(['.html', '.htm'])
 const PDF_EXT = new Set(['.pdf'])
 const EXCEL_EXT = new Set(['.xlsx', '.xlsm'])
+const WORD_EXT = new Set(['.docx'])
 
 const extOf = (name: string): string => {
   const dot = name.lastIndexOf('.')
@@ -94,6 +99,7 @@ const isMarkdownFile = (name: string) => MARKDOWN_EXT.has(extOf(name))
 const isHtmlFile = (name: string) => HTML_EXT.has(extOf(name))
 const isPdfFile = (name: string) => PDF_EXT.has(extOf(name))
 const isExcelFile = (name: string) => EXCEL_EXT.has(extOf(name))
+const isWordFile = (name: string) => WORD_EXT.has(extOf(name))
 
 const stripWorkspaceRootId = (ids: ReadonlySet<string>): ReadonlySet<string> => {
   if (!ids.has(WORKSPACE_ROOT_ID)) return ids
@@ -265,6 +271,24 @@ const loadExcelPreview = () => {
   return excelPreviewPromise
 }
 
+type WordPreviewPanelComponent = ComponentType<{
+  filePath: string
+  fileName?: string
+  refreshKey?: number
+}>
+
+let wordPreviewPanelPromise: Promise<WordPreviewPanelComponent> | null = null
+
+const loadWordPreviewPanel = () => {
+  wordPreviewPanelPromise ??= import('./WordPreviewPanel')
+    .then((module) => module.default)
+    .catch((err: unknown) => {
+      wordPreviewPanelPromise = null
+      throw err
+    })
+  return wordPreviewPanelPromise
+}
+
 function getArtifactFileTreeWidthBounds(artifactPaneWidth: number) {
   const minWidth = ARTIFACT_FILE_TREE_MIN_WIDTH
   const maxWidth = Math.max(minWidth, Math.round(artifactPaneWidth - ARTIFACT_FILE_TREE_MAX_WIDTH_OFFSET))
@@ -374,6 +398,7 @@ export function ArtifactFilePreview({
   filePath,
   isText,
   fileSize,
+  wordFileSize,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
   contentRefreshKey = 0
@@ -382,12 +407,23 @@ export function ArtifactFilePreview({
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
   const [ExcelPreview, setExcelPreview] = useState<ExcelPreviewComponent | null>(null)
+  const [WordPreviewPanel, setWordPreviewPanel] = useState<WordPreviewPanelComponent | null>(null)
   const [excelPreviewLoadError, setExcelPreviewLoadError] = useState<Error | null>(null)
+  const [wordPreviewLoadError, setWordPreviewLoadError] = useState<Error | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
   const isPdfPreview = filePath ? isPdfFile(filePath) : false
   const isExcelPreview = filePath ? isExcelFile(filePath) : false
+  const isWordPreview = filePath ? isWordFile(filePath) : false
+  const wordFileSizeStatus = wordFileSize?.status ?? 'pending'
+  const oversizedWordPreview =
+    isWordPreview && wordFileSize?.status === 'ok' && wordFileSize.size > WORD_PREVIEW_MAX_SIZE_BYTES
+  const canLoadWordPreview = isWordPreview && wordFileSizeStatus !== 'pending' && !oversizedWordPreview
   const oversizedForPreview =
-    !isPdfPreview && !isExcelPreview && fileSize.status === 'ok' && fileSize.size > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
+    !isPdfPreview &&
+    !isExcelPreview &&
+    !isWordPreview &&
+    fileSize.status === 'ok' &&
+    fileSize.size > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
 
   useEffect(() => {
     if (!filePath || !workspacePath) {
@@ -397,7 +433,7 @@ export function ArtifactFilePreview({
     }
 
     // Binary previewers render straight from disk; no readText needed.
-    if (isPdfFile(filePath) || isExcelFile(filePath)) {
+    if (isPdfFile(filePath) || isExcelFile(filePath) || isWordFile(filePath)) {
       setFileContent(null)
       setLoadingContent(false)
       return
@@ -478,6 +514,30 @@ export function ArtifactFilePreview({
     }
   }, [ExcelPreview, contentRefreshKey, filePath, isExcelPreview])
 
+  useEffect(() => {
+    if (!canLoadWordPreview || WordPreviewPanel) return
+
+    let cancelled = false
+    setWordPreviewLoadError(null)
+
+    loadWordPreviewPanel()
+      .then((component) => {
+        if (!cancelled) {
+          setWordPreviewPanel(() => component)
+          setWordPreviewLoadError(null)
+        }
+      })
+      .catch((err: unknown) => {
+        const normalized = err instanceof Error ? err : new Error(String(err))
+        logger.error('Failed to load Word preview panel', normalized)
+        if (!cancelled) setWordPreviewLoadError(normalized)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [WordPreviewPanel, canLoadWordPreview])
+
   if (!workspacePath) {
     return (
       <EmptyState
@@ -506,6 +566,44 @@ export function ArtifactFilePreview({
         filePath={joinPath(workspacePath, filePath)}
         fileName={filePath}
         refreshKey={pdfLayoutRefreshKey}
+      />
+    )
+  }
+
+  // Word: render DOCX locally through docx-preview.
+  if (isWordFile(filePath)) {
+    if (wordFileSizeStatus === 'pending') {
+      return (
+        <div className="flex h-full w-full items-center justify-center">
+          <LoadingState label={t('common.loading')} />
+        </div>
+      )
+    }
+    if (oversizedWordPreview) {
+      return (
+        <EmptyState
+          icon={FileText}
+          title={t('agent.preview_pane.too_large.title')}
+          description={t('agent.preview_pane.too_large.description', { limit: WORD_PREVIEW_MAX_SIZE_LABEL })}
+        />
+      )
+    }
+    if (wordPreviewLoadError) {
+      return <EmptyState icon={AlertCircle} title={t('common.error')} description={wordPreviewLoadError.message} />
+    }
+    if (!WordPreviewPanel) {
+      return (
+        <div className="flex h-full w-full items-center justify-center">
+          <LoadingState label={t('common.loading')} />
+        </div>
+      )
+    }
+    return (
+      <WordPreviewPanel
+        key={`word-${filePath}-${contentRefreshKey}`}
+        filePath={joinPath(workspacePath, filePath)}
+        fileName={filePath}
+        refreshKey={contentRefreshKey}
       />
     )
   }
@@ -763,18 +861,23 @@ const ArtifactPane = ({
 
   const isPdfSelection = selectedFile ? isPdfFile(selectedFile) : false
   const isExcelSelection = selectedFile ? isExcelFile(selectedFile) : false
-  const textPreviewFile = isExcelSelection ? null : selectedFile
+  const isWordSelection = selectedFile ? isWordFile(selectedFile) : false
+  const textPreviewFile = isExcelSelection || isWordSelection ? null : selectedFile
   const isText = useIsTextFile(workspacePath, textPreviewFile)
   const fileSize = useFileSize(workspacePath, textPreviewFile)
+  const wordFileSize = useFileSize(workspacePath, isWordSelection ? selectedFile : null)
 
   const handleRefresh = useCallback(() => {
     refresh()
-    if (workspacePath && selectedFile && (isText === 'text' || isExcelSelection)) setContentRefreshToken((v) => v + 1)
-  }, [refresh, selectedFile, workspacePath, isText, isExcelSelection])
+    if (workspacePath && selectedFile && (isText === 'text' || isExcelSelection || isWordSelection)) {
+      setContentRefreshToken((v) => v + 1)
+    }
+  }, [refresh, selectedFile, workspacePath, isText, isExcelSelection, isWordSelection])
 
   const isSelectedHtmlPreview = selectedFile ? isHtmlFile(selectedFile) : false
   const isSelectedPdfPreview = isPdfSelection
   const isSelectedExcelPreview = isExcelSelection
+  const isSelectedWordPreview = isWordSelection
 
   const maximizeLabel = t(maximized ? 'agent.preview_pane.minimize' : 'agent.preview_pane.maximize')
   const FileTreeIcon = treeOpen ? FolderOpen : Folder
@@ -799,6 +902,7 @@ const ArtifactPane = ({
         filePath={selectedFile}
         isText={isText}
         fileSize={fileSize}
+        wordFileSize={wordFileSize}
         pdfLayoutPending={pdfLayoutPending}
         pdfLayoutRefreshKey={pdfLayoutRefreshKey}
         contentRefreshKey={contentRefreshToken}
@@ -923,7 +1027,7 @@ const ArtifactPane = ({
             data-artifact-right-pane
             className={cn(
               'min-h-0 min-w-0 flex-1',
-              isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedExcelPreview
+              isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedExcelPreview || isSelectedWordPreview
                 ? 'overflow-hidden'
                 : 'overflow-auto',
               isFileTreeResizing && 'pointer-events-none'

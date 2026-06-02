@@ -30,6 +30,7 @@ const translateCoreMock = vi.hoisted(() => ({
 }))
 const loggerWarnMock = vi.hoisted(() => vi.fn())
 const clipboardWriteTextMock = vi.hoisted(() => vi.fn())
+const modelSelectorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -63,7 +64,10 @@ vi.mock('@renderer/components/app/Navbar', () => ({
 }))
 
 vi.mock('@renderer/components/Selector', () => ({
-  ModelSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
+  ModelSelector: (props: { trigger: React.ReactNode }) => {
+    modelSelectorMock(props)
+    return <>{props.trigger}</>
+  }
 }))
 
 vi.mock('@renderer/context/CodeStyleProvider', () => ({
@@ -270,6 +274,7 @@ describe('TranslatePage', () => {
     translateCoreMock.formatErrorMessageWithPrefix.mockImplementation((_: unknown, prefix: string) => prefix)
     loggerWarnMock.mockReset()
     clipboardWriteTextMock.mockReset()
+    modelSelectorMock.mockReset()
     clipboardWriteTextMock.mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -296,6 +301,12 @@ describe('TranslatePage', () => {
 
   afterEach(() => {
     cleanup()
+  })
+
+  it('hides the model tag filter on the inline selector', () => {
+    render(<TranslatePage />)
+
+    expect(modelSelectorMock).toHaveBeenCalledWith(expect.objectContaining({ showTagFilter: false }))
   })
 
   it('appends selected file text to the latest input after async read completes', async () => {

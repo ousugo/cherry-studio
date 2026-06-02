@@ -1,5 +1,9 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import {
+  emitResourceListReveal,
+  type ResourceListRevealSource
+} from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AppLogo } from '@renderer/config/env'
 import {
   findAppTabToFocus,
@@ -29,6 +33,11 @@ const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 round
 const noop = () => {}
 const FLOATING_SIDEBAR_EXIT_MS = 200
 type FloatingSidebarState = 'closed' | 'open' | 'closing'
+
+function getResourceListRevealSource(menuItemId: SidebarIconType): ResourceListRevealSource | null {
+  if (menuItemId === 'assistants' || menuItemId === 'agents') return menuItemId
+  return null
+}
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
@@ -127,13 +136,20 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
       const navCtx = { defaultPaintingProvider, lastUsedTopicId, lastUsedSessionId }
       const existingId = findAppTabToFocus(app, tabs, navCtx)
+      const revealSource = getResourceListRevealSource(app.id)
       if (existingId) {
         setActiveTab(existingId)
+        if (revealSource) {
+          emitResourceListReveal({ source: revealSource, tabId: existingId })
+        }
         return
       }
 
       const url = resolveAppOpenUrl(app, navCtx)
-      openTab(url, { title: getDefaultRouteTitle(url) })
+      const openedId = openTab(url, { title: getDefaultRouteTitle(url) })
+      if (revealSource && openedId) {
+        emitResourceListReveal({ source: revealSource, tabId: openedId })
+      }
     },
     [tabs, openTab, setActiveTab, defaultPaintingProvider, lastUsedTopicId, lastUsedSessionId]
   )

@@ -16,6 +16,7 @@ import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import type { Assistant } from '@renderer/types'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
+import type { McpMode } from '@shared/data/types/assistant'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
 import { Cable } from 'lucide-react'
@@ -31,6 +32,11 @@ const MCP_RUNTIME_STATUS_LABEL_KEYS: Record<McpRuntimeStatus['state'], string> =
   disabled: 'settings.mcp.runtimeStatus.disabled',
   error: 'settings.mcp.runtimeStatus.error'
 }
+const MCP_MODE_LABEL_KEYS: Record<McpMode, string> = {
+  auto: 'library.config.tools.mode.auto.label',
+  disabled: 'library.config.tools.mode.disabled.label',
+  manual: 'library.config.tools.mode.manual.label'
+}
 
 interface BuildMcpStatusItemsOptions {
   assistant?: Assistant
@@ -43,6 +49,10 @@ interface BuildMcpStatusItemsOptions {
 
 function getMcpStatusLabel(t: TFunction, state: McpRuntimeStatus['state']) {
   return t(MCP_RUNTIME_STATUS_LABEL_KEYS[state], state)
+}
+
+function getMcpModeLabel(t: TFunction, mode: McpMode) {
+  return t(MCP_MODE_LABEL_KEYS[mode], mode)
 }
 
 function createEmptyMcpStatusItem(label: string): QuickPanelListItem {
@@ -61,12 +71,13 @@ function createMcpStatusItem(
   t: TFunction
 ): QuickPanelListItem {
   const state = server?.isActive ? (status?.state ?? 'connecting') : 'disabled'
+  const description = getMcpStatusLabel(t, state)
 
   return {
     id: `mcp-status:${id}`,
     label: server?.name ?? t('settings.quickPanel.mcp.unknownServer', 'Unknown MCP server'),
-    description: getMcpStatusLabel(t, state),
-    filterText: [server?.name, server?.description, getMcpStatusLabel(t, state)].filter(Boolean).join(' '),
+    description,
+    filterText: [server?.name, server?.description, description].filter(Boolean).join(' '),
     icon: <Cable />
   }
 }
@@ -137,27 +148,41 @@ function clearMcpStatusInputQuery(
   inputAdapter.focus()
 }
 
-export function createMcpStatusLauncher(items: QuickPanelListItem[], t: TFunction): ComposerToolLauncher {
+export function createMcpStatusLauncher(
+  items: QuickPanelListItem[],
+  t: TFunction,
+  mode?: McpMode
+): ComposerToolLauncher {
+  const modeLabel = mode ? getMcpModeLabel(t, mode) : undefined
+  const isDisabled = mode === 'disabled'
+
   return {
     id: MCP_STATUS_LAUNCHER_ID,
     kind: 'panel',
     sources: ['root-panel'],
     order: 50,
     label: 'MCP',
-    description: t('settings.quickPanel.mcp.description', 'View configured MCP server status'),
+    description:
+      isDisabled && modeLabel
+        ? modeLabel
+        : t('settings.quickPanel.mcp.description', 'View configured MCP server status'),
+    disabledReason: isDisabled ? modeLabel : undefined,
+    disabled: isDisabled,
     icon: <Cable />,
-    action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
-      clearMcpStatusInputQuery(inputAdapter, queryAnchor, triggerInfo)
-      quickPanel.open({
-        title: 'MCP',
-        list: items,
-        symbol: QuickPanelReservedSymbol.McpStatus,
-        parentPanel,
-        queryAnchor,
-        triggerInfo: triggerInfo ?? { type: 'button' },
-        readOnly: true
-      })
-    }
+    action: isDisabled
+      ? undefined
+      : ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+          clearMcpStatusInputQuery(inputAdapter, queryAnchor, triggerInfo)
+          quickPanel.open({
+            title: mode && mode !== 'disabled' ? `MCP / ${getMcpModeLabel(t, mode)}` : 'MCP',
+            list: items,
+            symbol: QuickPanelReservedSymbol.McpStatus,
+            parentPanel,
+            queryAnchor,
+            triggerInfo: triggerInfo ?? { type: 'button' },
+            readOnly: true
+          })
+        }
   }
 }
 
@@ -167,6 +192,7 @@ const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolContext }
   const { mcpServers } = useMcpServers()
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
   const { agent } = useAgent(scope === TopicType.Session ? (session?.agentId ?? null) : null)
+  const mode = scope === TopicType.Chat ? (assistant?.settings?.mcpMode ?? 'disabled') : undefined
 
   const items = useMemo(
     () =>
@@ -181,7 +207,7 @@ const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolContext }
     [agent, assistant, mcpServers, mcpStatuses, scope, t]
   )
 
-  const mcpStatusLauncher = useMemo(() => createMcpStatusLauncher(items, t), [items, t])
+  const mcpStatusLauncher = useMemo(() => createMcpStatusLauncher(items, t, mode), [items, mode, t])
 
   useEffect(() => launcher.registerLaunchers([mcpStatusLauncher]), [launcher, mcpStatusLauncher])
 

@@ -454,7 +454,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useUpdateSession.mockReset()
   })
 
-  it('does not select a topic when the history row is clicked', () => {
+  it('selects a topic when the history title is clicked', () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
     hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-alpha'], togglePin: hookMocks.togglePin })
@@ -484,13 +484,14 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(within(alphaCells[1]).queryByText('A')).not.toBeInTheDocument()
     expect(within(alphaCells[2]).getByText('A')).toBeInTheDocument()
     expect(within(alphaCells[2]).getByText('Alpha assistant')).toBeInTheDocument()
+    expect(screen.queryByTestId('history-open-button')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Alpha topic'))
+    fireEvent.click(alphaRow)
 
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByTestId('history-open-button'))
+    fireEvent.click(screen.getByRole('button', { name: 'Alpha topic' }))
 
     expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha', name: 'Alpha topic' }))
     expect(onClose).toHaveBeenCalledTimes(1)

@@ -6,6 +6,7 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import type { GetAgentResponse, Topic, TopicType as TopicTypeEnum } from '@renderer/types'
 import { TopicType } from '@renderer/types'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { memo, useEffect, useMemo } from 'react'
@@ -80,7 +81,7 @@ const AgentSessionMessages = ({
     assistantProfile: activeAgent
       ? {
           name: activeAgent.name,
-          avatar: activeAgent.configuration?.avatar
+          avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
         }
       : undefined,
     assistantId: agentId,

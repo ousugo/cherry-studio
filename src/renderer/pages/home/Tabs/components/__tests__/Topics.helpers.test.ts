@@ -14,11 +14,8 @@ import {
   groupTopicByPinned,
   moveAssistantGroupAfterDrop,
   moveTopicAfterDrop,
-  normalizeTopicCollapsedGroupIds,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
-  TOPIC_PINNED_GROUP_ID,
-  TOPIC_PINNED_SECTION_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '../Topics.helpers'
 
@@ -135,16 +132,6 @@ describe('Topics helpers', () => {
     expect(normalizeTopicDropPayload(crossGroupPayload)).toBe(crossGroupPayload)
   })
 
-  it('normalizes pinned collapsed ids to the current topic display hierarchy', () => {
-    expect(normalizeTopicCollapsedGroupIds([TOPIC_PINNED_GROUP_ID, 'topic:time:today'], 'assistant')).toEqual([
-      TOPIC_PINNED_SECTION_ID,
-      'topic:time:today'
-    ])
-    expect(
-      normalizeTopicCollapsedGroupIds([TOPIC_PINNED_SECTION_ID, TOPIC_PINNED_GROUP_ID, 'topic:time:today'], 'time')
-    ).toEqual([TOPIC_PINNED_GROUP_ID, 'topic:time:today'])
-  })
-
   it('projects ResourceList drag payload into the dropped topic order', () => {
     const topics = [createTopic({ id: 'a' }), createTopic({ id: 'b' }), createTopic({ id: 'c' })]
     const payload: ResourceListItemReorderPayload = {
@@ -240,19 +227,21 @@ describe('Topics helpers', () => {
     })
   })
 
-  it('keeps the pinned topic layer above time-derived groups with stable order inside each layer', () => {
+  it('keeps pinned topics stable and sorts time buckets by updatedAt descending', () => {
     const now = new Date(2026, 4, 15, 12)
     const topics = [
+      createTopic({ id: 'today-old', updatedAt: localIso(2026, 5, 15, 8) }),
       createTopic({ id: 'week', updatedAt: localIso(2026, 5, 13, 9) }),
       createTopic({ id: 'pinned-old', pinned: true, updatedAt: localIso(2026, 5, 8, 23) }),
-      createTopic({ id: 'today', updatedAt: localIso(2026, 5, 15, 9) }),
+      createTopic({ id: 'today-new', updatedAt: localIso(2026, 5, 15, 9) }),
       createTopic({ id: 'pinned-new', pinned: true, updatedAt: localIso(2026, 5, 15, 9) })
     ]
 
     expect(sortTopicsForDisplayGroups(topics, { mode: 'time', now }).map((topic) => topic.id)).toEqual([
       'pinned-old',
       'pinned-new',
-      'today',
+      'today-new',
+      'today-old',
       'week'
     ])
   })

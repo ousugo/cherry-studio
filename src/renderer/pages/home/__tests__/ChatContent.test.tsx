@@ -1,5 +1,5 @@
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
+import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +15,7 @@ const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
 const mockUseExecutionOverlay = vi.hoisted(() =>
   vi.fn<(...args: unknown[]) => unknown>(() => mockExecutionOverlay.current)
 )
+const mockInvalidateCache = vi.fn(async (_keys?: string | string[] | boolean) => undefined)
 let capturedOnSend:
   | ((text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void)
   | undefined
@@ -227,6 +228,7 @@ describe('ChatContent', () => {
 
   beforeEach(() => {
     const streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })
+    mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockUseMutation.mockImplementation((method: string) => ({
       trigger: vi.fn(async () => {
         switch (method) {
@@ -322,6 +324,19 @@ describe('ChatContent', () => {
       )
     })
     expect(sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('refreshes topic metadata after stream open so time-grouped sidebars can reorder', async () => {
+    render(<ChatContent topic={topic} />)
+
+    await act(async () => {
+      await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(mockInvalidateCache).toHaveBeenCalledWith(['/topics', '/topics/topic-1'])
+    })
   })
 
   it('keeps a message cache key without fetching history for freshly leased temporary topics', () => {

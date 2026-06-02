@@ -7,7 +7,7 @@ import {
   type ResourceCreateDialogValues
 } from '@renderer/pages/library/dialogs/ResourceCreateDialog'
 import type { AgentDetail } from '@renderer/pages/library/types'
-import { Bot } from 'lucide-react'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,7 +15,6 @@ import type { SelectorShellMountStrategy, SelectorShellProps } from '../shell/Se
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AgentSelector')
-const AGENT_FALLBACK_ICON = <Bot className="size-4 text-muted-foreground/70" />
 const AgentEditDialog = lazy(() =>
   import('@renderer/pages/library/dialogs/edit/AgentEditDialog').then((module) => ({
     default: module.AgentEditDialog
@@ -87,7 +86,7 @@ export function AgentSelector(props: AgentSelectorProps) {
         id: agent.id,
         name: agent.name,
         description: agent.description,
-        ...(agent.configuration?.avatar ? { emoji: agent.configuration.avatar } : {})
+        emoji: getAgentAvatarFromConfiguration(agent.configuration)
       })),
     [data]
   )
@@ -198,7 +197,6 @@ export function AgentSelector(props: AgentSelectorProps) {
     mountStrategy,
     onOpen: refetchPins,
     items,
-    fallbackIcon: AGENT_FALLBACK_ICON,
     pinnedIds,
     emptyState: { preset: 'no-agent' as const },
     onTogglePin: handleTogglePin,

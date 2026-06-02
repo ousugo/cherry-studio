@@ -1,5 +1,5 @@
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +15,7 @@ const agentPageMocks = vi.hoisted(() => ({
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
   setShowSidebar: vi.fn(),
+  isActiveTab: false,
   showSidebar: false
 }))
 
@@ -101,7 +102,8 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 
 vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useAgents: () => ({
-    agents: agentPageMocks.agents
+    agents: agentPageMocks.agents,
+    isLoading: false
   }),
   useAgent: (id: string | null) => ({
     agent: id ? agentPageMocks.agents.find((a) => a.id === id) : undefined
@@ -159,6 +161,12 @@ vi.mock('@renderer/hooks/useTemporaryConversation', () => ({
   })
 }))
 
+vi.mock('@renderer/context/TabIdContext', () => ({
+  useCurrentTabId: () => 'agent-tab',
+  useIsActiveTab: () => agentPageMocks.isActiveTab,
+  useTabSelfMetadata: vi.fn()
+}))
+
 vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
   default: ({ onClose, onRecordSelect, open }: any) =>
     open ? (
@@ -177,7 +185,8 @@ vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     GLOBAL_SEARCH_SELECT_AGENT_SESSION: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION',
     GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE',
-    SHOW_ASSISTANTS: 'SHOW_ASSISTANTS'
+    SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
+    REVEAL_ACTIVE_RESOURCE_LIST: 'REVEAL_ACTIVE_RESOURCE_LIST'
   },
   EventEmitter: {
     emit: vi.fn(),
@@ -199,6 +208,8 @@ vi.mock('../AgentChat', () => ({
   default: ({
     activeSession,
     activeSessionLoading,
+    missingAgentDraft,
+    onMissingAgentDraftAgentChange,
     onStartTemporarySession,
     onVisibleAgentChange,
     onVisibleWorkspaceChange,
@@ -209,6 +220,8 @@ vi.mock('../AgentChat', () => ({
   }: {
     activeSession?: { id: string } | null
     activeSessionLoading?: boolean
+    missingAgentDraft?: boolean
+    onMissingAgentDraftAgentChange?: (agentId: string | null) => void | Promise<void>
     onStartTemporarySession?: (defaults: {
       agentId: string
       workspaceId?: string
@@ -225,6 +238,7 @@ vi.mock('../AgentChat', () => ({
     <section>
       <output data-testid="active-session">{activeSession?.id ?? ''}</output>
       <output data-testid="active-session-loading">{String(Boolean(activeSessionLoading))}</output>
+      <output data-testid="missing-agent-draft">{String(Boolean(missingAgentDraft))}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
       <button type="button" onClick={() => void onDraftWorkspaceChange?.('workspace-next')}>
         Select workspace
@@ -234,6 +248,9 @@ vi.mock('../AgentChat', () => ({
       </button>
       <button type="button" onClick={() => void onStartTemporarySession?.({ agentId: 'agent-a' })}>
         Start temporary session
+      </button>
+      <button type="button" onClick={() => void onMissingAgentDraftAgentChange?.('agent-b')}>
+        Select missing draft agent
       </button>
       <button type="button" onClick={() => onVisibleAgentChange?.('agent-visible')}>
         Show visible agent
@@ -252,18 +269,19 @@ vi.mock('../AgentChat', () => ({
 }))
 
 vi.mock('../AgentSidePanel', () => ({
-  default: ({ onOpenHistory, revealRequest }: any) => (
+  default: ({ onOpenHistory, onStartMissingAgentDraft, revealRequest }: any) => (
     <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="agent-side-panel">
       <button type="button" onClick={() => onOpenHistory?.()}>
         Open agent history
+      </button>
+      <button type="button" onClick={() => onStartMissingAgentDraft?.()}>
+        Start missing agent draft
       </button>
     </div>
   )
 }))
 
-vi.mock('../components/status', () => ({
-  AgentEmpty: () => <div>No agents</div>
-}))
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 import AgentPage from '../AgentPage'
 
@@ -275,6 +293,7 @@ describe('AgentPage', () => {
     agentPageMocks.lastUsedAgentId = null
     agentPageMocks.lastUsedWorkspaceId = null
     agentPageMocks.showSidebar = false
+    agentPageMocks.isActiveTab = false
     temporaryConversationMocks.conversation = null
     temporaryConversationMocks.persistedConversation = null
     temporaryConversationMocks.start.mockResolvedValue(null)
@@ -313,6 +332,33 @@ describe('AgentPage', () => {
     })
   })
 
+  it('forwards a reveal request when navigation asks the current agent tab to reveal its selection', async () => {
+    render(<AgentPage />)
+
+    expect(JSON.parse(screen.getByTestId('agent-side-panel').getAttribute('data-reveal-request') ?? 'null')).toBeNull()
+
+    const revealHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.REVEAL_ACTIVE_RESOURCE_LIST)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      revealHandler?.({ source: 'agents', tabId: 'agent-tab' })
+    })
+
+    expect(JSON.parse(screen.getByTestId('agent-side-panel').getAttribute('data-reveal-request') ?? 'null')).toEqual({
+      itemId: 'session-initial',
+      requestId: 1
+    })
+
+    await act(async () => {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+    })
+
+    expect(JSON.parse(screen.getByTestId('agent-side-panel').getAttribute('data-reveal-request') ?? 'null')).toBeNull()
+  })
+
   it('collapses the agent sidebar when the shared shell requests it', async () => {
     agentPageMocks.showSidebar = true
 
@@ -334,6 +380,53 @@ describe('AgentPage', () => {
     await waitFor(() => {
       expect(window.api.window.setMinimumSize).toHaveBeenCalledWith(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
     })
+  })
+
+  it('shows the missing-agent home composer by default when there are no agents', async () => {
+    agentPageMocks.activeSessionId = null
+    agentPageMocks.agents = []
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent('')
+    await waitFor(() => expect(screen.getByTestId('missing-agent-draft')).toHaveTextContent('true'))
+    expect(screen.getByTestId('agent-side-panel')).toBeInTheDocument()
+    expect(temporaryConversationMocks.start).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the missing-agent home composer when sidebar navigation opens a stale session id', async () => {
+    agentPageMocks.activeSessionId = 'stale-session'
+    agentPageMocks.agents = []
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(screen.getByTestId('missing-agent-draft')).toHaveTextContent('true'))
+    expect(agentPageMocks.setActiveSessionId).toHaveBeenCalledWith(null)
+    expect(temporaryConversationMocks.start).not.toHaveBeenCalled()
+  })
+
+  it('starts a renderer-only missing-agent draft and leases a temporary session only after selecting an agent', async () => {
+    agentPageMocks.activeSessionId = null
+    agentPageMocks.agents = []
+
+    const { rerender } = render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start missing agent draft' }))
+
+    expect(screen.getByTestId('missing-agent-draft')).toHaveTextContent('true')
+    expect(temporaryConversationMocks.start).not.toHaveBeenCalled()
+
+    agentPageMocks.agents = [{ id: 'agent-b', model: 'model-b', name: 'Agent B' }]
+    rerender(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Select missing draft agent' }))
+
+    await waitFor(() =>
+      expect(temporaryConversationMocks.start).toHaveBeenCalledWith({
+        agentId: 'agent-b',
+        name: 'common.unnamed'
+      })
+    )
+    expect(agentPageMocks.setActiveSessionId).toHaveBeenCalledWith(null)
   })
 
   it('keeps the previous visible session while the selected session is loading', () => {

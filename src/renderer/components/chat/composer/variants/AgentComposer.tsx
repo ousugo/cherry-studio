@@ -1250,6 +1250,132 @@ const AgentComposerInner = ({
   )
 }
 
+type MissingAgentHomeComposerProps = {
+  onAgentChange?: (agentId: string | null) => void | Promise<void>
+  agentChanging?: boolean
+}
+
+type MissingAgentHomeComposerInnerProps = MissingAgentHomeComposerProps & {
+  actionsRef: React.MutableRefObject<ProviderActionHandlers>
+}
+
+const MissingAgentHomeComposerInner = ({
+  onAgentChange,
+  agentChanging,
+  actionsRef
+}: MissingAgentHomeComposerInnerProps) => {
+  const config = getComposerToolConfig(TopicType.Session)
+  const { files, isExpanded } = useComposerToolState()
+  const { setFiles, setIsExpanded } = useComposerToolDispatch()
+  const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
+  const [enableSpellCheck] = usePreference('app.spell_check.enabled')
+  const [fontSize] = usePreference('chat.message.font_size')
+  const [narrowMode] = usePreference('chat.narrow_mode')
+  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const { t } = useTranslation()
+  const [text, setText] = useState('')
+  const selectAgentMessage = t('chat.alerts.select_agent')
+  const handleSurfaceActionsChange = useCallback(
+    (actions: ComposerSurfaceActions) => {
+      Object.assign(actionsRef.current, actions)
+    },
+    [actionsRef]
+  )
+  const handleAgentChange = useCallback(
+    async (nextAgentId: string | null) => {
+      if (!nextAgentId) return
+      if (text.trim().length > 0) {
+        writeAgentDraftCache(getAgentDraftCacheKey(nextAgentId), text, [])
+      }
+      await onAgentChange?.(nextAgentId)
+    },
+    [onAgentChange, text]
+  )
+  const handleBlockedSend = useCallback(() => {
+    window.toast?.error(selectAgentMessage)
+  }, [selectAgentMessage])
+  const placeholderText = t('agent.input.placeholder', {
+    key: getSendMessageShortcutLabel(sendMessageShortcut)
+  })
+  const controlSlots = renderAgentHomeControls({
+    agent: undefined,
+    model: undefined,
+    modelProviderName: undefined,
+    modelFilter: undefined,
+    workspace: undefined,
+    workspaceId: null,
+    workspaceWarning: undefined,
+    selectAgentLabel: selectAgentMessage,
+    selectModelLabel: t('button.select_model'),
+    selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
+    agentChanging,
+    workspaceChanging: false,
+    showWorkspaceSelector: false,
+    onAgentChange: handleAgentChange,
+    onWorkspaceChange: undefined,
+    onModelSelect: () => undefined
+  })
+
+  return (
+    <ComposerToolDerivedStateProvider couldAddImageFile={false} extensions={[]}>
+      <ComposerSurface
+        text={text}
+        onTextChange={setText}
+        tokens={[]}
+        draftTokens={[]}
+        managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
+        onTokensChange={() => undefined}
+        placeholder={placeholderText}
+        sendDisabled
+        sendBlockedReason={selectAgentMessage}
+        isLoading={false}
+        onSendDraft={handleBlockedSend}
+        onPause={() => undefined}
+        supportedExts={[]}
+        setFiles={setFiles}
+        filesCount={files.length}
+        isExpanded={isExpanded}
+        onExpandedChange={setIsExpanded}
+        quickPanelEnabled={config.enableQuickPanel ?? true}
+        enableDragDrop={false}
+        enableSpellCheck={enableSpellCheck}
+        fontSize={fontSize}
+        narrowMode={narrowMode}
+        onActionsChange={handleSurfaceActionsChange}
+        getToolLaunchers={() => getLaunchers()}
+        onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+        {...controlSlots}
+      />
+    </ComposerToolDerivedStateProvider>
+  )
+}
+
+export const MissingAgentHomeComposer = (props: MissingAgentHomeComposerProps) => {
+  const initialState = useMemo(
+    () => ({
+      mentionedModels: [],
+      selectedKnowledgeBases: [],
+      files: [] as FileMetadata[],
+      isExpanded: false,
+      couldAddImageFile: false,
+      extensions: [] as string[]
+    }),
+    []
+  )
+  const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
+
+  return (
+    <ComposerToolRuntimeProvider
+      initialState={initialState}
+      actions={{
+        onTextChange: (updater) => actionsRef.current.onTextChange(updater),
+        addNewTopic: () => undefined
+      }}>
+      <MissingAgentHomeComposerInner {...props} actionsRef={actionsRef} />
+    </ComposerToolRuntimeProvider>
+  )
+}
+
 const AgentComposer = (props: Props) => {
   return <AgentComposerRoot {...props} renderControls={renderAgentToolbarControls} />
 }

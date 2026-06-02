@@ -97,7 +97,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.label': 'Prompt',
           'library.config.prompt.placeholder': 'Tell this assistant how to respond',
           'selector.assistant.create_new': 'Create assistant',
-          'selector.assistant.empty_text': 'No assistants',
+          'selector.assistant.empty_text': 'No assistants yet. Create one first.',
           'selector.assistant.multi_hint': 'Select multiple assistants',
           'selector.assistant.multi_label': 'Multiple',
           'selector.assistant.search_placeholder': 'Search assistants',
@@ -322,6 +322,23 @@ describe('AssistantSelector', () => {
     expect(screen.getByRole('button', { name: 'work' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Newest' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Oldest' })).not.toBeInTheDocument()
+  })
+
+  it('renders the empty state prompt when no assistants exist', () => {
+    useQueryMock.mockReturnValue({
+      data: { items: [], total: 0, page: 1 },
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: refetchAssistantsMock,
+      mutate: vi.fn()
+    })
+
+    renderSelector()
+    openPopover()
+
+    expect(screen.getByText('No assistants yet. Create one first.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create assistant' })).toBeInTheDocument()
   })
 
   it('renders assistant tag chips and filters rows by selected tag', () => {

@@ -24,6 +24,9 @@ const translations: Record<string, string> = {
   'settings.mcp.runtimeStatus.connecting': 'Connecting',
   'settings.mcp.runtimeStatus.disabled': 'Disabled',
   'settings.mcp.runtimeStatus.error': 'Error',
+  'library.config.tools.mode.auto.label': 'Auto',
+  'library.config.tools.mode.disabled.label': 'Disabled',
+  'library.config.tools.mode.manual.label': 'Manual',
   'settings.quickPanel.mcp.disabled': 'MCP is disabled for this assistant'
 }
 
@@ -105,6 +108,32 @@ describe('mcpStatusTool', () => {
     expect(items).toEqual([expect.objectContaining({ label: 'MCP is disabled for this assistant', disabled: true })])
   })
 
+  it('does not show the assistant MCP mode on chat empty states', () => {
+    const autoItems = buildMcpStatusItems({
+      assistant: {
+        settings: { mcpMode: 'auto' },
+        mcpServerIds: []
+      } as Assistant,
+      mcpServers: [],
+      mcpStatuses: {},
+      scope: TopicType.Chat,
+      t
+    })
+    expect(autoItems[0].description).toBeUndefined()
+
+    const manualItems = buildMcpStatusItems({
+      assistant: {
+        settings: { mcpMode: 'manual' },
+        mcpServerIds: []
+      } as Assistant,
+      mcpServers: [],
+      mcpStatuses: {},
+      scope: TopicType.Chat,
+      t
+    })
+    expect(manualItems[0].description).toBeUndefined()
+  })
+
   it('builds session rows from the current agent bindings', () => {
     const items = buildMcpStatusItems({
       agent: { mcps: ['inactive', 'active'] },
@@ -163,5 +192,47 @@ describe('mcpStatusTool', () => {
         title: 'MCP'
       })
     )
+  })
+
+  it('shows assistant MCP mode in the details panel title', () => {
+    const items = [{ id: 'active', label: 'filesystem', icon: 'mcp' }]
+    const quickPanel = { open: vi.fn() }
+
+    createMcpStatusLauncher(items, t, 'auto').action?.({
+      quickPanel,
+      source: 'root-panel'
+    } as any)
+
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'MCP / Auto'
+      })
+    )
+
+    vi.mocked(quickPanel.open).mockClear()
+
+    createMcpStatusLauncher(items, t, 'manual').action?.({
+      quickPanel,
+      source: 'root-panel'
+    } as any)
+
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'MCP / Manual'
+      })
+    )
+  })
+
+  it('marks the root panel MCP launcher as disabled and non-actionable when assistant MCP mode is disabled', () => {
+    const launcher = createMcpStatusLauncher([], t, 'disabled')
+
+    expect(launcher).toMatchObject({
+      id: 'mcp-status',
+      description: 'Disabled',
+      disabled: true,
+      disabledReason: 'Disabled'
+    })
+    expect(launcher.action).toBeUndefined()
+    expect(launcher.suffix).toBeUndefined()
   })
 })

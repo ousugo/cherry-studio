@@ -1,3 +1,4 @@
+import { emitResourceListReveal } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/config/sidebar'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
@@ -46,6 +47,9 @@ export function useConversationNavigation(appId: SidebarIcon): ConversationNavig
       const id = findTabId(key, options?.excludeTabId)
       if (id && tabs) {
         tabs.setActiveTab(id)
+        if (appId === 'assistants' || appId === 'agents') {
+          emitResourceListReveal({ source: appId, tabId: id })
+        }
         return true
       }
       return false

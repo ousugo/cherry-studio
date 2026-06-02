@@ -381,6 +381,12 @@
       "too_large": {
         "description": "File exceeds the {{limit}} preview limit.",
         "title": "File too large to preview"
+      },
+      "word": {
+        "errors": {
+          "parse_failed": "Unable to render this Word document.",
+          "read_failed": "Unable to read this Word document."
+        }
       }
     },
     "reorder": {
@@ -5072,12 +5078,12 @@
   "selector": {
     "agent": {
       "create_new": "New Agent",
-      "empty_text": "No agents yet",
+      "empty_text": "No agents yet. Create one first.",
       "search_placeholder": "Search agents…"
     },
     "assistant": {
       "create_new": "New Assistant",
-      "empty_text": "No assistants yet",
+      "empty_text": "No assistants yet. Create one first.",
       "multi_hint": "(mutually exclusive with multi-model)",
       "multi_label": "Multi-assistant parallel",
       "search_placeholder": "Search assistants…"
@@ -6780,7 +6786,8 @@
       },
       "title": "Prompt Management",
       "titleLabel": "Title",
-      "titlePlaceholder": "Enter prompt title"
+      "titlePlaceholder": "Enter prompt title",
+      "variablePlaceholder": "${variable}"
     },
     "provider": {
       "add": {
