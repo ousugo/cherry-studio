@@ -238,8 +238,17 @@
   text-decoration: underline;
 }
 
-.markdown strong {
+/* Streamdown renders bold as `<span data-streamdown="strong">` (not a `<strong>`
+   tag), so the tag selector alone leaves it at the component's font-semibold.
+   Match the data attribute too so streamed bold is as heavy as the markdown-it
+   path (real `<strong>`) used elsewhere. */
+.markdown strong,
+.markdown [data-streamdown='strong'] {
   font-weight: bold;
+}
+
+.markdown [data-sd-animate] {
+  font-weight: inherit;
 }
 
 .markdown em {

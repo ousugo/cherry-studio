@@ -1,9 +1,3 @@
-/**
- * Streaming markdown renderer.
- * The default `blurIn @ 250ms ease-out` is Streamdown's recommended
- * fast-stream config. Pass `animated={false}` to disable entirely.
- */
-
 import { useMemo } from 'react'
 import type { AnimateOptions, Components, PluginConfig } from 'streamdown'
 import type { Pluggable } from 'unified'
@@ -27,7 +21,7 @@ export interface StreamingMarkdownProps {
 }
 
 const DEFAULT_ANIMATED: AnimateOptions = {
-  animation: 'blurIn',
+  animation: 'fadeIn',
   duration: 250,
   easing: 'ease-out'
 }

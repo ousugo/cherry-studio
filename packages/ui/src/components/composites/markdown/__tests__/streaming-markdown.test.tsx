@@ -59,4 +59,15 @@ describe('StreamingMarkdown', () => {
     )
     expect(container.querySelectorAll('[data-sd-animate]').length).toBe(0)
   })
+
+  it('defaults to opacity-only fadeIn (no lingering filter that alters text antialiasing)', () => {
+    // blurIn ends at `filter: blur(0)`, which `animation-fill-mode: both`
+    // keeps applied; a non-`none` filter drops subpixel AA so streamed bold/CJK
+    // renders heavier than the filter-free static pass. fadeIn leaves no filter.
+    const { container } = render(<StreamingMarkdown id="s4">{'**重要** text'}</StreamingMarkdown>)
+    const animated = container.querySelector('[data-sd-animate]')
+    expect(animated).not.toBeNull()
+    const animation = (animated as HTMLElement).style.getPropertyValue('--sd-animation')
+    expect(animation).toBe('sd-fadeIn')
+  })
 })
