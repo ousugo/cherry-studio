@@ -381,6 +381,12 @@
       "too_large": {
         "description": "檔案超過 {{limit}} 預覽上限。",
         "title": "檔案太大，無法預覽"
+      },
+      "word": {
+        "errors": {
+          "parse_failed": "無法渲染這個 Word 文件。",
+          "read_failed": "無法讀取這個 Word 文件。"
+        }
       }
     },
     "reorder": {

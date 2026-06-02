@@ -381,6 +381,12 @@
       "too_large": {
         "description": "File exceeds the {{limit}} preview limit.",
         "title": "File too large to preview"
+      },
+      "word": {
+        "errors": {
+          "parse_failed": "Unable to render this Word document.",
+          "read_failed": "Unable to read this Word document."
+        }
       }
     },
     "reorder": {
