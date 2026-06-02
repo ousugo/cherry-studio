@@ -18,6 +18,7 @@ export type SubWindowInitData = {
   tabId: string
   url: string
   title?: string
+  icon?: string
   type?: TabType
   isPinned?: boolean
   metadata?: TabInstanceMetadata

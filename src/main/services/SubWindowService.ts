@@ -187,6 +187,7 @@ export class SubWindowService extends BaseService {
     id: string
     url: string
     title?: string
+    icon?: string
     type?: string
     isPinned?: boolean
     metadata?: Record<string, unknown>
@@ -194,7 +195,7 @@ export class SubWindowService extends BaseService {
     y?: number
   }): string {
     const wm = application.get('WindowManager')
-    const { id: tabId, url, title, type, isPinned, metadata, x, y } = payload
+    const { id: tabId, url, title, icon, type, isPinned, metadata, x, y } = payload
     const hasPosition = x !== undefined && y !== undefined
     const dark = nativeTheme.shouldUseDarkColors
     const tabInstanceMetadata = normalizeTabInstanceMetadata(metadata)
@@ -203,6 +204,7 @@ export class SubWindowService extends BaseService {
       tabId,
       url,
       title,
+      ...(icon && { icon }),
       type: type === 'route' || type === 'webview' ? type : 'route',
       isPinned,
       ...(tabInstanceMetadata && { metadata: tabInstanceMetadata })

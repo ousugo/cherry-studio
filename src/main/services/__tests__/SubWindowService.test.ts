@@ -214,6 +214,31 @@ describe('SubWindowService', () => {
       })
     })
 
+    it('threads tab.icon through initData when supplied (mini-app logo / emoji descriptor)', () => {
+      const win = createMockWindow()
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({
+        id: 'tab-mini',
+        url: '/app/mini-app/chatgpt',
+        title: 'ChatGPT',
+        icon: 'chatgpt'
+      })
+
+      const { args } = lastOpenCall()
+      expect(args.initData).toMatchObject({ icon: 'chatgpt' })
+    })
+
+    it('omits icon from initData when blank or absent', () => {
+      const win = createMockWindow()
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({ id: 'tab-no-icon', url: '/app/chat', title: 'Chat' })
+
+      const { args } = lastOpenCall()
+      expect(args.initData).not.toHaveProperty('icon')
+    })
+
     it('drops malformed tab metadata from initData', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)

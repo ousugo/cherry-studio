@@ -49,6 +49,7 @@ export const SubWindowAppShell = () => {
     openTab(init.url, {
       id: init.tabId,
       title: init.title,
+      icon: init.icon,
       type: init.type || 'route',
       metadata: init.metadata,
       forceNew: true
