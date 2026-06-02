@@ -55,6 +55,12 @@ vi.mock('@renderer/store', () => ({
 
 // FIXME: Idk why it's imported. Maybe circular dependency somewhere
 vi.mock('@renderer/services/AssistantService.ts', () => ({
+  getProviderByModel: (model: any) => {
+    return {
+      id: model?.provider || 'default',
+      type: model?.provider || 'default'
+    }
+  },
   getDefaultAssistant: () => {
     return {
       id: 'default',
@@ -929,6 +935,11 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
     it('should return gemma4_hosted for hosted Gemma 4 models on Gemini provider', () => {
       expect(getThinkModelType(createModel({ id: 'gemma-4-31b-it', provider: 'gemini' }))).toBe('gemma4_hosted')
       expect(getThinkModelType(createModel({ id: 'google/gemma-4-e2b-it', provider: 'gemini' }))).toBe('gemma4_hosted')
+    })
+
+    it('should return default for hosted Gemma 4 models on non-Gemini provider', () => {
+      expect(getThinkModelType(createModel({ id: 'gemma-4-31b-it', provider: 'openrouter' }))).toBe('default')
+      expect(getThinkModelType(createModel({ id: 'google/gemma-4-e2b-it', provider: 'openrouter' }))).toBe('default')
     })
   })
 
