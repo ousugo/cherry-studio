@@ -6780,7 +6780,8 @@
       },
       "title": "提示詞管理",
       "titleLabel": "標題",
-      "titlePlaceholder": "請輸入提示詞標題"
+      "titlePlaceholder": "請輸入提示詞標題",
+      "variablePlaceholder": "${變數}"
     },
     "provider": {
       "add": {

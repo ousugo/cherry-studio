@@ -7,7 +7,10 @@ import PromptEditDialog from '../PromptEditDialog'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string) =>
+      ({
+        'settings.prompts.variablePlaceholder': '${variable}'
+      })[key] ?? key
   })
 }))
 
@@ -98,7 +101,7 @@ describe('PromptEditDialog', () => {
 
     const editor = screen.getByLabelText('prompt-editor')
     await user.click(screen.getByRole('button', { name: 'library.config.prompt.insert_variable' }))
-    await waitFor(() => expect(editor).toHaveValue('Old content ${变量}'))
+    await waitFor(() => expect(editor).toHaveValue('Old content ${variable}'))
 
     await user.clear(editor)
     await user.type(editor, 'Updated content')
