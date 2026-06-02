@@ -31,7 +31,6 @@ const historyTopic: Topic = {
 const homeMocks = vi.hoisted(() => ({
   activeTopicOptions: undefined as
     | {
-        autoPickFirst?: boolean
         passive?: boolean
         activeTopicId?: string | null
         initialTopic?: Topic
@@ -140,11 +139,9 @@ vi.mock('@renderer/hooks/useTopic', async () => {
       initialTopic?: Topic
       activeTopicId: string | null
       setActiveTopicId: (id: string | null) => void
-      autoPickFirst?: boolean
       passive?: boolean
     }) => {
       homeMocks.activeTopicOptions = {
-        autoPickFirst: options.autoPickFirst,
         passive: options.passive,
         activeTopicId: options.activeTopicId,
         initialTopic: options.initialTopic,
@@ -493,7 +490,6 @@ describe('HomePage', () => {
     expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('false')
     expect(screen.queryByRole('button', { name: 'New topic' })).not.toBeInTheDocument()
     expect(homeMocks.activeTopicOptions).toMatchObject({
-      autoPickFirst: false,
       passive: true,
       activeTopicId: 'topic-message'
     })
@@ -542,7 +538,6 @@ describe('HomePage', () => {
 
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
     expect(homeMocks.activeTopicOptions).toMatchObject({
-      autoPickFirst: false,
       passive: false,
       activeTopicId: 'topic-message'
     })

@@ -175,13 +175,8 @@ const HomePage: FC = () => {
     // URL is the single source of truth — per-tab via Tab.url, no cross-tab leak.
     activeTopicId: routeSearch.topicId ?? null,
     setActiveTopicId: setActiveTopicIdToUrl,
-    // While we're waiting for the temporary topic to lease, suppress the
-    // auto-pick-first-topic effect so the UI doesn't flash a stale topic
-    // before our blank one shows up.
-    autoPickFirst: !shouldUseTemporary && !isMessageOnlyView,
     // Message-only view loads its target via useTopicById; the active hook
-    // must not reconcile (it would clobber the URL with topics[0] when the
-    // requested topic isn't in the loaded list).
+    // must not emit or expose a visible activeTopic.
     passive: isMessageOnlyView
   })
   const lastVisibleTopicRef = useRef<Topic | null>(null)

@@ -388,9 +388,8 @@ export interface UseActiveTopicOptions {
   initialTopic?: RendererTopic
   /** External source of truth for active topic id (HomePage drives from URL). */
   activeTopicId: string | null
-  /** Write back when reconciliation or setActiveTopic fires. */
+  /** Write back when initialTopic or setActiveTopic fires. */
   setActiveTopicId: (id: string | null) => void
-  autoPickFirst?: boolean
   /**
    * Pass `true` for callers that don't want any reconciliation or visible
    * activeTopic (e.g. message-only view loads its target via `useTopicById`).
@@ -403,7 +402,6 @@ export function useActiveTopic({
   initialTopic,
   activeTopicId,
   setActiveTopicId,
-  autoPickFirst = true,
   passive = false
 }: UseActiveTopicOptions) {
   const { topics: apiTopics, isLoading } = useTopics({ loadAll: true })
@@ -425,12 +423,12 @@ export function useActiveTopic({
 
   const activeTopic = useMemo<RendererTopic | undefined>(() => {
     if (passive) return undefined
-    if (!activeTopicId) return pendingTopic ?? (autoPickFirst ? topics[0] : undefined)
+    if (!activeTopicId) return pendingTopic
     const fromList = topics.find((t) => t.id === activeTopicId)
     if (fromList) return fromList
     if (pendingTopic?.id === activeTopicId) return pendingTopic
     return undefined
-  }, [activeTopicId, autoPickFirst, passive, pendingTopic, topics])
+  }, [activeTopicId, passive, pendingTopic, topics])
 
   // Where the active topic resolved from. 'query' = persisted (in the DataApi
   // list); 'pending' = optimistic / temporary topic not yet persisted. Mirrors
@@ -454,30 +452,6 @@ export function useActiveTopic({
     },
     [passive, setActiveTopicId]
   )
-
-  // Reconcile activeTopicId against the loaded list in a single effect:
-  //   - cold start: no active topic yet → pick first (when autoPickFirst).
-  //   - active topic was deleted: not in list AND not a recent optimistic
-  //     add (`pendingTopic`) → fall back to first remaining.
-  // Two separate effects could each call `setActiveTopicId(topics[0].id)`
-  // for the same id from different conditions in the same commit, then
-  // the downstream `EVENT_NAMES.CHANGE_TOPIC` emit would fire twice.
-  useEffect(() => {
-    if (passive) return
-    if (topics.length === 0) return
-
-    if (!activeTopicId) {
-      if (autoPickFirst) setActiveTopicId(topics[0].id)
-      return
-    }
-
-    const found = topics.some((t) => t.id === activeTopicId)
-    const isPending = pendingTopic?.id === activeTopicId
-    if (!found && !isPending) {
-      setActiveTopicId(topics[0].id)
-      setPendingTopic(topics[0])
-    }
-  }, [activeTopicId, autoPickFirst, passive, pendingTopic, setActiveTopicId, topics])
 
   useEffect(() => {
     if (passive) return
