@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import WordPreviewPanel from '../WordPreviewPanel'
@@ -39,6 +39,8 @@ vi.mock('docx-preview', () => ({
 }))
 
 describe('WordPreviewPanel', () => {
+  const scrollIntoView = vi.fn()
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3]))
@@ -52,6 +54,10 @@ describe('WordPreviewPanel', () => {
           read: mocks.fsRead
         }
       }
+    })
+    Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView
     })
   })
 
@@ -95,5 +101,32 @@ describe('WordPreviewPanel', () => {
     await waitFor(() => expect(screen.getByTestId('empty-state')).toHaveTextContent('common.error'))
     expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.word.errors.read_failed')
     expect(mocks.renderAsync).not.toHaveBeenCalled()
+  })
+
+  it('zooms the preview and uses page controls to jump to rendered pages', async () => {
+    mocks.renderAsync.mockImplementation(async (_data: Uint8Array, bodyContainer: HTMLElement) => {
+      const wrapper = document.createElement('div')
+      wrapper.className = 'docx-wrapper'
+      for (let index = 0; index < 2; index += 1) {
+        const page = document.createElement('section')
+        page.className = 'docx'
+        wrapper.append(page)
+      }
+      bodyContainer.append(wrapper)
+    })
+
+    render(<WordPreviewPanel filePath="/tmp/workspace/proposal.docx" fileName="proposal.docx" />)
+
+    await waitFor(() => expect(screen.getByText('1 / 2')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    expect(screen.getByTestId('word-preview-body')).toHaveStyle('--word-preview-zoom: 1.1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'preview.reset' }))
+    expect(screen.getByTestId('word-preview-body')).toHaveStyle('--word-preview-zoom: 1')
   })
 })
