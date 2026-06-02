@@ -6,7 +6,7 @@ import {
 } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { ConversationComposerPlacement } from '@renderer/components/chat/composer'
-import { AgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
+import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
@@ -64,7 +64,9 @@ interface AgentChatProps {
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   temporaryConversation?: TemporaryConversation | null
+  missingAgentDraft?: boolean
   onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
+  onMissingAgentDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   onPersistTemporarySession?: (initialName?: string) => Promise<TemporaryConversation | null>
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   onDraftWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
@@ -88,7 +90,9 @@ const AgentChat = ({
   onLocateMessageHandled,
   onPaneCollapse,
   temporaryConversation,
+  missingAgentDraft = false,
   onStartTemporarySession,
+  onMissingAgentDraftAgentChange,
   onPersistTemporarySession,
   onDraftAgentChange,
   onDraftWorkspaceChange,
@@ -215,6 +219,33 @@ const AgentChat = ({
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
           center={<EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />}
+        />
+      )
+    }
+    if (missingAgentDraft) {
+      const composer = !isMultiSelectMode ? (
+        <MissingAgentHomeComposer
+          onAgentChange={onMissingAgentDraftAgentChange}
+          agentChanging={replacingTemporaryAgent}
+        />
+      ) : undefined
+
+      return (
+        <ConversationShell
+          className={messageStyle}
+          pane={pane}
+          paneOpen={paneOpen}
+          panePosition={panePosition}
+          onPaneCollapse={onPaneCollapse}
+          topBar={<AgentChatNavbar activeAgent={null} showSidebarControls={showResourceListControls} />}
+          center={
+            <ConversationStageCenter
+              placement="home"
+              main={null}
+              composer={composer}
+              homeWelcomeText={t('agent.home.welcome_title')}
+            />
+          }
         />
       )
     }

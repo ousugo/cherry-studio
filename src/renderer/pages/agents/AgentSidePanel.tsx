@@ -8,6 +8,7 @@ interface AgentSidePanelProps {
   onSelectItem?: () => void
   onDiscardTemporarySession?: () => void | Promise<void>
   onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
+  onStartMissingAgentDraft?: () => void | Promise<void>
   revealRequest?: ResourceListRevealRequest
 }
 
@@ -16,6 +17,7 @@ const AgentSidePanel = ({
   onSelectItem,
   onDiscardTemporarySession,
   onStartTemporarySession,
+  onStartMissingAgentDraft,
   revealRequest
 }: AgentSidePanelProps) => {
   return (
@@ -32,6 +34,7 @@ const AgentSidePanel = ({
           revealRequest={revealRequest}
           onDiscardTemporarySession={onDiscardTemporarySession}
           onStartTemporarySession={onStartTemporarySession}
+          onStartMissingAgentDraft={onStartMissingAgentDraft}
         />
       </div>
     </div>

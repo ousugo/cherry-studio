@@ -27,7 +27,6 @@ import { useTranslation } from 'react-i18next'
 
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
-import { AgentEmpty } from './components/status'
 import { type AgentRouteSearch, parseAgentRouteSearch } from './routeSearch'
 
 const logger = loggerService.withContext('AgentPage')
@@ -58,7 +57,7 @@ const AgentPage = () => {
   const { session: routeSession, isLoading: isRouteSessionLoading } = useSession(
     isMessageOnlyView ? routeSessionId : null
   )
-  const { agents } = useAgents()
+  const { agents, isLoading: isAgentsLoading } = useAgents()
   const navigate = useNavigate()
   const activeSessionId = isMessageOnlyView ? null : (routeSessionId ?? null)
   const setActiveSessionId = useCallback(
@@ -82,6 +81,7 @@ const AgentPage = () => {
   const initialTemporarySessionEvaluatedRef = useRef(false)
   const [replacingTemporaryAgent, setReplacingTemporaryAgent] = useState(false)
   const [replacingTemporaryWorkspace, setReplacingTemporaryWorkspace] = useState(false)
+  const [missingAgentDraft, setMissingAgentDraft] = useState(false)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
   const temporaryConversation = useTemporaryConversation({ type: 'agent' })
@@ -185,6 +185,7 @@ const AgentPage = () => {
     (sessionId: string | null) => {
       void setShowSidebar(true)
       void discardTemporaryConversation()
+      setMissingAgentDraft(false)
       setActiveSessionId(sessionId)
 
       if (!sessionId) return
@@ -263,6 +264,7 @@ const AgentPage = () => {
           setLastUsedWorkspaceId(started.session.workspaceId)
         }
       }
+      setMissingAgentDraft(false)
       setActiveSessionId(null)
     },
     [
@@ -276,6 +278,21 @@ const AgentPage = () => {
     ]
   )
 
+  const startMissingAgentDraft = useCallback(() => {
+    setPendingLocateMessageId(undefined)
+    void discardTemporaryConversation()
+    setActiveSessionId(null)
+    setMissingAgentDraft(true)
+  }, [discardTemporaryConversation, setActiveSessionId])
+
+  const startMissingAgentDraftSession = useCallback(
+    async (agentId: string | null) => {
+      if (!agentId) return
+      await startTemporarySession({ agentId })
+    },
+    [startTemporarySession]
+  )
+
   useEffect(() => {
     if (initialTemporarySessionEvaluatedRef.current) {
       return
@@ -286,18 +303,38 @@ const AgentPage = () => {
       return
     }
 
-    if (activeSessionId || temporaryAgentConversation) {
+    if (isAgentsLoading) return
+
+    if (!agents.length) {
+      initialTemporarySessionEvaluatedRef.current = true
+      if (activeSessionId) {
+        setActiveSessionId(null)
+      }
+      setMissingAgentDraft(true)
+      return
+    }
+
+    if (missingAgentDraft || activeSessionId || temporaryAgentConversation) {
       initialTemporarySessionEvaluatedRef.current = true
       return
     }
 
     const rememberedAgent = lastUsedAgentId ? agents?.find((agent) => agent.id === lastUsedAgentId) : undefined
     const defaultAgent = rememberedAgent ?? agents?.[0]
-    if (!defaultAgent) return
 
     initialTemporarySessionEvaluatedRef.current = true
     void startTemporarySession({ agentId: defaultAgent.id })
-  }, [activeSessionId, agents, isMessageOnlyView, lastUsedAgentId, startTemporarySession, temporaryAgentConversation])
+  }, [
+    activeSessionId,
+    agents,
+    isAgentsLoading,
+    isMessageOnlyView,
+    lastUsedAgentId,
+    missingAgentDraft,
+    setActiveSessionId,
+    startTemporarySession,
+    temporaryAgentConversation
+  ])
 
   const persistTemporarySession = useCallback(
     async (initialName?: string) => {
@@ -406,15 +443,6 @@ const AgentPage = () => {
     />
   )
 
-  if (agents && agents.length === 0) {
-    return (
-      <Container>
-        <AgentEmpty />
-        {historyOverlay}
-      </Container>
-    )
-  }
-
   const panePosition = 'left'
 
   return (
@@ -430,6 +458,7 @@ const AgentPage = () => {
               revealRequest={sessionRevealRequest}
               onDiscardTemporarySession={discardTemporaryConversation}
               onStartTemporarySession={startTemporarySession}
+              onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
             />
           }
           lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
@@ -439,7 +468,11 @@ const AgentPage = () => {
           onPaneCollapse={() => void setShowSidebar(false)}
           showResourceListControls={!isMessageOnlyView && !isWindowFrame}
           temporaryConversation={isMessageOnlyView ? null : temporaryAgentConversation}
+          missingAgentDraft={
+            !isMessageOnlyView && missingAgentDraft && !visibleSession && temporaryAgentConversation?.type !== 'agent'
+          }
           onStartTemporarySession={isMessageOnlyView ? undefined : startTemporarySession}
+          onMissingAgentDraftAgentChange={isMessageOnlyView ? undefined : startMissingAgentDraftSession}
           onPersistTemporarySession={isMessageOnlyView ? undefined : persistTemporarySession}
           onDraftAgentChange={isMessageOnlyView ? undefined : replaceTemporaryAgent}
           onDraftWorkspaceChange={isMessageOnlyView ? undefined : replaceTemporaryWorkspace}

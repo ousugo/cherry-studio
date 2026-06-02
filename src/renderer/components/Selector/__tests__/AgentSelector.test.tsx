@@ -140,7 +140,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.model_pick': 'Pick model',
           'selector.agent.create_new': 'Create agent',
-          'selector.agent.empty_text': 'No agents',
+          'selector.agent.empty_text': 'No agents yet. Create one first.',
           'selector.agent.search_placeholder': 'Search agents',
           'selector.common.pin': 'Pin',
           'selector.common.pinned_title': 'Pinned',
@@ -334,6 +334,23 @@ describe('AgentSelector', () => {
     expect(screen.queryByRole('button', { pressed: false })).not.toBeInTheDocument()
   })
 
+  it('renders the empty state prompt when no agents exist', () => {
+    useQueryMock.mockReturnValue({
+      data: { items: [], total: 0, page: 1 },
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: refetchAgentsMock,
+      mutate: vi.fn()
+    })
+
+    renderSelector()
+    openPopover()
+
+    expect(screen.getByText('No agents yet. Create one first.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create agent' })).toBeInTheDocument()
+  })
+
   it('fires onChange with the selected agent id', () => {
     const { onChange } = renderSelector()
     openPopover()
@@ -467,6 +484,6 @@ describe('AgentSelector', () => {
     renderSelector()
     openPopover()
 
-    expect(screen.queryByText('No agents')).not.toBeInTheDocument()
+    expect(screen.queryByText('No agents yet. Create one first.')).not.toBeInTheDocument()
   })
 })

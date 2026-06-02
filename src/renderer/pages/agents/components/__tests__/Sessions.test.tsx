@@ -754,6 +754,30 @@ describe('Sessions', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps the header new conversation action enabled without agents and starts a missing-agent draft', () => {
+    const onStartTemporarySession = vi.fn()
+    const onStartMissingAgentDraft = vi.fn()
+    setupSessions({ sessions: [] })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+
+    render(
+      <Sessions onStartTemporarySession={onStartTemporarySession} onStartMissingAgentDraft={onStartMissingAgentDraft} />
+    )
+
+    const newConversationButton = screen.getByRole('button', { name: 'chat.conversation.new' })
+    expect(newConversationButton).not.toBeDisabled()
+
+    fireEvent.click(newConversationButton)
+
+    expect(onStartMissingAgentDraft).toHaveBeenCalledTimes(1)
+    expect(onStartTemporarySession).not.toHaveBeenCalled()
+  })
+
   it('renders no-project sessions in a bottom chats section', () => {
     const onStartTemporarySession = vi.fn()
     const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {

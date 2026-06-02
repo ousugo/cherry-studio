@@ -93,6 +93,7 @@ interface SessionsProps {
   onSelectItem?: () => void
   onDiscardTemporarySession?: () => void | Promise<void>
   onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
+  onStartMissingAgentDraft?: () => void | Promise<void>
   revealRequest?: ResourceListRevealRequest
 }
 
@@ -372,6 +373,7 @@ const Sessions = ({
   onSelectItem,
   onDiscardTemporarySession,
   onStartTemporarySession,
+  onStartMissingAgentDraft,
   revealRequest
 }: SessionsProps) => {
   const { t } = useTranslation()
@@ -717,7 +719,11 @@ const Sessions = ({
 
   const createSessionFromSeed = useCallback(
     async (seed: CreateSessionSeed | null | undefined) => {
-      if (!seed?.agentId || creatingSession) return null
+      if (creatingSession) return null
+      if (!seed?.agentId) {
+        await onStartMissingAgentDraft?.()
+        return null
+      }
 
       const agent = agentById.get(seed.agentId)
       if (!agent) return null
@@ -747,7 +753,15 @@ const Sessions = ({
         setCreatingSession(false)
       }
     },
-    [agentById, creatingSession, findOrCreateWorkspace, onStartTemporarySession, setActiveSessionId, t]
+    [
+      agentById,
+      creatingSession,
+      findOrCreateWorkspace,
+      onStartMissingAgentDraft,
+      onStartTemporarySession,
+      setActiveSessionId,
+      t
+    ]
   )
 
   const handleHeaderCreateSession = useCallback(() => {
@@ -1419,7 +1433,7 @@ const Sessions = ({
           type="button"
           command="topic.create"
           aria-label={t('chat.conversation.new')}
-          disabled={creatingSession || !headerCreateSessionSeed}
+          disabled={creatingSession || (!headerCreateSessionSeed && !onStartMissingAgentDraft)}
           icon={<SquarePen />}
           label={t('chat.conversation.new')}
           onClick={handleHeaderCreateSession}

@@ -5072,12 +5072,12 @@
   "selector": {
     "agent": {
       "create_new": "New Agent",
-      "empty_text": "No agents yet",
+      "empty_text": "No agents yet. Create one first.",
       "search_placeholder": "Search agents…"
     },
     "assistant": {
       "create_new": "New Assistant",
-      "empty_text": "No assistants yet",
+      "empty_text": "No assistants yet. Create one first.",
       "multi_hint": "(mutually exclusive with multi-model)",
       "multi_label": "Multi-assistant parallel",
       "search_placeholder": "Search assistants…"

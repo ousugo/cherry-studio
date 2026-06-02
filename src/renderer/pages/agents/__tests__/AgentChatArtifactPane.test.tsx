@@ -427,6 +427,15 @@ vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
     <button type="button" data-testid="agent-home-composer" onClick={() => void sendMessage?.({ text: 'hello' })}>
       send temporary message
     </button>
+  ),
+  MissingAgentHomeComposer: ({
+    onAgentChange
+  }: {
+    onAgentChange?: (agentId: string | null) => void | Promise<void>
+  }) => (
+    <button type="button" data-testid="missing-agent-home-composer" onClick={() => void onAgentChange?.('agent-2')}>
+      select missing agent
+    </button>
   )
 }))
 
@@ -709,6 +718,30 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'false')
     expect(screen.getByTestId('composer-dock-home-header')).toHaveTextContent('agent.home.welcome_title')
     expect(screen.getByTestId('agent-home-composer')).toBeInTheDocument()
+  })
+
+  it('renders the missing-agent draft as a home composer without leasing a session', () => {
+    activeSessionMocks.result = {
+      activeSessionId: null,
+      session: undefined,
+      isLoading: false,
+      setActiveSessionId: vi.fn()
+    }
+    const onMissingAgentDraftAgentChange = vi.fn()
+
+    renderAgentChat({
+      missingAgentDraft: true,
+      onMissingAgentDraftAgentChange
+    })
+
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
+    expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'false')
+    expect(screen.getByTestId('composer-dock-home-header')).toHaveTextContent('agent.home.welcome_title')
+    expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'select missing agent' }))
+
+    expect(onMissingAgentDraftAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
   it('disables the artifact pane when switching into a draft temporary session', async () => {

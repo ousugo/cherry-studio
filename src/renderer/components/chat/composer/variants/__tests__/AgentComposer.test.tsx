@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
-import AgentComposer, { AgentHomeComposer } from '../AgentComposer'
+import AgentComposer, { AgentHomeComposer, MissingAgentHomeComposer } from '../AgentComposer'
 
 const mocks = vi.hoisted(() => ({
   draftText: 'hello',
@@ -1230,6 +1230,32 @@ describe('AgentComposer', () => {
     const belowText = belowControls.textContent ?? ''
     expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5 | Anthropic'))
     expect(belowText.indexOf('Claude Sonnet 4.5 | Anthropic')).toBeLessThan(belowText.indexOf('Workspace 1'))
+  })
+
+  it('renders a missing-agent home composer with a selectable agent and blocked sending', () => {
+    const onAgentChange = vi.fn()
+
+    render(<MissingAgentHomeComposer onAgentChange={onAgentChange} />)
+
+    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('chat.alerts.select_agent')
+    const belowControls = screen.getByTestId('composer-below-controls')
+    expect(belowControls).toHaveTextContent('chat.alerts.select_agent')
+    expect(belowControls).toHaveTextContent('button.select_model')
+    expect(belowControls).not.toHaveTextContent('Workspace 1')
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('chat.alerts.select_agent')
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('draft before agent')
+    })
+    fireEvent.click(screen.getByText('select agent 2'))
+
+    expect(cacheService.setCasual).toHaveBeenCalledWith(
+      'agent-session-draft-agent-2',
+      { text: 'draft before agent', tokens: [] },
+      24 * 60 * 60 * 1000
+    )
+    expect(onAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
   it('shows only icons in the temporary home bottom toolbar when it is narrow', async () => {
