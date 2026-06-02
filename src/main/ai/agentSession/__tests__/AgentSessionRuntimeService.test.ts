@@ -90,6 +90,16 @@ function createAsyncQueue<T>() {
   }
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 describe('AgentSessionRuntimeService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -416,6 +426,117 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-db' })
     service.closeSession('session-1')
     await reader.cancel().catch(() => undefined)
+  })
+
+  it('closes the runtime session when the active turn is aborted by the user', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn()
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const controller = new AbortController()
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: controller.signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
+
+    controller.abort('user-requested')
+
+    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+    expect(service.inspect('session-1')).toBeUndefined()
+    await reader.cancel().catch(() => undefined)
+  })
+
+  it('closes a late runtime connection when the user aborts before connect resolves', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn()
+    }
+    const pendingConnection = createDeferred<typeof connection>()
+    const connect = vi.fn().mockReturnValue(pendingConnection.promise)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const controller = new AbortController()
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: controller.signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
+
+    controller.abort('user-requested')
+    expect(service.inspect('session-1')).toBeUndefined()
+
+    pendingConnection.resolve(connection)
+
+    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+    expect(connection.send).not.toHaveBeenCalled()
+    await reader.cancel().catch(() => undefined)
+  })
+
+  it('keeps the runtime session alive when the active turn is aborted for an internal interrupt', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn()
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const controller = new AbortController()
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: controller.signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
+
+    controller.abort('agent-runtime-interrupt')
+
+    await expect(reader.read()).resolves.toMatchObject({ done: true })
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(service.inspect('session-1')).toMatchObject({
+      sessionId: 'session-1',
+      status: 'active'
+    })
+    service.closeSession('session-1')
   })
 
   it('persists errored assistant turns with the latest resume token', async () => {
