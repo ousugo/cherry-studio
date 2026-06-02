@@ -5992,6 +5992,17 @@
         "title": "資料備份與復原"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cherry",
+            "native": "原生",
+            "restart": {
+              "content": "變更選單樣式需要重新啟動應用程式才能生效，您要立即重新啟動嗎？",
+              "title": "需要重新啟動"
+            },
+            "title": "右鍵選單樣式"
+          }
+        },
         "sections": {
           "chat_settings": "對話設定",
           "custom_css": "自訂 CSS",
