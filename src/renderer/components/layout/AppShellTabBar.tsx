@@ -4,12 +4,13 @@ import {
   emitResourceListReveal,
   type ResourceListRevealSource
 } from '@renderer/components/chat/resources/resourceListRevealEvents'
+import { OpenInNewWindowIcon } from '@renderer/components/Icons'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import type { Tab } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils'
-import { AppWindow, ChevronsLeft, Pin, PinOff, Plus, X } from 'lucide-react'
+import { ChevronsLeft, Pin, PinOff, Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -322,7 +323,7 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.open-in-new-window',
           label: t('tab.open_in_new_window'),
-          icon: <AppWindow size={14} />,
+          icon: <OpenInNewWindowIcon size={14} />,
           onSelect: onDetach
         }
       },

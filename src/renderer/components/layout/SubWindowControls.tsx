@@ -1,10 +1,11 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { BackToMainWindowIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils'
 import { IpcChannel } from '@shared/IpcChannel'
-import { PanelTop, Pin } from 'lucide-react'
+import { Pin } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -50,7 +51,7 @@ export const SubWindowControls = () => {
       </Tooltip>
       <Tooltip placement="bottom" content={t('subWindow.back_to_main')} delay={400}>
         <NavbarIcon aria-label={t('subWindow.back_to_main')} onClick={handleBackToMain}>
-          <PanelTop />
+          <BackToMainWindowIcon />
         </NavbarIcon>
       </Tooltip>
     </>
