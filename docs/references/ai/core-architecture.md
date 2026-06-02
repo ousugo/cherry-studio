@@ -23,11 +23,15 @@ each subsystem.
 ┌──────────────────────────────────────────────────────────────────────┐
 │                              Main                                    │
 │                                                                      │
-│  AiService (lifecycle service)                                       │
-│    ├─ ipcHandle('Ai_Stream_Open',  dispatchStreamRequest)             │
-│    ├─ ipcHandle('Ai_Stream_Attach', AiStreamManager.attach)           │
-│    ├─ ipcHandle('Ai_Stream_Abort',  AiStreamManager.abort)            │
-│    └─ ipcHandle('Ai_ToolApproval_Respond', applyApprovalAndContinue)  │
+│  AiStreamManager (lifecycle service) — registers in onInit:          │
+│    ├─ ipcHandle('Ai_Stream_Open',   → dispatchStreamRequest)          │
+│    ├─ ipcHandle('Ai_Stream_Attach', → this.attach)                    │
+│    ├─ ipcHandle('Ai_Stream_Detach', → this.detach)                    │
+│    └─ ipcHandle('Ai_Stream_Abort',  → this.abort)                     │
+│                                                                      │
+│  AiService (lifecycle service) — registers:                          │
+│    ├─ ipcHandle('Ai_ToolApproval_Respond', <inline handler>)          │
+│    └─ ipcHandle('Ai_GenerateText' / 'Ai_Translate_Open' / …)          │
 │                                                                      │
 │  dispatch (src/main/ai/streamManager/context/dispatch.ts)            │
 │    pick ChatContextProvider → prepareDispatch → manager.send(...)     │
@@ -117,8 +121,8 @@ overlay-vs-persist conditional write.
 | `buildAgentParams`, `RequestFeature` composition, `INTERNAL_FEATURES` order | [Params Pipeline](./params-pipeline.md) |
 | Tool registry, MCP sync, meta-tools (`tool_search` / `tool_inspect` / `tool_invoke` / `tool_exec`), defer exposition | [Tool Registry](./tool-registry.md) |
 | `Provider.endpointConfigs`, `endpointType` resolution, variant suffixes, custom providers | [Provider Resolution](./provider-resolution.md) |
-| `adapterFamily` field, runtime resolver, write paths (catalog / migrator / UI) | [Adapter Family](./adapter-family.md) |
-| OTel span tree, `AdapterTracer`, `AiSdkSpanAdapter`, dev-tools view | [Trace](./trace.md) |
+| `adapterFamily` field, runtime resolver, write paths (catalog / migrator) | [Adapter Family](./adapter-family.md) |
+| OTel span tree, `AdapterTracer`, `AiSdkSpanAdapter`, dev-tools view | [Observability](./observability.md) |
 | `IpcChatTransport`, dispatch coordinator, per-execution demux | [IPC Transport](./ipc-transport.md) |
 | Approval flow, Main-as-writer invariant, persistent decisions | [Tool Approval](./tool-approval.md) |
 
@@ -144,20 +148,23 @@ overlay-vs-persist conditional write.
 
 ```
 src/main/ai/
-├── AiService.ts                  ← lifecycle owner, IPC entry
-├── runtime/                      ← AI SDK and Claude Code execution backends
-├── agent-session/                ← agent-session topic host
-├── stream-manager/               ← AiStreamManager, listeners, persistence
+├── AiService.ts                  ← lifecycle owner, IPC entry (generate / translate / approval)
+├── runtime/                      ← execution backends: runtime/aiSdk (Agent + params), runtime/claudeCode
+├── agentSession/                 ← agent-session topic host
+├── agents/                       ← AgentJobsService, AgentTaskJobHandler, runAgentTask, cherryclaw
+├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat) + security/
+├── streamManager/                ← AiStreamManager, listeners, persistence (registers the stream IPC)
 ├── provider/                     ← provider config, endpoint resolution, custom providers
-├── tools/                        ← unified tool registry
+├── mcp/                          ← McpRuntimeService / McpCatalogService, oauth, built-in servers
+├── skills/                       ← SkillService, SkillInstaller
+├── tools/                        ← unified tool registry (adapters/aiSdk + adapters/claudeCode)
 ├── observability/                ← AI trace adapters, local projection, sinks
 ├── messages/                     ← UI part → AI SDK part conversion
-├── prompts/                      ← static prompt fragments
 ├── types/                        ← AppProviderId, merged types, request types
 └── utils/                        ← reasoning / model parameters / options / websearch
 
-src/renderer/src/transport/       ← IpcChatTransport, dispatch coordinator
-src/renderer/src/hooks/           ← useChatWithHistory, useToolApprovalBridge, useTopicStreamStatus
+src/renderer/transport/           ← IpcChatTransport, dispatch coordinator
+src/renderer/hooks/               ← useChatWithHistory, useToolApprovalBridge, useTopicStreamStatus
 packages/aiCore/                  ← @cherrystudio/ai-core (Agent + plugins + provider extensions)
 packages/provider-registry/       ← provider catalog, registry-utils (adapterFamily inference)
 ```

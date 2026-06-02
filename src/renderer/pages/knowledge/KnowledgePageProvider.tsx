@@ -5,12 +5,12 @@ import {
   useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
 } from '@renderer/hooks/useKnowledgeBase'
-import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { KnowledgeBase, KnowledgeItemType } from '@shared/data/types/knowledge'
 import {
   createContext,
   type MouseEvent as ReactMouseEvent,
@@ -29,25 +29,22 @@ import { useCreateKnowledgeGroup, useDeleteKnowledgeGroup, useKnowledgeGroups, u
 import type { KnowledgeRestoreBaseInitialValues } from './panels/ragConfig/RagConfigPanel'
 import type { KnowledgeTabKey } from './types'
 
-const NAVIGATOR_DEFAULT_WIDTH = 180
-const NAVIGATOR_MIN_WIDTH = 180
+const NAVIGATOR_DEFAULT_WIDTH = 240
+const NAVIGATOR_MIN_WIDTH = 220
 const NAVIGATOR_MAX_WIDTH = 360
 
 type EditableKnowledgeGroup = Pick<Group, 'id' | 'name'>
 type EditableKnowledgeBase = Pick<KnowledgeBase, 'id' | 'name'>
-type KnowledgeBaseItems = ReturnType<typeof useKnowledgeItems>['items']
 type CreateKnowledgeBase = ReturnType<typeof useCreateKnowledgeBase>['createBase']
 type RestoreKnowledgeBase = ReturnType<typeof useRestoreKnowledgeBase>['restoreBase']
 
 interface KnowledgePageContextValue {
-  bases: KnowledgeBase[]
+  bases: KnowledgeBaseListItem[]
   groups: Group[]
   isLoading: boolean
   selectedBase: KnowledgeBase | undefined
   selectedBaseId: string
-  selectedBaseItems: KnowledgeBaseItems
   selectedItemId: string | null
-  isItemsLoading: boolean
   activeTab: KnowledgeTabKey
   navigatorWidth: number
   contentRef: RefObject<HTMLDivElement | null>
@@ -56,6 +53,10 @@ interface KnowledgePageContextValue {
   restoringBase: KnowledgeBase | null
   restoreBaseInitialValues: KnowledgeRestoreBaseInitialValues | undefined
   isAddSourceDialogOpen: boolean
+  pendingAddSource: KnowledgeItemType | undefined
+  pendingAddFiles: File[] | undefined
+  isRagConfigDrawerOpen: boolean
+  isRecallTestDrawerOpen: boolean
   isCreateBaseDialogOpen: boolean
   isCreateGroupDialogOpen: boolean
   createBaseInitialGroupId: string | undefined
@@ -70,7 +71,11 @@ interface KnowledgePageContextValue {
   setActiveTab: (tab: KnowledgeTabKey) => void
   openItemChunks: (itemId: string) => void
   closeItemChunks: () => void
-  openAddSourceDialog: () => void
+  openAddSourceDialog: (source?: KnowledgeItemType, files?: File[]) => void
+  openRagConfigDrawer: () => void
+  openRecallTestDrawer: () => void
+  handleRagConfigDrawerOpenChange: (open: boolean) => void
+  handleRecallTestDrawerOpenChange: (open: boolean) => void
   openCreateBaseDialog: (groupId?: string) => void
   openCreateGroupDialog: () => void
   openRenameBaseDialog: (base: EditableKnowledgeBase) => void
@@ -110,7 +115,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [pendingSelectedBaseId, setPendingSelectedBaseId] = useState<string | null>(null)
   const pendingSelectedBaseListRef = useRef<KnowledgeBase[] | null>(null)
-  const { items: selectedBaseItems, isLoading: isItemsLoading } = useKnowledgeItems(selectedBaseId)
   const [activeTab, setActiveTab] = useState<KnowledgeTabKey>('data')
   const [navigatorWidth, setNavigatorWidth] = useState(NAVIGATOR_DEFAULT_WIDTH)
   const [editingBase, setEditingBase] = useState<EditableKnowledgeBase | null>(null)
@@ -120,6 +124,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     KnowledgeRestoreBaseInitialValues | undefined
   >()
   const [isAddSourceDialogOpen, setIsAddSourceDialogOpen] = useState(false)
+  const [pendingAddSource, setPendingAddSource] = useState<KnowledgeItemType | undefined>()
+  const [pendingAddFiles, setPendingAddFiles] = useState<File[] | undefined>()
+  const [isRagConfigDrawerOpen, setIsRagConfigDrawerOpen] = useState(false)
+  const [isRecallTestDrawerOpen, setIsRecallTestDrawerOpen] = useState(false)
   const [isCreateBaseDialogOpen, setIsCreateBaseDialogOpen] = useState(false)
   const [createBaseInitialGroupId, setCreateBaseInitialGroupId] = useState<string | undefined>()
   const [isCreateGroupDialogOpen, setIsCreateGroupDialogOpen] = useState(false)
@@ -206,8 +214,26 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
     setIsCreateBaseDialogOpen(true)
   }, [])
 
-  const openAddSourceDialog = useCallback(() => {
+  const openAddSourceDialog = useCallback((source?: KnowledgeItemType, files?: File[]) => {
+    setPendingAddSource(source)
+    setPendingAddFiles(files?.length ? files : undefined)
     setIsAddSourceDialogOpen(true)
+  }, [])
+
+  const openRagConfigDrawer = useCallback(() => {
+    setIsRagConfigDrawerOpen(true)
+  }, [])
+
+  const openRecallTestDrawer = useCallback(() => {
+    setIsRecallTestDrawerOpen(true)
+  }, [])
+
+  const handleRagConfigDrawerOpenChange = useCallback((open: boolean) => {
+    setIsRagConfigDrawerOpen(open)
+  }, [])
+
+  const handleRecallTestDrawerOpenChange = useCallback((open: boolean) => {
+    setIsRecallTestDrawerOpen(open)
   }, [])
 
   const openCreateGroupDialog = useCallback(() => {
@@ -240,6 +266,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const handleAddSourceDialogOpenChange = useCallback((open: boolean) => {
     setIsAddSourceDialogOpen(open)
+    if (!open) {
+      setPendingAddSource(undefined)
+      setPendingAddFiles(undefined)
+    }
   }, [])
 
   const handleCreateGroupDialogOpenChange = useCallback((open: boolean) => {
@@ -384,9 +414,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       isLoading,
       selectedBase,
       selectedBaseId,
-      selectedBaseItems,
       selectedItemId,
-      isItemsLoading,
       activeTab,
       navigatorWidth,
       contentRef,
@@ -395,6 +423,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       restoringBase,
       restoreBaseInitialValues,
       isAddSourceDialogOpen,
+      pendingAddSource,
+      pendingAddFiles,
+      isRagConfigDrawerOpen,
+      isRecallTestDrawerOpen,
       isCreateBaseDialogOpen,
       isCreateGroupDialogOpen,
       createBaseInitialGroupId,
@@ -410,6 +442,10 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       openItemChunks,
       closeItemChunks,
       openAddSourceDialog,
+      openRagConfigDrawer,
+      openRecallTestDrawer,
+      handleRagConfigDrawerOpenChange,
+      handleRecallTestDrawerOpenChange,
       openCreateBaseDialog,
       openCreateGroupDialog,
       openRenameBaseDialog,
@@ -452,12 +488,19 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       handleRestoreBaseDialogOpenChange,
       handleRestoreBaseRestored,
       isAddSourceDialogOpen,
+      pendingAddFiles,
+      pendingAddSource,
+      isRagConfigDrawerOpen,
+      isRecallTestDrawerOpen,
+      handleRagConfigDrawerOpenChange,
+      handleRecallTestDrawerOpenChange,
+      openRagConfigDrawer,
+      openRecallTestDrawer,
       isCreateBaseDialogOpen,
       isCreateGroupDialogOpen,
       createBaseInitialGroupId,
       isCreatingBase,
       isCreatingGroup,
-      isItemsLoading,
       isLoading,
       isUpdatingBase,
       isUpdatingGroup,
@@ -476,7 +519,6 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       selectBase,
       selectedBase,
       selectedBaseId,
-      selectedBaseItems,
       selectedItemId,
       startNavigatorResize,
       submitCreateGroup,

@@ -3,7 +3,6 @@ import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { PendingMessageQueue } from '../../runtime/aiSdk/loop/PendingMessageQueue'
 import type { AiStreamRequest } from '../../types/requests'
 import type {
   AiStreamManagerConfig,
@@ -267,7 +266,7 @@ describe('AiStreamManager', () => {
   // ── send (inject path) ─────────────────────────────────────────────
 
   describe('send (inject)', () => {
-    it('injects into existing stream without calling streamText again', () => {
+    it('upserts listeners onto a live stream without calling streamText again', () => {
       const l1 = new FakeListener('l:a')
       startSingle(mgr, {
         topicId: 'a',
@@ -281,29 +280,16 @@ describe('AiStreamManager', () => {
       const result = mgr.send({
         topicId: 'a',
         models: [{ modelId: 'provider-a::model-a', request: req('a') }],
-        userMessage: {
-          id: 'user-2',
-          topicId: 'a',
-          parentId: null,
-          role: 'user',
-          data: {},
-          status: 'success',
-          createdAt: '',
-          updatedAt: ''
-        } as any,
         listeners: [l2]
       })
 
       expect(result.mode).toBe('injected')
       expect(result.executionIds).toEqual(['provider-a::model-a'])
-      // No second streamText call — message injection reuses the existing stream
+      // No second streamText call — the live stream is reused.
       expect(mockStreamText).toHaveBeenCalledTimes(1)
 
-      // Snapshot reflects the inject side-effects:
-      //  - the execution's pending queue now has one message
-      //  - the listener id is still the single "l:a" (upsert, not duplicate)
+      // The listener id is still the single "l:a" (upsert, not duplicate).
       const snap = mgr.inspect('a')!
-      expect(snap.executions[0].pendingMessageCount).toBe(1)
       expect(snap.listenerIds).toEqual(['l:a'])
 
       // Behaviour proves the listener was actually replaced: only l2 sees the chunk.
@@ -312,7 +298,7 @@ describe('AiStreamManager', () => {
       expect(l2.chunks).toHaveLength(1)
     })
 
-    it('injects direct-send model requests when no persisted userMessage is supplied', () => {
+    it('upserts an agent-session follow-up subscriber without restarting the stream', () => {
       startSingle(mgr, {
         topicId: 'agent-session:s1',
         modelId: 'provider-a::model-a',
@@ -323,50 +309,14 @@ describe('AiStreamManager', () => {
 
       const result = mgr.send({
         topicId: 'agent-session:s1',
-        models: [
-          {
-            modelId: 'provider-a::model-a',
-            request: {
-              ...req('agent-session:s1'),
-              messages: [{ id: 'incoming-user', role: 'user', parts: [{ type: 'text', text: 'ping' }] }]
-            }
-          }
-        ],
+        models: [],
         listeners: [new FakeListener('l:b')]
       })
 
       expect(result.mode).toBe('injected')
+      expect(result.executionIds).toEqual(['provider-a::model-a'])
       expect(mockStreamText).toHaveBeenCalledTimes(1)
-      expect(mgr.inspect('agent-session:s1')?.executions[0].pendingMessageCount).toBe(1)
-    })
-
-    it('pushes live injected messages into a request-provided pending queue', () => {
-      const pendingMessages = new PendingMessageQueue()
-      startSingle(mgr, {
-        topicId: 'agent-session:s1',
-        modelId: 'provider-a::model-a',
-        request: { ...req('agent-session:s1'), pendingMessages },
-        listeners: [new FakeListener('l:a')]
-      })
-
-      mgr.send({
-        topicId: 'agent-session:s1',
-        models: [{ modelId: 'provider-a::model-a', request: req('agent-session:s1') }],
-        userMessage: {
-          id: 'user-2',
-          topicId: 'agent-session:s1',
-          parentId: null,
-          role: 'user',
-          data: {},
-          status: 'success',
-          createdAt: '',
-          updatedAt: ''
-        } as any,
-        listeners: [new FakeListener('l:b')]
-      })
-
-      expect(pendingMessages.list().map((message) => message.id)).toEqual(['user-2'])
-      expect(mgr.inspect('agent-session:s1')?.executions[0].pendingMessageCount).toBe(1)
+      expect(mgr.inspect('agent-session:s1')?.listenerIds).toEqual(['l:a', 'l:b'])
     })
   })
 
@@ -395,45 +345,9 @@ describe('AiStreamManager', () => {
       expect(snap.isMultiModel).toBe(true)
       expect(snap.listenerIds).toEqual(['l:a'])
 
-      // Each execution starts with an empty queue (no injected message yet).
-      for (const exec of snap.executions) {
-        expect(exec.pendingMessageCount).toBe(0)
-      }
-
       // Behaviour: the single shared listener receives from either execution.
       mgr.onChunk('a', 'provider-a::model-a', chunk('from-a'))
       expect(listener.chunks).toHaveLength(1)
-    })
-
-    it('fans injected messages out to every execution queue', () => {
-      mgr.send({
-        topicId: 'a',
-        models: [
-          { modelId: 'provider-a::model-a', request: req('a') },
-          { modelId: 'provider-b::model-b', request: req('a') }
-        ],
-        listeners: [new FakeListener('l:a')]
-      })
-
-      const injected = mgr.injectMessage('a', {
-        id: 'inject-1',
-        topicId: 'a',
-        parentId: null,
-        role: 'user',
-        data: {},
-        status: 'success',
-        createdAt: '',
-        updatedAt: ''
-      } as any)
-
-      expect(injected).toBe(true)
-      // Every execution's own queue received the injected message — this
-      // is the multi-model invariant: one inject, N consumers, no data loss.
-      const snap = mgr.inspect('a')!
-      expect(snap.executions).toHaveLength(2)
-      for (const exec of snap.executions) {
-        expect(exec.pendingMessageCount).toBe(1)
-      }
     })
 
     it('tags every chunk with its sourceModelId (single- and multi-model)', () => {
@@ -826,13 +740,38 @@ describe('AiStreamManager', () => {
     })
   })
 
-  // ── injectMessage ───────────────────────────────────────────────
+  // ── abortAndAwait ───────────────────────────────────────────────
+  // Used by the dispatcher to restart a chat turn: abort the live stream,
+  // wait for its execution loop to settle (persist as paused), then evict
+  // so the next `send()` starts fresh with no orphan stream on the topic.
 
-  // `injectMessage()` (direct call) is the single-model subset of the
-  // multi-model fan-out tested under
-  // `send (multi-model) > fans injected messages out to every execution
-  // queue`. No dedicated test here — the fan-out test covers the invariant
-  // for 1-to-N executions, and single-model is the N=1 case.
+  describe('abortAndAwait', () => {
+    it('aborts a live stream, settles its loop, and evicts the topic', async () => {
+      // readUIMessageStream's accumulator needs real microtask/timer
+      // scheduling; fake timers starve it (see live finalMessage test).
+      vi.useRealTimers()
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+      expect(mgr.inspect('a')!.status).toBe('pending')
+
+      await mgr.abortAndAwait('a', 'steer-restart')
+
+      // The loop settled as paused (partial persisted) and the stream was evicted.
+      expect(listener.pausedResults).toHaveLength(1)
+      expect(mgr.inspect('a')).toBeUndefined()
+    })
+
+    it('is a no-op when the topic has no live stream', async () => {
+      await expect(mgr.abortAndAwait('missing', 'steer-restart')).resolves.toBeUndefined()
+      expect(mgr.inspect('missing')).toBeUndefined()
+    })
+  })
 
   // ── live finalMessage accumulation ──────────────────────────────
 

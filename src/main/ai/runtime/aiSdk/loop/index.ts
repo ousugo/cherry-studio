@@ -14,7 +14,6 @@ import type {
 } from 'ai'
 
 import type { AppProviderSettingsMap } from '../../../types'
-import type { PendingMessageQueue } from './PendingMessageQueue'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
@@ -46,7 +45,7 @@ export type ToolExecutionEndEvent = ToolExecutionStartEvent & {
 export interface AgentLoopHooks {
   onStart?: () => Promise<void> | void
 
-  /** Forwarded to AI SDK `prepareStep`. Cherry's steering observer (drains `pendingMessages`) composes ahead. */
+  /** Forwarded to AI SDK `prepareStep`. */
   prepareStep?: PrepareStepFunction
 
   onStepFinish?: (step: StepResult<ToolSet>) => Promise<void> | void
@@ -110,10 +109,4 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   options?: AgentOptions
   /** Independent hook contributors folded by `composeHooks`. */
   hookParts?: ReadonlyArray<Partial<AgentLoopHooks>>
-  /**
-   * Session-isolated queue of follow-up messages injected mid-stream.
-   * Drained twice per run: mid-flight via `attachSteeringObserver` on
-   * `prepareStep`, and tail-recheck after the stream settles.
-   */
-  pendingMessages?: PendingMessageQueue
 }

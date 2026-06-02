@@ -2,7 +2,7 @@
 
 ## What it is
 
-`buildAgentParams` (`src/main/ai/agent/params/buildAgentParams.ts`) is the
+`buildAgentParams` (`src/main/ai/runtime/aiSdk/params/buildAgentParams.ts`) is the
 single function that turns a (request, provider, model, assistant) tuple
 into everything `Agent.stream()` needs:
 
@@ -24,7 +24,7 @@ hand it in.
 ## RequestFeature
 
 The composition unit is `RequestFeature`
-(`agent/params/feature.ts`):
+(`src/main/ai/runtime/aiSdk/params/feature.ts`):
 
 ```ts
 interface RequestFeature {
@@ -40,7 +40,7 @@ interface RequestFeature {
 result feeds `plugins` and `hookParts` in `BuiltAgentParams`.
 
 Order matters because AI SDK plugin order is significant. The list lives
-in `agent/params/features/index.ts`:
+in `src/main/ai/runtime/aiSdk/params/features/index.ts`:
 
 ```ts
 export const INTERNAL_FEATURES = [
@@ -113,10 +113,10 @@ options).
 
 ## Where to read more
 
-- Code: `src/main/ai/agent/params/`
-- Tests: `agent/params/__tests__/` (`assembleSystemPrompt`,
+- Code: `src/main/ai/runtime/aiSdk/params/`
+- Tests: `src/main/ai/runtime/aiSdk/params/__tests__/` (`assembleSystemPrompt`,
   `collectFromFeatures`, `composeHooks`),
-  `agent/params/features/__tests__/`
+  `src/main/ai/runtime/aiSdk/params/features/__tests__/`
 - Tool defer: [Tool Registry](./tool-registry.md)
 - Endpoint routing: [Adapter Family](./adapter-family.md)
 - Hooks: [Agent Loop](./agent-loop.md)

@@ -10,19 +10,22 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
-import type { ListKnowledgeBasesQuery, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type {
+  KnowledgeBaseListItem,
+  ListKnowledgeBasesQuery,
+  UpdateKnowledgeBaseDto
+} from '@shared/data/api/schemas/knowledges'
 import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeBaseDto,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-  DEFAULT_KNOWLEDGE_BASE_EMOJI,
   DEFAULT_KNOWLEDGE_BASE_STATUS,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
   type KnowledgeBase,
   KnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
-import { and, asc, desc, eq, gte, type SQL, sql } from 'drizzle-orm'
+import { and, count as sqlCount, eq, type SQL, ne, sql, asc, desc, gte } from 'drizzle-orm'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -82,7 +85,7 @@ export class KnowledgeBaseService {
     return application.get('DbService').getDb()
   }
 
-  async list(query: ListKnowledgeBasesServiceQuery): Promise<OffsetPaginationResponse<KnowledgeBase>> {
+  async list(query: ListKnowledgeBasesServiceQuery): Promise<OffsetPaginationResponse<KnowledgeBaseListItem>> {
     const { page, limit } = query
     const offset = (page - 1) * limit
     const conditions: SQL[] = []
@@ -97,11 +100,18 @@ export class KnowledgeBaseService {
       query.sortBy === 'updatedAt'
         ? [orderFn(knowledgeBaseTable.updatedAt), asc(knowledgeBaseTable.id)]
         : [desc(knowledgeBaseTable.createdAt), desc(knowledgeBaseTable.id)]
-
     const [rows, [{ count }]] = await Promise.all([
       this.db
-        .select()
+        .select({
+          base: knowledgeBaseTable,
+          itemCount: sqlCount(knowledgeItemTable.id)
+        })
         .from(knowledgeBaseTable)
+        .leftJoin(
+          knowledgeItemTable,
+          and(eq(knowledgeItemTable.baseId, knowledgeBaseTable.id), ne(knowledgeItemTable.status, 'deleting'))
+        )
+        .groupBy(knowledgeBaseTable.id)
         .where(whereClause)
         .orderBy(...orderByClauses)
         .limit(limit)
@@ -110,7 +120,10 @@ export class KnowledgeBaseService {
     ])
 
     return {
-      items: rows.map((row) => rowToKnowledgeBase(row)),
+      items: rows.map((row) => ({
+        ...rowToKnowledgeBase(row.base),
+        itemCount: row.itemCount
+      })),
       total: count,
       page
     }
@@ -141,7 +154,6 @@ export class KnowledgeBaseService {
     const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
       groupId: dto.groupId ?? null,
-      emoji: dto.emoji ?? DEFAULT_KNOWLEDGE_BASE_EMOJI,
       dimensions: dto.dimensions,
       embeddingModelId: dto.embeddingModelId.trim(),
       status: DEFAULT_KNOWLEDGE_BASE_STATUS,
@@ -197,9 +209,6 @@ export class KnowledgeBaseService {
     }
     if (dto.groupId !== undefined && dto.groupId !== existing.groupId) {
       updates.groupId = dto.groupId
-    }
-    if (dto.emoji !== undefined && dto.emoji !== existing.emoji) {
-      updates.emoji = dto.emoji
     }
     if (dto.rerankModelId !== undefined && dto.rerankModelId !== existing.rerankModelId) {
       updates.rerankModelId = dto.rerankModelId

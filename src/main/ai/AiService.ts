@@ -1,6 +1,7 @@
 import { embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { assistantDataService } from '@data/services/AssistantService'
+import type { PersonGeneration } from '@google/genai'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -17,7 +18,9 @@ import {
 } from '@shared/ai/transport'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { Base64String } from '@shared/file/types/common'
 import { IpcChannel } from '@shared/IpcChannel'
 import { isEmbeddingModel } from '@shared/utils/model'
 import {
@@ -41,6 +44,7 @@ import { WebContentsListener } from './streamManager/listeners/WebContentsListen
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
+import { buildImageProviderOptions, normalizeAspectRatio } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiService')
 const STALE_AGENT_SESSION_APPROVAL_REASON =
@@ -113,19 +117,18 @@ export interface AiImageRequest extends AiBaseRequest {
   numInferenceSteps?: number
   guidanceScale?: number
   promptEnhancement?: boolean
-  /** TODO(renderer/aiCore-cleanup): wire personGeneration through to the underlying image runtime once the main image contract formally supports it end-to-end. */
-  personGeneration?: string
+  personGeneration?: PersonGeneration
+  aspectRatio?: string
+  background?: string
+  moderation?: string
+  style?: string
+  /** Vendor-specific image params keyed by provider id; mapped to AI SDK provider options in main. */
+  providerOptions?: Record<string, Record<string, unknown>>
 }
 
-export interface GeneratedImagePayload {
-  kind: 'base64'
-  data: string
-  mediaType?: string
-}
-
-/** Image generation result. */
+/** Image generation result — persisted file entries (main writes the bytes). */
 export interface AiImageResult {
-  images: GeneratedImagePayload[]
+  files: FileEntry[]
 }
 
 /** Embedding request. */
@@ -406,7 +409,6 @@ export class AiService extends BaseService {
       tools,
       system,
       options,
-      pendingMessages: request.pendingMessages,
       hookParts: [this.analyticsHookPart(model), ...hookParts]
     })
 
@@ -465,6 +467,27 @@ export class AiService extends BaseService {
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
 
+    // Map the canonical painting params onto each vendor's real image-API field
+    // names (negative_prompt / seed / imageConfig / …). AI SDK image models
+    // spread `providerOptions[<providerId>]` into the request body, so this is
+    // how negativePrompt/seed/steps/guidance/aspectRatio actually reach vendors.
+    const imageProviderOptions = buildImageProviderOptions(sdkConfig.providerId, {
+      negativePrompt: request.negativePrompt,
+      seed: request.seed !== undefined ? String(request.seed) : undefined,
+      numInferenceSteps: request.numInferenceSteps,
+      guidanceScale: request.guidanceScale,
+      promptEnhancement: request.promptEnhancement,
+      personGeneration: request.personGeneration,
+      quality: request.quality,
+      aspectRatio: request.aspectRatio,
+      imageSize: request.size,
+      providerOptions: request.providerOptions,
+      background: request.background,
+      moderation: request.moderation,
+      style: request.style
+    })
+    const aspectRatio = normalizeAspectRatio(request.aspectRatio)
+
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
@@ -476,6 +499,8 @@ export class AiService extends BaseService {
       ...(request.numInferenceSteps !== undefined ? { numInferenceSteps: request.numInferenceSteps } : {}),
       ...(request.guidanceScale !== undefined ? { guidanceScale: request.guidanceScale } : {}),
       ...(request.promptEnhancement !== undefined ? { promptEnhancement: request.promptEnhancement } : {}),
+      ...(aspectRatio ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
+      ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
       ...(signal ? { abortSignal: signal } : {}),
       experimental_download: async (downloads) => {
         return Promise.all(
@@ -499,15 +524,11 @@ export class AiService extends BaseService {
       imageParams
     )
 
-    const images: GeneratedImagePayload[] = []
+    const dataUrls: Base64String[] = []
     let filteredCount = 0
     for (const image of result.images ?? []) {
       if (image.base64) {
-        images.push({
-          kind: 'base64',
-          data: `data:${image.mediaType || 'image/png'};base64,${image.base64}`,
-          ...(image.mediaType ? { mediaType: image.mediaType } : {})
-        })
+        dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
         continue
       }
 
@@ -522,8 +543,10 @@ export class AiService extends BaseService {
         filteredCount
       })
     }
+    const fileManager = application.get('FileManager')
+    const files = await Promise.all(dataUrls.map((data) => fileManager.createInternalEntry({ source: 'base64', data })))
 
-    return { images }
+    return { files }
   }
 
   // ── Embedding ──

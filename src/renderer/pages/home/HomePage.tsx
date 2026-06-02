@@ -591,6 +591,7 @@ const ContentContainer = styled.div<{ $detached?: boolean }>`
   display: flex;
   flex: 1;
   flex-direction: row;
+  min-height: 0;
   overflow: hidden;
   /* The 12px inset is for the main window's rounded content edge; a detached
      sub-window has no such inset, so it would just leave a dead right gap. */

@@ -21,35 +21,43 @@ persists, and resumes the stream.
    the pause atomically.
 
 3. **User decides** — the approval card renders from the part. On click,
-   `useToolApprovalBridge` (`src/renderer/src/hooks/useToolApprovalBridge.ts`)
+   `useToolApprovalBridge` (`src/renderer/hooks/useToolApprovalBridge.ts`)
    calls `window.api.ai.toolApproval.respond(...)` with `approvalId`,
    `approved`, optional `reason` / `updatedInput`, `topicId`, `anchorId`.
 
-4. **Main applies** — `AiService` IPC handler:
-   - First offers the decision to live stream/runtime state. For
-     agent-session tools, a live `AgentSessionRuntimeService` entry can
-     resolve the held tool promise without a new stream dispatch.
-   - Reads the anchor message's current `parts` from DB.
-   - Calls `applyApprovalDecisions(beforeParts, [decision])`.
-   - **Writes only when the target part is present on the DB row.** This
-     guards the overlay-only case (approval received before the part has
-     persisted) — for that case the continue-dispatch below carries the
-     decision authoritatively.
-   - For `agent-session:*` topics where the live runtime entry is gone
-     (for example after a long delay and re-entering the session), Main
-     treats the approval as stale: it loads the anchor through
+4. **Main applies** — `AiService`'s `Ai_ToolApproval_Respond` handler
+   resolves the decision in transport order, only touching the DB when no
+   live runtime owns the held tool:
+   - **Live stream offer**: when `topicId` is present, the decision is
+     handed to `AiStreamManager.applyApprovalDecision` so the in-flight
+     stream sees it immediately.
+   - **Claude-Agent fast-path**: hands the decision to
+     `AgentSessionRuntimeService.respondToolApproval`, which resolves the
+     live `canUseTool` promise so the existing stream proceeds. When a live
+     registry entry handles it, the handler **early-returns with
+     `{ ok: true, status: 'accepted' }` — no DB read happens** (and a
+     `topicId` / `anchorId` are not required).
+   - **Stale agent-session approval**: for `agent-session:*` topics where
+     the live runtime entry is gone (for example after a long delay and
+     re-entering the session), Main treats the approval as stale via
+     `expireStaleAgentSessionApproval`: it loads the anchor through
      `agentSessionMessageService`, marks the matching pending approval as
      `output-denied` with an expiry reason, and does not attempt to approve
      a tool call whose runtime context no longer exists. Repeated clicks on
      an already-settled stale approval are idempotent. The IPC returns
      `{ ok: true, status: 'expired' }` so the renderer can show a timeout
      toast, refresh, and remove the approval panel.
-   - When all approvals on the turn are decided, either:
-     - **Agent-session runtime**: resolves the live held tool promise, the
-       existing stream proceeds.
-     - **MCP / other**: dispatches a synthetic
-       `continue-conversation` request through `dispatchStreamRequest`;
-       the provider applies the decision when it reads parts.
+   - **MCP path** (reached only when no live entry matched and the topic is
+     not an agent session; requires `topicId` + `anchorId`): reads the
+     anchor message's current `parts` from DB, calls
+     `applyApprovalDecisions(beforeParts, [decision])`, and **writes only
+     when the target `approval-requested` part is present on the DB row** —
+     guarding the overlay-only case (approval received before the part has
+     persisted). When all approvals on the turn are decided it dispatches a
+     synthetic `continue-conversation` request through
+     `dispatchStreamRequest`; the provider applies the decision when it
+     reads parts. For the overlay-only case the continue dispatch carries
+     the decision authoritatively.
 
 5. **Awaiting-approval clears** — the moment the continue stream
    broadcasts `pending`, the shared-cache entry flips back. Every window
@@ -57,10 +65,12 @@ persists, and resumes the stream.
 
 ## Persistent decisions
 
-`useToolApproval` (`src/renderer/src/pages/home/Messages/Tools/hooks/useToolApproval.ts`)
-remembers per-(server, tool) and per-tool defaults so the user can
-auto-approve the same call shape next time. MCP-tool decisions persist
-into the same store the assistant's MCP server config lives in.
+`useToolApproval` (`src/renderer/pages/home/Messages/Tools/hooks/useToolApproval.ts`)
+exposes an `autoApprove` action **only for MCP tools** — when an `mcpTool`
+descriptor is passed. It persists the opt-out by PATCHing the server's
+`disabledAutoApproveTools`, so the MCP settings page reflects it and
+subsequent calls of that tool skip the approval card. There is no generic
+per-tool default for non-MCP (e.g. Claude-Agent) tools.
 
 ## Why this design
 
@@ -81,6 +91,6 @@ into the same store the assistant's MCP server config lives in.
 ## Where to read more
 
 - Main IPC handler: `src/main/ai/AiService.ts` (`Ai_ToolApproval_Respond`)
-- Renderer bridge: `src/renderer/src/hooks/useToolApprovalBridge.ts`
-- Persistent decisions: `src/renderer/src/pages/home/Messages/Tools/hooks/useToolApproval.ts`
+- Renderer bridge: `src/renderer/hooks/useToolApprovalBridge.ts`
+- Persistent decisions: `src/renderer/pages/home/Messages/Tools/hooks/useToolApproval.ts`
 - Status broadcast: [Stream Manager](./stream-manager.md)

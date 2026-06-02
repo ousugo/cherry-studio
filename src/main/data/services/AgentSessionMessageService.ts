@@ -419,24 +419,39 @@ export class AgentSessionMessageService {
     return this.rowToEntity(saved)
   }
 
+  private async touchSessionUpdatedAt(db: DbOrTx, sessionId: string, timestampMs: number): Promise<void> {
+    await db.update(sessionTable).set({ updatedAt: timestampMs }).where(eq(sessionTable.id, sessionId))
+  }
+
+  private async saveMessageTx(
+    db: DbOrTx,
+    params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
+    timestampMs = Date.now()
+  ): Promise<AgentSessionMessageEntity> {
+    const saved = await this.upsertMessage(db, params, timestampMs)
+    await this.touchSessionUpdatedAt(db, params.sessionId, timestampMs)
+    return saved
+  }
+
   async saveMessage(
     params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
     db?: DbOrTx
   ): Promise<AgentSessionMessageEntity> {
-    const database = db ?? application.get('DbService').getDb()
-    return this.upsertMessage(database, params)
+    const timestampMs = Date.now()
+    if (db) return this.saveMessageTx(db, params, timestampMs)
+    return application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
   }
 
   async saveMessages(params: CreateAgentSessionMessagesDto): Promise<AgentSessionMessageEntity[]> {
     const { sessionId, runtimeResumeToken, messages } = params
-    const database = application.get('DbService').getDb()
 
-    return database.transaction(async (tx) => {
+    return application.get('DbService').withWriteTx(async (tx) => {
       const timestampMs = Date.now()
       const saved: AgentSessionMessageEntity[] = []
       for (const message of messages) {
         saved.push(await this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
       }
+      await this.touchSessionUpdatedAt(tx, sessionId, timestampMs)
       return saved
     })
   }

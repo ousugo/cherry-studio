@@ -9,8 +9,8 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { sessionService } from '@data/services/SessionService'
 import { assertClaudeCodeWorkspaceDirectory } from '@main/ai/runtime/claudeCode/settingsBuilder'
 import { application } from '@main/core/application'
-import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import type { CherryUIMessage, Message } from '@shared/data/types/message'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/sessions'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -91,22 +91,26 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const userMessageParts = req.userMessageParts ?? [{ type: 'text', text: userText }]
     const createdAt = new Date().toISOString()
 
-    const userMessage: Message = {
+    const userMessage: AgentSessionMessageEntity = {
       id: userMessageId,
-      topicId: req.topicId,
-      parentId: null,
+      sessionId,
       role: 'user',
       data: { parts: userMessageParts },
-      searchableText: '',
       status: 'success',
-      siblingsGroupId: 0,
+      searchableText: '',
+      modelId: null,
+      modelSnapshot: null,
+      traceId: null,
+      stats: null,
+      runtimeResumeToken: null,
       createdAt,
       updatedAt: createdAt
     }
 
     if (ctx.hasLiveStream) {
-      // Inject path — placeholder + listener already exist on the in-flight execution.
-      // Adding new ones would orphan a pending row and clobber the listener mid-stream.
+      // Follow-up to a live turn: persist the user row, hand the message to the
+      // runtime so it opens the next turn (interrupt → re-dispatch), and attach
+      // the new subscriber. No new placeholder/model — that would orphan a row.
       const savedUserMessage = await agentSessionMessageService.saveMessage({
         sessionId,
         message: {
@@ -117,10 +121,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       })
 
+      application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage)
+
       return {
         topicId: req.topicId,
         models: [],
-        userMessage,
         userMessageId,
         reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
         listeners: [subscriber],
@@ -196,13 +201,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
               { id: assistantMessageId, role: 'assistant', parts: [] }
             ],
             messageId: assistantMessageId,
-            runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId },
-            pendingMessages: runtime.pendingMessages
+            runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
           },
           rootSpan: turnTrace.rootSpan
         }
       ],
-      userMessage,
       userMessageId,
       reservedMessages: savedMessages.map(toReservedAgentUIMessage),
       listeners: [subscriber, ...runtime.listeners],

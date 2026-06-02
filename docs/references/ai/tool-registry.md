@@ -13,9 +13,11 @@ interface ToolEntry {
 }
 ```
 
-`registry` (`src/main/ai/tools/registry.ts`) is a process-wide singleton.
-Tool files register at module-import time; the registry is read at
-request time by `buildAgentParams`.
+`registry` (`src/main/ai/tools/adapters/aiSdk/registry.ts`) is a
+process-wide singleton. Tool files register at module-import time; the
+registry is read at request time by `buildAgentParams`. A parallel
+adapter, `tools/adapters/claudeCode/agentTools.ts`, maps the same registry
+entries onto the Claude Code runtime.
 
 Tests construct their own `new ToolRegistry()` to avoid singleton pollution.
 
@@ -28,23 +30,29 @@ unambiguous):
 |---|---|---|
 | Built-in | `<namespace>__<verb>` | `web__search`, `kb__search` |
 | MCP | `mcp__<serverId>__<toolName>` | `mcp__gmail__send_message` |
-| Meta | `tool_<verb>` | `tool_search`, `tool_invoke`, `tool_inspect`, `tool_exec` |
+| Meta | `tool_<verb>` | `tool_search`, `tool_invoke`, `tool_inspect` (`tool_exec` is defined but not injected — see below) |
 
 ## Built-in tools
 
-`src/main/ai/tools/builtin/`:
+`src/main/ai/tools/adapters/aiSdk/builtin/` registers **four** entries:
 
-- `WebSearchTool` — registered under namespace `web`. Talks to the
-  configured web-search provider via the renderer-shared search service.
-- `KnowledgeSearchTool` — semantic search over the active knowledge base.
-- `KnowledgeListTool` — enumerate available knowledge bases / documents.
+- `web__search` (`WebSearchTool.ts` → `createWebSearchToolEntry`) — namespace
+  `web`. Talks to the configured web-search provider via the
+  renderer-shared search service.
+- `web__fetch` (`WebSearchTool.ts` → `createWebFetchToolEntry`) — namespace
+  `web`. Fetches a URL's content.
+- `kb__search` (`KnowledgeSearchTool.ts`) — semantic search over the active
+  knowledge base.
+- `kb__list` (`KnowledgeListTool.ts`) — enumerate available knowledge bases /
+  documents.
 
-Registration happens in `builtin/index.ts`. Each tool's `applies` gates on
-the relevant `assistant.settings.*` flag (e.g. `enableWebSearch`).
+Registration happens in `builtin/index.ts` (`registerBuiltinTools`). Each
+tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
+`enableWebSearch`).
 
 ## MCP tools
 
-`src/main/ai/tools/mcp/`:
+`src/main/ai/tools/adapters/aiSdk/mcp/`:
 
 - `resolveAssistantMcpTools` — assistant's enabled MCP servers + per-tool
   disable list → set of tool ids.
@@ -59,22 +67,23 @@ The sync is idempotent; a stale entry is overwritten on the next sync.
 
 ## Meta-tools
 
-`src/main/ai/tools/meta/` exposes four tools that turn the registry into
-a search-then-call interface for the model:
+`src/main/ai/tools/adapters/aiSdk/meta/` defines four tools that turn the
+registry into a search-then-call interface for the model. Only the first
+three are injected:
 
-| Tool | Use |
-|---|---|
-| `tool_search` | Browse the deferred pool by namespace + query, returns brief descriptions |
-| `tool_inspect` | Emit a JSDoc stub for one tool — enough to call it correctly |
-| `tool_invoke` | Invoke any registry tool by name with a JSON arg blob |
-| `tool_exec` | Sandboxed JS exec with the full registry as a global API (`runtime.ts`, `worker.ts`) |
+| Tool | Injected? | Use |
+|---|---|---|
+| `tool_search` | yes | Browse the deferred pool by namespace + query, returns brief descriptions |
+| `tool_inspect` | yes | Emit a JSDoc stub for one tool — enough to call it correctly |
+| `tool_invoke` | yes | Invoke any registry tool by name with a JSON arg blob |
+| `tool_exec` | **no** | Sandboxed JS exec with the full registry as a global API (`meta/exec/runtime.ts`, `meta/exec/worker.ts`) — defined but intentionally not injected |
 
-These are injected into the tool set by `applyDeferExposition` when (and
-only when) the request actually defers tools. See below.
+The injected three are added to the tool set by `applyDeferExposition` when
+(and only when) the request actually defers tools. See below.
 
 ## Defer exposition
 
-`src/main/ai/tools/exposition/`:
+`src/main/ai/tools/adapters/aiSdk/exposition/`:
 
 - `shouldDefer(entries, contextWindow)` — returns the set of names to
   defer. Two gates above the simple threshold:
@@ -90,26 +99,32 @@ only when) the request actually defers tools. See below.
   `<DEFERRED_TOOLS>` section needs to enumerate (so the model knows what
   namespaces exist).
 
-`tool_exec` is a higher-tier opt-in (only registered when the assistant
-enables `metaTools.exec`) because it can run any tool combination in a
-sandbox.
+`tool_exec` is **not injected** by `applyDeferExposition` — there is no
+`metaTools.exec` flag. The injection site (`applyDeferExposition.ts:50-53`)
+deliberately leaves it out: its `worker_threads` + `new Function` sandbox
+runs model-authored code with full Node privileges, a privilege-escalation
+surface vs the renderer's prior restrictions. It is meant to be re-enabled
+behind an explicit Preference key once there is a concrete need.
 
 ## `applies` and tool-call repair
 
 - `applies(scope: ToolApplyScope)` — per-entry predicate consulted at
   `registry.selectActive`. Throws are caught and treated as "inactive"
   with a warning log.
-- `createAiRepair(...)` (`tools/repair.ts`) — passed to AI SDK as
+- `createAiRepair(...)` (`tools/adapters/aiSdk/repair.ts`) — passed to AI SDK as
   `repairToolCall`. When the model emits an unknown tool name or
   malformed args, the repair function gets one chance to fix it via a
   follow-up LLM call.
 
 ## Where to read more
 
-- Code: `src/main/ai/tools/`
-- Tests: `tools/__tests__/`, `tools/builtin/__tests__/`,
-  `tools/exposition/__tests__/`, `tools/mcp/__tests__/`,
-  `tools/meta/__tests__/`
+- Code: `src/main/ai/tools/adapters/aiSdk/` (Claude Code adapter:
+  `src/main/ai/tools/adapters/claudeCode/`)
+- Tests: `tools/adapters/aiSdk/__tests__/`,
+  `tools/adapters/aiSdk/builtin/__tests__/`,
+  `tools/adapters/aiSdk/exposition/__tests__/`,
+  `tools/adapters/aiSdk/mcp/__tests__/`,
+  `tools/adapters/aiSdk/meta/__tests__/`
 - Defer rationale, gate thresholds:
-  `tools/exposition/shouldDefer.ts` (header doc + tests)
+  `tools/adapters/aiSdk/exposition/shouldDefer.ts` (header doc + tests)
 - Approval flow: [Tool Approval](./tool-approval.md)

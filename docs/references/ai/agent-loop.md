@@ -2,7 +2,7 @@
 
 ## What it is
 
-`Agent` (`src/main/ai/agent/Agent.ts`) wraps AI SDK's
+`Agent` (`src/main/ai/runtime/aiSdk/Agent.ts`) wraps AI SDK's
 `createAgent(...).stream()` with two things AI SDK doesn't give you out of
 the box:
 
@@ -68,10 +68,12 @@ Composition rules per hook key:
 
 | key | rule |
 |---|---|
-| `onStart`, `onFinish` | sequential await; errors logged, swallowed |
+| `onStart`, `onFinish`, `onStepFinish`, `onToolExecutionStart/End` | `chainVoid` — sequential `for`-loop await; per-hook throws logged and swallowed, chain continues |
 | `prepareStep` | chained — each invocation receives the previous return value |
-| `onStepFinish`, `onToolExecutionStart/End` | parallel `Promise.allSettled` |
-| `onError` | first non-`abort` wins; default `abort` |
+| `onError` | every handler invoked sequentially; any `'retry'` makes the result `'retry'`; default `abort` |
+
+All void hooks share the same `chainVoid` helper in `composeHooks.ts` —
+there is no `Promise.allSettled` / parallel path.
 
 Tool execution events (`onToolExecutionStart/End`) are emitted by a
 wrapper around each tool's `execute`. AI SDK v6 doesn't expose them
@@ -81,7 +83,7 @@ and hook signatures stay stable.
 
 ## Pending messages
 
-`PendingMessageQueue` (`agent/loop/PendingMessageQueue.ts`) is a
+`PendingMessageQueue` (`src/main/ai/runtime/aiSdk/loop/PendingMessageQueue.ts`) is a
 session-isolated FIFO. The stream manager pushes onto it from
 `Ai_Stream_Open` IPC when a topic already has a live stream
 (**inject** path). Generic AI SDK agent loops drain it in two places:
@@ -109,7 +111,7 @@ runtime consumes the pending messages instead of the generic agent loop.
 
 ## Where to read more
 
-- Code: `src/main/ai/agent/`
-- Tests: `src/main/ai/agent/loop/__tests__/agentLoop.test.ts`
+- Code: `src/main/ai/runtime/aiSdk/`
+- Tests: `src/main/ai/runtime/aiSdk/loop/__tests__/agentLoop.test.ts`
 - Stream manager integration: [Stream Manager](./stream-manager.md)
 - Hook contributors: [Params Pipeline](./params-pipeline.md)

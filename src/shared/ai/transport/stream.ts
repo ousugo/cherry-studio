@@ -239,9 +239,9 @@ export type AiStreamOpenResponse =
   | {
       /**
        * `'started'`  — a brand new stream was created on this topic.
-       * `'injected'` — a stream was already live on this topic; the new
-       *                 message was injected into every running execution
-       *                 via `AiStreamManager.injectMessage`.
+       * `'injected'` — a stream was already live on this topic (agent
+       *                 session follow-up); the new subscriber was attached
+       *                 to the running stream rather than starting a turn.
        */
       mode: 'started' | 'injected'
       /** Multi-model: execution IDs for frontend to create per-model streams. */

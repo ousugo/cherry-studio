@@ -16,8 +16,7 @@ import {
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { application } from '@main/core/application'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { Message } from '@shared/data/types/message'
+import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/sessions'
 
 import type {
   AgentRuntimeConnectInput,
@@ -186,6 +185,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     await this.query?.interrupt()
   }
 
+  shouldCloseAfterTurn(): boolean {
+    return Boolean(this.input.trace) && application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()
+  }
+
   async applyPolicyUpdate(update: AgentRuntimePolicyUpdate): Promise<boolean> {
     if (!this.query) return false
     if (update.type === 'tool-policy') {
@@ -298,7 +301,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 }
 
-function toSdkUserMessage(message: Message, resumeToken?: string): SDKUserMessage {
+function toSdkUserMessage(message: AgentSessionMessageEntity, resumeToken?: string): SDKUserMessage {
   return {
     type: 'user',
     message: { role: 'user', content: extractMessageText(message) },
@@ -307,7 +310,7 @@ function toSdkUserMessage(message: Message, resumeToken?: string): SDKUserMessag
   }
 }
 
-function extractMessageText(message: Message): string {
+function extractMessageText(message: AgentSessionMessageEntity): string {
   return (
     message.data?.parts
       ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text' && 'text' in part)
@@ -336,5 +339,11 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
     return new ClaudeCodeRuntimeConnection(input).start()
+  }
+
+  onSessionIdle(sessionId: string): void {
+    // `prewarmAgentSession` already no-ops in trace mode (it closes any warm
+    // queries and returns), so no driver-side trace guard is needed here.
+    void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
   }
 }

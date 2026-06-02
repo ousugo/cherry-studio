@@ -129,6 +129,12 @@ describe('AiService', () => {
       media_type: 'image/jpeg'
     })
 
+    const fileEntry = { id: 'file-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }
+    const createInternalEntry = vi.fn().mockResolvedValue(fileEntry)
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry } : undefined
+    )
+
     const result = await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
       prompt: 'draw a cat',
@@ -178,9 +184,8 @@ describe('AiService', () => {
       }
     ])
 
-    expect(result).toEqual({
-      images: [{ kind: 'base64', data: 'data:image/png;base64,abc123', mediaType: 'image/png' }]
-    })
+    expect(createInternalEntry).toHaveBeenCalledWith({ source: 'base64', data: 'data:image/png;base64,abc123' })
+    expect(result).toEqual({ files: [fileEntry] })
   })
 
   it('settles stale agent-session approvals without reading the persistent message table', async () => {

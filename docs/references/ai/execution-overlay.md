@@ -42,7 +42,7 @@ Renderer: TopicStreamSubscription          ┌──── readUIMessageStream �
 
 ## TopicStreamSubscription
 
-`src/renderer/src/transport/TopicStreamSubscription.ts`. A renderer
+`src/renderer/transport/TopicStreamSubscription.ts`. A renderer
 class that owns:
 
 - **One IPC attach per topic.** `attach` is ref-counted — every
@@ -83,7 +83,7 @@ the chunk routes there; otherwise it's dropped with a warning.
 
 ## useExecutionOverlay
 
-`src/renderer/src/hooks/useExecutionOverlay.ts`. The per-execution
+`src/renderer/hooks/useExecutionOverlay.ts`. The per-execution
 overlay, built on `useTopicStreamSubscription`.
 
 ```ts
@@ -183,10 +183,10 @@ by every consumer in that React tree (today: `useExecutionOverlay`).
 ## Code map
 
 ```
-src/renderer/src/transport/TopicStreamSubscription.ts   ← class
-src/renderer/src/hooks/useTopicStreamSubscription.ts    ← React binding
-src/renderer/src/hooks/useExecutionOverlay.ts           ← per-execution readers + overlay
-src/renderer/src/pages/home/V2ChatContent.tsx           ← consumer + dispose-after-refresh
+src/renderer/transport/TopicStreamSubscription.ts   ← class
+src/renderer/hooks/useTopicStreamSubscription.ts    ← React binding
+src/renderer/hooks/useExecutionOverlay.ts           ← per-execution readers + overlay
+src/renderer/pages/home/V2ChatContent.tsx           ← consumer + dispose-after-refresh
 ```
 
 ## Invariants reviewers should check

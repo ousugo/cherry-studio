@@ -70,6 +70,14 @@ function createMockDataForPath(path: string): any {
     }
   }
 
+  if (path.includes('/paintings')) {
+    return {
+      items: [],
+      total: 0,
+      nextCursor: undefined
+    }
+  }
+
   return { id: 'mock_id', data: 'mock_data' }
 }
 
@@ -355,9 +363,9 @@ export const mockUseWriteCache = vi.fn(() => {
 export const MockUseDataApi = {
   useQuery: mockUseQuery,
   useMutation: mockUseMutation,
-  usePaginatedQuery: mockUsePaginatedQuery,
   useInfiniteQuery: mockUseInfiniteQuery,
   useInfiniteFlatItems: mockUseInfiniteFlatItems,
+  usePaginatedQuery: mockUsePaginatedQuery,
   useInvalidateCache: mockUseInvalidateCache,
   useReadCache: mockUseReadCache,
   useWriteCache: mockUseWriteCache,
@@ -374,9 +382,9 @@ export const MockUseDataApiUtils = {
   resetMocks: () => {
     mockUseQuery.mockClear()
     mockUseMutation.mockClear()
-    mockUsePaginatedQuery.mockClear()
     mockUseInfiniteQuery.mockClear()
     mockUseInfiniteFlatItems.mockClear()
+    mockUsePaginatedQuery.mockClear()
     mockUseInvalidateCache.mockClear()
     mockUseReadCache.mockClear()
     mockUseWriteCache.mockClear()

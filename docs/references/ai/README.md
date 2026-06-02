@@ -23,7 +23,7 @@ translate, summarisation) and the renderer-side transport that connects to it.
 | [Params Pipeline](./params-pipeline.md) | `buildAgentParams` + `RequestFeature` model: how capabilities, plugins, tools, and provider-specific quirks are composed |
 | [Tool Registry](./tool-registry.md) | Built-in tools (knowledge / web search), MCP tools, meta-tools (`tool_search` / `tool_inspect` / `tool_invoke` / `tool_exec`), deferred exposition |
 | [Provider Resolution](./provider-resolution.md) | `Provider.endpointConfigs` schema, endpoint resolution chain, variant suffixes, custom provider extensions (aihubmix, newapi) |
-| [Trace / Telemetry](./trace.md) | `AiSdkSpanAdapter`, root span propagation, OTel attribute shape, what each span captures |
+| [Observability (trace / telemetry)](./observability.md) | `AiSdkSpanAdapter`, root span propagation, OTel attribute shape, local span projection, sinks |
 
 ### Renderer-side glue
 
@@ -35,39 +35,46 @@ translate, summarisation) and the renderer-side transport that connects to it.
 
 ## Where the code lives
 
+> **Scope of the focused docs.** The reference documents in this folder map
+> the **chat / stream pipeline** (dispatch → stream manager → runtime →
+> tools → persistence → renderer transport). The `agents/`, `channels/`,
+> `skills/`, and `mcp/` subsystems are mapped in the tree below but do not
+> yet have dedicated deep-dive docs.
+
 ```
 src/main/ai/
-├── AiService.ts                  ← lifecycle owner, IPC handlers, dispatch entry
-├── runtime/                      ← AI execution backends
-│   ├── ai-sdk/                   ← Agent class, loop, observers, params/features
-│   └── claude-code/              ← Claude Code driver, warm query, SDK adapter
-├── agent-session/                ← agent-session topic host
+├── AiService.ts                  ← lifecycle owner, IPC handlers (generate / translate / approval)
+├── runtime/                      ← AI execution backends + runtime registry
+│   ├── aiSdk/                    ← Agent class, loop, observers, params/features, prompts/
+│   └── claudeCode/               ← Claude Code driver, warm query, SDK adapter
+├── agentSession/                 ← agent-session topic host
 │   └── AgentSessionRuntimeService.ts
-├── stream-manager/               ← AiStreamManager + listeners + persistence backends
-│   ├── AiStreamManager.ts
-│   ├── context/                  ← ChatContextProvider implementations
+├── agents/                       ← AgentJobsService, AgentTaskJobHandler, runAgentTask, builtin/, cherryclaw/
+├── channels/                     ← ChannelManager + IM adapters (discord/feishu/qq/slack/telegram/wechat) + security/
+├── streamManager/                ← AiStreamManager + listeners + persistence backends
+│   ├── AiStreamManager.ts        ← registers the stream IPC (Open/Attach/Detach/Abort)
+│   ├── context/                  ← ChatContextProvider implementations + dispatch
 │   ├── lifecycle/                ← chat / prompt-only stream lifecycles
 │   ├── listeners/                ← WebContents / Persistence / SSE / channel-adapter
 │   ├── persistence/              ← MessageService / TemporaryChat / AgentMessage / Translation backends
 │   └── pipeStreamLoop.ts         ← shared chunk-pipe primitive
 ├── provider/                     ← provider config, endpoint resolution, custom providers
 │   ├── custom/                   ← aihubmix, newapi
-│   ├── config.ts                 ← providerToAiSdkConfig
+│   ├── config.ts                 ← providerToAiSdkConfig (builder table)
 │   ├── endpoint.ts               ← resolveEffectiveEndpoint + adapterFamily routing
 │   ├── extensions/               ← ProviderExtension registrations
 │   └── listModels.ts             ← per-provider model listing
-├── mcp/                          ← MCP runtime/catalog services and built-in servers
-│   └── servers/                  ← in-memory MCP server implementations
+├── mcp/                          ← McpRuntimeService / McpCatalogService, oauth/, built-in servers
+│   └── servers/                  ← in-memory MCP server implementations (browser, filesystem)
+├── skills/                       ← SkillService, SkillInstaller
 ├── tools/                        ← unified tool registry
-│   ├── builtin/                  ← KnowledgeSearch / KnowledgeList / WebSearch
-│   ├── mcp/                      ← MCP server → ToolEntry sync
-│   ├── meta/                     ← tool_search / tool_inspect / tool_invoke / tool_exec
-│   ├── exposition/               ← shouldDefer + applyDeferExposition
-│   ├── registry.ts
-│   └── repair.ts                 ← invalid tool-call repair
-├── observability/                ← AI trace adapters, local projection, sinks
+│   └── adapters/
+│       ├── aiSdk/                ← registry.ts, repair.ts; builtin/ (web__search/web__fetch/kb__*),
+│       │                            mcp/ (server → ToolEntry sync), meta/ (tool_search/inspect/invoke;
+│       │                            tool_exec defined but not injected), exposition/ (shouldDefer + applyDefer)
+│       └── claudeCode/           ← agentTools.ts (registry → Claude Code runtime)
+├── observability/                ← AI trace adapters (aiSdk / claudeCode), local projection, sinks
 ├── messages/                     ← UI part → AI SDK part conversion
-├── prompts/                      ← static prompt fragments
 ├── types/                        ← AppProviderId, merged extension types, request types
 └── utils/                        ← reasoning / model parameters / options / websearch helpers
 ```
@@ -76,8 +83,11 @@ src/main/ai/
 
 1. Renderer `useChat({ transport: IpcChatTransport })` calls `sendMessages` →
    IPC `Ai_Stream_Open` (`{ topicId, parts, parentAnchorId, models }`).
-2. `AiService.ipcHandle('Ai_Stream_Open')` calls
-   `dispatchStreamRequest(manager, request)`.
+2. `AiStreamManager.onInit` registered the `Ai_Stream_Open` handler; it
+   wraps the sender in a `WebContentsListener` and calls
+   `dispatchStreamRequest(manager, subscriber, req)`. (The stream IPC —
+   `Open`/`Attach`/`Detach`/`Abort` — lives on `AiStreamManager`, not
+   `AiService`.)
 3. `dispatchStreamRequest` picks the first `ChatContextProvider` whose
    `canHandle(topicId)` matches (persistent chat / temporary / agent
    session) and calls `prepareDispatch` — that resolves models, persists
@@ -129,9 +139,11 @@ src/main/ai/
 
 ## v2 refactor
 
-The AI domain is the largest single area of the v2 refactor: the renderer
-`src/renderer/src/aiCore/` tree is fully deleted, with logic ported into
-`src/main/ai/`. Reviewer-facing change-cluster docs live in
-[`v2-refactor-temp/docs/ai/`](../../../v2-refactor-temp/docs/ai/) — one
-document per reviewable cluster, intended to be picked up by separate
-review agents in parallel.
+The AI domain is the largest single area of the v2 refactor: the v1
+renderer aiCore tree (formerly `src/renderer/src/aiCore/`, pre-v2 layout)
+is fully deleted, with logic ported into `src/main/ai/`.
+
+These reference docs are **self-contained** — they do not depend on the
+throwaway `v2-refactor-temp/` tree. (The reviewer-facing change-cluster
+narratives that live there are review logistics for the in-flight PR, and
+are removed when the v2 AI refactor merges.)
