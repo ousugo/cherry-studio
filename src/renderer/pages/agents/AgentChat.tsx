@@ -19,6 +19,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import type { TemporaryConversation, TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -499,7 +500,7 @@ const AgentChatSessionFrame = ({
       sessionName={session.name}
       agentId={agentId ?? session.agentId ?? undefined}
       agentName={activeAgent?.name}
-      agentAvatar={activeAgent?.configuration?.avatar}
+      agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
       modelFallback={runtime.fallbackSnapshot}>
       <ConversationShell
         className={className}

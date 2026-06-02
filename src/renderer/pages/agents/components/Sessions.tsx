@@ -39,11 +39,12 @@ import { useConversationNavigation } from '@renderer/hooks/useConversationNaviga
 import { usePins } from '@renderer/hooks/usePins'
 import type { TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/pages/library/dialogs'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity, WorkspaceMode } from '@shared/data/api/schemas/sessions'
 import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Bot, Folder, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
+import { Folder, FolderOpen, ListFilter, MoreHorizontal, SquarePen } from 'lucide-react'
 import { Fragment, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -1273,8 +1274,14 @@ const Sessions = ({
 
       const agentId = getAgentIdFromSessionGroupId(group.id)
       const agent = agentId ? agentById.get(agentId) : undefined
-      const avatar = agent?.configuration?.avatar?.trim()
-      return avatar ? <EmojiIcon emoji={avatar} size={24} fontSize={14} className="mr-0" /> : <Bot size={14} />
+      return (
+        <EmojiIcon
+          emoji={getAgentAvatarFromConfiguration(agent?.configuration)}
+          size={24}
+          fontSize={14}
+          className="mr-0"
+        />
+      )
     },
     [agentById, displayMode]
   )

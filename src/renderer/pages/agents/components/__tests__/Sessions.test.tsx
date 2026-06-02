@@ -910,6 +910,22 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionPreference().agent.expandedGroupIds).toEqual(['session:agent:agent-b'])
   })
 
+  it('uses the default agent avatar for blank agent group avatars', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: '   ' } }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
+    })
+
+    render(<Sessions />)
+
+    expect(screen.getByRole('button', { name: /Alpha agent/ })).toHaveTextContent('🤖')
+  })
+
   it('keeps system workspace sessions inside agent groups in agent display mode', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
