@@ -67,4 +67,10 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
   /** Enumerate the tools this driver exposes for the given MCP server set. */
   listAvailableTools(mcpIds: string[]): Promise<Tool[]>
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection>
+  /**
+   * Notified when a session goes idle and its runtime is torn down. Lets a
+   * driver run runtime-specific idle work (e.g. Claude prewarming the next
+   * query) without the host reaching into driver internals. Optional.
+   */
+  onSessionIdle?(sessionId: string): void
 }

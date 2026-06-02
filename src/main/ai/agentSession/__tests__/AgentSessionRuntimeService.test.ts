@@ -8,9 +8,7 @@ const mocks = vi.hoisted(() => ({
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
-  spanCacheSetTopicId: vi.fn(),
-  prewarmAgentSession: vi.fn(),
-  traceModeEnabled: vi.fn()
+  spanCacheSetTopicId: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -110,11 +108,8 @@ describe('AgentSessionRuntimeService', () => {
         }
       }
       if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
-      if (name === 'ClaudeCodeWarmQueryManager') return { prewarmAgentSession: mocks.prewarmAgentSession }
-      if (name === 'ClaudeCodeTraceBridgeService') return { isTraceModeEnabled: mocks.traceModeEnabled }
       throw new Error(`Unexpected application.get(${name})`)
     })
-    mocks.traceModeEnabled.mockReturnValue(false)
   })
 
   it('creates an active runtime with a session-level pending queue', () => {
@@ -148,6 +143,57 @@ describe('AgentSessionRuntimeService', () => {
       pendingMessageCount: 0,
       lastTerminalStatus: 'success'
     })
+  })
+
+  it('hands an idle session with a resume token to the driver onSessionIdle hook', () => {
+    vi.useFakeTimers()
+    try {
+      const onSessionIdle = vi.fn()
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn(),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([]),
+        onSessionIdle
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn(baseTurnInput)
+      getEntry(service).lastResumeToken = 'resume-1'
+
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      vi.advanceTimersByTime(5 * 60 * 1000)
+
+      expect(onSessionIdle).toHaveBeenCalledWith('session-1')
+      expect(service.inspect('session-1')).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not call onSessionIdle for an idle session without a resume token', () => {
+    vi.useFakeTimers()
+    try {
+      const onSessionIdle = vi.fn()
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn(),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([]),
+        onSessionIdle
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn(baseTurnInput)
+
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      vi.advanceTimersByTime(5 * 60 * 1000)
+
+      expect(onSessionIdle).not.toHaveBeenCalled()
+      expect(service.inspect('session-1')).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reuses an idle runtime for the next fresh turn', async () => {

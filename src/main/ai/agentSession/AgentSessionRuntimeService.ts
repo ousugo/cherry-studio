@@ -611,9 +611,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private refreshIdleTimer(entry: AgentSessionRuntimeEntry): void {
     this.clearIdleTimer(entry)
     entry.idleTimer = setTimeout(() => {
-      this.closeSession(entry.sessionId)
-      if (entry.lastResumeToken && !application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()) {
-        void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(entry.sessionId)
+      const { sessionId, agentType, lastResumeToken } = entry
+      this.closeSession(sessionId)
+      if (lastResumeToken) {
+        runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdle?.(sessionId)
       }
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()
