@@ -53,6 +53,8 @@ docs above reference them:
   estimation behind the input-bar badge.
 - [`large-file-upload-port.md`](./large-file-upload-port.md) — outstanding
   port from renderer for Gemini/OpenAI File APIs.
+- [`tool-approval-defer-fix.md`](./tool-approval-defer-fix.md) — fix design
+  for the defer-exposition approval-gate bypass (review #1).
 
 ## Suggested review order
 
