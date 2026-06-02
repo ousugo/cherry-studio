@@ -35,7 +35,7 @@ export { KB_LIST_TOOL_NAME }
 const kbListTool = tool({
   description: `Browse the user's available knowledge bases before searching.
 
-Returns each base's name, emoji, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what topics it likely covers. Call this first when the user asks about their materials and you don't already know which base is relevant — then call kb__search with the chosen baseIds.`,
+Returns each base's name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what topics it likely covers. Call this first when the user asks about their materials and you don't already know which base is relevant — then call kb__search with the chosen baseIds.`,
   inputSchema: kbListInputSchema,
   outputSchema: kbListOutputSchema,
   strict: true,
@@ -100,7 +100,6 @@ async function buildOutputItem(
   return {
     id: base.id,
     name: base.name,
-    emoji: base.emoji,
     groupId: base.groupId,
     status: base.status,
     documentCount: base.documentCount ?? 0,

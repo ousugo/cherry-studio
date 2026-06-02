@@ -27,7 +27,6 @@ export const kbListInputSchema = z.object({
 export const kbListOutputItemSchema = z.object({
   id: z.string(),
   name: z.string(),
-  emoji: z.string(),
   groupId: z.string().nullable(),
   status: z.enum(['completed', 'failed']),
   documentCount: z.number().int().nonnegative(),
