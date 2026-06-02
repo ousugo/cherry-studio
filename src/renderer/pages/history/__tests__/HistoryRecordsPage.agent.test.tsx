@@ -509,8 +509,14 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(screen.getAllByText('Beta agent').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole('button', { name: /Gamma agent 0/ })).toBeInTheDocument()
     expect(screen.queryByText('Agent placeholder')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('history-open-button')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getAllByTestId('history-open-button')[0])
+    fireEvent.click(alphaRow)
+
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Alpha session' }))
 
     expect(onRecordSelect).toHaveBeenCalledWith('session-alpha')
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -603,13 +609,20 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
 
-  it('does not activate a session when the history row is clicked', () => {
+  it('activates a session when the history title is clicked', () => {
     const { onClose, onRecordSelect } = setupAgentHistory()
+    const betaRow = screen.getByText('Beta session').closest('[role="row"]')
 
-    fireEvent.click(screen.getByText('Beta session'))
+    expect(betaRow).not.toBeNull()
+    fireEvent.click(betaRow as HTMLElement)
 
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Beta session' }))
+
+    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('does not activate a session when the selection checkbox is clicked', () => {
