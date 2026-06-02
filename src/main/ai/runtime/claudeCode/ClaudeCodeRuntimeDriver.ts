@@ -186,6 +186,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     await this.query?.interrupt()
   }
 
+  shouldCloseAfterTurn(): boolean {
+    return Boolean(this.input.trace) && application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()
+  }
+
   async applyPolicyUpdate(update: AgentRuntimePolicyUpdate): Promise<boolean> {
     if (!this.query) return false
     if (update.type === 'tool-policy') {

@@ -589,7 +589,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private shouldCloseConnectionAfterTurn(entry: AgentSessionRuntimeEntry): boolean {
-    return Boolean(entry.currentTurn?.trace && application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled())
+    return entry.connection?.shouldCloseAfterTurn?.() ?? false
   }
 
   private createPersistenceListener(entry: AgentSessionRuntimeEntry, userMessage: Message): StreamListener {

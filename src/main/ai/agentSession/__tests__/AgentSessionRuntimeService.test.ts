@@ -276,11 +276,11 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('passes trace context to the runtime driver and closes the connection after trace turns', async () => {
-    mocks.traceModeEnabled.mockReturnValue(true)
     const events = createAsyncQueue<any>()
     const connection = {
       events: events.iterable,
       send: vi.fn(),
+      shouldCloseAfterTurn: () => true,
       close: vi.fn()
     }
     const connect = vi.fn().mockResolvedValue(connection)

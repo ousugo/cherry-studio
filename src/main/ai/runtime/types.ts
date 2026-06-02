@@ -48,6 +48,12 @@ export interface AgentRuntimeConnection {
   send(input: AgentRuntimeUserInput): void | Promise<void>
   applyPolicyUpdate?(update: AgentRuntimePolicyUpdate): Promise<boolean> | boolean
   interrupt?(): Promise<void>
+  /**
+   * Runtime-specific policy: should the host tear this connection down once the
+   * current turn ends? Lets a driver (e.g. Claude trace mode) own the decision
+   * instead of the host reaching into driver internals. Omitted ⇒ keep open.
+   */
+  shouldCloseAfterTurn?(): boolean
   close(): void | Promise<void>
 }
 
