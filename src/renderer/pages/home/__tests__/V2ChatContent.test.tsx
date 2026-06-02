@@ -178,9 +178,7 @@ describe('V2ChatContent', () => {
   })
 
   it('disables persistent history loading for freshly leased temporary topics', () => {
-    render(
-      <V2ChatContent topic={topic} setActiveTopic={vi.fn()} onPersistTemporaryTopic={vi.fn()} />
-    )
+    render(<V2ChatContent topic={topic} setActiveTopic={vi.fn()} onPersistTemporaryTopic={vi.fn()} />)
 
     expect(mockUseTopicMessagesV2).toHaveBeenCalledWith('topic-1', { enabled: false })
   })
