@@ -2,6 +2,8 @@ import { HorizontalScrollContainer, Tabs, TabsContent, TabsList, TabsTrigger, To
 import { CommandTooltip, useCommandHandler } from '@renderer/commands'
 import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
+import { isMac } from '@renderer/config/constant'
+import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { cn } from '@renderer/utils'
 import type { CommandId } from '@shared/commands'
 import { Maximize2, Minimize2, X } from 'lucide-react'
@@ -284,16 +286,25 @@ function ShellTabs({ children }: { children: ReactNode }) {
 function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraTrailing?: ReactNode }) {
   const { state, actions } = useShell()
   const { t } = useTranslation()
+  const { mode } = useWindowFrame()
   const maximizeLabel = t(state.maximized ? 'common.minimize' : 'common.maximize')
   const MaximizeIcon = state.maximized ? Minimize2 : Maximize2
+  // When the pane is maximized inside a sub-window, this header becomes the window's top edge
+  // — clear the macOS traffic lights and let the user drag the window from the tab strip,
+  // matching ConversationShellTopBar.
+  const isWindowTopBar = state.maximized && mode === 'window'
   return (
     <div
       data-testid="shell-tab-list"
-      className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-3 [-webkit-app-region:no-drag]">
+      className={cn(
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-3',
+        isWindowTopBar ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]',
+        isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
+      )}>
       <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
-        <TabsList className="min-w-max justify-start gap-1">{children}</TabsList>
+        <TabsList className="min-w-max justify-start gap-1 [-webkit-app-region:no-drag]">{children}</TabsList>
       </HorizontalScrollContainer>
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
         {extraTrailing}
         <Tooltip content={maximizeLabel} delay={800}>
           <NavbarIcon

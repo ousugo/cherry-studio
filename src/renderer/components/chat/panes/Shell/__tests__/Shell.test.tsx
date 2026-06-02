@@ -100,6 +100,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
+
 import {
   ChatMaximizedOverlayInsetProvider,
   useChatMaximizedOverlayBottomInset,
@@ -334,7 +336,7 @@ describe('Shell.TabList', () => {
     const scrollContainer = screen.getByTestId('shell-tab-scroll-container')
     const tabsList = screen.getByTestId('shell-tabs-list')
 
-    expect(tabList).toHaveClass('px-3')
+    expect(tabList).toHaveClass('pr-3', 'pl-3')
     expect(tabList).not.toHaveClass('pr-11')
     expect(scrollContainer).toHaveClass('min-w-0', 'flex-1')
     expect(tabsList).not.toHaveClass('overflow-x-auto')
@@ -347,7 +349,10 @@ describe('Shell.TabList', () => {
     expect(minimizeButton).toHaveAttribute('aria-pressed', 'true')
     expect(minimizeButton).not.toHaveAttribute('data-active')
     expect(minimizeButton.querySelector('svg')).not.toHaveAttribute('width', '15')
-    expect(tabList).toHaveClass('px-3')
+    // embedded mode (no WindowFrameProvider) stays no-drag and uses the symmetric pl-3 inset
+    // even when maximized — the traffic-light inset is sub-window-only.
+    expect(tabList).toHaveClass('pl-3')
+    expect(tabList).not.toHaveClass('pl-[env(titlebar-area-x)]')
   })
 
   it('renders extraTrailing before the maximize toggle', () => {
@@ -367,6 +372,30 @@ describe('Shell.TabList', () => {
     expect(cluster).not.toBeNull()
     expect(cluster).toContainElement(maximize)
     expect(extra.compareDocumentPosition(maximize) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('promotes the header to a drag region when maximized inside a sub-window', () => {
+    render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <Shell defaultTab="files">
+          <Shell.Tabs>
+            <Shell.TabList>
+              <Shell.Tab value="files">Files</Shell.Tab>
+            </Shell.TabList>
+          </Shell.Tabs>
+        </Shell>
+      </WindowFrameProvider>
+    )
+
+    const tabList = screen.getByTestId('shell-tab-list')
+
+    // docked (pane open but not maximized) still gates drag off — chat navbar owns the drag region.
+    expect(tabList).toHaveClass('[-webkit-app-region:no-drag]')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    expect(tabList).toHaveClass('[-webkit-app-region:drag]')
+    expect(tabList).not.toHaveClass('[-webkit-app-region:no-drag]')
   })
 })
 
