@@ -76,3 +76,10 @@ export type TranslatingState =
     }
 
 export type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
+
+export type CachePaintingGenerationState = {
+  status: 'running' | 'failed' | 'canceled'
+  taskId: string | null
+  error: string | null
+  progress: number | null
+}

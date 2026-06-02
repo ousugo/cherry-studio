@@ -150,6 +150,7 @@ function ModelRow({
   onSelect,
   onNavigateBeforeTrial,
   showCheckbox,
+  showPinActions,
   isPinActionDisabled,
   t
 }: {
@@ -159,6 +160,7 @@ function ModelRow({
   onSelect: (item: ModelSelectorModelItem) => void
   onNavigateBeforeTrial: () => void
   showCheckbox: boolean
+  showPinActions: boolean
   isPinActionDisabled: boolean
   t: (key: string) => string
 }) {
@@ -233,22 +235,24 @@ function ModelRow({
         </div>
       )}
       {/* Pin 按钮 — 悬浮/置顶时显示 */}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        disabled={isPinActionDisabled}
-        aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
-        className={cn(
-          'ml-1 size-5 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60',
-          item.isPinned && '-rotate-45 text-primary opacity-100'
-        )}
-        onClick={(event) => {
-          event.stopPropagation()
-          onPin(item.modelId)
-        }}>
-        <Pin className="size-3" />
-      </Button>
+      {showPinActions && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={isPinActionDisabled}
+          aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
+          className={cn(
+            'ml-1 size-5 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60',
+            item.isPinned && '-rotate-45 text-primary opacity-100'
+          )}
+          onClick={(event) => {
+            event.stopPropagation()
+            onPin(item.modelId)
+          }}>
+          <Pin className="size-3" />
+        </Button>
+      )}
     </div>
   )
 }
@@ -261,6 +265,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     filter,
     showTagFilter = true,
     showPinnedModels = true,
+    showPinActions = true,
     prioritizedProviderIds = [],
     side = 'bottom',
     align = 'start',
@@ -350,6 +355,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     () => normalizeSelectedIdsFromValue(props),
     // Narrowing is driven by the three discriminators — any of them changing
     // means `props.value` may be typed differently too.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- these discriminators intentionally cover the relevant prop shape.
     [props.multiple, props.selectionType, props.value]
   )
 
@@ -527,6 +533,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
     malformedSelectionWarningKeyRef.current = warningKey
     logger.warn(warning.message, warning.context)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the warning only depends on the discriminator subset above.
   }, [props.multiple, props.selectionType, props.value])
 
   useEffect(() => {
@@ -618,6 +625,7 @@ export function ModelSelector(props: ModelSelectorProps) {
             onSelect={handleSelectItem}
             onNavigateBeforeTrial={handleClose}
             showCheckbox={multiple && multiSelectMode}
+            showPinActions={showPinActions}
             t={t}
           />
         </div>
@@ -633,6 +641,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       multiple,
       multiSelectMode,
       setFocusedItemKey,
+      showPinActions,
       t
     ]
   )

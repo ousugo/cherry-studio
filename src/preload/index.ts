@@ -897,23 +897,16 @@ const api = {
         guidanceScale?: number
         promptEnhancement?: boolean
         personGeneration?: string
+        aspectRatio?: string
+        background?: string
+        moderation?: string
+        style?: string
+        providerOptions?: Record<string, Record<string, unknown>>
       },
-      signal?: AbortSignal
-    ): Promise<{
-      images: Array<{
-        kind: 'base64'
-        data: string
-        mediaType?: string
-      }>
-    }> => {
-      const requestId = crypto.randomUUID()
-      const onAbort = () => ipcRenderer.send(IpcChannel.Ai_AbortImage, { requestId })
-      signal?.addEventListener('abort', onAbort, { once: true })
-      try {
-        return await ipcRenderer.invoke(IpcChannel.Ai_GenerateImage, { requestId, payload })
-      } finally {
-        signal?.removeEventListener('abort', onAbort)
-      }
+      requestId: string
+    ): Promise<{ files: FileEntry[] }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateImage, { requestId, payload }),
+    abortImage: (requestId: string): void => {
+      ipcRenderer.send(IpcChannel.Ai_AbortImage, { requestId })
     },
     listModels: (request: {
       providerId?: string
