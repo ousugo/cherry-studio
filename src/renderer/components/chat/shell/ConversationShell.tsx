@@ -127,8 +127,10 @@ type TopRightToolProps = { isWindow: boolean; trailing?: ReactNode; children?: R
 
 const ConversationShellTopRightTool = ({ isWindow, trailing, children }: TopRightToolProps) => {
   const shellState = useOptionalShellState()
-  const maximized = shellState?.maximized ?? false
-  if (maximized) return null
+  // When the pane is open or maximized, the navbar cluster (sub-window chrome + page tool)
+  // moves into Shell.TabList's extraTrailing slot — see TopicRightPane / AgentRightPane.
+  // Rendering both at once would let pin/back/toggle visually overlap the pane's own header.
+  if (shellState?.open || shellState?.maximized) return null
   return (
     <div
       data-navbar-right-occupant

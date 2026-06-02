@@ -319,7 +319,7 @@ describe('Shell.Toggle', () => {
 })
 
 describe('Shell.TabList', () => {
-  it('reserves the fixed toggle slot only outside maximized mode', () => {
+  it('renders tabs alongside the maximize toggle without reserving navbar overlap padding', () => {
     render(
       <Shell defaultTab="files">
         <Shell.Tabs>
@@ -334,7 +334,8 @@ describe('Shell.TabList', () => {
     const scrollContainer = screen.getByTestId('shell-tab-scroll-container')
     const tabsList = screen.getByTestId('shell-tabs-list')
 
-    expect(tabList).toHaveClass('pr-11')
+    expect(tabList).toHaveClass('px-3')
+    expect(tabList).not.toHaveClass('pr-11')
     expect(scrollContainer).toHaveClass('min-w-0', 'flex-1')
     expect(tabsList).not.toHaveClass('overflow-x-auto')
 
@@ -346,8 +347,26 @@ describe('Shell.TabList', () => {
     expect(minimizeButton).toHaveAttribute('aria-pressed', 'true')
     expect(minimizeButton).not.toHaveAttribute('data-active')
     expect(minimizeButton.querySelector('svg')).not.toHaveAttribute('width', '15')
-    expect(tabList).not.toHaveClass('pr-11')
     expect(tabList).toHaveClass('px-3')
+  })
+
+  it('renders extraTrailing before the maximize toggle', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.Tabs>
+          <Shell.TabList extraTrailing={<button type="button">extra</button>}>
+            <Shell.Tab value="files">Files</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
+      </Shell>
+    )
+
+    const extra = screen.getByRole('button', { name: 'extra' })
+    const maximize = screen.getByRole('button', { name: 'common.maximize' })
+    const cluster = extra.parentElement
+    expect(cluster).not.toBeNull()
+    expect(cluster).toContainElement(maximize)
+    expect(extra.compareDocumentPosition(maximize) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
 

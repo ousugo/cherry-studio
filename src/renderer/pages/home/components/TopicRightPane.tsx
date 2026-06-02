@@ -2,6 +2,7 @@ import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messag
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
 import { TracePane, type TracePanePayload } from '@renderer/components/chat/trace/TracePane'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
+import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { createContext, use, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -151,6 +152,8 @@ function TopicRightPaneSurface({ topicId, topicName, onLocateMessage }: TopicRig
   const shellState = useShellState()
   const shellActions = useShellActions()
   const branchLiveState = useTopicBranchLiveState(topicId)
+  const { mode, chrome } = useWindowFrame()
+  const isWindow = mode === 'window'
   const canvasFocusKey = `${topicId}:${shellState.maximized ? 'maximized' : 'docked'}:${shellState.pdfLayoutRefreshKey}`
   const canvasLayoutReady = shellState.maximized || !shellState.pdfLayoutPending
   const handleLocateMessage = useCallback(
@@ -160,9 +163,19 @@ function TopicRightPaneSurface({ topicId, topicName, onLocateMessage }: TopicRig
     [onLocateMessage, shellActions]
   )
 
+  // The TabList absorbs the navbar's right cluster while the pane is open: pin/back-to-main
+  // when we're in a sub-window, plus the pane toggle (closes the open pane). Navbar suppresses
+  // its own copy via useOptionalShellState — see ConversationShellTopRightTool.
+  const tabListTrailing = (
+    <>
+      {isWindow ? chrome?.titleTrailing : null}
+      <TopicRightPaneToggle />
+    </>
+  )
+
   return (
     <Shell.Tabs>
-      <Shell.TabList>
+      <Shell.TabList extraTrailing={tabListTrailing}>
         <Shell.Tab value="branch" icon={<GitBranch className="size-3.5" />}>
           {t('chat.message.flow.title')}
         </Shell.Tab>

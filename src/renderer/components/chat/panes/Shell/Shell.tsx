@@ -278,7 +278,10 @@ function ShellTabs({ children }: { children: ReactNode }) {
 }
 
 // Header bar: the tab strip plus the pane-level maximize toggle.
-function ShellTabList({ children }: { children: ReactNode }) {
+// `extraTrailing` hosts the navbar-right cluster (sub-window controls, pane toggle) when the
+// pane is open — see ConversationShellTopRightTool, which suppresses itself in that state so
+// the cluster doesn't sit on top of this header.
+function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraTrailing?: ReactNode }) {
   const { state, actions } = useShell()
   const { t } = useTranslation()
   const maximizeLabel = t(state.maximized ? 'common.minimize' : 'common.maximize')
@@ -286,23 +289,23 @@ function ShellTabList({ children }: { children: ReactNode }) {
   return (
     <div
       data-testid="shell-tab-list"
-      className={cn(
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b',
-        state.maximized ? 'px-3' : 'py-0 pr-11 pl-3'
-      )}>
+      className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-3 [-webkit-app-region:no-drag]">
       <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
         <TabsList className="min-w-max justify-start gap-1">{children}</TabsList>
       </HorizontalScrollContainer>
-      <Tooltip content={maximizeLabel} delay={800}>
-        <NavbarIcon
-          tone="conversation"
-          className="shrink-0"
-          aria-label={maximizeLabel}
-          aria-pressed={state.maximized}
-          onClick={actions.toggleMaximized}>
-          <MaximizeIcon />
-        </NavbarIcon>
-      </Tooltip>
+      <div className="flex shrink-0 items-center gap-0.5">
+        {extraTrailing}
+        <Tooltip content={maximizeLabel} delay={800}>
+          <NavbarIcon
+            tone="conversation"
+            className="shrink-0"
+            aria-label={maximizeLabel}
+            aria-pressed={state.maximized}
+            onClick={actions.toggleMaximized}>
+            <MaximizeIcon />
+          </NavbarIcon>
+        </Tooltip>
+      </div>
     </div>
   )
 }

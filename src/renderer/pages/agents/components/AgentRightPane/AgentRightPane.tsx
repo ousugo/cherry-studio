@@ -9,6 +9,7 @@ import ArtifactPane, {
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
 import { TracePane, type TracePanePayload } from '@renderer/components/chat/trace/TracePane'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
+import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
@@ -546,11 +547,22 @@ function AgentAgentRightPaneStatusPanel() {
 function AgentRightPaneSurface() {
   const { state, actions } = useAgentRightPane()
   const { t } = useTranslation()
+  const { mode, chrome } = useWindowFrame()
+  const isWindow = mode === 'window'
   const incompleteTasks = state.status.tasks.filter((task) => task.status !== 'completed').length
+
+  // Mirror TopicRightPaneSurface: while open, the pane absorbs the navbar's right cluster
+  // (sub-window controls + pane toggle) so they don't overlap this header.
+  const tabListTrailing = (
+    <>
+      {isWindow ? chrome?.titleTrailing : null}
+      <AgentRightPaneFilesToggle />
+    </>
+  )
 
   return (
     <Shell.Tabs>
-      <Shell.TabList>
+      <Shell.TabList extraTrailing={tabListTrailing}>
         <Shell.Tab
           value="files"
           icon={state.selectedFile ? <FileText className="size-3.5" /> : <FolderOpen className="size-3.5" />}>
