@@ -17,14 +17,16 @@ import { loggerService } from '@logger'
 import { ActionMenu } from '@renderer/components/chat/actions/ActionMenu'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
+  remapResourceListExpandedGroupIds,
   ResourceList,
+  type ResourceListExpansionState,
   type ResourceListGroup,
-  type ResourceListGroupSeed,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
-  SessionResourceList
+  SessionResourceList,
+  updateResourceListExpansionState
 } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
@@ -63,12 +65,10 @@ import {
   createSessionDisplayGroupResolver,
   createSessionWorkdirDisplayMaps,
   getAgentIdFromSessionGroupId,
-  getSessionAgentGroupId,
   getWorkdirPathFromSessionGroupId,
   isSystemWorkspaceSession,
   moveSessionAgentGroupAfterDrop,
   moveSessionWorkdirGroupAfterDrop,
-  normalizeSessionCollapsedGroupIds,
   normalizeSessionDropPayload,
   SESSION_AGENT_SECTION_ID,
   SESSION_NO_PROJECT_GROUP_ID,
@@ -379,7 +379,8 @@ const Sessions = ({
   const [groupNow] = useState(() => new Date())
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const [collapsedSessionGroupIds, setCollapsedSessionGroupIds] = usePreference('agent.session.collapsed_group_ids')
+  const [sessionGroupExpansion, setSessionGroupExpansion] = usePreference('agent.session.group_expansion')
+  const sessionGroupExpansionRef = useRef(sessionGroupExpansion)
   const {
     sessions,
     pinIdBySessionId,
@@ -441,6 +442,11 @@ const Sessions = ({
   const displayMode: AgentSessionDisplayMode =
     sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent' ? sessionDisplayMode : 'time'
   const isDraggableMode = displayMode !== 'time'
+
+  useEffect(() => {
+    sessionGroupExpansionRef.current = sessionGroupExpansion
+  }, [sessionGroupExpansion])
+
   const dragReady = isDraggableMode && isFullyLoaded && !isLoadingAll && !isLoadingMore && !isValidating && !isLoading
   const {
     isLoading: isAgentPinsLoading,
@@ -619,49 +625,36 @@ const Sessions = ({
     }
   }, [displayMode, t])
 
-  const sessionGroupSeeds = useMemo<readonly ResourceListGroupSeed[]>(
-    () =>
-      displayMode === 'agent'
-        ? agentsForDisplay.map((agent) => ({
-            id: getSessionAgentGroupId(agent.id),
-            label: agent.name,
-            section: {
-              id: SESSION_AGENT_SECTION_ID,
-              label: t(SESSION_DISPLAY_LABEL_KEYS.agent)
-            }
-          }))
-        : [],
-    [agentsForDisplay, displayMode, t]
-  )
+  const expandedSessionState = useMemo(() => {
+    const modeExpansionState = sessionGroupExpansion[displayMode]
 
-  const effectiveCollapsedSessionGroupIds = useMemo(() => {
-    const normalizedCollapsedGroupIds = normalizeSessionCollapsedGroupIds(collapsedSessionGroupIds, displayMode)
+    if (displayMode !== 'workdir') {
+      return modeExpansionState
+    }
 
-    if (displayMode !== 'workdir') return normalizedCollapsedGroupIds
+    return remapResourceListExpandedGroupIds(modeExpansionState, (groupId) => {
+      const path = getWorkdirPathFromSessionGroupId(groupId)
+      return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
+    })
+  }, [displayMode, sessionGroupExpansion, workdirDisplay])
 
-    return Array.from(
-      new Set(
-        normalizedCollapsedGroupIds.map((groupId) => {
-          const path = getWorkdirPathFromSessionGroupId(groupId)
-          return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
-        })
+  const handleSessionExpansionStateChange = useCallback(
+    (nextState: ResourceListExpansionState) => {
+      const nextGroupExpansion = updateResourceListExpansionState(
+        sessionGroupExpansionRef.current,
+        displayMode,
+        nextState
       )
-    )
-  }, [collapsedSessionGroupIds, displayMode, workdirDisplay])
 
-  const handleCollapsedSessionGroupIdsChange = useCallback(
-    (nextGroupIds: string[]) => void setCollapsedSessionGroupIds(nextGroupIds),
-    [setCollapsedSessionGroupIds]
+      sessionGroupExpansionRef.current = nextGroupExpansion
+      void setSessionGroupExpansion(nextGroupExpansion)
+    },
+    [displayMode, setSessionGroupExpansion]
   )
   const getCreateSessionSeedForGroup = useCallback(
-    (groupId: string) => {
-      const seed = findLatestCreateSessionSeed(groupedSessions, (session) => sessionGroupBy(session)?.id === groupId)
-      if (seed || displayMode !== 'agent') return seed
-
-      const agentId = getAgentIdFromSessionGroupId(groupId)
-      return agentId && agentById.has(agentId) ? { agentId } : null
-    },
-    [agentById, displayMode, groupedSessions, sessionGroupBy]
+    (groupId: string) =>
+      findLatestCreateSessionSeed(groupedSessions, (session) => sessionGroupBy(session)?.id === groupId),
+    [groupedSessions, sessionGroupBy]
   )
   const handleOpenHistoryOrToggleSidebar = useCallback(
     (origin?: DOMRectReadOnly) => {
@@ -952,27 +945,6 @@ const Sessions = ({
     (group: ResourceListGroup) =>
       displayMode === 'agent' && group.id !== SESSION_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
     [displayMode]
-  )
-  const handleEmptyGroupHeaderClick = useCallback(
-    (group: ResourceListGroup) => {
-      if (displayMode !== 'agent' || group.id === SESSION_PINNED_GROUP_ID) return false
-      if (!onStartTemporarySession) return false
-      if (creatingSession) return true
-
-      const createSessionSeed = getCreateSessionSeedForGroup(group.id)
-      if (createSessionSeed === null || !agentById.has(createSessionSeed.agentId)) return false
-
-      void createSessionFromSeed(createSessionSeed)
-      return true
-    },
-    [
-      agentById,
-      createSessionFromSeed,
-      creatingSession,
-      displayMode,
-      getCreateSessionSeedForGroup,
-      onStartTemporarySession
-    ]
   )
   const canDragSessionItem = useCallback(
     ({ item }: { item: SessionListItem }) => itemDragReady && !item.pinned,
@@ -1414,9 +1386,8 @@ const Sessions = ({
       status={listStatus}
       selectedId={activeSessionId}
       groupBy={sessionGroupBy}
-      groupSeeds={sessionGroupSeeds}
       sectionBy={sessionSectionBy}
-      collapsedGroupIds={effectiveCollapsedSessionGroupIds}
+      expandedState={expandedSessionState}
       revealRequest={revealRequest}
       defaultGroupVisibleCount={5}
       groupLoadStep={5}
@@ -1441,9 +1412,8 @@ const Sessions = ({
       groupCollapseLabel={t('agent.session.group.collapse')}
       onRenameItem={handleRenameSession}
       onGroupHeaderSelectItem={handleSelectSession}
-      onEmptyGroupHeaderClick={handleEmptyGroupHeaderClick}
       onReorder={handleSessionReorder}
-      onCollapsedGroupIdsChange={handleCollapsedSessionGroupIdsChange}>
+      onExpandedStateChange={handleSessionExpansionStateChange}>
       <ResourceList.Header className="gap-1 px-1.5 pb-0">
         <ResourceList.HeaderItem
           type="button"

@@ -37,6 +37,11 @@ export type ResourceListGroupSeed = ResourceListGroup & {
   section?: ResourceListSection | null
 }
 
+export type ResourceListExpansionState = {
+  expandedSectionIds: string[]
+  expandedGroupIds: string[]
+}
+
 export type ResourceListGroupHeaderIconContext = {
   collapsed: boolean
 }

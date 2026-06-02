@@ -2,6 +2,7 @@ export type {
   ResourceListActionMap,
   ResourceListContextValue,
   ResourceListDragCapabilities,
+  ResourceListExpansionState,
   ResourceListFilterOption,
   ResourceListGroup,
   ResourceListGroupReorderPayload,
@@ -32,6 +33,7 @@ export {
   useResourceListRowState,
   useResourceListView
 } from './ResourceList'
+export { remapResourceListExpandedGroupIds, updateResourceListExpansionState } from './resourceListExpansion'
 export type { ResourceListGroupResolver, ResourceListTimeBucket } from './resourceListGrouping'
 export {
   composeResourceListGroupResolvers,

@@ -510,21 +510,47 @@ import {
 import Sessions from '../Sessions'
 
 const CURRENT_SESSION_ISO = new Date().toISOString()
-const DEFAULT_EXPANDED_SESSION_GROUP_IDS = [
-  SESSION_PINNED_SECTION_ID,
-  SESSION_AGENT_SECTION_ID,
-  SESSION_WORKDIR_SECTION_ID,
-  SESSION_NO_PROJECT_SECTION_ID,
-  'session:agent:agent-a',
-  'session:agent:agent-b',
-  'session:workspace:ws-a',
-  'session:workspace:ws-b',
+const SESSION_GROUP_EXPANSION_KEY = 'agent.session.group_expansion'
+
+const DEFAULT_EXPANDED_SESSION_TIME_SECTION_IDS: string[] = []
+const DEFAULT_EXPANDED_SESSION_TIME_GROUP_IDS = [
   'session:pinned',
   'session:time:today',
   'session:time:yesterday',
   'session:time:this-week',
   'session:time:earlier'
 ]
+const DEFAULT_EXPANDED_SESSION_AGENT_SECTION_IDS = [SESSION_PINNED_SECTION_ID, SESSION_AGENT_SECTION_ID]
+const DEFAULT_EXPANDED_SESSION_AGENT_GROUP_IDS = ['session:agent:agent-a', 'session:agent:agent-b']
+const DEFAULT_EXPANDED_SESSION_WORKDIR_SECTION_IDS = [
+  SESSION_PINNED_SECTION_ID,
+  SESSION_WORKDIR_SECTION_ID,
+  SESSION_NO_PROJECT_SECTION_ID
+]
+const DEFAULT_EXPANDED_SESSION_WORKDIR_GROUP_IDS = ['session:workspace:ws-a', 'session:workspace:ws-b']
+
+function createExpandedSessionGroupExpansionFixture() {
+  return {
+    time: {
+      expandedSectionIds: [...DEFAULT_EXPANDED_SESSION_TIME_SECTION_IDS],
+      expandedGroupIds: [...DEFAULT_EXPANDED_SESSION_TIME_GROUP_IDS]
+    },
+    agent: {
+      expandedSectionIds: [...DEFAULT_EXPANDED_SESSION_AGENT_SECTION_IDS],
+      expandedGroupIds: [...DEFAULT_EXPANDED_SESSION_AGENT_GROUP_IDS]
+    },
+    workdir: {
+      expandedSectionIds: [...DEFAULT_EXPANDED_SESSION_WORKDIR_SECTION_IDS],
+      expandedGroupIds: [...DEFAULT_EXPANDED_SESSION_WORKDIR_GROUP_IDS]
+    }
+  }
+}
+
+function getSessionGroupExpansionPreference() {
+  return preferenceMocks.values.get(SESSION_GROUP_EXPANSION_KEY) as ReturnType<
+    typeof createExpandedSessionGroupExpansionFixture
+  >
+}
 
 function makeWorkspace(path: string, overrides: Partial<WorkspaceEntity> = {}): WorkspaceEntity {
   return {
@@ -628,7 +654,7 @@ describe('Sessions', () => {
   beforeEach(() => {
     preferenceMocks.values.clear()
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
-    preferenceMocks.values.set('agent.session.collapsed_group_ids', DEFAULT_EXPANDED_SESSION_GROUP_IDS)
+    preferenceMocks.values.set(SESSION_GROUP_EXPANSION_KEY, createExpandedSessionGroupExpansionFixture())
     preferenceMocks.values.set('topic.tab.show', true)
     dataApiMocks.workspaces = [
       makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'a' }),
@@ -689,7 +715,13 @@ describe('Sessions', () => {
   })
 
   it('loads all sessions and renders collapsed workspace groups with drag by default', () => {
-    preferenceMocks.values.set('agent.session.collapsed_group_ids', [])
+    preferenceMocks.values.set(SESSION_GROUP_EXPANSION_KEY, {
+      ...createExpandedSessionGroupExpansionFixture(),
+      workdir: {
+        expandedSectionIds: [...DEFAULT_EXPANDED_SESSION_WORKDIR_SECTION_IDS],
+        expandedGroupIds: []
+      }
+    })
 
     const view = render(<Sessions />)
 
@@ -711,10 +743,10 @@ describe('Sessions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Project A Workspace' }))
 
-    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids')).toEqual([
-      SESSION_WORKDIR_SECTION_ID,
-      'session:workspace:ws-a'
-    ])
+    expect(getSessionGroupExpansionPreference().workdir.expandedSectionIds).toEqual(
+      DEFAULT_EXPANDED_SESSION_WORKDIR_SECTION_IDS
+    )
+    expect(getSessionGroupExpansionPreference().workdir.expandedGroupIds).toEqual(['session:workspace:ws-a'])
     view.rerender(<Sessions key="expanded-project-a-workspace" />)
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'true')
     expect(
@@ -801,7 +833,13 @@ describe('Sessions', () => {
 
   it('renders agent groups in agent display mode', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    preferenceMocks.values.set('agent.session.collapsed_group_ids', [])
+    preferenceMocks.values.set(SESSION_GROUP_EXPANSION_KEY, {
+      ...createExpandedSessionGroupExpansionFixture(),
+      agent: {
+        expandedSectionIds: [...DEFAULT_EXPANDED_SESSION_AGENT_SECTION_IDS],
+        expandedGroupIds: []
+      }
+    })
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
         { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } },
@@ -834,7 +872,7 @@ describe('Sessions', () => {
     fireEvent.click(betaGroup)
 
     expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith('session-b')
-    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids')).toEqual([])
+    expect(getSessionGroupExpansionPreference().agent.expandedGroupIds).toEqual([])
     expect(betaGroup).toHaveAttribute('aria-expanded', 'false')
 
     cacheMocks.state.activeSessionId = 'session-b'
@@ -842,10 +880,10 @@ describe('Sessions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Beta agent' }))
 
-    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids')).toEqual([
-      SESSION_AGENT_SECTION_ID,
-      'session:agent:agent-b'
-    ])
+    expect(getSessionGroupExpansionPreference().agent.expandedSectionIds).toEqual(
+      DEFAULT_EXPANDED_SESSION_AGENT_SECTION_IDS
+    )
+    expect(getSessionGroupExpansionPreference().agent.expandedGroupIds).toEqual(['session:agent:agent-b'])
   })
 
   it('keeps system workspace sessions inside agent groups in agent display mode', () => {
@@ -909,7 +947,7 @@ describe('Sessions', () => {
 
     expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith('session-b')
     expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
-    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids') ?? []).toContain('session:agent:agent-b')
+    expect(getSessionGroupExpansionPreference().agent.expandedGroupIds).toContain('session:agent:agent-b')
 
     cacheMocks.state.activeSessionId = 'session-b'
     view.rerender(<Sessions key="selected-session-b" />)
@@ -919,7 +957,7 @@ describe('Sessions', () => {
     expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
 
     fireEvent.click(selectedBetaGroupButton)
-    expect(preferenceMocks.values.get('agent.session.collapsed_group_ids')).not.toContain('session:agent:agent-b')
+    expect(getSessionGroupExpansionPreference().agent.expandedGroupIds).not.toContain('session:agent:agent-b')
 
     view.rerender(<Sessions key="collapsed-session-b" />)
     expect(screen.getByRole('button', { name: 'Beta agent' })).toHaveAttribute('aria-expanded', 'false')
@@ -982,33 +1020,7 @@ describe('Sessions', () => {
       })
     )
 
-    const emptyAgentGroup = screen
-      .getByRole('button', { name: 'Gamma agent' })
-      .closest('[data-resource-list-group-context-menu-id="session:agent:agent-c"]')
-    expect(emptyAgentGroup).not.toBeNull()
-    const emptyAgentCreateButton = within(emptyAgentGroup as HTMLElement).getByRole('button', {
-      name: 'chat.conversation.new'
-    })
-    await vi.waitFor(() => expect(emptyAgentCreateButton).not.toBeDisabled())
-    fireEvent.click(emptyAgentCreateButton)
-
-    await vi.waitFor(() =>
-      expect(onStartTemporarySession).toHaveBeenCalledWith({
-        agentId: 'agent-c',
-        name: 'Untitled'
-      })
-    )
-
-    await vi.waitFor(() => expect(emptyAgentCreateButton).not.toBeDisabled())
-    onStartTemporarySession.mockClear()
-    fireEvent.click(screen.getByRole('button', { name: 'Gamma agent' }))
-
-    await vi.waitFor(() =>
-      expect(onStartTemporarySession).toHaveBeenCalledWith({
-        agentId: 'agent-c',
-        name: 'Untitled'
-      })
-    )
+    expect(screen.queryByRole('button', { name: 'Gamma agent' })).not.toBeInTheDocument()
   })
 
   it('renders load errors inside the shared ResourceList shell', () => {
@@ -1092,6 +1104,7 @@ describe('Sessions', () => {
 
   it('does not block time grouping on workspace loading state', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set(SESSION_GROUP_EXPANSION_KEY, createExpandedSessionGroupExpansionFixture())
     dataApiMocks.workspacesLoading = true
     dataApiMocks.workspacesError = new Error('Workspace request failed')
 
@@ -1349,7 +1362,13 @@ describe('Sessions', () => {
 
   it('subscribes stream status only for visible session rows', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
-    preferenceMocks.values.set('agent.session.collapsed_group_ids', [])
+    preferenceMocks.values.set(SESSION_GROUP_EXPANSION_KEY, {
+      ...createExpandedSessionGroupExpansionFixture(),
+      workdir: {
+        expandedSectionIds: [...DEFAULT_EXPANDED_SESSION_WORKDIR_SECTION_IDS],
+        expandedGroupIds: []
+      }
+    })
 
     render(<Sessions />)
 
@@ -1617,10 +1636,11 @@ describe('Sessions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
-    const collapsedGroupIds = preferenceMocks.values.get('agent.session.collapsed_group_ids') as string[]
-    expect(collapsedGroupIds).toContain(SESSION_WORKDIR_SECTION_ID)
-    expect(collapsedGroupIds).toContain('session:workspace:ws-b')
-    expect(collapsedGroupIds).not.toContain('session:workspace:ws-a')
+    const { expandedGroupIds: expandedWorkdirGroupIds, expandedSectionIds: expandedWorkdirSectionIds } =
+      getSessionGroupExpansionPreference().workdir
+    expect(expandedWorkdirSectionIds).toContain(SESSION_WORKDIR_SECTION_ID)
+    expect(expandedWorkdirGroupIds).toContain('session:workspace:ws-b')
+    expect(expandedWorkdirGroupIds).not.toContain('session:workspace:ws-a')
     view.rerender(<Sessions key="collapsed-project-groups" />)
 
     expect(screen.getByRole('button', { name: 'Project' })).toHaveAttribute('aria-expanded', 'true')
@@ -1977,10 +1997,11 @@ describe('Sessions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
-    const collapsedGroupIds = preferenceMocks.values.get('agent.session.collapsed_group_ids') as string[]
-    expect(collapsedGroupIds).toContain(SESSION_AGENT_SECTION_ID)
-    expect(collapsedGroupIds).toContain('session:agent:agent-b')
-    expect(collapsedGroupIds).not.toContain('session:agent:agent-a')
+    const { expandedGroupIds: expandedAgentGroupIds, expandedSectionIds: expandedAgentSectionIds } =
+      getSessionGroupExpansionPreference().agent
+    expect(expandedAgentSectionIds).toContain(SESSION_AGENT_SECTION_ID)
+    expect(expandedAgentGroupIds).toContain('session:agent:agent-b')
+    expect(expandedAgentGroupIds).not.toContain('session:agent:agent-a')
     view.rerender(<Sessions key="collapsed-agent-groups" />)
 
     expect(screen.getByRole('button', { name: 'Agent' })).toHaveAttribute('aria-expanded', 'true')

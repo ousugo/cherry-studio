@@ -61,7 +61,6 @@ const TOPIC_TIME_BUCKET_RANK: Record<ResourceListTimeBucket, number> = {
 export const TOPIC_PINNED_GROUP_ID = 'topic:pinned'
 export const TOPIC_PINNED_SECTION_ID = 'topic:section:pinned'
 export const TOPIC_ASSISTANT_SECTION_ID = 'topic:section:assistant'
-export const TOPIC_TODAY_GROUP_ID = 'topic:time:today'
 export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
@@ -174,15 +173,6 @@ export function normalizeTopicDropPayload(payload: ResourceListItemReorderPayloa
   return payload
 }
 
-export function normalizeTopicCollapsedGroupIds(groupIds: readonly string[], mode: TopicDisplayMode): string[] {
-  const pinnedCollapseId = mode === 'time' ? TOPIC_PINNED_GROUP_ID : TOPIC_PINNED_SECTION_ID
-  const normalizedGroupIds = groupIds.map((groupId) =>
-    groupId === TOPIC_PINNED_GROUP_ID || groupId === TOPIC_PINNED_SECTION_ID ? pinnedCollapseId : groupId
-  )
-
-  return Array.from(new Set(normalizedGroupIds))
-}
-
 export function groupTopicByPinned(topic: Pick<Topic, 'pinned'>, pinnedLabel: string, topicLabel: string) {
   if (topic.pinned) {
     return { id: 'pinned', label: pinnedLabel }
@@ -212,10 +202,6 @@ export function getAssistantIdFromTopicGroupId(groupId: string): string | undefi
   }
 
   return groupId.slice(TOPIC_ASSISTANT_GROUP_ID_PREFIX.length)
-}
-
-export function getTopicAssistantGroupId(assistantId: string) {
-  return `${TOPIC_ASSISTANT_GROUP_ID_PREFIX}${assistantId}`
 }
 
 export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>({

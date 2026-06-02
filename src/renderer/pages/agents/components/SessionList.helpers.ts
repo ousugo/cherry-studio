@@ -94,7 +94,7 @@ function withSessionGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): Re
   }
 }
 
-export function getSessionAgentGroupId(agentId: string) {
+function getSessionAgentGroupId(agentId: string) {
   return `${SESSION_AGENT_GROUP_ID_PREFIX}${agentId}`
 }
 
@@ -421,18 +421,6 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
 
 export function normalizeSessionDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
   return payload
-}
-
-export function normalizeSessionCollapsedGroupIds(
-  groupIds: readonly string[],
-  mode: AgentSessionDisplayMode
-): string[] {
-  const pinnedCollapseId = mode === 'time' ? SESSION_PINNED_GROUP_ID : SESSION_PINNED_SECTION_ID
-  const normalizedGroupIds = groupIds.map((groupId) =>
-    groupId === SESSION_PINNED_GROUP_ID || groupId === SESSION_PINNED_SECTION_ID ? pinnedCollapseId : groupId
-  )
-
-  return Array.from(new Set(normalizedGroupIds))
 }
 
 export function buildSessionDropAnchor(payload: ResourceListItemReorderPayload): OrderRequest {

@@ -37,9 +37,9 @@ import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
 export interface PreferenceSchemas {
   default: {
     // target-key-definitions/complex/complex
-    'agent.session.collapsed_group_ids': string[]
-    // target-key-definitions/complex/complex
     'agent.session.display_mode': PreferenceTypes.AgentSessionDisplayMode
+    // target-key-definitions/complex/complex
+    'agent.session.group_expansion': PreferenceTypes.AgentSessionGroupExpansionPreference
     // redux/settings/enableDeveloperMode
     'app.developer_mode.enabled': boolean
     // redux/settings/autoCheckUpdate
@@ -495,9 +495,9 @@ export interface PreferenceSchemas {
     // redux/settings/topicNamingPrompt
     'topic.naming_prompt': string
     // target-key-definitions/complex/complex
-    'topic.tab.collapsed_group_ids': string[]
-    // target-key-definitions/complex/complex
     'topic.tab.display_mode': PreferenceTypes.TopicDisplayMode
+    // target-key-definitions/complex/complex
+    'topic.tab.group_expansion': PreferenceTypes.TopicGroupExpansionPreference
     // redux/settings/showTopics
     'topic.tab.show': boolean
     // redux/settings/customCss
@@ -522,8 +522,24 @@ export interface PreferenceSchemas {
 /* eslint sort-keys: ["error", "asc", {"caseSensitive": true, "natural": false}] */
 export const DefaultPreferences: PreferenceSchemas = {
   default: {
-    'agent.session.collapsed_group_ids': [],
     'agent.session.display_mode': 'agent',
+    'agent.session.group_expansion': {
+      agent: { expandedGroupIds: [], expandedSectionIds: ['session:section:pinned', 'session:section:agent'] },
+      time: {
+        expandedGroupIds: [
+          'session:pinned',
+          'session:time:today',
+          'session:time:yesterday',
+          'session:time:this-week',
+          'session:time:earlier'
+        ],
+        expandedSectionIds: []
+      },
+      workdir: {
+        expandedGroupIds: [],
+        expandedSectionIds: ['session:section:pinned', 'session:section:workdir', 'session:section:no-project']
+      }
+    },
     'app.developer_mode.enabled': false,
     'app.dist.auto_update.enabled': true,
     'app.dist.test_plan.channel': PreferenceTypes.UpgradeChannel.LATEST,
@@ -778,8 +794,20 @@ export const DefaultPreferences: PreferenceSchemas = {
     'topic.naming.enabled': true,
     'topic.naming.model_id': null,
     'topic.naming_prompt': '',
-    'topic.tab.collapsed_group_ids': [],
     'topic.tab.display_mode': 'assistant',
+    'topic.tab.group_expansion': {
+      assistant: { expandedGroupIds: [], expandedSectionIds: ['topic:section:pinned', 'topic:section:assistant'] },
+      time: {
+        expandedGroupIds: [
+          'topic:pinned',
+          'topic:time:today',
+          'topic:time:yesterday',
+          'topic:time:this-week',
+          'topic:time:earlier'
+        ],
+        expandedSectionIds: []
+      }
+    },
     'topic.tab.show': true,
     'ui.custom_css': '',
     'ui.sidebar.icons.invisible': [],

@@ -20,13 +20,13 @@ import { ActionMenu } from '@renderer/components/chat/actions/ActionMenu'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
   ResourceList,
-  type ResourceListGroup,
-  type ResourceListGroupSeed,
+  type ResourceListExpansionState,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
   TopicResourceList,
+  updateResourceListExpansionState,
   useResourceListActions,
   useResourceListPinnedState,
   useResourceListRowState
@@ -80,9 +80,7 @@ import {
   buildTopicDropAnchor,
   createTopicDisplayGroupResolver,
   getAssistantIdFromTopicGroupId,
-  getTopicAssistantGroupId,
   moveAssistantGroupAfterDrop,
-  normalizeTopicCollapsedGroupIds,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
   TOPIC_ASSISTANT_SECTION_ID,
@@ -308,7 +306,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     refreshTopics
   } = useTopicMutations()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
-  const [collapsedTopicGroupIds, setCollapsedTopicGroupIds] = usePreference('topic.tab.collapsed_group_ids')
+  const [topicGroupExpansion, setTopicGroupExpansion] = usePreference('topic.tab.group_expansion')
+  const topicGroupExpansionRef = useRef(topicGroupExpansion)
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
   const [exportMenuOptions] = useMultiplePreferences({
@@ -326,6 +325,10 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   })
   const displayMode = topicDisplayMode ?? 'time'
   const isAssistantDisplayMode = displayMode === 'assistant'
+
+  useEffect(() => {
+    topicGroupExpansionRef.current = topicGroupExpansion
+  }, [topicGroupExpansion])
 
   const {
     isLoading: isTopicPinsLoading,
@@ -607,21 +610,6 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     }
   }, [isAssistantDisplayMode, t])
 
-  const topicGroupSeeds = useMemo<readonly ResourceListGroupSeed[]>(
-    () =>
-      isAssistantDisplayMode
-        ? orderedAssistants.map((assistant) => ({
-            id: getTopicAssistantGroupId(assistant.id),
-            label: assistant.name,
-            section: {
-              id: TOPIC_ASSISTANT_SECTION_ID,
-              label: t('chat.topics.display.assistant')
-            }
-          }))
-        : [],
-    [isAssistantDisplayMode, orderedAssistants, t]
-  )
-
   const baseGroupedTopics = useMemo(
     () =>
       sortTopicsForDisplayGroups(topics, {
@@ -669,19 +657,6 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       displayMode === 'assistant' && group.id !== TOPIC_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
     [displayMode]
   )
-  const handleEmptyGroupHeaderClick = useCallback(
-    (group: ResourceListGroup) => {
-      if (displayMode !== 'assistant' || group.id === TOPIC_PINNED_GROUP_ID) return false
-
-      const assistantId = getAssistantIdFromTopicGroupId(group.id)
-      if (!assistantId || !assistantById.has(assistantId) || !onNewTopic) return false
-
-      void onNewTopic({ assistantId })
-      return true
-    },
-    [assistantById, displayMode, onNewTopic]
-  )
-
   const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)
   const listLoading =
     isLoadingAll ||
@@ -794,8 +769,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         if (!assistantGroupId) return null
       }
 
-      const payload =
-        getCreateTopicPayloadForGroup(group.id) ?? (assistantGroupId ? { assistantId: assistantGroupId } : undefined)
+      const payload = getCreateTopicPayloadForGroup(group.id)
       if (!payload && !assistantGroupId) return null
 
       return (
@@ -908,13 +882,19 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     [assistantById, isAssistantDisplayMode]
   )
 
-  const handleCollapsedTopicGroupIdsChange = useCallback(
-    (nextGroupIds: string[]) => void setCollapsedTopicGroupIds(nextGroupIds),
-    [setCollapsedTopicGroupIds]
-  )
-  const effectiveCollapsedTopicGroupIds = useMemo(
-    () => normalizeTopicCollapsedGroupIds(collapsedTopicGroupIds, displayMode),
-    [collapsedTopicGroupIds, displayMode]
+  const expandedTopicState = topicGroupExpansion[displayMode]
+  const handleTopicExpansionStateChange = useCallback(
+    (nextState: ResourceListExpansionState) => {
+      const nextGroupExpansion = updateResourceListExpansionState(
+        topicGroupExpansionRef.current,
+        displayMode,
+        nextState
+      )
+
+      topicGroupExpansionRef.current = nextGroupExpansion
+      void setTopicGroupExpansion(nextGroupExpansion)
+    },
+    [displayMode, setTopicGroupExpansion]
   )
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !item.pinned,
@@ -1062,9 +1042,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         status={listStatus}
         selectedId={activeTopic?.id}
         groupBy={topicGroupBy}
-        groupSeeds={topicGroupSeeds}
         sectionBy={topicSectionBy}
-        collapsedGroupIds={effectiveCollapsedTopicGroupIds}
+        expandedState={expandedTopicState}
         revealRequest={revealRequest}
         defaultGroupVisibleCount={5}
         groupLoadStep={5}
@@ -1086,9 +1065,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         groupCollapseLabel={t('chat.topics.group.collapse')}
         onRenameItem={handleRenameTopic}
         onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
-        onEmptyGroupHeaderClick={handleEmptyGroupHeaderClick}
         onReorder={handleTopicReorder}
-        onCollapsedGroupIdsChange={handleCollapsedTopicGroupIdsChange}>
+        onExpandedStateChange={handleTopicExpansionStateChange}>
         <ResourceList.Header className="gap-1 px-1.5 pb-0">
           <ResourceList.HeaderItem
             type="button"
