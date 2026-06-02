@@ -1034,6 +1034,54 @@ describe('Topics', () => {
     expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
   })
 
+  it('keeps the expanded topic window after selecting a topic revealed by show more', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+    mockUseQuery.mockImplementation((path) => {
+      if (path === '/pins') {
+        return {
+          data: [],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+      return {
+        data: [],
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: createTopicPageItems(11) }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { rerenderTopicList, setActiveTopic } = renderTopicList()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more topics' }))
+    fireEvent.click(getTopicRow('Topic 6'))
+
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-6' }))
+
+    rerenderTopicList(undefined, createRendererTopic({ id: 'topic-6', name: 'Topic 6' }))
+
+    expect(screen.getByText('Topic 10')).toBeInTheDocument()
+    expect(screen.getByText('Topic 11')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse topics' })).toBeInTheDocument()
+  })
+
   it('collapses assistant groups from the display options menu', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({

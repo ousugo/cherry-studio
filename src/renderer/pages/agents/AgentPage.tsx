@@ -2,11 +2,12 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCommandHandler } from '@renderer/commands'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import {
   createRecentSessionEntryFromSession,
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
-import { useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
+import { useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
@@ -22,7 +23,7 @@ import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/const
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { PropsWithChildren } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentChat from './AgentChat'
@@ -114,6 +115,42 @@ const AgentPage = () => {
   // All non-dormant tabs mount at once (Activity keep-alive), so each agent tab runs its
   // own AgentPage. `useIsActiveTab` answers "am I the globally-focused tab" (gates last_used).
   const isActiveTab = useIsActiveTab()
+  const currentTabId = useCurrentTabId()
+
+  const clearSessionRevealRequestAfterPaint = useCallback((requestId: number) => {
+    const clear = () => {
+      setSessionRevealRequest((current) => (current?.requestId === requestId ? undefined : current))
+    }
+
+    if (window.requestAnimationFrame) {
+      window.requestAnimationFrame(clear)
+      return
+    }
+
+    window.setTimeout(clear, 0)
+  }, [])
+
+  const revealActiveSessionInResourceList = useEffectEvent(() => {
+    if (isMessageOnlyView || !activeSessionId) return
+    const requestId = sessionRevealRequestIdRef.current + 1
+    sessionRevealRequestIdRef.current = requestId
+    setSessionRevealRequest({
+      itemId: activeSessionId,
+      requestId
+    })
+    clearSessionRevealRequestAfterPaint(requestId)
+  })
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.REVEAL_ACTIVE_RESOURCE_LIST, (payload) => {
+      const { source, tabId } = payload as ResourceListRevealPayload
+      if (source !== 'agents' || tabId !== currentTabId) return
+      revealActiveSessionInResourceList()
+    })
+
+    return unsubscribe
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest session without resubscribing.
+  }, [currentTabId])
   // Label this tab with its agent emoji + session name so multiple agent tabs
   // are distinguishable (every tab labels itself — not gated on active).
   const { agent: visibleAgent } = useAgent(visibleSession?.agentId ?? null)

@@ -1,5 +1,5 @@
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +15,7 @@ const agentPageMocks = vi.hoisted(() => ({
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
   setShowSidebar: vi.fn(),
+  isActiveTab: false,
   showSidebar: false
 }))
 
@@ -160,6 +161,12 @@ vi.mock('@renderer/hooks/useTemporaryConversation', () => ({
   })
 }))
 
+vi.mock('@renderer/context/TabIdContext', () => ({
+  useCurrentTabId: () => 'agent-tab',
+  useIsActiveTab: () => agentPageMocks.isActiveTab,
+  useTabSelfMetadata: vi.fn()
+}))
+
 vi.mock('@renderer/pages/history/HistoryRecordsPage', () => ({
   default: ({ onClose, onRecordSelect, open }: any) =>
     open ? (
@@ -178,7 +185,8 @@ vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     GLOBAL_SEARCH_SELECT_AGENT_SESSION: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION',
     GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE: 'GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE',
-    SHOW_ASSISTANTS: 'SHOW_ASSISTANTS'
+    SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
+    REVEAL_ACTIVE_RESOURCE_LIST: 'REVEAL_ACTIVE_RESOURCE_LIST'
   },
   EventEmitter: {
     emit: vi.fn(),
@@ -273,6 +281,8 @@ vi.mock('../AgentSidePanel', () => ({
   )
 }))
 
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+
 import AgentPage from '../AgentPage'
 
 describe('AgentPage', () => {
@@ -283,6 +293,7 @@ describe('AgentPage', () => {
     agentPageMocks.lastUsedAgentId = null
     agentPageMocks.lastUsedWorkspaceId = null
     agentPageMocks.showSidebar = false
+    agentPageMocks.isActiveTab = false
     temporaryConversationMocks.conversation = null
     temporaryConversationMocks.persistedConversation = null
     temporaryConversationMocks.start.mockResolvedValue(null)
@@ -319,6 +330,33 @@ describe('AgentPage', () => {
       itemId: 'session-history',
       requestId: 1
     })
+  })
+
+  it('forwards a reveal request when navigation asks the current agent tab to reveal its selection', async () => {
+    render(<AgentPage />)
+
+    expect(JSON.parse(screen.getByTestId('agent-side-panel').getAttribute('data-reveal-request') ?? 'null')).toBeNull()
+
+    const revealHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.REVEAL_ACTIVE_RESOURCE_LIST)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      revealHandler?.({ source: 'agents', tabId: 'agent-tab' })
+    })
+
+    expect(JSON.parse(screen.getByTestId('agent-side-panel').getAttribute('data-reveal-request') ?? 'null')).toEqual({
+      itemId: 'session-initial',
+      requestId: 1
+    })
+
+    await act(async () => {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+    })
+
+    expect(JSON.parse(screen.getByTestId('agent-side-panel').getAttribute('data-reveal-request') ?? 'null')).toBeNull()
   })
 
   it('collapses the agent sidebar when the shared shell requests it', async () => {

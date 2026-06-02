@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 type FakeTab = { id: string; type: 'route' | 'miniapp'; url: string; title: string }
 
 const mocks = vi.hoisted(() => ({
+  emitResourceListReveal: vi.fn(),
   openTab: vi.fn(),
   setActiveTab: vi.fn(),
   setSidebarWidth: vi.fn(),
@@ -134,6 +135,10 @@ vi.mock('@renderer/i18n/label', () => ({
 
 vi.mock('@renderer/utils/routeTitle', () => ({
   getDefaultRouteTitle: () => 'Chat'
+}))
+
+vi.mock('@renderer/components/chat/resources/resourceListRevealEvents', () => ({
+  emitResourceListReveal: mocks.emitResourceListReveal
 }))
 
 vi.mock('../../../hooks/useTabs', () => ({
@@ -270,6 +275,7 @@ describe('app Sidebar', () => {
     fireEvent.click(screen.getByTestId('sidebar-item-agents'))
 
     expect(mocks.setActiveTab).toHaveBeenCalledWith('agents-1')
+    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'agents-1' })
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
@@ -327,6 +333,7 @@ describe('app Sidebar', () => {
     fireEvent.click(screen.getByTestId('sidebar-item-assistants'))
 
     expect(mocks.setActiveTab).toHaveBeenCalledWith('chat-a')
+    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'assistants', tabId: 'chat-a' })
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 

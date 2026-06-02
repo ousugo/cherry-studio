@@ -57,6 +57,7 @@ const homeMocks = vi.hoisted(() => ({
   routeTopicLoading: false,
   setActiveTopicId: vi.fn(),
   setShowSidebar: vi.fn(),
+  isActiveTab: false,
   startTemporaryConversation: vi.fn(),
   temporaryConversation: null as any,
   updateTemporaryAssistant: vi.fn()
@@ -119,6 +120,12 @@ vi.mock('@renderer/hooks/useTemporaryConversation', () => ({
     start: homeMocks.startTemporaryConversation,
     updateAssistant: homeMocks.updateTemporaryAssistant
   })
+}))
+
+vi.mock('@renderer/context/TabIdContext', () => ({
+  useCurrentTabId: () => 'chat-tab',
+  useIsActiveTab: () => homeMocks.isActiveTab,
+  useTabSelfMetadata: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useTopic', async () => {
@@ -263,7 +270,8 @@ vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
     SHOW_ASSISTANTS: 'SHOW_ASSISTANTS',
     GLOBAL_SEARCH_SELECT_TOPIC: 'GLOBAL_SEARCH_SELECT_TOPIC',
-    GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE: 'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE'
+    GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE: 'GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE',
+    REVEAL_ACTIVE_RESOURCE_LIST: 'REVEAL_ACTIVE_RESOURCE_LIST'
   },
   EventEmitter: {
     emit: vi.fn(),
@@ -291,6 +299,7 @@ describe('HomePage', () => {
     homeMocks.routeTopicLoading = false
     homeMocks.activeTopicOptions = undefined
     homeMocks.persistCacheValues.clear()
+    homeMocks.isActiveTab = false
     homeMocks.persistTemporaryConversation.mockResolvedValue(null)
     homeMocks.replaceTemporaryConversation.mockResolvedValue({
       id: 'temp-topic',
@@ -348,6 +357,33 @@ describe('HomePage', () => {
     })
   })
 
+  it('forwards a reveal request when navigation asks the current chat tab to reveal its selection', async () => {
+    render(<HomePage />)
+
+    expect(JSON.parse(screen.getByTestId('home-tabs').getAttribute('data-reveal-request') ?? 'null')).toBeNull()
+
+    const revealHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.REVEAL_ACTIVE_RESOURCE_LIST)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      revealHandler?.({ source: 'assistants', tabId: 'chat-tab' })
+    })
+
+    expect(JSON.parse(screen.getByTestId('home-tabs').getAttribute('data-reveal-request') ?? 'null')).toEqual({
+      itemId: 'topic-initial',
+      requestId: 1
+    })
+
+    await act(async () => {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+    })
+
+    expect(JSON.parse(screen.getByTestId('home-tabs').getAttribute('data-reveal-request') ?? 'null')).toBeNull()
+  })
+
   it('collapses the topic sidebar when the shared shell requests it', async () => {
     homeMocks.preferenceValues.set('topic.tab.show', true)
 
@@ -373,7 +409,7 @@ describe('HomePage', () => {
     expect(shortcutHandler).toBeDefined()
 
     act(() => {
-      shortcutHandler?.()
+      void shortcutHandler?.()
     })
 
     expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false)

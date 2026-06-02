@@ -1,5 +1,9 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandTooltip } from '@renderer/commands'
+import {
+  emitResourceListReveal,
+  type ResourceListRevealSource
+} from '@renderer/components/chat/resources/resourceListRevealEvents'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -95,6 +99,12 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
 
 // Threshold below which the right-side X is hidden and icon-overlay X is used instead
 const NARROW_TAB_THRESHOLD = 64
+
+function getResourceListRevealSourceFromUrl(url: string): ResourceListRevealSource | null {
+  if (url === '/app/chat' || url.startsWith('/app/chat?') || url.startsWith('/app/chat/')) return 'assistants'
+  if (url === '/app/agents' || url.startsWith('/app/agents?') || url.startsWith('/app/agents/')) return 'agents'
+  return null
+}
 
 type NormalTabButtonProps = {
   tab: Tab
@@ -429,6 +439,18 @@ export const AppShellTabBar = ({
   const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
     useTabDrag({ pinnedTabs, normalTabs, reorderTabs, closeTab, setActiveTab })
 
+  const handleSelectTab = useCallback(
+    (tab: Tab) => {
+      if (!handleTabClick(tab.id)) return
+
+      const revealSource = getResourceListRevealSourceFromUrl(tab.url)
+      if (revealSource) {
+        emitResourceListReveal({ source: revealSource, tabId: tab.id })
+      }
+    },
+    [handleTabClick]
+  )
+
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleOpenGlobalSearch = () => {
@@ -467,7 +489,7 @@ export const AppShellTabBar = ({
                     <PinnedTabButton
                       tab={tab}
                       isActive={tab.id === activeTabId}
-                      onSelect={() => handleTabClick(tab.id)}
+                      onSelect={() => handleSelectTab(tab)}
                       tone={tabTone}
                       drag={{
                         isDragging: isDragging(tab.id),
@@ -507,7 +529,7 @@ export const AppShellTabBar = ({
                 <NormalTabButton
                   tab={tab}
                   isActive={tab.id === activeTabId}
-                  onSelect={() => handleTabClick(tab.id)}
+                  onSelect={() => handleSelectTab(tab)}
                   onClose={() => closeTab(tab.id)}
                   showClose={caps.close}
                   tone={tabTone}
