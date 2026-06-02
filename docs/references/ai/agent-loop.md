@@ -3,15 +3,16 @@
 ## What it is
 
 `Agent` (`src/main/ai/runtime/aiSdk/Agent.ts`) wraps AI SDK's
-`createAgent(...).stream()` with two things AI SDK doesn't give you out of
-the box:
+`createAgent(...).stream()` with a `composeHooks` pipeline that folds N
+independent hook contributors (per-feature plugins, AiService analytics,
+internal observers) into a single `AgentLoopHooks` object with deterministic
+ordering, then bridges one streaming pass to a `ReadableStream<UIMessageChunk>`
+with a stable id for the first emitted message.
 
-- a queue (`PendingMessageQueue`) the rest of Main can push messages into
-  *while a stream is in flight*, drained both mid-flight (via `prepareStep`)
-  and at the tail of each stream;
-- a `composeHooks` pipeline that folds N independent hook contributors
-  (per-feature plugins, AiService analytics, internal observers) into a
-  single `AgentLoopHooks` object with deterministic ordering.
+The stream is **single-pass**: `Agent.stream` runs the AI SDK stream exactly
+once and pipes it through. There is no mid-stream message injection — steering
+a chat turn is handled upstream by abort-and-restart (see
+[Stream Manager](./stream-manager.md#steering)).
 
 `Agent` does not know about topics, IPC, persistence, or multi-model
 fan-out. Those concerns live in the stream manager — see
@@ -24,7 +25,6 @@ const agent = new Agent({
   providerId, providerSettings, modelId,
   plugins, tools, system, options,
   hookParts,          // RequestFeature contributions
-  pendingMessages,    // session-isolated queue, optional
   messageId           // stable id for the first emitted UIMessage
 })
 
@@ -57,12 +57,13 @@ interface AgentLoopHooks {
 Hook contributions come from three sources, all folded by `composeHooks`:
 
 1. **Internal observers** (`Agent.on(key, fn)`) — `attachUsageObserver`
-   (injects `message-metadata` chunks carrying token usage),
-   `attachSteeringObserver` (drains `pendingMessages` mid-flight via
-   `prepareStep`).
+   (injects `message-metadata` chunks carrying token usage).
 2. **Feature contributions** (`hookParts` param) — each `RequestFeature`'s
    `contributeHooks(scope)` (see [Params Pipeline](./params-pipeline.md)).
-3. **Caller hooks** — `AiService` adds analytics / root-span lifecycle.
+3. **Caller hooks** — `AiService` adds the analytics hook only (token-usage
+   accounting via `onStepFinish` / `onFinish`). It does *not* contribute a
+   root-span/trace lifecycle hook — the OTel root span is owned by
+   `AiStreamManager.runExecutionLoop`.
 
 Composition rules per hook key:
 
@@ -81,23 +82,18 @@ directly; v7 introduces `experimental_onToolExecutionStart/End` on the
 Agent layer with the same shape — when v7 lands the wrapper is removed
 and hook signatures stay stable.
 
-## Pending messages
+## Steering
 
-`PendingMessageQueue` (`src/main/ai/runtime/aiSdk/loop/PendingMessageQueue.ts`) is a
-session-isolated FIFO. The stream manager pushes onto it from
-`Ai_Stream_Open` IPC when a topic already has a live stream
-(**inject** path). Generic AI SDK agent loops drain it in two places:
+There is no in-loop steering. `Agent.stream` makes a single AI SDK pass and
+never folds a mid-flight follow-up into the running turn — doing so mutated
+in-flight history and had no clean turn boundary. A new chat submission to a
+live topic is handled one level up by the stream manager: the dispatcher
+aborts the running turn, waits for it to persist as `paused`, and starts a
+fresh one — see [Stream Manager → Steering](./stream-manager.md#steering).
 
-1. **Mid-flight** — `attachSteeringObserver` registers on `prepareStep`,
-   appends queued messages to the message list AI SDK is about to send.
-2. **Tail recheck** — after `agent.stream()` settles, if the queue is
-   non-empty the loop re-invokes `agent.stream()` with the drained
-   messages appended. This catches the race where the user injects after
-   AI SDK's last `prepareStep` fired.
-
-Agent-session runtimes may own their own long-lived input queue. In that
-case the stream manager still uses the same live-inject path, but the
-runtime consumes the pending messages instead of the generic agent loop.
+Agent-session runtimes are different: they queue their own follow-ups on the
+session's `pendingTurns` and interrupt between turns rather than restarting —
+see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
 
 ## Error and abort
 

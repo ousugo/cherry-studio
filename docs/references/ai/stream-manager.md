@@ -5,8 +5,8 @@
 `AiStreamManager` is the Main-process **active-stream registry** and the
 broker for every stream event. It owns the full life cycle of an AI
 streaming reply — from `sendMessages` until the assistant turn finishes
-persisting — including multicast fan-out, reconnect, abort, mid-stream
-message injection, and persistence triggering.
+persisting — including multicast fan-out, reconnect, abort, abort-and-restart
+steering, and persistence triggering.
 
 The renderer no longer holds a direct reference to the stream. Closing a
 window does not abort the stream; it continues on Main and persists
@@ -40,9 +40,9 @@ reference for that Main-side design.
 ┌──────────────── Renderer ────────────────────────────────────┐
 │                                                              │
 │  useChat({ id: topicId, transport: IpcChatTransport })       │
-│    ├─ sendMessages   → Ai_Stream_Open  (topicId, parts, parentAnchorId)
-│    ├─ reconnect      → Ai_Stream_Attach ({ topicId })        │
-│    └─ cancel         → Ai_Stream_Abort  ({ topicId })        │
+│    ├─ sendMessages   → Ai_Stream_Open  (topicId, trigger, userMessageParts, …)
+│    ├─ reconnectToStream → Ai_Stream_Attach ({ topicId })     │
+│    └─ abort signal   → Ai_Stream_Abort  ({ topicId })        │
 │                                                              │
 │  History:           useQuery('/topics/:id/messages')         │
 │  Topic-level state: useTopicStreamStatus → shared cache       │
@@ -61,7 +61,6 @@ reference for that Main-side design.
 │  │   listeners:  Map<listenerId, StreamListener>          │  │
 │  │   executions: Map<modelId, StreamExecution>            │  │
 │  │     ├─ abortController / status                        │  │
-│  │     ├─ pendingMessages (per-execution queue)           │  │
 │  │     └─ buffer (ring) + droppedChunks                   │  │
 │  │   lifecycle: StreamLifecycle  (chat or prompt)         │  │
 │  └────────────────────────────────────────────────────────┘  │
@@ -162,12 +161,11 @@ Choose by **consumer / producer fanout**:
 src/main/ai/
 ├── AiService.ts                       lifecycle service: streamText + non-streaming IPC gateway
 └── runtime/aiSdk/
-    └── loop/
-        └── PendingMessageQueue.ts     injected-message queue (drain + AsyncIterable consumption)
+    └── Agent.ts                       single-pass `Agent.stream` wrapper (see Agent Loop)
 
 src/main/ai/streamManager/
 ├── AiStreamManager.ts                 the registry + execution loop + multicast
-├── pipeStreamLoop.ts                  shared chunk-pipe primitive (used by chat loop AND AiService.runPromptStream)
+├── pipeStreamLoop.ts                  shared chunk-pipe primitive (used by AiStreamManager.runExecutionLoop)
 ├── buildCompactReplay.ts              attach-time chunk compaction (merge text-delta / reasoning-delta)
 ├── types.ts                           ActiveStream / StreamExecution / StreamListener / timings
 ├── index.ts                           barrel
@@ -306,12 +304,6 @@ interface StreamExecution {
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
 
-  // Per-execution injected-message queue. The manager fans `userMessage`
-  // out to every execution's queue. An earlier shared queue lost messages
-  // because the first execution to call `next()` consumed the only copy;
-  // per-execution queues fix this for multi-model.
-  pendingMessages: PendingMessageQueue
-
   // Per-execution ring buffer for reconnect replay. Hitting
   // `maxBufferChunks` drops the oldest entry and bumps `droppedChunks`.
   // Independent buffers prevent a chatty model from evicting a slower
@@ -378,8 +370,8 @@ The terminal status is derived once when the last execution terminates.
 | Token metadata | `agentLoop` usage observer | `finish` chunk projects AI SDK `LanguageModelUsage` → `CherryUIMessageMetadata` |
 
 The manager is chunk-shape-agnostic — multicast, reconnect, abort,
-message injection, persistence-triggering, never "what is text / what is
-reasoning". AI SDK chunk type changes (vNext renames) only touch
+abort-and-restart steering, persistence-triggering, never "what is text /
+what is reasoning". AI SDK chunk type changes (vNext renames) only touch
 `PersistenceListener`; the manager stays stable.
 
 **Final projection.** `statsFromTerminal(finalMessage, mergedTimings)`
@@ -400,7 +392,7 @@ Projected `MessageStats` fields:
 | `totalTokens / promptTokens / completionTokens / thoughtsTokens` | `finalMessage.metadata.*` |
 | `timeFirstTokenMs` | `round(firstTextAt - startedAt)` |
 | `timeCompletionMs` | `round(completedAt - startedAt)` |
-| `timeThinkingMs` | **not projected** — wall-clock `reasoningEndedAt - reasoningStartedAt` can include interleaved tool exec; see `stream-stats-followup` TODO in `agentLoop.ts` |
+| `timeThinkingMs` | **not projected** — wall-clock `reasoningEndedAt - reasoningStartedAt` can include interleaved tool exec; see `stream-stats-followup` TODO in `PersistenceBackend.ts` |
 
 Backends never derive stats themselves; they just write `input.stats`.
 One projection path, four backends, no duplication.
@@ -416,10 +408,11 @@ class AiStreamManager {
   readonly chatLifecycle: StreamLifecycle
 
   // ── Single dispatch entry ─────────────────────────────────────────
-  // Live topic → inject (push userMessage to every execution queue,
-  // upsert listeners, models ignored). Otherwise → start (evict any
-  // grace-period stream, launch one execution per `models` entry).
-  // Multi-model is detected from `models.length > 1`.
+  // Live topic → inject (agent-session only: upsert listeners onto the
+  // running stream, models ignored). Otherwise → start (evict any
+  // grace-period stream, launch one execution per `models` entry). A live
+  // chat topic never reaches the inject branch — `dispatch` restarts it via
+  // `abortAndAwait` first. Multi-model is detected from `models.length > 1`.
   send(input: SendInput): SendResult
 
   // ── Ad-hoc prompt stream (translate / topic-naming / model probes)
@@ -441,9 +434,9 @@ class AiStreamManager {
 
   // ── Control ───────────────────────────────────────────────────────
   abort(topicId: string, reason: string): void
-  // Per-execution fan-out for mid-stream user input (same as send()'s
-  // 'injected' branch but without listener upsert).
-  injectMessage(topicId: string, message: Message): boolean
+  // Abort a live turn and await its executions settling (partial persists as
+  // `paused`) before evicting — used by `dispatch` to restart a chat turn.
+  abortAndAwait(topicId: string, reason: string): Promise<void>
   hasLiveStream(topicId: string): boolean
 
   // ── Execution-loop callbacks (driven internally; public for tests) ─
@@ -464,7 +457,7 @@ interface SendInput {
   topicId: string
   models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
   listeners: StreamListener[]
-  userMessage?: Message              // inject path: pushed to every execution's queue
+  userMessage?: Message              // persisted user row; not consumed by send() — callers' bookkeeping
   siblingsGroupId?: number
   lifecycle?: StreamLifecycle        // omit → chatLifecycle; streamPrompt passes promptStreamLifecycle
 }
@@ -476,8 +469,11 @@ interface SendResult {
 ```
 
 - **injected**: topic has a live stream (`pending` or `streaming`) →
-  `models` is ignored, `userMessage` (if any) is pushed to every
-  execution's `pendingMessages`, `listeners` upsert by id.
+  `models` is ignored and `listeners` upsert by id; **no message is
+  injected**. Only agent-session topics reach this branch (the dispatcher
+  aborts+restarts a live chat topic before calling `send()`); the
+  agent-session follow-up was already enqueued on the session's
+  `pendingTurns` by its provider.
 - **started**: topic is idle or grace-period (terminal) → any leftover
   grace-period stream is evicted, a new `ActiveStream` is created with
   `isMultiModel = models.length > 1`, one execution launched per model.
@@ -509,8 +505,8 @@ already wired to.
 
 **Step 3 — `pipeStreamLoop` tees the chunk stream.**
 
-`pipeStreamLoop` is the shared chunk-pipe primitive (same one
-`AiService.runPromptStream` uses). It `tee()`s the stream into two
+`pipeStreamLoop` is the shared chunk-pipe primitive (the one
+`AiStreamManager.runExecutionLoop` uses). It `tee()`s the stream into two
 independent branches:
 
 | Branch | Consumer | Purpose |
@@ -580,19 +576,25 @@ dispatchStreamRequest → manager.send({ models, listeners, siblingsGroupId })
                           │
                           ├─ create ActiveStream (isMultiModel = true, 2 executions)
                           ├─ launch one execution loop per model, each with its own
-                          │  pendingMessages and ring buffer
+                          │  ring buffer
                           └─ return { mode: 'started', executionIds: [gpt-4o, claude-sonnet] }
 ```
 
-Mid-stream injection (user sends another message while the response is
-still generating):
+## Steering
 
-- `manager.send` takes the inject branch and pushes a **copy** of
-  `userMessage` into each execution's `pendingMessages` queue.
-- Different executions may consume differently: the agent loop calls
-  `drain()`; the Claude Code provider iterates `AsyncIterable`. Per-execution
-  queues mean no race for a single shared copy.
-- Every model sees the full follow-up sequence.
+Steering a chat turn is **abort-and-restart**, not mid-turn injection. When a
+new `Ai_Stream_Open` arrives for a topic that is still streaming,
+`dispatchStreamRequest` calls `manager.abortAndAwait(topicId, 'steer-restart')`:
+it aborts every execution, awaits their loops settling (each partial persists
+as `paused` via the normal terminal path), and evicts the stream — then the
+following `send()` starts a fresh turn. Awaiting settlement before re-dispatch
+is what avoids an orphaned `pending` row and the same-`(topic, model)` race a
+synchronous abort+restart would create.
+
+Agent-session topics are the exception: they are **not** aborted. The follow-up
+is enqueued on the session's `pendingTurns` and the running turn is interrupted
+between tool calls; `send()` only upserts the new subscriber. See
+[Agent Session Runtime → Live follow-up](./agent-session-runtime.md#live-follow-up).
 
 ## End-to-end flows
 
@@ -602,10 +604,11 @@ duplicated; the rest are stream-manager-specific.
 | Flow | Trigger | Mechanism | Terminal / result |
 |---|---|---|---|
 | Submit (standard) | `Ai_Stream_Open` | `dispatchStreamRequest` → `prepareDispatch` (persist user msg, reserve placeholders, build listeners + models) → `manager.send` → N × `runExecutionLoop` | `Ai_StreamDone`; `PersistenceListener.persistAssistant`; chat lifecycle `scheduleCleanup(30 s)` |
-| Mid-stream injection | `Ai_Stream_Open` on a live topic | `manager.send` → `pendingMessages.push` per execution, listeners upsert-by-id → `{ mode: 'injected' }`; each consumer drains its queue between iterations | merges into the running turn — see [Agent Loop](./agent-loop.md#pending-messages) |
+| Steering — chat resubmit | `Ai_Stream_Open` on a live chat topic | `dispatch` → `manager.abortAndAwait` (abort execs, await settle as `paused`, evict) → `manager.send` starts a fresh turn | prior partial persisted as **`paused`**; new turn streams — see [Steering](#steering) |
+| Agent-session follow-up | `Ai_Stream_Open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` → `pendingTurns`, interrupt-when-safe; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | next turn starts from `pendingTurns` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `Ai_ToolApproval_Respond`; Claude-Agent unblocks `canUseTool`, MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
 | Reconnect | `Ai_Stream_Attach` on mount | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | live chunks resume, or the final row is returned |
-| Abort — user stop | `Ai_Stream_Abort` | per exec: close `pendingMessages`, `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done` | partial persisted as **`paused`**; topic status → `aborted` (or `awaiting-approval` if an exec had it set) |
+| Abort — user stop | `Ai_Stream_Abort` | per exec: `abortController.abort` → loop `signal` aborts → broadcast reader `cancel` → read loop `done` | partial persisted as **`paused`**; topic status → `aborted` (or `awaiting-approval` if an exec had it set) |
 | Abort — no subscribers | last `WebContentsListener` dies + `backgroundMode === 'abort'` | `onChunk` prunes dead listeners; `listeners.size === 0` → auto `abort(topicId, 'no-subscribers')` | partial persisted as **`paused`** — never silently `success` or leaked |
 | Multi-window | window B opens a live topic | B sends `Ai_Stream_Attach` → compact replay + its own `WebContentsListener`; each chunk fans out to A and B | both windows render the same chunks in sync |
 | Channel / Agent | `AiStreamManager.send` in-process (no IPC) | scenario differs only by listener composition (table below) | per-listener effect |
@@ -709,7 +712,7 @@ benefits:
 
 - Provider unit tests assert on `PreparedDispatch` shape without mocking
   the manager.
-- The inject / start / multi-model fan-out routing lives in exactly one
+- The restart / start / multi-model fan-out routing lives in exactly one
   place.
 
 ### Provider interface
@@ -759,7 +762,7 @@ wins).
 |---|---|---|---|
 | User message timing | before stream (tree node) | before stream (append) | before stream (agents DB) |
 | Assistant placeholder | created pending before stream | none | created pending before stream (atomic with user msg) |
-| Terminal write | `update` placeholder | `append` new row | `update` placeholder (`persistAssistantMessage`) |
+| Terminal write | `update` placeholder | `append` new row | `update` placeholder (`persistAssistant`) |
 | Backend | `MessageServiceBackend` | `TemporaryChatBackend` | `AgentSessionMessageBackend` |
 | Multi-model | ✓ | ✗ (single-model) | ✗ (single-model) |
 | Regenerate | ✓ | ✗ | ✗ |
@@ -806,7 +809,7 @@ the new.
 
 | Case | Handling |
 |---|---|
-| User sends again on the same topic mid-stream | `send` takes the inject branch; `userMessage` is fanned out to every execution's queue |
+| User sends again on the same topic mid-stream (chat) | `dispatch` calls `abortAndAwait` (prior turn persists as `paused`), then `send` starts a fresh turn |
 | Retry immediately after stream ends | `send` takes start; `evictStream` clears the grace-period entry first |
 | Window closes mid-stream | Next broadcast sees `WebContentsListener.isAlive() === false` and removes it; `PersistenceListener` doesn't depend on a window |
 | All windows closed + `backgroundMode='continue'` | Stream continues; `PersistenceListener` persists when done |
@@ -815,7 +818,7 @@ the new.
 | Same window re-attaches | Listener id is stable (`wc:${wc.id}:${topicId}`); `addListener` upserts by id |
 | Attach mid-stream | `attach` returns compact replay per execution (each buffer compacted independently); observer fills in the gap |
 | Ring buffer overflow | At `maxBufferChunks` the oldest chunk drops and `droppedChunks++`; subsequent attach logs the total dropped — replay is no longer lossless |
-| Multi-model + injection | Fanned out per execution; no message lost |
+| Multi-model + resubmit | `abortAndAwait` settles all executions before restart; no orphaned `pending` row |
 | Stream emits `tool-approval-request` | `exec.awaitingApproval = true`; on stream end the topic surfaces `awaiting-approval` via the shared cache |
 | Main process restart | `activeStreams` clears; in-flight streams are lost; the renderer re-reads from the DB |
 

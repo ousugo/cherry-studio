@@ -12,8 +12,8 @@ each subsystem.
 │                                                                      │
 │  useChat({ id: topicId, transport: IpcChatTransport })               │
 │    ├─ sendMessages   → window.api.ai.streamOpen                       │
-│    ├─ reconnect      → window.api.ai.streamAttach                     │
-│    └─ cancel         → window.api.ai.streamAbort                      │
+│    ├─ reconnectToStream → window.api.ai.streamAttach                  │
+│    └─ abort signal   → window.api.ai.streamAbort                      │
 │                                                                      │
 │  History:           useQuery('/topics/:id/messages') → DataApi        │
 │  Topic-level state: useTopicStreamStatus → shared cache              │
@@ -66,18 +66,24 @@ each subsystem.
 1. User hits send. `useChat.sendMessages` calls `IpcChatTransport.sendMessages`.
 2. Transport packages `AiStreamOpenRequest`, dispatches via
    `streamDispatchCoordinator` over IPC `Ai_Stream_Open`.
-3. `AiService` IPC handler calls `dispatchStreamRequest(manager, request)`.
+3. `AiStreamManager`'s `Ai_Stream_Open` handler (registered in `onInit`)
+   wraps the sender in a `WebContentsListener` and calls
+   `dispatchStreamRequest(manager, subscriber, request)`.
 4. `dispatchStreamRequest` picks the first `ChatContextProvider` whose
    `canHandle(topicId)` matches and asks it to `prepareDispatch`.
 5. The provider resolves models, persists the user message (chat) or skips
    persistence (temporary / translate), creates `PersistenceListener` per
    execution, returns `PreparedDispatch`.
-6. `dispatch` calls `manager.send(input)` — one call, regardless of
-   start-vs-inject. The manager decides:
-   - **inject** if topic has a live stream: push `userMessage` into every
-     execution's `pendingMessages` queue; `models` ignored.
-   - **start** otherwise: evict any grace-period stream, create an
-     `ActiveStream`, launch one `StreamExecution` per model.
+6. `dispatch` reconciles any live stream, then calls `manager.send(input)`:
+   - **chat resubmit** (topic already streaming): `manager.abortAndAwait(topicId)`
+     aborts the running executions and waits for their loops to settle (the
+     partial persists as `paused`) before `send()` **starts** a fresh turn —
+     steering is abort-and-restart, not mid-turn injection.
+   - **agent-session follow-up**: the stream is left running and `send()`
+     **injects** — it upserts `listeners` onto the running stream, `models`
+     ignored (the message was already enqueued on the session's `pendingTurns`).
+   - **no live stream**: `send()` **starts** — evict any grace-period stream,
+     create an `ActiveStream`, launch one `StreamExecution` per model.
 7. Each `StreamExecution` calls `Agent.stream(buildAgentParams(...))`.
    `Agent.stream` opens AI SDK's stream and yields `UIMessageChunk`s.
    Agent-session runtime requests skip the generic agent loop here:
@@ -117,7 +123,7 @@ overlay-vs-persist conditional write.
 |---|---|
 | Active-stream registry, listeners, persistence backends, reconnect, abort, grace-period eviction | [Stream Manager](./stream-manager.md) |
 | Claude Code agent-session long-lived runtime, SDK input queue, resume fallback | [Agent Session Runtime](./agent-session-runtime.md) |
-| `Agent.stream` semantics, hooks model, `PendingMessageQueue`, error/abort | [Agent Loop](./agent-loop.md) |
+| `Agent.stream` single-pass loop, hooks model, error/abort | [Agent Loop](./agent-loop.md) |
 | `buildAgentParams`, `RequestFeature` composition, `INTERNAL_FEATURES` order | [Params Pipeline](./params-pipeline.md) |
 | Tool registry, MCP sync, meta-tools (`tool_search` / `tool_inspect` / `tool_invoke` / `tool_exec`), defer exposition | [Tool Registry](./tool-registry.md) |
 | `Provider.endpointConfigs`, `endpointType` resolution, variant suffixes, custom providers | [Provider Resolution](./provider-resolution.md) |
