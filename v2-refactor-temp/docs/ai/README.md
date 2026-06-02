@@ -26,7 +26,7 @@ Each cluster doc:
 | Cluster | What it covers | Doc |
 |---|---|---|
 | Stream Manager | `AiStreamManager`, listeners, persistence backends, lifecycle, dispatcher, context providers | [stream-manager-cluster.md](./stream-manager-cluster.md) |
-| Agent Loop | `Agent` class, hooks composition, `PendingMessageQueue`, observers, tool-execution events | [agent-cluster.md](./agent-cluster.md) |
+| Agent Loop | `Agent` class, hooks composition, single-pass stream, observers, tool-execution events | [agent-cluster.md](./agent-cluster.md) |
 | Params Pipeline | `buildAgentParams`, `RequestFeature` set, capability resolution, system-prompt assembly | [params-cluster.md](./params-cluster.md) |
 | Tool Registry | Registry, built-in tools, MCP sync, meta-tools, defer exposition, tool-call repair | [tool-cluster.md](./tool-cluster.md) |
 | Provider Resolution | `provider/config.ts`, `endpoint.ts`, extensions, custom providers (aihubmix, newapi), Claude Code runtime helpers | [provider-cluster.md](./provider-cluster.md) |

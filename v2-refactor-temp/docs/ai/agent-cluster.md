@@ -5,9 +5,9 @@
 | Subpath | Files | Role |
 |---|---|---|
 | `src/main/ai/agent/` | `Agent.ts` (303) | The class, hooks composition, write() forwarding |
-| `agent/loop/` | `index.ts` (155 — types), `PendingMessageQueue.ts` (111), `internal.ts` (104) | Loop primitives, message queue, hook wrappers |
-| `agent/observers/` | `steering.ts` (38), `usage.ts` (69) | Internal `Agent.on(...)` registrations |
-| Tests | `loop/__tests__/agentLoop.test.ts` (337) | End-to-end queue drain + hook composition |
+| `agent/loop/` | `index.ts` (types), `internal.ts` (hook wrappers) | Loop primitives, hook wrappers |
+| `agent/observers/` | `usage.ts` | Internal `Agent.on(...)` registrations |
+| Tests | `loop/__tests__/agentLoop.test.ts` | Single-pass stream + hook composition |
 
 The params side (`agent/params/`) is reviewed separately in
 [params-cluster.md](./params-cluster.md) so this cluster stays focused on
@@ -29,19 +29,16 @@ this cluster doc lists what reviewers should look at and why.
 
 ### `Agent` class
 
-`new Agent(params)` constructs and:
-
-1. Calls `attachUsageObserver(this)` — registers an `onStepFinish` that
-   writes a `message-metadata` UIMessageChunk carrying token usage onto
-   the currently active writer.
-2. Calls `attachSteeringObserver(this, pendingMessages)` — registers a
-   `prepareStep` that drains the queue and appends to `messages`.
-   Agent-session runtimes bypass this generic loop and consume their own
-   long-lived pending queue.
+`new Agent(params)` constructs and calls `attachUsageObserver(this)` — the
+only internal observer — which registers an `onStepFinish` that writes a
+`message-metadata` UIMessageChunk carrying token usage onto the currently
+active writer.
 
 Two public methods, `stream(initialMessages)` and
 `generate(messages)`, share `buildAiSdkAgent()` because the agent config
-is identical — only the underlying AI SDK call differs.
+is identical — only the underlying AI SDK call differs. `stream()` is
+**single-pass**: one AI SDK stream piped through, no mid-stream message
+injection (see Steering below).
 
 ### Hooks model
 
@@ -79,20 +76,20 @@ The shape mirrors AI SDK v7's
 `experimental_onToolExecutionStart/End`. When v7 lands the shim removes
 and hook signatures stay stable. Cited in `loop/index.ts`:27.
 
-### `PendingMessageQueue`
+### Steering (abort + restart)
 
-Session-isolated FIFO consumed by `attachSteeringObserver`. Drained:
+There is no in-loop steering and no message queue. `Agent.stream` makes a
+single AI SDK pass; a follow-up never folds into the running turn (that
+mutated in-flight history and had no clean turn boundary). Steering is
+handled one level up by `AiStreamManager`:
 
-1. **Mid-flight** — `prepareStep` hook drains and appends to the
-   `messages` array AI SDK is about to send.
-2. **Tail recheck** — after `agent.stream()` settles cleanly, the queue
-   is checked once more. Non-empty triggers another `agent.stream()`
-   call with the drained messages appended. Catches the race where the
-   user injects after AI SDK's last `prepareStep` fires.
+- **chat** — a resubmit to a live topic is aborted-and-restarted via
+  `AiStreamManager.abortAndAwait(topicId)` (await the executions settling
+  as `paused`, evict, then start a fresh turn).
+- **agent session** — the follow-up is enqueued on the session's
+  `pendingTurns` and the turn is interrupted between tool calls.
 
-The queue is independent of `AiStreamManager.send` — the manager
-pushes onto it for the inject path, but the queue's `enqueue` API is
-generic.
+See [`docs/references/ai/stream-manager.md`](../../../docs/references/ai/stream-manager.md#steering).
 
 ### Error / abort path
 
@@ -102,7 +99,7 @@ through the `.then` / `.catch` chain:
 ```
 (async () => {
   await onStart
-  while (...) await agent.stream()
+  await agent.stream()
   await onFinish
 })()
   .then(() => settleWriter())
@@ -123,14 +120,13 @@ The `'retry'` return is reserved — implementation is a known follow-up.
 - Writer is settled exactly once (either successful close or `err`).
 - Observers always compose ahead of caller hookParts; observers in
   registration order, hookParts in input order.
-- `pendingMessages` is drained on both `prepareStep` and tail-recheck.
 - Aborted streams still settle cleanly — `signal.aborted` short-circuits
   the error log.
 
 ## Validation
 
-- `loop/__tests__/agentLoop.test.ts` (337 cases) — queue drain
-  scenarios, hook composition, tail recheck, abort.
+- `loop/__tests__/agentLoop.test.ts` — single-pass stream, hook
+  composition, abort.
 - `params/__tests__/composeHooks.test.ts` (167 cases) — per-key
   composition semantics.
 
