@@ -33,7 +33,6 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 function makeBase(overrides: Partial<KnowledgeBase> & { id: string }): KnowledgeBase {
   return {
     name: 'Base',
-    emoji: '📁',
     groupId: null,
     dimensions: 1024,
     embeddingModelId: 'm',
