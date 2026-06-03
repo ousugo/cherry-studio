@@ -16,7 +16,6 @@ import { useTranslation } from 'react-i18next'
 
 import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
-import { TITLE_BAR_HEIGHT_CLASS } from './titleBar'
 import { useTabDrag } from './useTabDrag'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -465,8 +464,7 @@ export const AppShellTabBar = ({
       <header
         ref={tabBarRef}
         className={cn(
-          'relative flex w-full select-none items-center gap-1 [-webkit-app-region:drag]',
-          TITLE_BAR_HEIGHT_CLASS,
+          'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           rightPaddingClass,
           isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
