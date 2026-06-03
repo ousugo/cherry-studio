@@ -42,11 +42,11 @@ export async function startAgentSessionRun(input: {
   // concurrently — or race a renderer open — and without this both could observe no live
   // stream and each write a placeholder, orphaning one as a permanently "thinking" row.
   await manager.withDispatchLock(topicId, async () => {
-    const prepared = await agentChatContextProvider.prepareDispatch(
-      primary,
-      { trigger: 'submit-message', topicId, userMessageParts: input.userParts },
-      { hasLiveStream: manager.hasLiveStream(topicId) }
-    )
+    const prepared = await agentChatContextProvider.prepareDispatch(primary, {
+      trigger: 'submit-message',
+      topicId,
+      userMessageParts: input.userParts
+    })
 
     manager.send({
       topicId: prepared.topicId,
