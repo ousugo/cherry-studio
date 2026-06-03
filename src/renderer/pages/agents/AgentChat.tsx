@@ -274,8 +274,9 @@ const AgentChat = ({
     !!activeSession &&
     activeSession.id === sessionSnapshot.id &&
     (temporaryHandoffSessionId === sessionSnapshot.id || isTemporaryTurnInProgress)
-  const isQueryBackedSession =
+  const shouldFetchSessionHistoryOnMount =
     activeSessionSource === 'query' ||
+    activeSessionSource === 'pending' ||
     (!!activeSession && activeSessionSource === 'none' && !temporaryAgentConversation)
   const isWaitingForReservedMessages =
     isPendingTemporarySession && reservedMessages.length === 0 && temporaryTurnController.phase !== 'ready'
@@ -284,7 +285,7 @@ const AgentChat = ({
     !!activeSession && activeSession.id === sessionSnapshot.id && !isWaitingForReservedMessages
   const sessionHistoryFetchOnMount = isPendingTemporarySession
     ? temporaryTurnController.phase === 'ready'
-    : isQueryBackedSession
+    : shouldFetchSessionHistoryOnMount
   const homeComposer =
     isDraftTemporarySession && !isMultiSelectMode && temporaryAgentConversation ? (
       <AgentHomeComposer

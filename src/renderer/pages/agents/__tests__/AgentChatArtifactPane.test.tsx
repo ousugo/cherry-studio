@@ -361,20 +361,16 @@ const activeSessionMocks = vi.hoisted(() => ({
   }
 }))
 
+const agentSessionPartsMocks = vi.hoisted(() => ({
+  useAgentSessionParts: vi.fn()
+}))
+
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
-  useAgentSessionParts: () => ({
-    messages: [],
-    isLoading: false,
-    hasOlder: false,
-    loadOlder: vi.fn(),
-    refresh: vi.fn(),
-    seedReservedMessages: vi.fn(),
-    deleteMessage: vi.fn()
-  })
+  useAgentSessionParts: agentSessionPartsMocks.useAgentSessionParts
 }))
 
 vi.mock('@renderer/hooks/useChatWithHistory', () => ({
@@ -513,6 +509,15 @@ describe('AgentChat artifact pane', () => {
   ) => rerender(<AgentChat {...activeSessionProps()} {...props} />)
 
   beforeEach(() => {
+    agentSessionPartsMocks.useAgentSessionParts.mockReturnValue({
+      messages: [],
+      isLoading: false,
+      hasOlder: false,
+      loadOlder: vi.fn(),
+      refresh: vi.fn(),
+      seedReservedMessages: vi.fn(),
+      deleteMessage: vi.fn()
+    })
     activeSessionMocks.result = {
       activeSessionId: 'session-1',
       session: { id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
@@ -1014,6 +1019,7 @@ describe('AgentChat artifact pane', () => {
         activeSessionId: sessionId,
         session: { id: sessionId, agentId: 'agent-1', workspace: { path: '/tmp/workspace' } },
         isLoading: false,
+        sessionSource: 'pending',
         setActiveSessionId: vi.fn()
       }
     })
@@ -1048,6 +1054,13 @@ describe('AgentChat artifact pane', () => {
 
     expect(screen.getByRole('button', { name: 'session-6' })).toBeInTheDocument()
     expect(screen.getByTestId('agent-messages')).toHaveAttribute('data-session-id', 'session-6')
+    expect(agentSessionPartsMocks.useAgentSessionParts).toHaveBeenLastCalledWith(
+      'session-6',
+      expect.objectContaining({
+        enabled: true,
+        fetchOnMount: true
+      })
+    )
   })
 
   it('shows the persisted temporary session while the active session query catches up', () => {
