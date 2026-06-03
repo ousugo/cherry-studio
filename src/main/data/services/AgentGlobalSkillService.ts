@@ -8,6 +8,7 @@ import {
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { workspaceTable } from '@data/db/schemas/workspace'
+import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -88,7 +89,11 @@ export class AgentGlobalSkillService {
   }
 
   async insert(values: InsertAgentGlobalSkillRow): Promise<AgentGlobalSkillRow> {
-    const [inserted] = await this.db.insert(agentGlobalSkillTable).values(values).returning()
+    return application.get('DbService').withWriteTx((tx) => this.insertTx(tx, values))
+  }
+
+  async insertTx(tx: DbOrTx, values: InsertAgentGlobalSkillRow): Promise<AgentGlobalSkillRow> {
+    const [inserted] = await tx.insert(agentGlobalSkillTable).values(values).returning()
     if (!inserted) throw new Error(`Failed to insert agent_global_skill row: ${values.folderName}`)
     return inserted
   }
@@ -97,12 +102,24 @@ export class AgentGlobalSkillService {
     id: string,
     patch: Partial<Omit<InsertAgentGlobalSkillRow, 'id' | 'createdAt' | 'updatedAt'>>
   ): Promise<void> {
-    await this.db.update(agentGlobalSkillTable).set(patch).where(eq(agentGlobalSkillTable.id, id))
+    await application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, patch))
+  }
+
+  async updateTx(
+    tx: DbOrTx,
+    id: string,
+    patch: Partial<Omit<InsertAgentGlobalSkillRow, 'id' | 'createdAt' | 'updatedAt'>>
+  ): Promise<void> {
+    await tx.update(agentGlobalSkillTable).set(patch).where(eq(agentGlobalSkillTable.id, id))
   }
 
   /** Hard delete a global-skill row. FK cascades remove the agent_skill join rows. */
   async deleteById(id: string): Promise<void> {
-    await this.db.delete(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, id))
+    await application.get('DbService').withWriteTx((tx) => this.deleteByIdTx(tx, id))
+  }
+
+  async deleteByIdTx(tx: DbOrTx, id: string): Promise<void> {
+    await tx.delete(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, id))
   }
 
   async listJoinByAgent(agentId: string): Promise<Array<{ skillId: string; isEnabled: boolean }>> {
@@ -122,7 +139,11 @@ export class AgentGlobalSkillService {
   }
 
   async upsertJoin(agentId: string, skillId: string, isEnabled: boolean): Promise<void> {
-    await this.db
+    await application.get('DbService').withWriteTx((tx) => this.upsertJoinTx(tx, agentId, skillId, isEnabled))
+  }
+
+  async upsertJoinTx(tx: DbOrTx, agentId: string, skillId: string, isEnabled: boolean): Promise<void> {
+    await tx
       .insert(agentSkillTable)
       .values({ agentId, skillId, isEnabled })
       .onConflictDoUpdate({
@@ -133,9 +154,13 @@ export class AgentGlobalSkillService {
 
   /** Upsert the join row for every agent in `agent`. Returns the affected agent ids. */
   async upsertJoinForAllAgents(skillId: string, isEnabled: boolean): Promise<string[]> {
-    const agents = await this.db.select({ id: agentTable.id }).from(agentTable)
+    return application.get('DbService').withWriteTx((tx) => this.upsertJoinForAllAgentsTx(tx, skillId, isEnabled))
+  }
+
+  async upsertJoinForAllAgentsTx(tx: DbOrTx, skillId: string, isEnabled: boolean): Promise<string[]> {
+    const agents = await tx.select({ id: agentTable.id }).from(agentTable)
     for (const agent of agents) {
-      await this.upsertJoin(agent.id, skillId, isEnabled)
+      await this.upsertJoinTx(tx, agent.id, skillId, isEnabled)
     }
     return agents.map((a) => a.id)
   }

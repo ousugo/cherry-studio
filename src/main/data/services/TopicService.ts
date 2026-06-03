@@ -214,8 +214,7 @@ export class TopicService {
   }
 
   async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
-    const db = application.get('DbService').getDb()
-    await db.transaction((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
+    await application.get('DbService').withWriteTx((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
     logger.info('Set active node', { topicId, activeNodeId: nodeId })
     return { activeNodeId: nodeId }
   }

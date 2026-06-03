@@ -3,6 +3,7 @@ import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { type WorkspaceRow, workspaceTable } from '@data/db/schemas/workspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbOrTx } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { rowToWorkspace, workspaceService } from '@data/services/WorkspaceService'
@@ -69,48 +70,73 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
 export class SessionService {
   async createSession(dto: CreateSessionDto): Promise<AgentSessionEntity> {
     const dbService = application.get('DbService')
-    const db = dbService.getDb()
+    const id = uuidv4()
+    const defaultWorkspacePath = dto.workspaceId ? undefined : workspaceService.prepareDefaultWorkspaceDirectory()
+    let keepDefaultWorkspaceDirectory = false
 
+    try {
+      const { usedDefaultWorkspace } = await withSqliteErrors(
+        () => dbService.withWriteTx((tx) => this.createSessionTx(tx, id, dto, defaultWorkspacePath)),
+        {
+          ...defaultHandlersFor('Session', id),
+          foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
+        }
+      )
+      keepDefaultWorkspaceDirectory = usedDefaultWorkspace
+    } finally {
+      if (defaultWorkspacePath && !keepDefaultWorkspaceDirectory) {
+        workspaceService.cleanupPreparedWorkspaceDirectory(defaultWorkspacePath)
+      }
+    }
+
+    return await this.getById(id)
+  }
+
+  async createSessionTx(
+    tx: DbOrTx,
+    id: string,
+    dto: CreateSessionDto,
+    defaultWorkspacePath?: string
+  ): Promise<{ usedDefaultWorkspace: boolean }> {
     // Verify the agent exists; FK alone gives generic 404 — explicit check returns
     // a precise resource = 'Agent'.
-    const [agent] = await db
+    const [agent] = await tx
       .select({ id: agentsTable.id })
       .from(agentsTable)
       .where(eq(agentsTable.id, dto.agentId))
       .limit(1)
     if (!agent) throw DataApiErrorFactory.notFound('Agent', dto.agentId)
 
-    const id = uuidv4()
-    await withSqliteErrors(
-      () =>
-        dbService.withWriteTx(async (tx) => {
-          let workspaceId = dto.workspaceId
-          if (workspaceId) {
-            await workspaceService.getByIdTx(tx, workspaceId)
-          } else {
-            const [sibling] = await tx
-              .select({ workspaceId: sessionsTable.workspaceId })
-              .from(sessionsTable)
-              .where(eq(sessionsTable.agentId, dto.agentId))
-              .orderBy(desc(sessionsTable.createdAt))
-              .limit(1)
-            workspaceId = sibling?.workspaceId ?? (await workspaceService.createDefaultWorkspaceTx(tx)).id
-          }
-
-          return insertWithOrderKey(
-            tx,
-            sessionsTable,
-            { id, agentId: dto.agentId, name: dto.name, description: dto.description, workspaceId },
-            { pkColumn: sessionsTable.id, position: 'first' }
-          )
-        }),
-      {
-        ...defaultHandlersFor('Session', id),
-        foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
+    let workspaceId = dto.workspaceId
+    let usedDefaultWorkspace = false
+    if (workspaceId) {
+      await workspaceService.getByIdTx(tx, workspaceId)
+    } else {
+      const [sibling] = await tx
+        .select({ workspaceId: sessionsTable.workspaceId })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.agentId, dto.agentId))
+        .orderBy(desc(sessionsTable.createdAt))
+        .limit(1)
+      if (sibling?.workspaceId) {
+        workspaceId = sibling.workspaceId
+      } else {
+        if (!defaultWorkspacePath) {
+          throw DataApiErrorFactory.invalidOperation('create session', 'default workspace path was not prepared')
+        }
+        workspaceId = (await workspaceService.createDefaultWorkspaceTx(tx, defaultWorkspacePath)).id
+        usedDefaultWorkspace = true
       }
+    }
+
+    await insertWithOrderKey(
+      tx,
+      sessionsTable,
+      { id, agentId: dto.agentId, name: dto.name, description: dto.description, workspaceId },
+      { pkColumn: sessionsTable.id, position: 'first' }
     )
 
-    return await this.getById(id)
+    return { usedDefaultWorkspace }
   }
 
   async getById(id: string): Promise<AgentSessionEntity> {
@@ -165,42 +191,51 @@ export class SessionService {
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
     if (Object.keys(patch).length === 0) return this.getById(id)
 
-    const db = application.get('DbService').getDb()
-    const [row] = await withSqliteErrors(
-      () => db.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning(),
+    const row = await withSqliteErrors(
+      () => application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, patch)),
       defaultHandlersFor('Session', id)
     )
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     return await this.getById(id)
   }
 
+  async updateTx(tx: DbOrTx, id: string, patch: UpdateSessionDto): Promise<SessionRow | undefined> {
+    const [row] = await tx.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning()
+    return row
+  }
+
   async delete(id: string): Promise<void> {
-    const db = application.get('DbService').getDb()
-    await db.transaction(async (tx) => {
-      const [row] = await tx.delete(sessionsTable).where(eq(sessionsTable.id, id)).returning({ id: sessionsTable.id })
-      if (!row) throw DataApiErrorFactory.notFound('Session', id)
-      await pinService.purgeForEntityTx(tx, 'session', id)
-    })
+    await application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
+  }
+
+  async deleteTx(tx: DbOrTx, id: string): Promise<void> {
+    const [row] = await tx.delete(sessionsTable).where(eq(sessionsTable.id, id)).returning({ id: sessionsTable.id })
+    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    await pinService.purgeForEntityTx(tx, 'session', id)
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    const db = application.get('DbService').getDb()
-    await db.transaction(async (tx) => {
-      const [target] = await tx
-        .select({ id: sessionsTable.id })
-        .from(sessionsTable)
-        .where(eq(sessionsTable.id, id))
-        .limit(1)
-      if (!target) throw DataApiErrorFactory.notFound('Session', id)
+    await application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
+  }
 
-      await applyMoves(tx, sessionsTable, [{ id, anchor }], { pkColumn: sessionsTable.id })
-    })
+  async reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): Promise<void> {
+    const [target] = await tx
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, id))
+      .limit(1)
+    if (!target) throw DataApiErrorFactory.notFound('Session', id)
+
+    await applyMoves(tx, sessionsTable, [{ id, anchor }], { pkColumn: sessionsTable.id })
   }
 
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
-    const db = application.get('DbService').getDb()
-    await db.transaction((tx) => applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id }))
+    await application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+  }
+
+  async reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    await applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id })
   }
 
   async exists(id: string): Promise<boolean> {

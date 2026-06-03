@@ -105,15 +105,18 @@ export class AgentSessionMessageService {
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
     const result = await withSqliteErrors(
-      () =>
-        database
-          .delete(sessionMessagesTable)
-          .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId))),
+      () => application.get('DbService').withWriteTx((tx) => this.deleteSessionMessageTx(tx, sessionId, messageId)),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
+  }
+
+  async deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): Promise<{ rowsAffected: number }> {
+    return tx
+      .delete(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
   }
 
   /**

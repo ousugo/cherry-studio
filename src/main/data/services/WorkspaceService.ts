@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { type WorkspaceRow, workspaceTable } from '@data/db/schemas/workspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbType } from '@data/db/types'
+import type { DbOrTx } from '@data/db/types'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -14,8 +14,6 @@ import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('WorkspaceService')
-
-type WorkspaceTx = Pick<DbType, 'select' | 'insert'>
 
 export function rowToWorkspace(row: WorkspaceRow): WorkspaceEntity {
   return {
@@ -63,6 +61,19 @@ function ensureWorkspaceDirectory(workspacePath: string): void {
   }
 }
 
+function cleanupPreparedWorkspaceDirectory(workspacePath: string): void {
+  try {
+    fs.rmdirSync(workspacePath)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT') return
+    logger.warn('Failed to clean up prepared workspace directory', {
+      path: workspacePath,
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+}
+
 export class WorkspaceService {
   async list(): Promise<WorkspaceEntity[]> {
     const db = application.get('DbService').getDb()
@@ -76,12 +87,12 @@ export class WorkspaceService {
     return rowToWorkspace(row)
   }
 
-  async getByIdTx(tx: WorkspaceTx, id: string): Promise<WorkspaceEntity> {
+  async getByIdTx(tx: DbOrTx, id: string): Promise<WorkspaceEntity> {
     const row = await this.getRowByIdTx(tx, id)
     return rowToWorkspace(row)
   }
 
-  async getRowByIdTx(tx: WorkspaceTx, id: string): Promise<WorkspaceRow> {
+  async getRowByIdTx(tx: DbOrTx, id: string): Promise<WorkspaceRow> {
     const [row] = await tx.select().from(workspaceTable).where(eq(workspaceTable.id, id)).limit(1)
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
     return row
@@ -90,10 +101,49 @@ export class WorkspaceService {
   async findOrCreateByPath(rawPath: string, options: { name?: string } = {}): Promise<WorkspaceEntity> {
     const workspacePath = normalizeWorkspacePath(rawPath)
     ensureWorkspaceDirectory(workspacePath)
+    return await this.findOrCreatePreparedPath(workspacePath, options)
+  }
 
-    const db = application.get('DbService').getDb()
+  async findOrCreateByPathTx(tx: DbOrTx, rawPath: string, options: { name?: string } = {}): Promise<WorkspaceEntity> {
+    const workspacePath = normalizeWorkspacePath(rawPath)
+    const row = await withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
+      ...defaultHandlersFor('Workspace', workspacePath),
+      unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
+    })
+    return rowToWorkspace(row)
+  }
+
+  prepareDefaultWorkspaceDirectory(): string {
+    const workspacePath = path.join(application.getPath('feature.agents.workspaces'), uuidv4())
+    ensureWorkspaceDirectory(workspacePath)
+    return workspacePath
+  }
+
+  cleanupPreparedWorkspaceDirectory(workspacePath: string): void {
+    cleanupPreparedWorkspaceDirectory(workspacePath)
+  }
+
+  async createDefaultWorkspace(): Promise<WorkspaceEntity> {
+    const workspacePath = this.prepareDefaultWorkspaceDirectory()
+    try {
+      return await this.findOrCreatePreparedPath(workspacePath)
+    } catch (error) {
+      cleanupPreparedWorkspaceDirectory(workspacePath)
+      throw error
+    }
+  }
+
+  async createDefaultWorkspaceTx(tx: DbOrTx, workspacePath: string): Promise<WorkspaceEntity> {
+    return await this.findOrCreateByPathTx(tx, workspacePath)
+  }
+
+  private async findOrCreatePreparedPath(
+    workspacePath: string,
+    options: { name?: string } = {}
+  ): Promise<WorkspaceEntity> {
+    const dbService = application.get('DbService')
     const row = await withSqliteErrors(
-      () => db.transaction((tx) => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options)),
+      () => dbService.withWriteTx((tx) => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options)),
       {
         ...defaultHandlersFor('Workspace', workspacePath),
         unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
@@ -103,32 +153,8 @@ export class WorkspaceService {
     return rowToWorkspace(row)
   }
 
-  async findOrCreateByPathTx(
-    tx: WorkspaceTx,
-    rawPath: string,
-    options: { name?: string } = {}
-  ): Promise<WorkspaceEntity> {
-    const workspacePath = normalizeWorkspacePath(rawPath)
-    ensureWorkspaceDirectory(workspacePath)
-    const row = await withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
-      ...defaultHandlersFor('Workspace', workspacePath),
-      unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
-    })
-    return rowToWorkspace(row)
-  }
-
-  async createDefaultWorkspace(): Promise<WorkspaceEntity> {
-    const workspacePath = path.join(application.getPath('feature.agents.workspaces'), uuidv4())
-    return await this.findOrCreateByPath(workspacePath)
-  }
-
-  async createDefaultWorkspaceTx(tx: WorkspaceTx): Promise<WorkspaceEntity> {
-    const workspacePath = path.join(application.getPath('feature.agents.workspaces'), uuidv4())
-    return await this.findOrCreateByPathTx(tx, workspacePath)
-  }
-
   private async findOrCreateRowByNormalizedPathTx(
-    tx: WorkspaceTx,
+    tx: DbOrTx,
     workspacePath: string,
     options: { name?: string } = {}
   ): Promise<WorkspaceRow> {
@@ -146,18 +172,22 @@ export class WorkspaceService {
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    const db = application.get('DbService').getDb()
-    await db.transaction(async (tx) => {
-      const [target] = await tx.select({ id: workspaceTable.id }).from(workspaceTable).where(eq(workspaceTable.id, id))
-      if (!target) throw DataApiErrorFactory.notFound('Workspace', id)
-      await applyMoves(tx, workspaceTable, [{ id, anchor }], { pkColumn: workspaceTable.id })
-    })
+    await application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
+  }
+
+  async reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): Promise<void> {
+    const [target] = await tx.select({ id: workspaceTable.id }).from(workspaceTable).where(eq(workspaceTable.id, id))
+    if (!target) throw DataApiErrorFactory.notFound('Workspace', id)
+    await applyMoves(tx, workspaceTable, [{ id, anchor }], { pkColumn: workspaceTable.id })
   }
 
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
-    const db = application.get('DbService').getDb()
-    await db.transaction((tx) => applyMoves(tx, workspaceTable, moves, { pkColumn: workspaceTable.id }))
+    await application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+  }
+
+  async reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    await applyMoves(tx, workspaceTable, moves, { pkColumn: workspaceTable.id })
   }
 }
 
