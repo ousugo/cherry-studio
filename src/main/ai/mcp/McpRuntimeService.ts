@@ -1041,7 +1041,7 @@ export class McpRuntimeService extends BaseService {
           // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           resetTimeoutOnProgress: server.longRunning,
           maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
-          signal: this.activeToolCalls.get(toolCallId)?.signal
+          signal: abortController.signal
         })
         return result as McpCallToolResponse
       } catch (error) {

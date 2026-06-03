@@ -1,7 +1,13 @@
 import path from 'path'
 import { describe, expect, it } from 'vitest'
 
-import { assertZipEntriesWithin, ensurePathWithin, validateArgs, validateCommand } from '../DxtService'
+import {
+  assertZipEntriesWithin,
+  buildResolvedEnv,
+  ensurePathWithin,
+  validateArgs,
+  validateCommand
+} from '../DxtService'
 
 describe('ensurePathWithin', () => {
   // Use path.join to construct cross-platform compatible paths
@@ -248,5 +254,33 @@ describe('validateArgs', () => {
       // @ts-expect-error - testing runtime behavior
       expect(() => validateArgs(['valid', null])).toThrow('must be a string')
     })
+  })
+})
+
+describe('buildResolvedEnv', () => {
+  const extractDir = path.join('/', 'tmp', 'dxt')
+
+  it('substitutes variables and returns a new object without mutating the input', () => {
+    const input = { API_KEY: 'secret', ROOT: '${__dirname}' }
+    const result = buildResolvedEnv(input, extractDir)
+
+    expect(result).toEqual({ API_KEY: 'secret', ROOT: extractDir })
+    // Input must not be mutated.
+    expect(input.ROOT).toBe('${__dirname}')
+    expect(result).not.toBe(input)
+  })
+
+  it('rejects null bytes in env values', () => {
+    expect(() => buildResolvedEnv({ TOKEN: 'abc\0def' }, extractDir)).toThrow('null byte detected')
+  })
+
+  it('rejects null bytes in env keys', () => {
+    expect(() => buildResolvedEnv({ ['BAD\0KEY']: 'value' }, extractDir)).toThrow('null byte detected')
+  })
+
+  it('denylists process-affecting environment variables', () => {
+    expect(() => buildResolvedEnv({ NODE_OPTIONS: '--require ./evil.js' }, extractDir)).toThrow('is not allowed')
+    expect(() => buildResolvedEnv({ LD_PRELOAD: '/tmp/evil.so' }, extractDir)).toThrow('is not allowed')
+    expect(() => buildResolvedEnv({ DYLD_INSERT_LIBRARIES: '/tmp/evil.dylib' }, extractDir)).toThrow('is not allowed')
   })
 })

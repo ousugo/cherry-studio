@@ -302,8 +302,8 @@ export class CdpBrowserController {
   private createTabBarView(windowInfo: WindowInfo): BrowserView {
     const tabBarView = new BrowserView({
       webPreferences: {
-        contextIsolation: false,
-        sandbox: false,
+        contextIsolation: true,
+        sandbox: true,
         nodeIntegration: false
       }
     })
