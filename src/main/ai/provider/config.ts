@@ -94,7 +94,10 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
-    { match: (_, id) => id === 'google-vertex', build: buildVertexConfig },
+    // `google-vertex-anthropic` (Vertex on an anthropic-messages endpoint) must route here
+    // too — `buildVertexConfig` branches on `isAnthropic`. Otherwise it falls through to the
+    // generic builder, dropping project/location/googleCredentials and the publisher baseURL.
+    { match: (_, id) => id === 'google-vertex' || id === 'google-vertex-anthropic', build: buildVertexConfig },
     { match: (_, id) => id === 'cherryin', build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
     { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
