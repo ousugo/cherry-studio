@@ -27,7 +27,7 @@ const PDF_NATIVE_PROVIDER_IDS = new Set<AppProviderId>([
   'azure',
   'azure-responses',
   'google-vertex',
-  'amazon-bedrock',
+  'bedrock',
   'anthropic-vertex'
 ])
 
@@ -50,11 +50,7 @@ function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: Ap
   if (aiSdkProviderId === 'openai-responses' || aiSdkProviderId === 'azure' || aiSdkProviderId === 'azure-responses') {
     return isOpenAILLMModel(model)
   }
-  if (
-    aiSdkProviderId === 'anthropic' ||
-    aiSdkProviderId === 'anthropic-vertex' ||
-    aiSdkProviderId === 'amazon-bedrock'
-  ) {
+  if (aiSdkProviderId === 'anthropic' || aiSdkProviderId === 'anthropic-vertex' || aiSdkProviderId === 'bedrock') {
     return isAnthropicModel(model)
   }
   if (aiSdkProviderId === 'google' || aiSdkProviderId === 'google-vertex') {
