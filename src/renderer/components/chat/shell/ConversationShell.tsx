@@ -108,9 +108,10 @@ const ConversationShellTopBar = ({ isWindow, leading, children }: TopBarProps) =
   const windowNavbarHeightStyle = isWindow ? ({ '--navbar-height': TITLE_BAR_HEIGHT_PX } as CSSProperties) : undefined
   return (
     <div
+      data-conversation-shell-topbar
       style={windowNavbarHeightStyle}
       className={cn(
-        'flex h-fit w-full min-w-0 items-center',
+        'relative flex h-fit w-full min-w-0 items-center after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-0 after:h-px after:bg-border-subtle after:content-[""]',
         // Window mode: the navbar is the window title bar — make it draggable, inset past the
         // macOS traffic lights, and show the injected title (emoji + name) on the left.
         isWindow && [TITLE_BAR_HEIGHT_CLASS, '[-webkit-app-region:drag]', isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-2'],
