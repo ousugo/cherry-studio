@@ -186,7 +186,7 @@ export function Sidebar({
       )}>
       {/* Header */}
       <div
-        className={`flex shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>
+        className={`mb-2 flex shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'gap-2.5 px-4' : 'justify-center'}`}>
         {renderLogo(layout === 'icon' ? 'sm' : 'default')}
         {layout === 'full' && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
       </div>
