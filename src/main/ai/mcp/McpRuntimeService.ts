@@ -208,14 +208,26 @@ export class McpRuntimeService extends BaseService {
   }
 
   public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown): void {
+    const lastError =
+      state === 'error' ? (error instanceof Error ? error.message : String(error ?? 'Unknown error')) : undefined
+
+    const cacheService = application.get('CacheService')
+    const key = mcpStatusCacheKey(serverId)
+
+    // setShared dedups via isEqual, but lastCheckedAt changes every call, so without this
+    // guard every status touch (ping/list/prewarm hot paths) would broadcast IPC to all
+    // windows. lastCheckedAt has no UI consumer, so leaving it stale on no-op writes is safe.
+    const current = cacheService.getShared(key) as McpRuntimeStatus | undefined
+    if (current && current.state === state && current.lastError === lastError) {
+      return
+    }
+
     const status: McpRuntimeStatus = {
       state,
       lastCheckedAt: Date.now(),
-      ...(state === 'error'
-        ? { lastError: error instanceof Error ? error.message : String(error ?? 'Unknown error') }
-        : {})
+      ...(lastError !== undefined ? { lastError } : {})
     }
-    application.get('CacheService').setShared(mcpStatusCacheKey(serverId), status)
+    cacheService.setShared(key, status)
   }
 
   /**
