@@ -100,6 +100,15 @@ The injected three are added to the tool set by `applyDeferExposition` when
   `<DEFERRED_TOOLS>` section needs to enumerate (so the model knows what
   namespaces exist).
 
+**Approval-gated tools are never deferred.** `applyDeferExposition` evaluates
+`isApprovalGated(entry.tool)` and keeps any tool whose `needsApproval` is true
+inline, because deferring it would drop it from the SDK tool-set — so the SDK's
+native approval gate never fires and it becomes reachable only through
+`tool_invoke`, which would run it with no approval card. As defense-in-depth the
+`tool_invoke` / `tool_exec` meta-tools also call `isApprovalGated` at execution
+time and refuse a gated tool, steering the model to call it inline (where the gate
+fires). See [Tool Approval](./tool-approval.md).
+
 `tool_exec` is **not injected** by `applyDeferExposition` — there is no
 `metaTools.exec` flag. The injection site (`applyDeferExposition.ts:50-53`)
 deliberately leaves it out: its `worker_threads` + `new Function` sandbox

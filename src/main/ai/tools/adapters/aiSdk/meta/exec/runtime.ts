@@ -3,6 +3,7 @@ import { Worker } from 'node:worker_threads'
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 
+import { isApprovalGated } from '../../isApprovalGated'
 import type { ToolRegistry } from '../../registry'
 import { execWorkerSource } from './worker'
 
@@ -120,6 +121,24 @@ export function runExec(code: string, ctx: ExecRuntimeContext): Promise<ExecResu
           type: 'toolError',
           requestId: message.requestId,
           error: `Tool ${message.name} has no execute handler`
+        })
+        return
+      }
+      // Enforce the approval gate at the registry execution boundary. `tool_exec` cannot pause
+      // for an interactive approval card mid-loop, so a gated tool is refused (not awaited) —
+      // the model must call it inline where the SDK's native gate fires.
+      if (
+        await isApprovalGated(entry.tool, {
+          input: message.params ?? {},
+          toolCallId: ctx.parentOptions.toolCallId,
+          messages: ctx.parentOptions.messages,
+          experimental_context: ctx.parentOptions.experimental_context
+        })
+      ) {
+        worker.postMessage({
+          type: 'toolError',
+          requestId: message.requestId,
+          error: `Tool ${message.name} requires user approval; call it directly instead of via tool_exec.`
         })
         return
       }

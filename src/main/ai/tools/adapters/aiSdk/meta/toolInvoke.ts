@@ -12,6 +12,7 @@
 import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
+import { isApprovalGated } from '../isApprovalGated'
 import type { ToolRegistry } from '../registry'
 
 export const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
@@ -29,6 +30,20 @@ export function createToolInvokeTool(registry: ToolRegistry): Tool {
       if (!entry) throw new Error(`Tool not found: ${name}`)
       if (typeof entry.tool.execute !== 'function') {
         throw new Error(`Tool ${name} has no execute handler`)
+      }
+      // Enforce the approval gate at the registry execution boundary. The SDK's native
+      // `needsApproval` check only fires for tools it dispatches itself; a tool reached through
+      // this meta-tool would otherwise bypass it. Approval-gated tools are kept inline (see
+      // `applyDeferExposition`), so refusing here just steers the model to call them directly.
+      if (
+        await isApprovalGated(entry.tool, {
+          input: params ?? {},
+          toolCallId: options.toolCallId,
+          messages: options.messages,
+          experimental_context: options.experimental_context
+        })
+      ) {
+        throw new Error(`Tool "${name}" requires user approval; call it directly instead of via tool_invoke.`)
       }
       return entry.tool.execute(params ?? {}, {
         ...options,
