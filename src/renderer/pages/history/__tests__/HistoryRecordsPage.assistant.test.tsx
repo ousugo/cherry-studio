@@ -405,6 +405,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+const flushCommandMenuAction = () => new Promise<void>((resolve) => queueMicrotask(resolve))
 
 describe('HistoryRecordsPage assistant mode', () => {
   beforeEach(() => {
@@ -629,6 +630,22 @@ describe('HistoryRecordsPage assistant mode', () => {
     const overlay = screen.getByTestId('history-records-page')
     expect(overlay).toHaveClass('z-40')
     expect(overlay).not.toHaveStyle({ willChange: 'clip-path' })
+  })
+
+  it('renders the overlay inside the owning container instead of the first home page element', () => {
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+
+    const firstHomePage = document.getElementById('home-page') as HTMLElement
+    const owningContainer = document.createElement('div')
+    document.body.appendChild(owningContainer)
+
+    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />, {
+      container: owningContainer
+    })
+
+    expect(within(owningContainer).getByTestId('history-records-page')).toBeInTheDocument()
+    expect(within(firstHomePage).queryByTestId('history-records-page')).not.toBeInTheDocument()
   })
 
   it('matches external assistant source and selected-source order', () => {
@@ -883,6 +900,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
 
     expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Topics' }))
     expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
@@ -918,6 +938,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
 
     const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
@@ -951,6 +974,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
 
     const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
@@ -985,6 +1011,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
 
     const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {

@@ -325,6 +325,10 @@ function flushAnimationFrame() {
   return new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
 }
 
+function flushCommandMenuAction() {
+  return new Promise<void>((resolve) => queueMicrotask(resolve))
+}
+
 function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace']> {
   return {
     id: `ws-${path}`,
@@ -781,6 +785,9 @@ describe('HistoryRecordsPage agent mode', () => {
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
 
     expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete session' }))
     expect(hookMocks.deleteSession).not.toHaveBeenCalled()
@@ -804,6 +811,9 @@ describe('HistoryRecordsPage agent mode', () => {
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
 
     const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {

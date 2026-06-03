@@ -37,7 +37,6 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { ArrowLeft, Bot } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import HistoryQueryForm, { type HistoryBulkMoveTarget } from './components/HistoryQueryForm'
@@ -81,13 +80,11 @@ type HistoryRecordsPageProps =
     })
 
 const HistoryRecordsPage = (props: HistoryRecordsPageProps) => {
-  const { mode, open } = props
-  const portalRootId = mode === 'assistant' ? 'home-page' : 'agent-page'
-  const portalRoot = document.getElementById(portalRootId)
+  const { open } = props
 
-  if (!portalRoot || !open) return null
+  if (!open) return null
 
-  return createPortal(
+  return (
     <div className="absolute inset-0 z-40 flex bg-card [-webkit-app-region:none]" data-testid="history-records-page">
       {props.mode === 'assistant' ? (
         <HistoryRecordsContent
@@ -104,8 +101,7 @@ const HistoryRecordsPage = (props: HistoryRecordsPageProps) => {
           onRecordSelect={props.onRecordSelect}
         />
       )}
-    </div>,
-    portalRoot
+    </div>
   )
 }
 
