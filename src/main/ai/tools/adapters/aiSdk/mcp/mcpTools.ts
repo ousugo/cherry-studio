@@ -117,6 +117,10 @@ export async function syncMcpToolsToRegistry(
   const activeNamespaces = new Set(activeServers.map((s) => `mcp:${s.name}`))
 
   const freshNames = new Set<string>()
+  // Only namespaces whose `listTools` actually succeeded. A transient connection drop
+  // must NOT evict a still-active server's previously-registered tools — without this
+  // guard the eviction loop below sees every prior tool as `missing` and deregisters them.
+  const refreshedNamespaces = new Set<string>()
   for (const server of targetServers) {
     try {
       const enabledTools = await application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
@@ -124,6 +128,7 @@ export async function syncMcpToolsToRegistry(
         reg.register(toEntry(mcpTool, server))
         freshNames.add(mcpTool.id)
       }
+      refreshedNamespaces.add(`mcp:${server.name}`)
     } catch (error) {
       logger.error('Failed to list MCP tools for server', {
         serverId: server.id,
@@ -136,7 +141,9 @@ export async function syncMcpToolsToRegistry(
   for (const entry of reg.getAll()) {
     if (!entry.namespace.startsWith('mcp:')) continue
     const serverDeactivated = !activeNamespaces.has(entry.namespace)
-    const inSyncScope = targetNamespaces.has(entry.namespace)
+    // Gate the in-scope eviction on a successful refresh, so a failed `listTools` leaves
+    // the prior snapshot intact. A truly deactivated server is still evicted regardless.
+    const inSyncScope = targetNamespaces.has(entry.namespace) && refreshedNamespaces.has(entry.namespace)
     const missing = !freshNames.has(entry.name)
     if (serverDeactivated || (inSyncScope && missing)) {
       reg.deregister(entry.name)

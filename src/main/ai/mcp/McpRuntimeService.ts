@@ -859,6 +859,14 @@ export class McpRuntimeService extends BaseService {
   }
 
   private async closeClientsForServer(serverId: string): Promise<void> {
+    // Settle any in-flight connects first. A pending client is not in `this.clients`
+    // yet, so closing only `this.clients` would leak it — worst case `removeServer`
+    // deletes the DB row while a connect is still in flight. Awaiting the pending
+    // promise lets a successful connect land in `this.clients` (so the loop below
+    // closes it); a failed connect just settles and is dropped.
+    const pendingKeys = Array.from(this.pendingClients.keys()).filter((key) => this.isServerKeyForId(key, serverId))
+    await Promise.all(pendingKeys.map((key) => this.pendingClients.get(key)?.catch(() => undefined)))
+
     const serverKeys = Array.from(this.clients.keys()).filter((key) => this.isServerKeyForId(key, serverId))
     await Promise.all(serverKeys.map((key) => this.closeClient(key)))
   }

@@ -84,7 +84,10 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
   rgArgs.push(validPath)
 
   try {
-    regex = new RegExp(data.pattern, 'gi')
+    // No `g` flag: this regex is reused with `.test(line)` per line, and a global
+    // regex carries `lastIndex` across calls — that silently skips matches on
+    // subsequent lines. Case-insensitive matching only.
+    regex = new RegExp(data.pattern, 'i')
   } catch (error) {
     throw new Error(`Invalid regex pattern: ${data.pattern}`)
   }
