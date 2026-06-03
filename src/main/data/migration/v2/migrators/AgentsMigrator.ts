@@ -2,7 +2,6 @@ import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
-import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
@@ -13,6 +12,7 @@ import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
+import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
   AGENTS_TABLE_MIGRATION_SPECS,
@@ -159,7 +159,10 @@ export class AgentsMigrator extends BaseMigrator {
       //   2. importLegacySessionMessages — generates UUID message ids instead
       //      of preserving legacy integer row ids, and writes final `data.parts`.
       await backfillAgentOrderKeys(ctx.db)
-      await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo, { db: ctx.db })
+      await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
+        db: ctx.db,
+        filesDataDir: ctx.paths.filesDataDir
+      })
 
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true
@@ -737,11 +740,7 @@ async function collectLegacySessionWorkspaces(
     mappings.push({ sessionId: row.session_id, workspaceId: workspace.id })
   }
 
-  const workspaces = Array.from(byPath.values())
-  const orderKeys = generateOrderKeySequence(workspaces.length)
-  for (let i = 0; i < workspaces.length; i++) {
-    workspaces[i].orderKey = orderKeys[i]
-  }
+  const workspaces = assignOrderKeysInSequence(Array.from(byPath.values()))
 
   return { workspaces, mappings }
 }
@@ -933,9 +932,8 @@ export async function backfillAgentOrderKeys(db: DbType): Promise<void> {
     )
   )) as Row[]
   if (agents.length > 0) {
-    const keys = generateOrderKeySequence(agents.length)
-    for (let i = 0; i < agents.length; i++) {
-      await db.run(sql`UPDATE agent SET order_key = ${keys[i]} WHERE id = ${agents[i].id}`)
+    for (const agent of assignOrderKeysInSequence(agents)) {
+      await db.run(sql`UPDATE agent SET order_key = ${agent.orderKey} WHERE id = ${agent.id}`)
     }
     logger.info(`Backfilled ${agents.length} agent order keys`)
   }
@@ -950,18 +948,10 @@ export async function backfillAgentOrderKeys(db: DbType): Promise<void> {
   )) as Array<Row & { agent_id: string }>
   if (sessions.length === 0) return
 
-  // Group by agentId and assign keys per group.
-  const buckets = new Map<string, Row[]>()
-  for (const row of sessions) {
-    const list = buckets.get(row.agent_id) ?? []
-    list.push({ id: row.id })
-    buckets.set(row.agent_id, list)
+  const stampedSessions = assignOrderKeysByScope(sessions, (row) => row.agent_id)
+  for (const session of stampedSessions) {
+    await db.run(sql`UPDATE agent_session SET order_key = ${session.orderKey} WHERE id = ${session.id}`)
   }
-  for (const [, group] of buckets) {
-    const keys = generateOrderKeySequence(group.length)
-    for (let i = 0; i < group.length; i++) {
-      await db.run(sql`UPDATE agent_session SET order_key = ${keys[i]} WHERE id = ${group[i].id}`)
-    }
-  }
-  logger.info(`Backfilled ${sessions.length} session order keys across ${buckets.size} agents`)
+  const agentCount = new Set(sessions.map((row) => row.agent_id)).size
+  logger.info(`Backfilled ${sessions.length} session order keys across ${agentCount} agents`)
 }

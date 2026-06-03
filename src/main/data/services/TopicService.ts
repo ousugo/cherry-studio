@@ -258,6 +258,15 @@ export class TopicService {
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
   }
 
+  async clearActiveNodeTx(tx: DbOrTx, topicId: string): Promise<void> {
+    const updated = await tx
+      .update(topicTable)
+      .set({ activeNodeId: null })
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .returning({ id: topicTable.id })
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
+  }
+
   /**
    * Two-section page: pinned topics (via `pin` JOIN, ordered by pin.orderKey)
    * then unpinned (ordered by `updatedAt DESC, id ASC`). A partial pin page

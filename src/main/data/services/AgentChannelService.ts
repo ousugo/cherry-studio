@@ -159,6 +159,19 @@ export class AgentChannelService {
     logger.info('Channel unsubscribed from task', { channelId, taskId })
   }
 
+  async replaceTaskSubscriptions(taskId: string, channelIds: readonly string[]): Promise<void> {
+    await application.get('DbService').withWriteTx(async (tx) => {
+      await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
+      if (channelIds.length > 0) {
+        await tx
+          .insert(channelTaskSubscriptionsTable)
+          .values(channelIds.map((channelId) => ({ channelId, taskId })))
+          .onConflictDoNothing()
+      }
+    })
+    logger.info('Channel task subscriptions replaced', { taskId, channelCount: channelIds.length })
+  }
+
   async getSubscribedChannels(taskId: string): Promise<AgentChannelEntity[]> {
     const database = application.get('DbService').getDb()
     const subs = await database

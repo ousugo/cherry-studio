@@ -10,7 +10,7 @@ import { eq } from 'drizzle-orm'
 import { mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 describe('SessionService', () => {
   const dbh = setupTestDatabase()
@@ -24,6 +24,9 @@ describe('SessionService', () => {
       }
       return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
+    ;(application.get('DbService').withWriteTx as Mock).mockImplementation(async (fn) =>
+      dbh.db.transaction(fn as never)
+    )
     await dbh.db.insert(agentTable).values({
       id: 'agent-session-test',
       type: 'claude-code',
@@ -35,6 +38,7 @@ describe('SessionService', () => {
   })
 
   afterEach(() => {
+    ;(application.get('DbService').withWriteTx as Mock).mockReset()
     vi.restoreAllMocks()
   })
 

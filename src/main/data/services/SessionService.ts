@@ -68,7 +68,8 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
 
 export class SessionService {
   async createSession(dto: CreateSessionDto): Promise<AgentSessionEntity> {
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
+    const db = dbService.getDb()
 
     // Verify the agent exists; FK alone gives generic 404 — explicit check returns
     // a precise resource = 'Agent'.
@@ -82,7 +83,7 @@ export class SessionService {
     const id = uuidv4()
     await withSqliteErrors(
       () =>
-        db.transaction(async (tx) => {
+        dbService.withWriteTx(async (tx) => {
           let workspaceId = dto.workspaceId
           if (workspaceId) {
             await workspaceService.getByIdTx(tx, workspaceId)

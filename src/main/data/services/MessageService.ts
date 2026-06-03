@@ -836,7 +836,7 @@ export class MessageService {
             role: dto.role,
             data: dto.data,
             status: dto.status ?? 'pending',
-            siblingsGroupId: dto.siblingsGroupId ?? 0,
+            ...(dto.siblingsGroupId !== undefined ? { siblingsGroupId: dto.siblingsGroupId } : {}),
             modelId: dto.modelId,
             modelSnapshot: dto.modelSnapshot,
             traceId: dto.traceId,
@@ -878,7 +878,7 @@ export class MessageService {
             role: p.role,
             data: p.data,
             status: p.status ?? 'pending',
-            siblingsGroupId: input.siblingsGroupId ?? 0,
+            ...(input.siblingsGroupId !== undefined ? { siblingsGroupId: input.siblingsGroupId } : {}),
             modelId: p.modelId,
             modelSnapshot: p.modelSnapshot,
             traceId: p.traceId,
@@ -1058,9 +1058,7 @@ export class MessageService {
       // Update topic.activeNodeId if needed
       if (newActiveNodeId !== undefined) {
         if (newActiveNodeId === null) {
-          // No remaining message to anchor to — clear directly. setActiveNodeTx
-          // would reject null because it can't validate "no message".
-          await tx.update(topicTable).set({ activeNodeId: null }).where(eq(topicTable.id, message.topicId))
+          await topicService.clearActiveNodeTx(tx, message.topicId)
         } else {
           await topicService.setActiveNodeTx(tx, message.topicId, newActiveNodeId, { assumeValid: true })
         }

@@ -8,7 +8,9 @@ import {
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { workspaceTable } from '@data/db/schemas/workspace'
+import { agentService } from '@data/services/AgentService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import { and, asc, eq, or, type SQL, sql } from 'drizzle-orm'
 
@@ -48,6 +50,11 @@ export class AgentGlobalSkillService {
    */
   async list(query: ListSkillsQuery = {}): Promise<InstalledSkill[]> {
     const conditions: SQL[] = []
+
+    if (query.agentId) {
+      const agent = await agentService.getAgent(query.agentId)
+      if (!agent) throw DataApiErrorFactory.notFound('Agent', query.agentId)
+    }
 
     if (query.search) {
       const pattern = `%${query.search.replace(/[\\%_]/g, '\\$&')}%`
@@ -173,11 +180,11 @@ export class AgentGlobalSkillService {
       sourceUrl: row.sourceUrl,
       namespace: row.namespace,
       author: row.author,
-      sourceTags: row.tags ?? [],
+      sourceTags: row.tags,
       contentHash: row.contentHash,
       isEnabled: row.isEnabled,
-      createdAt: timestampToISO(row.createdAt ?? Date.now()),
-      updatedAt: timestampToISO(row.updatedAt ?? Date.now())
+      createdAt: timestampToISO(row.createdAt),
+      updatedAt: timestampToISO(row.updatedAt)
     }
   }
 }
