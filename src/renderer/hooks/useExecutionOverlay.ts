@@ -85,18 +85,18 @@ export function useExecutionOverlay(
   onFinishRef.current = options.onFinish
   const readersRef = useRef<Map<UniqueModelId, ReaderHandle>>(new Map())
 
-  // Topic switch → drop all stale overlay state.
-  const prevTopicRef = useRef(topicId)
-  if (prevTopicRef.current !== topicId) {
-    prevTopicRef.current = topicId
-    for (const r of readersRef.current.values()) {
-      r.cancel()
-      r.unregister()
-    }
-    readersRef.current.clear()
-  }
+  // Topic switch → tear down the previous topic's readers and drop all stale
+  // overlay state. Runs as an effect (not in the render body) so the teardown
+  // happens after commit, never during a concurrent/abandoned render.
   useEffect(() => {
     setSnapshots({})
+    return () => {
+      for (const r of readersRef.current.values()) {
+        r.cancel()
+        r.unregister()
+      }
+      readersRef.current.clear()
+    }
   }, [topicId])
 
   useEffect(() => {
