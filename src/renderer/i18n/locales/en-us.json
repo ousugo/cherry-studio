@@ -4478,7 +4478,7 @@
     "text_desc_required": "Please enter image description first",
     "thinking_mode": "Thinking Mode",
     "thinking_mode_tip": "When on, generation quality is higher but adds about 10–30 seconds.",
-    "title": "Images",
+    "title": "Drawing",
     "top_up": "Top up ",
     "translating": "Translating...",
     "uploaded_input": "Uploaded input",
@@ -7584,7 +7584,7 @@
     "mcp-servers": "MCP Servers",
     "notes": "Notes",
     "openclaw": "OpenClaw",
-    "paintings": "Paintings",
+    "paintings": "Drawing",
     "settings": "Settings",
     "store": "Resources",
     "translate": "Translate"
