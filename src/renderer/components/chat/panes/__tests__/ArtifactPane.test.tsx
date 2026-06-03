@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
     fileName?: string
     filePath: string
     refreshKey?: number
+    workspacePath: string
   }>,
   pdfPreviewPanelModuleLoadCount: 0,
   excelPreviewModuleLoadCount: 0,
@@ -320,7 +321,7 @@ vi.mock('../WordPreviewPanel', () => {
   mocks.wordPreviewPanelModuleLoadCount += 1
 
   return {
-    default: (props: { fileName?: string; filePath: string; refreshKey?: number }) => {
+    default: (props: { fileName?: string; filePath: string; refreshKey?: number; workspacePath: string }) => {
       mocks.wordPreviewPanelProps.push(props)
 
       return (
@@ -1183,7 +1184,7 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-proposal.docx'))
 
     await waitFor(() => expect(screen.getByTestId('word-preview-panel')).toBeInTheDocument())
-    expect(screen.getByTestId('word-preview-panel')).toHaveAttribute('data-file-path', '/tmp/workspace/proposal.docx')
+    expect(screen.getByTestId('word-preview-panel')).toHaveAttribute('data-file-path', 'proposal.docx')
     expect(screen.getByTestId('word-preview-panel')).toHaveAttribute('data-file-name', 'proposal.docx')
     expect(screen.getByTestId('word-preview-panel')).toHaveAttribute('data-refresh-key', '0')
     expect(screen.queryByText('agent.preview_pane.code_unavailable')).not.toBeInTheDocument()
@@ -1194,9 +1195,10 @@ describe('ArtifactPane', () => {
     expect(mocks.getFileSize).toHaveBeenCalledWith('/tmp/workspace/proposal.docx')
     expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-hidden')
     expect(mocks.wordPreviewPanelProps.at(-1)).toEqual({
-      filePath: '/tmp/workspace/proposal.docx',
+      filePath: 'proposal.docx',
       fileName: 'proposal.docx',
-      refreshKey: 0
+      refreshKey: 0,
+      workspacePath: '/tmp/workspace'
     })
   })
 
@@ -1219,9 +1221,10 @@ describe('ArtifactPane', () => {
     expect(mocks.isTextFile).not.toHaveBeenCalled()
     expect(mocks.getFileSize).toHaveBeenCalledWith('/tmp/workspace/proposal.docx')
     expect(mocks.wordPreviewPanelProps.at(-1)).toEqual({
-      filePath: '/tmp/workspace/proposal.docx',
+      filePath: 'proposal.docx',
       fileName: 'proposal.docx',
-      refreshKey: 1
+      refreshKey: 1,
+      workspacePath: '/tmp/workspace'
     })
   })
 

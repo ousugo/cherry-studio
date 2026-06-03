@@ -184,7 +184,7 @@
 
 .markdown table {
   --table-border-radius: 8px;
-  margin: 2em 0;
+  margin: 0;
   font-size: 0.9em;
   width: 100%;
   border-radius: var(--table-border-radius);

@@ -75,6 +75,7 @@ import type {
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
+import type { WordPreviewRequest, WordPreviewResult } from '@shared/wordPreview'
 import type {
   FileListResponse,
   FileMetadata,
@@ -345,6 +346,10 @@ const api = {
   excel: {
     readWorkbookPreview: (request: ExcelWorkbookPreviewRequest): Promise<ExcelWorkbookPreviewResult> =>
       ipcRenderer.invoke(IpcChannel.Excel_ReadWorkbookPreview, request)
+  },
+  word: {
+    readPreview: (request: WordPreviewRequest): Promise<WordPreviewResult> =>
+      ipcRenderer.invoke(IpcChannel.Word_ReadPreview, request)
   },
   export: {
     toWord: (markdown: string, fileName: string) => ipcRenderer.invoke(IpcChannel.Export_Word, markdown, fileName)
