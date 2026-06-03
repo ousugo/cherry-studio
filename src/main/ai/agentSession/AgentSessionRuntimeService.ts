@@ -163,6 +163,12 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
 
   protected async onInit(): Promise<void> {
+    // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
+    // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
+    // reconcile so both message tables are settled on restart (neither stays a frozen "thinking"
+    // bubble); agent sessions additionally recover conversation context via the resume token.
+    await this.reconcileStalePendingMessages()
+
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
         void this.handleAgentUpdated(agentId, updates, agent).catch((error) => {
@@ -170,6 +176,17 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
+  }
+
+  private async reconcileStalePendingMessages(): Promise<void> {
+    try {
+      const staleIds = await agentSessionMessageService.findPendingAssistantMessageIds()
+      if (staleIds.length === 0) return
+      logger.info('Reconciling crash-orphaned pending agent-session messages', { count: staleIds.length })
+      await agentSessionMessageService.markMessagesError(staleIds)
+    } catch (error) {
+      logger.error('Failed to reconcile stale pending agent-session messages', { error })
+    }
   }
 
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {

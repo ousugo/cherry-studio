@@ -17,7 +17,7 @@ import type {
   CreateAgentSessionMessagesDto
 } from '@shared/data/api/schemas/sessions'
 import { SESSION_MESSAGES_DEFAULT_LIMIT, SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/sessions'
-import { and, desc, eq, isNotNull, lt, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, lt, or } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 const logger = loggerService.withContext('SessionMessageService')
@@ -114,6 +114,28 @@ export class AgentSessionMessageService {
     if (result.rowsAffected === 0) {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
+  }
+
+  /**
+   * Ids of assistant rows still in `pending` — used by the agent-session boot reconcile to
+   * resolve turns a prior main-process crash left stuck (the runtime never reached its terminal
+   * write, and the in-memory entry map is empty after a restart, so nothing else settles them).
+   */
+  async findPendingAssistantMessageIds(): Promise<string[]> {
+    const database = application.get('DbService').getDb()
+    const rows = await database
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.role, 'assistant'), eq(sessionMessagesTable.status, 'pending')))
+    return rows.map((row) => row.id)
+  }
+
+  /** Bulk-resolve the given rows to `error` — the boot reconcile of crash-orphaned `pending` rows. */
+  async markMessagesError(ids: string[]): Promise<void> {
+    if (ids.length === 0) return
+    await application.get('DbService').withWriteTx(async (tx) => {
+      await tx.update(sessionMessagesTable).set({ status: 'error' }).where(inArray(sessionMessagesTable.id, ids))
+    })
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
