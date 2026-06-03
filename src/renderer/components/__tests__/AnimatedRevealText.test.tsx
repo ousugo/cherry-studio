@@ -4,14 +4,15 @@ import { describe, expect, it } from 'vitest'
 import AnimatedRevealText from '../AnimatedRevealText'
 
 describe('AnimatedRevealText', () => {
-  it('renders accessible animated text layers', () => {
+  it('renders accessible single-layer text', () => {
     const { container } = render(<AnimatedRevealText text="Hello" />)
 
     const root = container.querySelector('[data-slot="animated-reveal-text"]')
     expect(root).toBeInTheDocument()
     expect(root).toHaveAttribute('aria-label', 'Hello')
-    expect(container.querySelector('.animated-reveal-text__base')).toHaveTextContent('Hello')
-    expect(container.querySelector('.animated-reveal-text__fill')).toHaveTextContent('Hello')
+    expect(root).toHaveTextContent('Hello')
+    expect(container.querySelector('.animated-reveal-text__base')).not.toBeInTheDocument()
+    expect(container.querySelector('.animated-reveal-text__fill')).not.toBeInTheDocument()
   })
 
   it('uses a custom aria label when provided', () => {
