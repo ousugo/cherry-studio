@@ -404,6 +404,27 @@ describe('ChannelMessageHandler', () => {
     expect(sessionService.createSession).toHaveBeenCalledTimes(1)
   })
 
+  // channels-core-3: discarding a pending (un-flushed) batch must settle its callers'
+  // handleIncoming promises instead of leaving them hanging forever, so .catch fires.
+  it('clearSessionTracker rejects pending-batch handleIncoming promises', async () => {
+    const adapter = createMockAdapter()
+
+    // Start a batch but do NOT advance timers — it stays pending in pendingBatches.
+    const pending = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Hi'
+    })
+    const rejection = expect(pending).rejects.toThrow('Agent removed; batch discarded')
+
+    // Clearing the agent's tracker discards the pending batch.
+    channelMessageHandler.clearSessionTracker('agent-1')
+
+    await rejection
+    expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+  })
+
   // channels-core-2: a local AbortController only flips a listener's isAlive() — clearing
   // a tracked session must stop the upstream agent-session turn via the manager.
   it('clearSessionTracker aborts the upstream agent-session turn via the manager', async () => {

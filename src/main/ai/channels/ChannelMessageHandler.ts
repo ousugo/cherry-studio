@@ -415,6 +415,9 @@ export class ChannelMessageHandler {
       if (key.startsWith(`${agentId}:`)) {
         clearTimeout(batch.timer)
         this.pendingBatches.delete(key)
+        // Settle the discarded batch's callers so their .catch handlers fire
+        // instead of leaving handleIncoming promises hanging forever.
+        batch.resolvers.forEach((r) => r.reject(new Error('Agent removed; batch discarded')))
       }
     }
     for (const key of this.chatQueues.keys()) {

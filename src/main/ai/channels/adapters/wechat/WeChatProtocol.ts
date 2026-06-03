@@ -353,7 +353,15 @@ function buildBaseInfo(): BaseInfo {
 
 async function parseJsonResponse(response: Response, label: string): Promise<unknown> {
   const text = await response.text()
-  const raw = text ? JSON.parse(text) : {}
+  let raw: unknown
+  try {
+    raw = text ? JSON.parse(text) : {}
+  } catch {
+    throw new ApiError(`${label} returned non-JSON (HTTP ${response.status})`, {
+      status: response.status,
+      payload: text.slice(0, 200)
+    })
+  }
 
   if (!response.ok) {
     const body = ApiErrorBodySchema.safeParse(raw)

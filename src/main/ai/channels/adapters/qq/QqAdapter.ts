@@ -233,7 +233,7 @@ class QqAdapter extends ChannelAdapter {
       return
     }
 
-    if (payload.s !== undefined) {
+    if (payload.s !== undefined && payload.s !== null) {
       this.lastSeq = payload.s
     }
 
