@@ -20,7 +20,7 @@ import type {
   UnsupportedFunctionalityError
 } from 'ai'
 
-import type { ProviderSpecificError } from './provider-specific-error'
+import type { ProviderSpecificError } from './ProviderSpecificError'
 import type { Serializable } from './serializable'
 
 /** i18n key used when a streaming response is paused/aborted by the user. */
