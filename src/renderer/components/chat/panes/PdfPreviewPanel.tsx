@@ -10,10 +10,13 @@ import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.m
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import DocumentPreviewToolbar from './DocumentPreviewToolbar'
+
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 const logger = loggerService.withContext('PdfPreviewPanel')
 const DEFAULT_PDF_SCALE = 'page-width'
+const PDF_PREVIEW_DEFAULT_ZOOM = 1
 const PDF_ZOOM_DRAWING_DELAY = 400
 const PDF_PINCH_WHEEL_MIN_DELTA = 0.08
 const PDF_PINCH_WHEEL_MAX_EVENT_DELTA = 0.8
@@ -23,6 +26,14 @@ const PDF_PINCH_SCALE_SENSITIVITY = 0.075
 const PDF_PAGE_FOREGROUND = 'CanvasText'
 
 type PdfJsViewer = InstanceType<typeof PDFViewer>
+
+interface PdfPageChangingEvent {
+  pageNumber?: number
+}
+
+interface PdfScaleChangingEvent {
+  scale?: number
+}
 
 interface PdfPreviewPanelProps {
   filePath: string
@@ -56,6 +67,8 @@ const toPdfData = (data: unknown): Uint8Array => {
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
+const formatPdfZoom = (scale: number) => `${Math.round(scale * 100)}%`
+
 const normalizePinchWheelDelta = (event: WheelEvent): number => {
   const divisor =
     event.deltaMode === WheelEvent.DOM_DELTA_LINE
@@ -81,6 +94,9 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
   const [documentProxy, setDocumentProxy] = useState<PDFDocumentProxy | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(0)
+  const [pageCount, setPageCount] = useState(0)
+  const [zoom, setZoom] = useState(PDF_PREVIEW_DEFAULT_ZOOM)
 
   const applyViewerBackground = useCallback((nextBackground: string | null) => {
     const viewer = viewerRef.current
@@ -108,6 +124,56 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
     setBackground(nextBackground)
     applyViewerBackground(nextBackground)
   }, [applyViewerBackground])
+
+  const focusContainer = useCallback(() => {
+    containerRef.current?.focus({ preventScroll: true })
+  }, [])
+
+  const jumpToPage = useCallback(
+    (pageNumber: number) => {
+      const pdfViewer = pdfViewerRef.current
+      if (!pdfViewer || pageCount <= 0) return
+
+      const nextPage = clamp(pageNumber, 1, pageCount)
+      pdfViewer.currentPageNumber = nextPage
+      setCurrentPage(nextPage)
+      focusContainer()
+    },
+    [focusContainer, pageCount]
+  )
+
+  const zoomBy = useCallback(
+    (direction: 'in' | 'out') => {
+      const pdfViewer = pdfViewerRef.current
+      if (!pdfViewer) return
+
+      const zoomOptions = { drawingDelay: PDF_ZOOM_DRAWING_DELAY }
+      if (direction === 'in') {
+        pdfViewer.increaseScale(zoomOptions)
+      } else {
+        pdfViewer.decreaseScale(zoomOptions)
+      }
+
+      if (Number.isFinite(pdfViewer.currentScale) && pdfViewer.currentScale > 0) {
+        setZoom(pdfViewer.currentScale)
+      }
+      focusContainer()
+    },
+    [focusContainer]
+  )
+
+  const resetZoom = useCallback(() => {
+    const pdfViewer = pdfViewerRef.current
+    if (!pdfViewer) return
+
+    pdfViewer.currentScaleValue = DEFAULT_PDF_SCALE
+    if (Number.isFinite(pdfViewer.currentScale) && pdfViewer.currentScale > 0) {
+      setZoom(pdfViewer.currentScale)
+    } else {
+      setZoom(PDF_PREVIEW_DEFAULT_ZOOM)
+    }
+    focusContainer()
+  }, [focusContainer])
 
   useEffect(() => {
     const pdfViewer = pdfViewerRef.current
@@ -138,6 +204,9 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
     setDocumentProxy(null)
     setError(null)
     setLoading(true)
+    setCurrentPage(0)
+    setPageCount(0)
+    setZoom(PDF_PREVIEW_DEFAULT_ZOOM)
 
     void (async () => {
       try {
@@ -190,7 +259,31 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
     })
 
     const syncBackground = () => applyViewerBackground(background)
-    const focusContainer = () => container.focus({ preventScroll: true })
+    const syncPreviewControls = () => {
+      const nextPageCount = documentProxy.numPages
+      setPageCount(nextPageCount)
+      setCurrentPage(nextPageCount > 0 ? clamp(pdfViewer.currentPageNumber || 1, 1, nextPageCount) : 0)
+
+      if (Number.isFinite(pdfViewer.currentScale) && pdfViewer.currentScale > 0) {
+        setZoom(pdfViewer.currentScale)
+      }
+    }
+    const handlePagesInit = () => {
+      syncBackground()
+      syncPreviewControls()
+    }
+    const handlePageChanging = (event?: PdfPageChangingEvent) => {
+      const nextPageCount = documentProxy.numPages
+      const nextPage = event?.pageNumber ?? pdfViewer.currentPageNumber
+      setPageCount(nextPageCount)
+      setCurrentPage(nextPageCount > 0 ? clamp(nextPage, 1, nextPageCount) : 0)
+    }
+    const handleScaleChanging = (event?: PdfScaleChangingEvent) => {
+      const nextScale = event?.scale ?? pdfViewer.currentScale
+      if (typeof nextScale === 'number' && Number.isFinite(nextScale) && nextScale > 0) {
+        setZoom(nextScale)
+      }
+    }
     const zoomOptions = { drawingDelay: PDF_ZOOM_DRAWING_DELAY }
     let pinchWheelDelta = 0
     let pinchWheelResetTimer: number | null = null
@@ -248,18 +341,21 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
       if (event.key === '+' || event.key === '=') {
         event.preventDefault()
         pdfViewer.increaseScale(zoomOptions)
+        handleScaleChanging()
         return
       }
 
       if (event.key === '-' || event.key === '_') {
         event.preventDefault()
         pdfViewer.decreaseScale(zoomOptions)
+        handleScaleChanging()
         return
       }
 
       if (event.key === '0') {
         event.preventDefault()
         pdfViewer.currentScaleValue = DEFAULT_PDF_SCALE
+        handleScaleChanging()
       }
     }
 
@@ -268,12 +364,14 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
       linkService.setViewer(pdfViewer)
       pdfViewer.setDocument(documentProxy)
       linkService.setDocument(documentProxy)
+      syncPreviewControls()
       pdfViewer.firstPagePromise
         .then(() => {
           if (pdfViewerRef.current !== pdfViewer) return
           pdfViewer.currentScaleValue = DEFAULT_PDF_SCALE
           focusContainer()
           syncBackground()
+          syncPreviewControls()
         })
         .catch((viewerError: unknown) => {
           if (pdfViewerRef.current !== pdfViewer) return
@@ -282,8 +380,10 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
           setError(normalized)
         })
 
-      eventBus.on('pagesinit', syncBackground)
+      eventBus.on('pagesinit', handlePagesInit)
       eventBus.on('pagerendered', syncBackground)
+      eventBus.on('pagechanging', handlePageChanging)
+      eventBus.on('scalechanging', handleScaleChanging)
       container.addEventListener('wheel', handleWheelZoom, { passive: false })
       container.addEventListener('keydown', handleKeyboardZoom)
       container.addEventListener('pointerdown', focusContainer)
@@ -294,8 +394,10 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
     }
 
     return () => {
-      eventBus.off('pagesinit', syncBackground)
+      eventBus.off('pagesinit', handlePagesInit)
       eventBus.off('pagerendered', syncBackground)
+      eventBus.off('pagechanging', handlePageChanging)
+      eventBus.off('scalechanging', handleScaleChanging)
       container.removeEventListener('wheel', handleWheelZoom)
       container.removeEventListener('keydown', handleKeyboardZoom)
       container.removeEventListener('pointerdown', focusContainer)
@@ -306,7 +408,7 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
         pdfViewerRef.current = null
       }
     }
-  }, [applyViewerBackground, background, documentProxy])
+  }, [applyViewerBackground, background, documentProxy, focusContainer])
 
   if (loading) {
     return (
@@ -322,12 +424,31 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
 
   if (!documentProxy) return null
 
+  const canUsePreviewControls = pageCount > 0
+  const zoomLabel = formatPdfZoom(zoom)
+
   return (
     <div
       ref={rootRef}
       data-testid="pdf-preview-panel"
       aria-label={fileName}
       className="relative h-full w-full overflow-hidden bg-background">
+      {canUsePreviewControls && (
+        <DocumentPreviewToolbar
+          currentPage={currentPage}
+          pageCount={pageCount}
+          zoomLabel={zoomLabel}
+          pageIndicatorTestId="pdf-preview-page-indicator"
+          zoomIndicatorTestId="pdf-preview-zoom-value"
+          canPreviousPage={currentPage > 1}
+          canNextPage={currentPage < pageCount}
+          onPreviousPage={() => jumpToPage(currentPage - 1)}
+          onNextPage={() => jumpToPage(currentPage + 1)}
+          onZoomOut={() => zoomBy('out')}
+          onZoomIn={() => zoomBy('in')}
+          onResetZoom={resetZoom}
+        />
+      )}
       <div
         ref={containerRef}
         data-testid="pdfjs-viewer-container"

@@ -1,16 +1,12 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
 import { renderAsync } from 'docx-preview'
 import type { TFunction } from 'i18next'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
-import ChevronLeft from 'lucide-react/dist/esm/icons/chevron-left'
-import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right'
-import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw'
-import ZoomIn from 'lucide-react/dist/esm/icons/zoom-in'
-import ZoomOut from 'lucide-react/dist/esm/icons/zoom-out'
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import DocumentPreviewToolbar from './DocumentPreviewToolbar'
 
 const logger = loggerService.withContext('WordPreviewPanel')
 const WORD_PREVIEW_DEFAULT_ZOOM = 1
@@ -214,77 +210,21 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey = 0 }: WordPreviewPan
   return (
     <div className="relative h-full w-full overflow-hidden bg-muted/30 text-neutral-950 dark:bg-neutral-100">
       {canUsePageControls && (
-        <div
-          className="absolute top-2 right-3 z-10 flex items-center gap-1 rounded-lg border border-border-subtle bg-popover p-1 text-popover-foreground shadow-md"
-          role="toolbar"
-          aria-label={t('agent.preview_pane.preview')}>
-          <Tooltip content={t('common.previous')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-foreground"
-              aria-label={t('common.previous')}
-              disabled={currentPage <= 1}
-              onClick={() => jumpToPage(currentPage - 1)}>
-              <ChevronLeft size={14} />
-            </Button>
-          </Tooltip>
-          <span
-            className="min-w-12 px-1 text-center text-muted-foreground text-xs tabular-nums"
-            data-testid="word-preview-page-indicator">
-            {currentPage} / {pageCount}
-          </span>
-          <Tooltip content={t('common.next')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-foreground"
-              aria-label={t('common.next')}
-              disabled={currentPage >= pageCount}
-              onClick={() => jumpToPage(currentPage + 1)}>
-              <ChevronRight size={14} />
-            </Button>
-          </Tooltip>
-          <span className="mx-1 h-4 w-px bg-border-subtle" />
-          <Tooltip content={t('preview.zoom_out')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-foreground"
-              aria-label={t('preview.zoom_out')}
-              disabled={zoom <= WORD_PREVIEW_MIN_ZOOM}
-              onClick={() => zoomBy(-WORD_PREVIEW_ZOOM_STEP)}>
-              <ZoomOut size={14} />
-            </Button>
-          </Tooltip>
-          <span className="min-w-10 px-1 text-center text-muted-foreground text-xs tabular-nums">{zoomLabel}</span>
-          <Tooltip content={t('preview.zoom_in')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-foreground"
-              aria-label={t('preview.zoom_in')}
-              disabled={zoom >= WORD_PREVIEW_MAX_ZOOM}
-              onClick={() => zoomBy(WORD_PREVIEW_ZOOM_STEP)}>
-              <ZoomIn size={14} />
-            </Button>
-          </Tooltip>
-          <Tooltip content={t('preview.reset')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-foreground"
-              aria-label={t('preview.reset')}
-              onClick={resetZoom}>
-              <RotateCcw size={14} />
-            </Button>
-          </Tooltip>
-        </div>
+        <DocumentPreviewToolbar
+          currentPage={currentPage}
+          pageCount={pageCount}
+          zoomLabel={zoomLabel}
+          pageIndicatorTestId="word-preview-page-indicator"
+          canPreviousPage={currentPage > 1}
+          canNextPage={currentPage < pageCount}
+          canZoomOut={zoom > WORD_PREVIEW_MIN_ZOOM}
+          canZoomIn={zoom < WORD_PREVIEW_MAX_ZOOM}
+          onPreviousPage={() => jumpToPage(currentPage - 1)}
+          onNextPage={() => jumpToPage(currentPage + 1)}
+          onZoomOut={() => zoomBy(-WORD_PREVIEW_ZOOM_STEP)}
+          onZoomIn={() => zoomBy(WORD_PREVIEW_ZOOM_STEP)}
+          onResetZoom={resetZoom}
+        />
       )}
 
       <div ref={scrollContainerRef} className="h-full w-full overflow-auto" onScroll={syncCurrentPageFromScroll}>
