@@ -187,6 +187,7 @@ const ChatComposerContextControls = ({
         multi={false}
         value={assistantId}
         onChange={onAssistantChange}
+        autoSelectOnCreate
         side={side}
         align="start"
         mountStrategy="lazy-keep"

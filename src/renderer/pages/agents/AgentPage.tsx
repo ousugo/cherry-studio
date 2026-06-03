@@ -443,12 +443,6 @@ const AgentPage = () => {
       if (!agentId || temporaryAgentConversation?.type !== 'agent') return
       if (agentId === temporaryAgentConversation.agentId || replacingTemporaryAgent) return
 
-      const agent = agents?.find((candidate) => candidate.id === agentId)
-      if (!agent) {
-        window.toast.error(t('agent.session.create.error.failed'))
-        return
-      }
-
       setReplacingTemporaryAgent(true)
       try {
         await replaceTemporaryConversation({
@@ -467,7 +461,6 @@ const AgentPage = () => {
       }
     },
     [
-      agents,
       replaceTemporaryConversation,
       replacingTemporaryAgent,
       setActiveSessionId,

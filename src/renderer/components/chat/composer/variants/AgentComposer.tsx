@@ -452,6 +452,7 @@ const AgentComposerContextControls = ({
       <AgentSelector
         value={agent?.id ?? null}
         onChange={onAgentChange}
+        autoSelectOnCreate
         side={side}
         align="start"
         mountStrategy="lazy-keep"
