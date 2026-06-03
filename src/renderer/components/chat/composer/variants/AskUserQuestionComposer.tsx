@@ -127,15 +127,15 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
     [selectedAnswers]
   )
 
-  const areAllAnswered = useCallback(
+  const hasAnyAnswer = useCallback(
     (answersByIndex: AnswersByIndex = selectedAnswers) =>
-      questions.length > 0 && questions.every((_, index) => hasAnswerAt(index, answersByIndex)),
+      questions.length > 0 && questions.some((_, index) => hasAnswerAt(index, answersByIndex)),
     [hasAnswerAt, questions, selectedAnswers]
   )
 
-  const allAnswered = useMemo(() => areAllAnswered(selectedAnswers), [areAllAnswered, selectedAnswers])
   const selectedForCurrent = selectedAnswers[currentIndex] ?? []
-  const customActionSubmitsAll = isLastQuestion && (allAnswered || !!currentCustomAnswerText)
+  const hasAnySelectedAnswer = useMemo(() => hasAnyAnswer(selectedAnswers), [hasAnyAnswer, selectedAnswers])
+  const customActionSubmitsAll = isLastQuestion && (hasAnySelectedAnswer || !!currentCustomAnswerText)
 
   const buildAnswers = useCallback(
     (answersByIndex: AnswersByIndex = selectedAnswers) => {
@@ -174,7 +174,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
   const submitAnswers = useCallback(
     async (answersByIndex: AnswersByIndex = selectedAnswers) => {
-      if (!areAllAnswered(answersByIndex) || isSubmitting) return
+      if (!hasAnyAnswer(answersByIndex) || isSubmitting) return
 
       await respond({
         match: request.match,
@@ -185,7 +185,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
         }
       })
     },
-    [areAllAnswered, buildAnswers, isSubmitting, request.input, request.match, respond, selectedAnswers]
+    [buildAnswers, hasAnyAnswer, isSubmitting, request.input, request.match, respond, selectedAnswers]
   )
 
   const handleDismiss = useCallback(async () => {
@@ -288,7 +288,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
               size="icon-sm"
               className="size-7 shadow-none"
               aria-label={isLastQuestion ? t('agent.askUserQuestion.submit') : t('agent.askUserQuestion.next')}
-              disabled={(isLastQuestion && !allAnswered) || isSubmitting}
+              disabled={(isLastQuestion && !hasAnySelectedAnswer) || isSubmitting}
               onClick={
                 isLastQuestion
                   ? () => void submitAnswers()

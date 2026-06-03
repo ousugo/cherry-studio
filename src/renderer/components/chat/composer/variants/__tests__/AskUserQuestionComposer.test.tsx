@@ -114,6 +114,28 @@ describe('AskUserQuestionComposer', () => {
     expect(onRespond).not.toHaveBeenCalled()
   })
 
+  it('submits the final selected option when earlier questions were skipped', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.click(screen.getByText('Skip'))
+    expect(screen.getByText('Add context')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Bunyan/ }))
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: makeRequest().match,
+      approved: true,
+      updatedInput: {
+        questions,
+        answers: {
+          'Add context': 'Bunyan'
+        }
+      }
+    })
+  })
+
   it('disables controls while the final response is submitting', async () => {
     const onRespond = vi.fn(() => new Promise<void>(() => undefined))
     render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
