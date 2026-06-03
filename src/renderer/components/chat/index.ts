@@ -22,12 +22,5 @@ export { default as ConversationShell, type ConversationShellProps } from './she
 export { default as ConversationStageCenter, type ConversationStageCenterProps } from './shell/ConversationStageCenter'
 export { OverlayHost, type OverlayHostProps } from './shell/OverlayHost'
 export { PageSidebar, type PageSidebarProps } from './shell/PageSidebar'
-export {
-  ARTIFACT_RIGHT_PANE_CACHE_KEY,
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  RightPaneHost,
-  type RightPaneHostProps
-} from './shell/RightPaneHost'
-export type { ChatPanePosition } from './shell/types'
+export type { ChatPanePosition } from './shell/paneLayout'
+export { RightPaneHost, type RightPaneHostProps } from './shell/RightPaneHost'

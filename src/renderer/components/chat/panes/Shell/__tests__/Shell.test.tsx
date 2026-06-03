@@ -1,7 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ComponentProps, CSSProperties, ReactNode } from 'react'
 import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { CHAT_CENTER_MIN_USABLE_WIDTH } from '../../../shell/paneLayout'
+
+const rightPaneHostMock = vi.hoisted(() => ({
+  notifyReservedSpaceUnavailableOnOpen: false
+}))
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
@@ -46,12 +52,39 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
   )
 }))
 
-vi.mock('@renderer/components/chat', () => ({
-  ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
-  RightPaneHost: ({ children }: { children: ReactNode }) => <div>{children}</div>
+vi.mock('../../../shell/RightPaneHost', () => ({
+  RightPaneHost: ({
+    children,
+    open,
+    reservedCenterWidth,
+    onReservedSpaceUnavailable,
+    style
+  }: {
+    children?: ReactNode
+    open?: boolean
+    reservedCenterWidth?: number
+    onReservedSpaceUnavailable?: () => void
+    style?: CSSProperties
+  }) => {
+    useEffect(() => {
+      if (open && rightPaneHostMock.notifyReservedSpaceUnavailableOnOpen) {
+        onReservedSpaceUnavailable?.()
+      }
+    }, [onReservedSpaceUnavailable, open])
+
+    return (
+      <section
+        data-testid="right-pane-host"
+        data-open={String(Boolean(open))}
+        data-reserved-center-width={String(reservedCenterWidth ?? '')}
+        style={style}>
+        <button type="button" onClick={onReservedSpaceUnavailable}>
+          reserved space unavailable
+        </button>
+        {open ? children : null}
+      </section>
+    )
+  }
 }))
 
 vi.mock('@renderer/components/Icons', () => ({
@@ -174,6 +207,7 @@ function triggerRightSidebarShortcut() {
 describe('Shell.Toggle', () => {
   beforeEach(() => {
     shortcutHandlers.clear()
+    rightPaneHostMock.notifyReservedSpaceUnavailableOnOpen = false
   })
 
   it('keeps the same toggle button while swapping icons across states', () => {
@@ -317,6 +351,70 @@ describe('Shell.Toggle', () => {
 
     expect(shortcutHandlers.has('topic.sidebar.toggle')).toBe(false)
     expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+  })
+})
+
+describe('Shell.Host', () => {
+  it('caps the docked right pane width so the conversation center keeps its minimum usable width', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" />
+        <Shell.Host>
+          <div>files pane</div>
+        </Shell.Host>
+      </Shell>
+    )
+
+    const toggle = screen.getByRole('button', { name: 'common.open_sidebar' })
+    expect(toggle).toBeEnabled()
+
+    fireEvent.click(toggle)
+
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute(
+      'data-reserved-center-width',
+      String(CHAT_CENTER_MIN_USABLE_WIDTH)
+    )
+  })
+
+  it('closes the docked pane when the reserved center space is unavailable', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" />
+        <Shell.Host>
+          <div>files pane</div>
+        </Shell.Host>
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'reserved space unavailable' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+  })
+
+  it('closes the docked pane when reserved center space is unavailable during the host mount effect', async () => {
+    rightPaneHostMock.notifyReservedSpaceUnavailableOnOpen = true
+
+    render(
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" />
+        <Shell.Host>
+          <div>files pane</div>
+        </Shell.Host>
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+    })
   })
 })
 

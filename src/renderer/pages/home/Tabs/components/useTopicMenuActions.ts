@@ -35,7 +35,6 @@ export interface TopicMenuActionOptions {
   onClearMessages: TopicMenuHandler
   onCopyImage?: TopicMenuHandler
   onDelete: TopicMenuHandler
-  onEditAssistant?: TopicMenuHandler
   onExportImage?: TopicMenuHandler
   onOpenInNewTab?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
@@ -53,7 +52,6 @@ export function createTopicActionContext({
   onClearMessages,
   onCopyImage,
   onDelete,
-  onEditAssistant,
   onExportImage,
   onOpenInNewTab,
   onPinTopic,
@@ -71,7 +69,6 @@ export function createTopicActionContext({
     onCopyMarkdown: copyTopicAsMarkdown,
     onCopyPlainText: copyTopicAsPlainText,
     onDelete,
-    onEditAssistant,
     onExportImage: onExportImage ?? ((topic) => void EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)),
     onExportJoplin: async (topic) => {
       const topicMessages = await getTopicMessages(topic.id)
@@ -178,7 +175,6 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onClearMessages,
     onCopyImage,
     onDelete,
-    onEditAssistant,
     onExportImage,
     onOpenInNewTab,
     onPinTopic,
@@ -197,7 +193,6 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onClearMessages,
         onCopyImage,
         onDelete,
-        onEditAssistant,
         onExportImage,
         onOpenInNewTab,
         onPinTopic,
@@ -214,7 +209,6 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onClearMessages,
       onCopyImage,
       onDelete,
-      onEditAssistant,
       onExportImage,
       onOpenInNewTab,
       onPinTopic,

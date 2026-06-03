@@ -44,7 +44,6 @@ export interface TopicActionContext {
   onCopyMarkdown: TopicMenuHandler
   onCopyPlainText: TopicMenuHandler
   onDelete: TopicMenuHandler
-  onEditAssistant?: TopicMenuHandler
   onExportImage: TopicMenuHandler
   onExportJoplin: TopicMenuHandler
   onExportMarkdown: TopicMenuHandler
@@ -85,12 +84,6 @@ topicActionRegistry.registerCommand({
 topicActionRegistry.registerCommand({
   id: 'topic.rename',
   run: ({ onStartRename, topic }) => onStartRename(topic)
-})
-
-topicActionRegistry.registerCommand({
-  id: 'topic.edit-assistant',
-  availability: ({ onEditAssistant, topic }) => ({ visible: !!onEditAssistant && !!topic.assistantId }),
-  run: ({ onEditAssistant, topic }) => onEditAssistant?.(topic)
 })
 
 topicActionRegistry.registerCommand({
@@ -202,15 +195,6 @@ topicActionRegistry.registerAction({
   order: 20,
   surface: 'menu',
   availability: ({ isRenaming }) => ({ enabled: !isRenaming })
-})
-
-topicActionRegistry.registerAction({
-  id: 'topic.edit-assistant',
-  commandId: 'topic.edit-assistant',
-  label: ({ t }) => t('assistants.edit.title'),
-  icon: () => <Edit3 size={14} />,
-  order: 25,
-  surface: 'menu'
 })
 
 topicActionRegistry.registerAction({

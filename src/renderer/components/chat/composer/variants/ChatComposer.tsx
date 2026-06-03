@@ -404,8 +404,11 @@ const ChatComposerInner = ({
   const selectAssistantMessage = t('button.select_assistant')
   const runtimeModel = assistant ? model : undefined
   const runtimeModelPending = isAssistantLoading || (!!assistant && isModelPending)
+  const selectedModelForMissingAssistantDefault =
+    assistant && !assistant.modelId ? mentionedModelSelectorValue[0] : undefined
   const missingAssistantMessage = !isAssistantLoading && !assistant ? selectAssistantMessage : undefined
-  const missingModelMessage = assistant && isModelMissing ? t('code.model_required') : undefined
+  const missingModelMessage =
+    assistant && isModelMissing && !selectedModelForMissingAssistantDefault ? t('code.model_required') : undefined
   const missingSelectedModelMessage =
     useMentionedModelSelector && mentionedModelSelectorValue.length === 0 ? t('code.model_required') : undefined
   mentionedModelsRef.current = mentionedModels
@@ -636,7 +639,7 @@ const ChatComposerInner = ({
       if (!assistant) return
 
       const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
-      setModel(nextModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
+      return setModel(nextModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
     },
     [assistant, setModel]
   )
@@ -789,7 +792,7 @@ const ChatComposerInner = ({
         return
       }
 
-      if (!runtimeModel) {
+      if (!runtimeModel && !selectedModelForMissingAssistantDefault) {
         window.toast?.error(t('code.model_required'))
         return
       }
@@ -808,6 +811,10 @@ const ChatComposerInner = ({
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
+      if (selectedModelForMissingAssistantDefault) {
+        await handleModelSelect(selectedModelForMissingAssistantDefault)
+      }
+
       clearCurrentDraft()
       await sendQueuedPayload(payload)
     },
@@ -815,10 +822,12 @@ const ChatComposerInner = ({
       assistant,
       buildQueuedPayload,
       clearCurrentDraft,
+      handleModelSelect,
       loading,
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
+      selectedModelForMissingAssistantDefault,
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,

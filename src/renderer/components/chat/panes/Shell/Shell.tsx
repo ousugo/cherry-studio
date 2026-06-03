@@ -18,8 +18,9 @@ import {
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  RightPaneHost
-} from '../../shell/RightPaneHost'
+  CHAT_CENTER_MIN_USABLE_WIDTH
+} from '../../shell/paneLayout'
+import { RightPaneHost } from '../../shell/RightPaneHost'
 
 // ── Generic tabbed side-pane shell ──────────────────────────────────────────
 // Knows only about open/maximized/inset/activeTab. Tabs and their content are
@@ -89,6 +90,7 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
       afterClose?.()
       return
     }
+    openRef.current = false
     if (afterClose) {
       closeCallbacksRef.current.push(afterClose)
     }
@@ -98,6 +100,7 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
   }, [])
   const openTab = useCallback((tab: string) => {
     setActiveTab(tab)
+    openRef.current = true
     setOpen((currentOpen) => {
       if (!currentOpen) setPdfLayoutPending(true)
       return true
@@ -151,6 +154,8 @@ function ShellHost({ children }: { children: ReactNode }) {
       defaultWidth={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
       maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
       cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}
+      reservedCenterWidth={CHAT_CENTER_MIN_USABLE_WIDTH}
+      onReservedSpaceUnavailable={actions.close}
       onOpenAnimationComplete={actions.refreshPdfLayout}
       onCloseAnimationComplete={actions.finishClose}>
       {children}

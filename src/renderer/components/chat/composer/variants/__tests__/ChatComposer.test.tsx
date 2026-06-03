@@ -470,6 +470,7 @@ describe('ChatComposer', () => {
       id: 'assistant-1',
       name: 'Assistant 1',
       emoji: 'A',
+      modelId: model.id,
       settings: { enableWebSearch: true },
       knowledgeBaseIds: []
     }
@@ -616,6 +617,33 @@ describe('ChatComposer', () => {
     expect(mocks.setModel).not.toHaveBeenCalled()
   })
 
+  it('sets the assistant model from the first mentioned model before sending when multi-selecting without a configured model', async () => {
+    mocks.assistant = {
+      ...mocks.assistant,
+      modelId: null
+    }
+    mocks.model = undefined
+    const onSend = vi.fn()
+
+    render(<ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />)
+
+    fireEvent.click(screen.getByText('toggle model multi select'))
+    fireEvent.click(screen.getByText('select models 1 and 2'))
+
+    expect(mocks.setMentionedModels).toHaveBeenCalledWith([model, modelB])
+    expect(mocks.setModel).not.toHaveBeenCalled()
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(mocks.setModel).toHaveBeenCalledWith(model, { enableWebSearch: false })
+    expect(onSend).toHaveBeenCalledWith(
+      'hello',
+      expect.objectContaining({
+        mentionedModels: [model.id, modelB.id]
+      })
+    )
+  })
+
   it('suppresses the selected-model trigger popover while the mentioned-model selector is open', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
 
@@ -712,6 +740,10 @@ describe('ChatComposer', () => {
   })
 
   it('shows model selection instead of a fallback model when the assistant has no configured model', () => {
+    mocks.assistant = {
+      ...mocks.assistant,
+      modelId: null
+    }
     mocks.model = undefined
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
@@ -764,6 +796,10 @@ describe('ChatComposer', () => {
   })
 
   it('blocks send with a model-required toast when the assistant has no configured model', async () => {
+    mocks.assistant = {
+      ...mocks.assistant,
+      modelId: null
+    }
     mocks.model = undefined
     const onSend = vi.fn()
 

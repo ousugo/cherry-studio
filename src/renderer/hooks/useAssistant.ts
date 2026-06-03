@@ -254,7 +254,7 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
       extraSettings || reasoning || webSearch
         ? { ...currentAssistant.settings, ...extraSettings, ...reasoning, ...webSearch }
         : undefined
-    void patchAssistantRef.current(
+    return patchAssistantRef.current(
       currentId,
       settingsPatch ? { modelId: next.id, settings: settingsPatch } : { modelId: next.id }
     )

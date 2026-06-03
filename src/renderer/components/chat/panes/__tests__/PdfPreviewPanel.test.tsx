@@ -24,14 +24,15 @@ const mocks = vi.hoisted(() => ({
   pdfViewerIncreaseScale: vi.fn(),
   pdfViewerUpdateScale: vi.fn(),
   nextFirstPagePromises: [] as Array<Promise<void>>,
+  pdfViewerPageNumbers: [] as number[],
   pdfViewerInstances: [] as Array<{
     cleanup: ReturnType<typeof vi.fn>
-    decreaseScale: ReturnType<typeof vi.fn>
+    decreaseScale: (options?: unknown) => void
     firstPagePromise: Promise<void>
-    increaseScale: ReturnType<typeof vi.fn>
+    increaseScale: (options?: unknown) => void
     pageColors: unknown
     setDocument: ReturnType<typeof vi.fn>
-    updateScale: ReturnType<typeof vi.fn>
+    updateScale: (options?: unknown) => void
   }>,
   pdfViewerSetDocument: vi.fn(),
   pdfViewerScaleValues: [] as string[]
@@ -51,9 +52,26 @@ vi.mock('pdfjs-dist/build/pdf.worker.mjs?url', () => ({
 vi.mock('pdfjs-dist/web/pdf_viewer.css', () => ({}))
 
 vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
+  type EventBusListener = (event?: unknown) => void
+
   class MockEventBus {
-    on = mocks.eventBusOn
-    off = mocks.eventBusOff
+    private listeners = new Map<string, Set<EventBusListener>>()
+
+    on(eventName: string, listener: EventBusListener) {
+      mocks.eventBusOn(eventName, listener)
+      const eventListeners = this.listeners.get(eventName) ?? new Set<EventBusListener>()
+      eventListeners.add(listener)
+      this.listeners.set(eventName, eventListeners)
+    }
+
+    off(eventName: string, listener: EventBusListener) {
+      mocks.eventBusOff(eventName, listener)
+      this.listeners.get(eventName)?.delete(listener)
+    }
+
+    dispatch(eventName: string, event?: unknown) {
+      this.listeners.get(eventName)?.forEach((listener) => listener(event))
+    }
   }
 
   class MockPDFLinkService {
@@ -63,27 +81,70 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
 
   class MockPDFViewer {
     cleanup = mocks.pdfViewerCleanup
-    decreaseScale = mocks.pdfViewerDecreaseScale
+    private currentPageNumberValue = 1
+    private scale = 1
+    private eventBus: MockEventBus
     firstPagePromise: Promise<void>
-    increaseScale = mocks.pdfViewerIncreaseScale
     pageColors: unknown
     setDocument = mocks.pdfViewerSetDocument
-    updateScale = mocks.pdfViewerUpdateScale
 
     constructor(options: unknown) {
-      const { container, pageColors } = options as { container: HTMLDivElement; pageColors?: unknown }
+      const { container, eventBus, pageColors } = options as {
+        container: HTMLDivElement
+        eventBus: MockEventBus
+        pageColors?: unknown
+      }
       if (container.isConnected && getComputedStyle(container).position !== 'absolute') {
         throw new Error('The `container` must be absolutely positioned.')
       }
 
+      this.eventBus = eventBus
       this.pageColors = pageColors
       this.firstPagePromise = mocks.nextFirstPagePromises.shift() ?? Promise.resolve()
       mocks.pdfViewerConstructor(options)
       mocks.pdfViewerInstances.push(this)
     }
 
+    get currentPageNumber() {
+      return this.currentPageNumberValue
+    }
+
+    set currentPageNumber(value: number) {
+      this.currentPageNumberValue = value
+      mocks.pdfViewerPageNumbers.push(value)
+      this.eventBus.dispatch('pagechanging', { pageNumber: value })
+    }
+
+    get currentScale() {
+      return this.scale
+    }
+
     set currentScaleValue(value: string) {
       mocks.pdfViewerScaleValues.push(value)
+      const numericScale = Number(value)
+      this.scale = Number.isFinite(numericScale) ? numericScale : 1
+      this.eventBus.dispatch('scalechanging', { scale: this.scale })
+    }
+
+    increaseScale = (options?: unknown) => {
+      mocks.pdfViewerIncreaseScale(options)
+      this.scale = Number((this.scale + 0.1).toFixed(2))
+      this.eventBus.dispatch('scalechanging', { scale: this.scale })
+    }
+
+    decreaseScale = (options?: unknown) => {
+      mocks.pdfViewerDecreaseScale(options)
+      this.scale = Number((this.scale - 0.1).toFixed(2))
+      this.eventBus.dispatch('scalechanging', { scale: this.scale })
+    }
+
+    updateScale = (options?: unknown) => {
+      mocks.pdfViewerUpdateScale(options)
+      const scaleFactor = (options as { scaleFactor?: number } | undefined)?.scaleFactor
+      if (typeof scaleFactor === 'number') {
+        this.scale = Number((this.scale * scaleFactor).toFixed(2))
+        this.eventBus.dispatch('scalechanging', { scale: this.scale })
+      }
     }
   }
 
@@ -144,8 +205,10 @@ describe('PdfPreviewPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.pdfViewerInstances.length = 0
+    mocks.pdfViewerPageNumbers.length = 0
     mocks.pdfViewerScaleValues.length = 0
     mocks.nextFirstPagePromises.length = 0
+    mocks.pdfDocument.numPages = 1
     document.documentElement.style.setProperty('--color-background', 'rgb(10, 11, 12)')
 
     Object.defineProperty(window, 'api', {
@@ -229,14 +292,33 @@ describe('PdfPreviewPanel', () => {
     getComputedStyleSpy.mockRestore()
   })
 
-  it('does not render a custom zoom toolbar on top of pdf.js viewer', async () => {
+  it('renders page controls and zoom toolbar for the pdf.js viewer', async () => {
+    mocks.pdfDocument.numPages = 3
     await renderPdfPreviewPanel({ filePath: '/tmp/workspace/paper.pdf', fileName: 'paper.pdf', refreshKey: 0 })
 
     await waitFor(() => expect(mocks.pdfViewerSetDocument).toHaveBeenCalled())
 
-    expect(screen.queryByTestId('pdf-preview-zoom-value')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'preview.zoom_in' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'preview.zoom_out' })).toBeNull()
+    await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3'))
+    expect(screen.getByTestId('pdf-preview-zoom-value')).toHaveTextContent('100%')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
+    expect(mocks.pdfViewerPageNumbers).toContain(2)
+    expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('2 / 3')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.previous' }))
+    expect(mocks.pdfViewerPageNumbers).toContain(1)
+    expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('1 / 3')
+
+    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    expect(mocks.pdfViewerIncreaseScale).toHaveBeenCalledWith(expect.objectContaining({ drawingDelay: 400 }))
+    expect(screen.getByTestId('pdf-preview-zoom-value')).toHaveTextContent('110%')
+
+    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_out' }))
+    expect(mocks.pdfViewerDecreaseScale).toHaveBeenCalledWith(expect.objectContaining({ drawingDelay: 400 }))
+    expect(screen.getByTestId('pdf-preview-zoom-value')).toHaveTextContent('100%')
+
+    fireEvent.click(screen.getByRole('button', { name: 'preview.reset' }))
+    expect(mocks.pdfViewerScaleValues).toContain('page-width')
   })
 
   it('coalesces pinch wheel zooms into one small rAF scale update while keeping keyboard zooms immediate', async () => {
@@ -445,6 +527,8 @@ describe('PdfPreviewPanel', () => {
 
     expect(mocks.eventBusOff).toHaveBeenCalledWith('pagesinit', expect.any(Function))
     expect(mocks.eventBusOff).toHaveBeenCalledWith('pagerendered', expect.any(Function))
+    expect(mocks.eventBusOff).toHaveBeenCalledWith('pagechanging', expect.any(Function))
+    expect(mocks.eventBusOff).toHaveBeenCalledWith('scalechanging', expect.any(Function))
     expect(removeEventListenerSpy).toHaveBeenCalledWith('wheel', expect.any(Function))
     expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function))
     expect(removeEventListenerSpy).toHaveBeenCalledWith('pointerdown', expect.any(Function))

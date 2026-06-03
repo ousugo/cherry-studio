@@ -1048,7 +1048,6 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
           onAutoRename={handleAutoRename}
           onClearMessages={handleClearMessages}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
-          onEditAssistant={openAssistantEditor}
           onOpenInNewTab={tabs ? openTopicInNewTab : undefined}
           onPinTopic={handlePinTopic}
           onRequestTopicImageAction={handleTopicImageAction}
@@ -1154,7 +1153,6 @@ interface TopicListBodyProps {
   onAutoRename: (topic: Topic) => Promise<void>
   onClearMessages: (topic: Topic) => void
   onDeleteFromMenu: (topic: Topic) => Promise<void>
-  onEditAssistant: (assistantId: string) => void
   onOpenInNewTab?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
   onRequestTopicImageAction: (type: TopicImageActionType, topic: Topic) => void
@@ -1197,7 +1195,6 @@ function TopicRow({
   onAutoRename,
   onClearMessages,
   onDeleteFromMenu,
-  onEditAssistant,
   onOpenInNewTab,
   onPinTopic,
   onRequestTopicImageAction,
@@ -1241,11 +1238,6 @@ function TopicRow({
     onClearMessages,
     onCopyImage: (topic) => onRequestTopicImageAction('copy', topic),
     onDelete: onDeleteFromMenu,
-    onEditAssistant: (topic) => {
-      if (topic.assistantId) {
-        onEditAssistant(topic.assistantId)
-      }
-    },
     onExportImage: (topic) => onRequestTopicImageAction('export', topic),
     onOpenInNewTab,
     onPinTopic,

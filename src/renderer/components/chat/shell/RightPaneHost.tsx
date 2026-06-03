@@ -4,14 +4,16 @@ import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { cn } from '@renderer/utils'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
-import { CHAT_SHELL_PANE_WIDTH, CHAT_SHELL_TRANSITION } from './types'
-
-export const ARTIFACT_RIGHT_PANE_MIN_WIDTH = 360
-export const ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH = 460
-export const ARTIFACT_RIGHT_PANE_MAX_WIDTH = 720
-export const ARTIFACT_RIGHT_PANE_CACHE_KEY = 'ui.chat.artifact_pane.width'
+import {
+  ARTIFACT_RIGHT_PANE_CACHE_KEY,
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
+  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
+  CHAT_SHELL_PANE_WIDTH,
+  CHAT_SHELL_TRANSITION
+} from './paneLayout'
 
 type RightPaneResizeCacheKey = typeof ARTIFACT_RIGHT_PANE_CACHE_KEY
 
@@ -26,6 +28,8 @@ export interface RightPaneHostProps {
   defaultWidth?: number
   maxWidth?: number
   cacheKey?: RightPaneResizeCacheKey
+  reservedCenterWidth?: number
+  onReservedSpaceUnavailable?: () => void
   onOpenAnimationComplete?: () => void
   onCloseAnimationComplete?: () => void
 }
@@ -86,6 +90,8 @@ export function RightPaneHost({
   defaultWidth,
   maxWidth = ARTIFACT_RIGHT_PANE_MAX_WIDTH,
   cacheKey = ARTIFACT_RIGHT_PANE_CACHE_KEY,
+  reservedCenterWidth,
+  onReservedSpaceUnavailable,
   onOpenAnimationComplete,
   onCloseAnimationComplete
 }: RightPaneHostProps) {
@@ -97,6 +103,33 @@ export function RightPaneHost({
     maxWidth
   })
   const resolvedWidth = resizable ? paneWidth : width
+  const constrainedStyle =
+    reservedCenterWidth === undefined
+      ? style
+      : { ...style, maxWidth: `max(0px, calc(100% - ${reservedCenterWidth}px))` }
+  const hasVisiblePane = Boolean(open && children)
+
+  useEffect(() => {
+    if (!hasVisiblePane || reservedCenterWidth === undefined || !onReservedSpaceUnavailable) return
+    if (typeof ResizeObserver === 'undefined') return
+
+    const container = paneRef.current?.parentElement
+    if (!container) return
+
+    // The pane minimum and reserved center width are independent constraints; the container must fit both.
+    const minContainerWidth = minWidth + reservedCenterWidth
+    const notifyIfUnavailable = (containerWidth: number) => {
+      if (containerWidth > 0 && containerWidth < minContainerWidth) onReservedSpaceUnavailable()
+    }
+
+    notifyIfUnavailable(container.getBoundingClientRect().width)
+
+    const observer = new ResizeObserver(([entry]) => {
+      notifyIfUnavailable(entry.contentRect.width)
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [hasVisiblePane, minWidth, onReservedSpaceUnavailable, reservedCenterWidth])
 
   return (
     <AnimatePresence initial={false} onExitComplete={onCloseAnimationComplete}>
@@ -118,7 +151,7 @@ export function RightPaneHost({
             resizable && 'relative bg-card [border-left:0.5px_solid_var(--color-border)]',
             className
           )}
-          style={style}>
+          style={constrainedStyle}>
           <ErrorBoundary>{children}</ErrorBoundary>
           {resizable && (
             <div

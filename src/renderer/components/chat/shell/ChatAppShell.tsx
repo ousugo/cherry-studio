@@ -8,14 +8,17 @@ import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { cn } from '@renderer/utils'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
+import {
+  CHAT_CENTER_MIN_USABLE_WIDTH,
+  CHAT_SHELL_TRANSITION,
+  type ChatPanePosition,
+  RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH
+} from './paneLayout'
 import { RightPaneHost } from './RightPaneHost'
-import { CHAT_SHELL_TRANSITION, type ChatPanePosition } from './types'
-
-const RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH = 540
 
 interface ChatAppShellBaseProps {
   topBar?: ReactNode
@@ -77,6 +80,7 @@ export function ChatAppShell({
   const leftPaneOpenRef = useRef(leftPaneOpen)
   const onPaneCollapseRef = useRef(onPaneCollapse)
   const previousShellWidthRef = useRef<number | null>(null)
+  const previousCenterWidthRef = useRef<number | null>(null)
 
   // Immersive navbar owner: the top bar floats over the message list when the list is narrow
   // (centered) and the center is wide enough for the navbar's edge clusters. Decided from a single
@@ -108,11 +112,24 @@ export function ChatAppShell({
     onPaneCollapseRef.current = onPaneCollapse
   }, [leftPaneOpen, onPaneCollapse])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const center = centerInnerRef.current
     if (!center || typeof ResizeObserver === 'undefined') return
+    const initialCenterWidth = center.getBoundingClientRect().width
+    previousCenterWidthRef.current = initialCenterWidth > 0 ? initialCenterWidth : CHAT_CENTER_MIN_USABLE_WIDTH
+    setCenterWidth(initialCenterWidth)
     const observer = new ResizeObserver(([entry]) => {
-      setCenterWidth(entry.contentRect.width)
+      const previousCenterWidth = previousCenterWidthRef.current
+      const nextCenterWidth = entry.contentRect.width
+      previousCenterWidthRef.current = nextCenterWidth
+      setCenterWidth(nextCenterWidth)
+
+      if (previousCenterWidth === null) return
+      if (!leftPaneOpenRef.current) return
+      if (previousCenterWidth < CHAT_CENTER_MIN_USABLE_WIDTH) return
+      if (nextCenterWidth >= CHAT_CENTER_MIN_USABLE_WIDTH) return
+
+      onPaneCollapseRef.current?.()
     })
     observer.observe(center)
     return () => observer.disconnect()
@@ -142,6 +159,7 @@ export function ChatAppShell({
   return (
     <div
       ref={rootRef}
+      data-chat-app-shell-root
       id={rootId}
       className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
@@ -152,6 +170,7 @@ export function ChatAppShell({
         <div className="relative flex min-w-0 flex-1 flex-col">
           <motion.div
             ref={assignCenterRef}
+            data-chat-app-shell-center
             id={centerId}
             layout
             transition={CHAT_SHELL_TRANSITION}

@@ -6,7 +6,6 @@ import { ExternalLink, PinIcon, PinOffIcon } from 'lucide-react'
 
 export interface SessionActionContext {
   onDelete: () => void
-  onEditAgent?: () => void
   onOpenInNewTab?: () => void
   onTogglePin?: () => void
   pinned?: boolean
@@ -20,12 +19,6 @@ const sessionActionRegistry = createActionRegistry<SessionActionContext>()
 sessionActionRegistry.registerCommand({
   id: 'session.rename',
   run: ({ sessionName, startEdit }) => startEdit(sessionName)
-})
-
-sessionActionRegistry.registerCommand({
-  id: 'session.edit-agent',
-  availability: ({ onEditAgent }) => ({ visible: !!onEditAgent, enabled: !!onEditAgent }),
-  run: ({ onEditAgent }) => onEditAgent?.()
 })
 
 sessionActionRegistry.registerCommand({
@@ -51,15 +44,6 @@ sessionActionRegistry.registerAction({
   label: ({ t }) => t('common.rename'),
   icon: () => <EditIcon size={14} />,
   order: 10,
-  surface: 'menu'
-})
-
-sessionActionRegistry.registerAction({
-  id: 'session.edit-agent',
-  commandId: 'session.edit-agent',
-  label: ({ t }) => t('agent.edit.title'),
-  icon: () => <EditIcon size={14} />,
-  order: 15,
   surface: 'menu'
 })
 

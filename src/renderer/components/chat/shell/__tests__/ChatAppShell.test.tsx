@@ -5,12 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChatAppShell } from '../ChatAppShell'
 import {
+  CHAT_CENTER_MIN_USABLE_WIDTH,
+  RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD,
   RESOURCE_LIST_PANE_DEFAULT_WIDTH,
   RESOURCE_LIST_PANE_MAX_WIDTH,
   RESOURCE_LIST_PANE_MIN_WIDTH
-} from '../useResourceListPaneResize'
+} from '../paneLayout'
 
-const RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD = 200
 const originalResizeObserver = globalThis.ResizeObserver
 
 interface ResizeObserverMockInstance {
@@ -367,6 +368,18 @@ describe('ChatAppShell', () => {
     expect(onPaneCollapse).toHaveBeenCalledTimes(1)
   })
 
+  it('auto-collapses the open left pane when the center drops below its minimum usable width', async () => {
+    const onPaneCollapse = vi.fn()
+
+    render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
+
+    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 1)
+
+    await waitFor(() => {
+      expect(onPaneCollapse).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('does not collapse from the initial shell width observation even when already below the 540px threshold', () => {
     const onPaneCollapse = vi.fn()
 
@@ -385,8 +398,10 @@ describe('ChatAppShell', () => {
     )
 
     notifyObservedShellWidth(539)
+    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 1)
     rerender(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
     notifyObservedShellWidth(538)
+    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 2)
 
     expect(onPaneCollapse).not.toHaveBeenCalled()
   })
@@ -437,16 +452,7 @@ describe('ChatAppShell', () => {
 })
 
 function notifyObservedShellWidth(width: number) {
-  const instance = resizeObserverMockInstances.at(-1)
-  if (!instance) {
-    throw new Error('Expected ChatAppShell to create a ResizeObserver')
-  }
-
-  const target = instance.observe.mock.calls.at(-1)?.[0] as Element | undefined
-  if (!target) {
-    throw new Error('Expected ChatAppShell root to be observed')
-  }
-
+  const { instance, target } = findResizeObserverTarget('[data-chat-app-shell-root]')
   instance.callback(
     [
       {
@@ -456,4 +462,33 @@ function notifyObservedShellWidth(width: number) {
     ],
     {} as ResizeObserver
   )
+}
+
+function notifyObservedCenterWidth(width: number) {
+  const { instance, target } = findResizeObserverTarget('[data-chat-app-shell-center]')
+  instance.callback(
+    [
+      {
+        target,
+        contentRect: new DOMRect(0, 0, width, 0)
+      } as ResizeObserverEntry
+    ],
+    {} as ResizeObserver
+  )
+}
+
+function findResizeObserverTarget(selector: string) {
+  const target = document.querySelector(selector)
+  if (!target) {
+    throw new Error(`Expected ${selector} to exist`)
+  }
+
+  const instance = resizeObserverMockInstances.find((candidate) =>
+    candidate.observe.mock.calls.some(([observedTarget]) => observedTarget === target)
+  )
+  if (!instance) {
+    throw new Error(`Expected ${selector} to be observed`)
+  }
+
+  return { instance, target }
 }

@@ -8,7 +8,7 @@ import type { CSSProperties, ReactNode, Ref } from 'react'
 import { ChatMaximizedOverlayInsetProvider } from '../layout/ChatViewportInsetContext'
 import { useOptionalShellState } from '../panes/Shell'
 import { ChatAppShell } from './ChatAppShell'
-import type { ChatPanePosition } from './types'
+import type { ChatPanePosition } from './paneLayout'
 
 export interface ConversationShellProps {
   id?: string
