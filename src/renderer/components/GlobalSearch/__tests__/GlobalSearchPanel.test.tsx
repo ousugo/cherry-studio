@@ -28,14 +28,23 @@ const mocks = vi.hoisted(() => ({
   recentItems: [] as GlobalSearchRecentEntry[],
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
+  tabs: [] as Tab[],
   preferenceValues: {
     'app.user.name': 'JD',
     'ui.sidebar.icons.visible': ['assistants', 'agents', 'translate'] as SidebarIcon[],
     'ui.sidebar.icons.invisible': ['knowledge'] as SidebarIcon[]
   } as Record<string, unknown>,
+  persistCacheValues: {
+    'ui.chat.last_used_topic_id': undefined,
+    'ui.agent.last_used_session_id': undefined
+  } as Record<string, unknown>,
   sortableOnSortEnd: undefined as undefined | ((event: { oldIndex: number; newIndex: number }) => void),
   setPreferences: vi.fn(),
+  setActiveTab: vi.fn(),
   cacheSet: vi.fn(),
+  setOpenedKeepAliveMiniApps: vi.fn(),
+  updateMiniAppStatus: vi.fn(),
+  removeCustomMiniApp: vi.fn(),
   dataApiGet: vi.fn(),
   dataApiPut: vi.fn(),
   invalidateCache: vi.fn(),
@@ -173,6 +182,10 @@ vi.mock('@renderer/components/Icons/MiniAppIcon', () => ({
   default: ({ app }: any) => <span aria-hidden="true">{app.logo ?? 'mini-app-icon'}</span>
 }))
 
+vi.mock('@renderer/commands', () => ({
+  CommandContextMenu: ({ children }: any) => children
+}))
+
 vi.mock('@renderer/components/VirtualList', () => ({
   GroupedVirtualList: ({ groups, renderGroupHeader, renderItem, renderGroupFooter }: any) => (
     <div role="listbox">
@@ -193,7 +206,10 @@ vi.mock('@renderer/components/VirtualList', () => ({
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => [mocks.recentItems, vi.fn()]
+  usePersistCache: (key: string) => [
+    key === 'ui.global_search.recent_items' ? mocks.recentItems : mocks.persistCacheValues[key],
+    vi.fn()
+  ]
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -214,7 +230,13 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTabs', () => ({
-  useTabs: () => ({ activeTab: mocks.activeTab, openTab: mocks.openTab, updateTab: mocks.updateTab })
+  useTabs: () => ({
+    activeTab: mocks.activeTab,
+    openTab: mocks.openTab,
+    setActiveTab: mocks.setActiveTab,
+    tabs: mocks.tabs,
+    updateTab: mocks.updateTab
+  })
 }))
 
 // Instance navigation goes through the conversation-nav boundary; route it to the same
@@ -225,8 +247,12 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
     const instanceAppId = appId === 'agents' ? 'agents' : 'assistants'
     return {
       focusExistingTab: () => false,
-      openConversationTab: (key: string) =>
-        mocks.openTab(routePrefix, { forceNew: true, metadata: { instanceAppId, instanceKey: key } })
+      openConversationTab: (key: string, title?: string) =>
+        mocks.openTab(routePrefix, {
+          forceNew: true,
+          ...(title ? { title } : {}),
+          metadata: { instanceAppId, instanceKey: key }
+        })
     }
   }
 }))
@@ -237,8 +263,14 @@ vi.mock('@renderer/hooks/useSettings', () => ({
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
+    miniApps: [...mocks.pinnedMiniApps, ...mocks.openedMiniApps],
     openedKeepAliveMiniApps: mocks.openedMiniApps,
-    pinned: mocks.pinnedMiniApps
+    pinned: mocks.pinnedMiniApps,
+    currentMiniAppId: '',
+    miniAppShow: false,
+    setOpenedKeepAliveMiniApps: mocks.setOpenedKeepAliveMiniApps,
+    updateAppStatus: mocks.updateMiniAppStatus,
+    removeCustomMiniApp: mocks.removeCustomMiniApp
   })
 }))
 
@@ -423,6 +455,7 @@ describe('GlobalSearchPanel', () => {
     ]
     mocks.pinnedMiniApps = []
     mocks.openedMiniApps = []
+    mocks.tabs = []
     mocks.queryResult = undefined
     mocks.messageQueryResult = undefined
     mocks.sessionMessageQueryResult = undefined
@@ -430,6 +463,10 @@ describe('GlobalSearchPanel', () => {
       'app.user.name': 'JD',
       'ui.sidebar.icons.visible': ['assistants', 'agents', 'translate'],
       'ui.sidebar.icons.invisible': ['knowledge']
+    }
+    mocks.persistCacheValues = {
+      'ui.chat.last_used_topic_id': undefined,
+      'ui.agent.last_used_session_id': undefined
     }
     mocks.sortableOnSortEnd = undefined
     mocks.activeTab = {
@@ -1615,7 +1652,7 @@ describe('GlobalSearchPanel', () => {
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('opens an app route from the default panel', async () => {
+  it('opens an app route from the default panel without forcing a duplicate tab', async () => {
     const user = userEvent.setup()
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
@@ -1623,8 +1660,139 @@ describe('GlobalSearchPanel', () => {
     await user.click(screen.getByText('Knowledge'))
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/knowledge', {
-      forceNew: true,
       title: 'Knowledge'
+    })
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('focuses an existing singleton app tab from the default panel', async () => {
+    const user = userEvent.setup()
+    mocks.tabs = [{ id: 'knowledge-tab', type: 'route', url: '/app/knowledge', title: 'Knowledge' } as Tab]
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByText('Knowledge'))
+
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('knowledge-tab')
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens another singleton app route without forcing a duplicate tab', async () => {
+    const user = userEvent.setup()
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByText('Translate'))
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/translate', {
+      title: 'Translate'
+    })
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens a new assistant chat tab from the default panel', async () => {
+    const user = userEvent.setup()
+    mocks.persistCacheValues['ui.chat.last_used_topic_id'] = 'topic-1'
+    mocks.tabs = [
+      {
+        id: 'chat-topic',
+        type: 'route',
+        url: '/app/chat?topicId=topic-1',
+        title: 'Existing chat',
+        metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1' }
+      } as Tab
+    ]
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByText('Chat'))
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/chat', {
+      forceNew: true,
+      title: 'Chat'
+    })
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens a new agent chat tab from the default panel', async () => {
+    const user = userEvent.setup()
+    mocks.persistCacheValues['ui.agent.last_used_session_id'] = 'session-1'
+    mocks.tabs = [
+      {
+        id: 'agent-session',
+        type: 'route',
+        url: '/app/agents?sessionId=session-1',
+        title: 'Existing agent',
+        metadata: { instanceAppId: 'agents', instanceKey: 'session-1' }
+      } as Tab
+    ]
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByText('Agent'))
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', {
+      forceNew: true,
+      title: 'Agent'
+    })
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the mini app launchpad even when a concrete mini app tab exists', async () => {
+    const user = userEvent.setup()
+    mocks.tabs = [{ id: 'mini-detail', type: 'route', url: '/app/mini-app/calculator', title: 'Calculator' } as Tab]
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByText('Mini Apps'))
+
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app', {
+      title: 'Mini Apps'
+    })
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('focuses the exact mini app launchpad tab when it already exists', async () => {
+    const user = userEvent.setup()
+    mocks.tabs = [
+      { id: 'mini-detail', type: 'route', url: '/app/mini-app/calculator', title: 'Calculator' } as Tab,
+      { id: 'mini-launchpad', type: 'route', url: '/app/mini-app', title: 'Mini Apps' } as Tab
+    ]
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByText('Mini Apps'))
+
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('mini-launchpad')
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps concrete mini app cards on their app-id route', async () => {
+    const user = userEvent.setup()
+    mocks.pinnedMiniApps = [
+      {
+        appId: 'calculator',
+        name: 'Calculator',
+        logo: 'calc-logo',
+        url: 'https://example.com',
+        presetMiniAppId: 'calculator',
+        status: 'pinned',
+        orderKey: ''
+      }
+    ]
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    await user.click(screen.getByText('Calculator'))
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app/calculator', {
+      title: 'Calculator',
+      icon: 'calc-logo'
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })
