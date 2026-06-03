@@ -891,7 +891,7 @@ const DeleteActionButton = <TContext,>({ action, label, onClick }: DeleteActionB
     <Button
       type="button"
       aria-label={label}
-      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+      className="text-foreground/70 hover:bg-accent/70 hover:text-foreground"
       data-testid="history-delete-button"
       disabled={disabled}
       size="icon-sm"
@@ -920,7 +920,7 @@ const PinActionButton = ({ isPinned, pinLabel, unpinLabel, onClick }: PinActionB
     <Button
       type="button"
       aria-label={label}
-      className="text-foreground-muted hover:bg-accent/70 hover:text-foreground"
+      className="text-foreground/70 hover:bg-accent/70 hover:text-foreground"
       data-testid="history-pin-button"
       size="icon-sm"
       title={label}

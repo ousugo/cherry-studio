@@ -27,6 +27,7 @@ const hookMocks = vi.hoisted(() => ({
   startTopicRenaming: vi.fn(),
   togglePin: vi.fn(),
   updateTopic: vi.fn(),
+  openConversationTab: vi.fn(),
   useAgents: vi.fn(),
   useTopics: vi.fn(),
   useAssistants: vi.fn(),
@@ -200,6 +201,13 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
+}))
+
+vi.mock('@renderer/hooks/useConversationNavigation', () => ({
+  useConversationNavigation: () => ({
+    focusExistingTab: vi.fn(),
+    openConversationTab: hookMocks.openConversationTab
+  })
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({
@@ -423,6 +431,8 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useAgents.mockReset()
     hookMocks.useTopics.mockReset()
     hookMocks.useAssistants.mockReset()
+    hookMocks.openConversationTab.mockReset()
+    hookMocks.openConversationTab.mockReturnValue('new-history-topic-tab')
     hookMocks.useCache.mockReset()
     hookMocks.useCache.mockReturnValue([[], vi.fn()])
     hookMocks.useMultiplePreferences.mockReset()
@@ -500,8 +510,9 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha topic' }))
 
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha', name: 'Alpha topic' }))
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(hookMocks.openConversationTab).toHaveBeenCalledWith('topic-alpha', 'Alpha topic', { forceNew: true })
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
     expect(hookMocks.useSessions).not.toHaveBeenCalled()
     expect(hookMocks.useAgents).not.toHaveBeenCalled()
   })

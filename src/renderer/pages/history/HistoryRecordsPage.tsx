@@ -9,6 +9,7 @@ import {
 } from '@renderer/hooks/agents/useAgentSessionStreamStatuses'
 import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, getTopicMessages, startTopicRenaming } from '@renderer/hooks/useTopic'
@@ -161,6 +162,7 @@ const AssistantHistoryRecordsContent = ({
   const [searchText, setSearchText] = useState('')
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([])
   const [groupNow] = useState(() => new Date())
+  const conversationNav = useConversationNavigation('assistants')
 
   const { topics: rawTopics, isLoading: isTopicsLoading } = useTopics({ loadAll: true })
   const { assistants } = useAssistants()
@@ -284,10 +286,13 @@ const AssistantHistoryRecordsContent = ({
 
   const handleTopicSelect = useCallback(
     (topic: ApiTopic) => {
+      const title = topic.name || t('chat.default.topic.name')
+      if (conversationNav.openConversationTab(topic.id, title, { forceNew: true })) return
+
       onRecordSelect?.(rendererTopicById.get(topic.id) ?? mapApiTopicToRendererTopic(topic))
       onClose()
     },
-    [onClose, onRecordSelect, rendererTopicById]
+    [conversationNav, onClose, onRecordSelect, rendererTopicById, t]
   )
 
   const updateTopic = useCallback(
@@ -488,6 +493,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
   const [searchText, setSearchText] = useState('')
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([])
   const [groupNow] = useState(() => new Date())
+  const conversationNav = useConversationNavigation('agents')
 
   const {
     sessions,
@@ -576,10 +582,14 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
 
   const handleSessionSelect = useCallback(
     (sessionId: string) => {
+      const session = sessions.find((candidate) => candidate.id === sessionId)
+      const title = session?.name || t('common.unnamed')
+      if (conversationNav.openConversationTab(sessionId, title, { forceNew: true })) return
+
       onRecordSelect?.(sessionId)
       onClose()
     },
-    [onClose, onRecordSelect]
+    [conversationNav, onClose, onRecordSelect, sessions, t]
   )
 
   const handleDeleteSession = useCallback(

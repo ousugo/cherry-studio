@@ -15,6 +15,7 @@ const hookMocks = vi.hoisted(() => ({
   promptShow: vi.fn(),
   togglePin: vi.fn(),
   updateSession: vi.fn(),
+  openConversationTab: vi.fn(),
   useAgents: vi.fn(),
   useTopics: vi.fn(),
   useAssistants: vi.fn(),
@@ -194,6 +195,13 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
+}))
+
+vi.mock('@renderer/hooks/useConversationNavigation', () => ({
+  useConversationNavigation: () => ({
+    focusExistingTab: vi.fn(),
+    openConversationTab: hookMocks.openConversationTab
+  })
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
@@ -456,6 +464,8 @@ describe('HistoryRecordsPage agent mode', () => {
     hookMocks.useAgents.mockReset()
     hookMocks.useTopics.mockReset()
     hookMocks.useAssistants.mockReset()
+    hookMocks.openConversationTab.mockReset()
+    hookMocks.openConversationTab.mockReturnValue('new-history-session-tab')
     hookMocks.useDataApiQuery.mockReset()
     hookMocks.useDataApiQuery.mockReturnValue({ data: [], error: undefined, isLoading: false })
     hookMocks.useMultiplePreferences.mockReset()
@@ -525,8 +535,9 @@ describe('HistoryRecordsPage agent mode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha session' }))
 
-    expect(onRecordSelect).toHaveBeenCalledWith('session-alpha')
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(hookMocks.openConversationTab).toHaveBeenCalledWith('session-alpha', 'Alpha session', { forceNew: true })
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('filters sessions by selected agent source', () => {
@@ -628,8 +639,9 @@ describe('HistoryRecordsPage agent mode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Beta session' }))
 
-    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(hookMocks.openConversationTab).toHaveBeenCalledWith('session-beta', 'Beta session', { forceNew: true })
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('does not activate a session when the selection checkbox is clicked', () => {
