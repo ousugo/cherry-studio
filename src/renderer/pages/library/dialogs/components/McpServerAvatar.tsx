@@ -1,5 +1,5 @@
 import type { MCPServer } from '@shared/data/types/mcpServer'
-import { type LucideIcon, Wrench } from 'lucide-react'
+import { type LucideIcon, Network } from 'lucide-react'
 
 interface McpServerAvatarProps {
   server: MCPServer
@@ -12,9 +12,9 @@ interface McpServerAvatarProps {
 export function McpServerAvatar({
   server,
   size,
-  fallbackIcon: FallbackIcon = Wrench,
-  fallbackIconClassName = 'text-foreground/70',
-  fallbackIconScale = 0.45
+  fallbackIcon: FallbackIcon = Network,
+  fallbackIconClassName = 'text-foreground/65',
+  fallbackIconScale = 0.5
 }: McpServerAvatarProps) {
   if (server.logoUrl) {
     return (

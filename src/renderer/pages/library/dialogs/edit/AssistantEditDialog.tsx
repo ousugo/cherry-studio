@@ -33,8 +33,8 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { AddCatalogPopover, type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
-import { McpServerAvatar } from '../components/McpServerAvatar'
+import { AddCatalogPopover, type CatalogItem } from '../components/CatalogPicker'
+import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { TagSelector } from '../components/TagSelector'
 import { type AssistantFormState, diffAssistantSaveIntent, initialAssistantFormState } from '../form/assistant'
 import {
@@ -634,26 +634,12 @@ function AssistantToolsFields({
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
-  const { data, isLoading } = useQuery('/mcp-servers', {})
-  const mcpServers = useMemo(() => data?.items ?? [], [data])
   const mcpMode = form.watch('mcpMode')
   const mcpServerIds = form.watch('mcpServerIds')
   const mcpEnabled = mcpMode !== 'disabled'
   const mcpModeLabel = t('library.config.basic.mcp_mode')
   const selectableMcpModes = useMemo(() => MCP_MODE_OPTIONS.filter((mode) => mode.id !== 'disabled'), [])
 
-  const catalog = useMemo<CatalogItem[]>(
-    () =>
-      mcpServers.map((server) => ({
-        id: server.id,
-        name: server.name,
-        description: server.description || server.baseUrl || server.command,
-        icon: <McpServerAvatar server={server} size={28} />,
-        inactiveBadge: server.isActive ? undefined : t('library.config.tools.inactive_badge'),
-        pickable: server.isActive
-      })),
-    [mcpServers, t]
-  )
   const enabledIds = useMemo(() => new Set(mcpServerIds), [mcpServerIds])
   const toggleMcpServer = (id: string, enabled: boolean) =>
     form.setValue(
@@ -718,17 +704,13 @@ function AssistantToolsFields({
           name="mcpServerIds"
           render={() => (
             <FormItem>
-              <FormLabel>{t('library.config.tools.added')}</FormLabel>
-              <div className="mt-2">
-                <CatalogToggleGrid
-                  items={catalog}
-                  enabledIds={enabledIds}
-                  loading={isLoading}
-                  onToggle={toggleMcpServer}
-                  emptyLabel={t('library.config.tools.empty_title')}
-                  portalContainer={portalContainer}
-                />
-              </div>
+              <McpServerCatalogGrid
+                title={t('library.config.tools.added')}
+                enabledIds={enabledIds}
+                onToggle={toggleMcpServer}
+                emptyLabel={t('library.config.tools.empty_title')}
+                portalContainer={portalContainer}
+              />
               <FormMessage />
             </FormItem>
           )}

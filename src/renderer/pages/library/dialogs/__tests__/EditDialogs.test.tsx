@@ -12,6 +12,8 @@ const {
   agentTools,
   ensureTagsMock,
   fetchGenerateMock,
+  mcpStatusState,
+  openSettingsWindowMock,
   toggleSkillMock,
   updateAgentMock,
   updateAssistantMock,
@@ -47,6 +49,8 @@ const {
   ],
   ensureTagsMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
+  mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
+  openSettingsWindowMock: vi.fn(),
   toggleSkillMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
@@ -159,7 +163,7 @@ vi.mock('@renderer/hooks/agents/useAgentTools', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
-  useMcpRuntimeStatusMap: () => ({})
+  useMcpRuntimeStatusMap: () => mcpStatusState.current
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
@@ -183,6 +187,10 @@ vi.mock('@renderer/hooks/usePromptProcessor', () => ({
 
 vi.mock('@renderer/services/ApiService', () => ({
   fetchGenerate: fetchGenerateMock
+}))
+
+vi.mock('@renderer/services/SettingsWindowService', () => ({
+  openSettingsWindow: openSettingsWindowMock
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -337,7 +345,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.no_match': 'No match',
           'settings.mcp.runtimeStatus.connected': 'Connected',
           'settings.mcp.runtimeStatus.connecting': 'Connecting',
-          'settings.mcp.runtimeStatus.unavailable': 'Unavailable'
+          'settings.mcp.runtimeStatus.unavailable': 'Unavailable',
+          'settings.title': 'Settings'
         })[key] ?? key
     })
   }
@@ -423,6 +432,9 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  mcpStatusState.current = {
+    'mcp-1': { state: 'connected', lastCheckedAt: 1 }
+  }
   useQueryMock.mockImplementation((path: string) => {
     if (path.startsWith('/models/')) {
       const id = path.slice('/models/'.length)
@@ -485,6 +497,7 @@ beforeEach(() => {
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   ensureTagsMock.mockResolvedValue([{ id: 'tag-work', name: 'work', color: '#8b5cf6' }])
   fetchGenerateMock.mockResolvedValue('Generated prompt')
+  openSettingsWindowMock.mockResolvedValue('settings-window')
   toggleSkillMock.mockResolvedValue(undefined)
 })
 
@@ -733,6 +746,33 @@ describe('edit dialogs', () => {
 
     selectTab('Skills')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('uses the same MCP server list presentation in assistant and agent editing', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('MCP')
+    fireEvent.click(screen.getByRole('combobox', { name: 'MCP Mode' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Manual' }))
+
+    expect(screen.getByText('MCP services')).toBeInTheDocument()
+    expect(screen.getByText('MCP One')).toBeInTheDocument()
+    expect(screen.getByText('Connected')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'MCP services Settings' }))
+    expect(openSettingsWindowMock).toHaveBeenCalledWith('/settings/mcp/servers')
+
+    cleanup()
+    openSettingsWindowMock.mockClear()
+
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('MCP')
+
+    expect(screen.getByText('MCP services')).toBeInTheDocument()
+    expect(screen.getByText('MCP One')).toBeInTheDocument()
+    expect(screen.getByText('Connected')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'MCP services Settings' }))
+    expect(openSettingsWindowMock).toHaveBeenCalledWith('/settings/mcp/servers')
   })
 
   it('keeps popover content inside the dialog container', async () => {

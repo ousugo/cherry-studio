@@ -16,7 +16,6 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { permissionModeCards } from '@renderer/config/agent'
-import { useQuery } from '@renderer/data/hooks/useDataApi'
 import {
   computeModeDefaults,
   mergeAutoApprovedTools,
@@ -24,20 +23,18 @@ import {
   normalizePermissionMode
 } from '@renderer/hooks/agents/permissionMode'
 import { useAgentTools } from '@renderer/hooks/agents/useAgentTools'
-import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { useAgentMutationsById } from '@renderer/pages/library/adapters/agentAdapter'
 import type { AgentDetail } from '@renderer/pages/library/types'
 import type { Tool } from '@shared/ai/tool'
-import type { MCPServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { Network, Sparkles, Wrench } from 'lucide-react'
+import { Sparkles, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
-import { McpServerAvatar } from '../components/McpServerAvatar'
+import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import {
   type AgentFormState,
   applyAgentFormPatch,
@@ -654,51 +651,6 @@ function AgentToolsFields({
     )
   }
 
-  const { data: mcpData, isLoading: mcpLoading } = useQuery('/mcp-servers', {})
-  const mcpServers = useMemo<MCPServer[]>(() => mcpData?.items ?? [], [mcpData])
-  const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
-  const mcpCatalog = useMemo<CatalogItem[]>(
-    () =>
-      mcpServers.map((server) => {
-        const status = mcpStatuses[server.id]
-        const state = server.isActive ? (status?.state ?? 'connecting') : 'disabled'
-        const statusBadge =
-          state === 'connected'
-            ? t('settings.mcp.runtimeStatus.connected', 'Connected')
-            : state === 'connecting'
-              ? t('settings.mcp.runtimeStatus.connecting', 'Connecting')
-              : state === 'error'
-                ? t('settings.mcp.runtimeStatus.unavailable', 'Unavailable')
-                : undefined
-        const statusBadgeClassName =
-          state === 'connected'
-            ? 'bg-success/10 text-success'
-            : state === 'connecting'
-              ? 'bg-warning/10 text-warning'
-              : state === 'error'
-                ? 'bg-destructive/10 text-destructive'
-                : undefined
-        return {
-          id: server.id,
-          name: server.name,
-          description: server.description || server.baseUrl || server.command,
-          icon: (
-            <McpServerAvatar
-              server={server}
-              size={28}
-              fallbackIcon={Network}
-              fallbackIconClassName="text-blue-500/60"
-              fallbackIconScale={0.5}
-            />
-          ),
-          inactiveBadge: server.isActive ? undefined : t('library.config.tools.inactive_badge'),
-          statusBadge,
-          statusBadgeClassName,
-          pickable: server.isActive
-        }
-      }),
-    [mcpServers, mcpStatuses, t]
-  )
   const mcpIds = useMemo(() => new Set(mcps), [mcps])
   const enableMCP = (id: string) => form.setValue('mcps', [...mcps, id], { shouldDirty: true })
   const disableMCP = (id: string) =>
@@ -743,10 +695,9 @@ function AgentToolsFields({
         />
       ) : null}
       {activeToolTab === 'tools.mcp' ? (
-        <CatalogToggleGrid
-          items={mcpCatalog}
+        <McpServerCatalogGrid
+          title={t('library.config.tools.added')}
           enabledIds={mcpIds}
-          loading={mcpLoading}
           onToggle={(id, enabled) => (enabled ? enableMCP(id) : disableMCP(id))}
           emptyLabel={t('library.config.agent.section.tools.no_mcp_bound')}
           portalContainer={portalContainer}
