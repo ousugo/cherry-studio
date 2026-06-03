@@ -1203,6 +1203,43 @@ describe('ResourceList', () => {
     ).toBeNull()
   })
 
+  it('hides item leading slots when the group header has no icon', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderIcon={(group) => (group.id === 'session' ? <span>#</span> : null)}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <ResourceList.ItemLeadingSlot data-testid={`${item.id}-leading-slot`}>
+                  <span />
+                </ResourceList.ItemLeadingSlot>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByTestId('alpha-leading-slot').closest('[data-resource-list-item-row="true"]')).toHaveAttribute(
+      'data-resource-list-group-header-icon-visible',
+      'true'
+    )
+    expect(screen.getByTestId('gamma-leading-slot').closest('[data-resource-list-item-row="true"]')).toHaveAttribute(
+      'data-resource-list-group-header-icon-visible',
+      'false'
+    )
+    expect(screen.getByTestId('gamma-leading-slot').closest('[data-resource-list-item-row="true"]')).toHaveClass(
+      '[&_[data-resource-list-leading-slot=true]]:hidden',
+      '[&_[role=option]]:!px-2.5'
+    )
+  })
+
   it('renders caller-provided leading group header actions separately from collapse controls', () => {
     const onSelectGroup = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
@@ -1525,6 +1562,7 @@ describe('ResourceList', () => {
       <Provider
         items={items}
         groupBy={() => ({ id: 'group', label: 'Group' })}
+        getGroupHeaderIcon={() => <span>#</span>}
         groupShowMoreLabel="Show more"
         groupCollapseLabel="Collapse">
         <ResourceList.Frame>
@@ -1543,7 +1581,7 @@ describe('ResourceList', () => {
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     const showMoreButton = screen.getByRole('button', { name: 'Show more' })
     expect(showMoreButton.parentElement).toHaveClass('pl-9')
-    expect(showMoreButton).toHaveClass('text-inherit')
+    expect(showMoreButton).toHaveClass('text-muted-foreground/55', 'hover:text-inherit')
     expect(showMoreButton).not.toHaveClass('opacity-[0.65]')
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 7 }))
 
@@ -1558,6 +1596,45 @@ describe('ResourceList', () => {
     expect(screen.getByText('Item 5')).toBeInTheDocument()
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
+  })
+
+  it('aligns group footer actions with header text when the group header has no icon', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items = Array.from({ length: 6 }, (_, index) => ({
+      id: `item-${index + 1}`,
+      name: `Item ${index + 1}`,
+      kind: 'session' as const,
+      updatedAt: index
+    }))
+
+    render(
+      <Provider
+        items={items}
+        groupBy={() => ({ id: 'group', label: 'Group' })}
+        getGroupHeaderIcon={() => null}
+        groupShowMoreLabel="Show more"
+        groupCollapseLabel="Collapse">
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const showMoreButton = screen.getByRole('button', { name: 'Show more' })
+    expect(showMoreButton.parentElement).toHaveClass('pl-2.5')
+    expect(showMoreButton.parentElement).not.toHaveClass('pl-9')
+
+    fireEvent.click(showMoreButton)
+
+    const collapseButton = screen.getByRole('button', { name: 'Collapse' })
+    expect(collapseButton.parentElement).toHaveClass('pl-2.5')
+    expect(collapseButton.parentElement).not.toHaveClass('pl-9')
   })
 
   it('toggles every group in a section from a menu item without collapsing the section', () => {
@@ -2217,6 +2294,7 @@ describe('ResourceList', () => {
             count={ITEMS.length}
             actions={<ResourceList.HeaderActionButton aria-label="Filter" />}>
             <ResourceList.Search placeholder="Search resources" />
+            <ResourceList.HeaderItem aria-label="Create" icon={<span />} label="Create" />
           </ResourceList.Header>
           <ResourceList.VirtualItems<TestItem>
             renderItem={(item) => (
@@ -2244,8 +2322,15 @@ describe('ResourceList', () => {
       'data-[state=open]:text-foreground!',
       '[&_.lucide:not(.lucide-custom)]:text-current!'
     )
-    expect(screen.getByRole('listbox')).toHaveClass('px-1.5')
-    expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass('relative', 'gap-1.5', 'px-1.5')
+    expect(screen.getByRole('button', { name: 'Create' })).toHaveClass('px-1.5')
+    expect(screen.getByRole('listbox')).not.toHaveClass('px-1.5')
+    expect(screen.getByRole('listbox').closest('[data-resource-list-variant]')).toHaveClass('p-2')
+    expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass(
+      'relative',
+      'gap-1.5',
+      'px-2.5',
+      'has-[[data-resource-list-leading-slot=true]]:px-1.5'
+    )
     expect(screen.getByTestId('alpha-leading-slot')).toHaveClass('size-6')
     expect(screen.getByTestId('alpha-leading-icon')).toBeInTheDocument()
     expect(screen.getByTestId('beta-leading-slot')).toHaveClass('size-6')

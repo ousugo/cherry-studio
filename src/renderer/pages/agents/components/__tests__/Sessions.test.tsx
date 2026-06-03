@@ -1197,6 +1197,18 @@ describe('Sessions', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('does not show group header create actions in time display mode', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+
+    render(<SessionsForTest />)
+
+    const todayHeader = screen.getByRole('button', { name: 'Today' }).closest('div')
+    expect(todayHeader).toBeInTheDocument()
+    expect(
+      within(todayHeader as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
+    ).not.toBeInTheDocument()
+  })
+
   it('starts a temporary session from the header without creating inline', async () => {
     const onStartTemporarySession = vi.fn()
     dataApiMocks.workspaces = [

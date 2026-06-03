@@ -1087,6 +1087,7 @@ const Sessions = ({
   const getGroupHeaderAction = useCallback(
     (group: ResourceListGroup) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return null
+      if (displayMode === 'time') return null
 
       const agentGroupId = displayMode === 'agent' ? getAgentIdFromSessionGroupId(group.id) : undefined
       const workspaceId = displayMode === 'workdir' ? workdirDisplay.workspaceIdByGroupId.get(group.id) : undefined
@@ -1369,7 +1370,7 @@ const Sessions = ({
       onGroupHeaderSelectItem={handleSelectSession}
       onReorder={handleSessionReorder}
       onExpandedStateChange={handleSessionExpansionStateChange}>
-      <ResourceList.Header className="gap-1 px-1.5 pb-0">
+      <ResourceList.Header className="gap-1">
         <ResourceList.HeaderItem
           type="button"
           command="topic.create"

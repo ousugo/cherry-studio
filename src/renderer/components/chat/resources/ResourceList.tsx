@@ -65,7 +65,7 @@ function Frame({ className, ref, ...props }: FrameProps) {
       ref={ref}
       data-resource-list-variant={meta.variant}
       className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden border-border border-r-[0.5px] text-sidebar-foreground',
+        'flex min-h-0 flex-1 flex-col overflow-hidden border-border border-r-[0.5px] p-2 text-sidebar-foreground',
         className
       )}
       {...props}
@@ -116,7 +116,7 @@ type HeaderProps = ComponentProps<'div'> & {
 
 function Header({ actions, children, className, count, icon, ref, title, ...props }: HeaderProps) {
   return (
-    <div ref={ref} className={cn('flex shrink-0 flex-col gap-2.5 px-3 pt-1.5 pb-1.5', className)} {...props}>
+    <div ref={ref} className={cn('flex shrink-0 flex-col gap-2.5 pb-0.5', className)} {...props}>
       {(title || actions) && (
         <div className="flex h-5 items-center gap-1.5">
           {icon && (
@@ -159,7 +159,8 @@ function HeaderItem({ actions, className, command, icon, label, ref, variant = '
       ref={ref}
       variant={variant}
       className={cn(
-        'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg px-1.5 py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
+        'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
+        icon ? 'px-1.5' : 'px-2.5',
         command ? 'w-full' : 'flex-1',
         className
       )}
@@ -389,7 +390,7 @@ function Item<T extends ResourceListItemBase>({
       data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? 0}
       className={cn(
-        'group relative flex w-full cursor-pointer items-center gap-1.5 px-1.5 text-[13px] text-sidebar-foreground/80 outline-none transition-all duration-150',
+        'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-[13px] text-sidebar-foreground/80 outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
         rowState.selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
