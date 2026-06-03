@@ -406,6 +406,7 @@ interface AgentComposerContextControlsProps {
   selectAgentLabel: string
   selectModelLabel: string
   agentChanging?: boolean
+  shouldAutoSelectCreatedAgent: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
   onAgentChange: (agentId: string | null) => void | Promise<void>
@@ -431,6 +432,7 @@ const AgentComposerContextControls = ({
   selectAgentLabel,
   selectModelLabel,
   agentChanging,
+  shouldAutoSelectCreatedAgent,
   side,
   iconOnly = false,
   onAgentChange,
@@ -452,7 +454,7 @@ const AgentComposerContextControls = ({
       <AgentSelector
         value={agent?.id ?? null}
         onChange={onAgentChange}
-        autoSelectOnCreate
+        autoSelectOnCreate={shouldAutoSelectCreatedAgent}
         side={side}
         align="start"
         mountStrategy="lazy-keep"
@@ -1065,6 +1067,7 @@ const AgentComposerInner = ({
     selectModelLabel: t('button.select_model'),
     selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
     agentChanging,
+    shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
     workspaceChanging,
     showWorkspaceSelector,
     onAgentChange: handleAgentChange,
@@ -1172,6 +1175,7 @@ const MissingAgentHomeComposerInner = ({
     selectModelLabel: t('button.select_model'),
     selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
     agentChanging,
+    shouldAutoSelectCreatedAgent: true,
     workspaceChanging: false,
     showWorkspaceSelector: false,
     onAgentChange: handleAgentChange,
