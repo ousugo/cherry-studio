@@ -111,6 +111,76 @@ describe('MessageService', () => {
     await dbh.db.insert(messageTable).values(messages)
   }
 
+  describe('findPendingAssistantMessages', () => {
+    it('returns only non-deleted assistant rows still in pending', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-p', activeNodeId: 'm-pending', orderKey: 'b0' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-u',
+          parentId: null,
+          topicId: 'topic-p',
+          role: 'user',
+          data: mainText('q'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-pending',
+          parentId: 'm-u',
+          topicId: 'topic-p',
+          role: 'assistant',
+          data: mainText(''),
+          status: 'pending',
+          siblingsGroupId: 1,
+          modelId: createUniqueModelId('provider-a', 'model-A'),
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'm-done',
+          parentId: 'm-u',
+          topicId: 'topic-p',
+          role: 'assistant',
+          data: mainText('done'),
+          status: 'success',
+          siblingsGroupId: 1,
+          modelId: createUniqueModelId('provider-b', 'model-B'),
+          createdAt: 210,
+          updatedAt: 210
+        },
+        {
+          id: 'm-pending-user',
+          parentId: 'm-u',
+          topicId: 'topic-p',
+          role: 'user',
+          data: mainText(''),
+          status: 'pending',
+          siblingsGroupId: 0,
+          createdAt: 220,
+          updatedAt: 220
+        },
+        {
+          id: 'm-pending-deleted',
+          parentId: 'm-u',
+          topicId: 'topic-p',
+          role: 'assistant',
+          data: mainText(''),
+          status: 'pending',
+          siblingsGroupId: 2,
+          modelId: createUniqueModelId('provider-a', 'model-A'),
+          createdAt: 230,
+          updatedAt: 230,
+          deletedAt: 999
+        }
+      ])
+
+      const pending = await messageService.findPendingAssistantMessages()
+      expect(pending.map((m) => m.id)).toEqual(['m-pending'])
+    })
+  })
+
   describe('getBranchMessages — regression for raw SQL casing bug', () => {
     it('returns camelCase fields (parentId, siblingsGroupId) for path messages', async () => {
       await seedMultiModelTree()
