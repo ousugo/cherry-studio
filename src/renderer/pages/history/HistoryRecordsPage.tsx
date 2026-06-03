@@ -28,7 +28,6 @@ import type {
 } from '@renderer/pages/home/Tabs/components/topicContextMenuActions'
 import { sortTopicsForDisplayGroups } from '@renderer/pages/home/Tabs/components/Topics.helpers'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/home/Tabs/components/useTopicMenuActions'
-import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/pages/library/dialogs'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic as RendererTopic } from '@renderer/types'
@@ -166,10 +165,9 @@ const AssistantHistoryRecordsContent = ({
   const [searchText, setSearchText] = useState('')
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([])
   const [groupNow] = useState(() => new Date())
-  const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
   const { topics: rawTopics, isLoading: isTopicsLoading } = useTopics({ loadAll: true })
-  const { assistants, refetch: refetchAssistants } = useAssistants()
+  const { assistants } = useAssistants()
   const [renamingTopics] = useCache('topic.renaming')
   const { notesPath } = useNotesSettings()
   const { updateTopic: patchTopic, deleteTopic: deleteTopicById, deleteTopics } = useTopicMutations()
@@ -420,12 +418,6 @@ const AssistantHistoryRecordsContent = ({
     },
     [rendererTopicById, t, updateTopic]
   )
-  const handleEditAssistant = useCallback((topic: RendererTopic) => {
-    if (topic.assistantId) {
-      setEditDialogTarget({ kind: 'assistant', id: topic.assistantId })
-    }
-  }, [])
-
   const getTopicActionContext = useCallback(
     (apiTopic: ApiTopic): TopicActionContext => {
       const topic = getRendererTopic(apiTopic)
@@ -436,7 +428,6 @@ const AssistantHistoryRecordsContent = ({
         onAutoRename: handleAutoRename,
         onClearMessages: handleClearMessages,
         onDelete: handleDeleteTopicFromMenu,
-        onEditAssistant: handleEditAssistant,
         onPinTopic: handlePinTopic,
         onStartRename: () => undefined,
         notesPath,
@@ -451,7 +442,6 @@ const AssistantHistoryRecordsContent = ({
       handleAutoRename,
       handleClearMessages,
       handleDeleteTopicFromMenu,
-      handleEditAssistant,
       handlePinTopic,
       isTopicRenaming,
       notesPath,
@@ -493,13 +483,6 @@ const AssistantHistoryRecordsContent = ({
         onTopicRename={handleRenameTopic}
         onTopicSelect={handleTopicSelect}
       />
-      <ResourceEditDialogHost
-        target={editDialogTarget}
-        onOpenChange={(open) => {
-          if (!open) setEditDialogTarget(null)
-        }}
-        onSaved={refetchAssistants}
-      />
     </HistoryRecordsLayout>
   )
 }
@@ -511,7 +494,6 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
   const [searchText, setSearchText] = useState('')
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([])
   const [groupNow] = useState(() => new Date())
-  const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
   const {
     sessions,
@@ -524,7 +506,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     loadAll: true,
     pageSize: 50
   })
-  const { agents, refetch: refetchAgents } = useAgents()
+  const { agents } = useAgents()
   const isSessionPinned = useCallback((sessionId: string) => pinIdBySessionId.has(sessionId), [pinIdBySessionId])
   const sessionItems = useMemo<SessionListItem[]>(
     () => sessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
@@ -656,19 +638,12 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     },
     [sessions, t, updateSession]
   )
-  const handleEditAgent = useCallback((session: AgentSessionEntity) => {
-    if (session.agentId) {
-      setEditDialogTarget({ kind: 'agent', id: session.agentId })
-    }
-  }, [])
-
   const getSessionActionContext = useCallback(
     (session: AgentSessionEntity): SessionActionContext =>
       createSessionActionContext({
         onDelete: () => {
           void handleDeleteSession(session.id)
         },
-        onEditAgent: session.agentId ? () => handleEditAgent(session) : undefined,
         onTogglePin: () => {
           void togglePin(session.id)
         },
@@ -677,7 +652,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
         startEdit: () => undefined,
         t
       }),
-    [handleDeleteSession, handleEditAgent, isSessionPinned, t, togglePin]
+    [handleDeleteSession, isSessionPinned, t, togglePin]
   )
 
   const sessionMenuPreset = useSessionMenuPreset<AgentSessionEntity>({ getActionContext: getSessionActionContext })
@@ -719,13 +694,6 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
         sessionMenuPreset={sessionMenuPreset}
         onSessionRename={handleRenameSession}
         onSessionSelect={handleSessionSelect}
-      />
-      <ResourceEditDialogHost
-        target={editDialogTarget}
-        onOpenChange={(open) => {
-          if (!open) setEditDialogTarget(null)
-        }}
-        onSaved={refetchAgents}
       />
     </HistoryRecordsLayout>
   )

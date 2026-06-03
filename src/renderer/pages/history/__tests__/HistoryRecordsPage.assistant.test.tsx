@@ -731,7 +731,6 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
       'Generate topic name',
       'Edit topic name',
-      'assistants.edit.title',
       'Pin Topic',
       'Clear messages',
       '',

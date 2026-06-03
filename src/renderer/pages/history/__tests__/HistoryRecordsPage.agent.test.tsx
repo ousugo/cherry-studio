@@ -701,7 +701,6 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(menuContent).toHaveClass('z-50')
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
       'Rename',
-      'Edit Agent',
       'Pin',
       '',
       'Delete'
