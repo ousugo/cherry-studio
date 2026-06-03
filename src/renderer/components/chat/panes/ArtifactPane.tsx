@@ -15,6 +15,7 @@ import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import type { DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/file/types'
 import type { FilePath } from '@shared/file/types/common'
 import { toFileUrl } from '@shared/file/urlUtil'
+import { WORD_PREVIEW_MAX_SIZE_BYTES } from '@shared/wordPreview'
 import { AlertCircle, FileText, Folder, FolderOpen, Maximize2, Minimize2, RotateCw, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
@@ -78,8 +79,6 @@ interface ArtifactFilePreviewProps {
 /** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
 export const ARTIFACT_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
-/** DOCX parsing/rendering is heavier than text preview but valid Word files commonly exceed 2 MB. */
-export const WORD_PREVIEW_MAX_SIZE_BYTES = 25 * 1024 * 1024
 const WORD_PREVIEW_MAX_SIZE_LABEL = '25 MB'
 
 // Extensions below drive special-case rendering (Markdown / iframe / PdfPreviewPanel),
@@ -275,6 +274,7 @@ type WordPreviewPanelComponent = ComponentType<{
   filePath: string
   fileName?: string
   refreshKey?: number
+  workspacePath: string
 }>
 
 let wordPreviewPanelPromise: Promise<WordPreviewPanelComponent> | null = null
@@ -601,9 +601,10 @@ export function ArtifactFilePreview({
     return (
       <WordPreviewPanel
         key={`word-${filePath}-${contentRefreshKey}`}
-        filePath={joinPath(workspacePath, filePath)}
+        filePath={filePath}
         fileName={filePath}
         refreshKey={contentRefreshKey}
+        workspacePath={workspacePath}
       />
     )
   }

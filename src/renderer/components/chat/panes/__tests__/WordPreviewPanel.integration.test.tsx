@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import WordPreviewPanel from '../WordPreviewPanel'
 
 const mocks = vi.hoisted(() => ({
-  fsRead: vi.fn(),
-  t: vi.fn((key: string) => key)
+  t: vi.fn((key: string) => key),
+  wordReadPreview: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -52,17 +52,17 @@ describe('WordPreviewPanel integration', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        fs: {
-          read: mocks.fsRead
+        word: {
+          readPreview: mocks.wordReadPreview
         }
       }
     })
   })
 
   it('renders manual page breaks as separate document pages', async () => {
-    mocks.fsRead.mockResolvedValue(await createMultiPageDocx())
+    mocks.wordReadPreview.mockResolvedValue({ data: await createMultiPageDocx(), success: true })
 
-    render(<WordPreviewPanel filePath="/tmp/workspace/multipage.docx" fileName="multipage.docx" />)
+    render(<WordPreviewPanel workspacePath="/tmp/workspace" filePath="multipage.docx" fileName="multipage.docx" />)
 
     await waitFor(() => {
       expect(screen.getByTestId('word-preview-document').querySelectorAll('section.docx')).toHaveLength(2)

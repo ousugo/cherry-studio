@@ -18,6 +18,7 @@ export interface WordPreviewPanelProps {
   fileName?: string
   filePath: string
   refreshKey?: number
+  workspacePath: string
 }
 
 type WordPreviewStatus =
@@ -52,13 +53,14 @@ const clampZoom = (value: number) => Number(clampNumber(value, WORD_PREVIEW_MIN_
 const getWordPages = (bodyContainer: HTMLElement | null): HTMLElement[] =>
   Array.from(bodyContainer?.querySelectorAll<HTMLElement>('.docx-wrapper > section.docx') ?? [])
 
-const WordPreviewPanel = ({ filePath, fileName, refreshKey = 0 }: WordPreviewPanelProps) => {
+const WordPreviewPanel = ({ filePath, fileName, refreshKey = 0, workspacePath }: WordPreviewPanelProps) => {
   const { t } = useTranslation()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const styleRef = useRef<HTMLDivElement>(null)
   const pagesRef = useRef<HTMLElement[]>([])
   const scrollFrameRef = useRef<number | null>(null)
+  const renderGenerationRef = useRef(0)
   const [status, setStatus] = useState<WordPreviewStatus>({ type: 'loading' })
   const [zoom, setZoom] = useState(WORD_PREVIEW_DEFAULT_ZOOM)
   const [currentPage, setCurrentPage] = useState(0)
@@ -127,11 +129,15 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey = 0 }: WordPreviewPan
 
   useEffect(() => {
     let cancelled = false
+    const generation = renderGenerationRef.current + 1
+    renderGenerationRef.current = generation
     const scrollContainer = scrollContainerRef.current
     const bodyContainer = bodyRef.current
     const styleContainer = styleRef.current
 
     if (!bodyContainer || !styleContainer) return
+
+    const isCurrentRender = () => !cancelled && renderGenerationRef.current === generation
 
     cancelPendingScrollSync()
     pagesRef.current = []
@@ -144,11 +150,18 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey = 0 }: WordPreviewPan
 
     void (async () => {
       try {
-        const data = toWordData(await window.api.fs.read(filePath))
-        if (cancelled) return
+        const result = await window.api.word.readPreview({ filePath, workspacePath })
+        if (!isCurrentRender()) return
+        if (!result.success) {
+          throw new Error(result.error.message)
+        }
+
+        const data = toWordData(result.data)
+        const nextBodyContainer = document.createElement('div')
+        const nextStyleContainer = document.createElement('div')
 
         try {
-          await renderAsync(data, bodyContainer, styleContainer, {
+          await renderAsync(data, nextBodyContainer, nextStyleContainer, {
             breakPages: true,
             ignoreLastRenderedPageBreak: false,
             inWrapper: true,
@@ -161,7 +174,7 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey = 0 }: WordPreviewPan
             useBase64URL: true
           })
         } catch (renderError) {
-          if (cancelled) return
+          if (!isCurrentRender()) return
 
           const normalized = renderError instanceof Error ? renderError : new Error(String(renderError))
           logger.error(`Failed to render Word preview: ${filePath}`, normalized)
@@ -171,11 +184,10 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey = 0 }: WordPreviewPan
           return
         }
 
-        if (cancelled) {
-          bodyContainer.replaceChildren()
-          styleContainer.replaceChildren()
-          return
-        }
+        if (!isCurrentRender()) return
+
+        styleContainer.replaceChildren(...Array.from(nextStyleContainer.childNodes))
+        bodyContainer.replaceChildren(...Array.from(nextBodyContainer.childNodes))
 
         const pages = getWordPages(bodyContainer)
         pagesRef.current = pages
@@ -197,11 +209,13 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey = 0 }: WordPreviewPan
     return () => {
       cancelled = true
       cancelPendingScrollSync()
-      pagesRef.current = []
-      bodyContainer.replaceChildren()
-      styleContainer.replaceChildren()
+      if (renderGenerationRef.current === generation) {
+        pagesRef.current = []
+        bodyContainer.replaceChildren()
+        styleContainer.replaceChildren()
+      }
     }
-  }, [cancelPendingScrollSync, filePath, refreshKey, setCurrentPageIfChanged])
+  }, [cancelPendingScrollSync, filePath, refreshKey, setCurrentPageIfChanged, workspacePath])
 
   const canUsePageControls = status.type === 'ready' && pageCount > 0
   const zoomLabel = `${Math.round(zoom * 100)}%`
