@@ -326,7 +326,16 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
 
     Object.keys(value).forEach((attrKey) => {
       const rawValue = (value as Record<string, AttributeValue>)[attrKey]
-      const jsonData = typeof rawValue === 'string' && rawValue.startsWith('{') ? JSON.parse(rawValue) : rawValue
+      // A `{`-prefixed string is not guaranteed to be valid JSON; an unguarded parse would
+      // throw and silently drop the whole span. Fall back to the raw value on parse failure.
+      let jsonData: unknown = rawValue
+      if (typeof rawValue === 'string' && rawValue.startsWith('{')) {
+        try {
+          jsonData = JSON.parse(rawValue)
+        } catch {
+          jsonData = rawValue
+        }
+      }
       if (
         savedAttrs[attrKey] !== undefined &&
         typeof jsonData === 'object' &&
