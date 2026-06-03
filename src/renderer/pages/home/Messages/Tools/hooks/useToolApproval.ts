@@ -129,9 +129,15 @@ export function useToolApproval(
     input: match.input as Record<string, unknown> | undefined,
     confirm: () => void respond(true),
     cancel: () => void respond(false),
-    autoApprove: () => {
-      void respond(true)
-      persistAutoApprove()
-    }
+    // `autoApprove` ("always allow") only persists for MCP tools (per-server
+    // `disabledAutoApproveTools`). Non-MCP (Claude-Agent) tools have no such store, so
+    // expose the action only when there's an `mcpTool` — otherwise the card renders a
+    // dead affordance that approves once and persists nothing.
+    ...(mcpTool && {
+      autoApprove: () => {
+        void respond(true)
+        persistAutoApprove()
+      }
+    })
   }
 }
