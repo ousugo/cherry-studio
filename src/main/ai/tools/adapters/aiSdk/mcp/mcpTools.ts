@@ -3,10 +3,10 @@ import { application } from '@main/core/application'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import { toCamelCase } from '@shared/mcp'
-import type { MCPCallToolResponse, MCPServer, MCPTool } from '@types'
+import type { McpCallToolResponse, McpServer, McpTool } from '@types'
 import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
 
-async function resolveServerById(serverId: string): Promise<MCPServer | undefined> {
+async function resolveServerById(serverId: string): Promise<McpServer | undefined> {
   const { items } = await mcpServerService.list({ isActive: true })
   return items.find((s) => s.id === serverId)
 }
@@ -17,8 +17,8 @@ import { mcpResultToTextSummary } from './utils'
 
 const logger = loggerService.withContext('mcpTools')
 
-/** Build the AI SDK Tool wrapper around a single MCPTool. */
-function createMcpTool(mcpTool: MCPTool, forcePrompt: boolean): Tool {
+/** Build the AI SDK Tool wrapper around a single McpTool. */
+function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
   return {
     type: 'function',
     description: mcpTool.description || mcpTool.name,
@@ -29,7 +29,7 @@ function createMcpTool(mcpTool: MCPTool, forcePrompt: boolean): Tool {
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
       }
-      const result: MCPCallToolResponse = await application.get('McpRuntimeService').callTool({
+      const result: McpCallToolResponse = await application.get('McpRuntimeService').callTool({
         serverId: server.id,
         name: mcpTool.name,
         args,
@@ -40,7 +40,7 @@ function createMcpTool(mcpTool: MCPTool, forcePrompt: boolean): Tool {
         throw new Error(mcpResultToTextSummary(result) || 'MCP tool call failed')
       }
 
-      // Full MCPCallToolResponse for the renderer's ToolUIPart (multimodal
+      // Full McpCallToolResponse for the renderer's ToolUIPart (multimodal
       // parts intact); `toModelOutput` below produces the string view.
       return {
         ...result,
@@ -52,13 +52,13 @@ function createMcpTool(mcpTool: MCPTool, forcePrompt: boolean): Tool {
       }
     },
     toModelOutput({ output }) {
-      const result = output as MCPCallToolResponse
+      const result = output as McpCallToolResponse
       return { type: 'text' as const, value: mcpResultToTextSummary(result) }
     }
   }
 }
 
-function toEntry(mcpTool: MCPTool, server: MCPServer): ToolEntry {
+function toEntry(mcpTool: McpTool, server: McpServer): ToolEntry {
   // A force-prompt (approval-gated) tool must never defer: deferring removes it from the SDK
   // tool-set, so the SDK's native `needsApproval` gate never fires and it becomes reachable only
   // via `tool_invoke` — which would run it with no approval card. Keep it inline. Reading
@@ -76,9 +76,9 @@ function toEntry(mcpTool: MCPTool, server: MCPServer): ToolEntry {
 
 /** Prefix `mcp__<camelCase(serverName)>__<rest>` matches `buildFunctionCallToolName`. */
 function filterServersByToolIds(
-  servers: readonly MCPServer[],
+  servers: readonly McpServer[],
   selectedToolIds: ReadonlySet<string>
-): readonly MCPServer[] {
+): readonly McpServer[] {
   if (!selectedToolIds.size) return []
   return servers.filter((server) => {
     const prefix = `mcp__${toCamelCase(server.name)}__`

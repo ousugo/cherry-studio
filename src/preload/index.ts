@@ -24,7 +24,7 @@ import type {
   LanHandshakeAckMessage,
   LanTransferConnectPayload,
   LanTransferState,
-  MCPServerLogEntry,
+  McpServerLogEntry,
   OperationResult,
   WebviewKeyEvent
 } from '@shared/config/types'
@@ -456,10 +456,10 @@ const api = {
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
     getServerVersion: (serverId: string): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, serverId),
-    getServerLogs: (serverId: string): Promise<MCPServerLogEntry[]> =>
+    getServerLogs: (serverId: string): Promise<McpServerLogEntry[]> =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetServerLogs, serverId),
-    onServerLog: (callback: (log: MCPServerLogEntry & { serverId?: string }) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, log: MCPServerLogEntry & { serverId?: string }) => {
+    onServerLog: (callback: (log: McpServerLogEntry & { serverId?: string }) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, log: McpServerLogEntry & { serverId?: string }) => {
         callback(log)
       }
       ipcRenderer.on(IpcChannel.Mcp_ServerLog, listener)

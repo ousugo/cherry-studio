@@ -1,5 +1,5 @@
 import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
-import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
+import type { McpTool, McpToolResponse, NormalToolResponse } from '@renderer/types'
 import { Flex, Tooltip } from 'antd'
 import {
   Bot,
@@ -26,7 +26,7 @@ import { type ToolStatus, ToolStatusIndicator } from './MessageAgentTools/Generi
 import { AgentToolsType } from './MessageAgentTools/types'
 
 export interface ToolHeaderProps {
-  toolResponse?: MCPToolResponse | NormalToolResponse
+  toolResponse?: McpToolResponse | NormalToolResponse
 
   toolName?: string
   icon?: ReactNode
@@ -118,7 +118,7 @@ const getAgentToolLabel = (toolName: string, t: (key: string) => string): string
   }
 }
 
-const getToolDescription = (toolResponse?: MCPToolResponse | NormalToolResponse): string | undefined => {
+const getToolDescription = (toolResponse?: McpToolResponse | NormalToolResponse): string | undefined => {
   if (!toolResponse) return undefined
   const args = toolResponse.arguments
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
@@ -196,7 +196,7 @@ const StatusWrapper = styled.div`
 // ============ MCP Tool sub-renderer ============
 
 interface McpToolHeaderProps {
-  tool: MCPTool
+  tool: McpTool
   description?: ReactNode
   stats?: ReactNode
   showStatus: boolean
@@ -269,7 +269,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   if (tool?.type === 'mcp') {
     return (
       <McpToolHeader
-        tool={tool as MCPTool}
+        tool={tool as McpTool}
         description={description}
         stats={stats}
         showStatus={showStatus}

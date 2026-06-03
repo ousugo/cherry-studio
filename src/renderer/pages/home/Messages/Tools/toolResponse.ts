@@ -1,4 +1,4 @@
-import type { BaseTool, MCPTool, MCPToolResponse, MCPToolResponseStatus, NormalToolResponse } from '@renderer/types'
+import type { BaseTool, McpTool, McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -31,7 +31,7 @@ type ToolPart = {
   providerMetadata?: Record<string, unknown>
 }
 
-export type ToolResponseLike = MCPToolResponse | NormalToolResponse
+export type ToolResponseLike = McpToolResponse | NormalToolResponse
 
 export interface ToolRenderItem {
   id: string
@@ -52,7 +52,7 @@ function normalizeToolName(part: ToolPart): string {
   return 'unknown'
 }
 
-function mapPartStateToStatus(state: string | undefined): MCPToolResponseStatus {
+function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus {
   switch (state) {
     case 'output-available':
       return 'done'
@@ -106,7 +106,7 @@ function resolveToolType(part: ToolPart, toolName: string, metadata?: ToolMetada
   return 'builtin'
 }
 
-function buildMcpToolDescriptor(toolName: string, metadata?: ToolMetadata): MCPTool {
+function buildMcpToolDescriptor(toolName: string, metadata?: ToolMetadata): McpTool {
   const serverId = metadata?.serverId ?? 'unknown'
   const serverName = metadata?.serverName ?? 'MCP'
   return {
@@ -156,10 +156,10 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId: s
 
   if (toolType === 'mcp') {
     const tool = buildMcpToolDescriptor(toolName, metadata)
-    const mcpResponse: MCPToolResponse = {
+    const mcpResponse: McpToolResponse = {
       id: toolCallId,
       tool,
-      arguments: toolPart.input as MCPToolResponse['arguments'],
+      arguments: toolPart.input as McpToolResponse['arguments'],
       status,
       response,
       toolCallId,

@@ -5,7 +5,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { createInMemoryMCPServer } from '@main/ai/mcp/servers/factory'
+import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
@@ -36,21 +36,21 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import type { MCPProgressEvent } from '@shared/config/types'
-import type { MCPServerLogEntry } from '@shared/config/types'
+import type { McpProgressEvent } from '@shared/config/types'
+import type { McpServerLogEntry } from '@shared/config/types'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { defaultAppHeaders } from '@shared/utils'
 import { safeSerialize } from '@shared/utils/serialize'
 import {
-  BuiltinMCPServerNames,
+  BuiltinMcpServerNames,
   type GetResourceResponse,
-  isBuiltinMCPServer,
-  type MCPCallToolResponse,
-  type MCPPrompt,
-  type MCPResource,
-  type MCPServer
+  isBuiltinMcpServer,
+  type McpCallToolResponse,
+  type McpPrompt,
+  type McpResource,
+  type McpServer
 } from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
@@ -65,7 +65,7 @@ import { ServerLogBuffer } from './ServerLogBuffer'
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
 type CallToolArgs = { serverId: string; name: string; args: any; callId?: string }
-type RuntimeCallToolArgs = { server: MCPServer; name: string; args: any; callId?: string }
+type RuntimeCallToolArgs = { server: McpServer; name: string; args: any; callId?: string }
 type McpRuntimeState = McpRuntimeStatus['state']
 
 const logger = loggerService.withContext('McpRuntimeService')
@@ -109,7 +109,7 @@ function redactSensitive(input: any): any {
 }
 
 // Create a context-aware logger for a server
-function getServerLogger(server: MCPServer, extra?: Record<string, any>) {
+function getServerLogger(server: McpServer, extra?: Record<string, any>) {
   const base = {
     serverName: server?.name,
     serverId: server?.id,
@@ -203,7 +203,7 @@ export class McpRuntimeService extends BaseService {
     this.ipcHandle(IpcChannel.Mcp_GetServerLogs, async (_e, serverId: string) => this.getServerLogs(serverId))
   }
 
-  private async getServerById(serverId: string): Promise<MCPServer> {
+  private async getServerById(serverId: string): Promise<McpServer> {
     return await mcpServerService.getById(serverId)
   }
 
@@ -234,7 +234,7 @@ export class McpRuntimeService extends BaseService {
    * Call a tool by its full ID (serverId__toolName format).
    * Used by Hub server's runtime.
    */
-  public async callToolById(toolId: string, params: unknown, callId?: string): Promise<MCPCallToolResponse> {
+  public async callToolById(toolId: string, params: unknown, callId?: string): Promise<McpCallToolResponse> {
     const parts = toolId.split('__')
     if (parts.length < 2) {
       throw new Error(`Invalid tool ID format: ${toolId}`)
@@ -255,7 +255,7 @@ export class McpRuntimeService extends BaseService {
     })
   }
 
-  public getServerKey(server: MCPServer): string {
+  public getServerKey(server: McpServer): string {
     return JSON.stringify({
       baseUrl: server.baseUrl,
       command: server.command,
@@ -275,7 +275,7 @@ export class McpRuntimeService extends BaseService {
     }
   }
 
-  private emitServerLog(server: MCPServer, entry: MCPServerLogEntry) {
+  private emitServerLog(server: McpServer, entry: McpServerLogEntry) {
     const serverKey = this.getServerKey(server)
     this.serverLogs.append(serverKey, entry)
     application
@@ -283,21 +283,21 @@ export class McpRuntimeService extends BaseService {
       .broadcastToType(WindowType.Main, IpcChannel.Mcp_ServerLog, { ...entry, serverId: server.id })
   }
 
-  public async getServerLogs(serverId: string): Promise<MCPServerLogEntry[]> {
+  public async getServerLogs(serverId: string): Promise<McpServerLogEntry[]> {
     const server = await this.getServerById(serverId)
     return this.serverLogs.get(this.getServerKey(server))
   }
 
   public async withClient<T>(
     serverId: string,
-    operation: (client: Client, server: MCPServer) => Promise<T>
+    operation: (client: Client, server: McpServer) => Promise<T>
   ): Promise<T> {
     const server = await this.getServerById(serverId)
     const client = await this.getOrCreateClient(server)
     return operation(client, server)
   }
 
-  private async getOrCreateClient(server: MCPServer): Promise<Client> {
+  private async getOrCreateClient(server: McpServer): Promise<Client> {
     if (this.stopping || this.isStopped || this.isDestroyed) {
       throw new Error('MCP runtime is stopping')
     }
@@ -373,12 +373,12 @@ export class McpRuntimeService extends BaseService {
 
           // Special case for nowledgeMem and flomo - uses HTTP transport instead of in-memory
           if (
-            isBuiltinMCPServer(server) &&
-            (server.name === BuiltinMCPServerNames.nowledgeMem || server.name === BuiltinMCPServerNames.flomo)
+            isBuiltinMcpServer(server) &&
+            (server.name === BuiltinMcpServerNames.nowledgeMem || server.name === BuiltinMcpServerNames.flomo)
           ) {
             const httpUrlMap: Record<string, string> = {
-              [BuiltinMCPServerNames.nowledgeMem]: 'http://127.0.0.1:14242/mcp',
-              [BuiltinMCPServerNames.flomo]: 'https://flomoapp.com/mcp'
+              [BuiltinMcpServerNames.nowledgeMem]: 'http://127.0.0.1:14242/mcp',
+              [BuiltinMcpServerNames.flomo]: 'https://flomoapp.com/mcp'
             }
             const httpUrl = httpUrlMap[server.name]
             const options: StreamableHTTPClientTransportOptions = {
@@ -397,11 +397,11 @@ export class McpRuntimeService extends BaseService {
             return new StreamableHTTPClientTransport(new URL(httpUrl), options)
           }
 
-          if (isBuiltinMCPServer(server) && server.name !== BuiltinMCPServerNames.mcpAutoInstall) {
+          if (isBuiltinMcpServer(server) && server.name !== BuiltinMcpServerNames.mcpAutoInstall) {
             getServerLogger(server).debug(`Using in-memory transport`)
             const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
             // start the in-memory server with the given name and environment variables
-            const inMemoryServer = createInMemoryMCPServer(server.name, args, server.env || {})
+            const inMemoryServer = createInMemoryMcpServer(server.name, args, server.env || {})
             try {
               await inMemoryServer.connect(serverTransport)
               getServerLogger(server).debug(`In-memory server started`)
@@ -732,7 +732,7 @@ export class McpRuntimeService extends BaseService {
   /**
    * Set up notification handlers for MCP client
    */
-  private setupNotificationHandlers(client: Client, server: MCPServer) {
+  private setupNotificationHandlers(client: Client, server: McpServer) {
     const serverKey = this.getServerKey(server)
     const cacheService = application.get('CacheService')
 
@@ -777,8 +777,8 @@ export class McpRuntimeService extends BaseService {
         if (data) {
           this.emitServerLog(server, {
             timestamp: Date.now(),
-            // FIXME: as MCPServerLogEntry['level'] not type safe
-            level: (notification.params?.level as MCPServerLogEntry['level']) || 'info',
+            // FIXME: as McpServerLogEntry['level'] not type safe
+            level: (notification.params?.level as McpServerLogEntry['level']) || 'info',
             message,
             data: redactSensitive(notification.params?.data),
             source: notification.params?.logger || 'server'
@@ -802,7 +802,7 @@ export class McpRuntimeService extends BaseService {
   /**
    * Clear all caches for a specific server
    */
-  private clearServerCache(serverOrKey: MCPServer | string) {
+  private clearServerCache(serverOrKey: McpServer | string) {
     const serverKey = typeof serverOrKey === 'string' ? serverOrKey : this.getServerKey(serverOrKey)
     const cacheService = application.get('CacheService')
     cacheService.delete(`mcp:list_tool:${serverKey}`)
@@ -811,7 +811,7 @@ export class McpRuntimeService extends BaseService {
     logger.debug(`Cleared all caches for server`, { serverKey })
   }
 
-  private async getLatestSourcePolicy(server: MCPServer): Promise<MCPServer> {
+  private async getLatestSourcePolicy(server: McpServer): Promise<McpServer> {
     try {
       return await mcpServerService.getById(server.id)
     } catch {
@@ -986,12 +986,12 @@ export class McpRuntimeService extends BaseService {
   /**
    * Call a tool on an MCP server
    */
-  public async callTool({ serverId, name, args, callId }: CallToolArgs): Promise<MCPCallToolResponse> {
+  public async callTool({ serverId, name, args, callId }: CallToolArgs): Promise<McpCallToolResponse> {
     const server = await this.getServerById(serverId)
     return this.callToolByServer({ server, name, args, callId })
   }
 
-  public async callToolByServer({ server, name, args, callId }: RuntimeCallToolArgs): Promise<MCPCallToolResponse> {
+  public async callToolByServer({ server, name, args, callId }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
     const toolCallId = callId || uuidv4()
     const abortController = new AbortController()
     this.activeToolCalls.set(toolCallId, abortController)
@@ -1026,7 +1026,7 @@ export class McpRuntimeService extends BaseService {
             application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Mcp_Progress, {
               callId: toolCallId,
               progress: process.progress / (process.total || 1)
-            } as MCPProgressEvent)
+            } as McpProgressEvent)
           },
           timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
           // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
@@ -1035,7 +1035,7 @@ export class McpRuntimeService extends BaseService {
           maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
           signal: this.activeToolCalls.get(toolCallId)?.signal
         })
-        return result as MCPCallToolResponse
+        return result as McpCallToolResponse
       } catch (error) {
         getServerLogger(server, { tool: name, callId: toolCallId }).error(`Error calling tool`, error as Error)
         throw error
@@ -1059,7 +1059,7 @@ export class McpRuntimeService extends BaseService {
   /**
    * List prompts available on an MCP server
    */
-  private async listPromptsImpl(server: MCPServer): Promise<MCPPrompt[]> {
+  private async listPromptsImpl(server: McpServer): Promise<McpPrompt[]> {
     const client = await this.getOrCreateClient(server)
     getServerLogger(server).debug(`Listing prompts`)
     try {
@@ -1082,9 +1082,9 @@ export class McpRuntimeService extends BaseService {
   /**
    * List prompts available on an MCP server with caching
    */
-  public async listPrompts(serverId: string): Promise<MCPPrompt[]> {
+  public async listPrompts(serverId: string): Promise<McpPrompt[]> {
     const server = await this.getServerById(serverId)
-    const cachedListPrompts = withCache<[MCPServer], MCPPrompt[]>(
+    const cachedListPrompts = withCache<[McpServer], McpPrompt[]>(
       this.listPromptsImpl.bind(this),
       (server) => {
         const serverKey = this.getServerKey(server)
@@ -1099,7 +1099,7 @@ export class McpRuntimeService extends BaseService {
   /**
    * Get a specific prompt from an MCP server (implementation)
    */
-  private async getPromptImpl(server: MCPServer, name: string, args?: Record<string, any>): Promise<GetPromptResult> {
+  private async getPromptImpl(server: McpServer, name: string, args?: Record<string, any>): Promise<GetPromptResult> {
     logger.debug(`Getting prompt ${name} from server: ${server.name}`)
     const client = await this.getOrCreateClient(server)
     return await client.getPrompt({ name, arguments: args })
@@ -1119,7 +1119,7 @@ export class McpRuntimeService extends BaseService {
     args?: Record<string, any>
   }): Promise<GetPromptResult> {
     const server = await this.getServerById(serverId)
-    const cachedGetPrompt = withCache<[MCPServer, string, Record<string, any> | undefined], GetPromptResult>(
+    const cachedGetPrompt = withCache<[McpServer, string, Record<string, any> | undefined], GetPromptResult>(
       this.getPromptImpl.bind(this),
       (server, name, args) => {
         const serverKey = this.getServerKey(server)
@@ -1135,7 +1135,7 @@ export class McpRuntimeService extends BaseService {
   /**
    * List resources available on an MCP server (implementation)
    */
-  private async listResourcesImpl(server: MCPServer): Promise<MCPResource[]> {
+  private async listResourcesImpl(server: McpServer): Promise<McpResource[]> {
     const client = await this.getOrCreateClient(server)
     logger.debug(`Listing resources for server: ${server.name}`)
     try {
@@ -1158,9 +1158,9 @@ export class McpRuntimeService extends BaseService {
   /**
    * List resources available on an MCP server with caching
    */
-  public async listResources(serverId: string): Promise<MCPResource[]> {
+  public async listResources(serverId: string): Promise<McpResource[]> {
     const server = await this.getServerById(serverId)
-    const cachedListResources = withCache<[MCPServer], MCPResource[]>(
+    const cachedListResources = withCache<[McpServer], McpResource[]>(
       this.listResourcesImpl.bind(this),
       (server) => {
         const serverKey = this.getServerKey(server)
@@ -1175,12 +1175,12 @@ export class McpRuntimeService extends BaseService {
   /**
    * Get a specific resource from an MCP server (implementation)
    */
-  private async getResourceImpl(server: MCPServer, uri: string): Promise<GetResourceResponse> {
+  private async getResourceImpl(server: McpServer, uri: string): Promise<GetResourceResponse> {
     getServerLogger(server, { uri }).debug(`Getting resource`)
     const client = await this.getOrCreateClient(server)
     try {
       const result = await client.readResource({ uri: uri })
-      const contents: MCPResource[] = []
+      const contents: McpResource[] = []
       if (result.contents && result.contents.length > 0) {
         result.contents.forEach((content: any) => {
           contents.push({
@@ -1205,7 +1205,7 @@ export class McpRuntimeService extends BaseService {
   @TraceMethod({ spanName: 'getResource', tag: 'mcp' })
   public async getResource({ serverId, uri }: { serverId: string; uri: string }): Promise<GetResourceResponse> {
     const server = await this.getServerById(serverId)
-    const cachedGetResource = withCache<[MCPServer, string], GetResourceResponse>(
+    const cachedGetResource = withCache<[McpServer, string], GetResourceResponse>(
       this.getResourceImpl.bind(this),
       (server, uri) => {
         const serverKey = this.getServerKey(server)

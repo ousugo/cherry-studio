@@ -7,8 +7,8 @@ import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { MCPToolResponse } from '@renderer/types'
-import type { MCPProgressEvent } from '@shared/config/types'
+import type { McpToolResponse } from '@renderer/types'
+import type { McpProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Collapse, ConfigProvider, Progress } from 'antd'
 import { Check, ChevronRight, ShieldCheck } from 'lucide-react'
@@ -38,7 +38,7 @@ import { truncateOutput } from './shared/truncateOutput'
 import ToolApprovalActionsComponent from './ToolApprovalActions'
 
 interface Props {
-  toolResponse: MCPToolResponse
+  toolResponse: McpToolResponse
 }
 
 const logger = loggerService.withContext('MessageTools')
@@ -64,7 +64,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(
       IpcChannel.Mcp_Progress,
-      (_event: Electron.IpcRendererEvent, data: MCPProgressEvent) => {
+      (_event: Electron.IpcRendererEvent, data: McpProgressEvent) => {
         // Only update progress if this event is for our specific tool call
         if (data.callId === id) {
           setProgress(data.progress)

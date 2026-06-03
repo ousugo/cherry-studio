@@ -1,4 +1,4 @@
-import type { MCPTool, Topic } from '@types'
+import type { McpTool, Topic } from '@types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { MiniApp } from '../types/miniApp'
@@ -22,7 +22,7 @@ export type CacheActiveSearches = Record<string, WebSearchStatus>
 // The actual type checking will be done at runtime by the cache system
 export type CacheMiniAppType = MiniApp
 export type CacheTopic = Topic
-export type CacheMcpTool = MCPTool
+export type CacheMcpTool = McpTool
 
 export type McpRuntimeStatus = {
   state: 'disabled' | 'connecting' | 'connected' | 'error'

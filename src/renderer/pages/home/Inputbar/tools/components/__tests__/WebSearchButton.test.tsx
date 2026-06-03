@@ -86,7 +86,7 @@ vi.mock('@renderer/config/models', () => {
 })
 
 vi.mock('@renderer/types', () => ({
-  BuiltinMCPServerNames: {
+  BuiltinMcpServerNames: {
     flomo: '@cherry/flomo',
     mcpAutoInstall: '@cherry/mcp-auto-install',
     memory: '@cherry/memory',
@@ -96,7 +96,7 @@ vi.mock('@renderer/types', () => ({
     filesystem: '@cherry/filesystem',
     difyKnowledge: '@cherry/dify-knowledge',
     python: '@cherry/python',
-    didiMCP: '@cherry/didi-mcp',
+    didiMcp: '@cherry/didi-mcp',
     browser: '@cherry/browser',
     nowledgeMem: '@cherry/nowledge-mem',
     hub: '@cherry/hub'

@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { useToolApprovalRespond } from '@renderer/hooks/ToolApprovalContext'
 import { useMcpServerMutations, useMcpServers } from '@renderer/hooks/useMcpServer'
 import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
-import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
+import type { McpTool, McpToolResponse, NormalToolResponse } from '@renderer/types'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,7 +28,7 @@ export interface ToolApprovalActions {
   autoApprove?: () => void | Promise<void>
 }
 
-type ToolApprovalTarget = MCPToolResponse | NormalToolResponse
+type ToolApprovalTarget = McpToolResponse | NormalToolResponse
 
 const IDLE: ToolApprovalState & ToolApprovalActions = {
   isWaiting: false,
@@ -55,7 +55,7 @@ export function useToolApproval(
    * reflects it and subsequent calls of this tool skip the approval card
    * (the mirror operation of `McpSettings.handleToggleAutoApprove`).
    */
-  mcpTool?: MCPTool
+  mcpTool?: McpTool
 ): ToolApprovalState & ToolApprovalActions {
   const { t } = useTranslation()
   const partsMap = usePartsMap()

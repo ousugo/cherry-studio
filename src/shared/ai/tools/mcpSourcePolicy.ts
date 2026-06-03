@@ -1,4 +1,4 @@
-import type { MCPServer } from '../../data/types/mcpServer'
+import type { McpServer } from '../../data/types/mcpServer'
 import { buildFunctionCallToolName, toCamelCase } from '../../mcp'
 
 export type McpPolicyTool = {
@@ -19,7 +19,7 @@ export function buildMcpWireWildcard(serverName: string): string {
   return `mcp__${toCamelCase(serverName)}__*`
 }
 
-export function matchesMcpSourceToolRule(value: string, server: MCPServer, tool: McpPolicyTool): boolean {
+export function matchesMcpSourceToolRule(value: string, server: McpServer, tool: McpPolicyTool): boolean {
   return (
     value === tool.name ||
     value === tool.id ||
@@ -28,15 +28,15 @@ export function matchesMcpSourceToolRule(value: string, server: MCPServer, tool:
   )
 }
 
-export function isMcpToolDisabledBySource(server: MCPServer, tool: McpPolicyTool): boolean {
+export function isMcpToolDisabledBySource(server: McpServer, tool: McpPolicyTool): boolean {
   return server.disabledTools?.some((value) => matchesMcpSourceToolRule(value, server, tool)) ?? false
 }
 
-export function isMcpToolForcePromptBySource(server: MCPServer, tool: McpPolicyTool): boolean {
+export function isMcpToolForcePromptBySource(server: McpServer, tool: McpPolicyTool): boolean {
   return server.disabledAutoApproveTools?.some((value) => matchesMcpSourceToolRule(value, server, tool)) ?? false
 }
 
-export function resolveMcpSourceToolAccess(server: MCPServer, tool: McpPolicyTool): McpSourceToolAccess {
+export function resolveMcpSourceToolAccess(server: McpServer, tool: McpPolicyTool): McpSourceToolAccess {
   if (isMcpToolDisabledBySource(server, tool)) {
     return { enabled: false, approval: 'prompt' }
   }

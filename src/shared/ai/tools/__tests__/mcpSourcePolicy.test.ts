@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { MCPServer } from '../../../data/types/mcpServer'
+import type { McpServer } from '../../../data/types/mcpServer'
 import {
   isMcpToolDisabledBySource,
   isMcpToolForcePromptBySource,
@@ -14,7 +14,7 @@ const server = {
   isActive: true,
   disabledTools: [],
   disabledAutoApproveTools: []
-} as MCPServer
+} as McpServer
 
 const tool = {
   id: 'mcp__docs__searchDocs',
@@ -34,7 +34,7 @@ describe('mcpSourcePolicy', () => {
       ...server,
       disabledTools: ['search_docs'],
       disabledAutoApproveTools: ['mcp__docs__searchDocs']
-    } as MCPServer
+    } as McpServer
 
     expect(isMcpToolDisabledBySource(configured, tool)).toBe(true)
     expect(isMcpToolForcePromptBySource(configured, tool)).toBe(true)
@@ -43,7 +43,7 @@ describe('mcpSourcePolicy', () => {
 
   it('resolves source force-prompt for auto-approval opt-out', () => {
     expect(
-      resolveMcpSourceToolAccess({ ...server, disabledAutoApproveTools: ['search_docs'] } as MCPServer, tool)
+      resolveMcpSourceToolAccess({ ...server, disabledAutoApproveTools: ['search_docs'] } as McpServer, tool)
     ).toEqual({
       enabled: true,
       approval: 'prompt'

@@ -321,7 +321,7 @@ export interface OldToolBlock extends OldMessageBlock {
       }
     | string
   metadata?: Record<string, unknown> & {
-    /** Full MCPToolResponse preserved at save time */
+    /** Full McpToolResponse preserved at save time */
     rawMcpToolResponse?: {
       id: string
       tool: { id: string; name: string; type: string; serverId?: string; serverName?: string; description?: string }
