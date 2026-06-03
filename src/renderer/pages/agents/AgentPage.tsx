@@ -164,15 +164,13 @@ const AgentPage = () => {
   // Label this tab with its agent emoji + session name so multiple agent tabs
   // are distinguishable (every tab labels itself — not gated on active).
   const { agent: visibleAgent } = useAgent(visibleSession?.agentId ?? null)
-  // This tab shows an unpersisted temp session (no sessionId in url, live temp
-  // lease) → forbid "open in new window".
+  // Unpersisted temp sessions do not have a stable instance key.
   const isTemporaryView = !isMessageOnlyView && !activeSessionId && visibleTemporaryAgentConversation?.type === 'agent'
   const tabInstanceSessionId =
     !isMessageOnlyView && !isTemporaryView ? (visibleSession?.id ?? routeActiveSessionId ?? undefined) : undefined
   useTabSelfMetadata({
     title: visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents'),
     emoji: visibleAgent?.configuration?.avatar,
-    isTemporary: isTemporaryView,
     instanceAppId: 'agents',
     instanceKey: tabInstanceSessionId ?? null
   })

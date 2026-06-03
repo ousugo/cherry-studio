@@ -261,7 +261,7 @@ interface TabCapabilities {
  * tabs can always be unpinned but never closed directly; reordering is per-zone.
  */
 export function getTabCapabilities(
-  tab: Pick<Tab, 'id' | 'isPinned' | 'isTemporary'>,
+  tab: Pick<Tab, 'id' | 'isPinned'>,
   ctx: { pinnedCount: number; normalCount: number; canDetach: boolean }
 ): TabCapabilities {
   if (isHomeTab(tab)) {

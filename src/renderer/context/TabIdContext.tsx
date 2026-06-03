@@ -32,7 +32,6 @@ export function useCurrentTab(): Tab | undefined {
 export interface TabSelfMetadata {
   title: string
   emoji?: string | null
-  isTemporary: boolean
   instanceAppId?: TabInstanceAppId
   instanceKey?: string | null
 }
@@ -60,13 +59,13 @@ function isMetadataEqual(
 }
 
 /**
- * Sync this tab's own title / icon / isTemporary / instance key into the tab model.
+ * Sync this tab's own title / icon / instance key into the tab model.
  * The owning page passes its derived metadata; everything tab-specific
  * (emoji → icon descriptor mapping, which tab id, change dedupe) stays here so
  * the page never touches the tab system or the
  * `Tab` shape. No-op without a TabsProvider / TabIdProvider (tests, detached popups).
  */
-export function useTabSelfMetadata({ title, emoji, isTemporary, instanceAppId, instanceKey }: TabSelfMetadata): void {
+export function useTabSelfMetadata({ title, emoji, instanceAppId, instanceKey }: TabSelfMetadata): void {
   const currentTabId = useCurrentTabId()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
@@ -80,21 +79,15 @@ export function useTabSelfMetadata({ title, emoji, isTemporary, instanceAppId, i
       appId: instanceAppId,
       key: instanceKey
     })
-    if (
-      currentTab.title === title &&
-      currentTab.icon === icon &&
-      currentTab.isTemporary === isTemporary &&
-      isMetadataEqual(currentTab.metadata, metadata)
-    ) {
+    if (currentTab.title === title && currentTab.icon === icon && isMetadataEqual(currentTab.metadata, metadata)) {
       return
     }
     updateTab(currentTabId, {
       title,
       icon,
-      isTemporary,
       metadata
     })
-  }, [currentTabId, currentTab, updateTab, title, emoji, isTemporary, instanceAppId, instanceKey])
+  }, [currentTabId, currentTab, updateTab, title, emoji, instanceAppId, instanceKey])
 }
 
 /**

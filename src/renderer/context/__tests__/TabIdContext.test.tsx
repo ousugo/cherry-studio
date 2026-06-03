@@ -52,13 +52,7 @@ describe('TabIdContext', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabMetadataWriter
-          title="Topic title"
-          emoji="spark"
-          isTemporary={false}
-          instanceAppId="assistants"
-          instanceKey="topic-1"
-        />
+        <TabMetadataWriter title="Topic title" emoji="spark" instanceAppId="assistants" instanceKey="topic-1" />
       </TabIdProvider>
     )
 
@@ -66,7 +60,6 @@ describe('TabIdContext', () => {
       expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
         title: 'Topic title',
         icon: 'icon:spark',
-        isTemporary: false,
         metadata: { keep: true, instanceAppId: 'assistants', instanceKey: 'topic-1' }
       })
     )
@@ -84,13 +77,7 @@ describe('TabIdContext', () => {
 
     render(
       <TabIdProvider tabId="tab-1">
-        <TabMetadataWriter
-          title="Topic title"
-          emoji="spark"
-          isTemporary={false}
-          instanceAppId="assistants"
-          instanceKey="topic-1"
-        />
+        <TabMetadataWriter title="Topic title" emoji="spark" instanceAppId="assistants" instanceKey="topic-1" />
       </TabIdProvider>
     )
 

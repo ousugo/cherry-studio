@@ -21,6 +21,5 @@ export type SubWindowInitData = {
   icon?: string
   type?: TabType
   isPinned?: boolean
-  isTemporary?: boolean
   metadata?: TabInstanceMetadata
 }

@@ -392,13 +392,9 @@ describe('getTabCapabilities', () => {
     expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 2 })).reorder).toBe(true)
   })
 
-  it('allows temporary tabs to detach but still respects window detach support', () => {
-    expect(getTabCapabilities({ id: 'a', isPinned: false, isTemporary: true }, ctx({ normalCount: 2 })).detach).toBe(
-      true
-    )
-    expect(getTabCapabilities({ id: 'p', isPinned: true, isTemporary: true }, ctx({ pinnedCount: 2 })).detach).toBe(
-      true
-    )
+  it('respects window detach support', () => {
+    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2 })).detach).toBe(true)
+    expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 2 })).detach).toBe(true)
     expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2, canDetach: false })).detach).toBe(
       false
     )
