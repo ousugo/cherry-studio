@@ -600,8 +600,9 @@ export class MessageService {
 
   /** Update siblingsGroupId for a single message. */
   async updateSiblingsGroupId(id: string, siblingsGroupId: number): Promise<void> {
-    const db = application.get('DbService').getDb()
-    await db.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id))
+    await application.get('DbService').withWriteTx(async (tx) => {
+      await tx.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id))
+    })
   }
 
   /**
@@ -623,9 +624,7 @@ export class MessageService {
    *   we let the user branch the *first* user message.
    */
   async createSibling(sourceId: string, data: MessageData): Promise<Message> {
-    const db = application.get('DbService').getDb()
-
-    return await db.transaction(async (tx) => {
+    return await application.get('DbService').withWriteTx(async (tx) => {
       const [source] = await tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1)
       if (!source) {
         throw DataApiErrorFactory.notFound('Message', sourceId)
@@ -672,9 +671,7 @@ export class MessageService {
    * - Topic activeNodeId update
    */
   async create(topicId: string, dto: CreateMessageDto): Promise<Message> {
-    const db = application.get('DbService').getDb()
-
-    return await db.transaction(async (tx) => {
+    return await application.get('DbService').withWriteTx(async (tx) => {
       // Step 1: Verify topic exists and fetch its current state.
       // We need the topic to check activeNodeId for parentId auto-resolution.
       const [topic] = await tx.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1)
@@ -796,9 +793,7 @@ export class MessageService {
   async createUserMessageWithPlaceholders(
     input: CreateUserMessageWithPlaceholdersInput
   ): Promise<CreateUserMessageWithPlaceholdersResult> {
-    const db = application.get('DbService').getDb()
-
-    return await db.transaction(async (tx) => {
+    return await application.get('DbService').withWriteTx(async (tx) => {
       // Validate topic
       const [topic] = await tx.select().from(topicTable).where(eq(topicTable.id, input.topicId)).limit(1)
       if (!topic) {
@@ -915,8 +910,6 @@ export class MessageService {
    * Cycle check is performed outside transaction as a read-only safety check.
    */
   async update(id: string, dto: UpdateMessageDto): Promise<Message> {
-    const db = application.get('DbService').getDb()
-
     // Pre-transaction: Check for cycle if moving to new parent
     // This is done outside transaction since getDescendantIds uses its own db context
     // and cycle check is a safety check (worst case: reject valid operation)
@@ -927,7 +920,7 @@ export class MessageService {
       }
     }
 
-    return await db.transaction(async (tx) => {
+    return await application.get('DbService').withWriteTx(async (tx) => {
       // Get existing message within transaction
       const [existingRow] = await tx.select().from(messageTable).where(eq(messageTable.id, id)).limit(1)
 
@@ -1016,7 +1009,7 @@ export class MessageService {
     }
 
     // Use transaction for atomic delete + activeNodeId update
-    return await db.transaction(async (tx) => {
+    return await application.get('DbService').withWriteTx(async (tx) => {
       let deletedIds: string[]
       let reparentedIds: string[] | undefined
       let newActiveNodeId: string | null | undefined

@@ -222,7 +222,7 @@ export class AgentService {
     const database = application.get('DbService').getDb()
 
     await withSqliteErrors(
-      () => database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)),
+      () => database.transaction((tx) => tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))),
       defaultHandlersFor('Agent', id)
     )
 
