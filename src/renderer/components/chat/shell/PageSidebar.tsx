@@ -3,7 +3,7 @@ import { cn } from '@renderer/utils'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
 
-import { CHAT_SHELL_PANE_WIDTH, CHAT_SHELL_TRANSITION } from './types'
+import { CHAT_SHELL_PANE_WIDTH, CHAT_SHELL_TRANSITION } from './paneLayout'
 import { useResourceListPaneResize } from './useResourceListPaneResize'
 
 export interface PageSidebarProps {

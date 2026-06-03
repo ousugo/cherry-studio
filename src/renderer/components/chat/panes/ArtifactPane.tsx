@@ -28,7 +28,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CHAT_SHELL_TRANSITION } from '../shell/types'
+import { CHAT_SHELL_TRANSITION } from '../shell/paneLayout'
 import OpenExternalAppButton from './OpenExternalAppButton'
 
 const logger = loggerService.withContext('ArtifactPane')

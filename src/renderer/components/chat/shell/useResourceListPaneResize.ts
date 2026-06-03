@@ -3,10 +3,13 @@ import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
-export const RESOURCE_LIST_PANE_DEFAULT_WIDTH = 240
-export const RESOURCE_LIST_PANE_MIN_WIDTH = 240
-export const RESOURCE_LIST_PANE_MAX_WIDTH = 360
-export const RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD = 200
+import {
+  RESOURCE_LIST_PANE_CACHE_KEY,
+  RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD,
+  RESOURCE_LIST_PANE_DEFAULT_WIDTH,
+  RESOURCE_LIST_PANE_MAX_WIDTH,
+  RESOURCE_LIST_PANE_MIN_WIDTH
+} from './paneLayout'
 
 export function clampResourceListPaneWidth(width: number): number {
   return Math.min(RESOURCE_LIST_PANE_MAX_WIDTH, Math.max(RESOURCE_LIST_PANE_MIN_WIDTH, Math.round(width)))
@@ -17,7 +20,7 @@ interface ResourceListPaneResizeOptions {
 }
 
 export function useResourceListPaneResize({ onPaneCollapse }: ResourceListPaneResizeOptions = {}) {
-  const [storedWidth, setStoredWidth] = usePersistCache('ui.chat.sidebar.width')
+  const [storedWidth, setStoredWidth] = usePersistCache(RESOURCE_LIST_PANE_CACHE_KEY)
   const paneRef = useRef<HTMLDivElement>(null)
   const pendingPaneCollapseRef = useRef(false)
   const dragStateRef = useRef({ paneLeft: 0, startClientX: 0 })

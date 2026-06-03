@@ -543,6 +543,7 @@ const AgentChatSessionFrame = ({
         sidePanel={sidePanel}
         centerOverlay={rightPaneDisabled ? undefined : <AgentRightPane.MaximizedOverlay />}
         rightPane={rightPaneDisabled ? undefined : <AgentRightPane.Host />}
+        centerClassName="transform-[translateZ(0)] relative justify-between"
       />
     </AgentRightPane>
   )

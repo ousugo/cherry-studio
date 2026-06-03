@@ -1,13 +1,23 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  RightPaneHost
-} from '../RightPaneHost'
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH
+} from '../paneLayout'
+import { RightPaneHost } from '../RightPaneHost'
+
+const originalResizeObserver = globalThis.ResizeObserver
+
+interface ResizeObserverMockInstance {
+  callback: ResizeObserverCallback
+  observe: ReturnType<typeof vi.fn>
+  disconnect: ReturnType<typeof vi.fn>
+}
+
+const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
 
 const persistCacheMock = vi.hoisted(() => {
   const state = { width: 460 }
@@ -60,12 +70,30 @@ vi.mock('motion/react', () => ({
 }))
 
 describe('RightPaneHost', () => {
+  beforeEach(() => {
+    resizeObserverMockInstances.length = 0
+    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+      const instance = {
+        callback,
+        observe: vi.fn(),
+        disconnect: vi.fn()
+      }
+      resizeObserverMockInstances.push(instance)
+
+      return {
+        observe: instance.observe,
+        disconnect: instance.disconnect
+      } as unknown as ResizeObserver
+    }) as unknown as typeof ResizeObserver
+  })
+
   afterEach(() => {
     persistCacheMock.state.width = ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH
     persistCacheMock.setWidth.mockClear()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     vi.restoreAllMocks()
+    globalThis.ResizeObserver = originalResizeObserver
   })
 
   it('constrains the right pane to the chat shell height while preserving width', () => {
@@ -88,6 +116,39 @@ describe('RightPaneHost', () => {
     )
 
     expect(container.querySelector('[data-right-pane-resize-handle]')).not.toBeInTheDocument()
+  })
+
+  it('caps its width when reserving space for the conversation center', () => {
+    render(
+      <RightPaneHost open width={460} reservedCenterWidth={360}>
+        <div>artifact pane</div>
+      </RightPaneHost>
+    )
+
+    const host = screen.getByText('artifact pane').parentElement
+
+    expect(host).toHaveStyle({ maxWidth: 'max(0px, calc(100% - 360px))' })
+  })
+
+  it('notifies when reserved center space leaves less than the pane minimum width', async () => {
+    const onReservedSpaceUnavailable = vi.fn()
+
+    render(
+      <RightPaneHost
+        open
+        resizable
+        width={460}
+        reservedCenterWidth={360}
+        onReservedSpaceUnavailable={onReservedSpaceUnavailable}>
+        <div>artifact pane</div>
+      </RightPaneHost>
+    )
+
+    notifyObservedContainerWidth(ARTIFACT_RIGHT_PANE_MIN_WIDTH + 360 - 1)
+
+    await waitFor(() => {
+      expect(onReservedSpaceUnavailable).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('renders a left-edge resize handle when resizable', () => {
@@ -194,3 +255,23 @@ describe('RightPaneHost', () => {
     expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
   })
 })
+
+function notifyObservedContainerWidth(width: number) {
+  const observedTarget = resizeObserverMockInstances
+    .flatMap((instance) => instance.observe.mock.calls.map(([target]) => ({ instance, target })))
+    .find(({ target }) => target instanceof Element && target.querySelector('[data-right-pane]'))
+  if (!observedTarget || !(observedTarget.target instanceof Element)) {
+    throw new Error('Expected RightPaneHost container to be observed')
+  }
+  const { instance, target } = observedTarget
+
+  instance.callback(
+    [
+      {
+        target,
+        contentRect: new DOMRect(0, 0, width, 0)
+      } as ResizeObserverEntry
+    ],
+    {} as ResizeObserver
+  )
+}

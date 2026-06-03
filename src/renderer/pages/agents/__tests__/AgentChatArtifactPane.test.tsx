@@ -42,6 +42,7 @@ vi.mock('@renderer/components/chat', () => ({
     topRightTool,
     sidePanel,
     center,
+    centerClassName,
     overlay,
     centerOverlay,
     rightPane
@@ -53,6 +54,7 @@ vi.mock('@renderer/components/chat', () => ({
     topRightTool?: ReactNode
     sidePanel?: ReactNode
     center?: ReactNode
+    centerClassName?: string
     overlay?: ReactNode
     centerOverlay?: ReactNode
     rightPane?: ReactNode
@@ -62,7 +64,9 @@ vi.mock('@renderer/components/chat', () => ({
       <div data-testid="agent-top-right-tool">{topRightTool}</div>
       <div data-testid="shell-pane">{pane}</div>
       <div data-testid="agent-side-panel">{sidePanel}</div>
-      <div>{center}</div>
+      <div data-testid="agent-center" className={centerClassName}>
+        {center}
+      </div>
       <div data-testid="chat-center-overlay">{centerOverlay}</div>
       <div>{overlay}</div>
       {rightPane}
