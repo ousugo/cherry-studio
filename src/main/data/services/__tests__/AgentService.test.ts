@@ -111,6 +111,22 @@ describe('AgentService', () => {
       expect(agent.id).toMatch(uuidV4Pattern)
     })
 
+    it('persists plan and small models when provided', async () => {
+      const agent = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Model Roles Test',
+        model: TEST_MODEL_ID,
+        planModel: TEST_MODEL_ID,
+        smallModel: TEST_MODEL_ID
+      })
+
+      expect(agent).toMatchObject({
+        model: TEST_MODEL_ID,
+        planModel: TEST_MODEL_ID,
+        smallModel: TEST_MODEL_ID
+      })
+    })
+
     it('places newly created agents by default orderKey sort', async () => {
       await insertAgent({ id: 'agent_existing_a' })
       await insertAgent({ id: 'agent_existing_b' })

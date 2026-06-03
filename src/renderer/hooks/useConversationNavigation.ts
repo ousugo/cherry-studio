@@ -19,8 +19,11 @@ export interface ConversationNavigation {
    * to navigating the current tab instead of bouncing to itself.
    */
   focusExistingTab: (key: string, options?: { excludeTabId?: string }) => boolean
-  /** Focus the tab showing `key`, else open a new base-route tab with instance metadata. */
-  openConversationTab: (key: string, title?: string) => string | undefined
+  /**
+   * Focus the tab showing `key`, else open a new base-route tab with instance metadata.
+   * `forceNew` skips the focus step and always opens a fresh duplicate tab.
+   */
+  openConversationTab: (key: string, title?: string, options?: { forceNew?: boolean }) => string | undefined
 }
 
 /**
@@ -74,11 +77,12 @@ function openConversationTabImpl(
   tabs: TabsContextValue | null,
   appId: SidebarIcon,
   key: string,
-  title?: string
+  title?: string,
+  forceNew?: boolean
 ): string | undefined {
   const app = getSidebarApp(appId)
   if (!tabs || !app?.instanceKey) return
-  if (focusConversationTabImpl(tabs, appId, key)) return
+  if (!forceNew && focusConversationTabImpl(tabs, appId, key)) return
   const metadata = buildSidebarAppOpenMetadata(app, key)
   const openedId = tabs.openTab(app.routePrefix, { forceNew: true, title, ...(metadata && { metadata }) })
   const source = resolveRevealSource(appId)
@@ -101,7 +105,7 @@ export function useConversationNavigation(appId: SidebarIcon): ConversationNavig
   return useMemo<ConversationNavigation>(
     () => ({
       focusExistingTab: (key, options) => focusConversationTabImpl(tabs, appId, key, options?.excludeTabId),
-      openConversationTab: (key, title) => openConversationTabImpl(tabs, appId, key, title)
+      openConversationTab: (key, title, options) => openConversationTabImpl(tabs, appId, key, title, options?.forceNew)
     }),
     [appId, tabs]
   )
@@ -109,9 +113,9 @@ export function useConversationNavigation(appId: SidebarIcon): ConversationNavig
 
 /**
  * App-parameterized conversation navigation for callers that dispatch dynamically
- * (e.g. the sidebar, where the clicked app is only known at runtime). Avoids one
- * `useConversationNavigation` hook per app plus `app.id` branching at the call site;
- * multi-instance-ness comes from the registry's `instanceKey`, not an id list.
+ * (e.g. the global search launchpad, where the clicked app is only known at runtime).
+ * Avoids one `useConversationNavigation` hook per app plus `app.id` branching at the call
+ * site; multi-instance-ness comes from the registry's `instanceKey`, not an id list.
  */
 export function useConversationNavigator(): ConversationNavigator {
   const tabs = useOptionalTabsContext()

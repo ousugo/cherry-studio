@@ -9,16 +9,48 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '../edit/EditDialogShared'
 
 const {
+  agentTools,
   ensureTagsMock,
   fetchGenerateMock,
+  mcpStatusState,
+  openSettingsWindowMock,
   toggleSkillMock,
   updateAgentMock,
   updateAssistantMock,
   useMutationMock,
   useQueryMock
 } = vi.hoisted(() => ({
+  agentTools: [
+    { id: 'Bash', name: 'Bash', description: 'Run shell commands', origin: 'builtin', approval: 'prompt' },
+    { id: 'Edit', name: 'Edit', description: 'Edit files', origin: 'builtin', approval: 'prompt' },
+    { id: 'Glob', name: 'Glob', description: 'Find files', origin: 'builtin', approval: 'auto' },
+    { id: 'Grep', name: 'Grep', description: 'Search files', origin: 'builtin', approval: 'auto' },
+    { id: 'MultiEdit', name: 'MultiEdit', description: 'Edit multiple ranges', origin: 'builtin', approval: 'prompt' },
+    {
+      id: 'NotebookEdit',
+      name: 'NotebookEdit',
+      description: 'Edit notebooks',
+      origin: 'builtin',
+      approval: 'prompt'
+    },
+    {
+      id: 'NotebookRead',
+      name: 'NotebookRead',
+      description: 'Read notebooks',
+      origin: 'builtin',
+      approval: 'auto'
+    },
+    { id: 'Read', name: 'Read', description: 'Read files', origin: 'builtin', approval: 'auto' },
+    { id: 'Task', name: 'Task', description: 'Run sub-agents', origin: 'builtin', approval: 'auto' },
+    { id: 'TodoWrite', name: 'TodoWrite', description: 'Manage todos', origin: 'builtin', approval: 'auto' },
+    { id: 'WebFetch', name: 'WebFetch', description: 'Fetch websites', origin: 'builtin', approval: 'prompt' },
+    { id: 'WebSearch', name: 'WebSearch', description: 'Search web', origin: 'builtin', approval: 'prompt' },
+    { id: 'Write', name: 'Write', description: 'Write files', origin: 'builtin', approval: 'prompt' }
+  ],
   ensureTagsMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
+  mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
+  openSettingsWindowMock: vi.fn(),
   toggleSkillMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
@@ -124,21 +156,14 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 
 vi.mock('@renderer/hooks/agents/useAgentTools', () => ({
   useAgentTools: () => ({
-    tools: [
-      {
-        id: 'Read',
-        name: 'Read',
-        description: 'Read files',
-        origin: 'builtin'
-      }
-    ],
+    tools: agentTools,
     isLoading: false,
     error: undefined
   })
 }))
 
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
-  useMcpRuntimeStatusMap: () => ({})
+  useMcpRuntimeStatusMap: () => mcpStatusState.current
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
@@ -162,6 +187,10 @@ vi.mock('@renderer/hooks/usePromptProcessor', () => ({
 
 vi.mock('@renderer/services/ApiService', () => ({
   fetchGenerate: fetchGenerateMock
+}))
+
+vi.mock('@renderer/services/SettingsWindowService', () => ({
+  openSettingsWindow: openSettingsWindowMock
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -205,20 +234,18 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.soul_enabled.help': 'Use soul.md.',
-          'library.config.agent.field.soul_enabled.label': 'Soul',
+          'library.config.agent.field.soul_enabled.help': 'Use workspace soul files and autonomous tools.',
+          'library.config.agent.field.soul_enabled.label': 'Autonomous mode',
           'library.config.agent.field.instructions.label': 'Instructions',
           'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
           'library.config.agent.field.env_vars.help': 'One KEY=VALUE per line',
           'library.config.agent.field.env_vars.label': 'Environment variables',
           'library.config.agent.field.env_vars.placeholder': 'KEY=value\nANOTHER_KEY=another_value',
-          'library.config.agent.field.max_turns.help': '0 means default',
-          'library.config.agent.field.max_turns.label': 'Max turns',
           'library.config.agent.field.permission_mode.label': 'Permission mode',
-          'library.config.agent.field.permission_mode.option.acceptEdits': 'Accept edits',
-          'library.config.agent.field.permission_mode.option.bypassPermissions': 'Bypass permissions',
-          'library.config.agent.field.permission_mode.option.default': 'Default',
-          'library.config.agent.field.permission_mode.option.plan': 'Plan mode',
+          'library.config.agent.field.permission_mode.option.acceptEdits': 'Auto-edit Mode',
+          'library.config.agent.field.permission_mode.option.bypassPermissions': 'Full Auto Mode',
+          'library.config.agent.field.permission_mode.option.default': 'Normal Mode',
+          'library.config.agent.field.permission_mode.option.plan': 'Plan Mode',
           'library.config.agent.section.permission.desc': 'Permission options.',
           'library.config.agent.section.permission.title': 'Permission',
           'library.config.agent.section.tools.add': 'Add',
@@ -318,7 +345,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.no_match': 'No match',
           'settings.mcp.runtimeStatus.connected': 'Connected',
           'settings.mcp.runtimeStatus.connecting': 'Connecting',
-          'settings.mcp.runtimeStatus.unavailable': 'Unavailable'
+          'settings.mcp.runtimeStatus.unavailable': 'Unavailable',
+          'settings.title': 'Settings'
         })[key] ?? key
     })
   }
@@ -404,6 +432,9 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  mcpStatusState.current = {
+    'mcp-1': { state: 'connected', lastCheckedAt: 1 }
+  }
   useQueryMock.mockImplementation((path: string) => {
     if (path.startsWith('/models/')) {
       const id = path.slice('/models/'.length)
@@ -466,6 +497,7 @@ beforeEach(() => {
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   ensureTagsMock.mockResolvedValue([{ id: 'tag-work', name: 'work', color: '#8b5cf6' }])
   fetchGenerateMock.mockResolvedValue('Generated prompt')
+  openSettingsWindowMock.mockResolvedValue('settings-window')
   toggleSkillMock.mockResolvedValue(undefined)
 })
 
@@ -638,34 +670,53 @@ describe('edit dialogs', () => {
     expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
   })
 
-  it('submits agent permission, tool, and advanced changes', async () => {
+  it('submits agent permission defaults and advanced changes', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     expect(screen.queryByRole('tab', { name: 'Permission' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('combobox', { name: 'Permission mode' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'Plan mode' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Plan Mode' }))
 
     selectTab('Advanced')
-    await waitFor(() => expect(screen.getByText('Max turns')).toBeVisible())
-    expectHelpTrigger('Max turns', '0 means default')
+    expect(screen.queryByText('Max turns')).not.toBeInTheDocument()
     expectHelpTrigger('Environment variables', 'One KEY=VALUE per line')
-    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '7' } })
-    fireEvent.blur(screen.getByRole('spinbutton'))
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'FOO=bar' } })
 
-    selectTab('Built-in tools')
-    await waitFor(() => expect(screen.getByText('Read')).toBeVisible())
-    fireEvent.click(screen.getByRole('switch', { name: 'Read' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
+    const body = vi.mocked(updateAgentMock).mock.calls[0][0].body
+    expect(body).not.toHaveProperty('allowedTools')
+    expect(body).toEqual(
+      expect.objectContaining({
+        configuration: expect.not.objectContaining({ max_turns: expect.anything() })
+      })
+    )
+    expect(body.configuration).toEqual(
+      expect.objectContaining({
+        env_vars: { FOO: 'bar' },
+        permission_mode: 'plan'
+      })
+    )
+  })
+
+  it('hides permission mode while autonomous mode is enabled', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    expect(screen.getByRole('combobox', { name: 'Permission mode' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Autonomous mode' }))
+
+    expect(screen.queryByRole('combobox', { name: 'Permission mode' })).not.toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
-          allowedTools: ['Read'],
           configuration: expect.objectContaining({
-            env_vars: { FOO: 'bar' },
-            max_turns: 7,
-            permission_mode: 'plan'
+            permission_mode: 'bypassPermissions',
+            soul_enabled: true
           })
         })
       })
@@ -695,6 +746,33 @@ describe('edit dialogs', () => {
 
     selectTab('Skills')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('uses the same MCP server list presentation in assistant and agent editing', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('MCP')
+    fireEvent.click(screen.getByRole('combobox', { name: 'MCP Mode' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Manual' }))
+
+    expect(screen.getByText('MCP services')).toBeInTheDocument()
+    expect(screen.getByText('MCP One')).toBeInTheDocument()
+    expect(screen.getByText('Connected')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'MCP services Settings' }))
+    expect(openSettingsWindowMock).toHaveBeenCalledWith('/settings/mcp/servers')
+
+    cleanup()
+    openSettingsWindowMock.mockClear()
+
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('MCP')
+
+    expect(screen.getByText('MCP services')).toBeInTheDocument()
+    expect(screen.getByText('MCP One')).toBeInTheDocument()
+    expect(screen.getByText('Connected')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'MCP services Settings' }))
+    expect(openSettingsWindowMock).toHaveBeenCalledWith('/settings/mcp/servers')
   })
 
   it('keeps popover content inside the dialog container', async () => {

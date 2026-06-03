@@ -27,6 +27,7 @@ const hookMocks = vi.hoisted(() => ({
   startTopicRenaming: vi.fn(),
   togglePin: vi.fn(),
   updateTopic: vi.fn(),
+  openConversationTab: vi.fn(),
   useAgents: vi.fn(),
   useTopics: vi.fn(),
   useAssistants: vi.fn(),
@@ -130,6 +131,7 @@ vi.mock('@cherrystudio/ui', async () => {
     FieldError: ({ children, ...props }: { children?: ReactNode }) => <p {...props}>{children}</p>,
     Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,
+    RowFlex: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
     SelectDropdown: ({ items, onSelect, renderItem, renderSelected, selectedId, placeholder }: any) => {
       const selected = items.find((item: { id: string }) => item.id === selectedId)
       return (
@@ -199,6 +201,13 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
+}))
+
+vi.mock('@renderer/hooks/useConversationNavigation', () => ({
+  useConversationNavigation: () => ({
+    focusExistingTab: vi.fn(),
+    openConversationTab: hookMocks.openConversationTab
+  })
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({
@@ -404,6 +413,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+const flushCommandMenuAction = () => new Promise<void>((resolve) => queueMicrotask(resolve))
 
 describe('HistoryRecordsPage assistant mode', () => {
   beforeEach(() => {
@@ -421,6 +431,8 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useAgents.mockReset()
     hookMocks.useTopics.mockReset()
     hookMocks.useAssistants.mockReset()
+    hookMocks.openConversationTab.mockReset()
+    hookMocks.openConversationTab.mockReturnValue('new-history-topic-tab')
     hookMocks.useCache.mockReset()
     hookMocks.useCache.mockReturnValue([[], vi.fn()])
     hookMocks.useMultiplePreferences.mockReset()
@@ -498,8 +510,9 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha topic' }))
 
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha', name: 'Alpha topic' }))
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(hookMocks.openConversationTab).toHaveBeenCalledWith('topic-alpha', 'Alpha topic', { forceNew: true })
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
     expect(hookMocks.useSessions).not.toHaveBeenCalled()
     expect(hookMocks.useAgents).not.toHaveBeenCalled()
   })
@@ -628,6 +641,22 @@ describe('HistoryRecordsPage assistant mode', () => {
     const overlay = screen.getByTestId('history-records-page')
     expect(overlay).toHaveClass('z-40')
     expect(overlay).not.toHaveStyle({ willChange: 'clip-path' })
+  })
+
+  it('renders the overlay inside the owning container instead of the first home page element', () => {
+    hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
+    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+
+    const firstHomePage = document.getElementById('home-page') as HTMLElement
+    const owningContainer = document.createElement('div')
+    document.body.appendChild(owningContainer)
+
+    render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />, {
+      container: owningContainer
+    })
+
+    expect(within(owningContainer).getByTestId('history-records-page')).toBeInTheDocument()
+    expect(within(firstHomePage).queryByTestId('history-records-page')).not.toBeInTheDocument()
   })
 
   it('matches external assistant source and selected-source order', () => {
@@ -882,6 +911,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
 
     expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Topics' }))
     expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
@@ -917,6 +949,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
 
     const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
@@ -950,6 +985,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
 
     const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
@@ -984,6 +1022,9 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
 
     const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {

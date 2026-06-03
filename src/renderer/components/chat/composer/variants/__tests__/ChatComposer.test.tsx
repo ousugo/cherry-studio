@@ -226,8 +226,11 @@ vi.mock('@renderer/components/EmojiIcon', () => ({
 }))
 
 vi.mock('@renderer/components/Selector', () => ({
-  AssistantSelector: ({ onChange, trigger, value }: any) => (
-    <div data-testid="assistant-selector" data-value={value ?? ''}>
+  AssistantSelector: ({ autoSelectOnCreate, onChange, trigger, value }: any) => (
+    <div
+      data-testid="assistant-selector"
+      data-value={value ?? ''}
+      data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
       {trigger}
       <button type="button" onClick={() => onChange('assistant-2')}>
         select assistant 2
@@ -781,6 +784,12 @@ describe('ChatComposer', () => {
     expect(mocks.setDefaultModel).not.toHaveBeenCalled()
   })
 
+  it('does not auto-select assistants created from a persisted topic', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-auto-select-on-create', 'false')
+  })
+
   it('shows a loading model state while the assistant model is resolving', () => {
     mocks.assistant = undefined
     mocks.model = undefined
@@ -862,6 +871,7 @@ describe('ChatComposer', () => {
       <ChatHomeComposer topic={topic} onSend={vi.fn()} onTemporaryAssistantChange={onTemporaryAssistantChange} />
     )
 
+    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
     expect(mocks.setMentionedModels).not.toHaveBeenCalledWith([model])

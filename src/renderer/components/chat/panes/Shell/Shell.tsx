@@ -310,17 +310,17 @@ function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraT
         <TabsList className="min-w-max justify-start gap-1 [-webkit-app-region:no-drag]">{children}</TabsList>
       </HorizontalScrollContainer>
       <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
-        {extraTrailing}
         <Tooltip content={maximizeLabel} delay={800}>
           <NavbarIcon
             tone="conversation"
-            className="shrink-0"
+            className="[&_svg]:!size-3.5 shrink-0"
             aria-label={maximizeLabel}
             aria-pressed={state.maximized}
             onClick={actions.toggleMaximized}>
             <MaximizeIcon />
           </NavbarIcon>
         </Tooltip>
+        {extraTrailing}
       </div>
     </div>
   )

@@ -7,13 +7,15 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import { PinIcon, SquareArrowOutUpRight } from 'lucide-react'
+import { PinIcon, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { SessionActionContext } from './sessionItemActions'
 import { useSessionMenuActions } from './useSessionMenuActions'
+
+const DELETE_CONFIRMATION_TIMEOUT = 2000
 
 interface SessionItemProps {
   channelType?: string
@@ -54,10 +56,9 @@ const SessionItem = ({
   const hasStreamIndicator = !isActive && (isStreamPending || isStreamFulfilled)
   const showPinAction = !rowState.renaming && !!onTogglePin
   const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
-  // The active session is already shown in this tab — hide "open in new tab" on it.
-  const showOpenInNewTabAction = !!onOpenInNewTab && !isActive
+  const showDeleteOrStreamAction = hasStreamIndicator || !pinned
   // Reserve right-padding so the title truncates before hover actions and stream state.
-  const trailingActionCount = (showPinAction ? 1 : 0) + (showOpenInNewTabAction ? 1 : 0) + (hasStreamIndicator ? 1 : 0)
+  const trailingActionCount = (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
   const sessionTrailingActionPaddingClassName =
     trailingActionCount >= 3
       ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
@@ -67,6 +68,8 @@ const SessionItem = ({
           ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
           : ''
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
+  const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
+  const deleteConfirmationTimeoutRef = useRef<number | null>(null)
 
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
   const startMenuEdit = useCallback(() => setRenameDialogOpen(true), [])
@@ -109,28 +112,58 @@ const SessionItem = ({
 
   const { menuActions, handleMenuAction } = useSessionMenuActions(actionContext)
 
+  const clearDeleteConfirmationTimeout = useCallback(() => {
+    if (deleteConfirmationTimeoutRef.current === null) return
+    window.clearTimeout(deleteConfirmationTimeoutRef.current)
+    deleteConfirmationTimeoutRef.current = null
+  }, [])
+
+  useEffect(() => clearDeleteConfirmationTimeout, [clearDeleteConfirmationTimeout])
+
+  const handleDeleteClick = useCallback(
+    (event: MouseEvent) => {
+      event.stopPropagation()
+
+      if (isConfirmingDeletion || event.ctrlKey || event.metaKey) {
+        clearDeleteConfirmationTimeout()
+        setIsConfirmingDeletion(false)
+        handleDelete()
+        return
+      }
+
+      startTransition(() => {
+        clearDeleteConfirmationTimeout()
+        setIsConfirmingDeletion(true)
+        deleteConfirmationTimeoutRef.current = window.setTimeout(() => {
+          deleteConfirmationTimeoutRef.current = null
+          setIsConfirmingDeletion(false)
+        }, DELETE_CONFIRMATION_TIMEOUT)
+      })
+    },
+    [clearDeleteConfirmationTimeout, handleDelete, isConfirmingDeletion]
+  )
+
   const handlePress = useCallback(
     (event: MouseEvent) => {
-      // ⌘/Ctrl-click opens the session in a new tab (browser-style), matching
-      // the hover ⤢ action. Skip the active session — it's already shown here.
-      if ((event.metaKey || event.ctrlKey) && onOpenInNewTab && !isActive) {
+      // ⌘/Ctrl-click opens the session in a new tab (browser-style), matching the hover action.
+      if ((event.metaKey || event.ctrlKey) && onOpenInNewTab) {
         handleOpenInNewTab()
         return
       }
       onPress(session.id)
       onSelectItem?.()
     },
-    [handleOpenInNewTab, onOpenInNewTab, isActive, onPress, onSelectItem, session.id]
+    [handleOpenInNewTab, onOpenInNewTab, onPress, onSelectItem, session.id]
   )
 
   const handleAuxClick = useCallback(
     (event: MouseEvent) => {
-      // Middle-click opens in a new tab (except the already-shown active session).
-      if (isActive || event.button !== 1 || !onOpenInNewTab) return
+      // Middle-click opens in a new tab.
+      if (event.button !== 1 || !onOpenInNewTab) return
       event.preventDefault()
       handleOpenInNewTab()
     },
-    [handleOpenInNewTab, isActive, onOpenInNewTab]
+    [handleOpenInNewTab, onOpenInNewTab]
   )
 
   const handleTogglePinClick = useCallback(
@@ -186,7 +219,7 @@ const SessionItem = ({
         </ResourceList.ItemTitle>
       )}
 
-      <ResourceList.ItemActions active={hasStreamIndicator}>
+      <ResourceList.ItemActions active={hasStreamIndicator || isConfirmingDeletion}>
         {showPinAction && (
           <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
             <ResourceList.ItemAction
@@ -197,19 +230,22 @@ const SessionItem = ({
             </ResourceList.ItemAction>
           </Tooltip>
         )}
-        {showOpenInNewTabAction && (
-          <Tooltip title={t('common.open_in_new_tab')} delay={500}>
+        {hasStreamIndicator ? (
+          <SessionStreamIndicator isFulfilled={isStreamFulfilled} isPending={isStreamPending} />
+        ) : !pinned ? (
+          <Tooltip title={t('common.delete')} delay={500}>
             <ResourceList.ItemAction
-              aria-label={t('common.open_in_new_tab')}
-              onClick={(event) => {
-                event.stopPropagation()
-                handleOpenInNewTab()
-              }}>
-              <SquareArrowOutUpRight size={13} className="!size-[13px]" />
+              aria-label={t('common.delete')}
+              data-deleting={isConfirmingDeletion}
+              onClick={handleDeleteClick}>
+              {isConfirmingDeletion ? (
+                <Trash2 size={14} className="!size-[14px] text-destructive" />
+              ) : (
+                <XIcon size={14} className="!size-[14px]" />
+              )}
             </ResourceList.ItemAction>
           </Tooltip>
-        )}
-        {hasStreamIndicator && <SessionStreamIndicator isFulfilled={isStreamFulfilled} isPending={isStreamPending} />}
+        ) : null}
       </ResourceList.ItemActions>
     </ResourceList.Item>
   )

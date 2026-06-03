@@ -453,7 +453,7 @@ describe('Shell.TabList', () => {
     expect(tabList).not.toHaveClass('pl-[env(titlebar-area-x)]')
   })
 
-  it('renders extraTrailing before the maximize toggle', () => {
+  it('renders extraTrailing after the maximize toggle', () => {
     render(
       <Shell defaultTab="files">
         <Shell.Tabs>
@@ -469,7 +469,7 @@ describe('Shell.TabList', () => {
     const cluster = extra.parentElement
     expect(cluster).not.toBeNull()
     expect(cluster).toContainElement(maximize)
-    expect(extra.compareDocumentPosition(maximize) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(maximize.compareDocumentPosition(extra) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('promotes the header to a drag region when maximized inside a sub-window', () => {

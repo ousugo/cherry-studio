@@ -251,7 +251,7 @@ const HomePage: FC = () => {
   // Label this tab with its assistant emoji + topic name so multiple chat tabs
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const { assistant: visibleAssistant } = useAssistantApiById(visibleTopic?.assistantId ?? undefined)
-  // This tab shows an unpersisted temp topic → forbid "open in new window".
+  // Unpersisted temp topics do not have a stable instance key.
   const isTemporaryView =
     !isMessageOnlyView && !!temporaryTopicSnapshot && visibleTopic?.id === temporaryTopicSnapshot.id
   const tabInstanceTopicId =
@@ -259,7 +259,6 @@ const HomePage: FC = () => {
   useTabSelfMetadata({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
     emoji: visibleAssistant?.emoji,
-    isTemporary: isTemporaryView,
     instanceAppId: 'assistants',
     instanceKey: tabInstanceTopicId ?? null
   })

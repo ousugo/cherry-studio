@@ -132,8 +132,14 @@ export function AgentSelector(props: AgentSelectorProps) {
             type: 'claude-code',
             name: values.name,
             model: values.modelId,
+            planModel: values.modelId,
+            smallModel: values.modelId,
             description: values.description,
-            configuration: { avatar: values.avatar }
+            configuration: {
+              avatar: values.avatar,
+              permission_mode: 'bypassPermissions',
+              soul_enabled: true
+            }
           }
         })
       } catch (error) {

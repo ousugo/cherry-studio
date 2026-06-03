@@ -6,16 +6,13 @@ import {
 } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AppLogo } from '@renderer/config/env'
 import {
-  findAppTabToFocus,
   getOrderedVisibleSidebarIcons,
-  getSidebarApp,
   getSidebarMenuPath,
-  resolveAppOpenUrl,
   resolveSidebarActiveItem,
   SIDEBAR_ICON_COMPONENTS
 } from '@renderer/config/sidebar'
+import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useConversationNavigator } from '@renderer/hooks/useConversationNavigation'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
@@ -44,11 +41,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
-  const { activeTab, tabs, openTab, setActiveTab } = useTabs()
-  const conversationNavigator = useConversationNavigator()
+  const { activeTab, updateTab, openTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
-  const [lastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [lastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
 
   // Sidebar width — persisted across restarts. Drive the CSS variable
   // straight from the cached value so:
@@ -133,38 +127,40 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleNavigate = useCallback(
     (menuItemId: string) => {
-      const app = getSidebarApp(menuItemId as SidebarIconType)
-      if (!app) return
+      const menuId = menuItemId as SidebarIconType
+      const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
+      if (!path || activeTab?.url === path) return
 
-      const navCtx = { defaultPaintingProvider, lastUsedTopicId, lastUsedSessionId }
-      // `key` is only set for multi-instance apps (those with an `instanceKey` whose
-      // `defaultKey` resolves), so this routes conversation apps through the navigator
-      // without enumerating their ids.
-      const key = app.instanceKey?.defaultKey(navCtx)
-      if (key) {
-        conversationNavigator.openConversationTab(app.id, key, getDefaultRouteTitle(app.routePrefix))
-        return
-      }
+      const title = getDefaultRouteTitle(path)
+      const revealSource = getResourceListRevealSource(menuId)
 
-      const existingId = findAppTabToFocus(app, tabs, navCtx)
-      const revealSource = getResourceListRevealSource(app.id)
-      if (existingId) {
-        setActiveTab(existingId)
+      if (activeTab?.isPinned) {
+        const openedId = openTab(path, { forceNew: true, title })
         if (revealSource) {
-          emitResourceListReveal({ source: revealSource, tabId: existingId })
+          emitResourceListReveal({ source: revealSource, tabId: openedId })
         }
         return
       }
 
-      const url = resolveAppOpenUrl(app, navCtx)
-      const openedId = openTab(url, {
-        title: getDefaultRouteTitle(url)
-      })
-      if (revealSource && openedId) {
+      if (activeTab) {
+        updateTab(activeTab.id, {
+          url: path,
+          title,
+          icon: undefined,
+          metadata: clearTabInstanceMetadata(activeTab.metadata)
+        })
+        if (revealSource) {
+          emitResourceListReveal({ source: revealSource, tabId: activeTab.id })
+        }
+        return
+      }
+
+      const openedId = openTab(path, { forceNew: true, title })
+      if (revealSource) {
         emitResourceListReveal({ source: revealSource, tabId: openedId })
       }
     },
-    [tabs, openTab, setActiveTab, defaultPaintingProvider, lastUsedTopicId, lastUsedSessionId, conversationNavigator]
+    [activeTab, updateTab, openTab, defaultPaintingProvider]
   )
 
   // Common props shared between normal and floating sidebar

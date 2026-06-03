@@ -2861,10 +2861,10 @@
           "permission_mode": {
             "label": "权限模式",
             "option": {
-              "acceptEdits": "接受编辑",
-              "bypassPermissions": "绕过权限 (Soul)",
-              "default": "默认",
-              "plan": "Plan 模式"
+              "acceptEdits": "自动编辑模式",
+              "bypassPermissions": "全自动模式",
+              "default": "普通模式",
+              "plan": "计划模式"
             }
           },
           "plan_model": {
@@ -2876,8 +2876,8 @@
             "label": "快速模型"
           },
           "soul_enabled": {
-            "help": "启用后自动授予 bypassPermissions 权限",
-            "label": "Soul 模式"
+            "help": "启用后使用工作区灵魂文件和自主任务工具，并自动授予 bypassPermissions 权限",
+            "label": "自主模式"
           }
         },
         "model_config": "模型配置",
@@ -4478,7 +4478,7 @@
     "text_desc_required": "请先输入图片描述",
     "thinking_mode": "思考模式",
     "thinking_mode_tip": "开启后生成质量更高，但耗时增加约 10-30 秒",
-    "title": "图片",
+    "title": "绘图",
     "top_up": "充值",
     "translating": "翻译中...",
     "uploaded_input": "已上传输入",
@@ -7584,7 +7584,7 @@
     "mcp-servers": "MCP 服务器",
     "notes": "笔记",
     "openclaw": "OpenClaw",
-    "paintings": "绘画",
+    "paintings": "绘图",
     "settings": "设置",
     "store": "资源",
     "translate": "翻译"

@@ -16,8 +16,11 @@ import { useTranslation } from 'react-i18next'
 
 import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
-import { TITLE_BAR_HEIGHT_CLASS } from './titleBar'
 import { useTabDrag } from './useTabDrag'
+
+function isHomeTab(tab: Pick<Tab, 'id'>) {
+  return tab.id === 'home'
+}
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -87,7 +90,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
           opacity: drag.isGhost ? 0.3 : 1
         }}
         className={cn(
-          'flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150',
+          'nodrag flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive ? tone.activeClass : tone.hoverClass,
           rest.className
@@ -176,7 +179,7 @@ const NormalTabButton = ({
         opacity: drag.isGhost ? 0.3 : 1
       }}
       className={cn(
-        'group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
+        'nodrag group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
         showRightClose ? 'pr-1 pl-2' : 'px-2',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
@@ -198,7 +201,7 @@ const NormalTabButton = ({
                 onClose()
               }
             }}
-            className="absolute inset-0 hidden cursor-pointer items-center justify-center rounded-sm group-hover:flex">
+            className="nodrag absolute inset-0 hidden cursor-pointer items-center justify-center rounded-sm group-hover:flex">
             <X size={11} />
           </div>
         )}
@@ -224,7 +227,7 @@ const NormalTabButton = ({
             }
           }}
           className={cn(
-            'ml-auto flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-sm transition-all duration-150 hover:bg-foreground/10',
+            'nodrag ml-auto flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-sm transition-all duration-150 hover:bg-foreground/10',
             isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}>
           <X size={10} />
@@ -258,10 +261,14 @@ interface TabCapabilities {
  * tabs can always be unpinned but never closed directly; reordering is per-zone.
  */
 export function getTabCapabilities(
-  tab: Pick<Tab, 'isPinned' | 'isTemporary'>,
+  tab: Pick<Tab, 'id' | 'isPinned'>,
   ctx: { pinnedCount: number; normalCount: number; canDetach: boolean }
 ): TabCapabilities {
-  const detach = ctx.canDetach && !tab.isTemporary
+  if (isHomeTab(tab)) {
+    return { menu: false, reorder: false, togglePin: false, detach: false, close: false }
+  }
+
+  const detach = ctx.canDetach
   if (tab.isPinned) {
     const hasSiblings = ctx.pinnedCount > 1
     return { menu: true, reorder: hasSiblings, togglePin: true, detach, close: false }
@@ -372,9 +379,9 @@ export const AppShellTabBar = ({
       isMacTransparentWindow
         ? {
             activeClass:
-              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/6 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]',
+              'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/10 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]',
             hoverClass:
-              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
+              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]'
           }
         : {
             activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
@@ -397,6 +404,8 @@ export const AppShellTabBar = ({
     return { pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
   const hasUnpinnedTabs = normalTabs.length > 0
+  const homeTabIndex = normalTabs.findIndex(isHomeTab)
+  const normalReorderStartIndex = homeTabIndex === -1 ? 0 : homeTabIndex + 1
   // Shared input for `getTabCapabilities` — every per-tab affordance is derived
   // from this, so the render stays declarative.
   const tabContext = useMemo(
@@ -428,17 +437,26 @@ export const AppShellTabBar = ({
       // so the bar index maps straight onto the context index.
       const list = tab.isPinned ? pinnedTabs : normalTabs
       const currentIndex = list.findIndex((t) => t.id === tabId)
-      if (currentIndex > 0) {
-        reorderTabs(tab.isPinned ? 'pinned' : 'normal', currentIndex, 0)
+      const targetIndex = tab.isPinned ? 0 : normalReorderStartIndex
+      if (currentIndex > targetIndex) {
+        reorderTabs(tab.isPinned ? 'pinned' : 'normal', currentIndex, targetIndex)
       }
     },
-    [tabs, pinnedTabs, normalTabs, reorderTabs]
+    [tabs, pinnedTabs, normalTabs, normalReorderStartIndex, reorderTabs]
   )
 
   // ─── Drag logic (extracted to useTabDrag) ──────────────────────────────────
 
   const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
-    useTabDrag({ pinnedTabs, normalTabs, reorderTabs, closeTab, setActiveTab })
+    useTabDrag({
+      pinnedTabs,
+      normalTabs,
+      normalReorderStartIndex,
+      canDetach: !!detachTab,
+      reorderTabs,
+      closeTab,
+      setActiveTab
+    })
 
   const handleSelectTab = useCallback(
     (tab: Tab) => {
@@ -465,14 +483,15 @@ export const AppShellTabBar = ({
       <header
         ref={tabBarRef}
         className={cn(
-          'relative flex w-full select-none items-center gap-1 [-webkit-app-region:drag]',
-          TITLE_BAR_HEIGHT_CLASS,
+          'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           rightPaddingClass,
           isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
         )}>
-        {/* Tabs scrollable area — empty space stays draggable; only interactive elements override */}
-        <div className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
+        {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
+        <div
+          data-testid="app-shell-tab-strip"
+          className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">
@@ -497,7 +516,8 @@ export const AppShellTabBar = ({
                         isGhost: isGhost(tab.id),
                         noTransition,
                         translateX: getTranslateX(tab.id, 'pinned'),
-                        onPointerDown: caps.reorder ? (e) => handlePointerDown(e, tab, 'pinned') : () => undefined
+                        onPointerDown:
+                          caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'pinned') : () => undefined
                       }}
                       tabRef={(el) => {
                         if (el) {
@@ -539,7 +559,8 @@ export const AppShellTabBar = ({
                     isGhost: isGhost(tab.id),
                     noTransition,
                     translateX: getTranslateX(tab.id, 'normal'),
-                    onPointerDown: caps.reorder ? (e) => handlePointerDown(e, tab, 'normal') : () => undefined
+                    onPointerDown:
+                      caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'normal') : () => undefined
                   }}
                   tabRef={(el) => {
                     if (el) {

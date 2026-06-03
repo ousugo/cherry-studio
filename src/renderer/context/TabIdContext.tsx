@@ -32,9 +32,18 @@ export function useCurrentTab(): Tab | undefined {
 export interface TabSelfMetadata {
   title: string
   emoji?: string | null
-  isTemporary: boolean
   instanceAppId?: TabInstanceAppId
   instanceKey?: string | null
+}
+
+const TAB_INSTANCE_ROUTE_PREFIX: Record<TabInstanceAppId, string> = {
+  assistants: '/app/chat',
+  agents: '/app/agents'
+}
+
+function tabBelongsToInstanceApp(tab: Pick<Tab, 'url'>, appId: TabInstanceAppId): boolean {
+  const routePrefix = TAB_INSTANCE_ROUTE_PREFIX[appId]
+  return tab.url === routePrefix || tab.url.startsWith(`${routePrefix}?`) || tab.url.startsWith(`${routePrefix}/`)
 }
 
 function isMetadataEqual(
@@ -50,13 +59,13 @@ function isMetadataEqual(
 }
 
 /**
- * Sync this tab's own title / icon / isTemporary / instance key into the tab model.
+ * Sync this tab's own title / icon / instance key into the tab model.
  * The owning page passes its derived metadata; everything tab-specific
  * (emoji → icon descriptor mapping, which tab id, change dedupe) stays here so
  * the page never touches the tab system or the
  * `Tab` shape. No-op without a TabsProvider / TabIdProvider (tests, detached popups).
  */
-export function useTabSelfMetadata({ title, emoji, isTemporary, instanceAppId, instanceKey }: TabSelfMetadata): void {
+export function useTabSelfMetadata({ title, emoji, instanceAppId, instanceKey }: TabSelfMetadata): void {
   const currentTabId = useCurrentTabId()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
@@ -64,26 +73,27 @@ export function useTabSelfMetadata({ title, emoji, isTemporary, instanceAppId, i
 
   useEffect(() => {
     if (!currentTabId || !updateTab || !currentTab) return
+    if (instanceAppId && !tabBelongsToInstanceApp(currentTab, instanceAppId)) return
     const icon = emojiTabIcon(emoji)
     const metadata = buildTabInstanceMetadata(currentTab.metadata, {
       appId: instanceAppId,
       key: instanceKey
     })
-    if (
-      currentTab.title === title &&
-      currentTab.icon === icon &&
-      currentTab.isTemporary === isTemporary &&
-      isMetadataEqual(currentTab.metadata, metadata)
-    ) {
+    if (currentTab.id === 'home') {
+      if (isMetadataEqual(currentTab.metadata, metadata)) return
+      updateTab(currentTabId, { metadata })
+      return
+    }
+
+    if (currentTab.title === title && currentTab.icon === icon && isMetadataEqual(currentTab.metadata, metadata)) {
       return
     }
     updateTab(currentTabId, {
       title,
       icon,
-      isTemporary,
       metadata
     })
-  }, [currentTabId, currentTab, updateTab, title, emoji, isTemporary, instanceAppId, instanceKey])
+  }, [currentTabId, currentTab, updateTab, title, emoji, instanceAppId, instanceKey])
 }
 
 /**

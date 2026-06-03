@@ -395,8 +395,7 @@ describe('AgentPage', () => {
     expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
       expect.objectContaining({
         instanceAppId: 'agents',
-        instanceKey: 'session-from-metadata',
-        isTemporary: false
+        instanceKey: 'session-from-metadata'
       })
     )
   })
@@ -556,8 +555,7 @@ describe('AgentPage', () => {
     expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
       expect.objectContaining({
         instanceAppId: 'agents',
-        instanceKey: null,
-        isTemporary: true
+        instanceKey: null
       })
     )
   })

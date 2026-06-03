@@ -617,8 +617,7 @@ describe('HomePage', () => {
     expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
       expect.objectContaining({
         instanceAppId: 'assistants',
-        instanceKey: null,
-        isTemporary: true
+        instanceKey: null
       })
     )
     expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
@@ -799,8 +798,7 @@ describe('HomePage', () => {
     expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
       expect.objectContaining({
         instanceAppId: 'assistants',
-        instanceKey: 'topic-from-metadata',
-        isTemporary: false
+        instanceKey: 'topic-from-metadata'
       })
     )
     expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()

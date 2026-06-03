@@ -12,7 +12,7 @@ import { v4 as uuid } from 'uuid'
 const logger = loggerService.withContext('TabsContext')
 
 const DEFAULT_TAB: Tab = {
-  id: 'chat',
+  id: 'home',
   type: 'route',
   url: '/app/chat',
   title: '',
@@ -22,6 +22,7 @@ const DEFAULT_TAB: Tab = {
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
   if (tab.type !== 'route') return tab
+  if (tab.id === 'home') return { ...tab, title: getDefaultRouteTitle(tab.url) }
   // Chat / agent tabs are page-titled (topic / session name + assistant / agent
   // emoji set by their page) — never auto-localize, or the route title clobbers
   // the page title even for the bare `/app/chat` default tab.

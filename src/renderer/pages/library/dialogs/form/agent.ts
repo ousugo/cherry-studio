@@ -1,7 +1,6 @@
 import {
   DEFAULT_HEARTBEAT_ENABLED,
   DEFAULT_HEARTBEAT_INTERVAL,
-  DEFAULT_MAX_TURNS,
   normalizePermissionMode
 } from '@renderer/hooks/agents/permissionMode'
 import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
@@ -36,8 +35,6 @@ export interface AgentFormState {
   // configuration.* derived fields we edit in the library UI.
   avatar: string
   permissionMode: string
-  /** 0 disables the explicit cap; any positive integer overrides the default. */
-  maxTurns: number
   /** Raw multi-line `KEY=VALUE` text; parsed at save time. */
   envVarsText: string
   soulEnabled: boolean
@@ -55,16 +52,6 @@ function asNumber(value: unknown): number {
 
 function asBoolean(value: unknown): boolean {
   return value === true
-}
-
-function asFormMaxTurns(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return 0
-  }
-  if (value <= 0 || value === DEFAULT_MAX_TURNS) {
-    return 0
-  }
-  return value
 }
 
 /**
@@ -120,9 +107,8 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
     allowedTools: [...(agent?.allowedTools ?? [])],
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
-    maxTurns: asFormMaxTurns(cfg.max_turns),
     envVarsText: envVarsToText(cfg.env_vars),
-    soulEnabled: asBoolean(cfg.soul_enabled) || asString(cfg.permission_mode) === 'bypassPermissions',
+    soulEnabled: asBoolean(cfg.soul_enabled),
     heartbeatEnabled: cfg.heartbeat_enabled ?? DEFAULT_HEARTBEAT_ENABLED,
     heartbeatInterval: asNumber(cfg.heartbeat_interval) || DEFAULT_HEARTBEAT_INTERVAL
   }
@@ -134,8 +120,12 @@ export function applyAgentFormPatch(current: AgentFormState, patch: Partial<Agen
   if (Object.prototype.hasOwnProperty.call(patch, 'permissionMode')) {
     const nextMode = normalizePermissionMode(patch.permissionMode)
     next.permissionMode = nextMode
-    if (!Object.prototype.hasOwnProperty.call(patch, 'soulEnabled')) {
-      next.soulEnabled = nextMode === 'bypassPermissions'
+    if (
+      nextMode !== 'bypassPermissions' &&
+      current.soulEnabled &&
+      !Object.prototype.hasOwnProperty.call(patch, 'soulEnabled')
+    ) {
+      next.soulEnabled = false
     }
   }
 
@@ -212,10 +202,6 @@ export function diffAgentUpdate(
     cfgPatch.permission_mode = next.permissionMode || 'default'
     cfgDirty = true
   }
-  if (baseline.maxTurns !== next.maxTurns) {
-    cfgPatch.max_turns = next.maxTurns > 0 ? next.maxTurns : DEFAULT_MAX_TURNS
-    cfgDirty = true
-  }
   if (baseline.envVarsText !== next.envVarsText) {
     cfgPatch.env_vars = envVarsFromText(next.envVarsText)
     cfgDirty = true
@@ -237,13 +223,19 @@ export function diffAgentUpdate(
   }
 
   if (cfgDirty) {
-    dto.configuration = { ...agent.configuration, ...cfgPatch }
+    dto.configuration = { ...configurationWithoutMaxTurns(agent.configuration), ...cfgPatch }
     dirty = true
   }
 
   if (!dirty) return null
 
   return { dto }
+}
+
+function configurationWithoutMaxTurns(configuration: AgentDetail['configuration']): Record<string, unknown> {
+  const rest: Record<string, unknown> = { ...configuration }
+  delete rest.max_turns
+  return rest
 }
 
 function arraysEqual(a: readonly string[], b: readonly string[]): boolean {

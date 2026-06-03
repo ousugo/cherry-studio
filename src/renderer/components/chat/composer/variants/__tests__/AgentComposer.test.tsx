@@ -270,8 +270,8 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 }))
 
 vi.mock('@renderer/components/Selector', () => ({
-  AgentSelector: ({ onChange, trigger }: any) => (
-    <div>
+  AgentSelector: ({ autoSelectOnCreate, onChange, trigger }: any) => (
+    <div data-testid="agent-selector" data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
       {trigger}
       <button type="button" onClick={() => onChange('agent-2')}>
         select agent 2
@@ -1090,6 +1090,20 @@ describe('AgentComposer', () => {
     )
   })
 
+  it('does not auto-select agents created from a persisted session', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByTestId('agent-selector')).toHaveAttribute('data-auto-select-on-create', 'false')
+  })
+
   it('releases draft session agent changes to the provided handler', () => {
     const onAgentChange = vi.fn()
 
@@ -1216,6 +1230,7 @@ describe('AgentComposer', () => {
 
     render(<MissingAgentHomeComposer onAgentChange={onAgentChange} />)
 
+    expect(screen.getByTestId('agent-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
     expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('chat.alerts.select_agent')
     const belowControls = screen.getByTestId('composer-below-controls')
     expect(belowControls).toHaveTextContent('chat.alerts.select_agent')

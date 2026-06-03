@@ -105,6 +105,7 @@ describe('ChatAppShell immersive navbar', () => {
     const wrapper = screen.getByTestId('navbar').parentElement as HTMLElement
     expect(wrapper).toHaveClass('absolute')
     expect(wrapper).not.toHaveClass('relative')
+    expect(wrapper).toHaveClass('[&_[data-conversation-shell-topbar]::after]:hidden')
     expect(wrapper).toHaveAttribute('data-chat-navbar-floating')
     expect(screen.getByTestId('inset')).toHaveTextContent('44')
   })
@@ -115,6 +116,7 @@ describe('ChatAppShell immersive navbar', () => {
 
     const wrapper = screen.getByTestId('navbar').parentElement as HTMLElement
     expect(wrapper).toHaveClass('relative')
+    expect(wrapper).not.toHaveClass('[&_[data-conversation-shell-topbar]::after]:hidden')
     expect(wrapper).not.toHaveAttribute('data-chat-navbar-floating')
     expect(screen.getByTestId('inset')).toHaveTextContent('0')
   })

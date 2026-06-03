@@ -98,6 +98,22 @@ describe('useConversationNavigation', () => {
     expect(ctx.openTab).not.toHaveBeenCalled()
   })
 
+  it('openConversationTab can force opening a duplicate tab even when one exists', () => {
+    const ctx = makeCtx([{ id: 'tab-x', type: 'route', url: '/app/agents?sessionId=s1' }])
+    ctx.openTab.mockReturnValue('duplicate-agent-tab')
+    tabsMock.ctx = ctx
+    const { result } = renderHook(() => useConversationNavigation('agents'))
+
+    result.current.openConversationTab('s1', 'Session 1', { forceNew: true })
+    expect(ctx.setActiveTab).not.toHaveBeenCalled()
+    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents', {
+      forceNew: true,
+      title: 'Session 1',
+      metadata: { instanceAppId: 'agents', instanceKey: 's1' }
+    })
+    expect(tabsMock.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'duplicate-agent-tab' })
+  })
+
   it('openConversationTab opens a forceNew tab after metadata-aware lookup misses', () => {
     const ctx = makeCtx([])
     tabsMock.ctx = ctx

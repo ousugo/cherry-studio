@@ -178,7 +178,12 @@ export function ChatAppShell({
             {topBar && (
               <div
                 data-chat-navbar-floating={immersive.floating ? '' : undefined}
-                className={cn('z-10', immersive.floating ? 'absolute inset-x-0 top-0' : 'relative shrink-0')}>
+                className={cn(
+                  'z-10',
+                  immersive.floating
+                    ? 'absolute inset-x-0 top-0 [&_[data-conversation-shell-topbar]::after]:hidden'
+                    : 'relative shrink-0'
+                )}>
                 <ErrorBoundary>{topBar}</ErrorBoundary>
               </div>
             )}

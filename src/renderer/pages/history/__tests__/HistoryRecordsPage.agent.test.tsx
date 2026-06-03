@@ -15,6 +15,7 @@ const hookMocks = vi.hoisted(() => ({
   promptShow: vi.fn(),
   togglePin: vi.fn(),
   updateSession: vi.fn(),
+  openConversationTab: vi.fn(),
   useAgents: vi.fn(),
   useTopics: vi.fn(),
   useAssistants: vi.fn(),
@@ -118,6 +119,7 @@ vi.mock('@cherrystudio/ui', async () => {
     FieldError: ({ children, ...props }: { children?: ReactNode }) => <p {...props}>{children}</p>,
     Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,
+    RowFlex: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
     SelectDropdown: ({ items, onSelect, renderItem, renderSelected, selectedId, placeholder }: any) => {
       const selected = items.find((item: { id: string }) => item.id === selectedId)
       return (
@@ -193,6 +195,13 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistants: hookMocks.useAssistants
+}))
+
+vi.mock('@renderer/hooks/useConversationNavigation', () => ({
+  useConversationNavigation: () => ({
+    focusExistingTab: vi.fn(),
+    openConversationTab: hookMocks.openConversationTab
+  })
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
@@ -324,6 +333,10 @@ function flushAnimationFrame() {
   return new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
 }
 
+function flushCommandMenuAction() {
+  return new Promise<void>((resolve) => queueMicrotask(resolve))
+}
+
 function makeWorkspace(path: string): NonNullable<AgentSessionEntity['workspace']> {
   return {
     id: `ws-${path}`,
@@ -451,6 +464,8 @@ describe('HistoryRecordsPage agent mode', () => {
     hookMocks.useAgents.mockReset()
     hookMocks.useTopics.mockReset()
     hookMocks.useAssistants.mockReset()
+    hookMocks.openConversationTab.mockReset()
+    hookMocks.openConversationTab.mockReturnValue('new-history-session-tab')
     hookMocks.useDataApiQuery.mockReset()
     hookMocks.useDataApiQuery.mockReturnValue({ data: [], error: undefined, isLoading: false })
     hookMocks.useMultiplePreferences.mockReset()
@@ -520,8 +535,9 @@ describe('HistoryRecordsPage agent mode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha session' }))
 
-    expect(onRecordSelect).toHaveBeenCalledWith('session-alpha')
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(hookMocks.openConversationTab).toHaveBeenCalledWith('session-alpha', 'Alpha session', { forceNew: true })
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('filters sessions by selected agent source', () => {
@@ -623,8 +639,9 @@ describe('HistoryRecordsPage agent mode', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Beta session' }))
 
-    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(hookMocks.openConversationTab).toHaveBeenCalledWith('session-beta', 'Beta session', { forceNew: true })
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('does not activate a session when the selection checkbox is clicked', () => {
@@ -780,6 +797,9 @@ describe('HistoryRecordsPage agent mode', () => {
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
 
     expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete session' }))
     expect(hookMocks.deleteSession).not.toHaveBeenCalled()
@@ -803,6 +823,9 @@ describe('HistoryRecordsPage agent mode', () => {
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
 
     const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {

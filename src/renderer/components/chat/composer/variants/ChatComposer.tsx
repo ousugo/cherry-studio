@@ -121,6 +121,7 @@ interface ChatComposerContextControlsProps {
   mentionedModelMultiSelectMode: boolean
   selectModelLabel: string
   useMentionedModelSelector?: boolean
+  shouldAutoSelectCreatedAssistant: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
@@ -143,6 +144,7 @@ const ChatComposerContextControls = ({
   mentionedModelMultiSelectMode,
   selectModelLabel,
   useMentionedModelSelector,
+  shouldAutoSelectCreatedAssistant,
   side,
   iconOnly = false,
   onAssistantChange,
@@ -187,7 +189,7 @@ const ChatComposerContextControls = ({
         multi={false}
         value={assistantId}
         onChange={onAssistantChange}
-        autoSelectOnCreate
+        autoSelectOnCreate={shouldAutoSelectCreatedAssistant}
         side={side}
         align="start"
         mountStrategy="lazy-keep"
@@ -850,6 +852,7 @@ const ChatComposerInner = ({
     mentionedModelSelectorValue,
     mentionedModelMultiSelectMode,
     useMentionedModelSelector,
+    shouldAutoSelectCreatedAssistant: Boolean(onTemporaryAssistantChange),
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,

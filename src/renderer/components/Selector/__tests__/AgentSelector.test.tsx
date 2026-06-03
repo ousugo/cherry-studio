@@ -458,8 +458,14 @@ describe('AgentSelector', () => {
           type: 'claude-code',
           name: 'Created Agent',
           model: MODEL.id,
+          planModel: MODEL.id,
+          smallModel: MODEL.id,
           description: 'Created from selector',
-          configuration: { avatar: '🤖' }
+          configuration: {
+            avatar: '🤖',
+            permission_mode: 'bypassPermissions',
+            soul_enabled: true
+          }
         }
       })
     )

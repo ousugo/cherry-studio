@@ -132,6 +132,24 @@ describe('ResourceCreateDialog', () => {
     )
   })
 
+  it('submits the selected model for agent creation', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(<ResourceCreateDialog kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Build Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        avatar: '🤖',
+        name: 'Build Agent',
+        modelId: MODEL.id,
+        description: ''
+      })
+    )
+  })
+
   it('anchors the model selector portal inside the dialog content', async () => {
     const onSubmit = vi.fn()
     render(<ResourceCreateDialog kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)

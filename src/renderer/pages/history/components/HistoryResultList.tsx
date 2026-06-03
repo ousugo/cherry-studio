@@ -1,4 +1,4 @@
-import { Button, Checkbox, EmptyState } from '@cherrystudio/ui'
+import { Button, Checkbox, EmptyState, RowFlex } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { ActionConfirmDialog } from '@renderer/components/chat/actions/ActionConfirmDialog'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -561,17 +561,17 @@ const HistoryTopicRow = ({
     role="row">
     <HistorySelectionCell checked={isSelected} label={selectLabel} onCheckedChange={onSelectedChange} />
     <div className={historyBodyCellClassName} role="cell">
-      <div className="flex min-w-0 items-center" data-testid="history-topic-rename-field">
+      <RowFlex className="min-w-0 flex-1 items-center" data-testid="history-topic-rename-field">
         <HistoryTitleButton title={title} onOpen={onOpen} />
-      </div>
+      </RowFlex>
     </div>
     <div className={historyBodyCellClassName} role="cell">
-      <div className="flex min-w-0 items-center gap-2">
+      <RowFlex className="min-w-0 items-center gap-2">
         <span className="flex size-5 shrink-0 items-center justify-center text-foreground-muted text-sm leading-none">
           {assistant?.emoji ? <span aria-hidden>{assistant.emoji}</span> : <Bot size={14} />}
         </span>
         <span className="truncate text-foreground-secondary text-xs">{sourceName}</span>
-      </div>
+      </RowFlex>
     </div>
     <div className={historyBodyCellClassName} role="cell">
       <div className="text-foreground-muted text-xs tabular-nums">{timeLabel}</div>
@@ -644,26 +644,26 @@ const HistorySessionRow = ({
       role="row">
       <HistorySelectionCell checked={isSelected} label={selectLabel} onCheckedChange={onSelectedChange} />
       <div className={historyBodyCellClassName} role="cell">
-        <div className="flex min-w-0 items-center">
-          <span className="min-w-0 flex-1" data-testid="history-session-rename-field">
-            <span className="flex min-w-0 items-center gap-1.5">
+        <RowFlex className="min-w-0 flex-1 items-center">
+          <div className="min-w-0 flex-1" data-testid="history-session-rename-field">
+            <RowFlex className="min-w-0 flex-1 items-center gap-1.5">
               <HistoryTitleButton title={title} onOpen={onOpen} />
-            </span>
+            </RowFlex>
             {session.description && (
               <span className="mt-0.5 block truncate text-foreground-muted text-xs leading-4">
                 {session.description}
               </span>
             )}
-          </span>
-        </div>
+          </div>
+        </RowFlex>
       </div>
       <div className={historyBodyCellClassName} role="cell">
-        <div className="flex min-w-0 items-center gap-2">
+        <RowFlex className="min-w-0 items-center gap-2">
           <span className="flex size-5 shrink-0 items-center justify-center text-foreground-muted text-sm leading-none">
             {avatar ? <span aria-hidden>{avatar}</span> : <Wrench size={14} />}
           </span>
           <span className="truncate text-foreground-secondary text-xs">{sourceName}</span>
-        </div>
+        </RowFlex>
       </div>
       <div className={historyBodyCellClassName} role="cell">
         <div className="text-foreground-muted text-xs tabular-nums">{timeLabel}</div>
@@ -716,7 +716,7 @@ const HistoryTitleButton = ({ title, onOpen }: HistoryTitleButtonProps) => (
   <span
     role="button"
     tabIndex={0}
-    className="-mx-1 min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
+    className="-mx-1 block w-full min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
     title={title}
     onClick={(event) => {
       event.stopPropagation()
@@ -842,7 +842,7 @@ function HistoryActionsCell<TContext = unknown>({
 
   return (
     <>
-      <div className="flex items-center justify-center gap-1" onClick={(event) => event.stopPropagation()}>
+      <RowFlex className="items-center justify-center gap-1" onClick={(event) => event.stopPropagation()}>
         <PinActionButton isPinned={isPinned} pinLabel={pinLabel} unpinLabel={unpinLabel} onClick={onTogglePin} />
         <DeleteActionButton
           action={deleteAction}
@@ -855,7 +855,7 @@ function HistoryActionsCell<TContext = unknown>({
             handleAction(action)
           }}
         />
-      </div>
+      </RowFlex>
       <ActionConfirmDialog
         open={!!pendingDeleteAction}
         confirm={pendingDeleteAction?.confirm}
@@ -891,7 +891,7 @@ const DeleteActionButton = <TContext,>({ action, label, onClick }: DeleteActionB
     <Button
       type="button"
       aria-label={label}
-      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+      className="text-foreground/70 hover:bg-accent/70 hover:text-foreground"
       data-testid="history-delete-button"
       disabled={disabled}
       size="icon-sm"
@@ -920,7 +920,7 @@ const PinActionButton = ({ isPinned, pinLabel, unpinLabel, onClick }: PinActionB
     <Button
       type="button"
       aria-label={label}
-      className="text-foreground-muted hover:bg-accent/70 hover:text-foreground"
+      className="text-foreground/70 hover:bg-accent/70 hover:text-foreground"
       data-testid="history-pin-button"
       size="icon-sm"
       title={label}
