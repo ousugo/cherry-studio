@@ -1616,7 +1616,7 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
 
-    expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByRole('button', { name: 'Assistants' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Beta' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Alpha 1')).not.toBeInTheDocument()
@@ -1665,6 +1665,7 @@ describe('ResourceList', () => {
             id: item.groupId,
             label: item.groupId === 'alpha' ? 'Alpha' : 'Beta'
           })}
+          groupSeeds={[{ id: 'empty', label: 'Empty', section: { id: 'other', label: 'Other' } }]}
           sectionBy={() => ({ id: 'assistants', label: 'Assistants' })}
           getSectionHeaderAction={(section) => (
             <ResourceList.SectionCollapseActionButton alwaysVisible sectionId={section.id} label="Collapse display" />
@@ -1983,6 +1984,39 @@ describe('ResourceList', () => {
     expect(revealedInspector.collapsedGroups).toEqual(expect.arrayContaining(['session']))
     expect(revealedInspector.collapsedGroups).not.toContain('section:assistants')
     expect(revealedInspector.collapsedGroups).not.toContain('topic')
+  })
+
+  it('hides single section headers while keeping section groups visible', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const items: TestItem[] = [{ id: 'alpha', name: 'Alpha', kind: 'session', pinned: false, updatedAt: 1 }]
+
+    render(
+      <Provider
+        items={items}
+        expandedState={{ expandedSectionIds: [], expandedGroupIds: ['session'] }}
+        groupBy={(item) => ({ id: item.kind, label: 'Sessions' })}
+        sectionBy={() => ({ id: 'section:agents', label: 'Agents' })}>
+        <ResourceList.Frame>
+          <Inspector />
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.queryByRole('button', { name: 'Agents' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sessions' })).toBeInTheDocument()
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 2 }))
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      sections: ['section:agents'],
+      visibleNames: ['Alpha']
+    })
   })
 
   it('keeps sibling sections collapsed when the last expanded controlled section is collapsed', () => {

@@ -174,14 +174,18 @@ function buildVirtualGroups<T extends ResourceListItemBase>(view: ResourceListCo
   }
 
   if (view.sections.length > 0) {
-    for (const section of view.sections) {
-      groups.push({
-        group: toSectionVirtualGroup(section.section),
-        header: { type: 'section', section: section.section },
-        items: []
-      })
+    const showSectionHeaders = view.sections.length > 1
 
-      if (section.collapsed) continue
+    for (const section of view.sections) {
+      if (showSectionHeaders) {
+        groups.push({
+          group: toSectionVirtualGroup(section.section),
+          header: { type: 'section', section: section.section },
+          items: []
+        })
+
+        if (section.collapsed) continue
+      }
 
       for (const group of section.groups) {
         appendGroup(group)
