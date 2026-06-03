@@ -5,7 +5,6 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { TopicType } from '@renderer/types'
 import {
   captureScrollableAsBlob,
   captureScrollableAsDataURL,
@@ -442,8 +441,7 @@ const MessageList = () => {
   // The runtime now treats this key as the group to scroll to the viewport
   // top (rather than scrolling to the absolute bottom). User-message groups
   // are keyed by `user${msgId}` — see stableGroupedMessages.
-  const forceScrollToBottomKey =
-    topic.type !== TopicType.Session && latestUserMessage ? `user${latestUserMessage.id}` : undefined
+  const forceScrollToBottomKey = latestUserMessage ? `user${latestUserMessage.id}` : undefined
   const defaultBottomPadding = isMultiSelectMode
     ? MULTI_SELECT_BOTTOM_PADDING_PX
     : MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX

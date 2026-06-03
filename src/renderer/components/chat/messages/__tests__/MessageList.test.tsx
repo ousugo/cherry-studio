@@ -271,7 +271,7 @@ describe('MessageList', () => {
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'useruser-1')
   })
 
-  it('does not force the latest user message to the viewport top for agent session topics', () => {
+  it('forces the latest user message to the viewport top for agent session topics', () => {
     render(
       <MessageListProvider
         value={createValue([createMessage('user-1', 'user'), createMessage('assistant-placeholder', 'assistant')], {
@@ -285,7 +285,7 @@ describe('MessageList', () => {
       </MessageListProvider>
     )
 
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', '')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'useruser-1')
   })
 
   it('does not signal forced scroll when an assistant message is appended', () => {
