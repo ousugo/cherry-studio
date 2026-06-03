@@ -789,7 +789,12 @@ export class AiStreamManager extends BaseService {
       return
     }
 
-    if (signal.aborted && exec.status === 'aborted') {
+    if (signal.aborted) {
+      // The idle-timeout path aborts `exec.abortController` directly (via `withIdleTimeout`)
+      // without going through `abort()`, so `exec.status` is still 'streaming' on this clean
+      // exit. Promote it so the truncated reply is persisted as `paused`, not `success`
+      // (onExecutionPaused is a no-op unless status is 'aborted').
+      if (exec.status === 'streaming') exec.status = 'aborted'
       await this.onExecutionPaused(topicId, modelId)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText))
