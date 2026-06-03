@@ -13,12 +13,10 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
-import { sanitizeChannelOutput, wrapExternalContent } from './security'
-import { splitMessage } from './utils'
+import { wrapExternalContent } from './security'
 
 const logger = loggerService.withContext('ChannelMessageHandler')
 
-const MAX_MESSAGE_LENGTH = 4096
 const TYPING_INTERVAL_MS = 4000
 
 /** Max number of entries in the session tracker before evicting oldest entries. */
@@ -269,22 +267,11 @@ export class ChannelMessageHandler {
       )
 
       try {
-        const responseText = await this.collectStreamResponse(
-          session,
-          securedContent,
-          abortController,
-          adapter,
-          message.chatId
-        )
-
-        if (responseText) {
-          // Sanitize output to prevent accidental secret leakage through channels
-          const { text: sanitizedText } = sanitizeChannelOutput(responseText)
-          const finalized = await adapter.onStreamComplete(message.chatId, sanitizedText).catch(() => false)
-          if (!finalized) {
-            await this.sendChunked(adapter, message.chatId, sanitizedText)
-          }
-        }
+        // Delivery (streaming updates + the sanitized finalize) is owned by the
+        // `ChannelAdapterListener` registered inside `collectStreamResponse`; we only await
+        // turn completion here. (The old post-hoc finalize was dead — the sentinel's `c.text`
+        // read never accumulated — and reviving it would double-send.)
+        await this.collectStreamResponse(session, securedContent, abortController, adapter, message.chatId)
       } catch (streamError) {
         // Notify adapter of the error so it can update streaming UI
         adapter
@@ -339,7 +326,12 @@ export class ChannelMessageHandler {
               adapter,
               command.chatId
             )
-            await adapter.sendMessage(command.chatId, response || 'Session compacted.')
+            // The `ChannelAdapterListener` registered inside `collectStreamResponse` already
+            // delivered any non-empty output; only send an explicit fallback when compact
+            // produced no text, so we don't double-send.
+            if (!response) {
+              await adapter.sendMessage(command.chatId, 'Session compacted.')
+            }
           } finally {
             clearInterval(typingInterval)
           }
@@ -534,8 +526,8 @@ export class ChannelMessageHandler {
     const sentinel: StreamListener = {
       id: `channel-completion:${chatId}`,
       onChunk(chunk) {
-        const c = chunk as { type: string; text?: string }
-        if (c.type === 'text-delta' && c.text) accumulatedText += c.text
+        // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`).
+        if (chunk.type === 'text-delta') accumulatedText += chunk.delta
       },
       onDone() {
         resolveExecution(accumulatedText.trim())
@@ -556,18 +548,6 @@ export class ChannelMessageHandler {
     })
 
     return executionDone
-  }
-
-  private async sendChunked(adapter: ChannelAdapter, chatId: string, text: string): Promise<void> {
-    if (text.length <= MAX_MESSAGE_LENGTH) {
-      await adapter.sendMessage(chatId, text)
-      return
-    }
-
-    const chunks = splitMessage(text, MAX_MESSAGE_LENGTH)
-    for (const chunk of chunks) {
-      await adapter.sendMessage(chatId, chunk)
-    }
   }
 
   /**

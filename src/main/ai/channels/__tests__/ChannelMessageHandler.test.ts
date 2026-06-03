@@ -56,23 +56,29 @@ vi.mock('@data/services/AgentChannelService', () => ({
 }))
 
 /**
- * Helper: configure mockStartAgentSessionRun to simulate streaming chunks then
- * calling onDone on the channel-completion sentinel listener so the
- * `executionDone` promise inside `collectStreamResponse` resolves.
+ * Helper: configure mockStartAgentSessionRun to simulate streaming chunks to ALL
+ * registered listeners (both the `channel-completion:` sentinel and the
+ * `ChannelAdapterListener` that owns delivery), then call onDone on each so the
+ * `executionDone` promise inside `collectStreamResponse` resolves and the listener
+ * finalizes delivery. `text-delta` chunks carry the payload on `delta` (AI SDK
+ * `UIMessageChunk`), not `text`.
  */
-function simulateStream(parts: Array<{ type: string; text?: string }>) {
+function simulateStream(parts: Array<{ type: string; delta?: string }>) {
   mockStartAgentSessionRun.mockImplementationOnce(
     async ({
       listeners
     }: {
-      listeners: Array<{ id: string; onChunk: (chunk: unknown) => void; onDone: (result: { status: string }) => void }>
+      listeners: Array<{
+        id: string
+        onChunk: (chunk: unknown) => void
+        onDone: (result: { status: string }) => void | Promise<void>
+      }>
     }) => {
-      const sentinel = listeners.find((l) => l.id.startsWith('channel-completion:'))
-      if (sentinel) {
+      for (const listener of listeners) {
         for (const part of parts) {
-          sentinel.onChunk(part)
+          listener.onChunk(part)
         }
-        sentinel.onDone({ status: 'success' })
+        await listener.onDone({ status: 'success' })
       }
     }
   )
@@ -138,10 +144,10 @@ describe('ChannelMessageHandler', () => {
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
     simulateStream([
-      { type: 'text-delta', text: 'Hello ' },
-      { type: 'text-delta', text: 'world!' },
+      { type: 'text-delta', delta: 'Hello ' },
+      { type: 'text-delta', delta: 'world!' },
       { type: 'text-end' },
-      { type: 'text-delta', text: '\n\nDone.' },
+      { type: 'text-delta', delta: '\n\nDone.' },
       { type: 'text-end' }
     ])
 
@@ -152,7 +158,9 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    // The sentinel accumulates all text-delta chunks and trims the result
+    // Delivery is owned by ChannelAdapterListener (the handler no longer post-sends);
+    // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
   })
 
@@ -169,7 +177,7 @@ describe('ChannelMessageHandler', () => {
 
     adapter.onStreamComplete.mockResolvedValueOnce(true)
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    simulateStream([{ type: 'text-delta', text: 'Hello world!' }])
+    simulateStream([{ type: 'text-delta', delta: 'Hello world!' }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -182,7 +190,7 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
-  it('sends chunked messages for long responses', async () => {
+  it('delivers a long response in a single send (platform splitting is the adapter concern)', async () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
@@ -196,7 +204,7 @@ describe('ChannelMessageHandler', () => {
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
 
     const longText = 'A'.repeat(5000)
-    simulateStream([{ type: 'text-delta', text: longText }])
+    simulateStream([{ type: 'text-delta', delta: longText }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -205,7 +213,11 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    expect(adapter.sendMessage).toHaveBeenCalledTimes(2)
+    // The handler-level 4096-char chunking was dead code (post-hoc path never ran)
+    // and has been removed; ChannelAdapterListener delivers the full text once and
+    // each adapter splits per its own platform limit.
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', longText)
   })
 
   it('handleCommand /new creates a new session', async () => {
@@ -238,7 +250,7 @@ describe('ChannelMessageHandler', () => {
     }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    simulateStream([{ type: 'text-delta', text: 'Compacted.' }])
+    simulateStream([{ type: 'text-delta', delta: 'Compacted.' }])
 
     await channelMessageHandler.handleCommand(adapter, {
       chatId: 'chat-1',
@@ -256,6 +268,9 @@ describe('ChannelMessageHandler', () => {
         ])
       })
     )
+    // ChannelAdapterListener delivers the compact output once; the handler no longer
+    // also sends it (would have been a double-send once the `.delta` read was fixed).
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Compacted.')
   })
 
@@ -321,7 +336,7 @@ describe('ChannelMessageHandler', () => {
 
     // Now send a message — should use the tracked session
     vi.mocked(sessionService.getById).mockResolvedValueOnce(newSession as any)
-    simulateStream([{ type: 'text-delta', text: 'OK' }])
+    simulateStream([{ type: 'text-delta', delta: 'OK' }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -346,7 +361,7 @@ describe('ChannelMessageHandler', () => {
 
     // First interaction creates a session
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session1 as any)
-    simulateStream([{ type: 'text-delta', text: 'R1' }])
+    simulateStream([{ type: 'text-delta', delta: 'R1' }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -365,7 +380,7 @@ describe('ChannelMessageHandler', () => {
       permissionMode: null
     } as any)
     vi.mocked(sessionService.getById).mockResolvedValueOnce(session1 as any)
-    simulateStream([{ type: 'text-delta', text: 'R2' }])
+    simulateStream([{ type: 'text-delta', delta: 'R2' }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
