@@ -1,5 +1,6 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
