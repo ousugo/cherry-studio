@@ -162,7 +162,7 @@ const useThinkingToolController = ({
         ? cycleOptions.map((option, index) => ({
             id: `thinking-${option}`,
             kind: 'command' as const,
-            sources: ['popover', 'root-panel'] as const,
+            sources: ['popover'] as const,
             order: 60 + index / 100,
             label: reasoningEffortOptionLabelMap[option],
             description: t('assistants.settings.reasoning_effort.label'),
@@ -186,6 +186,7 @@ const useThinkingToolController = ({
         disabledReason,
         icon: ThinkingIcon({ option: currentReasoningEffort }),
         active: isReasoningConfigurable && isThinkingEnabled,
+        showInActiveControls: false,
         disabled: !isReasoningConfigurable,
         suffix: currentReasoningEffortLabel,
         submenu: reasoningSubmenu,
