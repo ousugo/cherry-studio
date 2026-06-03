@@ -398,7 +398,11 @@ describe('LibraryPage create flow', () => {
       name: 'agent name',
       model: 'provider::model',
       description: 'agent description',
-      configuration: { avatar: '🤖' }
+      configuration: {
+        avatar: '🤖',
+        permission_mode: 'bypassPermissions',
+        soul_enabled: true
+      }
     })
     expect(refetchSpy).toHaveBeenCalledTimes(1)
   })

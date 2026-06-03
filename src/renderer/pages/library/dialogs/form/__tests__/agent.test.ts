@@ -58,7 +58,6 @@ describe('buildInitialAgentFormState', () => {
       configuration: {
         avatar: '🚀',
         permission_mode: 'bypassPermissions',
-        max_turns: 10,
         soul_enabled: true,
         heartbeat_enabled: true,
         heartbeat_interval: 15,
@@ -71,22 +70,10 @@ describe('buildInitialAgentFormState', () => {
     const state = buildInitialAgentFormState(agent)
     expect(state.avatar).toBe('🚀')
     expect(state.permissionMode).toBe('bypassPermissions')
-    expect(state.maxTurns).toBe(10)
     expect(state.soulEnabled).toBe(true)
     expect(state.heartbeatEnabled).toBe(true)
     expect(state.heartbeatInterval).toBe(15)
     expect(state.envVarsText).toBe('DEBUG=1\nNODE_ENV=production')
-  })
-
-  it('maps the default max_turns value to the form sentinel 0', () => {
-    const agent = createAgent({
-      configuration: {
-        max_turns: 100
-      }
-    })
-
-    const state = buildInitialAgentFormState(agent)
-    expect(state.maxTurns).toBe(0)
   })
 
   it('uses the legacy heartbeat defaults when configuration omits heartbeat keys', () => {
@@ -98,7 +85,7 @@ describe('buildInitialAgentFormState', () => {
 })
 
 describe('applyAgentFormPatch', () => {
-  it('does not persist mode defaults when permission mode changes', () => {
+  it('preserves explicit allowed tools when permission mode changes', () => {
     const draft = buildInitialAgentFormState()
     const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' })
 
@@ -107,12 +94,12 @@ describe('applyAgentFormPatch', () => {
     expect(next.allowedTools).toEqual([])
   })
 
-  it('switching to bypass permissions enables soul mode', () => {
+  it('switching to bypass permissions does not enable soul mode', () => {
     const draft = buildInitialAgentFormState()
     const next = applyAgentFormPatch(draft, { permissionMode: 'bypassPermissions' })
 
     expect(next.permissionMode).toBe('bypassPermissions')
-    expect(next.soulEnabled).toBe(true)
+    expect(next.soulEnabled).toBe(false)
     expect(next.allowedTools).toEqual([])
   })
 
@@ -123,6 +110,18 @@ describe('applyAgentFormPatch', () => {
     expect(next.soulEnabled).toBe(true)
     expect(next.permissionMode).toBe('bypassPermissions')
     expect(next.allowedTools).toEqual([])
+  })
+
+  it('keeps user-added tools unchanged when switching modes', () => {
+    const draft = buildInitialAgentFormState(
+      createAgent({
+        allowedTools: ['Read', 'CustomDanger'],
+        configuration: { permission_mode: 'default' }
+      })
+    )
+    const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' })
+
+    expect(next.allowedTools).toEqual(['Read', 'CustomDanger'])
   })
 
   it('leaving bypass permissions disables soul mode to match the legacy settings popup', () => {
@@ -194,20 +193,19 @@ describe('diffAgentUpdate', () => {
     })
   })
 
-  it('merges configuration-subkey patches on top of the existing configuration', () => {
+  it('merges configuration-subkey patches on top of the existing configuration without sending max_turns', () => {
     const agent = createAgent({
-      configuration: { avatar: '🤖', plugin_state: 'keep-me' }
+      configuration: { avatar: '🤖', plugin_state: 'keep-me', max_turns: 10 }
     })
     const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, avatar: '🚀', maxTurns: 5 }
+    const next = { ...baseline, avatar: '🚀' }
 
     const result = diffAgentUpdate(baseline, next, agent)
     // plugin_state must be preserved — the library form does not edit it, so
     // it MUST NOT be stripped from the PATCH payload.
     expect(result?.dto.configuration).toEqual({
       avatar: '🚀',
-      plugin_state: 'keep-me',
-      max_turns: 5
+      plugin_state: 'keep-me'
     })
   })
 
@@ -249,17 +247,6 @@ describe('diffAgentUpdate', () => {
     const result = diffAgentUpdate(baseline, next, agent)
     expect(result?.dto.configuration).toMatchObject({
       permission_mode: 'default'
-    })
-  })
-
-  it('restores max_turns to the schema default when the form uses the 0 sentinel', () => {
-    const agent = createAgent({ configuration: { max_turns: 5 } })
-    const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, maxTurns: 0 }
-
-    const result = diffAgentUpdate(baseline, next, agent)
-    expect(result?.dto.configuration).toMatchObject({
-      max_turns: 100
     })
   })
 })

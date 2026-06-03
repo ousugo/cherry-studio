@@ -73,7 +73,6 @@ type AgentEditFormValues = {
   mcps: string[]
   allowedTools: string[]
   permissionMode: string
-  maxTurns: number
   envVarsText: string
   soulEnabled: boolean
   heartbeatEnabled: boolean
@@ -113,7 +112,6 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     mcps: [...form.mcps],
     allowedTools: [...form.allowedTools],
     permissionMode: form.permissionMode,
-    maxTurns: form.maxTurns,
     envVarsText: form.envVarsText,
     soulEnabled: form.soulEnabled,
     heartbeatEnabled: form.heartbeatEnabled,
@@ -142,7 +140,6 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     mcps: values.mcps,
     allowedTools: values.allowedTools,
     permissionMode: values.permissionMode,
-    maxTurns: values.maxTurns,
     envVarsText: values.envVarsText,
     soulEnabled: values.soulEnabled,
     heartbeatEnabled: values.heartbeatEnabled,
@@ -344,6 +341,7 @@ function AgentBasicFields({
 }) {
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
+  const soulEnabled = form.watch('soulEnabled')
 
   return (
     <div className="grid gap-4">
@@ -403,13 +401,48 @@ function AgentBasicFields({
         label={t('library.config.agent.field.description.label')}
         placeholder={t('library.config.agent.field.description.placeholder')}
       />
-      <PermissionModeField form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
+      <SoulModeField form={form} patchAgentForm={patchAgentForm} />
+      {!soulEnabled && (
+        <PermissionModeField form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
+      )}
       <HeartbeatSettingsField
         form={form}
         enabled={heartbeatEnabled}
         onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
       />
     </div>
+  )
+}
+
+function SoulModeField({
+  form,
+  patchAgentForm
+}: {
+  form: UseFormReturn<AgentEditFormValues>
+  patchAgentForm: (patch: Partial<AgentFormState>) => void
+}) {
+  const { t } = useTranslation()
+  const label = t('library.config.agent.field.soul_enabled.label')
+
+  return (
+    <FormField
+      control={form.control}
+      name="soulEnabled"
+      render={({ field }) => (
+        <FormItem>
+          <div className="flex items-center justify-between gap-3">
+            <FieldLabelWithHelp label={label} help={t('library.config.agent.field.soul_enabled.help')} />
+            <Switch
+              size="sm"
+              checked={field.value}
+              aria-label={label}
+              onCheckedChange={(checked) => patchAgentForm({ soulEnabled: checked })}
+            />
+          </div>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   )
 }
 
@@ -743,31 +776,6 @@ function AgentAdvancedFields({ form }: { form: UseFormReturn<AgentEditFormValues
 
   return (
     <div className="grid gap-4">
-      <FormField
-        control={form.control}
-        name="maxTurns"
-        render={({ field }) => (
-          <FormItem>
-            <FieldLabelWithHelp
-              label={t('library.config.agent.field.max_turns.label')}
-              help={t('library.config.agent.field.max_turns.help')}
-            />
-            <EditableNumber
-              block
-              min={0}
-              max={100}
-              step={1}
-              precision={0}
-              align="start"
-              changeOnBlur
-              value={field.value || null}
-              onChange={(value) => field.onChange(typeof value === 'number' ? value : 0)}
-              placeholder="0"
-            />
-            <FormMessage />
-          </FormItem>
-        )}
-      />
       <FormField
         control={form.control}
         name="envVarsText"

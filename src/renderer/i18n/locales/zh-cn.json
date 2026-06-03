@@ -2861,10 +2861,10 @@
           "permission_mode": {
             "label": "权限模式",
             "option": {
-              "acceptEdits": "接受编辑",
-              "bypassPermissions": "绕过权限 (Soul)",
-              "default": "默认",
-              "plan": "Plan 模式"
+              "acceptEdits": "自动编辑模式",
+              "bypassPermissions": "全自动模式",
+              "default": "普通模式",
+              "plan": "计划模式"
             }
           },
           "plan_model": {
@@ -2876,8 +2876,8 @@
             "label": "快速模型"
           },
           "soul_enabled": {
-            "help": "启用后自动授予 bypassPermissions 权限",
-            "label": "Soul 模式"
+            "help": "启用后使用工作区灵魂文件和自主任务工具，并自动授予 bypassPermissions 权限",
+            "label": "自主模式"
           }
         },
         "model_config": "模型配置",

@@ -2861,10 +2861,10 @@
           "permission_mode": {
             "label": "Permission mode",
             "option": {
-              "acceptEdits": "Accept edits",
-              "bypassPermissions": "Bypass permissions (Soul)",
-              "default": "Default",
-              "plan": "Plan mode"
+              "acceptEdits": "Auto-edit Mode",
+              "bypassPermissions": "Full Auto Mode",
+              "default": "Normal Mode",
+              "plan": "Plan Mode"
             }
           },
           "plan_model": {
@@ -2876,8 +2876,8 @@
             "label": "Small model"
           },
           "soul_enabled": {
-            "help": "When enabled, automatically grants bypassPermissions",
-            "label": "Soul mode"
+            "help": "Use workspace soul files and autonomous task tools, and automatically grant bypassPermissions.",
+            "label": "Autonomous mode"
           }
         },
         "model_config": "Model configuration",

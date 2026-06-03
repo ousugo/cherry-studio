@@ -342,7 +342,11 @@ export default function LibraryPage() {
             name: values.name,
             model: values.modelId,
             description: values.description,
-            configuration: { avatar: values.avatar }
+            configuration: {
+              avatar: values.avatar,
+              permission_mode: 'bypassPermissions',
+              soul_enabled: true
+            }
           })
         }
 
