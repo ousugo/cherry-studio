@@ -752,12 +752,12 @@ describe('Topics', () => {
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     expect(menuContent ?? null).toBeInTheDocument()
+    expect(menuContent).not.toHaveTextContent('Edit Assistant')
 
     expect(Array.from(menuContent?.querySelectorAll('[data-testid="context-menu-separator"]') ?? [])).toHaveLength(2)
     expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual([
       'Generate topic name',
       'Edit topic name',
-      'Edit Assistant',
       'Pin Topic',
       'Open in new tab',
       'Clear messages',

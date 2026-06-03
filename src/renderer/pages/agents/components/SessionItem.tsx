@@ -18,7 +18,6 @@ import { useSessionMenuActions } from './useSessionMenuActions'
 interface SessionItemProps {
   channelType?: string
   onDelete: (id: string) => void | Promise<void>
-  onEditAgent: (agentId: string) => void
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onPress: (id: string) => void
   onSelectItem?: () => void
@@ -30,7 +29,6 @@ interface SessionItemProps {
 const SessionItem = ({
   channelType,
   onDelete,
-  onEditAgent,
   onOpenInNewTab,
   onPress,
   onSelectItem,
@@ -78,11 +76,6 @@ const SessionItem = ({
   const handleTogglePin = useCallback(() => {
     void onTogglePin?.(session.id)
   }, [onTogglePin, session.id])
-  const handleEditAgent = useCallback(() => {
-    if (session.agentId) {
-      onEditAgent(session.agentId)
-    }
-  }, [onEditAgent, session.agentId])
   const handleOpenInNewTab = useCallback(() => {
     onOpenInNewTab?.(session)
   }, [onOpenInNewTab, session])
@@ -90,7 +83,6 @@ const SessionItem = ({
   const actionContext = useMemo<SessionActionContext>(
     () => ({
       onDelete: handleDelete,
-      onEditAgent: session.agentId ? handleEditAgent : undefined,
       onOpenInNewTab: onOpenInNewTab ? handleOpenInNewTab : undefined,
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
       pinned,
@@ -100,13 +92,11 @@ const SessionItem = ({
     }),
     [
       handleDelete,
-      handleEditAgent,
       handleOpenInNewTab,
       handleTogglePin,
       onOpenInNewTab,
       onTogglePin,
       pinned,
-      session.agentId,
       session.name,
       startMenuEdit,
       t

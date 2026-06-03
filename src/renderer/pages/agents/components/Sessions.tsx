@@ -1470,7 +1470,6 @@ const Sessions = ({
         isValidating={listValidating}
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
-        onEditAgent={openAgentEditor}
         onOpenInNewTab={openSessionInNewTab}
         onRetry={handleRetry}
         onSelectItem={onSelectItem}
@@ -1507,7 +1506,6 @@ interface SessionListBodyProps {
   isValidating: boolean
   listRef: RefObject<HTMLDivElement | null>
   onDeleteSession: (id: string) => Promise<void>
-  onEditAgent: (agentId: string) => void
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onRetry: () => Promise<unknown>
   onSelectItem?: () => void
@@ -1522,7 +1520,6 @@ function SessionListBody({
   isValidating,
   listRef,
   onDeleteSession,
-  onEditAgent,
   onOpenInNewTab,
   onRetry,
   onSelectItem,
@@ -1539,7 +1536,6 @@ function SessionListBody({
       pinned={session.pinned}
       onTogglePin={onTogglePin}
       onDelete={onDeleteSession}
-      onEditAgent={onEditAgent}
       onOpenInNewTab={onOpenInNewTab}
       onPress={setActiveSessionId}
       onSelectItem={onSelectItem}

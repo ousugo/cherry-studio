@@ -22,14 +22,12 @@ describe('session item actions', () => {
     expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.delete'])
   })
 
-  it('resolves pin label from pinned state and executes callbacks', async () => {
-    const onEditAgent = vi.fn()
+  it('resolves pin label from pinned state and executes callbacks without agent editing', async () => {
     const onTogglePin = vi.fn()
     const onDelete = vi.fn()
     const startEdit = vi.fn()
     const actionContext = createSessionActionFixture({
       onDelete,
-      onEditAgent,
       onTogglePin,
       pinned: true,
       startEdit
@@ -37,12 +35,7 @@ describe('session item actions', () => {
     const actions = resolveSessionMenuActions(actionContext)
     const deleteAction = actions.find((action) => action.id === 'session.delete')
 
-    expect(actions.map((action) => action.id)).toEqual([
-      'session.rename',
-      'session.edit-agent',
-      'session.toggle-pin',
-      'session.delete'
-    ])
+    expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.toggle-pin', 'session.delete'])
     expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('chat.topics.unpin')
     expect(deleteAction?.confirm).toMatchObject({
       title: 'agent.session.delete.title',
@@ -54,10 +47,8 @@ describe('session item actions', () => {
     await executeSessionMenuAction(actions[0], actionContext)
     await executeSessionMenuAction(actions[1], actionContext)
     await executeSessionMenuAction(actions[2], actionContext)
-    await executeSessionMenuAction(actions[3], actionContext)
 
     expect(startEdit).toHaveBeenCalledWith('Session title')
-    expect(onEditAgent).toHaveBeenCalled()
     expect(onTogglePin).toHaveBeenCalled()
     expect(onDelete).toHaveBeenCalled()
   })
