@@ -761,6 +761,26 @@ describe('HomePage', () => {
     expect(homeMocks.activeTopicOptions?.passive).toBe(false)
   })
 
+  it('keeps the metadata topic key while the entry topic is loading', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.routeSearch = {}
+    homeMocks.currentTab = { metadata: { instanceAppId: 'assistants', instanceKey: 'topic-from-metadata' } }
+    homeMocks.activeTopicLoading = true
+
+    await act(async () => {
+      render(<HomePage />)
+    })
+
+    expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        instanceAppId: 'assistants',
+        instanceKey: 'topic-from-metadata',
+        isTemporary: false
+      })
+    )
+    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+  })
+
   it('keeps same-tab topic changes local instead of writing the URL', async () => {
     homeMocks.locationState = undefined
     homeMocks.routeSearch = {}

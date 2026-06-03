@@ -384,6 +384,23 @@ describe('AgentPage', () => {
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-from-metadata')
   })
 
+  it('keeps the metadata session key while the entry session is loading', () => {
+    agentPageMocks.activeSessionId = null
+    agentPageMocks.currentTab = { metadata: { instanceAppId: 'agents', instanceKey: 'session-from-metadata' } }
+    activeSessionMocks.isLoading = true
+
+    render(<AgentPage />)
+
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-from-metadata')
+    expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        instanceAppId: 'agents',
+        instanceKey: 'session-from-metadata',
+        isTemporary: false
+      })
+    )
+  })
+
   it('updates the controlled session selection when the active session changes inside the tab', async () => {
     render(<AgentPage />)
 

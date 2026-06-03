@@ -254,7 +254,8 @@ const HomePage: FC = () => {
   // This tab shows an unpersisted temp topic → forbid "open in new window".
   const isTemporaryView =
     !isMessageOnlyView && !!temporaryTopicSnapshot && visibleTopic?.id === temporaryTopicSnapshot.id
-  const tabInstanceTopicId = !isMessageOnlyView && !isTemporaryView ? visibleTopic?.id : undefined
+  const tabInstanceTopicId =
+    !isMessageOnlyView && !isTemporaryView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
   useTabSelfMetadata({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
     emoji: visibleAssistant?.emoji,

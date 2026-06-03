@@ -167,7 +167,8 @@ const AgentPage = () => {
   // This tab shows an unpersisted temp session (no sessionId in url, live temp
   // lease) → forbid "open in new window".
   const isTemporaryView = !isMessageOnlyView && !activeSessionId && visibleTemporaryAgentConversation?.type === 'agent'
-  const tabInstanceSessionId = !isMessageOnlyView && !isTemporaryView ? visibleSession?.id : undefined
+  const tabInstanceSessionId =
+    !isMessageOnlyView && !isTemporaryView ? (visibleSession?.id ?? routeActiveSessionId ?? undefined) : undefined
   useTabSelfMetadata({
     title: visibleSession?.name?.trim() || visibleAgent?.name?.trim() || getDefaultRouteTitle('/app/agents'),
     emoji: visibleAgent?.configuration?.avatar,
