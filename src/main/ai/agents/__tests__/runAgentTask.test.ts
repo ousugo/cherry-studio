@@ -12,10 +12,31 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockAbort, mockGetAdapter, mockStartRun, captured } = vi.hoisted(() => {
+  const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
+  return {
+    mockAbort: vi.fn(),
+    mockGetAdapter: vi.fn(() => undefined),
+    mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
+      captured.listeners = opts.listeners
+    }),
+    captured
+  }
+})
+
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
-  return mod.mockApplicationFactory()
+  return mod.mockApplicationFactory({
+    // ChannelManager + AiStreamManager aren't in the default mock service set; the
+    // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
+    ChannelManager: { getAdapter: mockGetAdapter },
+    AiStreamManager: { abort: mockAbort }
+  } as never)
 })
+
+vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
+  startAgentSessionRun: mockStartRun
+}))
 
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { getSubscribedChannels: vi.fn() }
@@ -36,11 +57,13 @@ vi.mock('@main/ai/agents/cherryclaw/heartbeat', () => ({
   readHeartbeat: vi.fn()
 }))
 
+import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { sessionService } from '@data/services/SessionService'
 import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 
 import { runAgentTask } from '../runAgentTask'
 
@@ -143,6 +166,11 @@ describe('runAgentTask', () => {
     vi.mocked(agentService.getAgent).mockReset()
     vi.mocked(sessionService.createSession).mockReset()
     vi.mocked(readHeartbeat).mockReset()
+    vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockResolvedValue([])
+    mockStartRun.mockClear()
+    mockAbort.mockClear()
+    mockGetAdapter.mockClear()
+    captured.listeners = []
   })
 
   afterEach(() => {
@@ -203,5 +231,48 @@ describe('runAgentTask', () => {
     await runAgentTask(makeCtx())
 
     expect(sessionService.createSession).toHaveBeenCalledWith({ agentId: 'a1', name: 'heartbeat' })
+  })
+
+  // C1 (agents-jobs-3): a `text-delta` chunk's payload is on `.delta`, not `.text`.
+  // The previous `as { text }` cast silently accumulated nothing, so every run
+  // persisted the `'Completed'` fallback instead of the model's reply.
+  it('accumulates text-delta chunks via .delta into the result', async () => {
+    vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent())
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    const sentinel = captured.listeners[0]
+    sentinel.onChunk({ type: 'text-delta', delta: 'Hello ' })
+    sentinel.onChunk({ type: 'text-delta', delta: 'world' })
+    sentinel.onChunk({ type: 'reasoning-delta', delta: 'ignored' })
+    sentinel.onDone({ status: 'completed' })
+
+    const out = await promise
+    expect(out).toEqual({ sessionId: 'sess-new', result: 'Hello world' })
+  })
+
+  // C2 (agents-jobs-1) + agents-jobs-7: aborting the run (JobManager cancel or
+  // per-task timeout) must abort the upstream stream AND settle the handler
+  // promise — otherwise it leaks until the JobManager force-finalize timeout.
+  it('aborts the upstream stream and rejects when the run signal aborts', async () => {
+    vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent())
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
+
+    const controller = new AbortController()
+    const promise = runAgentTask(
+      makeCtx({ signal: controller.signal, input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } })
+    )
+
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    controller.abort(new Error('cancelled by manager'))
+
+    await expect(promise).rejects.toThrow('cancelled by manager')
+    expect(mockAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'cancelled by manager')
   })
 })
