@@ -37,6 +37,16 @@ export interface TabSelfMetadata {
   instanceKey?: string | null
 }
 
+const TAB_INSTANCE_ROUTE_PREFIX: Record<TabInstanceAppId, string> = {
+  assistants: '/app/chat',
+  agents: '/app/agents'
+}
+
+function tabBelongsToInstanceApp(tab: Pick<Tab, 'url'>, appId: TabInstanceAppId): boolean {
+  const routePrefix = TAB_INSTANCE_ROUTE_PREFIX[appId]
+  return tab.url === routePrefix || tab.url.startsWith(`${routePrefix}?`) || tab.url.startsWith(`${routePrefix}/`)
+}
+
 function isMetadataEqual(
   left: Record<string, unknown> | undefined,
   right: Record<string, unknown> | undefined
@@ -64,6 +74,7 @@ export function useTabSelfMetadata({ title, emoji, isTemporary, instanceAppId, i
 
   useEffect(() => {
     if (!currentTabId || !updateTab || !currentTab) return
+    if (instanceAppId && !tabBelongsToInstanceApp(currentTab, instanceAppId)) return
     const icon = emojiTabIcon(emoji)
     const metadata = buildTabInstanceMetadata(currentTab.metadata, {
       appId: instanceAppId,
