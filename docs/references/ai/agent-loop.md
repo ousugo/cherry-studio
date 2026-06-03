@@ -28,9 +28,9 @@ const agent = new Agent({
   messageId           // stable id for the first emitted UIMessage
 })
 
-const stream: ReadableStream<UIMessageChunk> = agent.stream(initialMessages)
-// or
-const result = await agent.generate(messages)   // non-streaming
+const stream: ReadableStream<UIMessageChunk> = agent.stream(initialMessages, signal)
+// or (non-streaming; input is { prompt } | { messages })
+const result = await agent.generate({ messages }, signal)
 
 // internal observers can also register on the agent:
 const dispose = agent.on('onStepFinish', step => { … })

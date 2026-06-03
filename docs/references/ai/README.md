@@ -56,7 +56,7 @@ src/main/ai/
 │   ├── context/                  ← ChatContextProvider implementations + dispatch
 │   ├── lifecycle/                ← chat / prompt-only stream lifecycles
 │   ├── listeners/                ← WebContents / Persistence / SSE / channel-adapter
-│   ├── persistence/              ← MessageService / TemporaryChat / AgentMessage / Translation backends
+│   ├── persistence/              ← MessageService / TemporaryChat / Translation backends
 │   └── pipeStreamLoop.ts         ← shared chunk-pipe primitive
 ├── provider/                     ← provider config, endpoint resolution, custom providers
 │   ├── custom/                   ← aihubmix, newapi
@@ -97,10 +97,11 @@ src/main/ai/
    resubmit on a live topic is restarted upstream — `dispatch` calls
    `abortAndAwait` first; only an agent-session follow-up takes the
    **inject** path, which just upserts listeners.)
-5. Each execution calls `Agent.stream(buildAgentParams(...))`. `Agent.stream`
-   composes hooks from `RequestFeature[]` (anthropic cache, gateway usage
-   normalisation, reasoning extraction, …), opens the AI SDK stream, and
-   yields `UIMessageChunk`s.
+5. Each execution's `runExecutionLoop` calls `AiService.streamText(request,
+   signal)`, which builds params (`buildAgentParams`) and constructs an `Agent`
+   composing hooks from `RequestFeature[]` (anthropic cache, gateway usage
+   normalisation, reasoning extraction, …), then calls `agent.stream(messages,
+   signal)` to open the AI SDK stream and yield `UIMessageChunk`s.
    Agent-session runtime requests are the exception: `AiService.streamText`
    routes them to `AgentSessionRuntimeService.openTurnStream()` so the
    registered driver can own the concrete agent runtime.

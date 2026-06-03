@@ -55,7 +55,7 @@ tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
 
 `src/main/ai/tools/adapters/aiSdk/mcp/`:
 
-- `resolveAssistantMcpTools` — assistant's enabled MCP servers + per-tool
+- `resolveAssistantMcpToolIds` — assistant's enabled MCP servers + per-tool
   disable list → set of tool ids.
 - `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — calls
   `listTools` on each MCP server that owns at least one selected tool,
