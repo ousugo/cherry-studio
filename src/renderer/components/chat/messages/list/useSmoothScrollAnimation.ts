@@ -130,5 +130,5 @@ export function useSmoothScrollAnimation(
     return () => cancel()
   }, [cancel])
 
-  return { scrollTo, cancel, isAnimating }
+  return useMemo(() => ({ scrollTo, cancel, isAnimating }), [cancel, isAnimating, scrollTo])
 }

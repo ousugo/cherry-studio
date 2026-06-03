@@ -12,7 +12,7 @@
  */
 
 import { Scrollbar } from '@cherrystudio/ui'
-import { type ReactNode, type Ref, useCallback } from 'react'
+import { type ReactNode, type Ref, useCallback, useEffect, useState } from 'react'
 import { Virtualizer } from 'virtua'
 
 import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chatVirtualizerRuntime'
@@ -97,9 +97,11 @@ export function MessageVirtualList<T>({
     topicId,
     bottomPadding
   })
+  const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
   const setScrollerRef = useCallback(
     (element: HTMLDivElement | null) => {
       runtime.scrollerRef.current = element
+      setScrollerElement(element)
       if (element) {
         onScrollContainerReady?.(element)
       }
@@ -107,13 +109,19 @@ export function MessageVirtualList<T>({
     [onScrollContainerReady, runtime.scrollerRef]
   )
 
+  useEffect(() => {
+    if (!scrollerElement) return
+    const handleWheel = (event: WheelEvent) => runtime.scrollerProps.onWheel(event)
+    scrollerElement.addEventListener('wheel', handleWheel, { passive: true })
+    return () => scrollerElement.removeEventListener('wheel', handleWheel)
+  }, [runtime.scrollerProps.onWheel, scrollerElement])
+
   return (
     <Scrollbar
       ref={setScrollerRef}
       data-message-virtual-list-scroller
       className={className}
-      style={{ overflowY: 'auto', overflowX: 'hidden', position: 'relative', ...style }}
-      onWheel={runtime.scrollerProps.onWheel}>
+      style={{ overflowY: 'auto', overflowX: 'hidden', overflowAnchor: 'none', position: 'relative', ...style }}>
       <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
         {topPadding > 0 && (
           <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
@@ -124,6 +132,7 @@ export function MessageVirtualList<T>({
           data={runtime.wrappedItems}
           itemSize={estimateSize}
           bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
+          shift={runtime.shift}
           keepMounted={runtime.keepMounted}
           startMargin={topPadding}
           onScroll={runtime.scrollerProps.onScroll}

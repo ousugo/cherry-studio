@@ -24,7 +24,7 @@
  *   - External caller invokes `release()`
  */
 
-import { type RefObject, useCallback, useRef, useState } from 'react'
+import { type RefObject, useCallback, useMemo, useRef, useState } from 'react'
 import type { VListHandle } from 'virtua'
 
 import type { SmoothScrollController } from './useSmoothScrollAnimation'
@@ -181,12 +181,15 @@ export function useScrollAnchor({ scrollerRef, vlistHandleRef, smoothScroll }: S
 
   const isPinned = useCallback(() => anchorIndexRef.current != null, [])
 
-  return {
-    spacerHeight,
-    isPinned,
-    pinTo,
-    release,
-    onContentSizeChange,
-    onUserScroll
-  }
+  return useMemo(
+    () => ({
+      spacerHeight,
+      isPinned,
+      pinTo,
+      release,
+      onContentSizeChange,
+      onUserScroll
+    }),
+    [isPinned, onContentSizeChange, onUserScroll, pinTo, release, spacerHeight]
+  )
 }

@@ -17,6 +17,7 @@ import {
 } from '../types'
 
 const scrollToBottom = vi.fn()
+const scrollToKey = vi.fn()
 const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
   renderItemLimit: undefined as number | undefined,
@@ -112,11 +113,29 @@ vi.mock('../list/MessageGroup', async () => {
 
   return {
     __esModule: true,
-    default: ({ messages }: { messages: MessageListItem[] }) => (
+    default: ({
+      messages,
+      registerMessageElement
+    }: {
+      messages: MessageListItem[]
+      registerMessageElement?: (id: string, element: HTMLElement | null) => void
+    }) => (
       <div data-testid="message-group">
-        {messages.map((message) => (
-          <MessageEnterProbe key={message.id} messageId={message.id} />
-        ))}
+        {messages.map((message) => {
+          const setRef = (element: HTMLDivElement | null) => {
+            registerMessageElement?.(message.id, element)
+          }
+          return (
+            <div
+              id={`message-${message.id}`}
+              key={message.id}
+              ref={setRef}
+              className="fold"
+              data-testid={`message-node-${message.id}`}>
+              <MessageEnterProbe messageId={message.id} />
+            </div>
+          )
+        })}
         {messages.map((message) => message.id).join(',')}
       </div>
     )
@@ -150,7 +169,7 @@ vi.mock('../list/MessageVirtualList', async () => {
         handleRef as Ref<MessageVirtualListHandle>,
         () => ({
           scrollToBottom,
-          scrollToKey: vi.fn(),
+          scrollToKey,
           isAtBottom: () => false,
           getScrollElement: () => messageVirtualListMocks.scrollElement
         }),
@@ -223,6 +242,7 @@ const renderMessageList = (messages: MessageListItem[]) =>
 describe('MessageList', () => {
   beforeEach(() => {
     scrollToBottom.mockClear()
+    scrollToKey.mockClear()
     vi.mocked(captureScrollableAsBlob).mockReset()
     vi.mocked(captureScrollableAsDataURL).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
@@ -366,6 +386,86 @@ describe('MessageList', () => {
     )
 
     expect(document.getElementById('messages')).toHaveClass('messages-container', 'multi-select-mode')
+  })
+
+  it('keeps the list runtime bound while messages change', () => {
+    let runtime: MessageListRuntime | undefined
+    const unbindRuntime = vi.fn()
+    const bindRuntime = vi.fn((nextRuntime: MessageListRuntime) => {
+      runtime = nextRuntime
+      return unbindRuntime
+    })
+    const firstMessage = createMessage('user-1', 'user')
+    const nextMessage = createMessage('assistant-1', 'assistant')
+
+    const view = render(
+      <MessageListProvider value={createValue([firstMessage], undefined, { bindRuntime })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(bindRuntime).toHaveBeenCalledTimes(1)
+
+    view.rerender(
+      <MessageListProvider value={createValue([firstMessage, nextMessage], undefined, { bindRuntime })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(unbindRuntime).not.toHaveBeenCalled()
+    expect(bindRuntime).toHaveBeenCalledTimes(1)
+
+    runtime?.locateMessage(nextMessage.id)
+
+    expect(scrollToKey).toHaveBeenCalledWith('assistantassistant-1', 'start')
+  })
+
+  it('does not register the message outline scroll listener while outline is disabled', () => {
+    const addEventListenerSpy = vi.spyOn(messageVirtualListMocks.scrollElement!, 'addEventListener')
+
+    renderMessageList([createMessage('assistant-1', 'assistant')])
+
+    expect(addEventListenerSpy).not.toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true })
+  })
+
+  it('limits message outline work to mounted message elements', () => {
+    messageVirtualListMocks.renderItemLimit = 1
+    const addEventListenerSpy = vi.spyOn(messageVirtualListMocks.scrollElement!, 'addEventListener')
+    messageVirtualListMocks.scrollElement!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          bottom: 500,
+          height: 500,
+          left: 0,
+          right: 500,
+          top: 0,
+          width: 500,
+          x: 0,
+          y: 0,
+          toJSON: () => ({})
+        }) as DOMRect
+    )
+    const getElementByIdSpy = vi.spyOn(document, 'getElementById')
+
+    render(
+      <MessageListProvider
+        value={createValue(
+          [
+            createMessage('assistant-visible', 'assistant'),
+            createMessage('assistant-unmounted-1', 'assistant'),
+            createMessage('assistant-unmounted-2', 'assistant')
+          ],
+          {
+            renderConfig: { ...defaultMessageRenderConfig, showMessageOutline: true }
+          }
+        )}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(addEventListenerSpy).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true })
+    expect(getElementByIdSpy).not.toHaveBeenCalledWith('message-assistant-unmounted-1')
+    expect(getElementByIdSpy).not.toHaveBeenCalledWith('message-assistant-unmounted-2')
   })
 
   it('exports topic image from a complete non-virtualized capture surface', async () => {

@@ -63,7 +63,7 @@ export interface ChatVirtualizerRuntimeOptions<T> {
 }
 
 interface ScrollerEventHandlers {
-  onWheel(event: React.WheelEvent<HTMLElement>): void
+  onWheel(event: WheelEvent): void
   /** Wired into virtua's `onScroll(offset)` callback. */
   onScroll(offset: number): void
   onScrollEnd(): void
@@ -93,6 +93,8 @@ export interface ChatVirtualizerRuntime<T> {
   wrappedGetItemKey(item: WrappedItem<T>, index: number): string
   /** Render function for wrapped items (spacer is rendered as an empty div). */
   wrappedRenderItem(item: WrappedItem<T>, index: number): ReactElement
+  /** True only for the render where older items were prepended. */
+  shift: boolean
   keepMounted: readonly number[]
   scrollerProps: ScrollerEventHandlers
 }
@@ -135,10 +137,22 @@ export function useChatVirtualizerRuntime<T>({
   const renderItemRef = useRef(renderItem)
   renderItemRef.current = renderItem
 
+  const dataKeys = useMemo(() => items.map((value, i) => getItemKey(value, i)), [items, getItemKey])
+  const previousDataKeysRef = useRef<string[]>([])
+  const previousDataKeys = previousDataKeysRef.current
+  const shift =
+    previousDataKeys.length > 0 &&
+    dataKeys.length > previousDataKeys.length &&
+    dataKeys.indexOf(previousDataKeys[0]) > 0
+
+  useEffect(() => {
+    previousDataKeysRef.current = dataKeys
+  }, [dataKeys])
+
   const wrappedItems = useMemo<WrappedItem<T>[]>(() => {
     const base = items.map<WrappedItem<T>>((value, i) => ({
       kind: 'data',
-      key: getItemKey(value, i),
+      key: dataKeys[i],
       value,
       originalIndex: i
     }))
@@ -146,18 +160,18 @@ export function useChatVirtualizerRuntime<T>({
       base.push({ kind: 'spacer', key: '__anchor_spacer__', height: anchor.spacerHeight })
     }
     return base
-  }, [items, getItemKey, anchor.spacerHeight])
+  }, [items, dataKeys, anchor.spacerHeight])
 
   const wrappedGetItemKey = useCallback((item: WrappedItem<T>) => (item.kind === 'spacer' ? item.key : item.key), [])
 
   const wrappedRenderItem = useCallback((item: WrappedItem<T>) => {
     if (item.kind === 'spacer') {
-      return <div aria-hidden="true" style={{ height: item.height, width: '100%' }} />
+      return <div key={item.key} aria-hidden="true" style={{ height: item.height, width: '100%' }} />
     }
     // Tag with data-message-index so the selectionchange listener can
     // map a text selection back to a data index for keepMounted.
     return (
-      <div data-message-index={item.originalIndex} style={{ width: '100%' }}>
+      <div key={item.key} data-message-index={item.originalIndex} style={{ width: '100%' }}>
         {renderItemRef.current(item.value, item.originalIndex)}
       </div>
     )
@@ -256,7 +270,7 @@ export function useChatVirtualizerRuntime<T>({
   const lastScrollOffsetRef = useRef(0)
 
   const onWheel = useCallback(
-    (event: React.WheelEvent<HTMLElement>) => {
+    (event: WheelEvent) => {
       const dir: 'up' | 'down' | 'none' = event.deltaY < 0 ? 'up' : event.deltaY > 0 ? 'down' : 'none'
       if (smoothScroll.isAnimating() && dir === 'up') {
         smoothScroll.cancel()
@@ -268,6 +282,22 @@ export function useChatVirtualizerRuntime<T>({
       }, SCROLL_WHEEL_DEBOUNCE_MS)
     },
     [smoothScroll]
+  )
+
+  const onReachTopRef = useRef(onReachTop)
+  onReachTopRef.current = onReachTop
+
+  const maybeNotifyReachTop = useCallback(
+    (offset: number) => {
+      if (!hasMoreTop) return
+      const handle = vlistHandleRef.current
+      if (!handle) return
+      const topmostIdx = handle.findItemIndex(offset)
+      if (topmostIdx < topReachOverscanItems) {
+        onReachTopRef.current?.()
+      }
+    },
+    [hasMoreTop, topReachOverscanItems]
   )
 
   const onScroll = useCallback(() => {
@@ -288,7 +318,8 @@ export function useChatVirtualizerRuntime<T>({
     lastScrollOffsetRef.current = offset
     atBottom.notifyScroll({ offset, scrollSize, viewportSize, direction })
     saveScrollPosition()
-  }, [anchor, atBottom, saveScrollPosition, smoothScroll])
+    maybeNotifyReachTop(offset)
+  }, [anchor, atBottom, maybeNotifyReachTop, saveScrollPosition, smoothScroll])
 
   const onScrollEnd = useCallback(() => {
     lastWheelDirRef.current = 'none'
@@ -296,21 +327,7 @@ export function useChatVirtualizerRuntime<T>({
     // throttle that paces the in-flight `onScroll` saves.
     saveScrollPosition(true)
   }, [saveScrollPosition])
-
-  // ---- reach-top trigger ---------------------------------------------
-
-  const onReachTopRef = useRef(onReachTop)
-  onReachTopRef.current = onReachTop
-
-  useEffect(() => {
-    if (!hasMoreTop) return
-    const handle = vlistHandleRef.current
-    if (!handle) return
-    const topmostIdx = handle.findItemIndex(handle.scrollOffset)
-    if (topmostIdx < topReachOverscanItems) {
-      onReachTopRef.current?.()
-    }
-  }, [hasMoreTop, items.length, topReachOverscanItems])
+  const scrollerProps = useMemo(() => ({ onWheel, onScroll, onScrollEnd }), [onScroll, onScrollEnd, onWheel])
 
   // ---- selection-survival keepMounted --------------------------------
 
@@ -386,8 +403,9 @@ export function useChatVirtualizerRuntime<T>({
     wrappedItems,
     wrappedGetItemKey,
     wrappedRenderItem: wrappedRenderItem as ChatVirtualizerRuntime<T>['wrappedRenderItem'],
+    shift,
     keepMounted,
-    scrollerProps: { onWheel, onScroll, onScrollEnd }
+    scrollerProps
   }
 }
 

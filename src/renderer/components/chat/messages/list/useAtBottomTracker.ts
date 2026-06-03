@@ -2,7 +2,7 @@
  * At-bottom state tracker.
  */
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 
 import { type AtBottomState, INITIAL_AT_BOTTOM_STATE, reduceAtBottom } from './atBottomStateMachine'
 
@@ -42,5 +42,8 @@ export function useAtBottomTracker(): AtBottomTracker {
     stateRef.current = reduceAtBottom(stateRef.current, { type: 'reset' })
   }, [])
 
-  return { isAtBottom, getState, notifyScroll, notifySizeChange, notifyProgrammaticStick, reset }
+  return useMemo(
+    () => ({ isAtBottom, getState, notifyScroll, notifySizeChange, notifyProgrammaticStick, reset }),
+    [getState, isAtBottom, notifyProgrammaticStick, notifyScroll, notifySizeChange, reset]
+  )
 }

@@ -6,7 +6,7 @@
  * doesn't know about anchors.
  */
 
-import { type RefObject, useCallback, useRef } from 'react'
+import { type RefObject, useCallback, useMemo, useRef } from 'react'
 
 import type { SmoothScrollController } from './useSmoothScrollAnimation'
 
@@ -60,5 +60,5 @@ export function useAutoStickToBottom({
     markStuck()
   }, [isAtBottom, isLocked, markStuck, scrollerRef, smoothScroll, targetBottom])
 
-  return { onContentSizeChange }
+  return useMemo(() => ({ onContentSizeChange }), [onContentSizeChange])
 }
