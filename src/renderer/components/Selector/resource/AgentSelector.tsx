@@ -27,6 +27,7 @@ type SharedProps = {
   trigger: ReactElement
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  autoSelectOnCreate?: boolean
   side?: SelectorShellProps['side']
   align?: SelectorShellProps['align']
   sideOffset?: SelectorShellProps['sideOffset']
@@ -48,7 +49,7 @@ export type AgentSelectorSingleItemProps = SharedProps & {
 export type AgentSelectorProps = AgentSelectorSingleIdProps | AgentSelectorSingleItemProps
 
 export function AgentSelector(props: AgentSelectorProps) {
-  const { trigger, open, onOpenChange, side, align, sideOffset, mountStrategy } = props
+  const { trigger, open, onOpenChange, autoSelectOnCreate, side, align, sideOffset, mountStrategy } = props
   const { t } = useTranslation()
   const modelFilter = useAgentModelFilter('claude-code')
   const [internalOpen, setInternalOpen] = useState(false)
@@ -124,8 +125,9 @@ export function AgentSelector(props: AgentSelectorProps) {
 
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateDialogValues) => {
+      let created: AgentDetail
       try {
-        await createAgent({
+        created = await createAgent({
           body: {
             type: 'claude-code',
             name: values.name,
@@ -146,9 +148,23 @@ export function AgentSelector(props: AgentSelectorProps) {
         logger.warn('Failed to refresh agents after selector create', { error })
         window.toast?.error(t('selector.create_dialog.refresh_failed'))
       }
+      if (autoSelectOnCreate) {
+        if (props.selectionType === 'item') {
+          props.onChange({
+            id: created.id,
+            name: created.name,
+            description: created.description,
+            emoji: getAgentAvatarFromConfiguration(created.configuration)
+          })
+        } else {
+          props.onChange(created.id)
+        }
+        handleSelectorOpenChange(false)
+        return
+      }
       handleSelectorOpenChange(true)
     },
-    [createAgent, handleSelectorOpenChange, refetch, t]
+    [autoSelectOnCreate, createAgent, handleSelectorOpenChange, props, refetch, t]
   )
 
   const handleEditSaved = useCallback(async () => {

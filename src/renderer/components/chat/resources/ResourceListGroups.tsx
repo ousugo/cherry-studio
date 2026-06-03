@@ -113,6 +113,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const groupHeaderClassName = meta.getGroupHeaderClassName?.(group)
   const groupHeaderTooltip = meta.getGroupHeaderTooltip?.(group)
   const groupHeaderIcon = customGroupHeaderIcon ?? null
+  const hasLeadingSlot = Boolean(groupHeaderIcon || groupHeaderLeadingAction)
   const handleContextMenu = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       onContextMenu?.(event)
@@ -157,7 +158,8 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       <div
         title={groupHeaderTooltip}
         className={cn(
-          'flex w-full items-center gap-1.5 px-1.5 transition-colors duration-150',
+          'flex w-full items-center gap-1.5 transition-colors duration-150',
+          hasLeadingSlot ? 'px-1.5' : 'px-2.5',
           RESOURCE_LIST_VISUAL_ROW_CLASS,
           RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
           selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
@@ -238,7 +240,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       {...props}>
       <button
         type="button"
-        className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-inherit leading-4 transition-colors duration-150 hover:text-muted-foreground/55 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+        className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-muted-foreground/55 leading-4 transition-colors duration-150 hover:text-inherit focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
         onClick={() => {
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)

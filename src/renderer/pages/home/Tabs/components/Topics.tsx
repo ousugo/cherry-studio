@@ -1017,7 +1017,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
         onReorder={handleTopicReorder}
         onExpandedStateChange={handleTopicExpansionStateChange}>
-        <ResourceList.Header className="gap-1 px-1.5 pb-0">
+        <ResourceList.Header className="gap-1">
           <ResourceList.HeaderItem
             type="button"
             command="topic.create"

@@ -231,8 +231,12 @@ function buildResourceListSections<T extends ResourceListItemBase>({
     }
   }
 
-  return [...sections.values()].map(({ section, items, groupSeeds }) => {
+  const sectionEntries = [...sections.values()]
+  const showSectionHeaders = sectionEntries.length > 1
+
+  return sectionEntries.map(({ section, items, groupSeeds }) => {
     const collapsed =
+      showSectionHeaders &&
       Boolean(section.label) &&
       (useExpandedGroupIds ? !sectionStateIdSet.has(section.id) : sectionStateIdSet.has(section.id))
     const groups = buildResourceListGroups({

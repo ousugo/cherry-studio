@@ -361,7 +361,7 @@ describe('AssistantSelector', () => {
     expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
   })
 
-  it('creates an assistant, refreshes, reopens the selector, and does not auto-select', async () => {
+  it('creates an assistant, refreshes, reopens the selector, and does not auto-select by default', async () => {
     const onChange = vi.fn()
     render(
       <AssistantSelector trigger={<button type="button">Open</button>} multi={false} value={null} onChange={onChange} />
@@ -388,6 +388,27 @@ describe('AssistantSelector', () => {
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     expect(onChange).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByPlaceholderText('Search assistants')).toBeInTheDocument())
+  })
+
+  it('auto-selects the created assistant when enabled', async () => {
+    const onChange = vi.fn()
+    render(
+      <AssistantSelector
+        trigger={<button type="button">Open</button>}
+        multi={false}
+        value={null}
+        onChange={onChange}
+        autoSelectOnCreate
+      />
+    )
+    await openCreateDialog()
+
+    fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
+    expect(onChange).toHaveBeenCalledWith('created-assistant')
   })
 
   it('notifies when created assistant cannot be refreshed into the selector', async () => {

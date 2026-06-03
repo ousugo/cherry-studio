@@ -441,7 +441,7 @@ describe('AgentSelector', () => {
     expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
   })
 
-  it('creates an agent, refreshes, reopens the selector, and does not auto-select', async () => {
+  it('creates an agent, refreshes, reopens the selector, and does not auto-select by default', async () => {
     const { onChange } = renderSelector()
     await openCreateDialog()
 
@@ -466,6 +466,26 @@ describe('AgentSelector', () => {
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
     expect(onChange).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
+  })
+
+  it('auto-selects the created agent when enabled', async () => {
+    const onChange = vi.fn()
+    render(
+      <AgentSelector
+        trigger={<button type="button">Open</button>}
+        value={null}
+        onChange={onChange}
+        autoSelectOnCreate
+      />
+    )
+    await openCreateDialog()
+
+    fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
+    expect(onChange).toHaveBeenCalledWith('created-agent')
   })
 
   it('notifies when created agent cannot be refreshed into the selector', async () => {

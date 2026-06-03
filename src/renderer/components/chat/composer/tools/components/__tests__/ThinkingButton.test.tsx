@@ -166,7 +166,7 @@ describe('ThinkingToolRuntime', () => {
     ;(window as any).toast = { warning: mocks.toastWarning }
   })
 
-  it('registers only the runtime launcher, with popover and root-panel submenu entries', async () => {
+  it('registers only the runtime launcher for the plus menu', async () => {
     const { launcher } = renderRuntime({
       assistant: createAssistant({ reasoning_effort: 'low' })
     })
@@ -179,6 +179,7 @@ describe('ThinkingToolRuntime', () => {
       id: 'thinking',
       kind: 'group',
       sources: ['popover'],
+      showInActiveControls: false,
       suffix: 'Low'
     })
     expect(thinkingLauncher.submenu?.map((item) => item.id)).toEqual([
@@ -188,7 +189,7 @@ describe('ThinkingToolRuntime', () => {
       'thinking-high'
     ])
     expect(thinkingLauncher.submenu?.every((item) => item.sources?.includes('popover'))).toBe(true)
-    expect(thinkingLauncher.submenu?.every((item) => item.sources?.includes('root-panel'))).toBe(true)
+    expect(thinkingLauncher.submenu?.some((item) => item.sources?.includes('root-panel'))).toBe(false)
     expect(thinkingLauncher.submenu?.find((item) => item.id === 'thinking-low')).toMatchObject({ active: true })
   })
 
@@ -247,7 +248,7 @@ describe('ThinkingToolRuntime', () => {
       ?.find((item) => item.id === 'thinking-minimal')
       ?.action?.({
         quickPanel: {} as any,
-        source: 'root-panel'
+        source: 'popover'
       })
 
     expect(mocks.toastWarning).toHaveBeenCalledWith('Cannot use minimal reasoning with web search')

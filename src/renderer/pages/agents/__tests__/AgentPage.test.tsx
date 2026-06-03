@@ -222,6 +222,7 @@ vi.mock('../AgentChat', () => ({
     onStartTemporarySession,
     onVisibleAgentChange,
     onVisibleWorkspaceChange,
+    onDraftAgentChange,
     onDraftWorkspaceChange,
     locateMessageId,
     pane,
@@ -240,6 +241,7 @@ vi.mock('../AgentChat', () => ({
     }) => void | Promise<void>
     onVisibleAgentChange?: (agentId: string) => void
     onVisibleWorkspaceChange?: (workspaceId: string) => void
+    onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
     onDraftWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
     locateMessageId?: string
     pane?: ReactNode
@@ -269,6 +271,9 @@ vi.mock('../AgentChat', () => ({
       </button>
       <button type="button" onClick={() => onVisibleWorkspaceChange?.('workspace-visible')}>
         Show visible workspace
+      </button>
+      <button type="button" onClick={() => void onDraftAgentChange?.('agent-created')}>
+        Select newly created draft agent
       </button>
       {onPaneCollapse && (
         <button type="button" onClick={onPaneCollapse}>
@@ -672,6 +677,50 @@ describe('AgentPage', () => {
     )
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull()
     expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-next')
+  })
+
+  it('replaces the temporary agent conversation for a freshly created agent before the list refreshes', async () => {
+    agentPageMocks.activeSessionId = null
+    agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
+    temporaryConversationMocks.conversation = {
+      type: 'agent',
+      id: 'temporary-session',
+      sessionId: 'temporary-session',
+      topicId: 'agent-session:temporary-session',
+      agentId: 'agent-a',
+      name: 'Draft',
+      session: {
+        id: 'temporary-session',
+        agentId: 'agent-a',
+        name: 'Draft',
+        description: '',
+        workspaceId: null,
+        workspace: null,
+        orderKey: 'a0',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    }
+    temporaryConversationMocks.replace.mockResolvedValue({
+      ...temporaryConversationMocks.conversation,
+      agentId: 'agent-created',
+      session: {
+        ...temporaryConversationMocks.conversation.session,
+        agentId: 'agent-created'
+      }
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select newly created draft agent' }))
+
+    await waitFor(() =>
+      expect(temporaryConversationMocks.replace).toHaveBeenCalledWith({
+        agentId: 'agent-created',
+        name: 'Draft'
+      })
+    )
+    expect(agentPageMocks.setLastUsedAgentId).toHaveBeenCalledWith('agent-created')
   })
 
   it('replaces the temporary agent conversation with no-project mode', async () => {

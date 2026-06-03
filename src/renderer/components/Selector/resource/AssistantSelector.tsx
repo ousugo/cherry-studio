@@ -36,6 +36,7 @@ type SharedProps = {
   trigger: ReactElement
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  autoSelectOnCreate?: boolean
   side?: SelectorShellProps['side']
   align?: SelectorShellProps['align']
   sideOffset?: SelectorShellProps['sideOffset']
@@ -77,7 +78,7 @@ export type AssistantSelectorProps =
   | AssistantSelectorMultiItemProps
 
 export function AssistantSelector(props: AssistantSelectorProps) {
-  const { trigger, open, onOpenChange, side, align, sideOffset, mountStrategy } = props
+  const { trigger, open, onOpenChange, autoSelectOnCreate, side, align, sideOffset, mountStrategy } = props
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -168,8 +169,9 @@ export function AssistantSelector(props: AssistantSelectorProps) {
 
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateDialogValues) => {
+      let created: Assistant
       try {
-        await createAssistant({
+        created = await createAssistant({
           body: {
             name: values.name,
             emoji: values.avatar,
@@ -189,9 +191,24 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         logger.warn('Failed to refresh assistants after selector create', { error })
         window.toast?.error(t('selector.create_dialog.refresh_failed'))
       }
+      if (autoSelectOnCreate && props.multi !== true) {
+        if (props.selectionType === 'item') {
+          props.onChange({
+            id: created.id,
+            name: created.name,
+            emoji: created.emoji,
+            description: created.description,
+            tags: (created.tags ?? []).map((tag) => tag.name)
+          })
+        } else {
+          props.onChange(created.id)
+        }
+        handleSelectorOpenChange(false)
+        return
+      }
       handleSelectorOpenChange(true)
     },
-    [createAssistant, handleSelectorOpenChange, refetch, t]
+    [autoSelectOnCreate, createAssistant, handleSelectorOpenChange, props, refetch, t]
   )
 
   const handleEditSaved = useCallback(async () => {
