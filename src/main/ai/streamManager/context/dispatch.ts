@@ -96,6 +96,16 @@ export async function dispatchStreamRequest(
     .map((m) => m.request.messageId)
     .filter((id): id is string => typeof id === 'string' && id.length > 0)
 
+  // Multi-model topics are persistent-only with a placeholder per model, so the
+  // filtered list must stay aligned with `executionIds`. Fail fast if a future
+  // multi-model provider ever returns a model without a messageId — silently
+  // dropping it would desync the renderer's per-execution bubble join.
+  if (prepared.isMultiModel && placeholderIds.length !== prepared.models.length) {
+    throw new Error(
+      `Multi-model dispatch produced ${placeholderIds.length} placeholderIds for ${prepared.models.length} models (topicId=${prepared.topicId})`
+    )
+  }
+
   return {
     mode: result.mode,
     executionIds: prepared.isMultiModel ? result.executionIds : undefined,

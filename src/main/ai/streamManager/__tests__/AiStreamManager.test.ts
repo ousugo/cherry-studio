@@ -773,6 +773,43 @@ describe('AiStreamManager', () => {
     })
   })
 
+  // ── idle timeout terminal classification ────────────────────────
+  // The idle-chunk timer (withIdleTimeout) aborts `exec.abortController`
+  // directly, never going through `mgr.abort`, so on the clean stream exit
+  // `exec.status` is still 'streaming'. The loop must promote it to 'aborted'
+  // and settle as `paused` — NOT a success `done`. Locks the recently-fixed
+  // mis-classification bug.
+
+  describe('idle timeout', () => {
+    it('settles a timed-out execution as paused, not done', async () => {
+      // readUIMessageStream's accumulator needs real microtask/timer
+      // scheduling; fake timers starve it. The idle timer is a short real
+      // `setTimeout`, so a brief real wait lets it fire.
+      vi.useRealTimers()
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        // 10ms idle timeout — the default pendingStream never emits, so the
+        // idle timer fires and aborts exec.abortController on its own.
+        request: { ...req('a'), requestOptions: { timeout: 10 } },
+        listeners: [listener]
+      })
+      expect(mgr.inspect('a')!.status).toBe('pending')
+
+      // Let the idle timer fire and the abort propagate through the loop.
+      await new Promise((resolve) => setTimeout(resolve, 60))
+
+      // Terminal is paused (truncated reply persisted as paused), never a
+      // success done.
+      expect(listener.pausedResults).toHaveLength(1)
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.pausedResults[0].status).toBe('paused')
+      expect(mgr.inspect('a')!.status).toBe('aborted')
+    })
+  })
+
   // ── live finalMessage accumulation ──────────────────────────────
 
   describe('live finalMessage accumulation', () => {

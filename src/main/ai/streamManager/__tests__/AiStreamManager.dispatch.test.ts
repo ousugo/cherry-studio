@@ -117,6 +117,82 @@ describe('AiStreamManager.dispatch — per-topic serialization', () => {
   })
 })
 
+describe('AiStreamManager IPC handlers — boundary validation', () => {
+  let mgr: ManagerInstance
+  /** channel → registered IPC listener captured from the ipcMain.handle mock. */
+  const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>()
+  // WebContentsListener wires once()/isDestroyed() on the sender; stub a minimal shape.
+  const fakeEvent = { sender: { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() } } as unknown
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    dispatchEvents.length = 0
+    dispatchResolvers.length = 0
+    findPendingAssistantMessages.mockResolvedValue([])
+    handlers.clear()
+    vi.mocked(ipcMain.handle).mockImplementation(((channel: string, listener: never) => {
+      handlers.set(channel, listener as unknown as (event: unknown, ...args: unknown[]) => unknown)
+    }) as never)
+    mgr = createManager()
+    await (mgr as unknown as { onInit(): Promise<void> }).onInit()
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+  })
+
+  it('rejects Ai_Stream_Open with a non-string topicId before dispatching', async () => {
+    const open = handlers.get('ai:stream:open')!
+    await expect(open(fakeEvent, { trigger: 'submit-message', userMessageParts: [], topicId: 42 })).rejects.toThrow(
+      'Invalid Ai_Stream_Open request'
+    )
+    expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects Ai_Stream_Open with a missing trigger before dispatching', async () => {
+    const open = handlers.get('ai:stream:open')!
+    await expect(open(fakeEvent, { topicId: 't', userMessageParts: [] })).rejects.toThrow(
+      'Invalid Ai_Stream_Open request'
+    )
+    expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects a submit-message Ai_Stream_Open missing userMessageParts', async () => {
+    const open = handlers.get('ai:stream:open')!
+    await expect(open(fakeEvent, { trigger: 'submit-message', topicId: 't' })).rejects.toThrow(
+      'Invalid Ai_Stream_Open request'
+    )
+    expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects a regenerate-message Ai_Stream_Open missing parentAnchorId', async () => {
+    const open = handlers.get('ai:stream:open')!
+    await expect(open(fakeEvent, { trigger: 'regenerate-message', topicId: 't' })).rejects.toThrow(
+      'Invalid Ai_Stream_Open request'
+    )
+    expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+  })
+
+  it('dispatches a well-formed submit-message Ai_Stream_Open', async () => {
+    const open = handlers.get('ai:stream:open')!
+    void open(fakeEvent, { trigger: 'submit-message', topicId: 't', userMessageParts: [] })
+    await flush()
+    expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns not-found for an Ai_Stream_Attach with an empty topicId', () => {
+    const attach = handlers.get('ai:stream:attach')!
+    expect(attach(fakeEvent, { topicId: '' })).toEqual({ status: 'not-found' })
+  })
+
+  it('no-ops Ai_Stream_Abort with an invalid topicId', () => {
+    const abort = handlers.get('ai:stream:abort')!
+    const abortSpy = vi.spyOn(mgr, 'abort')
+    expect(abort(fakeEvent, { topicId: 99 })).toBeUndefined()
+    expect(abortSpy).not.toHaveBeenCalled()
+  })
+})
+
 describe('AiStreamManager.onInit — boot sweep ordering', () => {
   let mgr: ManagerInstance
 

@@ -62,8 +62,8 @@ export interface PersistenceBackend {
  *
  * `timeThinkingMs` is deliberately not projected: the
  * `reasoningStartedAt → reasoningEndedAt` wall-clock can include
- * interleaved tool execution. See `stream-stats-followup` TODO in
- * `agentLoop.ts` for the subtraction path.
+ * interleaved tool execution. The subtraction path lands with the
+ * `TODO(message-stats-redesign)` rework in `src/shared/data/types/message.ts`.
  */
 export function statsFromTerminal(
   finalMessage: CherryUIMessage | undefined,

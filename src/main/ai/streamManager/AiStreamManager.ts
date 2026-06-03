@@ -20,6 +20,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
+import * as z from 'zod'
 
 import type { AiStreamRequest } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
@@ -41,6 +42,23 @@ import type {
 } from './types'
 
 const logger = loggerService.withContext('AiStreamManager')
+
+// ── IPC boundary validation ─────────────────────────────────────────
+// Renderer payloads are untrusted; reject malformed shapes before they
+// reach dispatch/attach. `safeParse` keeps the handlers free of throws on
+// the common path and lets us return/throw a sanitized error.
+
+/** Every stream channel keys on a non-empty `topicId`. */
+const TopicIdRequestSchema = z.object({ topicId: z.string().min(1) })
+
+/** `Ai_Stream_Open` — validates the discriminated trigger and its required fields. */
+const StreamOpenRequestSchema = z.intersection(
+  TopicIdRequestSchema,
+  z.discriminatedUnion('trigger', [
+    z.object({ trigger: z.literal('submit-message'), userMessageParts: z.array(z.unknown()) }),
+    z.object({ trigger: z.literal('regenerate-message'), parentAnchorId: z.string().min(1) })
+  ])
+)
 
 /** Idempotent: subsequent calls no-op because `exec.rootSpan` is cleared. */
 function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error', error?: SerializedError): void {
@@ -179,21 +197,42 @@ export class AiStreamManager extends BaseService {
     // in-memory registry is empty, so every still-`pending` assistant row is stale.
     await this.reconcileStalePendingMessages()
 
-    this.ipcHandle(IpcChannel.Ai_Stream_Open, async (event, req: AiStreamOpenRequest) => {
+    this.ipcHandle(IpcChannel.Ai_Stream_Open, async (event, rawReq: unknown) => {
+      const parsed = StreamOpenRequestSchema.safeParse(rawReq)
+      if (!parsed.success) {
+        logger.warn('Ai_Stream_Open rejected: invalid request', { issues: parsed.error.issues })
+        throw new Error('Invalid Ai_Stream_Open request')
+      }
+      const req = rawReq as AiStreamOpenRequest
       const subscriber = new WebContentsListener(event.sender, req.topicId)
       return this.dispatch(subscriber, req)
     })
 
-    this.ipcHandle(IpcChannel.Ai_Stream_Attach, (event, req: AiStreamAttachRequest) => {
-      return this.attach(event.sender, req)
+    this.ipcHandle(IpcChannel.Ai_Stream_Attach, (event, rawReq: unknown): AiStreamAttachResponse => {
+      const parsed = TopicIdRequestSchema.safeParse(rawReq)
+      if (!parsed.success) {
+        logger.warn('Ai_Stream_Attach rejected: invalid topicId', { issues: parsed.error.issues })
+        return { status: 'not-found' }
+      }
+      return this.attach(event.sender, rawReq as AiStreamAttachRequest)
     })
 
-    this.ipcHandle(IpcChannel.Ai_Stream_Detach, (event, req: AiStreamDetachRequest) => {
-      this.detach(event.sender, req)
+    this.ipcHandle(IpcChannel.Ai_Stream_Detach, (event, rawReq: unknown) => {
+      const parsed = TopicIdRequestSchema.safeParse(rawReq)
+      if (!parsed.success) {
+        logger.warn('Ai_Stream_Detach rejected: invalid topicId', { issues: parsed.error.issues })
+        return
+      }
+      this.detach(event.sender, rawReq as AiStreamDetachRequest)
     })
 
-    this.ipcHandle(IpcChannel.Ai_Stream_Abort, (_, req: AiStreamAbortRequest) => {
-      this.abort(req.topicId, 'user-requested')
+    this.ipcHandle(IpcChannel.Ai_Stream_Abort, (_, rawReq: unknown) => {
+      const parsed = TopicIdRequestSchema.safeParse(rawReq)
+      if (!parsed.success) {
+        logger.warn('Ai_Stream_Abort rejected: invalid topicId', { issues: parsed.error.issues })
+        return
+      }
+      this.abort((rawReq as AiStreamAbortRequest).topicId, 'user-requested')
     })
 
     logger.info('AiStreamManager initialized')
