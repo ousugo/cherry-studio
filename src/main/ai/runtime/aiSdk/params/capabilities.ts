@@ -100,7 +100,7 @@ export function resolveCapabilities(
       maxResults: preferenceService.get('chat.web_search.max_results'),
       excludeDomains: preferenceService.get('chat.web_search.exclude_domains')
     }
-    const aiSdkProviderId = getAiSdkProviderId(provider)
+    const aiSdkProviderId = getAiSdkProviderId(provider, model)
     if (extensionRegistry.has(aiSdkProviderId)) {
       webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
     } else if (isAIGatewayProvider(provider) || provider.id === SystemProviderIds.gateway) {
