@@ -11,7 +11,8 @@ import type {
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
-  AiStreamOpenRequest
+  AiStreamOpenRequest,
+  AiStreamOpenResponse
 } from '@shared/ai/transport'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { Message } from '@shared/data/types/message'
@@ -22,7 +23,7 @@ import { type UIMessageChunk } from 'ai'
 
 import type { AiStreamRequest } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
-import { dispatchStreamRequest } from './context'
+import { dispatchStreamRequest, type MainDispatchRequest } from './context'
 import { KeyedMutex } from './KeyedMutex'
 import { createChatStreamLifecycle, promptStreamLifecycle, type StreamLifecycle } from './lifecycle'
 import { WebContentsListener } from './listeners/WebContentsListener'
@@ -180,10 +181,7 @@ export class AiStreamManager extends BaseService {
 
     this.ipcHandle(IpcChannel.Ai_Stream_Open, async (event, req: AiStreamOpenRequest) => {
       const subscriber = new WebContentsListener(event.sender, req.topicId)
-      // Serialise per topic: `prepareDispatch` is async and writes a PENDING placeholder off a
-      // `hasLiveStream` snapshot; without this, two concurrent opens on one topic could both
-      // see "no live stream" and orphan a row.
-      return this.dispatchLock.runExclusive(req.topicId, () => dispatchStreamRequest(this, subscriber, req))
+      return this.dispatch(subscriber, req)
     })
 
     this.ipcHandle(IpcChannel.Ai_Stream_Attach, (event, req: AiStreamAttachRequest) => {
@@ -202,6 +200,19 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
+   * Single locked dispatch entry point for chat streams. Both `Ai_Stream_Open`
+   * and the tool-approval continue path (`AiService.Ai_ToolApproval_Respond`)
+   * route through here so the per-topic `dispatchLock` serialises every dispatch
+   * on a topic — not just opens. `prepareDispatch` is async and writes a PENDING
+   * placeholder off a `hasLiveStream` snapshot; without one lock covering both
+   * entry points, a concurrent open and approval-continue on the same topic could
+   * both see "no live stream" and orphan a row.
+   */
+  dispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<AiStreamOpenResponse> {
+    return this.dispatchLock.runExclusive(req.topicId, () => dispatchStreamRequest(this, subscriber, req))
+  }
+
+  /**
    * Resolve assistant rows a prior main-process crash left stuck in `pending`. The streaming
    * loop persists a terminal status only when it settles; if the process died mid-stream the
    * row stays `pending` forever and the UI shows a frozen "thinking" bubble. Runs once at boot,
@@ -212,9 +223,7 @@ export class AiStreamManager extends BaseService {
       const stale = await messageService.findPendingAssistantMessages()
       if (stale.length === 0) return
       logger.info('Reconciling crash-orphaned pending assistant messages', { count: stale.length })
-      for (const message of stale) {
-        await messageService.update(message.id, { status: 'error' })
-      }
+      await messageService.markMessagesError(stale.map((message) => message.id))
     } catch (error) {
       logger.error('Failed to reconcile stale pending messages', { error })
     }

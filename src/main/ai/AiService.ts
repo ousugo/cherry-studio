@@ -32,7 +32,6 @@ import type { AgentLoopHooks } from './runtime/aiSdk/loop'
 import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
 import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
 import type { RequestFeature } from './runtime/aiSdk/params/feature'
-import { dispatchStreamRequest } from './streamManager/context'
 import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
@@ -245,7 +244,7 @@ export class AiService extends BaseService {
 
         const aiStreamManager = application.get('AiStreamManager')
         const subscriber = new WebContentsListener(event.sender, payload.topicId)
-        await dispatchStreamRequest(aiStreamManager, subscriber, {
+        await aiStreamManager.dispatch(subscriber, {
           trigger: 'continue-conversation',
           topicId: payload.topicId,
           parentAnchorId: payload.anchorId,

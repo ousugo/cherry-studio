@@ -575,6 +575,19 @@ export class MessageService {
     return rows.map(rowToMessage)
   }
 
+  /**
+   * Flip the given rows to `error` in a single serialized write. Paired with
+   * {@link findPendingAssistantMessages} for the boot reconcile of crash-orphaned `pending`
+   * turns. Routes through `withWriteTx` so it serializes with any other write path active
+   * during the WhenReady boot phase.
+   */
+  async markMessagesError(ids: string[]): Promise<void> {
+    if (ids.length === 0) return
+    await application.get('DbService').withWriteTx(async (tx) => {
+      await tx.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids))
+    })
+  }
+
   /** Get all children of a message (messages whose parentId = given id). */
   async getChildrenByParentId(parentId: string): Promise<Message[]> {
     const db = application.get('DbService').getDb()
