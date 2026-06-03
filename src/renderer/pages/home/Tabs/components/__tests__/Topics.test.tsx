@@ -660,7 +660,11 @@ describe('Topics', () => {
     const unpinButton = pinnedRow?.querySelector('[aria-label="Unpin Topic"]')
     expect(unpinButton ?? null).toBeInTheDocument()
     expect(unpinButton).not.toHaveAttribute('data-active')
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
     expect(pinnedRow?.querySelector('[aria-label="Delete"]') ?? null).not.toBeInTheDocument()
+    expect(
+      getTopicRow('Gamma topic').querySelector('[data-resource-list-leading-slot="true"]') ?? null
+    ).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Gamma topic'))
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
@@ -686,12 +690,16 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(loadNext).toHaveBeenCalledTimes(1))
   })
 
-  it('pins from the leading row button without selecting the topic', async () => {
+  it('pins from the trailing row button without selecting the topic', async () => {
     const { getByText, setActiveTopic } = renderTopicList()
 
     const alphaRow = getByText('Alpha topic').closest('[data-testid="topic-list-row"]')
     const pinButton = alphaRow?.querySelector('[aria-label="Pin Topic"]')
     expect(pinButton ?? null).toBeInTheDocument()
+    expect(pinButton?.closest('[data-resource-list-item-actions="true"]')).toBeInTheDocument()
+    expect(
+      alphaRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Pin Topic"]') ?? null
+    ).not.toBeInTheDocument()
 
     fireEvent.click(pinButton as Element)
 
@@ -703,12 +711,17 @@ describe('Topics', () => {
     expect(setActiveTopic).not.toHaveBeenCalled()
   })
 
-  it('unpins from the leading row button', async () => {
+  it('unpins from the trailing row button', async () => {
     const { getByText } = renderTopicList()
 
     const betaRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
     const unpinButton = betaRow?.querySelector('[aria-label="Unpin Topic"]')
     expect(unpinButton ?? null).toBeInTheDocument()
+    expect(betaRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
+    expect(unpinButton?.closest('[data-resource-list-item-actions="true"]')).toBeInTheDocument()
+    expect(
+      betaRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Unpin Topic"]') ?? null
+    ).not.toBeInTheDocument()
 
     fireEvent.click(unpinButton as Element)
 
@@ -1445,50 +1458,17 @@ describe('Topics', () => {
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
   })
 
-  it('creates topics from each time group using that group latest row', () => {
+  it('does not show group header create actions in time display mode', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
-    const { onNewTopic } = renderTopicList()
+    renderTopicList()
 
-    const todayHeader = screen.getByRole('button', { name: 'Today' }).closest('div')
-    expect(todayHeader).toBeInTheDocument()
-
-    const todayCreateButton = within(todayHeader as HTMLElement).getByRole('button', {
-      name: 'chat.conversation.new'
-    })
-    const todayCreateActionWrapper = Array.from((todayHeader as HTMLElement).querySelectorAll('div')).find((element) =>
-      element.className.includes('group-hover/resource-list-group:opacity-100')
-    )
-    expect(todayCreateActionWrapper).toHaveClass(
-      'opacity-0',
-      'group-hover/resource-list-group:opacity-100',
-      'focus-within:opacity-100'
-    )
-    fireEvent.click(todayCreateButton)
-
-    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
-
-    const yesterdayHeader = screen.getByRole('button', { name: 'Yesterday' }).closest('div')
-    expect(yesterdayHeader).toBeInTheDocument()
-    fireEvent.click(within(yesterdayHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
-    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
-
-    const thisWeekHeader = screen.getByRole('button', { name: 'This week' }).closest('div')
-    expect(thisWeekHeader).toBeInTheDocument()
-    fireEvent.click(within(thisWeekHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
-    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
-
-    const earlierHeader = screen.getByRole('button', { name: 'Earlier' }).closest('div')
-    expect(earlierHeader).toBeInTheDocument()
-    fireEvent.click(within(earlierHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
-    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
-
-    const pinnedHeader = screen.getByRole('button', { name: 'Pinned' }).closest('div')
-    expect(pinnedHeader).toBeInTheDocument()
-    expect(
-      within(pinnedHeader as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
-    ).not.toBeInTheDocument()
-
-    expect(onNewTopic).toHaveBeenCalledTimes(4)
+    for (const groupName of ['Pinned', 'Today', 'Yesterday', 'This week', 'Earlier'] as const) {
+      const header = screen.getByRole('button', { name: groupName }).closest('div')
+      expect(header).toBeInTheDocument()
+      expect(
+        within(header as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
+      ).not.toBeInTheDocument()
+    }
   })
 
   it('creates a topic from the header using the latest unpinned row', () => {

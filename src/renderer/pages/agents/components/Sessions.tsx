@@ -1400,6 +1400,7 @@ const Sessions = ({
       </ResourceList.Header>
       <SessionListBody
         channelTypeMap={channelTypeMap}
+        displayMode={displayMode}
         error={listError}
         isDraggable={itemDragReady}
         isValidating={listValidating}
@@ -1436,6 +1437,7 @@ const Sessions = ({
 
 interface SessionListBodyProps {
   channelTypeMap: Record<string, string>
+  displayMode: AgentSessionDisplayMode
   error?: unknown
   isDraggable: boolean
   isValidating: boolean
@@ -1450,6 +1452,7 @@ interface SessionListBodyProps {
 
 function SessionListBody({
   channelTypeMap,
+  displayMode,
   error,
   isDraggable,
   isValidating,
@@ -1469,6 +1472,9 @@ function SessionListBody({
       session={session}
       channelType={channelTypeMap[session.id]}
       pinned={session.pinned}
+      reserveLeadingIconSlot={
+        displayMode !== 'time' && !(displayMode === 'workdir' && isSystemWorkspaceSession(session))
+      }
       onTogglePin={onTogglePin}
       onDelete={onDeleteSession}
       onOpenInNewTab={onOpenInNewTab}

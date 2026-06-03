@@ -23,6 +23,7 @@ interface SessionItemProps {
   onSelectItem?: () => void
   onTogglePin?: (id: string) => void | Promise<void>
   pinned?: boolean
+  reserveLeadingIconSlot?: boolean
   session: AgentSessionEntity
 }
 
@@ -34,6 +35,7 @@ const SessionItem = ({
   onSelectItem,
   onTogglePin,
   pinned = false,
+  reserveLeadingIconSlot = true,
   session
 }: SessionItemProps) => {
   const { t } = useTranslation()
@@ -50,18 +52,20 @@ const SessionItem = ({
   const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
   const hasStreamIndicator = !isActive && (isStreamPending || isStreamFulfilled)
+  const showPinAction = !rowState.renaming && !!onTogglePin
+  const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
   // The active session is already shown in this tab — hide "open in new tab" on it.
   const showOpenInNewTabAction = !!onOpenInNewTab && !isActive
-  // Pin moved to the leading slot; the trailing slot now only holds "open in new
-  // tab" and the stream indicator. Reserve right-padding (literal Tailwind classes)
-  // so the title truncates before those hover actions, sized to the action count.
-  const trailingActionCount = (showOpenInNewTabAction ? 1 : 0) + (hasStreamIndicator ? 1 : 0)
+  // Reserve right-padding so the title truncates before hover actions and stream state.
+  const trailingActionCount = (showPinAction ? 1 : 0) + (showOpenInNewTabAction ? 1 : 0) + (hasStreamIndicator ? 1 : 0)
   const sessionTrailingActionPaddingClassName =
-    trailingActionCount >= 2
-      ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
-      : trailingActionCount === 1
-        ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
-        : ''
+    trailingActionCount >= 3
+      ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
+      : trailingActionCount === 2
+        ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
+        : trailingActionCount === 1
+          ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
+          : ''
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
 
   const startInlineEdit = useCallback(() => actions.startRename(session.id), [actions, session.id])
@@ -151,25 +155,17 @@ const SessionItem = ({
       onClick={handlePress}
       onAuxClick={handleAuxClick}
       title={sessionName}>
-      <ResourceList.ItemLeadingSlot className={cn('relative', !rowState.renaming && channelIcon && 'rounded-sm')}>
-        {!rowState.renaming && onTogglePin && (
-          <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
-            <ResourceList.ItemAction
-              aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-              className={cn(pinned && 'text-foreground/70 hover:text-foreground')}
-              onClick={handleTogglePinClick}>
-              <PinIcon size={13} className={cn(pinned && '-rotate-45')} />
-            </ResourceList.ItemAction>
-          </Tooltip>
-        )}
-        {!rowState.renaming && channelIcon ? (
-          <img
-            src={channelIcon}
-            alt=""
-            className="pointer-events-none absolute inset-0 m-auto size-3.5 rounded-[2px] object-contain transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0"
-          />
-        ) : null}
-      </ResourceList.ItemLeadingSlot>
+      {showLeadingSlot && (
+        <ResourceList.ItemLeadingSlot className={cn('relative', !rowState.renaming && channelIcon && 'rounded-sm')}>
+          {!rowState.renaming && channelIcon ? (
+            <img
+              src={channelIcon}
+              alt=""
+              className="pointer-events-none absolute inset-0 m-auto size-3.5 rounded-[2px] object-contain transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0"
+            />
+          ) : null}
+        </ResourceList.ItemLeadingSlot>
+      )}
 
       <ResourceList.RenameField
         item={session}
@@ -191,6 +187,16 @@ const SessionItem = ({
       )}
 
       <ResourceList.ItemActions active={hasStreamIndicator}>
+        {showPinAction && (
+          <Tooltip title={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
+            <ResourceList.ItemAction
+              aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+              className={cn(pinned && 'text-foreground/70 hover:text-foreground')}
+              onClick={handleTogglePinClick}>
+              <PinIcon size={13} className={cn('!size-[13px]', pinned && '-rotate-45')} />
+            </ResourceList.ItemAction>
+          </Tooltip>
+        )}
         {showOpenInNewTabAction && (
           <Tooltip title={t('common.open_in_new_tab')} delay={500}>
             <ResourceList.ItemAction
@@ -199,7 +205,7 @@ const SessionItem = ({
                 event.stopPropagation()
                 handleOpenInNewTab()
               }}>
-              <SquareArrowOutUpRight size={13} />
+              <SquareArrowOutUpRight size={13} className="!size-[13px]" />
             </ResourceList.ItemAction>
           </Tooltip>
         )}

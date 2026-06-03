@@ -102,18 +102,18 @@ const HistoryResultList = ({
   const [showFixedActionShadow, setShowFixedActionShadow] = useState(false)
   const emptyTitle = isLoading
     ? mode === 'assistant'
-      ? t('history.records.loading.title', '正在加载话题')
-      : t('history.records.loading.sessionsTitle', '正在加载会话')
+      ? t('history.records.loading.title')
+      : t('history.records.loading.sessionsTitle')
     : mode === 'assistant'
-      ? t('history.records.empty.title', '暂无话题')
-      : t('history.records.empty.sessionsTitle', '暂无会话')
+      ? t('history.records.empty.title')
+      : t('history.records.empty.sessionsTitle')
   const emptyDescription = isLoading
     ? mode === 'assistant'
-      ? t('history.records.loading.description', '正在读取话题列表。')
-      : t('history.records.loading.sessionsDescription', '正在读取会话列表。')
+      ? t('history.records.loading.description')
+      : t('history.records.loading.sessionsDescription')
     : mode === 'assistant'
-      ? t('history.records.empty.description', '当前筛选下没有可展示的话题。')
-      : t('history.records.empty.sessionsDescription', '当前筛选下没有可展示的会话。')
+      ? t('history.records.empty.description')
+      : t('history.records.empty.sessionsDescription')
   const emptyContent = (
     <div className="flex min-h-[320px] items-center justify-center px-5 py-8">
       <EmptyState compact icon={MessageSquareText} title={emptyTitle} description={emptyDescription} />
@@ -198,8 +198,8 @@ const HistoryResultList = ({
   )
   const topicHeader = (
     <HistoryTableHeader
-      actionsLabel={t('history.records.table.actions', '操作')}
-      selectAllLabel={t('common.select_all', '全选')}
+      actionsLabel={t('history.records.table.actions')}
+      selectAllLabel={t('common.select_all')}
       selectedState={
         topicList.length > 0 && selectedTopicCount === topicList.length
           ? true
@@ -209,15 +209,15 @@ const HistoryResultList = ({
       }
       sourceLabel={t('common.assistant')}
       showFixedActionShadow={showFixedActionShadow}
-      timeLabel={t('history.records.table.time', '时间')}
-      titleLabel={t('history.records.table.title', '标题')}
+      timeLabel={t('history.records.table.time')}
+      titleLabel={t('history.records.table.title')}
       onToggleAll={handleToggleTopicAll}
     />
   )
   const sessionHeader = (
     <HistoryTableHeader
-      actionsLabel={t('history.records.table.actions', '操作')}
-      selectAllLabel={t('common.select_all', '全选')}
+      actionsLabel={t('history.records.table.actions')}
+      selectAllLabel={t('common.select_all')}
       selectedState={
         sessionList.length > 0 && selectedSessionCount === sessionList.length
           ? true
@@ -227,8 +227,8 @@ const HistoryResultList = ({
       }
       sourceLabel={t('common.agent')}
       showFixedActionShadow={showFixedActionShadow}
-      timeLabel={t('history.records.table.time', '时间')}
-      titleLabel={t('history.records.table.session', '会话')}
+      timeLabel={t('history.records.table.time')}
+      titleLabel={t('history.records.table.session')}
       onToggleAll={handleToggleSessionAll}
     />
   )
@@ -284,14 +284,14 @@ const HistoryResultList = ({
           assistant={assistant}
           isPinned={isTopicPinned(topic.id)}
           isSelected={selectedTopicIdSet.has(topic.id)}
-          deleteLabel={t('common.delete', '删除')}
-          pinLabel={t('chat.topics.pin', '固定话题')}
-          selectLabel={`${t('common.select', '选择')} ${topic.name || t('chat.default.topic.name', '新话题')}`}
+          deleteLabel={t('common.delete')}
+          pinLabel={t('chat.topics.pin')}
+          selectLabel={`${t('common.select')} ${topic.name || t('chat.default.topic.name')}`}
           showFixedActionShadow={showFixedActionShadow}
           sourceName={assistant?.name ?? unlinkedAssistantLabel}
           timeLabel={formatHistoryTime(topic.updatedAt, t)}
-          title={topic.name || t('chat.default.topic.name', '新话题')}
-          unpinLabel={t('chat.topics.unpin', '取消固定')}
+          title={topic.name || t('chat.default.topic.name')}
+          unpinLabel={t('chat.topics.unpin')}
           onAction={(action) => topicMenuPreset?.onAction(topic, action, contextOverride)}
           onOpen={() => onTopicSelect?.(topic)}
           onSelectedChange={(checked) => handleToggleTopicSelection(topic.id, checked)}
@@ -327,15 +327,15 @@ const HistoryResultList = ({
           agent={agent}
           isPinned={isSessionPinned(session.id)}
           isSelected={selectedSessionIdSet.has(session.id)}
-          deleteLabel={t('common.delete', '删除')}
-          pinLabel={t('selector.common.pin', '固定')}
-          selectLabel={`${t('common.select', '选择')} ${session.name || t('common.unnamed', '未命名')}`}
+          deleteLabel={t('common.delete')}
+          pinLabel={t('selector.common.pin')}
+          selectLabel={`${t('common.select')} ${session.name || t('common.unnamed')}`}
           session={session}
           showFixedActionShadow={showFixedActionShadow}
-          sourceName={agent?.name ?? t('common.unknown', '未知')}
+          sourceName={agent?.name ?? t('common.unknown')}
           timeLabel={formatHistoryTime(session.updatedAt, t)}
-          title={session.name || t('common.unnamed', '未命名')}
-          unpinLabel={t('selector.common.unpin', '取消固定')}
+          title={session.name || t('common.unnamed')}
+          unpinLabel={t('selector.common.unpin')}
           onAction={(action) => sessionMenuPreset?.onAction(session, action, contextOverride)}
           onOpen={() => onSessionSelect?.(session.id)}
           onSelectedChange={(checked) => handleToggleSessionSelection(session.id, checked)}
@@ -938,9 +938,9 @@ function formatHistoryTime(value: string, t: ReturnType<typeof useTranslation>['
   const date = dayjs(value)
   const now = dayjs()
 
-  if (!date.isValid()) return t('history.records.table.emptyValue', '—')
+  if (!date.isValid()) return t('history.records.table.emptyValue')
   if (date.isSame(now, 'day')) return date.format('HH:mm')
-  if (date.isSame(now.subtract(1, 'day'), 'day')) return t('common.yesterday', '昨天')
+  if (date.isSame(now.subtract(1, 'day'), 'day')) return t('common.yesterday')
   if (date.isSame(now, 'year')) return date.format('MM/DD')
 
   return date.format('YYYY/MM/DD')

@@ -1531,6 +1531,7 @@ describe('ResourceList', () => {
     )
 
     const viewport = screen.getByRole('listbox')
+    expect(viewport).toHaveClass('-mr-2', 'pr-2', '[scrollbar-gutter:stable]')
     expect(viewport).toHaveAttribute('data-scrolling', 'false')
 
     fireEvent.scroll(viewport)

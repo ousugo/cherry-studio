@@ -1778,14 +1778,14 @@
           "placeholder": "選擇目標助手",
           "success": "已移動 {{count}} 個話題"
         },
-        "pinned": "已固定的話題",
+        "pinned": "已置頂的話題",
         "selected_count": "已選擇 {{count}} 個",
         "title": "管理話題",
-        "unpinned": "未固定的話題"
+        "unpinned": "未置頂的話題"
       },
       "move_to": "移動到",
       "new": "開始新對話",
-      "pin": "固定話題",
+      "pin": "置頂話題",
       "prompt": {
         "edit": {
           "title": "編輯話題提示詞"
@@ -1798,7 +1798,7 @@
         "title": "搜尋"
       },
       "title": "話題",
-      "unpin": "取消固定"
+      "unpin": "取消置頂"
     },
     "translate": "翻譯",
     "user": "使用者",
@@ -3759,7 +3759,7 @@
       "not_found": "應用未找到"
     },
     "hide_failed": "隱藏小程式失敗",
-    "pin_failed": "固定小程式失敗",
+    "pin_failed": "置頂小程式失敗",
     "popup": {
       "close": "關閉小工具",
       "devtools": "開發者工具",
@@ -3795,7 +3795,7 @@
       }
     },
     "title": "小工具",
-    "unpin_failed": "取消固定小程式失敗",
+    "unpin_failed": "取消置頂小程式失敗",
     "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
   },
   "miniApps": {
@@ -3857,7 +3857,7 @@
       "number": "數字",
       "string": "文字"
     },
-    "pinned": "已固定",
+    "pinned": "已置頂",
     "price": {
       "cost": "花費",
       "currency": "幣種",
@@ -5164,14 +5164,14 @@
     },
     "common": {
       "edit": "編輯",
-      "pin": "固定",
-      "pinned_title": "已固定",
+      "pin": "置頂",
+      "pinned_title": "置頂",
       "sort": {
         "asc": "最早",
         "desc": "最近"
       },
       "sort_label": "排序",
-      "unpin": "取消固定"
+      "unpin": "取消置頂"
     },
     "create_dialog": {
       "refresh_failed": "已新建，但列表刷新失敗"
@@ -7259,7 +7259,7 @@
       "new_topic": "新增話題",
       "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式占用",
       "open_tab_in_new_window": "在新視窗中開啟分頁",
-      "pin_tab": "切換釘住分頁",
+      "pin_tab": "切換置頂分頁",
       "press_shortcut": "按下快捷鍵",
       "quick_assistant": "快捷助手",
       "rename_topic": "重新命名話題",
@@ -7571,8 +7571,8 @@
     "move_to_first": "移至第一個",
     "new": "新標籤頁",
     "open_in_new_window": "[to be translated]:Open in New Window",
-    "pin": "釘選分頁",
-    "unpin": "取消固定分頁"
+    "pin": "置頂分頁",
+    "unpin": "取消置頂"
   },
   "title": {
     "apps": "小程式",

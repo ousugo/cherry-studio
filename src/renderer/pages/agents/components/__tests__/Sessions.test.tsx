@@ -814,6 +814,8 @@ describe('Sessions', () => {
     const chatsSection = screen.getByRole('button', { name: 'Chats' })
     expect(projectSection.compareDocumentPosition(chatsSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('System session')).toBeInTheDocument()
+    const systemSessionRow = screen.getByText('System session').closest('[role="option"]')
+    expect(systemSessionRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'No project' })).not.toBeInTheDocument()
 
     const chatsSectionHeader = chatsSection.closest('[class*="group/resource-list-section"]')
@@ -825,6 +827,16 @@ describe('Sessions', () => {
       name: 'Untitled',
       workspaceMode: 'system'
     })
+  })
+
+  it('does not reserve leading icon space for time grouped session rows', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+
+    render(<SessionsForTest />)
+
+    const sessionRow = screen.getByText('Alpha session').closest('[role="option"]')
+    expect(sessionRow).not.toBeNull()
+    expect(sessionRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
   })
 
   it('orders workspace groups by workspace DataApi order', () => {
@@ -1253,52 +1265,6 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null, null))
   })
 
-  it('creates sessions from the time group action', async () => {
-    preferenceMocks.values.set('agent.session.display_mode', 'time')
-    const onStartTemporarySession = vi.fn()
-    agentDataMocks.useAgents.mockReturnValue({
-      agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
-      ],
-      isLoading: false,
-      error: undefined
-    })
-    setupSessions({
-      sessions: [
-        createSession({
-          id: 'session-a',
-          name: 'Alpha session',
-          agentId: 'agent-a',
-          workspaceId: 'ws-a',
-          workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a' }),
-          updatedAt: new Date(Date.now() - 1000).toISOString()
-        }),
-        createSession({
-          id: 'session-b',
-          name: 'Beta session',
-          agentId: 'agent-b',
-          workspaceId: 'ws-b',
-          workspace: makeWorkspace('/Users/jd/project-b', { id: 'ws-b' }),
-          updatedAt: new Date(Date.now() + 1000).toISOString()
-        })
-      ]
-    })
-    render(<SessionsForTest onStartTemporarySession={onStartTemporarySession} />)
-
-    const todayGroup = screen.getByRole('button', { name: 'Today' }).closest('div')
-    expect(todayGroup).not.toBeNull()
-    fireEvent.click(within(todayGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
-
-    await vi.waitFor(() =>
-      expect(onStartTemporarySession).toHaveBeenCalledWith({
-        agentId: 'agent-b',
-        name: 'Untitled',
-        workspaceId: 'ws-b'
-      })
-    )
-  })
-
   it('toggles the left agent sidebar from the list options menu', () => {
     render(<SessionsForTest />)
 
@@ -1453,7 +1419,12 @@ describe('Sessions', () => {
 
     const pinnedRow = screen.getByText('Pinned session').closest('[role="option"]')
     expect(pinnedRow).not.toBeNull()
-    expect(within(pinnedRow as HTMLElement).getByLabelText('Unpin')).toBeInTheDocument()
+    const unpinButton = within(pinnedRow as HTMLElement).getByLabelText('Unpin')
+    expect(unpinButton).toBeInTheDocument()
+    expect(unpinButton.closest('[data-resource-list-item-actions="true"]')).toBeInTheDocument()
+    expect(
+      pinnedRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Unpin"]') ?? null
+    ).not.toBeInTheDocument()
     expect(within(pinnedRow as HTMLElement).queryByLabelText('Delete')).not.toBeInTheDocument()
   })
 

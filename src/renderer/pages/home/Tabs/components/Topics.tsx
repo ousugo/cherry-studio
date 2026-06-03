@@ -714,15 +714,14 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       let assistantGroupId: string | undefined
 
       if (group.id === TOPIC_PINNED_GROUP_ID) return null
+      if (displayMode === 'time') return null
 
-      if (displayMode !== 'time') {
-        const assistantId = getAssistantIdFromTopicGroupId(group.id)
-        if (assistantId && assistantById.has(assistantId)) {
-          assistantGroupId = assistantId
-        }
-
-        if (!assistantGroupId) return null
+      const assistantId = getAssistantIdFromTopicGroupId(group.id)
+      if (assistantId && assistantById.has(assistantId)) {
+        assistantGroupId = assistantId
       }
+
+      if (!assistantGroupId) return null
 
       const payload = getCreateTopicPayloadForGroup(group.id)
       if (!payload && !assistantGroupId) return null
@@ -1040,6 +1039,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
 
         <TopicListBody
           activeTopic={activeTopic}
+          displayMode={displayMode}
           exportMenuOptions={exportMenuOptions as TopicExportMenuOptions}
           isNewlyRenamed={isNewlyRenamed}
           isRenaming={isRenaming}
@@ -1145,6 +1145,7 @@ const useTopicListStreamStatus = (topicId: string): TopicStreamState => {
 
 interface TopicListBodyProps {
   activeTopic: Topic
+  displayMode: TopicDisplayMode
   exportMenuOptions: TopicExportMenuOptions
   isNewlyRenamed: (topicId: string) => boolean
   isRenaming: (topicId: string) => boolean
@@ -1188,6 +1189,7 @@ type TopicRowProps = TopicRowWithStatusProps
 
 function TopicRow({
   activeTopic,
+  displayMode,
   exportMenuOptions,
   isNewlyRenamed,
   isRenaming,
@@ -1215,17 +1217,21 @@ function TopicRow({
       : ''
   const { isFulfilled: isTopicStreamFulfilled, isPending: isTopicStreamPending } = streamStatus
   const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
+  const showPinAction = !rowState.renaming
+  const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   // The active topic is already shown in this tab — hide "open in new tab" on it.
   const showOpenInNewTabAction = !!onOpenInNewTab && !isActive
-  // Pin moved to the leading slot; the trailing slot now holds "open in new tab"
-  // and the stream indicator. Reserve right-padding for the title sized to the count.
-  const trailingActionCount = (showOpenInNewTabAction ? 1 : 0) + (hasTopicStreamIndicator ? 1 : 0)
+  // Reserve right-padding for the title sized to the hover actions and stream indicator.
+  const trailingActionCount =
+    (showPinAction ? 1 : 0) + (showOpenInNewTabAction ? 1 : 0) + (hasTopicStreamIndicator ? 1 : 0)
   const topicTrailingActionPaddingClassName =
-    trailingActionCount >= 2
-      ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
-      : trailingActionCount === 1
-        ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
-        : ''
+    trailingActionCount >= 3
+      ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
+      : trailingActionCount === 2
+        ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
+        : trailingActionCount === 1
+          ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
+          : ''
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
@@ -1256,21 +1262,7 @@ function TopicRow({
       onClick={() => {
         onSwitchTopic(topic)
       }}>
-      <ResourceList.ItemLeadingSlot className="relative">
-        {!rowState.renaming && (
-          <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
-            <ResourceList.ItemAction
-              aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
-              className={cn(topic.pinned && 'text-foreground/70 hover:text-foreground')}
-              onClick={(event) => {
-                event.stopPropagation()
-                void onPinTopic(topic)
-              }}>
-              <PinIcon size={13} className={cn(topic.pinned && '-rotate-45')} />
-            </ResourceList.ItemAction>
-          </Tooltip>
-        )}
-      </ResourceList.ItemLeadingSlot>
+      {showLeadingSlot && <ResourceList.ItemLeadingSlot className="relative" />}
       <ResourceList.RenameField
         item={topic}
         aria-label={t('chat.topics.edit.title')}
@@ -1289,6 +1281,19 @@ function TopicRow({
         </ResourceList.ItemTitle>
       )}
       <ResourceList.ItemActions active={hasTopicStreamIndicator}>
+        {showPinAction && (
+          <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
+            <ResourceList.ItemAction
+              aria-label={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
+              className={cn(topic.pinned && 'text-foreground/70 hover:text-foreground')}
+              onClick={(event) => {
+                event.stopPropagation()
+                void onPinTopic(topic)
+              }}>
+              <PinIcon size={13} className={cn('!size-[13px]', topic.pinned && '-rotate-45')} />
+            </ResourceList.ItemAction>
+          </Tooltip>
+        )}
         {showOpenInNewTabAction && (
           <Tooltip title={t('common.open_in_new_tab')} delay={500}>
             <ResourceList.ItemAction
@@ -1297,7 +1302,7 @@ function TopicRow({
                 event.stopPropagation()
                 onOpenInNewTab?.(topic)
               }}>
-              <SquareArrowOutUpRight size={13} />
+              <SquareArrowOutUpRight size={13} className="!size-[13px]" />
             </ResourceList.ItemAction>
           </Tooltip>
         )}

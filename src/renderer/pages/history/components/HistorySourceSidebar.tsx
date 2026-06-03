@@ -56,7 +56,7 @@ const HistorySourceSidebar = ({
     <aside className="flex w-[284px] shrink-0 flex-col bg-card [border-right:0.5px_solid_var(--color-border-subtle)]">
       <Scrollbar className="min-h-0 flex-1 px-3 py-3.5 pt-2">
         {mode === 'agent' && statusItems.length > 0 && selectedStatus && onStatusSelect && (
-          <SidebarSection title={t('history.records.sidebar.status', '状态')}>
+          <SidebarSection title={t('history.records.sidebar.status')}>
             <div className="space-y-1">
               {statusItems.map((item) => (
                 <SidebarRow
@@ -86,8 +86,8 @@ const HistorySourceSidebar = ({
               <Input
                 value={assistantSearchText}
                 className="h-8 rounded-md border-border-subtle bg-card pl-8 text-xs shadow-none"
-                placeholder={t('history.records.sidebar.searchAssistant', '搜索助手...')}
-                aria-label={t('history.records.sidebar.searchAssistant', '搜索助手...')}
+                placeholder={t('history.records.sidebar.searchAssistant')}
+                aria-label={t('history.records.sidebar.searchAssistant')}
                 onChange={(event) => setAssistantSearchText(event.target.value)}
               />
             </div>

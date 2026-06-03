@@ -207,7 +207,7 @@ const AssistantHistoryRecordsContent = ({
     () => new Map(assistants.map((assistant, index) => [assistant.id, index])),
     [assistants]
   )
-  const unlinkedAssistantLabel = t('history.records.sidebar.unknownAssistant', '未关联助手')
+  const unlinkedAssistantLabel = t('history.records.sidebar.unknownAssistant')
   const timeSortedTopics = useMemo(
     () => sortTopicsForDisplayGroups(topics, { mode: 'time', now: groupNow }),
     [groupNow, topics]
@@ -251,7 +251,7 @@ const AssistantHistoryRecordsContent = ({
     () =>
       assistants.map((assistant) => ({
         id: assistant.id,
-        label: assistant.name || t('common.unnamed', '未命名'),
+        label: assistant.name || t('common.unnamed'),
         icon: assistant.emoji ? <span className="text-sm leading-none">{assistant.emoji}</span> : <Bot size={14} />
       })),
     [assistants, t]
@@ -269,7 +269,7 @@ const AssistantHistoryRecordsContent = ({
     if (!keywords) return filteredTopics
 
     return filteredTopics.filter((topic) => {
-      const topicName = topic.name || t('chat.default.topic.name', '新话题')
+      const topicName = topic.name || t('chat.default.topic.name')
       return topicName.toLowerCase().includes(keywords)
     })
   }, [filteredTopics, searchText, t])
@@ -371,12 +371,10 @@ const AssistantHistoryRecordsContent = ({
           await patchTopic(id, { assistantId: targetAssistantId })
         }
         setSelectedTopicIds([])
-        window.toast.success(
-          t('history.records.bulkMoveTopics.success', '已移动 {{count}} 个话题', { count: ids.length })
-        )
+        window.toast.success(t('history.records.bulkMoveTopics.success', { count: ids.length }))
       } catch (err) {
         logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, err })
-        const message = err instanceof Error ? err.message : t('history.records.bulkMoveTopics.error', '移动话题失败')
+        const message = err instanceof Error ? err.message : t('history.records.bulkMoveTopics.error')
         window.toast.error(message)
       }
     },
@@ -458,7 +456,7 @@ const AssistantHistoryRecordsContent = ({
       onClose={onClose}
       sources={assistantSources}
       selectedSourceId={selectedSourceId}
-      subtitle={t('history.records.assistantSubtitle', '{{count}} 个话题', { count: topics.length })}
+      subtitle={t('history.records.assistantSubtitle', { count: topics.length })}
       resultCount={searchedTopics.length}
       searchText={searchText}
       selectedCount={selectedTopicIds.length}
@@ -671,7 +669,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
       selectedSourceId={selectedSourceId}
       selectedStatus={selectedStatus}
       statusItems={statusItems}
-      subtitle={t('history.records.agentSubtitle', '{{count}} 个会话', { count: sessions.length })}
+      subtitle={t('history.records.agentSubtitle', { count: sessions.length })}
       resultCount={searchedSessions.length}
       searchText={searchText}
       selectedCount={selectedSessionIds.length}
@@ -739,7 +737,7 @@ const HistoryRecordsLayout = ({
   onStatusSelect
 }: HistoryRecordsLayoutProps) => {
   const { t } = useTranslation()
-  const title = t('history.records.shortTitle', '历史记录')
+  const title = t('history.records.shortTitle')
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card pb-3 text-foreground" aria-label={title}>
@@ -750,7 +748,7 @@ const HistoryRecordsLayout = ({
             variant="ghost"
             size="icon-sm"
             className="size-7 min-h-7 shrink-0 rounded-md text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
-            aria-label={t('common.back', '返回')}
+            aria-label={t('common.back')}
             onClick={onClose}>
             <ArrowLeft className="size-4" />
           </Button>
@@ -864,24 +862,24 @@ function buildAgentStatusItems(
   return [
     {
       id: ALL_SOURCE_ID,
-      label: t('common.all', '全部'),
+      label: t('common.all'),
       count: sessions.length
     },
     {
       id: 'running',
-      label: t('history.records.status.running', '运行中'),
+      label: t('history.records.status.running'),
       count: counts.running,
       dotClassName: 'text-warning'
     },
     {
       id: 'completed',
-      label: t('history.records.status.completed', '已完成'),
+      label: t('history.records.status.completed'),
       count: counts.completed,
       dotClassName: 'text-success'
     },
     {
       id: 'failed',
-      label: t('history.records.status.failed', '失败'),
+      label: t('history.records.status.failed'),
       count: counts.failed,
       dotClassName: 'text-destructive'
     }
@@ -906,7 +904,7 @@ function buildAssistantSources(
   return [
     {
       id: ALL_SOURCE_ID,
-      label: t('common.all', '全部'),
+      label: t('common.all'),
       count: topics.length
     },
     ...Array.from(assistantById.values())
@@ -958,7 +956,7 @@ function buildAgentSources(
   return [
     {
       id: ALL_SOURCE_ID,
-      label: t('common.all', '全部'),
+      label: t('common.all'),
       count: sessions.length
     },
     ...Array.from(agentById.values())

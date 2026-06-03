@@ -263,7 +263,9 @@ vi.mock('react-i18next', () => ({
     type: '3rdParty'
   },
   useTranslation: () => ({
-    t: (key: string, fallback?: string, options?: Record<string, unknown>) => {
+    t: (key: string, fallbackOrOptions?: string | Record<string, unknown>, maybeOptions?: Record<string, unknown>) => {
+      const fallback = typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined
+      const options = typeof fallbackOrOptions === 'object' ? fallbackOrOptions : maybeOptions
       const labels: Record<string, string> = {
         'agent.session.display.workdir': 'Project',
         'agent.session.group.no_workdir': 'No project',

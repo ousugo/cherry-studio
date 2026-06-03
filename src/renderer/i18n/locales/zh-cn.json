@@ -1778,14 +1778,14 @@
           "placeholder": "选择目标助手",
           "success": "已移动 {{count}} 个话题"
         },
-        "pinned": "已固定的话题",
+        "pinned": "已置顶的话题",
         "selected_count": "已选择 {{count}} 个",
         "title": "管理话题",
-        "unpinned": "未固定的话题"
+        "unpinned": "未置顶的话题"
       },
       "move_to": "移动到",
       "new": "开始新对话",
-      "pin": "固定话题",
+      "pin": "置顶话题",
       "prompt": {
         "edit": {
           "title": "编辑话题提示词"
@@ -1798,7 +1798,7 @@
         "title": "搜索"
       },
       "title": "话题",
-      "unpin": "取消固定"
+      "unpin": "取消置顶"
     },
     "translate": "翻译",
     "user": "用户",
@@ -3759,7 +3759,7 @@
       "not_found": "应用未找到"
     },
     "hide_failed": "隐藏小程序失败",
-    "pin_failed": "固定小程序失败",
+    "pin_failed": "置顶小程序失败",
     "popup": {
       "close": "关闭小程序",
       "devtools": "开发者工具",
@@ -3795,7 +3795,7 @@
       }
     },
     "title": "小程序",
-    "unpin_failed": "取消固定小程序失败",
+    "unpin_failed": "取消置顶小程序失败",
     "update_partial_failure": "{{failed}}/{{total}} 项更新失败"
   },
   "miniApps": {
@@ -3857,7 +3857,7 @@
       "number": "数字",
       "string": "文本"
     },
-    "pinned": "已固定",
+    "pinned": "已置顶",
     "price": {
       "cost": "花费",
       "currency": "币种",
@@ -5164,14 +5164,14 @@
     },
     "common": {
       "edit": "编辑",
-      "pin": "固定",
-      "pinned_title": "已固定",
+      "pin": "置顶",
+      "pinned_title": "置顶",
       "sort": {
         "asc": "最早",
         "desc": "最近"
       },
       "sort_label": "排序",
-      "unpin": "取消固定"
+      "unpin": "取消置顶"
     },
     "create_dialog": {
       "refresh_failed": "已新建，但列表刷新失败"
@@ -7259,7 +7259,7 @@
       "new_topic": "新建话题",
       "occupied_by_other_application": "该快捷键已被系统或其他应用占用",
       "open_tab_in_new_window": "在新窗口中打开标签页",
-      "pin_tab": "切换固定标签页",
+      "pin_tab": "切换置顶标签页",
       "press_shortcut": "按下快捷键",
       "quick_assistant": "快捷助手",
       "rename_topic": "重命名话题",
@@ -7571,8 +7571,8 @@
     "move_to_first": "移到最左侧",
     "new": "新标签页",
     "open_in_new_window": "从新窗口打开",
-    "pin": "固定标签页",
-    "unpin": "取消固定"
+    "pin": "置顶标签页",
+    "unpin": "取消置顶"
   },
   "title": {
     "apps": "小程序",

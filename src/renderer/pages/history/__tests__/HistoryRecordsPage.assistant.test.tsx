@@ -280,7 +280,7 @@ vi.mock('react-i18next', () => ({
     type: '3rdParty'
   },
   useTranslation: () => ({
-    t: (key: string, fallback?: string, options?: Record<string, unknown>) => {
+    t: (key: string, fallbackOrOptions?: string | Record<string, unknown>, maybeOptions?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
         'chat.default.name': 'Default assistant',
         'chat.default.topic.name': 'New topic',
@@ -306,6 +306,7 @@ vi.mock('react-i18next', () => ({
         'chat.topics.manage.delete.confirm.title': 'Delete Topics',
         'chat.topics.pin': 'Pin Topic',
         'chat.topics.unpin': 'Unpin Topic',
+        'common.all': 'All',
         'common.assistant': 'Assistant',
         'common.back': 'Back',
         'common.cancel': 'Cancel',
@@ -315,6 +316,7 @@ vi.mock('react-i18next', () => ({
         'common.name': 'Name',
         'common.required_field': 'Required field',
         'common.save': 'Save',
+        'common.select': 'Select',
         'common.unnamed': 'Untitled',
         'history.records.bulkDelete': 'Batch Delete',
         'history.records.bulkDeleteTopics.description': 'Delete {{count}} selected topic(s)?',
@@ -334,6 +336,7 @@ vi.mock('react-i18next', () => ({
         'history.records.resultCount': '{{count}} results',
         'history.records.searchTopic': 'Search topics...',
         'history.records.shortTitle': 'History',
+        'history.records.sidebar.searchAssistant': 'Search assistants...',
         'history.records.sidebar.unknownAssistant': 'Unlinked assistant',
         'history.records.table.actions': 'Actions',
         'history.records.table.emptyValue': '-',
@@ -343,7 +346,9 @@ vi.mock('react-i18next', () => ({
         'notes.save': 'Save to notes',
         'selector.common.pinned_title': 'Pinned'
       }
-      const template = labels[key] ?? fallback ?? key
+      const options = typeof fallbackOrOptions === 'object' ? fallbackOrOptions : maybeOptions
+      const defaultValue = typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined
+      const template = labels[key] ?? defaultValue ?? key
       return template.replace('{{count}}', String(options?.count ?? ''))
     }
   })

@@ -41,23 +41,18 @@ const HistoryQueryForm = ({
     () => moveTargets.find((target) => target.id === moveTargetId),
     [moveTargetId, moveTargets]
   )
-  const searchPlaceholder =
-    mode === 'assistant'
-      ? t('history.records.searchTopic', '搜索话题...')
-      : t('history.records.searchSession', '搜索会话...')
+  const searchPlaceholder = mode === 'assistant' ? t('history.records.searchTopic') : t('history.records.searchSession')
   const canBulkMove = mode === 'assistant' && selectedCount > 0 && moveTargets.length > 0 && !!onBulkMove
   const deleteTitle =
-    mode === 'assistant'
-      ? t('history.records.bulkDeleteTopics.title', '删除选中的话题')
-      : t('history.records.bulkDeleteSessions.title', '删除选中的会话')
+    mode === 'assistant' ? t('history.records.bulkDeleteTopics.title') : t('history.records.bulkDeleteSessions.title')
   const deleteDescription =
     mode === 'assistant'
-      ? t('history.records.bulkDeleteTopics.description', '将删除选中的 {{count}} 个话题。', { count: selectedCount })
-      : t('history.records.bulkDeleteSessions.description', '将删除选中的 {{count}} 个会话。', {
+      ? t('history.records.bulkDeleteTopics.description', { count: selectedCount })
+      : t('history.records.bulkDeleteSessions.description', {
           count: selectedCount
         })
-  const deleteButtonLabel = t('history.records.bulkDelete', '批量删除')
-  const moveButtonLabel = t('history.records.bulkMove', '批量移动')
+  const deleteButtonLabel = t('history.records.bulkDelete')
+  const moveButtonLabel = t('history.records.bulkMove')
 
   useEffect(() => {
     if (!moveDialogOpen) return
@@ -77,7 +72,7 @@ const HistoryQueryForm = ({
       <div className="flex h-11 shrink-0 items-center justify-between gap-3 bg-card px-5 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
         <div className="flex min-w-0 items-center gap-3">
           <div className="font-medium text-foreground text-sm leading-5">
-            {t('history.records.resultCount', '{{count}} 条结果', { count: resultCount })}
+            {t('history.records.resultCount', { count: resultCount })}
           </div>
         </div>
 
@@ -133,8 +128,8 @@ const HistoryQueryForm = ({
         onOpenChange={setDeleteDialogOpen}
         title={deleteTitle}
         description={deleteDescription}
-        confirmText={t('common.delete', '删除')}
-        cancelText={t('common.cancel', '取消')}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
         destructive
         onConfirm={async () => {
           await onBulkDelete?.()
@@ -144,29 +139,29 @@ const HistoryQueryForm = ({
       <ConfirmDialog
         open={moveDialogOpen}
         onOpenChange={setMoveDialogOpen}
-        title={t('history.records.bulkMoveTopics.title', '移动选中的话题')}
-        description={t('history.records.bulkMoveTopics.description', '将选中的 {{count}} 个话题移动到目标助手下。', {
+        title={t('history.records.bulkMoveTopics.title')}
+        description={t('history.records.bulkMoveTopics.description', {
           count: selectedCount
         })}
         content={
           <div className="space-y-2">
             <div className="font-medium text-foreground-secondary text-xs leading-4">
-              {t('history.records.bulkMoveTopics.target', '目标助手')}
+              {t('history.records.bulkMoveTopics.target')}
             </div>
             <SelectDropdown
               items={moveTargets}
               selectedId={moveTargetId}
               onSelect={setMoveTargetId}
-              placeholder={t('history.records.bulkMoveTopics.placeholder', '选择助手')}
-              emptyText={t('history.records.bulkMoveTopics.empty', '暂无可移动到的助手')}
+              placeholder={t('history.records.bulkMoveTopics.placeholder')}
+              emptyText={t('history.records.bulkMoveTopics.empty')}
               triggerClassName="h-8 rounded-md border-border-subtle bg-card text-xs shadow-none"
               renderSelected={(target) => <HistoryBulkMoveTargetLabel target={target} />}
               renderItem={(target) => <HistoryBulkMoveTargetLabel target={target} />}
             />
           </div>
         }
-        confirmText={t('history.records.bulkMoveTopics.confirm', '移动')}
-        cancelText={t('common.cancel', '取消')}
+        confirmText={t('history.records.bulkMoveTopics.confirm')}
+        cancelText={t('common.cancel')}
         onConfirm={async () => {
           if (!selectedMoveTarget) return
           await onBulkMove?.(selectedMoveTarget.id)
