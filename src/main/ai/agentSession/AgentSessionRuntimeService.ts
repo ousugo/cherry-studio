@@ -118,6 +118,8 @@ type AgentSessionRuntimeEntry = {
   pendingTurns: AgentSessionMessageEntity[]
   connection?: AgentRuntimeConnection
   connectionLoop?: Promise<void>
+  /** In-flight {@link ensureConnection} promise — shared by concurrent callers so only one connect runs. */
+  connecting?: Promise<boolean>
   currentTurn?: AgentSessionTurn
   lastResumeToken?: string
   lastTerminalStatus?: AgentSessionRuntimeTerminalStatus
@@ -426,7 +428,18 @@ export class AgentSessionRuntimeService extends BaseService {
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     if (!this.isCurrentEntry(entry)) return false
     if (entry.connection) return true
+    // Share a single in-flight connect across concurrent callers so two streams opening at once
+    // can't each spin up a connection (the second would leak/clobber the first).
+    if (entry.connecting) return entry.connecting
 
+    const connecting = this.connect(entry).finally(() => {
+      if (entry.connecting === connecting) entry.connecting = undefined
+    })
+    entry.connecting = connecting
+    return connecting
+  }
+
+  private async connect(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
 
@@ -492,8 +505,13 @@ export class AgentSessionRuntimeService extends BaseService {
     const turn = entry.currentTurn
     if (turn?.controller && !turn.terminalStatus) {
       turn.controller.error(error)
-    } else {
+    } else if (isAbortError(error)) {
+      // Expected when a turn was interrupted/closed — the connection ending is not a fault.
       logger.warn('Agent runtime connection ended without an active turn', { sessionId: entry.sessionId, error })
+    } else {
+      // No turn to surface this on, so a real runtime failure would otherwise vanish — log it loudly
+      // so the next reconnect-into-the-same-failure is at least traceable.
+      logger.error('Agent runtime connection ended without an active turn', { sessionId: entry.sessionId, error })
     }
   }
 
@@ -746,6 +764,10 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.connectionLoop = undefined
     return connection
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'name' in error && (error as { name: unknown }).name === 'AbortError'
 }
 
 function createRuntimeSeedMessages(

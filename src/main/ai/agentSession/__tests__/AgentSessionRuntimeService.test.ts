@@ -1,9 +1,12 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
+  findPendingAssistantMessageIds: vi.fn(),
+  markMessagesError: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
@@ -14,7 +17,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
-    getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken
+    getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
+    findPendingAssistantMessageIds: mocks.findPendingAssistantMessageIds,
+    markMessagesError: mocks.markMessagesError
   }
 }))
 
@@ -110,6 +115,8 @@ describe('AgentSessionRuntimeService', () => {
       id: message.id ?? 'generated-message-id'
     }))
     mocks.getLastRuntimeResumeToken.mockResolvedValue(null)
+    mocks.findPendingAssistantMessageIds.mockResolvedValue([])
+    mocks.markMessagesError.mockResolvedValue(undefined)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
@@ -161,6 +168,41 @@ describe('AgentSessionRuntimeService', () => {
       await new Promise((resolve) => setTimeout(resolve, 0)) // drain completes → fresh live turn
       expect(service.isSessionBusy('session-1')).toBe(true)
       expect(getEntry(service).startingNextTurn).toBe(false)
+    })
+  })
+
+  describe('reconcileStalePendingMessages — boot crash recovery', () => {
+    it('marks crash-orphaned pending assistant messages as errored on init', async () => {
+      mocks.findPendingAssistantMessageIds.mockResolvedValue(['stale-1', 'stale-2'])
+      const service = new AgentSessionRuntimeService()
+
+      await (service as any).onInit()
+
+      expect(mocks.findPendingAssistantMessageIds).toHaveBeenCalledOnce()
+      expect(mocks.markMessagesError).toHaveBeenCalledWith(['stale-1', 'stale-2'])
+    })
+
+    it('does not mark anything when there are no stale messages', async () => {
+      mocks.findPendingAssistantMessageIds.mockResolvedValue([])
+      const service = new AgentSessionRuntimeService()
+
+      await (service as any).onInit()
+
+      expect(mocks.markMessagesError).not.toHaveBeenCalled()
+    })
+
+    it('logs and does not rethrow when the reconcile lookup throws, so boot is not blocked', async () => {
+      const failure = new Error('db down')
+      mocks.findPendingAssistantMessageIds.mockRejectedValue(failure)
+      const service = new AgentSessionRuntimeService()
+
+      await expect((service as any).onInit()).resolves.toBeUndefined()
+
+      expect(mocks.markMessagesError).not.toHaveBeenCalled()
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+        'Failed to reconcile stale pending agent-session messages',
+        { error: failure }
+      )
     })
   })
 
@@ -538,6 +580,93 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
     expect(connection.send).not.toHaveBeenCalled()
     await reader.cancel().catch(() => undefined)
+  })
+
+  describe('interrupt-when-safe — live follow-up', () => {
+    it('defers the interrupt while a tool is mid-flight, then fires once the tool settles', async () => {
+      const events = createAsyncQueue<any>()
+      const connection = {
+        events: events.iterable,
+        send: vi.fn(),
+        interrupt: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn()
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockResolvedValue(connection),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
+
+      // A tool is now in flight — the turn is not safe to interrupt.
+      events.push({ type: 'chunk', chunk: { type: 'tool-input-start', toolCallId: 'tool-1' } })
+      await vi.waitFor(() => expect(getEntry(service).currentTurn.activeToolIds.has('tool-1')).toBe(true))
+
+      // The follow-up queues but must NOT interrupt while the tool runs.
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(connection.interrupt).not.toHaveBeenCalled()
+      expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
+
+      // Tool settles → now safe → interrupt fires and the runtime turn is paused.
+      events.push({ type: 'chunk', chunk: { type: 'tool-output-available', toolCallId: 'tool-1' } })
+      await vi.waitFor(() => expect(connection.interrupt).toHaveBeenCalledOnce())
+      expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'agent-runtime-interrupt')
+
+      service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('interrupts immediately on the next microtask when no tool is active', async () => {
+      const events = createAsyncQueue<any>()
+      const connection = {
+        events: events.iterable,
+        send: vi.fn(),
+        interrupt: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn()
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockResolvedValue(connection),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
+
+      // No tool in flight (activeToolIds empty) → the queued follow-up interrupts on the next microtask.
+      expect(getEntry(service).currentTurn.activeToolIds.size).toBe(0)
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      expect(connection.interrupt).not.toHaveBeenCalled()
+
+      await vi.waitFor(() => expect(connection.interrupt).toHaveBeenCalledOnce())
+      expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'agent-runtime-interrupt')
+
+      service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+    })
   })
 
   it('keeps the runtime session alive when a steer interrupt pauses the turn', async () => {
