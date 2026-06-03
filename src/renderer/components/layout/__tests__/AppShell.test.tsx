@@ -34,14 +34,14 @@ vi.mock('@renderer/components/Popups/SearchPopup', () => ({
 
 vi.mock('../../../hooks/useTabs', () => ({
   useTabs: () => ({
-    activeTabId: 'chat',
+    activeTabId: 'home',
     closeTab: vi.fn(),
     pinTab: vi.fn(),
     reorderTabs: vi.fn(),
     setActiveTab: vi.fn(),
     tabs: [
       {
-        id: 'chat',
+        id: 'home',
         isDormant: false,
         title: 'Chat',
         type: 'route',

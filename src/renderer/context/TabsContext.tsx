@@ -12,7 +12,7 @@ import { v4 as uuid } from 'uuid'
 const logger = loggerService.withContext('TabsContext')
 
 const DEFAULT_TAB: Tab = {
-  id: 'chat',
+  id: 'home',
   type: 'route',
   url: '/app/chat',
   title: '',
@@ -53,6 +53,8 @@ export interface OpenTabOptions {
   icon?: string
   /** Optional tab metadata copied into the newly-created tab. */
   metadata?: Tab['metadata']
+  /** Whether this tab currently hosts an unpersisted conversation/session. */
+  isTemporary?: boolean
 }
 
 export interface TabsContextValue {
@@ -309,7 +311,7 @@ export function TabsProvider({
    */
   const openTab = useCallback(
     (url: string, options: OpenTabOptions = {}) => {
-      const { forceNew = false, title, type = 'route', id, icon, metadata } = options
+      const { forceNew = false, title, type = 'route', id, icon, metadata, isTemporary } = options
 
       if (!forceNew) {
         const existingTab = tabs.find((t) => t.type === type && t.url === url)
@@ -326,6 +328,7 @@ export function TabsProvider({
         title: title || getDefaultRouteTitle(url),
         icon,
         metadata,
+        isTemporary,
         lastAccessTime: Date.now(),
         isDormant: false
       }

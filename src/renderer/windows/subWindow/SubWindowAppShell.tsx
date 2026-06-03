@@ -52,6 +52,7 @@ export const SubWindowAppShell = () => {
       icon: init.icon,
       type: init.type || 'route',
       metadata: init.metadata,
+      isTemporary: init.isTemporary,
       forceNew: true
     })
   }, [init, openTab])

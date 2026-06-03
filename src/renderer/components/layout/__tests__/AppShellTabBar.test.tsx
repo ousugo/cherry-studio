@@ -117,7 +117,7 @@ describe('AppShellTabBar', () => {
     const addTab = vi.fn()
     const tabs: Tab[] = [
       {
-        id: 'chat',
+        id: 'home',
         type: 'route',
         url: '/app/chat',
         title: 'Chat'
@@ -127,7 +127,7 @@ describe('AppShellTabBar', () => {
     render(
       <AppShellTabBar
         tabs={tabs}
-        activeTabId="chat"
+        activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
         addTab={addTab}
@@ -143,13 +143,11 @@ describe('AppShellTabBar', () => {
     expect(addTab).not.toHaveBeenCalled()
   })
 
-  it('moves a normal tab to the very first slot, ahead of the default chat tab', async () => {
+  it('moves a normal tab to the first movable slot after the fixed home tab', async () => {
     const user = userEvent.setup()
     const reorderTabs = vi.fn()
-    // The bar's normal list mirrors the TabsContext order; no tab is special, so
-    // "move to first" can take any tab all the way to index 0.
     const tabs: Tab[] = [
-      { id: 'chat', type: 'route', url: '/app/chat', title: 'Chat' },
+      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
       { id: 'a', type: 'route', url: '/app/a', title: 'A' },
       { id: 'b', type: 'route', url: '/app/b', title: 'B' }
     ]
@@ -157,7 +155,7 @@ describe('AppShellTabBar', () => {
     render(
       <AppShellTabBar
         tabs={tabs}
-        activeTabId="chat"
+        activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
         reorderTabs={reorderTabs}
@@ -166,13 +164,75 @@ describe('AppShellTabBar', () => {
       />
     )
 
-    // Every tab exposes the menu (chat, a, b); click b's, which is last.
+    // Home is fixed and exposes no menu; click b's menu, which is last.
     const moveButtons = screen.getAllByTestId('menu-tab.move-to-first')
-    expect(moveButtons).toHaveLength(3)
-    await user.click(moveButtons[2])
+    expect(moveButtons).toHaveLength(2)
+    await user.click(moveButtons[1])
 
-    // Normal list is [chat, a, b]: b is at index 2 and moves to index 0.
-    expect(reorderTabs).toHaveBeenCalledWith('normal', 2, 0)
+    // Normal list is [home, a, b]: b is at index 2 and moves to index 1.
+    expect(reorderTabs).toHaveBeenCalledWith('normal', 2, 1)
+  })
+
+  it('does not expose drag or menu affordances for the fixed home tab', () => {
+    const reorderTabs = vi.fn()
+    const tabs: Tab[] = [
+      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
+      { id: 'a', type: 'route', url: '/app/a', title: 'A' }
+    ]
+
+    render(
+      <AppShellTabBar
+        tabs={tabs}
+        activeTabId="home"
+        setActiveTab={vi.fn()}
+        closeTab={vi.fn()}
+        reorderTabs={reorderTabs}
+        pinTab={vi.fn()}
+        unpinTab={vi.fn()}
+      />
+    )
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Chat' }), {
+      button: 0,
+      pointerId: 1,
+      clientX: 10,
+      clientY: 10
+    })
+    fireEvent.pointerMove(document, { pointerId: 1, clientX: 80, clientY: 10 })
+    fireEvent.pointerUp(document, { pointerId: 1, clientX: 80, clientY: 10 })
+
+    expect(reorderTabs).not.toHaveBeenCalled()
+    expect(screen.queryAllByTestId('menu-tab.move-to-first')).toHaveLength(1)
+  })
+
+  it('marks every tab button as no-drag so Electron does not steal hover or click events', () => {
+    const tabs: Tab[] = [
+      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
+      { id: 'a', type: 'route', url: '/app/a', title: 'A' },
+      { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
+    ]
+
+    render(
+      <AppShellTabBar
+        tabs={tabs}
+        activeTabId="a"
+        setActiveTab={vi.fn()}
+        closeTab={vi.fn()}
+        reorderTabs={vi.fn()}
+        pinTab={vi.fn()}
+        unpinTab={vi.fn()}
+      />
+    )
+
+    const tabStrip = screen.getByTestId('app-shell-tab-strip')
+    const chatTab = screen.getByRole('button', { name: 'Chat' })
+    const normalTab = screen.getByRole('button', { name: 'A' })
+    const pinnedTab = screen.getByRole('button', { name: 'P' })
+
+    expect(tabStrip).toHaveClass('nodrag')
+    expect(chatTab).toHaveClass('nodrag')
+    expect(normalTab).toHaveClass('nodrag')
+    expect(pinnedTab).toHaveClass('nodrag')
   })
 
   it('requests ResourceList reveal when selecting a chat or agent tab from the window tab bar', async () => {
@@ -205,12 +265,12 @@ describe('AppShellTabBar', () => {
   })
 
   it('disables the tab context menu when only a single tab is open', () => {
-    const tabs: Tab[] = [{ id: 'chat', type: 'route', url: '/app/chat', title: 'Chat' }]
+    const tabs: Tab[] = [{ id: 'home', type: 'route', url: '/app/chat', title: 'Chat' }]
 
     render(
       <AppShellTabBar
         tabs={tabs}
-        activeTabId="chat"
+        activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
         reorderTabs={vi.fn()}
@@ -223,18 +283,18 @@ describe('AppShellTabBar', () => {
   })
 
   it('gives the last normal tab no menu and forbids closing pinned tabs', () => {
-    // One normal (chat) + one pinned tab: chat is the last normal tab so it
+    // One normal (home) + one pinned tab: home is the last normal tab so it
     // can't be closed/pinned/detached → no menu at all; the pinned tab keeps an
     // unpin action but never a close.
     const tabs: Tab[] = [
-      { id: 'chat', type: 'route', url: '/app/chat', title: 'Chat' },
+      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
       { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
     ]
 
     render(
       <AppShellTabBar
         tabs={tabs}
-        activeTabId="chat"
+        activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
         reorderTabs={vi.fn()}
@@ -251,7 +311,7 @@ describe('AppShellTabBar', () => {
 
   it('allows closing normal tabs while more than one normal tab is open', () => {
     const tabs: Tab[] = [
-      { id: 'chat', type: 'route', url: '/app/chat', title: 'Chat' },
+      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
       { id: 'a', type: 'route', url: '/app/a', title: 'A' },
       { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true }
     ]
@@ -259,7 +319,7 @@ describe('AppShellTabBar', () => {
     render(
       <AppShellTabBar
         tabs={tabs}
-        activeTabId="chat"
+        activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
         reorderTabs={vi.fn()}
@@ -268,8 +328,8 @@ describe('AppShellTabBar', () => {
       />
     )
 
-    // The two normal tabs (chat, a) are closeable; the pinned tab is not.
-    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(2)
+    // Only the non-home normal tab is closeable; the fixed home tab and pinned tab are not.
+    expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(1)
   })
 })
 
@@ -282,7 +342,7 @@ describe('getTabCapabilities', () => {
   })
 
   it('gives the last normal tab no actions at all', () => {
-    expect(getTabCapabilities({ isPinned: false }, ctx({ normalCount: 1 }))).toEqual({
+    expect(getTabCapabilities({ id: 'home', isPinned: false }, ctx({ normalCount: 1 }))).toEqual({
       menu: false,
       reorder: false,
       togglePin: false,
@@ -292,7 +352,7 @@ describe('getTabCapabilities', () => {
   })
 
   it('unlocks every normal action once a second normal tab exists', () => {
-    expect(getTabCapabilities({ isPinned: false }, ctx({ normalCount: 2 }))).toEqual({
+    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2 }))).toEqual({
       menu: true,
       reorder: true,
       togglePin: true,
@@ -301,20 +361,46 @@ describe('getTabCapabilities', () => {
     })
   })
 
+  it('does not treat newly-created chat tabs as the fixed home tab', () => {
+    expect(getTabCapabilities({ id: 'chat', isPinned: false }, ctx({ normalCount: 2 }))).toEqual({
+      menu: true,
+      reorder: true,
+      togglePin: true,
+      detach: true,
+      close: true
+    })
+  })
+
+  it('keeps the home tab fixed with no tab actions', () => {
+    expect(getTabCapabilities({ id: 'home', isPinned: false }, ctx({ normalCount: 3 }))).toEqual({
+      menu: false,
+      reorder: false,
+      togglePin: false,
+      detach: false,
+      close: false
+    })
+  })
+
   it('lets pinned tabs unpin but never close, reordering only with siblings', () => {
-    expect(getTabCapabilities({ isPinned: true }, ctx({ pinnedCount: 1 }))).toEqual({
+    expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 1 }))).toEqual({
       menu: true,
       reorder: false,
       togglePin: true,
       detach: true,
       close: false
     })
-    expect(getTabCapabilities({ isPinned: true }, ctx({ pinnedCount: 2 })).reorder).toBe(true)
+    expect(getTabCapabilities({ id: 'p', isPinned: true }, ctx({ pinnedCount: 2 })).reorder).toBe(true)
   })
 
-  it('never detaches temporary tabs or when the window cannot detach', () => {
-    expect(getTabCapabilities({ isPinned: false, isTemporary: true }, ctx({ normalCount: 2 })).detach).toBe(false)
-    expect(getTabCapabilities({ isPinned: true, isTemporary: true }, ctx({ pinnedCount: 2 })).detach).toBe(false)
-    expect(getTabCapabilities({ isPinned: false }, ctx({ normalCount: 2, canDetach: false })).detach).toBe(false)
+  it('allows temporary tabs to detach but still respects window detach support', () => {
+    expect(getTabCapabilities({ id: 'a', isPinned: false, isTemporary: true }, ctx({ normalCount: 2 })).detach).toBe(
+      true
+    )
+    expect(getTabCapabilities({ id: 'p', isPinned: true, isTemporary: true }, ctx({ pinnedCount: 2 })).detach).toBe(
+      true
+    )
+    expect(getTabCapabilities({ id: 'a', isPinned: false }, ctx({ normalCount: 2, canDetach: false })).detach).toBe(
+      false
+    )
   })
 })

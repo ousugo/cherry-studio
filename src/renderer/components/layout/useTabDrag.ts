@@ -18,6 +18,8 @@ interface DragState {
 interface UseTabDragOptions {
   pinnedTabs: Tab[]
   normalTabs: Tab[]
+  normalReorderStartIndex?: number
+  canDetach: boolean
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
   closeTab: (id: string) => void
   setActiveTab: (id: string) => void
@@ -37,6 +39,8 @@ export interface UseTabDragReturn {
 export function useTabDrag({
   pinnedTabs,
   normalTabs,
+  normalReorderStartIndex = 0,
+  canDetach,
   reorderTabs,
   closeTab,
   setActiveTab
@@ -81,8 +85,9 @@ export function useTabDrag({
   const calculateInsertIndex = useCallback(
     (clientX: number, dragTabId: string): number => {
       const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
+      const startIndex = dragRef.current.tabType === 'normal' ? normalReorderStartIndex : 0
       const rects = dragRef.current.originalRects
-      for (let i = 0; i < list.length; i++) {
+      for (let i = startIndex; i < list.length; i++) {
         if (list[i].id === dragTabId) continue
         const rect = rects.get(list[i].id)
         if (rect && clientX < rect.left + rect.width / 2) {
@@ -91,7 +96,7 @@ export function useTabDrag({
       }
       return list.length
     },
-    [normalTabs, pinnedTabs]
+    [normalTabs, normalReorderStartIndex, pinnedTabs]
   )
 
   // Calculate translateX for each tab
@@ -129,11 +134,11 @@ export function useTabDrag({
       if (e.button !== 0) return
       if ((e.target as HTMLElement).closest('[role="button"]')) return
 
-      const target = e.currentTarget as HTMLElement
-      target.setPointerCapture(e.pointerId)
-
       const list = tabType === 'pinned' ? pinnedTabs : normalTabs
       const index = list.findIndex((t) => t.id === tab.id)
+
+      const target = e.currentTarget as HTMLElement
+      target.setPointerCapture(e.pointerId)
 
       // Store original positions of all tabs
       const originalRects = new Map<string, { left: number; width: number }>()
@@ -180,11 +185,6 @@ export function useTabDrag({
   useEffect(() => {
     if (!dragState) return
 
-    // Temporary topics/sessions live only in this window's in-memory lease, so
-    // a detached window couldn't reconstruct them — forbid detaching them.
-    const draggedTab = [...pinnedTabs, ...normalTabs].find((t) => t.id === dragState.tabId)
-    const blockDetach = !!draggedTab?.isTemporary
-
     const onMove = (e: PointerEvent) => {
       if (e.pointerId !== dragRef.current.pointerId) return
 
@@ -199,13 +199,13 @@ export function useTabDrag({
         e.clientY < tabBarRect.top - DETACH_THRESHOLD || e.clientY > tabBarRect.bottom + DETACH_THRESHOLD
 
       if (dragState.mode === 'pending') {
-        if (!blockDetach && isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD) {
+        if (canDetach && isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD) {
           setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
         } else if (Math.abs(deltaX) > DRAG_THRESHOLD) {
           setDragState((prev) => (prev ? { ...prev, mode: 'reorder' } : null))
         }
       } else if (dragState.mode === 'reorder') {
-        if (!blockDetach && isOutsideTabBar) {
+        if (canDetach && isOutsideTabBar) {
           setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
         } else if (rafId.current === null) {
           rafId.current = requestAnimationFrame(() => {
@@ -216,8 +216,8 @@ export function useTabDrag({
         }
       }
 
-      // Detach mode: create/move window (never for temporary tabs)
-      if (!blockDetach && (dragState.mode === 'detach' || (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD))) {
+      // Detach mode: create/move window
+      if (canDetach && (dragState.mode === 'detach' || (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD))) {
         if (!dragRef.current.detachedCreated) {
           const allTabs = [...pinnedTabs, ...normalTabs]
           const tab = allTabs.find((t) => t.id === dragState.tabId)
@@ -266,7 +266,11 @@ export function useTabDrag({
         const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
         const oldIndex = list.findIndex((t) => t.id === dragState.tabId)
         if (oldIndex !== -1 && oldIndex !== dragState.insertIndex) {
-          const adjustedIndex = oldIndex < dragState.insertIndex ? dragState.insertIndex - 1 : dragState.insertIndex
+          const insertIndex =
+            dragRef.current.tabType === 'normal'
+              ? Math.max(normalReorderStartIndex, dragState.insertIndex)
+              : dragState.insertIndex
+          const adjustedIndex = oldIndex < insertIndex ? insertIndex - 1 : insertIndex
           if (oldIndex !== adjustedIndex) {
             setSettling(true)
             reorderTabs(dragRef.current.tabType, oldIndex, adjustedIndex)
@@ -296,7 +300,16 @@ export function useTabDrag({
         rafId.current = null
       }
     }
-  }, [dragState, pinnedTabs, normalTabs, calculateInsertIndex, reorderTabs, closeTab])
+  }, [
+    dragState,
+    pinnedTabs,
+    normalTabs,
+    normalReorderStartIndex,
+    canDetach,
+    calculateInsertIndex,
+    reorderTabs,
+    closeTab
+  ])
 
   return {
     tabBarRef,
