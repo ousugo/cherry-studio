@@ -9,7 +9,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
 import { cn } from '@renderer/utils'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import { type Model, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
 import { ChevronDown, Languages, MessageSquareMore, Rocket, RotateCcw, Settings2 } from 'lucide-react'
@@ -71,13 +71,6 @@ interface DefaultModelSelectorProps extends ModelSelectorTriggerProps {
 
 type ModelSettingsPanel = 'quick-model' | 'translate' | null
 
-const excludedDefaultModelCapabilities = new Set<string>([
-  MODEL_CAPABILITY.EMBEDDING,
-  MODEL_CAPABILITY.RERANK,
-  MODEL_CAPABILITY.IMAGE_GENERATION
-])
-
-const ASSISTANT_SETTINGS_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
 const MODEL_SETTINGS_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
 const TRANSLATE_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
 const SETTINGS_DRAWER_BODY_CLASS = 'space-y-0 px-6 py-5'
