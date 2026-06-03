@@ -3,10 +3,13 @@ import { useMultiplePreferences } from '@data/hooks/usePreference'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import {
+  findAppTabToFocus,
   getDefaultSidebarIconPreferences,
   getRequiredSidebarIconsVisible,
+  getSidebarApp,
   getSidebarMenuPath,
   REQUIRED_SIDEBAR_ICONS,
+  resolveAppOpenUrl,
   sanitizeSidebarIcons,
   SIDEBAR_ICON_COMPONENTS,
   SIDEBAR_ICON_ORDER
@@ -109,7 +112,7 @@ export const GlobalSearchLaunchpad: FC<GlobalSearchLaunchpadProps> = ({
 }) => {
   const { t } = useTranslation()
   const { defaultPaintingProvider } = useSettings()
-  const { openTab } = useTabs()
+  const { openTab, setActiveTab, tabs } = useTabs()
   const { pinned, openedKeepAliveMiniApps } = useMiniApps()
   const [isManaging, setIsManaging] = useState(false)
   const [sidebarIconPreferences, setSidebarIconPreferences] = useMultiplePreferences(SIDEBAR_ICON_PREFERENCE_KEYS)
@@ -122,8 +125,29 @@ export const GlobalSearchLaunchpad: FC<GlobalSearchLaunchpadProps> = ({
     () => getPreferenceOrderedSidebarIcons(sidebarIconPreferences.visible, sidebarIconPreferences.invisible),
     [sidebarIconPreferences.invisible, sidebarIconPreferences.visible]
   )
-  const openLaunchpadItem = (path: string, title: string) => {
-    openTab(path, { forceNew: true, title })
+  const openLaunchpadItem = (icon: SidebarIcon, title: string) => {
+    const app = getSidebarApp(icon)
+    if (!app) return
+
+    if (app.id === 'assistants' || app.id === 'agents') {
+      openTab(app.routePrefix, { forceNew: true, title })
+      onClose?.()
+      return
+    }
+
+    const navCtx = { defaultPaintingProvider: paintingProvider }
+    const existingId =
+      app.id === 'mini_app'
+        ? tabs.find((tab) => tab.type === 'route' && tab.url === app.routePrefix)?.id
+        : findAppTabToFocus(app, tabs, navCtx)
+
+    if (existingId) {
+      setActiveTab(existingId)
+      onClose?.()
+      return
+    }
+
+    openTab(resolveAppOpenUrl(app, navCtx), { title })
     onClose?.()
   }
 
@@ -179,6 +203,7 @@ export const GlobalSearchLaunchpad: FC<GlobalSearchLaunchpadProps> = ({
 
     return [
       {
+        id: icon,
         icon: <Icon size={32} className="icon" />,
         text: getSidebarIconLabel(icon),
         path,
@@ -231,7 +256,7 @@ export const GlobalSearchLaunchpad: FC<GlobalSearchLaunchpadProps> = ({
               </SectionHeader>
               <Grid>
                 {appMenuItems.map((item) => (
-                  <AppIcon key={item.path} onClick={() => openLaunchpadItem(item.path, item.text)}>
+                  <AppIcon key={item.id} onClick={() => openLaunchpadItem(item.id, item.text)}>
                     <IconContainer>
                       <IconWrapper $bgColor={item.bgColor}>{item.icon}</IconWrapper>
                     </IconContainer>
