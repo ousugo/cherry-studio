@@ -56,14 +56,12 @@ export class AgentsMigrator extends BaseMigrator {
   private sourceDbPath: string | null | undefined = undefined
   private sourceSchemaInfo: AgentsSchemaInfo = createEmptyAgentsSchemaInfo()
   private reader: LegacyAgentsDbReader | null = null
-  private derivedWorkspaceCount = 0
 
   override reset(): void {
     this.sourceCounts = this.createEmptyCounts()
     this.sourceDbPath = undefined
     this.sourceSchemaInfo = createEmptyAgentsSchemaInfo()
     this.reader = null
-    this.derivedWorkspaceCount = 0
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -142,7 +140,7 @@ export class AgentsMigrator extends BaseMigrator {
       // it via setPragma), so no per-call toggle here.
       await ctx.db.run(sql.raw('BEGIN'))
 
-      this.derivedWorkspaceCount = await stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
+      await stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
 
       for (const statement of importStatements) {
         logger.debug('Executing SQL:', { sql: statement.substring(0, 200) })
@@ -213,7 +211,7 @@ export class AgentsMigrator extends BaseMigrator {
 
     return {
       success: true,
-      processedCount: getTotalAgentsRowCount(this.sourceCounts) + this.derivedWorkspaceCount
+      processedCount: getTotalAgentsRowCount(this.sourceCounts)
     }
   }
 
@@ -253,29 +251,30 @@ export class AgentsMigrator extends BaseMigrator {
     await ctx.db.run(sql.raw(`ATTACH DATABASE ${quoteSqlitePath(dbPath)} AS agents_legacy`))
 
     try {
-      const expectedWorkspaces = await collectLegacySessionWorkspaces(ctx, this.sourceSchemaInfo)
+      // v1 has no workspace table. v2 agent_workspace rows are derived from
+      // session/agent accessible paths, or a generated default path per session.
+      const derivedWorkspaces = await deriveSessionWorkspaces(ctx, this.sourceSchemaInfo)
       const workspaceRows = await ctx.db.all<{ count: number }>(
         sql.raw('SELECT COUNT(*) AS count FROM agent_workspace')
       )
       const workspaceTargetCount = Number(workspaceRows[0]?.count ?? 0)
-      const workspaceExpectedCount = expectedWorkspaces.workspaces.length
-      this.derivedWorkspaceCount = workspaceExpectedCount
+      const workspaceExpectedCount = derivedWorkspaces.workspaces.length
       targetCount += workspaceTargetCount
       validationDetails.push({
-        table: 'workspace',
-        source: workspaceExpectedCount,
+        table: 'agent_workspace',
+        source: 0,
         expected: workspaceExpectedCount,
         target: workspaceTargetCount,
-        filtered: true,
+        filtered: false,
         ok: workspaceTargetCount === workspaceExpectedCount
       })
       if (workspaceTargetCount !== workspaceExpectedCount) {
         const direction = workspaceTargetCount < workspaceExpectedCount ? 'too low' : 'too high'
         errors.push({
-          key: 'workspace_count_mismatch',
+          key: 'agent_workspace_count_mismatch',
           expected: workspaceExpectedCount,
           actual: workspaceTargetCount,
-          message: `workspace count ${direction}: expected ${workspaceExpectedCount}, got ${workspaceTargetCount}`
+          message: `agent_workspace count ${direction}: expected ${workspaceExpectedCount}, got ${workspaceTargetCount}`
         })
       }
 
@@ -305,7 +304,7 @@ export class AgentsMigrator extends BaseMigrator {
            GROUP BY agent_workspace.path`
         )
       )
-      const expectedWorkspacePathCounts = countExpectedSessionWorkspacePaths(expectedWorkspaces)
+      const expectedWorkspacePathCounts = countExpectedSessionWorkspacePaths(derivedWorkspaces)
       const targetWorkspacePathCountMap = new Map(
         targetWorkspacePathCounts.map((row) => [row.path, Number(row.count ?? 0)])
       )
@@ -385,7 +384,7 @@ export class AgentsMigrator extends BaseMigrator {
       success: errors.length === 0,
       errors,
       stats: {
-        sourceCount: getTotalAgentsRowCount(this.sourceCounts) + this.derivedWorkspaceCount,
+        sourceCount: getTotalAgentsRowCount(this.sourceCounts),
         targetCount,
         skippedCount,
         mismatchReason: errors.length > 0 ? 'One or more agent_* tables did not match expected row counts' : undefined
@@ -545,7 +544,7 @@ export class AgentsMigrator extends BaseMigrator {
   }
 }
 
-type LegacySessionWorkspaceRow = {
+type SessionWorkspaceSourceRow = {
   session_id: string
   agent_id: string
   session_accessible_paths: string | null
@@ -609,10 +608,10 @@ function selectLegacyAgentColumn(
   return schemaInfo.agents.columns.has(column) ? `agents.${column} AS ${alias}` : `${fallbackExpr} AS ${alias}`
 }
 
-async function selectLegacySessionWorkspaceRows(
+async function selectSessionWorkspaceSourceRows(
   db: DbType,
   schemaInfo: AgentsSchemaInfo
-): Promise<LegacySessionWorkspaceRow[]> {
+): Promise<SessionWorkspaceSourceRow[]> {
   if (
     !schemaInfo.agents.exists ||
     !schemaInfo.sessions.exists ||
@@ -642,7 +641,7 @@ async function selectLegacySessionWorkspaceRows(
        INNER JOIN agents_legacy.agents AS agents ON agents.id = sessions.agent_id
        ORDER BY ${sortOrder} ASC, ${createdAt} ASC, sessions.id ASC`
     )
-  )) as LegacySessionWorkspaceRow[]
+  )) as SessionWorkspaceSourceRow[]
 }
 
 function extractPrimaryWorkspacePath(rawPaths: string | null, source: 'session' | 'agent'): string | null {
@@ -707,11 +706,11 @@ function countExpectedSessionWorkspacePaths(derived: DerivedSessionWorkspaces): 
   return counts
 }
 
-async function collectLegacySessionWorkspaces(
+async function deriveSessionWorkspaces(
   ctx: MigrationContext,
   schemaInfo: AgentsSchemaInfo
 ): Promise<DerivedSessionWorkspaces> {
-  const rows = await selectLegacySessionWorkspaceRows(ctx.db, schemaInfo)
+  const rows = await selectSessionWorkspaceSourceRows(ctx.db, schemaInfo)
   const byPath = new Map<string, DerivedWorkspace>()
   const mappings: DerivedSessionWorkspaceMap[] = []
   const now = Date.now()
@@ -752,7 +751,7 @@ async function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsS
   )
   await db.run(sql.raw('DELETE FROM session_workspace_map'))
 
-  const derived = await collectLegacySessionWorkspaces(ctx, schemaInfo)
+  const derived = await deriveSessionWorkspaces(ctx, schemaInfo)
   for (const workspace of derived.workspaces) {
     await db.run(
       sql`INSERT INTO agent_workspace (id, name, path, order_key, created_at, updated_at)
@@ -765,7 +764,7 @@ async function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsS
     )
   }
 
-  logger.info('Staged legacy session workspaces', {
+  logger.info('Staged derived session workspaces', {
     workspaces: derived.workspaces.length,
     mappedSessions: derived.mappings.length
   })
