@@ -83,8 +83,15 @@ const AnimatedBlockWrapper: React.FC<{
   animation?: 'slide' | 'fade'
 }> = ({ className, children, enableAnimation, animation = 'slide' }) => {
   const wrapperClassName = ['block-wrapper', className].filter(Boolean).join(' ')
+  const [hasAnimated, setHasAnimated] = React.useState(enableAnimation)
 
-  if (!enableAnimation) {
+  React.useEffect(() => {
+    if (enableAnimation) {
+      setHasAnimated(true)
+    }
+  }, [enableAnimation])
+
+  if (!hasAnimated) {
     return (
       <div className={wrapperClassName}>
         <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
@@ -93,7 +100,11 @@ const AnimatedBlockWrapper: React.FC<{
   }
   const variants = animation === 'fade' ? blockWrapperFadeVariants : blockWrapperVariants
   return (
-    <motion.div className={wrapperClassName} variants={variants} initial="hidden" animate="visible">
+    <motion.div
+      className={wrapperClassName}
+      variants={enableAnimation ? variants : undefined}
+      initial={enableAnimation ? 'hidden' : undefined}
+      animate={enableAnimation ? 'visible' : undefined}>
       <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
     </motion.div>
   )

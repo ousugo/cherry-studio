@@ -16,8 +16,20 @@ vi.mock('@logger', () => ({
 }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false, vi.fn()]) }))
 const mockIsActiveTurnTarget = vi.hoisted(() => vi.fn(() => false))
+const mockTopicStreamState = vi.hoisted(() => ({ isPending: false }))
+const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
 vi.mock('@renderer/hooks/useIsActiveTurnTarget', () => ({
   useIsActiveTurnTarget: () => mockIsActiveTurnTarget()
+}))
+vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  useTopicStreamStatus: () => ({
+    status: undefined,
+    activeExecutions: [],
+    awaitingApprovalAnchors: [],
+    isPending: mockTopicStreamState.isPending,
+    isFulfilled: false,
+    markSeen: vi.fn()
+  })
 }))
 vi.mock('@renderer/types/file', () => ({
   FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
@@ -129,7 +141,16 @@ vi.mock('../ErrorBlock', () => ({
 
 vi.mock('../ThinkingBlock', () => ({
   __esModule: true,
-  default: ({ content }: any) => <div data-testid="mock-thinking-block">{content}</div>
+  default: function ThinkingBlockMock({ content, thinkingMs }: any) {
+    React.useEffect(() => {
+      mockThinkingBlockMounted()
+    }, [])
+    return (
+      <div data-testid="mock-thinking-block" data-thinking-ms={String(thinkingMs)}>
+        {content}
+      </div>
+    )
+  }
 }))
 
 vi.mock('../../frame/MessageAttachments', () => ({
@@ -223,6 +244,8 @@ const renderParts = (parts: CherryMessagePart[], message?: MessageListItem) => {
 describe('MessagePartsRenderer', () => {
   beforeEach(() => {
     mockIsActiveTurnTarget.mockReturnValue(false)
+    mockTopicStreamState.isPending = false
+    mockThinkingBlockMounted.mockClear()
   })
 
   // -- empty --
@@ -495,6 +518,59 @@ describe('MessagePartsRenderer', () => {
     const wrappers = thinkingBlocks.map((block) => block.closest('.block-wrapper'))
     expect(wrappers[0]).toHaveClass('message-thought-wrapper')
     expect(wrappers[1]).toHaveClass('message-thought-wrapper')
+  })
+
+  it('keeps reasoning blocks mounted when a pending message settles', () => {
+    mockTopicStreamState.isPending = true
+
+    const parts = [
+      {
+        type: 'reasoning',
+        text: 'steady thought',
+        state: 'done',
+        providerMetadata: { cherry: { thinkingMs: 3100 } }
+      },
+      { type: 'text', text: 'answer still streaming' }
+    ] as unknown as CherryMessagePart[]
+    const pendingMessage = msg({ status: 'pending' })
+    const { rerender } = renderParts(parts, pendingMessage)
+
+    const initialNode = screen.getByTestId('mock-thinking-block')
+    expect(initialNode).toHaveAttribute('data-thinking-ms', '3100')
+    expect(mockThinkingBlockMounted).toHaveBeenCalledTimes(1)
+
+    mockTopicStreamState.isPending = false
+    rerender(
+      <MessageListProvider
+        value={{
+          state: {
+            topic: { id: pendingMessage.topicId, name: 'Topic' } as MessageListProviderValue['state']['topic'],
+            messages: [msg({ status: 'success' })],
+            partsByMessageId: { [pendingMessage.id]: parts },
+            messageNavigation: 'none',
+            estimateSize: 400,
+            overscan: 0,
+            loadOlderDelayMs: 0,
+            loadingResetDelayMs: 0,
+            renderConfig: defaultMessageRenderConfig,
+            getMessageActivityState: () => ({
+              isProcessing: false,
+              isStreamTarget: false,
+              isApprovalAnchor: false
+            })
+          },
+          actions: {},
+          meta: { selectionLayer: false }
+        }}>
+        <PartsProvider value={{ [pendingMessage.id]: parts }}>
+          <MessagePartsRenderer message={msg({ status: 'success' })} />
+        </PartsProvider>
+      </MessageListProvider>
+    )
+
+    expect(screen.getByTestId('mock-thinking-block')).toBe(initialNode)
+    expect(screen.getByTestId('mock-thinking-block')).toHaveAttribute('data-thinking-ms', '3100')
+    expect(mockThinkingBlockMounted).toHaveBeenCalledTimes(1)
   })
 
   it('does not render an empty wrapper for tool responses hidden by the tool renderer', () => {
