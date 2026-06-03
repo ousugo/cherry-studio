@@ -237,7 +237,10 @@ export function useProviderMutations(providerId: string) {
 
 // ─── Typed query helpers ─────────────────────────────────────────────
 export function useProviderAuthConfig(providerId: string) {
-  const result = useQuery('/providers/:providerId/auth-config', { params: { providerId } })
+  const result = useQuery('/providers/:providerId/auth-config', {
+    params: { providerId },
+    enabled: !!providerId
+  })
   // Schema: GET /providers/:id/auth-config -> AuthConfig | null
   return { ...result, data: result.data }
 }

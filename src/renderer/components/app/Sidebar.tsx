@@ -15,7 +15,7 @@ import {
   SIDEBAR_ICON_COMPONENTS
 } from '@renderer/config/sidebar'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useConversationNavigator } from '@renderer/hooks/useConversationNavigation'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
@@ -45,8 +45,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { activeTab, tabs, openTab, setActiveTab } = useTabs()
-  const assistantsNav = useConversationNavigation('assistants')
-  const agentsNav = useConversationNavigation('agents')
+  const conversationNavigator = useConversationNavigator()
   const { defaultPaintingProvider } = useSettings()
   const [lastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [lastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
@@ -138,13 +137,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (!app) return
 
       const navCtx = { defaultPaintingProvider, lastUsedTopicId, lastUsedSessionId }
+      // `key` is only set for multi-instance apps (those with an `instanceKey` whose
+      // `defaultKey` resolves), so this routes conversation apps through the navigator
+      // without enumerating their ids.
       const key = app.instanceKey?.defaultKey(navCtx)
-      if (key && app.id === 'assistants') {
-        assistantsNav.openConversationTab(key, getDefaultRouteTitle(app.routePrefix))
-        return
-      }
-      if (key && app.id === 'agents') {
-        agentsNav.openConversationTab(key, getDefaultRouteTitle(app.routePrefix))
+      if (key) {
+        conversationNavigator.openConversationTab(app.id, key, getDefaultRouteTitle(app.routePrefix))
         return
       }
 
@@ -166,7 +164,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         emitResourceListReveal({ source: revealSource, tabId: openedId })
       }
     },
-    [tabs, openTab, setActiveTab, defaultPaintingProvider, lastUsedTopicId, lastUsedSessionId, assistantsNav, agentsNav]
+    [tabs, openTab, setActiveTab, defaultPaintingProvider, lastUsedTopicId, lastUsedSessionId, conversationNavigator]
   )
 
   // Common props shared between normal and floating sidebar

@@ -724,7 +724,8 @@ describe('useProviderAuthConfig', () => {
     expect(result.current.data).toEqual(mockAuthConfig)
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/auth-config', {
-      params: { providerId: 'vertexai' }
+      params: { providerId: 'vertexai' },
+      enabled: true
     })
   })
 
@@ -732,7 +733,17 @@ describe('useProviderAuthConfig', () => {
     renderHook(() => useProviderAuthConfig('vertexai-prod'))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/auth-config', {
-      params: { providerId: 'vertexai-prod' }
+      params: { providerId: 'vertexai-prod' },
+      enabled: true
+    })
+  })
+
+  it('does not fetch when the provider id is empty (guards /providers//auth-config)', () => {
+    renderHook(() => useProviderAuthConfig(''))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/auth-config', {
+      params: { providerId: '' },
+      enabled: false
     })
   })
 })

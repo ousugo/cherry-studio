@@ -1,4 +1,5 @@
 import { Button, Sortable } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -14,6 +15,7 @@ import {
   SIDEBAR_ICON_COMPONENTS,
   SIDEBAR_ICON_ORDER
 } from '@renderer/config/sidebar'
+import { useConversationNavigator } from '@renderer/hooks/useConversationNavigation'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
@@ -113,6 +115,9 @@ export const GlobalSearchLaunchpad: FC<GlobalSearchLaunchpadProps> = ({
   const { t } = useTranslation()
   const { defaultPaintingProvider } = useSettings()
   const { openTab, setActiveTab, tabs } = useTabs()
+  const conversationNavigator = useConversationNavigator()
+  const [lastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
+  const [lastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const { pinned, openedKeepAliveMiniApps } = useMiniApps()
   const [isManaging, setIsManaging] = useState(false)
   const [sidebarIconPreferences, setSidebarIconPreferences] = useMultiplePreferences(SIDEBAR_ICON_PREFERENCE_KEYS)
@@ -129,17 +134,15 @@ export const GlobalSearchLaunchpad: FC<GlobalSearchLaunchpadProps> = ({
     const app = getSidebarApp(icon)
     if (!app) return
 
-    if (app.id === 'assistants' || app.id === 'agents') {
-      openTab(app.routePrefix, { forceNew: true, title })
+    const navCtx = { defaultPaintingProvider: paintingProvider, lastUsedTopicId, lastUsedSessionId }
+    const key = app.instanceKey?.defaultKey(navCtx)
+    if (key) {
+      conversationNavigator.openConversationTab(app.id, key, title)
       onClose?.()
       return
     }
 
-    const navCtx = { defaultPaintingProvider: paintingProvider }
-    const existingId =
-      app.id === 'mini_app'
-        ? tabs.find((tab) => tab.type === 'route' && tab.url === app.routePrefix)?.id
-        : findAppTabToFocus(app, tabs, navCtx)
+    const existingId = findAppTabToFocus(app, tabs, navCtx)
 
     if (existingId) {
       setActiveTab(existingId)
