@@ -6,16 +6,17 @@ import { toCamelCase } from '@shared/mcp'
 import type { McpCallToolResponse, McpServer, McpTool } from '@types'
 import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
 
-async function resolveServerById(serverId: string): Promise<McpServer | undefined> {
-  const { items } = await mcpServerService.list({ isActive: true })
-  return items.find((s) => s.id === serverId)
-}
-
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
 import { mcpResultToTextSummary } from './utils'
 
 const logger = loggerService.withContext('mcpTools')
+
+async function resolveActiveServerById(serverId: string): Promise<McpServer | undefined> {
+  // Direct point lookup instead of listing every active server on each tool call.
+  const server = await mcpServerService.getById(serverId).catch(() => undefined)
+  return server?.isActive ? server : undefined
+}
 
 /** Build the AI SDK Tool wrapper around a single McpTool. */
 function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
@@ -25,7 +26,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
     inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
     needsApproval: async () => forcePrompt,
     execute: async (args: Record<string, unknown>, { toolCallId }) => {
-      const server = await resolveServerById(mcpTool.serverId)
+      const server = await resolveActiveServerById(mcpTool.serverId)
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
       }
