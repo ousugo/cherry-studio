@@ -12,7 +12,8 @@ const mocks = vi.hoisted(() => ({
   applicationGet: vi.fn(),
   spanCacheSetTopicId: vi.fn(),
   runtimeBeginTurn: vi.fn(),
-  runtimeEnqueueUserMessage: vi.fn()
+  runtimeEnqueueUserMessage: vi.fn(),
+  runtimeIsSessionBusy: vi.fn()
 }))
 
 vi.mock('@data/services/SessionService', () => ({
@@ -83,7 +84,11 @@ describe('AgentChatContextProvider', () => {
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
       if (name === 'AgentSessionRuntimeService') {
-        return { beginTurn: mocks.runtimeBeginTurn, enqueueUserMessage: mocks.runtimeEnqueueUserMessage }
+        return {
+          beginTurn: mocks.runtimeBeginTurn,
+          enqueueUserMessage: mocks.runtimeEnqueueUserMessage,
+          isSessionBusy: mocks.runtimeIsSessionBusy
+        }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -91,12 +96,14 @@ describe('AgentChatContextProvider', () => {
       listeners: [makeSubscriber('runtime:persistence'), makeSubscriber('runtime:terminal')],
       turnId: 'turn-1'
     })
+    mocks.runtimeIsSessionBusy.mockReturnValue(false)
   })
 
   it('prepares fresh agent-session dispatch through the long-lived runtime service', async () => {
     const subscriber = makeSubscriber()
+    mocks.runtimeIsSessionBusy.mockReturnValue(false)
 
-    const prepared = await provider.prepareDispatch(subscriber, openReq(), { hasLiveStream: false })
+    const prepared = await provider.prepareDispatch(subscriber, openReq())
 
     expect(mocks.saveMessages).toHaveBeenCalledOnce()
     expect(mocks.saveMessage).not.toHaveBeenCalled()
@@ -140,8 +147,9 @@ describe('AgentChatContextProvider', () => {
 
   it('prepares live inject without creating a new runtime turn or assistant placeholder', async () => {
     const subscriber = makeSubscriber()
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
 
-    const prepared = await provider.prepareDispatch(subscriber, openReq(), { hasLiveStream: true })
+    const prepared = await provider.prepareDispatch(subscriber, openReq())
 
     expect(mocks.saveMessage).toHaveBeenCalledOnce()
     expect(mocks.saveMessages).not.toHaveBeenCalled()
@@ -159,7 +167,7 @@ describe('AgentChatContextProvider', () => {
     runtimeDriverRegistry.clearForTest()
     mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })
 
-    await expect(provider.prepareDispatch(makeSubscriber(), openReq(), { hasLiveStream: false })).rejects.toThrow(
+    await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toThrow(
       'Unsupported agent runtime type: custom-runtime'
     )
     expect(mocks.saveMessage).not.toHaveBeenCalled()

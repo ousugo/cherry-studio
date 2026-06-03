@@ -347,6 +347,24 @@ export class AgentSessionRuntimeService extends BaseService {
     this.closeEntry(entry)
   }
 
+  /**
+   * Whether the session has a turn in flight or about to start: a non-terminal current turn,
+   * a next-turn drain in progress (`startingNextTurn`), or queued follow-ups. The dispatcher
+   * uses this — NOT `AiStreamManager.hasLiveStream` — to decide enqueue-vs-begin, because
+   * `hasLiveStream` is false during the inter-turn drain window while the entry is still
+   * mid-transition; a fresh dispatch trusting `hasLiveStream` there would clobber the drain via
+   * `beginTurn`.
+   */
+  isSessionBusy(sessionId: string): boolean {
+    const entry = this.entries.get(sessionId)
+    if (!entry) return false
+    return (
+      entry.startingNextTurn === true ||
+      entry.pendingTurns.length > 0 ||
+      (entry.currentTurn !== undefined && entry.currentTurn.terminalStatus === undefined)
+    )
+  }
+
   inspect(sessionId: string): AgentSessionRuntimeSnapshot | undefined {
     const entry = this.entries.get(sessionId)
     if (!entry) return undefined
@@ -534,11 +552,18 @@ export class AgentSessionRuntimeService extends BaseService {
   private scheduleNextTurn(entry: AgentSessionRuntimeEntry): void {
     if (entry.startingNextTurn) return
     entry.startingNextTurn = true
+    // Keep `startingNextTurn` set for the WHOLE drain — `startNextTurn` spans a DB round-trip,
+    // and `isSessionBusy` relies on this flag so a concurrent dispatch landing in the inter-turn
+    // window enqueues instead of beginning a clobbering fresh turn. Clear it only once the drain
+    // settles (turn established, bailed, or errored).
     queueMicrotask(() => {
-      entry.startingNextTurn = false
-      void this.startNextTurn(entry).catch((error) => {
-        logger.error('Failed to start next agent runtime turn', { sessionId: entry.sessionId, error })
-      })
+      void this.startNextTurn(entry)
+        .catch((error) => {
+          logger.error('Failed to start next agent runtime turn', { sessionId: entry.sessionId, error })
+        })
+        .finally(() => {
+          entry.startingNextTurn = false
+        })
     })
   }
 

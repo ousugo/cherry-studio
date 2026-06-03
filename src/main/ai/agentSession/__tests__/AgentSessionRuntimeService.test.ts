@@ -122,6 +122,48 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  describe('isSessionBusy — inter-turn drain window (issue ①)', () => {
+    it('is false with no entry and true while a turn is live', () => {
+      const service = new AgentSessionRuntimeService()
+      expect(service.isSessionBusy('session-1')).toBe(false)
+      service.beginTurn(baseTurnInput)
+      expect(service.isSessionBusy('session-1')).toBe(true)
+    })
+
+    it('is false once a turn settles with no queued follow-ups', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.isSessionBusy('session-1')).toBe(false)
+    })
+
+    it('stays busy throughout the next-turn drain, closing the clobber window', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+      // Hold the drain's assistant-placeholder save so we can observe the in-flight window.
+      const deferred = createDeferred<any>()
+      mocks.saveMessage.mockImplementationOnce(() => deferred.promise)
+
+      service.markTurnTerminal('session-1', 'success') // current turn → terminal, schedules the drain
+      await new Promise((resolve) => setTimeout(resolve, 0)) // flush microtasks → drain parks on saveMessage
+
+      const entry = getEntry(service)
+      // The bug window: the queued message was shifted (pendingTurns empty) and the old turn is
+      // terminal — pre-fix nothing reported the session busy here.
+      expect(entry.pendingTurns.length).toBe(0)
+      expect(entry.currentTurn.terminalStatus).toBe('success')
+      expect(entry.startingNextTurn).toBe(true) // flag now spans the whole drain
+      expect(service.isSessionBusy('session-1')).toBe(true)
+
+      deferred.resolve({ id: 'assistant-2' })
+      await new Promise((resolve) => setTimeout(resolve, 0)) // drain completes → fresh live turn
+      expect(service.isSessionBusy('session-1')).toBe(true)
+      expect(getEntry(service).startingNextTurn).toBe(false)
+    })
+  })
+
   it('creates an active runtime with a session-level pending queue', () => {
     const service = new AgentSessionRuntimeService()
 

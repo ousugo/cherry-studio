@@ -16,7 +16,7 @@ import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/t
 import { startAiTurnTrace } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime'
 import type { StreamListener } from '../types'
-import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
+import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
 
 export class AgentChatContextProvider implements ChatContextProvider {
@@ -26,11 +26,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     return isAgentSessionTopic(topicId)
   }
 
-  async prepareDispatch(
-    subscriber: StreamListener,
-    req: MainDispatchRequest,
-    ctx: DispatchContext
-  ): Promise<PreparedDispatch> {
+  async prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch> {
     if (req.trigger !== 'submit-message') {
       throw new Error(`Agent sessions only support 'submit-message' (got '${req.trigger}')`)
     }
@@ -81,8 +77,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
       updatedAt: createdAt
     }
 
-    if (ctx.hasLiveStream) {
-      // Follow-up to a live turn: persist the user row, hand the message to the
+    // Decide enqueue-vs-begin off the runtime entry's authoritative state, NOT
+    // `AiStreamManager.hasLiveStream`: the latter is false during the inter-turn drain window
+    // (the settled stream is terminal-in-grace) while the entry is mid-transition, so trusting it
+    // would take the begin branch and clobber the in-flight drain's `currentTurn` / `pendingTurns`.
+    if (application.get('AgentSessionRuntimeService').isSessionBusy(sessionId)) {
+      // Follow-up to an in-flight session: persist the user row, hand the message to the
       // runtime so it opens the next turn (interrupt → re-dispatch), and attach
       // the new subscriber. No new placeholder/model — that would orphan a row.
       await agentSessionMessageService.saveMessage({
