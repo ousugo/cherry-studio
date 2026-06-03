@@ -1471,6 +1471,15 @@ describe('Topics', () => {
     }
   })
 
+  it('uses a generic header create action in time display mode', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+    const { onNewTopic } = renderTopicList()
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.conversation.new' }))
+
+    expect(onNewTopic).toHaveBeenCalledWith(undefined)
+  })
+
   it('creates a topic from the header using the latest unpinned row', () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [

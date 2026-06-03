@@ -326,10 +326,14 @@ const HomePage: FC = () => {
         const targetAssistantId = hasExplicitAssistantTarget
           ? (payload.assistantId ?? undefined)
           : lastUsedAssistantIdRef.current
+        const shouldReuseTemporaryTopic = (currentAssistantId: string | undefined) =>
+          hasExplicitAssistantTarget
+            ? currentAssistantId === targetAssistantId
+            : currentAssistantId !== undefined || targetAssistantId === undefined
 
         if (temporaryTopicConversation?.type === 'assistant') {
           const currentAssistantId = temporaryTopicConversation.assistantId ?? undefined
-          if (!hasExplicitAssistantTarget || currentAssistantId === targetAssistantId) {
+          if (shouldReuseTemporaryTopic(currentAssistantId)) {
             setIgnoredTemporaryTopicId(null)
             setActiveTopic(buildPendingTemporaryTopic(temporaryTopicConversation.topicId, currentAssistantId))
             return
@@ -339,7 +343,7 @@ const HomePage: FC = () => {
         if (pendingTemporaryTopicRef.current) {
           const pending = pendingTemporaryTopicRef.current
           const pendingAssistantId = pending.assistantId ?? undefined
-          if (!hasExplicitAssistantTarget || pendingAssistantId === targetAssistantId) {
+          if (shouldReuseTemporaryTopic(pendingAssistantId)) {
             setIgnoredTemporaryTopicId(null)
             setActiveTopic(buildPendingTemporaryTopic(pending.topicId, pendingAssistantId))
             return

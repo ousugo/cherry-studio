@@ -593,8 +593,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
 
   const filteredTopics = groupedTopics
   const headerCreateTopicPayload = useMemo(
-    () => findLatestCreateTopicPayload(filteredTopics, undefined, assistantById),
-    [assistantById, filteredTopics]
+    () => (isAssistantDisplayMode ? findLatestCreateTopicPayload(filteredTopics, undefined, assistantById) : undefined),
+    [assistantById, filteredTopics, isAssistantDisplayMode]
   )
   const getCreateTopicPayloadForGroup = useCallback(
     (groupId: string) =>
