@@ -79,6 +79,11 @@ function getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHol
       dispose: () => {
         nextHolder.emit = undefined
         toolApprovalRegistry.abort(sessionId, 'stream-ended')
+        // Evict so the module-level Map doesn't grow unbounded across sessions;
+        // the holder is rebuilt lazily on the next settings build.
+        if (toolApprovalEmitters.get(sessionId) === nextHolder) {
+          toolApprovalEmitters.delete(sessionId)
+        }
       }
     }
     holder = nextHolder
