@@ -191,4 +191,40 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     )
     expect(names.slice(0, 2)).toEqual(['model-params', 'pdf-compatibility'])
   })
+
+  // params-core-2: the documented hard invariant `reasoning-extraction` < `simulate-streaming`.
+  // Both gate predicates hold for an OpenAI-family adapter with streamOutput === false; a
+  // reorder of INTERNAL_FEATURES would otherwise pass unnoticed.
+  it('orders reasoning-extraction before simulate-streaming (OpenAI-family, non-streaming)', () => {
+    const names = activeNames(
+      makeScope({
+        provider: { id: 'openai' },
+        model: {},
+        aiSdkProviderId: 'openai-chat',
+        capabilities: { streamOutput: false }
+      })
+    )
+    const reasoning = names.indexOf('reasoning-extraction')
+    const simulate = names.indexOf('simulate-streaming')
+    expect(reasoning).toBeGreaterThanOrEqual(0)
+    expect(simulate).toBeGreaterThan(reasoning)
+  })
+
+  // params-features-3: the documented hard invariant `pdf-compatibility` < `anthropic-cache`
+  // (cache estimation must see the extracted PDF text). Both gate predicates hold for an
+  // anthropic-messages endpoint with cacheControl enabled.
+  it('orders pdf-compatibility before anthropic-cache (anthropic-messages, cache on)', () => {
+    const names = activeNames(
+      makeScope({
+        provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+        model: {},
+        endpointType: 'anthropic-messages',
+        aiSdkProviderId: 'anthropic'
+      })
+    )
+    const pdf = names.indexOf('pdf-compatibility')
+    const cache = names.indexOf('anthropic-cache')
+    expect(pdf).toBeGreaterThanOrEqual(0)
+    expect(cache).toBeGreaterThan(pdf)
+  })
 })
