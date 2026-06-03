@@ -65,14 +65,14 @@ the safe direction). Used by all three call sites below.
 
 ## Files to change
 
-- **`exposition/applyDeferExposition.ts`** — make `async`. After `shouldDefer`, evaluate
-  `isApprovalGated(entry.tool, {})` for each name in `deferredNames` (input-independent at
-  build time; run with `Promise.all`, only over the deferred set). Drop gated names from
-  **both** `deferredNames` and `deferredEntries`, then re-run the existing
-  `deferredNames.size === 0` early-return so an all-gated pool collapses to "no meta-tools,
-  tools unchanged". Gating must run **before** that check.
-- **`runtime/aiSdk/params/buildAgentParams.ts:162`** — `await applyDeferExposition(...)`
-  (sole production caller; `resolveTools` is already `async`).
+- **`mcp/mcpTools.ts` `toEntry`** — read `isMcpToolForcePromptBySource(server, mcpTool)` once
+  and set `defer: forcePrompt ? 'never' : 'auto'` (the same value drives `needsApproval`, so the
+  two always agree). `syncMcpToolsToRegistry` rebuilds entries every request, so the defer
+  decision always reflects the current approval policy. This keeps the defer judgment at the
+  tool's source, so `applyDeferExposition` stays pure defer-honoring logic — no approval
+  knowledge, no `async`. MCP is the only `needsApproval` producer today; a future gated tool
+  from another source must likewise carry `defer: 'never'`, with the execution-boundary guard
+  below as the runtime backstop.
 - **`meta/toolInvoke.ts`** — before the inner `execute`, `await isApprovalGated(entry.tool,
   { input: params ?? {}, toolCallId: options.toolCallId, messages: options.messages,
   experimental_context: options.experimental_context })`; if true, `throw` (matches the
@@ -91,10 +91,8 @@ the safe direction). Used by all three call sites below.
 
 ## Tests
 
-- **`exposition/__tests__/applyDeferExposition.test.ts`** — gated entry (mock
-  `tool.needsApproval` → true) stays inline and is absent from `deferredEntries`; a
-  non-gated peer still defers; all-gated → `tools` returned unchanged with no `tool_search`.
-  Make existing cases `await` (the call sites + `async` describe callbacks).
+- **`mcp/__tests__/sync.test.ts`** — a force-prompt tool (in `disabledAutoApproveTools`) is
+  registered with `defer: 'never'`; a non-gated sibling stays `defer: 'auto'`.
 - **`meta/__tests__/toolInvoke.test.ts`** — invoking a gated tool via `tool_invoke` is
   refused and the inner `execute` is **not** called; existing non-gated forwarding tests
   pass unchanged.
@@ -121,8 +119,9 @@ the safe direction). Used by all three call sites below.
 
 ## Follow-up (separate from this change)
 
-Reply to the reviewer on #1 pointing at the two enforcement sites (`applyDeferExposition`
-exclusion + `tool_invoke`/`tool_exec` guard) with `file:line`, and note `tool_exec`'s
+Reply to the reviewer on #1 pointing at the two enforcement sites (`mcpTools` registers
+force-prompt tools with `defer: 'never'` + the `tool_invoke`/`tool_exec` execution guard) with
+`file:line`, and note `tool_exec`'s
 "refuse, don't await" stance (ties to reviewer #3 — the `tool_exec` sandbox). Architecture
 points #2 (dispatch TOCTOU + crash reconciliation) and #4
 (`provider.defaultChatEndpoint` capability resolution) remain separate confirm-or-correct

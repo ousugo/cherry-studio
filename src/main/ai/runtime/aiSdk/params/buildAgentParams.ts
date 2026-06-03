@@ -159,7 +159,7 @@ async function resolveTools(
     tools = {}
     for (const entry of activeEntries) tools[entry.name] = entry.tool
   }
-  const exposed = await applyDeferExposition(tools, registry, model.contextWindow)
+  const exposed = applyDeferExposition(tools, registry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
 }
 

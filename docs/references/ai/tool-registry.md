@@ -100,14 +100,15 @@ The injected three are added to the tool set by `applyDeferExposition` when
   `<DEFERRED_TOOLS>` section needs to enumerate (so the model knows what
   namespaces exist).
 
-**Approval-gated tools are never deferred.** `applyDeferExposition` evaluates
-`isApprovalGated(entry.tool)` and keeps any tool whose `needsApproval` is true
-inline, because deferring it would drop it from the SDK tool-set — so the SDK's
-native approval gate never fires and it becomes reachable only through
-`tool_invoke`, which would run it with no approval card. As defense-in-depth the
-`tool_invoke` / `tool_exec` meta-tools also call `isApprovalGated` at execution
-time and refuse a gated tool, steering the model to call it inline (where the gate
-fires). See [Tool Approval](./tool-approval.md).
+**Approval-gated tools are never deferred.** A force-prompt MCP tool is registered
+with `defer: 'never'` — `mcp/mcpTools.ts` reads `isMcpToolForcePromptBySource` once
+to drive both `defer` and `needsApproval` — so it stays inline and the SDK's native
+approval gate fires on it. Deferring it would drop it from the SDK tool-set, so the
+gate would never fire and it would be reachable only through `tool_invoke` with no
+approval card. As a runtime backstop the `tool_invoke` / `tool_exec` meta-tools also
+call `isApprovalGated` at execution time and refuse a gated tool (covering the
+`registry.getByName(any-name)` vector), steering the model to call it inline. See
+[Tool Approval](./tool-approval.md).
 
 `tool_exec` is **not injected** by `applyDeferExposition` — there is no
 `metaTools.exec` flag. The injection site (`applyDeferExposition.ts:50-53`)
