@@ -30,7 +30,7 @@ unambiguous):
 | Source | Name pattern | Example |
 |---|---|---|
 | Built-in | `<namespace>__<verb>` | `web__search`, `kb__search` |
-| MCP | `mcp__<serverId>__<toolName>` | `mcp__gmail__send_message` |
+| MCP | `mcp__<camelCase(server)>__<camelCase(tool)>` | `mcp__gmail__sendMessage` |
 | Meta | `tool_<verb>` | `tool_search`, `tool_invoke`, `tool_inspect` (`tool_exec` is defined but not injected — see below) |
 
 ## Built-in tools

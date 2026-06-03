@@ -50,7 +50,7 @@ each subsystem.
 │      • readUIMessageStream → CherryUIMessage snapshot                │
 │                                                                      │
 │  Terminal listeners:                                                 │
-│    PersistenceListener → MessageService / TemporaryChat / Agent / Translate
+│    PersistenceListener → MessageService / TemporaryChat / Translation
 │    WebContentsListener  → wc.send(Ai_StreamDone)                      │
 │    ChannelAdapterListener → adapter.onStreamComplete                  │
 │    SseListener          → res.write('[DONE]')                         │

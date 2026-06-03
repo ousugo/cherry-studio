@@ -27,7 +27,7 @@ persists, and resumes the stream.
 
 4. **Main applies** — `AiService`'s `Ai_ToolApproval_Respond` handler
    branches on transport **before** touching the DB:
-   - **Claude-Agent fast-path** (`AiService.ts:188-194`): hands the
+   - **Claude-Agent fast-path** (`AiService.ts:191-197`): hands the
      decision to `AgentSessionRuntimeService.respondToolApproval`, which
      resolves the live `canUseTool` promise so the existing stream
      proceeds. When a live registry entry handles it, the handler
