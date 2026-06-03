@@ -366,4 +366,53 @@ describe('AiService tool approval', () => {
     // ...but the still-pending sibling gates the resume.
     expect(dispatch).not.toHaveBeenCalled()
   })
+
+  it('returns { ok: false } when the anchor message is missing or deleted', async () => {
+    const respondToolApproval = vi.fn(() => false)
+    const dispatch = vi.fn().mockResolvedValue(undefined)
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
+      if (name === 'AiStreamManager') return { dispatch }
+      return undefined
+    })
+
+    // A stale click on a deleted message: getById rejects.
+    const getById = vi.spyOn(messageService, 'getById').mockRejectedValue(new Error('Message not found'))
+    const update = vi.spyOn(messageService, 'update')
+
+    const handler = getApprovalHandler()
+    const result = await handler(fakeEvent(), {
+      approvalId: 'mcp-approval-1',
+      approved: true,
+      topicId: 'topic-1',
+      anchorId: 'deleted-anchor'
+    })
+
+    // Resolves gracefully through the documented result shape instead of throwing.
+    expect(result).toEqual({ ok: false })
+    expect(getById).toHaveBeenCalledWith('deleted-anchor')
+    expect(update).not.toHaveBeenCalled()
+    expect(dispatch).not.toHaveBeenCalled()
+  })
+
+  it('returns { ok: false } when the IPC payload is invalid (rejected at the boundary)', async () => {
+    const respondToolApproval = vi.fn(() => true)
+    const dispatch = vi.fn()
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
+      if (name === 'AiStreamManager') return { dispatch }
+      return undefined
+    })
+    const getById = vi.spyOn(messageService, 'getById')
+
+    const handler = getApprovalHandler()
+    // Missing `approved` boolean and empty `approvalId` → schema rejects.
+    const result = await handler(fakeEvent(), { approvalId: '' } as never)
+
+    expect(result).toEqual({ ok: false })
+    // Rejected before any registry dispatch or DB read.
+    expect(respondToolApproval).not.toHaveBeenCalled()
+    expect(getById).not.toHaveBeenCalled()
+    expect(dispatch).not.toHaveBeenCalled()
+  })
 })
