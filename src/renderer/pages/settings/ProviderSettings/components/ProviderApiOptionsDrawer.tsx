@@ -1,7 +1,8 @@
 import { Button, Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
-import type { GroqServiceTier, OpenAIServiceTier, Provider, ProviderSettings } from '@shared/data/types/provider'
-import type { OpenAIReasoningSummary, OpenAIVerbosity } from '@shared/types/aiSdk'
+import { cn } from '@renderer/utils'
+import type { Provider, RuntimeApiFeatures } from '@shared/data/types/provider'
+import { isAnthropicSupportedProvider } from '@shared/utils/provider'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,22 +26,6 @@ interface ApiOption {
   help: string
 }
 
-type OpenAIServiceTierOption = {
-  value: NonNullable<OpenAIServiceTier> | 'null' | 'undefined'
-  label: string
-}
-type GroqServiceTierOption = {
-  value: NonNullable<GroqServiceTier> | 'undefined'
-  label: string
-}
-type SummaryTextOption = {
-  value: NonNullable<OpenAIReasoningSummary> | 'undefined' | 'null'
-  label: string
-}
-type VerbosityOption = {
-  value: NonNullable<OpenAIVerbosity> | 'undefined' | 'null'
-  label: string
-}
 const CACHE_TOKEN_THRESHOLD_MAX = 100000
 const CACHE_LAST_N_MAX = 10
 
@@ -143,106 +128,6 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     return items
   }, [openAIOptions, provider, t])
 
-  const openAIServiceTierOptions = useMemo(() => {
-    return [
-      {
-        value: 'undefined',
-        label: t('common.ignore')
-      },
-      {
-        value: 'null',
-        label: t('common.off')
-      },
-      {
-        value: 'auto',
-        label: t('settings.openai.service_tier.auto')
-      },
-      {
-        value: 'default',
-        label: t('settings.openai.service_tier.default')
-      },
-      {
-        value: 'flex',
-        label: t('settings.openai.service_tier.flex')
-      },
-      {
-        value: 'priority',
-        label: t('settings.openai.service_tier.priority')
-      }
-    ] as const satisfies OpenAIServiceTierOption[]
-  }, [t])
-
-  const groqServiceTierOptions = useMemo(() => {
-    return [
-      {
-        value: 'undefined',
-        label: t('common.ignore')
-      },
-      {
-        value: 'auto',
-        label: t('settings.openai.service_tier.auto')
-      },
-      {
-        value: 'on_demand',
-        label: t('settings.openai.service_tier.on_demand')
-      },
-      {
-        value: 'flex',
-        label: t('settings.openai.service_tier.flex')
-      }
-    ] as const satisfies GroqServiceTierOption[]
-  }, [t])
-
-  const summaryTextOptions = useMemo(() => {
-    return [
-      {
-        value: 'undefined',
-        label: t('common.ignore')
-      },
-      {
-        value: 'null',
-        label: t('common.off')
-      },
-      {
-        value: 'auto',
-        label: t('settings.openai.summary_text_mode.auto')
-      },
-      {
-        value: 'detailed',
-        label: t('settings.openai.summary_text_mode.detailed')
-      },
-      {
-        value: 'concise',
-        label: t('settings.openai.summary_text_mode.concise')
-      }
-    ] as const satisfies SummaryTextOption[]
-  }, [t])
-
-  const verbosityOptions = useMemo(() => {
-    return [
-      {
-        value: 'undefined',
-        label: t('common.ignore')
-      },
-      {
-        value: 'null',
-        label: t('common.off')
-      },
-      {
-        value: 'low',
-        label: t('settings.openai.verbosity.low')
-      },
-      {
-        value: 'medium',
-        label: t('settings.openai.verbosity.medium')
-      },
-      {
-        value: 'high',
-        label: t('settings.openai.verbosity.high')
-      }
-    ] as const satisfies VerbosityOption[]
-  }, [t])
-
   const handleSaveError = useCallback(() => {
     window.toast.error(t('settings.provider.save_failed'))
   }, [t])
@@ -256,22 +141,6 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
         apiFeatures: {
           ...provider.apiFeatures,
           [key]: checked
-        }
-      }).catch(handleSaveError)
-    },
-    [handleSaveError, provider, updateProvider]
-  )
-
-  const updateProviderSettings = useCallback(
-    (updates: Partial<ProviderSettings>) => {
-      if (!provider) {
-        return
-      }
-
-      updateProvider({
-        providerSettings: {
-          ...provider.settings,
-          ...updates
         }
       }).catch(handleSaveError)
     },
@@ -336,10 +205,9 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('settings.provider.api.options.label')} />
   }
 
-  const { showProviderValueSettings } = getProviderApiOptionsVisibility(provider)
+  const isSupportAnthropicPromptCache = isAnthropicSupportedProvider(provider)
   const showCacheDetailOptions = effectiveCacheTokenThreshold > 0
   const cacheSystemMessage = cacheControl?.cacheSystemMessage ?? true
-  const showApiFeatureSettings = options.length > 0
 
   return (
     <ProviderSettingsDrawer
