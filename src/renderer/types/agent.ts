@@ -63,6 +63,8 @@ export type BaseAgentForm = {
   description?: string
   instructions?: string
   model: UniqueModelId
+  planModel?: UniqueModelId
+  smallModel?: UniqueModelId
   allowedTools: string[]
   mcps?: string[]
   configuration?: AgentConfiguration

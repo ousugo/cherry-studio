@@ -397,6 +397,8 @@ describe('LibraryPage create flow', () => {
       type: 'claude-code',
       name: 'agent name',
       model: 'provider::model',
+      planModel: 'provider::model',
+      smallModel: 'provider::model',
       description: 'agent description',
       configuration: {
         avatar: '🤖',
