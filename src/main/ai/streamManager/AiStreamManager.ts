@@ -209,7 +209,20 @@ export class AiStreamManager extends BaseService {
    * both see "no live stream" and orphan a row.
    */
   dispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<AiStreamOpenResponse> {
-    return this.dispatchLock.runExclusive(req.topicId, () => dispatchStreamRequest(this, subscriber, req))
+    return this.withDispatchLock(req.topicId, () => dispatchStreamRequest(this, subscriber, req))
+  }
+
+  /**
+   * Run `fn` under the per-topic dispatch lock. The sole accessor of `dispatchLock`,
+   * so every dispatch entry point serialises through one place: `dispatch()` (the chat
+   * `Ai_Stream_Open` + approval-continue paths) and `startAgentSessionRun` (scheduler /
+   * channel-inbound agent-session runs), which can't use `dispatch()` because it carries
+   * extra listeners. Holding the same per-topic lock around their `hasLiveStream →
+   * prepareDispatch → send` window stops two runs on one topic from both seeing "no live
+   * stream" and orphaning a PENDING placeholder.
+   */
+  withDispatchLock<T>(topicId: string, fn: () => Promise<T>): Promise<T> {
+    return this.dispatchLock.runExclusive(topicId, fn)
   }
 
   /**
