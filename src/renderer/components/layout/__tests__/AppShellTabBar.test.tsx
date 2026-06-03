@@ -205,7 +205,7 @@ describe('AppShellTabBar', () => {
     expect(screen.queryAllByTestId('menu-tab.move-to-first')).toHaveLength(1)
   })
 
-  it('marks every tab button as no-drag so Electron does not steal hover or click events', () => {
+  it('keeps tab buttons no-drag while leaving tabbar whitespace draggable', () => {
     const tabs: Tab[] = [
       { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
       { id: 'a', type: 'route', url: '/app/a', title: 'A' },
@@ -229,7 +229,8 @@ describe('AppShellTabBar', () => {
     const normalTab = screen.getByRole('button', { name: 'A' })
     const pinnedTab = screen.getByRole('button', { name: 'P' })
 
-    expect(tabStrip).toHaveClass('nodrag')
+    expect(tabStrip).not.toHaveClass('nodrag')
+    expect(tabStrip).not.toHaveClass('[-webkit-app-region:no-drag]')
     expect(chatTab).toHaveClass('nodrag')
     expect(normalTab).toHaveClass('nodrag')
     expect(pinnedTab).toHaveClass('nodrag')

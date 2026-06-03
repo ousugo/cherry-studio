@@ -17,7 +17,7 @@ export interface ConversationNavigation {
    */
   focusExistingTab: (key: string, options?: { excludeTabId?: string }) => boolean
   /** Focus the tab showing `key`, else open a new base-route tab with instance metadata. */
-  openConversationTab: (key: string, title?: string) => string | undefined
+  openConversationTab: (key: string, title?: string, options?: { forceNew?: boolean }) => string | undefined
 }
 
 /**
@@ -58,9 +58,9 @@ export function useConversationNavigation(appId: SidebarIcon): ConversationNavig
       return false
     }
 
-    const openConversationTab: ConversationNavigation['openConversationTab'] = (key, title) => {
+    const openConversationTab: ConversationNavigation['openConversationTab'] = (key, title, options) => {
       if (!tabs || !app || !instanceKey) return
-      if (focusExistingTab(key)) return
+      if (!options?.forceNew && focusExistingTab(key)) return
       const metadata = buildSidebarAppOpenMetadata(app, key)
       const openedId = tabs.openTab(app.routePrefix, { forceNew: true, title, ...(metadata && { metadata }) })
       if (openedId && (appId === 'assistants' || appId === 'agents')) {

@@ -44,8 +44,8 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { Bot, ListFilter, MoreHorizontal, PinIcon, SquareArrowOutUpRight, SquarePen } from 'lucide-react'
-import type { RefObject } from 'react'
+import { Bot, ListFilter, MoreHorizontal, PinIcon, SquarePen, Trash2, XIcon } from 'lucide-react'
+import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -318,6 +318,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     refetch: refreshAssistants
   } = useAssistantsApi({ enabled: isAssistantDisplayMode })
   const listRef = useRef<HTMLDivElement>(null)
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const [deletingAssistantGroupId, setDeletingAssistantGroupId] = useState<string | null>(null)
   const deletingAssistantGroupIdRef = useRef<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -509,6 +511,42 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     [activeTopic.id, removeTopic, setActiveTopic, t, topics]
   )
 
+  const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
+    event.stopPropagation()
+
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current)
+    }
+
+    setDeletingTopicId(topicId)
+    deleteTimerRef.current = setTimeout(() => {
+      deleteTimerRef.current = null
+      setDeletingTopicId(null)
+    }, 2000)
+  }, [])
+
+  const handleConfirmDeleteTopic = useCallback(
+    async (topic: Topic, event?: MouseEvent) => {
+      event?.stopPropagation()
+      if (deleteTimerRef.current) {
+        clearTimeout(deleteTimerRef.current)
+        deleteTimerRef.current = null
+      }
+      setDeletingTopicId(null)
+      await handleDeleteTopicFromMenu(topic)
+    },
+    [handleDeleteTopicFromMenu]
+  )
+
+  useEffect(
+    () => () => {
+      if (deleteTimerRef.current) {
+        clearTimeout(deleteTimerRef.current)
+      }
+    },
+    []
+  )
+
   const handleClearMessages = useCallback((topic: Topic) => {
     void EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
   }, [])
@@ -628,7 +666,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   }, [])
   const openTopicInNewTab = useCallback(
     (topic: Topic) => {
-      conversationNav.openConversationTab(topic.id, topic.name || t('common.unnamed'))
+      conversationNav.openConversationTab(topic.id, topic.name || t('common.unnamed'), { forceNew: true })
     },
     [conversationNav, t]
   )
@@ -1039,6 +1077,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
 
         <TopicListBody
           activeTopic={activeTopic}
+          deletingTopicId={deletingTopicId}
           displayMode={displayMode}
           exportMenuOptions={exportMenuOptions as TopicExportMenuOptions}
           isNewlyRenamed={isNewlyRenamed}
@@ -1047,6 +1086,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
           notesPath={notesPath}
           onAutoRename={handleAutoRename}
           onClearMessages={handleClearMessages}
+          onConfirmDelete={handleConfirmDeleteTopic}
+          onDeleteClick={handleDeleteTopicClick}
           onDeleteFromMenu={handleDeleteTopicFromMenu}
           onOpenInNewTab={tabs ? openTopicInNewTab : undefined}
           onPinTopic={handlePinTopic}
@@ -1145,6 +1186,7 @@ const useTopicListStreamStatus = (topicId: string): TopicStreamState => {
 
 interface TopicListBodyProps {
   activeTopic: Topic
+  deletingTopicId: string | null
   displayMode: TopicDisplayMode
   exportMenuOptions: TopicExportMenuOptions
   isNewlyRenamed: (topicId: string) => boolean
@@ -1153,6 +1195,8 @@ interface TopicListBodyProps {
   notesPath: string
   onAutoRename: (topic: Topic) => Promise<void>
   onClearMessages: (topic: Topic) => void
+  onConfirmDelete: (topic: Topic, event?: MouseEvent) => Promise<void>
+  onDeleteClick: (topicId: string, event: MouseEvent) => void
   onDeleteFromMenu: (topic: Topic) => Promise<void>
   onOpenInNewTab?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
@@ -1189,6 +1233,7 @@ type TopicRowProps = TopicRowWithStatusProps
 
 function TopicRow({
   activeTopic,
+  deletingTopicId,
   displayMode,
   exportMenuOptions,
   isNewlyRenamed,
@@ -1196,6 +1241,8 @@ function TopicRow({
   notesPath,
   onAutoRename,
   onClearMessages,
+  onConfirmDelete,
+  onDeleteClick,
   onDeleteFromMenu,
   onOpenInNewTab,
   onPinTopic,
@@ -1219,11 +1266,10 @@ function TopicRow({
   const hasTopicStreamIndicator = !isActive && (isTopicStreamPending || isTopicStreamFulfilled)
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
-  // The active topic is already shown in this tab — hide "open in new tab" on it.
-  const showOpenInNewTabAction = !!onOpenInNewTab && !isActive
+  const isConfirmingDeletion = deletingTopicId === topic.id
+  const showDeleteOrStreamAction = hasTopicStreamIndicator || !topic.pinned
   // Reserve right-padding for the title sized to the hover actions and stream indicator.
-  const trailingActionCount =
-    (showPinAction ? 1 : 0) + (showOpenInNewTabAction ? 1 : 0) + (hasTopicStreamIndicator ? 1 : 0)
+  const trailingActionCount = (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
   const topicTrailingActionPaddingClassName =
     trailingActionCount >= 3
       ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
@@ -1280,7 +1326,7 @@ function TopicRow({
           {topicName}
         </ResourceList.ItemTitle>
       )}
-      <ResourceList.ItemActions active={hasTopicStreamIndicator}>
+      <ResourceList.ItemActions active={hasTopicStreamIndicator || isConfirmingDeletion}>
         {showPinAction && (
           <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
             <ResourceList.ItemAction
@@ -1294,21 +1340,28 @@ function TopicRow({
             </ResourceList.ItemAction>
           </Tooltip>
         )}
-        {showOpenInNewTabAction && (
-          <Tooltip title={t('common.open_in_new_tab')} delay={500}>
+        {hasTopicStreamIndicator ? (
+          <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
+        ) : !topic.pinned ? (
+          <Tooltip title={t('common.delete')} delay={500}>
             <ResourceList.ItemAction
-              aria-label={t('common.open_in_new_tab')}
+              aria-label={t('common.delete')}
+              data-deleting={isConfirmingDeletion}
               onClick={(event) => {
-                event.stopPropagation()
-                onOpenInNewTab?.(topic)
+                if (event.ctrlKey || event.metaKey || isConfirmingDeletion) {
+                  void onConfirmDelete(topic, event)
+                  return
+                }
+                onDeleteClick(topic.id, event)
               }}>
-              <SquareArrowOutUpRight size={13} className="!size-[13px]" />
+              {isConfirmingDeletion ? (
+                <Trash2 size={14} className="!size-[14px] text-destructive" />
+              ) : (
+                <XIcon size={14} className="!size-[14px]" />
+              )}
             </ResourceList.ItemAction>
           </Tooltip>
-        )}
-        {hasTopicStreamIndicator && (
-          <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
-        )}
+        ) : null}
       </ResourceList.ItemActions>
     </ResourceList.Item>
   )

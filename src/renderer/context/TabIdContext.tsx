@@ -79,6 +79,12 @@ export function useTabSelfMetadata({ title, emoji, instanceAppId, instanceKey }:
       appId: instanceAppId,
       key: instanceKey
     })
+    if (currentTab.id === 'home') {
+      if (isMetadataEqual(currentTab.metadata, metadata)) return
+      updateTab(currentTabId, { metadata })
+      return
+    }
+
     if (currentTab.title === title && currentTab.icon === icon && isMetadataEqual(currentTab.metadata, metadata)) {
       return
     }

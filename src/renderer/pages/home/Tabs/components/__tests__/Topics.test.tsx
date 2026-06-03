@@ -944,6 +944,26 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
   })
 
+  it('requires a second inline click before deleting a topic', async () => {
+    const { getByText } = renderTopicList()
+
+    const topicRow = getByText('Gamma topic').closest('[role="option"]')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
+    expect(deleteButton).toHaveAttribute('data-deleting', 'true')
+
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-c'))
+  })
+
   it('keeps topic rows compact and only renders the title field in the sidebar list', () => {
     renderTopicList()
 

@@ -488,10 +488,10 @@ export const AppShellTabBar = ({
           rightPaddingClass,
           isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
         )}>
-        {/* Keep the whole tab strip no-drag so gaps between tabs don't become window drag handles. */}
+        {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
           data-testid="app-shell-tab-strip"
-          className="nodrag flex flex-1 items-center gap-1 overflow-x-auto px-1 [-webkit-app-region:no-drag] [&::-webkit-scrollbar]:hidden">
+          className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">

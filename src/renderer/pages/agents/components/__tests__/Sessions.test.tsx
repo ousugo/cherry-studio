@@ -1428,6 +1428,26 @@ describe('Sessions', () => {
     expect(within(pinnedRow as HTMLElement).queryByLabelText('Delete')).not.toBeInTheDocument()
   })
 
+  it('requires a second inline click before deleting a session', async () => {
+    render(<SessionsForTest />)
+
+    const sessionRow = screen.getByText('Alpha session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
+    expect(deleteButton).toHaveAttribute('data-deleting', 'true')
+
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a'))
+  })
+
   it('subscribes stream status only for visible session rows', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     preferenceMocks.values.set(SESSION_GROUP_EXPANSION_KEY, {
