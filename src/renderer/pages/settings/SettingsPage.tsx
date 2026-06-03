@@ -21,7 +21,6 @@ import {
   Search,
   Server,
   Settings2,
-  Sparkles,
   TextCursorInput
 } from 'lucide-react'
 import type { FC } from 'react'
@@ -126,14 +125,6 @@ const SettingsPage: FC = () => {
                 label={t('settings.plugins.title')}
                 active={isActive('/settings/plugins')}
                 onClick={() => go('/settings/plugins')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Sparkles />}
-                label={t('settings.skills.title')}
-                active={isActive('/settings/skills')}
-                onClick={() => go('/settings/skills')}
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.appSettings')}</div>
