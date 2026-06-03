@@ -263,7 +263,7 @@ describe('CommandContextMenu', () => {
     })
   })
 
-  it('renders and selects extra items in cherry mode', () => {
+  it('renders and selects extra items in cherry mode', async () => {
     const onSelect = vi.fn()
     preferenceValues['menu.presentation_mode'] = 'cherry'
 
@@ -272,7 +272,7 @@ describe('CommandContextMenu', () => {
     expect(screen.getByText('Web Search')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Web Search/ }))
 
-    expect(onSelect).toHaveBeenCalledOnce()
+    await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
   })
 
   it('renders extra item shortcutCommand in cherry mode', () => {
@@ -375,7 +375,7 @@ describe('CommandContextMenu', () => {
     expect(await screen.findByText('Async Tool')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Async Tool/ }))
 
-    expect(onSelect).toHaveBeenCalledOnce()
+    await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
   })
 
   it('uses extra items as pending lazy cherry items by default', async () => {

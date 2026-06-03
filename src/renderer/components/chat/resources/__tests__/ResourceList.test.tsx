@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type ReactNode, useMemo, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -798,7 +798,7 @@ describe('ResourceList', () => {
     expect(screen.getByLabelText('Rename Alpha')).toBeInTheDocument()
   })
 
-  it('defers resolved actions until the shared context menu is recreated', () => {
+  it('defers resolved actions until the shared context menu is recreated', async () => {
     const onAction = vi.fn()
     let deferredAction: FrameRequestCallback | undefined
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -844,6 +844,10 @@ describe('ResourceList', () => {
 
       fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0])
       expect(onAction).not.toHaveBeenCalled()
+
+      await act(async () => {
+        await Promise.resolve()
+      })
 
       act(() => {
         deferredAction?.(0)
@@ -1481,7 +1485,7 @@ describe('ResourceList', () => {
     expect(screen.queryByText('Group Context Menu')).not.toBeInTheDocument()
   })
 
-  it('routes group header context menu items to the right group', () => {
+  it('routes group header context menu items to the right group', async () => {
     const onAction = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
 
@@ -1509,7 +1513,7 @@ describe('ResourceList', () => {
 
     fireEvent.contextMenu(screen.getByRole('button', { name: 'topic' }))
     fireEvent.click(screen.getByRole('button', { name: 'Run topic' }))
-    expect(onAction).toHaveBeenCalledWith('topic')
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith('topic'))
   })
 
   it('auto-hides the shared list viewport scrollbar after scrolling stops', () => {

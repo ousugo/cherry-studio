@@ -211,10 +211,12 @@ export function useResolvedCommandMenu(location: MenuLocation): ResolvedMenuMode
 function CommandMenuItemView({
   item,
   onExecute,
+  onSelectItem,
   renderIcon
 }: {
   item: ResolvedMenuItem<CommandId>
   onExecute: (command: CommandId) => void
+  onSelectItem?: (action: () => void) => void
   renderIcon?: CommandIconRenderer
 }): React.ReactNode {
   if (item.type === 'separator') {
@@ -233,6 +235,7 @@ function CommandMenuItemView({
               key={`${child.type}-${index}`}
               item={child}
               onExecute={onExecute}
+              onSelectItem={onSelectItem}
               renderIcon={renderIcon}
             />
           ))}
@@ -252,7 +255,7 @@ function CommandMenuItemView({
       <ContextMenuCheckboxItem
         checked={item.checked}
         disabled={!item.enabled}
-        onCheckedChange={() => onExecute(item.command)}>
+        onCheckedChange={() => (onSelectItem ? onSelectItem(() => onExecute(item.command)) : onExecute(item.command))}>
         {content}
       </ContextMenuCheckboxItem>
     )
@@ -262,13 +265,19 @@ function CommandMenuItemView({
     <ContextMenuItem
       disabled={!item.enabled}
       variant={item.destructive ? 'destructive' : 'default'}
-      onSelect={() => onExecute(item.command)}>
+      onSelect={() => (onSelectItem ? onSelectItem(() => onExecute(item.command)) : onExecute(item.command))}>
       {content}
     </ContextMenuItem>
   )
 }
 
-function CommandContextMenuExtraItemView({ item }: { item: CommandContextMenuExtraItem }): React.ReactNode {
+function CommandContextMenuExtraItemView({
+  item,
+  onSelectItem
+}: {
+  item: CommandContextMenuExtraItem
+  onSelectItem?: (action: () => void) => void
+}): React.ReactNode {
   if (item.type === 'separator') {
     return <ContextMenuSeparator />
   }
@@ -281,7 +290,7 @@ function CommandContextMenuExtraItemView({ item }: { item: CommandContextMenuExt
         </ContextMenuSubTrigger>
         <ContextMenuSubContent>
           {item.children.map((child, index) => (
-            <CommandContextMenuExtraItemView key={`${child.type}-${index}`} item={child} />
+            <CommandContextMenuExtraItemView key={`${child.type}-${index}`} item={child} onSelectItem={onSelectItem} />
           ))}
         </ContextMenuSubContent>
       </ContextMenuSub>
@@ -292,7 +301,7 @@ function CommandContextMenuExtraItemView({ item }: { item: CommandContextMenuExt
     <ContextMenuItem
       disabled={item.enabled === false}
       variant={item.destructive ? 'destructive' : 'default'}
-      onSelect={item.onSelect}>
+      onSelect={() => (onSelectItem ? onSelectItem(item.onSelect) : item.onSelect())}>
       <ContextMenuItemContent icon={item.icon} badge={item.badge} shortcut={item.shortcutLabel || undefined}>
         {item.label}
       </ContextMenuItemContent>
@@ -354,6 +363,7 @@ export function CommandContextMenu({
   const context = useCommandContextReader()
   const [shortcutPreferences] = useMultiplePreferences(shortcutPreferenceKeys)
   const [resolvedExtraItems, setResolvedExtraItems] = useState<readonly CommandContextMenuExtraItem[] | null>(null)
+  const [cherryMenuKey, setCherryMenuKey] = useState(0)
   const extraItemsRequestIdRef = useRef(0)
   const runtime = useCommandRuntime()
   const model = useResolvedCommandMenu(location)
@@ -471,6 +481,15 @@ export function CommandContextMenu({
     [getExtraItems, onOpenChange]
   )
 
+  const handleCherrySelectItem = useCallback(
+    (action: () => void) => {
+      handleCherryOpenChange(false)
+      setCherryMenuKey((key) => key + 1)
+      queueMicrotask(action)
+    },
+    [handleCherryOpenChange]
+  )
+
   const handleNativeContextMenu = useCallback(
     (event: React.MouseEvent) => {
       if (mode !== 'native') {
@@ -551,19 +570,24 @@ export function CommandContextMenu({
   }
 
   return (
-    <ContextMenu onOpenChange={handleCherryOpenChange}>
+    <ContextMenu key={cherryMenuKey} onOpenChange={handleCherryOpenChange}>
       <ContextMenuTrigger asChild onContextMenu={handleCherryContextMenu}>
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent className={contentClassName}>
         {combinedItems.map((item, index) =>
           isExtraMenuItem(item) ? (
-            <CommandContextMenuExtraItemView key={`extra-${item.id}`} item={item} />
+            <CommandContextMenuExtraItemView
+              key={`extra-${item.id}`}
+              item={item}
+              onSelectItem={handleCherrySelectItem}
+            />
           ) : (
             <CommandMenuItemView
               key={`${item.type}-${index}`}
               item={item}
               onExecute={runtime.execute}
+              onSelectItem={handleCherrySelectItem}
               renderIcon={renderIcon}
             />
           )
@@ -576,10 +600,12 @@ export function CommandContextMenu({
 function CommandDropdownMenuItemView({
   item,
   onExecute,
+  onSelectItem,
   renderIcon
 }: {
   item: ResolvedMenuItem<CommandId>
   onExecute: (command: CommandId) => void
+  onSelectItem?: (action: () => void) => void
   renderIcon?: CommandIconRenderer
 }): React.ReactNode {
   if (item.type === 'separator') {
@@ -598,6 +624,7 @@ function CommandDropdownMenuItemView({
               key={`${child.type}-${index}`}
               item={child}
               onExecute={onExecute}
+              onSelectItem={onSelectItem}
               renderIcon={renderIcon}
             />
           ))}
@@ -617,7 +644,7 @@ function CommandDropdownMenuItemView({
       <DropdownMenuCheckboxItem
         checked={item.checked}
         disabled={!item.enabled}
-        onCheckedChange={() => onExecute(item.command)}>
+        onCheckedChange={() => (onSelectItem ? onSelectItem(() => onExecute(item.command)) : onExecute(item.command))}>
         {content}
       </DropdownMenuCheckboxItem>
     )
@@ -627,13 +654,19 @@ function CommandDropdownMenuItemView({
     <DropdownMenuItem
       disabled={!item.enabled}
       variant={item.destructive ? 'destructive' : 'default'}
-      onSelect={() => onExecute(item.command)}>
+      onSelect={() => (onSelectItem ? onSelectItem(() => onExecute(item.command)) : onExecute(item.command))}>
       {content}
     </DropdownMenuItem>
   )
 }
 
-function CommandDropdownExtraItemView({ item }: { item: CommandContextMenuExtraItem }): React.ReactNode {
+function CommandDropdownExtraItemView({
+  item,
+  onSelectItem
+}: {
+  item: CommandContextMenuExtraItem
+  onSelectItem?: (action: () => void) => void
+}): React.ReactNode {
   if (item.type === 'separator') {
     return <DropdownMenuSeparator />
   }
@@ -646,7 +679,7 @@ function CommandDropdownExtraItemView({ item }: { item: CommandContextMenuExtraI
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
           {item.children.map((child, index) => (
-            <CommandDropdownExtraItemView key={`${child.type}-${index}`} item={child} />
+            <CommandDropdownExtraItemView key={`${child.type}-${index}`} item={child} onSelectItem={onSelectItem} />
           ))}
         </DropdownMenuSubContent>
       </DropdownMenuSub>
@@ -657,7 +690,7 @@ function CommandDropdownExtraItemView({ item }: { item: CommandContextMenuExtraI
     <DropdownMenuItem
       disabled={item.enabled === false}
       variant={item.destructive ? 'destructive' : 'default'}
-      onSelect={item.onSelect}>
+      onSelect={() => (onSelectItem ? onSelectItem(item.onSelect) : item.onSelect())}>
       <ContextMenuItemContent icon={item.icon} badge={item.badge} shortcut={item.shortcutLabel || undefined}>
         {item.label}
       </ContextMenuItemContent>
@@ -704,6 +737,8 @@ export function CommandPopupMenu({
   const runtime = useCommandRuntime()
   const model = useResolvedCommandMenu(location)
   const mode = resolveMenuPresentationMode(location, preferredMode)
+  const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false)
+  const currentOpen = open ?? internalOpen
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
   const resolveShortcutLabel = useCallback(
     (command: CommandId) => {
@@ -760,6 +795,24 @@ export function CommandPopupMenu({
     [combinedItems, decoratedExtraItems, location, mode, runtime]
   )
 
+  const handleCherryOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (open === undefined) {
+        setInternalOpen(nextOpen)
+      }
+      onOpenChange?.(nextOpen)
+    },
+    [onOpenChange, open]
+  )
+
+  const handleCherrySelectItem = useCallback(
+    (action: () => void) => {
+      handleCherryOpenChange(false)
+      queueMicrotask(action)
+    },
+    [handleCherryOpenChange]
+  )
+
   if (disabled) {
     return <>{children}</>
   }
@@ -783,17 +836,18 @@ export function CommandPopupMenu({
   }
 
   return (
-    <DropdownMenu defaultOpen={defaultOpen} {...(open !== undefined ? { open, onOpenChange } : { onOpenChange })}>
+    <DropdownMenu open={currentOpen} onOpenChange={handleCherryOpenChange}>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
       <DropdownMenuContent align={align} side={side} sideOffset={sideOffset} className={contentClassName}>
         {combinedItems.map((item, index) =>
           isExtraMenuItem(item) ? (
-            <CommandDropdownExtraItemView key={`extra-${item.id}`} item={item} />
+            <CommandDropdownExtraItemView key={`extra-${item.id}`} item={item} onSelectItem={handleCherrySelectItem} />
           ) : (
             <CommandDropdownMenuItemView
               key={`${item.type}-${index}`}
               item={item}
               onExecute={runtime.execute}
+              onSelectItem={handleCherrySelectItem}
               renderIcon={renderIcon}
             />
           )
