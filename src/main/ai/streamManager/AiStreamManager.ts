@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { messageService } from '@main/data/services/MessageService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
@@ -23,6 +24,7 @@ import { isToolUIPart, type UIMessageChunk } from 'ai'
 import type { AiStreamRequest } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest } from './context'
+import { KeyedMutex } from './KeyedMutex'
 import { createChatStreamLifecycle, promptStreamLifecycle, type StreamLifecycle } from './lifecycle'
 import { WebContentsListener } from './listeners/WebContentsListener'
 import { pipeStreamLoop } from './pipeStreamLoop'
@@ -195,6 +197,9 @@ function replayApprovalDecisionsOnSnapshot(
 @ServicePhase(Phase.WhenReady)
 export class AiStreamManager extends BaseService {
   private readonly activeStreams = new Map<string, ActiveStream>()
+  /** Serialises `prepareDispatch → send` per topic so concurrent `Ai_Stream_Open` can't race
+   *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
+  private readonly dispatchLock = new KeyedMutex()
   private readonly config: AiStreamManagerConfig
   private nextStreamTurnSequence = 0
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
@@ -207,9 +212,16 @@ export class AiStreamManager extends BaseService {
   }
 
   protected async onInit(): Promise<void> {
+    // Resolve crash-orphaned PENDING rows before any new stream can be opened — at boot the
+    // in-memory registry is empty, so every still-`pending` assistant row is stale.
+    await this.reconcileStalePendingMessages()
+
     this.ipcHandle(IpcChannel.Ai_Stream_Open, async (event, req: AiStreamOpenRequest) => {
       const subscriber = new WebContentsListener(event.sender, req.topicId)
-      return dispatchStreamRequest(this, subscriber, req)
+      // Serialise per topic: `prepareDispatch` is async and writes a PENDING placeholder off a
+      // `hasLiveStream` snapshot; without this, two concurrent opens on one topic could both
+      // see "no live stream" and orphan a row.
+      return this.dispatchLock.runExclusive(req.topicId, () => dispatchStreamRequest(this, subscriber, req))
     })
 
     this.ipcHandle(IpcChannel.Ai_Stream_Attach, (event, req: AiStreamAttachRequest) => {
@@ -225,6 +237,25 @@ export class AiStreamManager extends BaseService {
     })
 
     logger.info('AiStreamManager initialized')
+  }
+
+  /**
+   * Resolve assistant rows a prior main-process crash left stuck in `pending`. The streaming
+   * loop persists a terminal status only when it settles; if the process died mid-stream the
+   * row stays `pending` forever and the UI shows a frozen "thinking" bubble. Runs once at boot,
+   * before the open handler is registered, so it can never race a freshly created placeholder.
+   */
+  private async reconcileStalePendingMessages(): Promise<void> {
+    try {
+      const stale = await messageService.findPendingAssistantMessages()
+      if (stale.length === 0) return
+      logger.info('Reconciling crash-orphaned pending assistant messages', { count: stale.length })
+      for (const message of stale) {
+        await messageService.update(message.id, { status: 'error' })
+      }
+    } catch (error) {
+      logger.error('Failed to reconcile stale pending messages', { error })
+    }
   }
 
   /**

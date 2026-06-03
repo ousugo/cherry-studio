@@ -30,7 +30,7 @@ unambiguous):
 | Source | Name pattern | Example |
 |---|---|---|
 | Built-in | `<namespace>__<verb>` | `web__search`, `kb__search` |
-| MCP | `mcp__<serverId>__<toolName>` | `mcp__gmail__send_message` |
+| MCP | `mcp__<camelCase(server)>__<camelCase(tool)>` | `mcp__gmail__sendMessage` |
 | Meta | `tool_<verb>` | `tool_search`, `tool_invoke`, `tool_inspect` (`tool_exec` is defined but not injected — see below) |
 
 ## Built-in tools
@@ -55,7 +55,7 @@ tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
 
 `src/main/ai/tools/adapters/aiSdk/mcp/`:
 
-- `resolveAssistantMcpTools` — assistant's enabled MCP servers + per-tool
+- `resolveAssistantMcpToolIds` — assistant's enabled MCP servers + per-tool
   disable list → set of tool ids.
 - `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — calls
   `listTools` on each MCP server that owns at least one selected tool,
@@ -99,6 +99,16 @@ The injected three are added to the tool set by `applyDeferExposition` when
   `tool_invoke`, and returns the entries the system-prompt's
   `<DEFERRED_TOOLS>` section needs to enumerate (so the model knows what
   namespaces exist).
+
+**Approval-gated tools are never deferred.** A force-prompt MCP tool is registered
+with `defer: 'never'` — `mcp/mcpTools.ts` reads `isMcpToolForcePromptBySource` once
+to drive both `defer` and `needsApproval` — so it stays inline and the SDK's native
+approval gate fires on it. Deferring it would drop it from the SDK tool-set, so the
+gate would never fire and it would be reachable only through `tool_invoke` with no
+approval card. As a runtime backstop the `tool_invoke` / `tool_exec` meta-tools also
+call `isApprovalGated` at execution time and refuse a gated tool (covering the
+`registry.getByName(any-name)` vector), steering the model to call it inline. See
+[Tool Approval](./tool-approval.md).
 
 `tool_exec` is **not injected** by `applyDeferExposition` — there is no
 `metaTools.exec` flag. The injection site (`applyDeferExposition.ts:50-53`)

@@ -74,6 +74,18 @@ describe('syncMcpToolsToRegistry', () => {
     expect(reg.getByName('mcp__s1__a')?.defer).toBe('auto')
   })
 
+  it('marks a force-prompt (approval-gated) tool defer:never so it stays inline for the SDK gate', async () => {
+    const reg = new ToolRegistry()
+    // Server disables auto-approve for tool 'a' (force-prompt); 'b' stays auto-approve.
+    list.mockResolvedValue({ items: [activeServer('s1', ['a'])] })
+    listTools.mockResolvedValue([mcpTool('s1', 'a'), mcpTool('s1', 'b')])
+
+    await syncMcpToolsToRegistry(reg)
+
+    expect(reg.getByName('mcp__s1__a')?.defer).toBe('never')
+    expect(reg.getByName('mcp__s1__b')?.defer).toBe('auto')
+  })
+
   it('deregisters MCP entries no longer present in the snapshot', async () => {
     const reg = new ToolRegistry()
     // Stale entry from an earlier sync — server got removed

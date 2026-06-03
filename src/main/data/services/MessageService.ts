@@ -681,6 +681,22 @@ export class MessageService {
     return rowToMessage(row)
   }
 
+  /**
+   * Assistant rows still in `pending`. Used at boot to reconcile turns a prior main-process
+   * crash left stuck — the streaming loop never reached its terminal write, and the in-memory
+   * stream registry is empty after a restart, so nothing else would resolve them.
+   */
+  async findPendingAssistantMessages(): Promise<Message[]> {
+    const db = application.get('DbService').getDb()
+    const rows = await db
+      .select()
+      .from(messageTable)
+      .where(
+        and(eq(messageTable.role, 'assistant'), eq(messageTable.status, 'pending'), isNull(messageTable.deletedAt))
+      )
+    return rows.map(rowToMessage)
+  }
+
   async search(query: SearchMessagesQueryParams): Promise<SearchMessagesResponse> {
     const terms = splitKeywordsToTerms(query.q)
     if (terms.length === 0) return { items: [] }

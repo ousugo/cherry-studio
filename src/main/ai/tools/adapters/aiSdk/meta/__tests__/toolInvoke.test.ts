@@ -86,4 +86,25 @@ describe('tool_invoke meta-tool', () => {
     const tool = createToolInvokeTool(reg)
     await expect(callInvoke(tool, { name: 'inert' })).rejects.toThrow(/no execute handler/)
   })
+
+  it('refuses an approval-gated tool and does not run its execute', async () => {
+    innerExecute.mockReset().mockResolvedValue('ok')
+    const reg = new ToolRegistry()
+    reg.register({
+      name: 'mcp__s1__danger',
+      namespace: 'mcp:s1',
+      description: 'gated',
+      defer: 'auto',
+      tool: {
+        type: 'function',
+        description: 'gated',
+        inputSchema: { type: 'object' } as unknown as Tool['inputSchema'],
+        needsApproval: async () => true,
+        execute: innerExecute
+      } as Tool
+    })
+    const tool = createToolInvokeTool(reg)
+    await expect(callInvoke(tool, { name: 'mcp__s1__danger', params: {} })).rejects.toThrow(/requires user approval/)
+    expect(innerExecute).not.toHaveBeenCalled()
+  })
 })

@@ -37,6 +37,10 @@ export function applyDeferExposition(
     .map((name) => registry.getByName(name))
     .filter((e): e is NonNullable<typeof e> => e !== undefined)
 
+  // Approval-gated tools are kept out of the deferred set at their source: each entry carries
+  // `defer: 'never'` when force-prompt (see `mcp/mcpTools.ts`), so the SDK's native gate fires on
+  // the inline tool. `tool_invoke` / `tool_exec` still guard at execution time as the runtime
+  // backstop for the `registry.getByName(any-name)` vector.
   const { deferredNames } = shouldDefer(candidateEntries, contextWindow)
   if (deferredNames.size === 0) return { tools, deferredEntries: [] }
 

@@ -55,6 +55,17 @@ export async function dispatchStreamRequest(
 
   logger.debug('Dispatching stream request', { topicId: req.topicId, provider: provider.name })
 
+  // Steer a live chat turn by abort+restart. This MUST run before `prepareDispatch`:
+  // `abortAndAwait` settles the running turn and persists its partial as `paused`, so the
+  // history `prepareDispatch` reads from the DB includes the text the model was mid-producing.
+  // Agent sessions are not aborted (they enqueue a follow-up onto `pendingTurns`), so their
+  // liveness must still be observed by `prepareDispatch` below.
+  if (manager.hasLiveStream(req.topicId) && !isAgentSessionTopic(req.topicId)) {
+    await manager.abortAndAwait(req.topicId, 'steer-restart')
+  }
+
+  // Re-snapshot after the abort: chat is now evicted (false → fresh start); an agent-session
+  // stream is untouched (still true → enqueue/inject path).
   const hasLiveStream = manager.hasLiveStream(req.topicId)
   const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
     if (isAgentSessionWorkspaceError(error)) {
@@ -69,10 +80,6 @@ export async function dispatchStreamRequest(
   })
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
-  }
-
-  if (hasLiveStream && !isAgentSessionTopic(req.topicId)) {
-    await manager.abortAndAwait(req.topicId, 'steer-restart')
   }
 
   const result = manager.send({

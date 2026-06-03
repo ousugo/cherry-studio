@@ -129,7 +129,12 @@ export class McpCatalogService extends BaseService {
           serverName: server.name,
           type: 'mcp'
         }
-        logger.debug('Listing tool', { serverId: server.id, serverName: server.name, tool: serverTool })
+        logger.debug('Listing tool', {
+          serverId: server.id,
+          serverName: server.name,
+          toolName: tool.name,
+          toolId: serverTool.id
+        })
         return serverTool
       })
     } catch (error: unknown) {

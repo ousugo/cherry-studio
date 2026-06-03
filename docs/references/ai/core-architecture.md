@@ -41,16 +41,16 @@ each subsystem.
 │      listeners + executions                                          │
 │    runs N StreamExecution loops, fan-out per chunk to listeners       │
 │                                                                      │
-│  StreamExecution                                                     │
-│    Agent.stream(buildAgentParams(...))                                │
-│      hooks: composeHooks(observers + features + caller)               │
-│      tools: registry.selectActive + applyDeferExposition              │
+│  StreamExecution → runExecutionLoop → AiService.streamText(req,signal)│
+│    buildAgentParams: registry.selectActive + applyDeferExposition     │
+│    new Agent({tools, hookParts}) — composeHooks runs inside Agent     │
+│    → agent.stream(messages, signal)                                   │
 │    pipeStreamLoop tees:                                              │
 │      • broadcast → WebContents / SSE / channel-adapter / persistence │
 │      • readUIMessageStream → CherryUIMessage snapshot                │
 │                                                                      │
 │  Terminal listeners:                                                 │
-│    PersistenceListener → MessageService / TemporaryChat / Agent / Translate
+│    PersistenceListener → MessageService / TemporaryChat / Translation
 │    WebContentsListener  → wc.send(Ai_StreamDone)                      │
 │    ChannelAdapterListener → adapter.onStreamComplete                  │
 │    SseListener          → res.write('[DONE]')                         │
@@ -84,10 +84,14 @@ each subsystem.
      ignored (the message was already enqueued on the session's `pendingTurns`).
    - **no live stream**: `send()` **starts** — evict any grace-period stream,
      create an `ActiveStream`, launch one `StreamExecution` per model.
-7. Each `StreamExecution` calls `Agent.stream(buildAgentParams(...))`.
-   `Agent.stream` opens AI SDK's stream and yields `UIMessageChunk`s.
-   Agent-session runtime requests skip the generic agent loop here:
-   `AiService.streamText()` calls
+7. Each `StreamExecution`'s `runExecutionLoop` calls
+   `AiService.streamText(request, signal)`, which builds params
+   (`buildAgentParamsFor → buildAgentParams`: `registry.selectActive` +
+   `applyDeferExposition` + per-feature hooks), constructs an `Agent`
+   (`composeHooks` folds observers + features + caller inside `Agent`), and
+   calls `agent.stream(messages, signal)` — which opens AI SDK's stream and
+   yields `UIMessageChunk`s. Agent-session runtime requests skip the generic
+   agent loop here: `AiService.streamText()` calls
    `AgentSessionRuntimeService.openTurnStream()` so the registered driver
    can own the concrete agent runtime.
 8. `pipeStreamLoop` reads the chunk stream once, tees: broadcast to

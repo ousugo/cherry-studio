@@ -129,7 +129,7 @@ export function buildCapabilityProviderOptions(
   actualProvider: Provider,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, Record<string, JSONValue>> {
-  const rawProviderId = getAiSdkProviderId(actualProvider)
+  const rawProviderId = getAiSdkProviderId(actualProvider, model)
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model, actualProvider)
 

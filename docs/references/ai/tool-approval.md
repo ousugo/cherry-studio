@@ -26,38 +26,21 @@ persists, and resumes the stream.
    `approved`, optional `reason` / `updatedInput`, `topicId`, `anchorId`.
 
 4. **Main applies** — `AiService`'s `Ai_ToolApproval_Respond` handler
-   resolves the decision in transport order, only touching the DB when no
-   live runtime owns the held tool:
-   - **Live stream offer**: when `topicId` is present, the decision is
-     handed to `AiStreamManager.applyApprovalDecision` so the in-flight
-     stream sees it immediately.
-   - **Claude-Agent fast-path**: hands the decision to
-     `AgentSessionRuntimeService.respondToolApproval`, which resolves the
-     live `canUseTool` promise so the existing stream proceeds. When a live
-     registry entry handles it, the handler **early-returns with
-     `{ ok: true, status: 'accepted' }` — no DB read happens** (and a
-     `topicId` / `anchorId` are not required).
-   - **Stale agent-session approval**: for `agent-session:*` topics where
-     the live runtime entry is gone (for example after a long delay and
-     re-entering the session), Main treats the approval as stale via
-     `expireStaleAgentSessionApproval`: it loads the anchor through
-     `agentSessionMessageService`, marks the matching pending approval as
-     `output-denied` with an expiry reason, and does not attempt to approve
-     a tool call whose runtime context no longer exists. Repeated clicks on
-     an already-settled stale approval are idempotent. The IPC returns
-     `{ ok: true, status: 'expired' }` so the renderer can show a timeout
-     toast, refresh, and remove the approval panel.
-   - **MCP path** (reached only when no live entry matched and the topic is
-     not an agent session; requires `topicId` + `anchorId`): reads the
-     anchor message's current `parts` from DB, calls
-     `applyApprovalDecisions(beforeParts, [decision])`, and **writes only
-     when the target `approval-requested` part is present on the DB row** —
-     guarding the overlay-only case (approval received before the part has
-     persisted). When all approvals on the turn are decided it dispatches a
-     synthetic `continue-conversation` request through
-     `dispatchStreamRequest`; the provider applies the decision when it
-     reads parts. For the overlay-only case the continue dispatch carries
-     the decision authoritatively.
+   branches on transport **before** touching the DB:
+   - **Claude-Agent fast-path** (`AiService.ts:191-197`): hands the
+     decision to `AgentSessionRuntimeService.respondToolApproval`, which
+     resolves the live `canUseTool` promise so the existing stream
+     proceeds. When a live registry entry handles it, the handler
+     **early-returns — no DB read happens** (and `topicId` / `anchorId`
+     are not required).
+   - **MCP path** (reached only when no live entry matched; requires
+     `topicId` + `anchorId`): reads the anchor message's current `parts`
+     from DB, applies the decision, and **writes only when the target
+     `approval-requested` part is present on the DB row** — guarding the
+     overlay-only case (approval received before the part has persisted).
+     When all approvals on the turn are decided it dispatches a synthetic
+     `continue-conversation` request through `dispatchStreamRequest`; the
+     provider applies the decision when it reads parts.
 
 5. **Awaiting-approval clears** — the moment the continue stream
    broadcasts `pending`, the shared-cache entry flips back. Every window

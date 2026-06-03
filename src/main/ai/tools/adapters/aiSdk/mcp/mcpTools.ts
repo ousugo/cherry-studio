@@ -18,14 +18,12 @@ import { mcpResultToTextSummary } from './utils'
 const logger = loggerService.withContext('mcpTools')
 
 /** Build the AI SDK Tool wrapper around a single MCPTool. */
-function createMcpTool(mcpTool: MCPTool, server: MCPServer): Tool {
+function createMcpTool(mcpTool: MCPTool, forcePrompt: boolean): Tool {
   return {
     type: 'function',
     description: mcpTool.description || mcpTool.name,
     inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
-    needsApproval: async () => {
-      return isMcpToolForcePromptBySource(server, mcpTool)
-    },
+    needsApproval: async () => forcePrompt,
     execute: async (args: Record<string, unknown>, { toolCallId }) => {
       const server = await resolveServerById(mcpTool.serverId)
       if (!server) {
@@ -61,12 +59,17 @@ function createMcpTool(mcpTool: MCPTool, server: MCPServer): Tool {
 }
 
 function toEntry(mcpTool: MCPTool, server: MCPServer): ToolEntry {
+  // A force-prompt (approval-gated) tool must never defer: deferring removes it from the SDK
+  // tool-set, so the SDK's native `needsApproval` gate never fires and it becomes reachable only
+  // via `tool_invoke` — which would run it with no approval card. Keep it inline. Reading
+  // `forcePrompt` once keeps `defer` and `needsApproval` in lock-step (they must always agree).
+  const forcePrompt = isMcpToolForcePromptBySource(server, mcpTool)
   return {
     name: mcpTool.id,
     namespace: `mcp:${server.name}`,
     description: mcpTool.description || mcpTool.name,
-    defer: 'auto',
-    tool: createMcpTool(mcpTool, server),
+    defer: forcePrompt ? 'never' : 'auto',
+    tool: createMcpTool(mcpTool, forcePrompt),
     applies: (scope) => scope.mcpToolIds.has(mcpTool.id)
   }
 }
