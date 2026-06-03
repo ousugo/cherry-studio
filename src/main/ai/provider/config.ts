@@ -210,6 +210,26 @@ async function buildBedrockConfig(ctx: BuilderContext): Promise<ProviderConfig<'
   return { ...base, providerSettings: { ...ctx.baseConfig, baseURL } }
 }
 
+/**
+ * Vertex service-account credentials may arrive with either camelCase
+ * (`privateKey`/`clientEmail`) or snake_case (`private_key`/`client_email`)
+ * keys depending on how the JSON key file was stored. Normalize both shapes to
+ * the camelCase form the Vertex SDK expects. Shared with the model-listing path
+ * (`createVertexModelListRequest`).
+ */
+export function normalizeVertexCredentials(credentials: Record<string, unknown> | undefined): {
+  privateKey?: string
+  clientEmail?: string
+} {
+  if (!credentials) return {}
+  const privateKey = (credentials.privateKey ?? credentials.private_key) as string | undefined
+  const clientEmail = (credentials.clientEmail ?? credentials.client_email) as string | undefined
+  return {
+    ...(privateKey !== undefined && { privateKey }),
+    ...(clientEmail !== undefined && { clientEmail })
+  }
+}
+
 async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'google-vertex'>> {
   const authConfig = await providerService.getAuthConfig(ctx.actualProvider.id)
 
@@ -224,8 +244,9 @@ async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'g
   const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || modelId.startsWith('claude')
   const baseURL = ctx.baseConfig.baseURL + (isAnthropic ? '/publishers/anthropic/models' : '/publishers/google')
 
+  const normalizedPrivateKey = normalizeVertexCredentials(googleCredentials).privateKey
   const creds = googleCredentials
-    ? { ...googleCredentials, privateKey: formatPrivateKey(googleCredentials.privateKey ?? '') }
+    ? { ...googleCredentials, privateKey: formatPrivateKey(normalizedPrivateKey ?? '') }
     : undefined
 
   return {
