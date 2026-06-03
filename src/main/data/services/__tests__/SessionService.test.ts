@@ -135,25 +135,17 @@ describe('SessionService', () => {
     })
   })
 
-  it('updates a session workspace', async () => {
+  it('ignores workspace updates even if callers bypass the schema', async () => {
     const firstWorkspace = await workspaceService.findOrCreateByPath(path.join(root, 'before-switch'))
     const secondWorkspace = await workspaceService.findOrCreateByPath(path.join(root, 'after-switch'))
     const session = await createSession('Workspace switch', firstWorkspace.id)
 
     const updated = await sessionService.update(session.id, {
       workspaceId: secondWorkspace.id
-    })
+    } as never)
 
-    expect(updated.workspaceId).toBe(secondWorkspace.id)
-    expect(updated.workspace?.path).toBe(secondWorkspace.path)
-  })
-
-  it('rejects missing workspace updates', async () => {
-    const session = await createSession('Missing workspace update')
-
-    await expect(sessionService.update(session.id, { workspaceId: 'missing-workspace' })).rejects.toMatchObject({
-      code: ErrorCode.NOT_FOUND
-    })
+    expect(updated.workspaceId).toBe(firstWorkspace.id)
+    expect(updated.workspace?.path).toBe(firstWorkspace.path)
   })
 
   it('deletes a session', async () => {

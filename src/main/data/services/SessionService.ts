@@ -159,13 +159,15 @@ export class SessionService {
   }
 
   async update(id: string, dto: UpdateSessionDto): Promise<AgentSessionEntity> {
-    if (Object.keys(dto).length === 0) return this.getById(id)
+    const patch: UpdateSessionDto = {}
+    if (dto.name !== undefined) patch.name = dto.name
+    if (dto.description !== undefined) patch.description = dto.description
+    if (dto.agentId !== undefined) patch.agentId = dto.agentId
+    if (Object.keys(patch).length === 0) return this.getById(id)
+
     const db = application.get('DbService').getDb()
-    if (dto.workspaceId) {
-      await workspaceService.getById(dto.workspaceId)
-    }
     const [row] = await withSqliteErrors(
-      () => db.update(sessionsTable).set(dto).where(eq(sessionsTable.id, id)).returning(),
+      () => db.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning(),
       defaultHandlersFor('Session', id)
     )
     if (!row) throw DataApiErrorFactory.notFound('Session', id)

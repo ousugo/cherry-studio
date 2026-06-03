@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   AgentSessionMessageEntitySchema,
   CreateAgentSessionMessageSchema,
-  CreateAgentSessionMessagesSchema
+  CreateAgentSessionMessagesSchema,
+  UpdateSessionSchema
 } from '../sessions'
 
 describe('AgentSessionMessage schemas', () => {
@@ -45,5 +46,15 @@ describe('AgentSessionMessage schemas', () => {
     })
 
     expect(parsed.runtimeResumeToken).toBeUndefined()
+  })
+})
+
+describe('AgentSession schemas', () => {
+  it('rejects workspace updates because workspace binding is insert-only', () => {
+    expect(
+      UpdateSessionSchema.safeParse({
+        workspaceId: 'workspace-1'
+      }).success
+    ).toBe(false)
   })
 })
