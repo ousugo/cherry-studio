@@ -1,6 +1,7 @@
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { sessionService } from '@data/services/SessionService'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,6 +17,14 @@ vi.mock('../../security', () => ({
   wrapExternalContent: vi.fn((text: string) => text),
   sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
 }))
+
+// The global mock (tests/main.setup.ts) wires the default service set, which omits
+// AiStreamManager; the abort path reads it, so override locally with a captured spy.
+const { mockStreamAbort } = vi.hoisted(() => ({ mockStreamAbort: vi.fn() }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ AiStreamManager: { abort: mockStreamAbort } } as never)
+})
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
@@ -393,5 +402,24 @@ describe('ChannelMessageHandler', () => {
     expect(channelService.getChannel).toHaveBeenCalledWith('channel-1')
     // Only 1 createSession call (the first one), not 2
     expect(sessionService.createSession).toHaveBeenCalledTimes(1)
+  })
+
+  // channels-core-2: a local AbortController only flips a listener's isAlive() — clearing
+  // a tracked session must stop the upstream agent-session turn via the manager.
+  it('clearSessionTracker aborts the upstream agent-session turn via the manager', async () => {
+    const adapter = createMockAdapter()
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce({ id: 'sess-x' } as any)
+
+    await channelMessageHandler.handleCommand(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      command: 'new'
+    })
+    mockStreamAbort.mockClear()
+
+    channelMessageHandler.clearSessionTracker('agent-1')
+
+    expect(mockStreamAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-x'), 'agent-cleared')
   })
 })

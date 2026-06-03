@@ -12,6 +12,15 @@ import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } fr
 import { registerAdapterFactory } from '../../ChannelManager'
 
 const TELEGRAM_MAX_LENGTH = 4096
+/**
+ * Plain-text chunk budget under MarkdownV2. We split the *plain* text (so each
+ * chunk has an index-aligned plain fallback) and then escape it; escaping only
+ * grows length, so this headroom keeps the formatted chunk within the 4096 hard
+ * limit for normal prose. A pathological all-special-char chunk could still
+ * overflow — Telegram then rejects it and the catch sends the plain chunk, which
+ * is always within budget.
+ */
+const TELEGRAM_MARKDOWN_CHUNK_BUDGET = 3200
 
 import { splitMessage } from '../../utils'
 
@@ -225,33 +234,39 @@ class TelegramAdapter extends ChannelAdapter {
     }
 
     const parseMode = opts?.parseMode ?? 'MarkdownV2'
-    const formatted = parseMode === 'MarkdownV2' ? toMarkdownV2(text).trimEnd() : text
-    const chunks = splitMessage(formatted, TELEGRAM_MAX_LENGTH)
+    const isMarkdown = parseMode === 'MarkdownV2'
+    // Split the PLAIN text first and escape each chunk, so the MarkdownV2 send and
+    // its plain-text fallback share one chunk boundary. (Splitting the *formatted*
+    // text and then re-splitting the *raw* text by the same index misaligns — escaping
+    // changes lengths/boundaries — dropping, duplicating, or passing `undefined` chunks.)
+    const plainChunks = splitMessage(text, isMarkdown ? TELEGRAM_MARKDOWN_CHUNK_BUDGET : TELEGRAM_MAX_LENGTH)
 
-    for (let i = 0; i < chunks.length; i++) {
+    for (let i = 0; i < plainChunks.length; i++) {
+      const plain = plainChunks[i]
+      const formatted = isMarkdown ? toMarkdownV2(plain).trimEnd() : plain
       const replyParams =
         opts?.replyToMessageId && i === 0 ? { reply_parameters: { message_id: opts.replyToMessageId } } : {}
 
       try {
-        await this.bot.api.sendMessage(chatId, chunks[i], {
+        await this.bot.api.sendMessage(chatId, formatted, {
           parse_mode: parseMode,
           ...replyParams
         })
       } catch (error) {
-        // Fallback to plain text if MarkdownV2 parsing fails
-        if (parseMode === 'MarkdownV2') {
+        // Fallback to plain text if MarkdownV2 parsing fails — same chunk content.
+        if (isMarkdown) {
           this.log.warn('MarkdownV2 send failed, falling back to plain text', {
             chatId,
             error: error instanceof Error ? error.message : String(error)
           })
-          await this.bot.api.sendMessage(chatId, splitMessage(text, TELEGRAM_MAX_LENGTH)[i], replyParams)
+          await this.bot.api.sendMessage(chatId, plain, replyParams)
         } else {
           throw error
         }
       }
 
       // Small delay between chunks to avoid rate limiting
-      if (i < chunks.length - 1) {
+      if (i < plainChunks.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
     }

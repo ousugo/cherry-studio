@@ -6,8 +6,10 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
+import { application } from '@main/core/application'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 
@@ -407,7 +409,7 @@ export class ChannelMessageHandler {
       }
     }
     for (const sessionId of sessionIdsToAbort) {
-      this.activeAbortControllers.get(sessionId)?.abort()
+      this.abortSessionStream(sessionId, 'agent-cleared')
     }
     for (const [key, batch] of this.pendingBatches.entries()) {
       if (key.startsWith(`${agentId}:`)) {
@@ -422,14 +424,22 @@ export class ChannelMessageHandler {
     }
   }
 
-  /** Abort an active stream for the given session. Returns true if aborted. */
+  /** Abort an active stream for the given session. Returns true if a stream was in flight. */
   abortSession(sessionId: string): boolean {
-    const controller = this.activeAbortControllers.get(sessionId)
-    if (controller) {
-      controller.abort()
-      return true
-    }
-    return false
+    if (!this.activeAbortControllers.has(sessionId)) return false
+    this.abortSessionStream(sessionId, 'channel-session-aborted')
+    return true
+  }
+
+  /**
+   * Stop the upstream agent-session turn for a session. The local `AbortController`
+   * is never passed to the running stream — it only flips a listener's `isAlive()`,
+   * which (because the manager prunes dead listeners before firing their terminal
+   * callback) would strand the completion sentinel. So abort through the manager,
+   * which settles the turn as `paused` and lets the still-alive sentinel resolve.
+   */
+  private abortSessionStream(sessionId: string, reason: string): void {
+    application.get('AiStreamManager').abort(buildAgentSessionTopicId(sessionId), reason)
   }
 
   private async resolveSession(
