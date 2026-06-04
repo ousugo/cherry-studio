@@ -35,7 +35,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { models: allModels } = useModels()
-  const { applyReorderedList } = useReorder('/providers')
+  const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
   const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'enabled')
@@ -64,6 +64,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>())
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const skipNextAutoScrollRef = useRef(false)
 
   useEffect(() => {
     if (!filterModeHint) {
@@ -158,6 +159,11 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       return
     }
 
+    if (skipNextAutoScrollRef.current) {
+      skipNextAutoScrollRef.current = false
+      return
+    }
+
     const scrollSelectedItem = () => {
       const selectedItem = itemRefs.current.get(selectedProviderId)
       const scroller = scrollerRef.current
@@ -195,6 +201,14 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       setContextProviderId(null)
     }
   }, [])
+
+  const handleReorder = useCallback(
+    (reorderedProviders: Provider[]) => {
+      skipNextAutoScrollRef.current = true
+      return applyReorderedList(reorderedProviders)
+    },
+    [applyReorderedList]
+  )
 
   const handleReorderError = useCallback(() => {
     window.toast.error(t('settings.provider.reorder_failed'))
@@ -289,7 +303,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         onAddAnotherInGroup={handleAddAnother}
         scrollerRef={setScrollerRef}
         onDragStateChange={handleDragStateChange}
-        onReorder={applyReorderedList}
+        onReorder={handleReorder}
         onReorderError={handleReorderError}
         renderItem={renderProviderItem}
       />
