@@ -116,6 +116,23 @@ describe('TelegramAdapter', () => {
     expect(mockBot.start).toHaveBeenCalledTimes(2) // reconnected
   })
 
+  it('resets the reconnect budget after a stable polling window (REGRESSION channel-adapters-2)', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    mockBot.start.mockReset()
+    // One transient failure bumps the attempt counter, then the reconnect stays up.
+    mockBot.start.mockRejectedValueOnce(new Error('409: Conflict')).mockResolvedValue(undefined)
+
+    await adapter.connect()
+    await vi.advanceTimersByTimeAsync(1000) // reconnect fires and succeeds
+    expect(adapter.reconnectAttempts).toBe(1)
+
+    // After the stability window the counter resets, so lifetime-cumulative transient
+    // failures can't monotonically exhaust maxReconnectAttempts.
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(adapter.reconnectAttempts).toBe(0)
+  })
+
   it('does not reconnect after disconnect() (REGRESSION channel-adapters-2)', async () => {
     vi.useFakeTimers()
     const adapter = createAdapter()

@@ -35,8 +35,14 @@ class TelegramAdapter extends ChannelAdapter {
   private shouldStop = false
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private stabilityTimer: ReturnType<typeof setTimeout> | null = null
   private readonly reconnectDelays = [1000, 2000, 5000, 10000, 30000, 60000]
   private readonly maxReconnectAttempts = 50
+  // Long polling has no "ready" event (a fatal 409 surfaces *after* `markConnected`), so
+  // resetting the backoff budget on connect would let a persistent failure loop forever and
+  // never hit the cap. Instead reset only after the bot has polled cleanly for this window —
+  // so transient failures spread over the adapter's lifetime don't monotonically exhaust it.
+  private readonly stabilityResetMs = 60_000
 
   constructor(config: ChannelAdapterConfig<'telegram'>) {
     super(config)
@@ -185,6 +191,7 @@ class TelegramAdapter extends ChannelAdapter {
     // a fatal polling error (e.g. 409 Conflict) rejects here — schedule a backoff reconnect.
     bot.start().catch((err) => {
       const msg = err instanceof Error ? err.message : String(err)
+      this.clearStabilityTimer()
       this.markDisconnected(msg)
       this.log.error(`Polling stopped: ${msg}`)
       this.scheduleReconnect()
@@ -192,6 +199,21 @@ class TelegramAdapter extends ChannelAdapter {
 
     this.markConnected()
     this.log.info('Telegram bot polling started')
+
+    // Reset the reconnect budget once this connection has stayed up for the stability window.
+    // The `this.bot === bot` guard ensures a stale timer from a superseded connection no-ops.
+    this.clearStabilityTimer()
+    this.stabilityTimer = setTimeout(() => {
+      this.stabilityTimer = null
+      if (!this.shouldStop && this.bot === bot) this.reconnectAttempts = 0
+    }, this.stabilityResetMs)
+  }
+
+  private clearStabilityTimer(): void {
+    if (this.stabilityTimer) {
+      clearTimeout(this.stabilityTimer)
+      this.stabilityTimer = null
+    }
   }
 
   private scheduleReconnect(): void {
@@ -228,6 +250,7 @@ class TelegramAdapter extends ChannelAdapter {
   protected override async performDisconnect(): Promise<void> {
     this.shouldStop = true
     this.clearReconnectTimer()
+    this.clearStabilityTimer()
     if (this.bot) {
       await this.bot.stop()
       this.bot = null
