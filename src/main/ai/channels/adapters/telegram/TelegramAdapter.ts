@@ -29,6 +29,15 @@ class TelegramAdapter extends ChannelAdapter {
   private readonly botToken: string
   private readonly allowedChatIds: string[]
 
+  // Long-polling reconnect with backoff. grammY rethrows fatal polling errors (401/409) out of
+  // `bot.start()`; without this a recoverable 409/Conflict left the bot permanently down.
+  // Mirrors the WebSocket adapters (Slack/Discord/QQ).
+  private shouldStop = false
+  private reconnectAttempts = 0
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly reconnectDelays = [1000, 2000, 5000, 10000, 30000, 60000]
+  private readonly maxReconnectAttempts = 50
+
   constructor(config: ChannelAdapterConfig<'telegram'>) {
     super(config)
     const { bot_token, allowed_chat_ids } = config.channelConfig
@@ -45,7 +54,12 @@ class TelegramAdapter extends ChannelAdapter {
     if (!this.botToken) {
       throw new Error('Telegram bot token is required')
     }
+    this.shouldStop = false
+    this.reconnectAttempts = 0
+    await this.startBot()
+  }
 
+  private async startBot(): Promise<void> {
     const bot = new Bot(this.botToken)
     this.bot = bot
 
@@ -167,18 +181,53 @@ class TelegramAdapter extends ChannelAdapter {
       this.log.error(`Bot error: ${msg}`)
     })
 
-    // Start long polling (fire-and-forget)
+    // Start long polling (fire-and-forget). `bot.start()` only resolves when the bot stops;
+    // a fatal polling error (e.g. 409 Conflict) rejects here — schedule a backoff reconnect.
     bot.start().catch((err) => {
       const msg = err instanceof Error ? err.message : String(err)
       this.markDisconnected(msg)
       this.log.error(`Polling stopped: ${msg}`)
+      this.scheduleReconnect()
     })
 
     this.markConnected()
     this.log.info('Telegram bot polling started')
   }
 
+  private scheduleReconnect(): void {
+    if (this.shouldStop || this.reconnectTimer) return
+
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.log.error('Telegram max reconnect attempts reached, giving up')
+      return
+    }
+
+    const delay = this.reconnectDelays[Math.min(this.reconnectAttempts, this.reconnectDelays.length - 1)]
+    this.reconnectAttempts++
+    this.log.info(`Telegram reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      if (this.shouldStop) return
+      this.startBot().catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err)
+        this.markDisconnected(msg)
+        this.log.error(`Telegram reconnect failed: ${msg}`)
+        this.scheduleReconnect()
+      })
+    }, delay)
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+  }
+
   protected override async performDisconnect(): Promise<void> {
+    this.shouldStop = true
+    this.clearReconnectTimer()
     if (this.bot) {
       await this.bot.stop()
       this.bot = null
