@@ -311,6 +311,26 @@ describe('messageMenuBarActions', () => {
     expect(menuActions.map((action) => action.id)).toEqual(['multi-select'])
   })
 
+  it('hides new branch from user message menus', () => {
+    const menuActions = resolveMessageMenuBarMenuActions(
+      createContext({
+        actions: {
+          startMessageBranch: vi.fn(),
+          toggleMultiSelectMode: vi.fn()
+        } as MessageListActions,
+        isAssistantMessage: false,
+        isUserMessage: true,
+        selection: {
+          enabled: true,
+          isMultiSelectMode: false,
+          selectedMessageIds: []
+        }
+      })
+    )
+
+    expect(menuActions.map((action) => action.id)).toEqual(['multi-select'])
+  })
+
   it('disables streaming-unsafe toolbar actions while keeping copy enabled', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createContext({

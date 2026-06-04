@@ -17,6 +17,7 @@ export interface TopicMessageFlowLiveNode {
   status: MessageStatus
   createdAt: string
   siblingsGroupId?: number
+  isInputDraft?: boolean
 }
 
 export interface TopicMessageFlowLiveState {
@@ -107,7 +108,11 @@ export function buildTopicMessageFlowLiveState({
   }
 }
 
-function toTreeNode(node: TopicMessageFlowLiveNode, existing?: TreeNode): TreeNode {
+type TopicMessageFlowTreeNode = TreeNode & {
+  isInputDraft?: boolean
+}
+
+function toTreeNode(node: TopicMessageFlowLiveNode, existing?: TreeNode): TopicMessageFlowTreeNode {
   return {
     id: node.id,
     parentId: node.parentId,
@@ -116,7 +121,8 @@ function toTreeNode(node: TopicMessageFlowLiveNode, existing?: TreeNode): TreeNo
     modelId: node.modelId ?? existing?.modelId ?? null,
     status: node.status,
     createdAt: node.createdAt,
-    hasChildren: existing?.hasChildren ?? false
+    hasChildren: existing?.hasChildren ?? false,
+    ...(node.isInputDraft ? { isInputDraft: true } : {})
   }
 }
 
@@ -132,9 +138,9 @@ export function mergeTopicMessageFlowLiveTree(
   tree: TreeResponse,
   liveState: TopicMessageFlowLiveState | null | undefined
 ): TreeResponse {
-  if (!liveState?.nodes.length) return tree
+  if (!liveState) return tree
 
-  const regularNodes = new Map<string, TreeNode>()
+  const regularNodes = new Map<string, TopicMessageFlowTreeNode>()
   const siblingGroups = new Map<string, TreeResponse['siblingsGroups'][number]>()
   const existingTreeNodes = new Map<string, TreeNode>()
   const groupedNodeIds = new Set<string>()

@@ -50,6 +50,7 @@ import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedTok
 import type { ComposerToolLauncher } from './toolLauncher'
 
 export interface ComposerSurfaceActions {
+  focus: () => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
@@ -497,12 +498,13 @@ export default function ComposerSurface({
 
   useEffect(() => {
     onActionsChange?.({
+      focus: focusEditor,
       onTextChange: handleTextChangeFromTool,
       toggleExpanded: handleToggleExpanded,
       removeToken,
       insertToken
     })
-  }, [handleTextChangeFromTool, handleToggleExpanded, insertToken, onActionsChange, removeToken])
+  }, [focusEditor, handleTextChangeFromTool, handleToggleExpanded, insertToken, onActionsChange, removeToken])
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
   const rootSuggestionStateRef = useRef({

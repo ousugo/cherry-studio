@@ -189,4 +189,38 @@ describe('topicMessageFlowLiveTree', () => {
 
     expect(mergeTopicMessageFlowLiveTree(tree, null)).toBe(tree)
   })
+
+  it('overrides the active node without adding live nodes', () => {
+    const tree: TreeResponse = {
+      activeNodeId: 'assistant-1',
+      nodes: [
+        treeNode({ id: 'user-1', preview: 'question', hasChildren: true }),
+        treeNode({
+          id: 'assistant-1',
+          parentId: 'user-1',
+          role: 'assistant',
+          preview: 'old active',
+          status: 'success'
+        }),
+        treeNode({
+          id: 'assistant-2',
+          parentId: 'user-1',
+          role: 'assistant',
+          preview: 'next active',
+          status: 'success'
+        })
+      ],
+      siblingsGroups: []
+    }
+
+    const merged = mergeTopicMessageFlowLiveTree(tree, {
+      topicId: 'topic-1',
+      activeNodeId: 'assistant-2',
+      nodes: []
+    })
+
+    expect(merged).not.toBe(tree)
+    expect(merged.activeNodeId).toBe('assistant-2')
+    expect(merged.nodes.map((node) => node.id)).toEqual(['user-1', 'assistant-1', 'assistant-2'])
+  })
 })

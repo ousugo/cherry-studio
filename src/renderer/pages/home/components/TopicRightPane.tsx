@@ -14,6 +14,8 @@ interface TopicRightPaneSurfaceProps {
   topicId: string
   topicName?: string
   onLocateMessage?: (messageId: string) => void
+  onStartBranchDraft?: (messageId: string) => Promise<void> | void
+  onCancelBranchDraft?: (nextActiveNodeId?: string | null) => void
 }
 
 interface TopicRightPaneState {
@@ -146,7 +148,13 @@ function TopicRightPaneProvider({ children }: PropsWithChildren) {
   )
 }
 
-function TopicRightPaneSurface({ topicId, topicName, onLocateMessage }: TopicRightPaneSurfaceProps) {
+function TopicRightPaneSurface({
+  topicId,
+  topicName,
+  onLocateMessage,
+  onStartBranchDraft,
+  onCancelBranchDraft
+}: TopicRightPaneSurfaceProps) {
   const { t } = useTranslation()
   const { state, actions } = useTopicRightPane()
   const shellState = useShellState()
@@ -194,6 +202,8 @@ function TopicRightPaneSurface({ topicId, topicName, onLocateMessage }: TopicRig
           focusKey={canvasFocusKey}
           layoutReady={canvasLayoutReady}
           onLocateMessage={handleLocateMessage}
+          onStartBranchDraft={onStartBranchDraft}
+          onCancelBranchDraft={onCancelBranchDraft}
         />
       </Shell.Panel>
       {state.tracePayload && (

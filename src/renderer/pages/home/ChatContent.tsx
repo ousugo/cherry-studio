@@ -32,6 +32,8 @@ interface Props {
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
+  clearBranchDraft?: () => void
+  getBranchDraftAnchorId?: () => string | null
   /**
    * If the active topic is a freshly-leased temporary one, this callback
    * migrates it into SQLite (with the same id) before the first message
@@ -61,6 +63,8 @@ const ChatContent: FC<Props> = ({
   locateMessageId,
   onLocateMessageHandled,
   onBranchLiveStateChange,
+  clearBranchDraft,
+  getBranchDraftAnchorId,
   onPersistTemporaryTopic
 }) => {
   const [hasPersistedTemporaryTopic, setHasPersistedTemporaryTopic] = useState(false)
@@ -87,6 +91,8 @@ const ChatContent: FC<Props> = ({
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
       onBranchLiveStateChange={onBranchLiveStateChange}
+      clearBranchDraft={clearBranchDraft}
+      getBranchDraftAnchorId={getBranchDraftAnchorId}
       onPersistTemporaryTopic={onPersistTemporaryTopic}
       isHistoryLoading={isHistoryLoading}
       isFreshTemporaryTopic={isFreshTemporaryTopic}
@@ -133,6 +139,8 @@ const ChatContentInner: FC<InnerProps> = ({
   locateMessageId,
   onLocateMessageHandled,
   onBranchLiveStateChange,
+  clearBranchDraft,
+  getBranchDraftAnchorId,
   onPersistTemporaryTopic,
   isHistoryLoading,
   isFreshTemporaryTopic,
@@ -159,7 +167,9 @@ const ChatContentInner: FC<InnerProps> = ({
     refresh,
     activeNodeId,
     messagesCacheMutate,
-    onBranchLiveStateChange
+    onBranchLiveStateChange,
+    clearBranchDraft,
+    getBranchDraftAnchorId
   })
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
 

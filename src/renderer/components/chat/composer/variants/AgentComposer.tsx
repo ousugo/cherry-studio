@@ -277,6 +277,7 @@ type ProviderActionHandlers = ComposerSurfaceActions & {
 
 const emptyActions: ProviderActionHandlers = {
   addNewTopic: () => undefined,
+  focus: () => undefined,
   onTextChange: () => undefined,
   toggleExpanded: () => undefined,
   removeToken: () => undefined,
