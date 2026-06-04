@@ -215,4 +215,118 @@ describe('Agent', () => {
       { totalTokens: 14, promptTokens: 5, completionTokens: 9, thoughtsTokens: undefined }
     ])
   })
+
+  // ── Abort mid-stream: remaining chunks are dropped and the writer closes cleanly ──
+  it('stops forwarding and closes (not errors) when the signal aborts mid-stream', async () => {
+    let srcController!: ReadableStreamDefaultController<unknown>
+    const source = new ReadableStream({
+      start(c) {
+        srcController = c
+      }
+    })
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({ toUIMessageStream: () => source })
+    })
+
+    const onError = vi.fn()
+    const { Agent } = await import('../../Agent')
+    const controller = new AbortController()
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      hookParts: [{ onError }]
+    })
+    const reader = agent.stream([], controller.signal).getReader()
+
+    // First chunk forwards normally.
+    const chunk1 = { type: 'text-delta', id: 't1', delta: 'hello' }
+    srcController.enqueue(chunk1)
+    const first = await reader.read()
+    expect(first.done).toBe(false)
+    expect(first.value).toEqual(chunk1)
+
+    // Abort, then push another chunk: the loop must drop it and close the stream.
+    controller.abort()
+    srcController.enqueue({ type: 'text-delta', id: 't1', delta: 'dropped' })
+
+    const next = await reader.read()
+    expect(next.done).toBe(true)
+    // Abort is not an error: onError must not fire on the abort path.
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  // ── writerSettled guard: the terminal signal is emitted exactly once per outcome ──
+  it('settles the writer exactly once (close, never abort) on a clean drain', async () => {
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(c) {
+              c.close()
+            }
+          })
+      })
+    })
+
+    const closeSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'close')
+    const abortSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'abort')
+    try {
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model'
+      })
+      const reader = agent.stream([], new AbortController().signal).getReader()
+      while (!(await reader.read()).done) {
+        /* drain to completion */
+      }
+
+      expect(closeSpy).toHaveBeenCalledTimes(1)
+      expect(abortSpy).not.toHaveBeenCalled()
+    } finally {
+      closeSpy.mockRestore()
+      abortSpy.mockRestore()
+    }
+  })
+
+  it('settles the writer exactly once (abort, never close) when the read loop errors', async () => {
+    const err = new Error('stream blew up')
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(c) {
+              c.error(err)
+            }
+          })
+      })
+    })
+
+    const onError = vi.fn()
+    const closeSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'close')
+    const abortSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'abort')
+    try {
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model',
+        hookParts: [{ onError }]
+      })
+      const reader = agent.stream([], new AbortController().signal).getReader()
+
+      await expect(reader.read()).rejects.toBe(err)
+      // Let the IIFE's catch (invokeOnError + settleWriter) run.
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(onError).toHaveBeenCalledTimes(1)
+      expect(abortSpy).toHaveBeenCalledTimes(1)
+      expect(closeSpy).not.toHaveBeenCalled()
+    } finally {
+      closeSpy.mockRestore()
+      abortSpy.mockRestore()
+    }
+  })
 })
