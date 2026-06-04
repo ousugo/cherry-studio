@@ -217,4 +217,47 @@ describe('runExec / handleToolCall', () => {
 
     expect(childAbortedAtStart).toBe(true)
   })
+
+  // ── Timeout: code that never resolves is killed after EXECUTION_TIMEOUT_MS ──
+  it('times out, terminates the worker, and finalizes with a timeout error', async () => {
+    vi.useFakeTimers()
+    try {
+      const reg = registryWith({ name: 'mcp__s1__t', tool: toolWith({ execute: vi.fn() }) })
+      // Never resolves on its own, so only the 60s timeout can finalize the run.
+      const promise = runExec(`await new Promise(() => {})`, {
+        registry: reg,
+        parentOptions: makeOptions()
+      })
+      await vi.advanceTimersByTimeAsync(60_000)
+      const out = await promise
+
+      expect(out.isError).toBe(true)
+      expect(out.error).toMatch(/tool_exec timed out after 60000ms/)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // ── Worker-level failure: error/exit events finalize the run, not a message ──
+  it('finalizes with an error when the worker emits an uncaught error event', async () => {
+    const reg = registryWith({ name: 'mcp__s1__t', tool: toolWith({ execute: vi.fn() }) })
+    // The throw is scheduled in a later macrotask, so it escapes the worker's own
+    // try/catch and surfaces as the worker `error` event; the run never resolves
+    // otherwise, so that event is the only path that can finalize it.
+    const code = `setTimeout(() => { throw new Error('worker boom') }, 0); await new Promise(() => {})`
+    const out = await runExec(code, { registry: reg, parentOptions: makeOptions() })
+
+    expect(out.isError).toBe(true)
+    expect(out.error).toMatch(/worker boom/)
+  })
+
+  it('finalizes with an error when the worker exits unexpectedly', async () => {
+    const reg = registryWith({ name: 'mcp__s1__t', tool: toolWith({ execute: vi.fn() }) })
+    // `process.exit` inside a worker thread stops only that worker (exit code 1),
+    // so the `exit` handler — not a posted result — finalizes the run.
+    const out = await runExec(`process.exit(1)`, { registry: reg, parentOptions: makeOptions() })
+
+    expect(out.isError).toBe(true)
+    expect(out.error).toMatch(/exec worker exited with code 1/)
+  })
 })

@@ -198,6 +198,102 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // getAuthConfig is consulted for bedrock credentials.
       expect(getAuthConfigMock).toHaveBeenCalledWith('bedrock')
     })
+
+    it('passes baseURL=undefined (not "") when no host is configured, so the SDK derives the host (upstream #14425)', async () => {
+      getAuthConfigMock.mockResolvedValue({
+        type: 'iam-aws',
+        region: 'us-east-1',
+        accessKeyId: 'AKIA',
+        secretAccessKey: 'secret'
+      })
+      const provider = makeProvider({
+        id: 'bedrock',
+        authType: 'iam-aws',
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointConfigs: {
+          // No baseUrl — the SDK must NOT receive "" (it would target ""/model/...).
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'bedrock' }
+        }
+      })
+      const model = makeModel({
+        id: 'bedrock::claude',
+        apiModelId: 'anthropic.claude-3',
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('bedrock')
+      expect(settings.baseURL).toBeUndefined()
+      expect(settings.region).toBe('us-east-1')
+    })
+  })
+
+  describe('Azure routing (iam-azure → buildAzureConfig)', () => {
+    it('routes an Azure provider with a Claude model id to azure-anthropic', async () => {
+      const provider = makeProvider({
+        id: 'azure-openai',
+        authType: 'iam-azure',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://myres.openai.azure.com' }
+        }
+      })
+      const model = makeModel({
+        id: 'azure::claude',
+        apiModelId: 'claude-3-5-sonnet',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('azure-anthropic')
+      // The anthropic branch normalizes the host WITHOUT the '/openai' suffix.
+      expect(settings.baseURL).not.toMatch(/\/openai$/)
+    })
+
+    it('routes an Azure provider on an anthropic-messages endpoint to azure-anthropic even for a non-claude id', async () => {
+      const provider = makeProvider({
+        id: 'azure-openai',
+        authType: 'iam-azure',
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://myres.openai.azure.com' }
+        }
+      })
+      const model = makeModel({
+        id: 'azure::custom',
+        apiModelId: 'some-anthropic-relay-model',
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('azure-anthropic')
+    })
+
+    it('routes an Azure provider with a regular model to azure (openai suffix)', async () => {
+      const provider = makeProvider({
+        id: 'azure-openai',
+        authType: 'iam-azure',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://myres.openai.azure.com' }
+        }
+      })
+      const model = makeModel({
+        id: 'azure::gpt-4o',
+        apiModelId: 'gpt-4o',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('azure')
+      expect(settings.baseURL).toMatch(/\/openai$/)
+    })
   })
 
   describe('CherryIn routing (default chat endpoint upgrades to cherryin-chat variant)', () => {
