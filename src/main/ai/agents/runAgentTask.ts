@@ -17,6 +17,7 @@ import { jobService } from '@data/services/JobService'
 import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
 import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
@@ -49,9 +50,15 @@ function makeRunSignal(
   if (!timeoutMinutes || timeoutMinutes <= 0) {
     return { signal: outerSignal, dispose: () => {} }
   }
-  const timeoutSignal = AbortSignal.timeout(timeoutMinutes * 60_000)
-  const signal = AbortSignal.any([outerSignal, timeoutSignal])
-  return { signal, dispose: () => {} }
+  // Own the timeout so `dispose()` can actually release the timer on normal
+  // completion (an `AbortSignal.timeout` keeps a live timer until it fires).
+  const timeoutController = new AbortController()
+  const timer = setTimeout(
+    () => timeoutController.abort(new Error(`Task timed out after ${timeoutMinutes} minute(s)`)),
+    timeoutMinutes * 60_000
+  )
+  const signal = AbortSignal.any([outerSignal, timeoutController.signal])
+  return { signal, dispose: () => clearTimeout(timer) }
 }
 
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
@@ -107,7 +114,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   const channelListeners: StreamListener[] = subscribedChannels.flatMap((ch) => {
     const adapter = channelManager.getAdapter(ch.id)
     if (!adapter) return []
-    return adapter.notifyChatIds.map((chatId) => new ChannelAdapterListener(adapter, chatId))
+    // Suppress the listener's generic `Error: …` — `notifyTaskError` below sends a richer
+    // `[Task failed]` summary to the same chats, so leaving it on would double-notify.
+    return adapter.notifyChatIds.map((chatId) => new ChannelAdapterListener(adapter, chatId, true))
   })
 
   const { signal: runSignal, dispose } = makeRunSignal(ctx.signal, timeoutMinutes)
@@ -123,8 +132,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   const sentinel: StreamListener = {
     id: `agent-task:${scheduleId ?? ctx.jobId}`,
     onChunk(chunk) {
-      const c = chunk as { type: string; text?: string }
-      if (c.type === 'text-delta' && c.text) accumulatedText += c.text
+      // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`) — the
+      // previous `as { text }` cast silently never accumulated, so the persisted
+      // result was always the `'Completed'` fallback.
+      if (chunk.type === 'text-delta') accumulatedText += chunk.delta
     },
     onDone() {
       resolveExecution(accumulatedText.trim())
@@ -140,8 +151,27 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     onError(result) {
       rejectExecution(new Error(result.error.message ?? 'Execution failed'))
     },
-    isAlive: () => !runSignal.aborted
+    // Keep `true`: the manager prunes a listener whose `isAlive()` is false BEFORE
+    // firing its terminal callback, so gating on `runSignal` here would make an
+    // aborted run's terminal event never settle `executionDone`. Abort is handled
+    // explicitly via `onRunAbort` below.
+    isAlive: () => true
   }
+
+  const topicId = buildAgentSessionTopicId(session.id)
+  // On JobManager cancel or per-task timeout, stop the upstream run: the execution's
+  // own controller never sees `runSignal`, so abort the live stream and settle
+  // `executionDone` here — otherwise the handler promise leaks until the JobManager's
+  // force-finalize timeout.
+  const onRunAbort = () => {
+    const reason = runSignal.reason
+    application
+      .get('AiStreamManager')
+      .abort(topicId, reason instanceof Error ? reason.message : String(reason ?? 'task-aborted'))
+    rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
+  }
+  if (runSignal.aborted) onRunAbort()
+  else runSignal.addEventListener('abort', onRunAbort, { once: true })
 
   let runError: Error | null = null
   let resultText = ''
@@ -169,6 +199,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     }
     throw runError
   } finally {
+    runSignal.removeEventListener('abort', onRunAbort)
     dispose()
   }
 

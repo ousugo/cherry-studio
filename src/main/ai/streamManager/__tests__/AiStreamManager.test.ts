@@ -773,6 +773,43 @@ describe('AiStreamManager', () => {
     })
   })
 
+  // ── idle timeout terminal classification ────────────────────────
+  // The idle-chunk timer (withIdleTimeout) aborts `exec.abortController`
+  // directly, never going through `mgr.abort`, so on the clean stream exit
+  // `exec.status` is still 'streaming'. The loop must promote it to 'aborted'
+  // and settle as `paused` — NOT a success `done`. Locks the recently-fixed
+  // mis-classification bug.
+
+  describe('idle timeout', () => {
+    it('settles a timed-out execution as paused, not done', async () => {
+      // readUIMessageStream's accumulator needs real microtask/timer
+      // scheduling; fake timers starve it. The idle timer is a short real
+      // `setTimeout`, so a brief real wait lets it fire.
+      vi.useRealTimers()
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        // 10ms idle timeout — the default pendingStream never emits, so the
+        // idle timer fires and aborts exec.abortController on its own.
+        request: { ...req('a'), requestOptions: { timeout: 10 } },
+        listeners: [listener]
+      })
+      expect(mgr.inspect('a')!.status).toBe('pending')
+
+      // Let the idle timer fire and the abort propagate through the loop.
+      await new Promise((resolve) => setTimeout(resolve, 60))
+
+      // Terminal is paused (truncated reply persisted as paused), never a
+      // success done.
+      expect(listener.pausedResults).toHaveLength(1)
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.pausedResults[0].status).toBe('paused')
+      expect(mgr.inspect('a')!.status).toBe('aborted')
+    })
+  })
+
   // ── live finalMessage accumulation ──────────────────────────────
 
   describe('live finalMessage accumulation', () => {
@@ -996,6 +1033,49 @@ describe('AiStreamManager', () => {
       // pending → error directly; we never fabricate a `streaming` transition
       // when no chunks ever flowed.
       expect(statusSequence('t')).toEqual(['pending', 'error'])
+    })
+
+    it('records awaiting-approval when an execution completes paused on a tool-approval-request', async () => {
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+
+      // `tool-approval-request` sets exec.awaitingApproval and flips pending → streaming.
+      mgr.onChunk('t', 'p::m', { type: 'tool-approval-request' } as UIMessageChunk)
+      expect(statusSequence('t')).toEqual(['pending', 'streaming'])
+
+      // MCP needsApproval ends the stream cleanly via `done`; resolveTerminalStatus
+      // overrides the would-be `done` to `awaiting-approval` because the execution
+      // is still paused on the approval request.
+      await mgr.onExecutionDone('t', 'p::m')
+      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'awaiting-approval'])
+      expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
+    })
+
+    it('clears awaiting-approval when a tool-output chunk resolves the approval before terminal', async () => {
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+
+      // Approval request sets exec.awaitingApproval and flips pending → streaming.
+      mgr.onChunk('t', 'p::m', { type: 'tool-approval-request' } as UIMessageChunk)
+      expect(statusSequence('t')).toEqual(['pending', 'streaming'])
+
+      // The tool output for the same call resolves the approval: exec.awaitingApproval clears.
+      mgr.onChunk('t', 'p::m', { type: 'tool-output-available' } as UIMessageChunk)
+
+      // resolveTerminalStatus no longer finds a paused exec, so the terminal status is `done`,
+      // NOT stuck on `awaiting-approval`.
+      await mgr.onExecutionDone('t', 'p::m')
+      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+      expect(mgr.inspect('t')!.status).toBe('done')
+      expect(mgr.inspect('t')!.status).not.toBe('awaiting-approval')
     })
 
     it('multi-model: flips on first chunk from any execution and stays pending if an execution errors before any chunks', async () => {

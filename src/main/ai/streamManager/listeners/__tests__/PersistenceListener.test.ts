@@ -132,7 +132,8 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       timeCompletionMs: 1501
     })
     // `timeThinkingMs` is intentionally not projected: wall-clock reasoning
-    // may include interleaved tool execution. See stream-stats-followup TODO.
+    // may include interleaved tool execution. See the TODO(message-stats-redesign)
+    // rework in src/shared/data/types/message.ts.
     expect(payload.stats).not.toHaveProperty('timeThinkingMs')
   })
 

@@ -32,6 +32,24 @@ export function ensurePathWithin(basePath: string, targetPath: string): string {
   return resolvedTarget
 }
 
+/**
+ * Guard against zip-slip: `node-stream-zip` writes each entry at `path.join(baseDir, entry.name)`
+ * with no containment check, so a name like `../../../foo` would escape `baseDir`. Reject any entry
+ * whose resolved destination is outside `baseDir` before extraction. Unlike {@link ensurePathWithin},
+ * nested subdirectories are allowed (a DXT archive legitimately contains them).
+ *
+ * @throws Error if any entry name escapes `baseDir`
+ */
+export function assertZipEntriesWithin(entryNames: string[], baseDir: string): void {
+  const root = path.resolve(baseDir)
+  for (const name of entryNames) {
+    const dest = path.resolve(baseDir, name)
+    if (dest !== root && !dest.startsWith(root + path.sep)) {
+      throw new Error(`Unsafe DXT entry path (zip-slip): ${name}`)
+    }
+  }
+}
+
 // Type definitions
 export interface DxtManifest {
   dxt_version: string
@@ -201,9 +219,53 @@ export function performVariableSubstitution(
   return result
 }
 
+/**
+ * Process-affecting environment variables that must never be set from DXT-derived config.
+ * These can alter how the spawned process loads code (preloading shared libraries, injecting
+ * Node flags), so a malicious manifest could use them to execute arbitrary code despite the
+ * command/arg validation above.
+ */
+const DXT_ENV_DENYLIST = ['NODE_OPTIONS', 'LD_PRELOAD', 'LD_LIBRARY_PATH']
+
+/**
+ * Validate a DXT-derived environment map and build a new sanitized object.
+ * DXT env values bypass the command/arg validation, so apply equivalent hardening here:
+ * reject null bytes in keys/values and denylist process-affecting variables.
+ *
+ * @throws Error if a key/value contains a null byte or a key is denylisted
+ */
+export function buildResolvedEnv(
+  env: Record<string, string>,
+  extractDir: string,
+  userConfig?: Record<string, any>
+): Record<string, string> {
+  const resolvedEnv: Record<string, string> = {}
+
+  for (const [key, value] of Object.entries(env)) {
+    if (key.includes('\0')) {
+      throw new Error('Invalid DXT env: null byte detected in environment variable name')
+    }
+
+    // Denylist process-affecting variables (DYLD_* on macOS, plus exact matches above).
+    if (DXT_ENV_DENYLIST.includes(key) || key.startsWith('DYLD_')) {
+      throw new Error(`Invalid DXT env: environment variable "${key}" is not allowed`)
+    }
+
+    const substituted = performVariableSubstitution(value, extractDir, userConfig)
+    if (substituted.includes('\0')) {
+      throw new Error(`Invalid DXT env: null byte detected in value of environment variable "${key}"`)
+    }
+
+    resolvedEnv[key] = substituted
+  }
+
+  return resolvedEnv
+}
+
 export function applyPlatformOverrides(mcpConfig: any, extractDir: string, userConfig?: Record<string, any>): any {
   const platform = process.platform
-  const resolvedConfig = { ...mcpConfig }
+  // Deep-copy the nested env so substitution never mutates the caller's manifest object.
+  const resolvedConfig = { ...mcpConfig, env: mcpConfig.env ? { ...mcpConfig.env } : mcpConfig.env }
 
   // Apply platform-specific overrides
   if (mcpConfig.platform_overrides && mcpConfig.platform_overrides[platform]) {
@@ -241,9 +303,8 @@ export function applyPlatformOverrides(mcpConfig: any, extractDir: string, userC
   }
 
   if (resolvedConfig.env) {
-    for (const [key, value] of Object.entries(resolvedConfig.env)) {
-      resolvedConfig.env[key] = performVariableSubstitution(value as string, extractDir, userConfig)
-    }
+    // Build a new env object rather than mutating; also rejects null bytes and denylisted vars.
+    resolvedConfig.env = buildResolvedEnv(resolvedConfig.env, extractDir, userConfig)
   }
 
   return resolvedConfig
@@ -344,8 +405,13 @@ export class DxtService extends BaseService {
       logger.debug(`Extracting DXT file: ${filePath}`)
 
       const zip = new StreamZip.async({ file: filePath })
-      await zip.extract(null, tempExtractDir)
-      await zip.close()
+      try {
+        // Reject any zip-slip entry before writing anything to disk.
+        assertZipEntriesWithin(Object.keys(await zip.entries()), tempExtractDir)
+        await zip.extract(null, tempExtractDir)
+      } finally {
+        await zip.close()
+      }
 
       // Read and validate the manifest.json
       const manifestPath = path.join(tempExtractDir, 'manifest.json')

@@ -7,7 +7,31 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { McpRuntimeService } = await import('../McpRuntimeService')
+const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
+  '../McpRuntimeService'
+)
+
+/** Build the JSON server key the service uses internally (only `id` is read by close logic). */
+function serverKeyFor(id: string): string {
+  return JSON.stringify({
+    baseUrl: undefined,
+    command: undefined,
+    args: [],
+    registryUrl: undefined,
+    env: undefined,
+    headers: undefined,
+    id
+  })
+}
+
+/** A deferred whose resolution mirrors the real connect: it lands the client in `this.clients`. */
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
 
 describe('McpRuntimeService.setServerStatus', () => {
   beforeEach(() => {
@@ -50,5 +74,109 @@ describe('McpRuntimeService.setServerStatus', () => {
     service.setServerStatus('server-1', 'error', new Error('different')) // changed → broadcast
 
     expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(2)
+  })
+})
+
+describe('McpRuntimeService.closeClientsForServer', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+  })
+
+  it('closes a client that is already connected for the server', async () => {
+    const service = new McpRuntimeService()
+    const close = vi.fn().mockResolvedValue(undefined)
+    const key = serverKeyFor('server-1')
+    ;(service as any).clients.set(key, { close })
+
+    await (service as any).closeClientsForServer('server-1')
+
+    expect(close).toHaveBeenCalledTimes(1)
+    expect((service as any).clients.size).toBe(0)
+  })
+
+  it('awaits an in-flight connect and closes the client it resolves into clients', async () => {
+    const service = new McpRuntimeService()
+    const close = vi.fn().mockResolvedValue(undefined)
+    const key = serverKeyFor('server-1')
+    const client = { close }
+
+    // Mirror the real connect path: the pending promise, once awaited, lands the
+    // client in `this.clients` so the subsequent close loop can find and close it.
+    const deferred = createDeferred<{ close: typeof close }>()
+    const pending = deferred.promise.then((c) => {
+      ;(service as any).clients.set(key, c)
+      return c
+    })
+    ;(service as any).pendingClients.set(key, pending)
+
+    const closePromise = (service as any).closeClientsForServer('server-1')
+
+    // The close must not have happened yet — it is still awaiting the in-flight connect.
+    expect(close).not.toHaveBeenCalled()
+
+    deferred.resolve(client)
+    await closePromise
+
+    expect(close).toHaveBeenCalledTimes(1)
+    expect((service as any).clients.size).toBe(0)
+  })
+
+  it('does not throw when an in-flight connect rejects', async () => {
+    const service = new McpRuntimeService()
+    const key = serverKeyFor('server-1')
+    const pending = Promise.reject(new Error('connect failed'))
+    ;(service as any).pendingClients.set(key, pending)
+
+    await expect((service as any).closeClientsForServer('server-1')).resolves.toBeUndefined()
+    expect((service as any).clients.size).toBe(0)
+  })
+
+  it('only closes clients whose key matches the target server id', async () => {
+    const service = new McpRuntimeService()
+    const closeA = vi.fn().mockResolvedValue(undefined)
+    const closeB = vi.fn().mockResolvedValue(undefined)
+    ;(service as any).clients.set(serverKeyFor('server-1'), { close: closeA })
+    ;(service as any).clients.set(serverKeyFor('server-2'), { close: closeB })
+
+    await (service as any).closeClientsForServer('server-1')
+
+    expect(closeA).toHaveBeenCalledTimes(1)
+    expect(closeB).not.toHaveBeenCalled()
+    expect((service as any).clients.has(serverKeyFor('server-2'))).toBe(true)
+  })
+})
+
+describe('MCP IPC payload validation (mcp-services-5)', () => {
+  it('rejects a malformed callTool payload (missing serverId/name)', () => {
+    expect(McpCallToolPayloadSchema.safeParse({}).success).toBe(false)
+    expect(McpCallToolPayloadSchema.safeParse({ serverId: 's1', name: '' }).success).toBe(false)
+  })
+
+  it('accepts a well-formed callTool payload (args passthrough)', () => {
+    const parsed = McpCallToolPayloadSchema.safeParse({ serverId: 's1', name: 'tool', args: { q: 1 }, callId: 'c1' })
+    expect(parsed.success).toBe(true)
+  })
+
+  it('rejects a getResource payload missing uri', () => {
+    expect(McpGetResourcePayloadSchema.safeParse({ serverId: 's1' }).success).toBe(false)
+    expect(McpGetResourcePayloadSchema.safeParse({ serverId: 's1', uri: 'res://x' }).success).toBe(true)
+  })
+})
+
+describe('redactSensitive (mcp-services-3)', () => {
+  it('redacts sensitive keys', () => {
+    const out = redactSensitive({ authorization: 'Bearer x', apiKey: 'k', keep: 'ok' })
+    expect(out.authorization).toBe('<redacted>')
+    expect(out.apiKey).toBe('<redacted>')
+    expect(out.keep).toBe('ok')
+  })
+
+  it('does not stack-overflow on a circular enumerable graph', () => {
+    const a: Record<string, unknown> = { name: 'a' }
+    const b: Record<string, unknown> = { name: 'b', a }
+    a.b = b // a -> b -> a cycle
+    expect(() => redactSensitive(a)).not.toThrow()
+    expect(redactSensitive(a)).toMatchObject({ name: 'a', b: { name: 'b', a: '[Circular]' } })
   })
 })

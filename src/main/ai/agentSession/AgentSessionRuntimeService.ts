@@ -119,6 +119,8 @@ type AgentSessionRuntimeEntry = {
   pendingTurns: AgentSessionMessageEntity[]
   connection?: AgentRuntimeConnection
   connectionLoop?: Promise<void>
+  /** In-flight {@link ensureConnection} promise — shared by concurrent callers so only one connect runs. */
+  connecting?: Promise<boolean>
   currentTurn?: AgentSessionTurn
   lastResumeToken?: string
   lastTerminalStatus?: AgentSessionRuntimeTerminalStatus
@@ -164,6 +166,12 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
 
   protected async onInit(): Promise<void> {
+    // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
+    // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
+    // reconcile so both message tables are settled on restart (neither stays a frozen "thinking"
+    // bubble); agent sessions additionally recover conversation context via the resume token.
+    await this.reconcileStalePendingMessages()
+
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
         void this.handleAgentUpdated(agentId, updates, agent).catch((error) => {
@@ -171,6 +179,17 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
+  }
+
+  private async reconcileStalePendingMessages(): Promise<void> {
+    try {
+      const staleIds = await agentSessionMessageService.findPendingAssistantMessageIds()
+      if (staleIds.length === 0) return
+      logger.info('Reconciling crash-orphaned pending agent-session messages', { count: staleIds.length })
+      await agentSessionMessageService.markMessagesError(staleIds)
+    } catch (error) {
+      logger.error('Failed to reconcile stale pending agent-session messages', { error })
+    }
   }
 
   beginTurn(input: BeginAgentSessionTurnInput): AgentSessionRuntimeHandle {
@@ -331,7 +350,10 @@ export class AgentSessionRuntimeService extends BaseService {
     if (entry.currentTurn) entry.currentTurn.terminalStatus = status
 
     if (this.shouldCloseConnectionAfterTurn(entry)) {
-      void this.closeConnection(entry)?.close()
+      // close() may be async on some drivers; swallow rejection so it can't become unhandled.
+      void Promise.resolve(this.closeConnection(entry)?.close()).catch((error) =>
+        logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
+      )
     }
 
     if (entry.pendingTurns.length > 0) {
@@ -346,6 +368,24 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry) return
     this.entries.delete(sessionId)
     this.closeEntry(entry)
+  }
+
+  /**
+   * Whether the session has a turn in flight or about to start: a non-terminal current turn,
+   * a next-turn drain in progress (`startingNextTurn`), or queued follow-ups. The dispatcher
+   * uses this — NOT `AiStreamManager.hasLiveStream` — to decide enqueue-vs-begin, because
+   * `hasLiveStream` is false during the inter-turn drain window while the entry is still
+   * mid-transition; a fresh dispatch trusting `hasLiveStream` there would clobber the drain via
+   * `beginTurn`.
+   */
+  isSessionBusy(sessionId: string): boolean {
+    const entry = this.entries.get(sessionId)
+    if (!entry) return false
+    return (
+      entry.startingNextTurn === true ||
+      entry.pendingTurns.length > 0 ||
+      (entry.currentTurn !== undefined && entry.currentTurn.terminalStatus === undefined)
+    )
   }
 
   inspect(sessionId: string): AgentSessionRuntimeSnapshot | undefined {
@@ -392,7 +432,18 @@ export class AgentSessionRuntimeService extends BaseService {
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     if (!this.isCurrentEntry(entry)) return false
     if (entry.connection) return true
+    // Share a single in-flight connect across concurrent callers so two streams opening at once
+    // can't each spin up a connection (the second would leak/clobber the first).
+    if (entry.connecting) return entry.connecting
 
+    const connecting = this.connect(entry).finally(() => {
+      if (entry.connecting === connecting) entry.connecting = undefined
+    })
+    entry.connecting = connecting
+    return connecting
+  }
+
+  private async connect(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
 
@@ -407,7 +458,9 @@ export class AgentSessionRuntimeService extends BaseService {
       trace: entry.currentTurn?.trace
     })
     if (!this.isCurrentEntry(entry)) {
-      void connection.close()
+      void Promise.resolve(connection.close()).catch((error) =>
+        logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
+      )
       return false
     }
 
@@ -458,8 +511,17 @@ export class AgentSessionRuntimeService extends BaseService {
     const turn = entry.currentTurn
     if (turn?.controller && !turn.terminalStatus) {
       turn.controller.error(error)
-    } else {
+      // Mark terminal synchronously: the listener's markTurnTerminal arrives async (after the
+      // stream error propagates), so a trailing `chunk` event in the same connection loop would
+      // otherwise hit enqueueTurnChunk and throw on the now-errored controller.
+      turn.terminalStatus = 'error'
+    } else if (isAbortError(error)) {
+      // Expected when a turn was interrupted/closed — the connection ending is not a fault.
       logger.warn('Agent runtime connection ended without an active turn', { sessionId: entry.sessionId, error })
+    } else {
+      // No turn to surface this on, so a real runtime failure would otherwise vanish — log it loudly
+      // so the next reconnect-into-the-same-failure is at least traceable.
+      logger.error('Agent runtime connection ended without an active turn', { sessionId: entry.sessionId, error })
     }
   }
 
@@ -535,11 +597,18 @@ export class AgentSessionRuntimeService extends BaseService {
   private scheduleNextTurn(entry: AgentSessionRuntimeEntry): void {
     if (entry.startingNextTurn) return
     entry.startingNextTurn = true
+    // Keep `startingNextTurn` set for the WHOLE drain — `startNextTurn` spans a DB round-trip,
+    // and `isSessionBusy` relies on this flag so a concurrent dispatch landing in the inter-turn
+    // window enqueues instead of beginning a clobbering fresh turn. Clear it only once the drain
+    // settles (turn established, bailed, or errored).
     queueMicrotask(() => {
-      entry.startingNextTurn = false
-      void this.startNextTurn(entry).catch((error) => {
-        logger.error('Failed to start next agent runtime turn', { sessionId: entry.sessionId, error })
-      })
+      void this.startNextTurn(entry)
+        .catch((error) => {
+          logger.error('Failed to start next agent runtime turn', { sessionId: entry.sessionId, error })
+        })
+        .finally(() => {
+          entry.startingNextTurn = false
+        })
     })
   }
 
@@ -567,6 +636,16 @@ export class AgentSessionRuntimeService extends BaseService {
       rootSpan.end()
       throw error
     }
+
+    // The DB save above yields the event loop; the session may have been torn down
+    // (shutdown / a fresh beginTurn) in the meantime. Re-check before mutating the entry,
+    // mirroring every other async method here — otherwise a dead entry gets resurrected
+    // into a doomed runtime turn with no backing agent connection.
+    if (!this.isCurrentEntry(entry)) {
+      rootSpan.end()
+      return
+    }
+
     const assistantMessageId = assistantMessage.id
 
     const turnId = crypto.randomUUID()
@@ -696,7 +775,9 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.currentTurn = undefined
     entry.startingNextTurn = false
 
-    void connection?.close()
+    void Promise.resolve(connection?.close()).catch((error) =>
+      logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
+    )
   }
 
   private closeConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {
@@ -705,6 +786,10 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.connectionLoop = undefined
     return connection
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'name' in error && (error as { name: unknown }).name === 'AbortError'
 }
 
 function createRuntimeSeedMessages(
