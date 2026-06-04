@@ -216,6 +216,73 @@ describe('Agent', () => {
     ])
   })
 
+  it('usage observer sums reasoningTokens (thoughtsTokens) across steps, not just the last', async () => {
+    const fakeStep1 = {
+      stepType: 'tool-call',
+      content: [],
+      finishReason: 'stop',
+      usage: { inputTokens: 3, outputTokens: 5, totalTokens: 8, outputTokenDetails: { reasoningTokens: 10 } }
+    }
+    const fakeStep2 = {
+      stepType: 'tool-call',
+      content: [],
+      finishReason: 'stop',
+      usage: { inputTokens: 2, outputTokens: 4, totalTokens: 6, outputTokenDetails: { reasoningTokens: 15 } }
+    }
+
+    mockCreateAgent.mockImplementation(
+      async ({ agentSettings }: { agentSettings: { onStepFinish?: (s: unknown) => void | Promise<void> } }) => ({
+        stream: vi.fn().mockImplementation(async () => {
+          await agentSettings.onStepFinish?.(fakeStep1)
+          await agentSettings.onStepFinish?.(fakeStep2)
+          return {
+            toUIMessageStream: () =>
+              new ReadableStream({
+                start(controller) {
+                  controller.close()
+                }
+              }),
+            totalUsage: Promise.resolve({
+              inputTokens: 0,
+              outputTokens: 0,
+              totalTokens: 0,
+              inputTokenDetails: {},
+              outputTokenDetails: {}
+            }),
+            steps: Promise.resolve([fakeStep1, fakeStep2]),
+            finishReason: Promise.resolve('stop'),
+            response: Promise.resolve({ id: 'r', modelId: 'p::m', timestamp: new Date(), messages: [] }),
+            sources: Promise.resolve([])
+          }
+        })
+      })
+    )
+
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model'
+    })
+
+    const stream = agent.stream([], new AbortController().signal)
+    const reader = stream.getReader()
+    const collectedMetadata: Array<Record<string, unknown>> = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value.type === 'message-metadata') {
+        collectedMetadata.push(value.messageMetadata as Record<string, unknown>)
+      }
+    }
+
+    // reasoningTokens (thoughtsTokens) must accumulate alongside the summed completion tokens.
+    expect(collectedMetadata).toEqual([
+      { totalTokens: 8, promptTokens: 3, completionTokens: 5, thoughtsTokens: 10 },
+      { totalTokens: 14, promptTokens: 5, completionTokens: 9, thoughtsTokens: 25 }
+    ])
+  })
+
   // ── Abort mid-stream: remaining chunks are dropped and the writer closes cleanly ──
   it('stops forwarding and closes (not errors) when the signal aborts mid-stream', async () => {
     let srcController!: ReadableStreamDefaultController<unknown>

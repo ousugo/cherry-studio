@@ -215,10 +215,13 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       .catch(async (err) => {
         if (!signal.aborted) {
           const action = await invokeOnError(err)
-          if (action !== 'retry') {
+          if (action === 'retry') {
+            // TODO: retry logic
+            // retry is reserved for a future implementation — today the loop logs and aborts.
+            logger.warn('agentLoop onError returned retry; retry not implemented — aborting', err)
+          } else {
             logger.error('agentLoop error', err)
           }
-          // TODO: retry logic
         }
         await settleWriter(err)
       })
