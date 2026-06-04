@@ -872,8 +872,7 @@
         "permissionUpdateSingle": "如果您选择总是允许此工具,批准可能会更新您的会话权限。"
       },
       "toast": {
-        "denied": "工具请求已被拒绝。",
-        "timeout": "工具请求在收到批准前超时。"
+        "denied": "工具请求已被拒绝。"
       },
       "toolPendingFallback": "工具",
       "waiting": "等待工具权限决定..."

@@ -66,10 +66,6 @@ per-tool default for non-MCP (e.g. Claude-Agent) tools.
   `approval-requested` part via overlay before it lands in the DB row.
   Writing unconditionally would clobber the (concurrent) Main-side
   persistence; the conditional write + continue-dispatch covers that case.
-- **Expired agent-session runtime** — approving requires the live runtime
-  entry that owns the held tool call. If that entry is already gone, Main
-  expires the card in agent-session storage instead of falling through to
-  the persistent-chat message table.
 
 ## Where to read more
 

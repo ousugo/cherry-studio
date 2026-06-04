@@ -1,5 +1,4 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,8 +8,6 @@ const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
 const mockMessageGetById = vi.fn()
 const mockMessageUpdate = vi.fn()
-const mockListSessionMessages = vi.fn()
-const mockSaveSessionMessage = vi.fn()
 
 vi.mock('@main/core/application', () => ({
   application: {
@@ -26,13 +23,6 @@ vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
     getById: mockMessageGetById,
     update: mockMessageUpdate
-  }
-}))
-
-vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: {
-    listSessionMessages: mockListSessionMessages,
-    saveMessage: mockSaveSessionMessage
   }
 }))
 
@@ -52,14 +42,6 @@ const { messageService } = await import('@main/data/services/MessageService')
 function createService(): InstanceType<typeof AiService> {
   BaseService.resetInstances()
   return new (AiService as any)()
-}
-
-function getToolApprovalHandler() {
-  return vi
-    .mocked(ipcMain.handle)
-    .mock.calls.find(([channel]) => channel === IpcChannel.Ai_ToolApproval_Respond)?.[1] as
-    | ((event: { sender: unknown }, payload: Record<string, unknown>) => Promise<AiToolApprovalRespondResponse>)
-    | undefined
 }
 
 describe('AiService', () => {
@@ -187,144 +169,6 @@ describe('AiService', () => {
 
     expect(createInternalEntry).toHaveBeenCalledWith({ source: 'base64', data: 'data:image/png;base64,abc123' })
     expect(result).toEqual({ files: [fileEntry] })
-  })
-
-  it('settles stale agent-session approvals without reading the persistent message table', async () => {
-    const service = createService()
-    const applyApprovalDecision = vi.fn()
-    const respondToolApproval = vi.fn(() => false)
-    mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'AiStreamManager') return { applyApprovalDecision }
-      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      throw new Error(`Unexpected service lookup: ${name}`)
-    })
-    mockMessageGetById.mockRejectedValue(new Error("Message with id 'assistant-1' not found"))
-    mockListSessionMessages.mockResolvedValue({
-      items: [
-        {
-          id: 'assistant-1',
-          sessionId: 'session-1',
-          role: 'assistant',
-          status: 'paused',
-          data: {
-            parts: [
-              {
-                type: 'tool-Bash',
-                toolCallId: 'call-1',
-                state: 'approval-requested',
-                input: { command: 'pwd' },
-                approval: { id: 'approval-1' }
-              }
-            ]
-          },
-          modelId: 'provider::model',
-          modelSnapshot: null,
-          traceId: 'trace-1',
-          stats: null,
-          runtimeResumeToken: null,
-          createdAt: '2026-05-29T00:00:00.000Z',
-          updatedAt: '2026-05-29T00:00:00.000Z'
-        }
-      ]
-    })
-
-    ;(service as any).registerIpcHandlers()
-    const handler = getToolApprovalHandler()
-    expect(handler).toBeTypeOf('function')
-
-    await expect(
-      handler?.(
-        { sender: {} },
-        {
-          approvalId: 'approval-1',
-          approved: true,
-          topicId: 'agent-session:session-1',
-          anchorId: 'assistant-1'
-        }
-      )
-    ).resolves.toEqual({ ok: true, status: 'expired' })
-
-    expect(mockMessageGetById).not.toHaveBeenCalled()
-    expect(mockListSessionMessages).toHaveBeenCalledWith('session-1', { messageId: 'assistant-1', limit: 1 })
-    expect(mockSaveSessionMessage).toHaveBeenCalledWith({
-      sessionId: 'session-1',
-      message: expect.objectContaining({
-        id: 'assistant-1',
-        role: 'assistant',
-        status: 'paused',
-        data: {
-          parts: [
-            expect.objectContaining({
-              state: 'output-denied',
-              approval: expect.objectContaining({
-                id: 'approval-1',
-                approved: false,
-                reason: expect.stringContaining('expired')
-              })
-            })
-          ]
-        }
-      })
-    })
-  })
-
-  it('treats already-settled stale agent-session approvals as successful', async () => {
-    const service = createService()
-    const applyApprovalDecision = vi.fn()
-    const respondToolApproval = vi.fn(() => false)
-    mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'AiStreamManager') return { applyApprovalDecision }
-      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      throw new Error(`Unexpected service lookup: ${name}`)
-    })
-    mockMessageGetById.mockRejectedValue(new Error("Message with id 'assistant-1' not found"))
-    mockListSessionMessages.mockResolvedValue({
-      items: [
-        {
-          id: 'assistant-1',
-          sessionId: 'session-1',
-          role: 'assistant',
-          status: 'paused',
-          data: {
-            parts: [
-              {
-                type: 'tool-Bash',
-                toolCallId: 'call-1',
-                state: 'output-denied',
-                input: { command: 'pwd' },
-                approval: { id: 'approval-1', approved: false, reason: 'expired' }
-              }
-            ]
-          },
-          modelId: 'provider::model',
-          modelSnapshot: null,
-          traceId: 'trace-1',
-          stats: null,
-          runtimeResumeToken: null,
-          createdAt: '2026-05-29T00:00:00.000Z',
-          updatedAt: '2026-05-29T00:00:00.000Z'
-        }
-      ]
-    })
-
-    ;(service as any).registerIpcHandlers()
-    const handler = getToolApprovalHandler()
-    expect(handler).toBeTypeOf('function')
-
-    await expect(
-      handler?.(
-        { sender: {} },
-        {
-          approvalId: 'approval-1',
-          approved: true,
-          topicId: 'agent-session:session-1',
-          anchorId: 'assistant-1'
-        }
-      )
-    ).resolves.toEqual({ ok: true, status: 'expired' })
-
-    expect(mockMessageGetById).not.toHaveBeenCalled()
-    expect(mockSaveSessionMessage).not.toHaveBeenCalled()
   })
 })
 

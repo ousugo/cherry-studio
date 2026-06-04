@@ -148,11 +148,8 @@ export interface AiToolApprovalRespondRequest extends ApprovalDecision {
   anchorId?: string
 }
 
-export type AiToolApprovalRespondStatus = 'accepted' | 'expired'
-
 export interface AiToolApprovalRespondResponse {
   ok: boolean
-  status?: AiToolApprovalRespondStatus
 }
 
 /** Subscribe to a topic's stream state. */

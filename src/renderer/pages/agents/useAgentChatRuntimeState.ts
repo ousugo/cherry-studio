@@ -16,7 +16,6 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useAgentChatRuntimeState')
 
@@ -63,7 +62,6 @@ export function useAgentChatRuntimeState({
   sessionHistoryFetchOnMount,
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
-  const { t } = useTranslation()
   const sessionId = session.id
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const {
@@ -176,12 +174,9 @@ export function useAgentChatRuntimeState({
       })
 
       if (!result.ok) throw new Error('Tool approval response was not accepted')
-      if (result.status === 'expired') {
-        window.toast.warning(t('agent.toolPermission.toast.timeout'))
-      }
       await refresh()
     },
-    [refresh, sessionTopicId, t]
+    [refresh, sessionTopicId]
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,

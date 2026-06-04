@@ -16,7 +16,7 @@ import type {
   ApprovalDecision
 } from '@shared/ai/transport'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
-import type { Message } from '@shared/data/types/message'
+import type { CherryMessagePart, Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
@@ -29,6 +29,7 @@ import { dispatchStreamRequest, type MainDispatchRequest } from './context'
 import { KeyedMutex } from './KeyedMutex'
 import { createChatStreamLifecycle, promptStreamLifecycle, type StreamLifecycle } from './lifecycle'
 import { WebContentsListener } from './listeners/WebContentsListener'
+import { finalizeInterruptedParts } from './persistence/PersistenceBackend'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import type {
   ActiveStream,
@@ -615,6 +616,15 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec || exec.status !== 'aborted') return
 
+    // A turn torn down while a tool is still `approval-requested` (or any
+    // in-flight tool) gets no `tool-output-*` to clear it. Clear the flag so the
+    // status resolves to plain `aborted` (not `awaiting-approval`) and the
+    // status-cache anchor drops; the dangling tool part itself is terminalized
+    // to `output-error` by `finalizeInterruptedParts` at every projection
+    // (persistence already, re-attach below). Must run before
+    // `resolveTerminalStatus`.
+    exec.awaitingApproval = false
+
     endRootSpan(exec, 'aborted')
     stream.status = this.resolveTerminalStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
@@ -635,6 +645,10 @@ export class AiStreamManager extends BaseService {
     exec.status = 'error'
     exec.error = error
     endRootSpan(exec, 'error', error)
+
+    // Mirror of onExecutionPaused: clear the flag so the status anchor drops;
+    // the in-flight tool part is terminalized by `finalizeInterruptedParts`.
+    exec.awaitingApproval = false
 
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
@@ -756,12 +770,26 @@ export class AiStreamManager extends BaseService {
       // backwards-compat convenience pointing at the first iteration; both
       // are undefined-safe when the stream errored before any execution
       // accumulated content.
+      // Re-attach to an aborted stream must terminalize any in-flight tool part
+      // (e.g. a tool stopped mid-approval) so a reopening window doesn't rebuild
+      // a stale `approval-requested`/`input-available` card — same `output-error`
+      // settle the DB row already got via the persistence backend. `done`
+      // leaves parts untouched (and never reaches here while awaiting approval —
+      // that status is `awaiting-approval`, handled by the live branch below).
+      const finalizeStatus = stream.status === 'aborted' ? 'paused' : 'success'
       const finalMessages: Partial<Record<UniqueModelId, CherryUIMessage>> = {}
       let firstFinalMessage: CherryUIMessage | undefined
       for (const exec of stream.executions.values()) {
         if (!exec.finalMessage) continue
-        finalMessages[exec.modelId] = exec.finalMessage
-        if (!firstFinalMessage) firstFinalMessage = exec.finalMessage
+        const finalized =
+          finalizeStatus === 'success'
+            ? exec.finalMessage
+            : ({
+                ...exec.finalMessage,
+                parts: finalizeInterruptedParts((exec.finalMessage.parts ?? []) as CherryMessagePart[], finalizeStatus)
+              } as CherryUIMessage)
+        finalMessages[exec.modelId] = finalized
+        if (!firstFinalMessage) firstFinalMessage = finalized
       }
       return {
         status: stream.status === 'aborted' ? 'paused' : 'done',
@@ -879,7 +907,7 @@ export class AiStreamManager extends BaseService {
     // upstream AI SDK request is already wired to. Caller override via
     // `requestOptions.timeout`; otherwise `DEFAULT_TIMEOUT`.
     const timeoutMs = request.requestOptions?.timeout ?? DEFAULT_TIMEOUT
-    const stream = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
+    const { stream, idle } = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
 
     // `continue-conversation` chunks reference toolCallIds on the anchor
     // assistant message; without seeding, `readUIMessageStream`'s
@@ -889,7 +917,10 @@ export class AiStreamManager extends BaseService {
       lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined
 
     const result = await pipeStreamLoop(stream, signal, {
-      onChunk: (chunk) => this.onChunk(topicId, modelId, chunk),
+      onChunk: (chunk) => {
+        this.onChunk(topicId, modelId, chunk)
+        if (chunk.type === 'tool-approval-request') idle.cleanup()
+      },
       accumulatorSeed,
       onAccumulatedSnapshot: (msg) => {
         exec.finalMessage = replayApprovalDecisionsOnSnapshot(msg, exec.approvalDecisions)

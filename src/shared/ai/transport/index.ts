@@ -29,7 +29,6 @@ export type {
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
   AiToolApprovalRespondResponse,
-  AiToolApprovalRespondStatus,
   ApprovalDecision,
   ComposerQueuedMessagePayload,
   StreamChunkPayload,
