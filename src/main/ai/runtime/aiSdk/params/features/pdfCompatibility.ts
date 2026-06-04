@@ -21,7 +21,10 @@ type ContentPart = Exclude<LanguageModelV3Message['content'], string>[number]
 
 /** First-party protocols only — aggregators / openai-compatible may route to backends that reject `file` parts. */
 const PDF_NATIVE_PROVIDER_IDS = new Set<AppProviderId>([
-  'openai-responses',
+  // The resolver emits the base `openai` id only for the Responses endpoint (chat-completions
+  // resolves to `openai-chat`/`openai-compatible`), so matching `openai` targets exactly the
+  // native-PDF-capable Responses path. (`openai-responses` is never emitted — dead literal.)
+  'openai',
   'anthropic',
   'google',
   'azure',
@@ -47,7 +50,7 @@ function supportsNativePdf(provider: Provider, model: Model, aiSdkProviderId: Ap
   }
   if (!PDF_NATIVE_PROVIDER_IDS.has(aiSdkProviderId)) return false
 
-  if (aiSdkProviderId === 'openai-responses' || aiSdkProviderId === 'azure' || aiSdkProviderId === 'azure-responses') {
+  if (aiSdkProviderId === 'openai' || aiSdkProviderId === 'azure' || aiSdkProviderId === 'azure-responses') {
     return isOpenAILLMModel(model)
   }
   if (aiSdkProviderId === 'anthropic' || aiSdkProviderId === 'anthropic-vertex' || aiSdkProviderId === 'bedrock') {
