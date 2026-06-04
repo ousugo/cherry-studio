@@ -152,9 +152,7 @@ export class AgentsMigrator extends BaseMigrator {
       // intermediate sentinel state (`order_key=''`).
       //
       // Order:
-      //   1. backfillAgentOrderKeys — joins `agents_legacy.agents`,
-      //      so MUST run while ATTACH is live and BEFORE remap rewrites ids.
-      //   2. backfillAgentSessionOrderKeys — joins `agents_legacy.sessions`,
+      //   1. backfillAgentOrderKeys — joins `agents_legacy.{agents,sessions}`,
       //      so MUST run while ATTACH is live and BEFORE remap rewrites ids.
       //   2. importLegacySessionMessages — generates UUID message ids instead
       //      of preserving legacy integer row ids, and writes final `data.parts`.
@@ -932,10 +930,12 @@ export async function importLegacySessionMessages(
 }
 
 /**
- * Replace `''` placeholder agent orderKeys (set by INSERT...SELECT) with real
+ * Replace `''` placeholder orderKeys (set by INSERT...SELECT) with real
  * fractional-indexing keys, ordered by the source `sort_order`. Joins target
- * rows to `agents_legacy.agents` so this MUST run while the source DB is
- * attached AND before remapAgentPrefixIds rewrites target ids.
+ * rows to `agents_legacy.{agents,sessions}` so this MUST run while the source
+ * DB is attached AND before remapAgentPrefixIds rewrites target ids.
+ *
+ * Sessions are scoped per agentId.
  */
 export async function backfillAgentOrderKeys(db: DbType): Promise<void> {
   type Row = { id: string }
