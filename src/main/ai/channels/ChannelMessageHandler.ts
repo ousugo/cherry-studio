@@ -7,6 +7,7 @@ import { agentService } from '@data/services/AgentService'
 import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { isAgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
@@ -275,10 +276,16 @@ export class ChannelMessageHandler {
         // read never accumulated — and reviving it would double-send.)
         await this.collectStreamResponse(session, securedContent, abortController, adapter, message.chatId)
       } catch (streamError) {
-        // Notify adapter of the error so it can update streaming UI
-        adapter
-          .onStreamError(message.chatId, streamError instanceof Error ? streamError.message : String(streamError))
-          .catch(() => {})
+        const streamErrorMessage = streamError instanceof Error ? streamError.message : String(streamError)
+        if (isAgentSessionWorkspaceError(streamError)) {
+          // Thrown before streaming starts (validateSession), so no controller exists yet and
+          // onStreamError is a no-op on most adapters — send a plain message so the inbound
+          // message isn't silently dropped on Telegram/WeChat/QQ/Discord/Slack.
+          adapter.sendMessage(message.chatId, streamErrorMessage).catch(() => {})
+        } else {
+          // Mid-stream error: let the adapter update its streaming UI.
+          adapter.onStreamError(message.chatId, streamErrorMessage).catch(() => {})
+        }
         throw streamError
       } finally {
         this.activeAbortControllers.delete(session.id)

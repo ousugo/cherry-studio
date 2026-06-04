@@ -2,6 +2,7 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { sessionService } from '@data/services/SessionService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { AgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -209,6 +210,33 @@ describe('ChannelMessageHandler', () => {
 
     // Restore the identity default so later tests are unaffected.
     vi.mocked(sanitizeChannelOutput).mockImplementation((text: string) => ({ text, redacted: false }))
+  })
+
+  // stream-context-5: a workspace error is thrown before streaming starts, so onStreamError
+  // (a no-op without a live controller on most adapters) can't surface it. The handler must
+  // fall back to a plain sendMessage so the inbound message isn't silently dropped.
+  it('surfaces a pre-stream workspace error as a plain message (REGRESSION stream-context-5)', async () => {
+    const adapter = createMockAdapter()
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      workspace: { path: '/tmp/test-workspace' },
+      configuration: {}
+    }
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
+    mockStartAgentSessionRun.mockRejectedValueOnce(new AgentSessionWorkspaceError('workspace is missing'))
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Hi'
+    })
+
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing')
+    expect(adapter.onStreamError).not.toHaveBeenCalled()
   })
 
   it('skips final send when adapter handles stream completion', async () => {
