@@ -8,15 +8,17 @@ import { makeProvider } from '../../__tests__/fixtures/provider'
 // providerToAiSdkConfig reads the rotated API key and (for Vertex/Bedrock) the
 // auth config off the direct-import ProviderService singleton. Mock both at the
 // module boundary so the dispatch builders run without touching the DB.
-const { getRotatedApiKeyMock, getAuthConfigMock } = vi.hoisted(() => ({
+const { getRotatedApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
   getRotatedApiKeyMock: vi.fn<(providerId: string) => Promise<string>>(),
-  getAuthConfigMock: vi.fn<(providerId: string) => Promise<AuthConfig | null>>()
+  getAuthConfigMock: vi.fn<(providerId: string) => Promise<AuthConfig | null>>(),
+  getByProviderIdMock: vi.fn()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
     getRotatedApiKey: getRotatedApiKeyMock,
-    getAuthConfig: getAuthConfigMock
+    getAuthConfig: getAuthConfigMock,
+    getByProviderId: getByProviderIdMock
   }
 }))
 
@@ -109,6 +111,38 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).toBe('https://us-central1-aiplatform.googleapis.com/v1/publishers/google')
     })
 
+    it('leaves baseURL undefined when no custom host is configured, so the SDK derives the aiplatform host (REGRESSION)', async () => {
+      // Standard Vertex providers leave baseUrl empty. The old code appended the publisher
+      // suffix to '' → '/publishers/google', a truthy host-less URL the Vertex SDK's `?? `
+      // default does NOT override, so every inference request targeted a host-less path.
+      getAuthConfigMock.mockResolvedValue(vertexAuth)
+      const provider = makeProvider({
+        id: 'vertex',
+        authType: 'iam-gcp',
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            // No baseUrl — the common case for a standard Vertex provider.
+            adapterFamily: 'google-vertex'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'vertex::gemini-2.0-flash',
+        apiModelId: 'gemini-2.0-flash',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('google-vertex')
+      // The fix: undefined (not '' and not '/publishers/google') so the SDK auto-derives the host.
+      expect(settings.baseURL).toBeUndefined()
+      expect(settings.project).toBe('my-project')
+      expect(settings.location).toBe('us-central1')
+    })
+
     it('throws when a Vertex-resolved provider lacks iam-gcp auth config', async () => {
       getAuthConfigMock.mockResolvedValue(null)
       const provider = makeProvider({
@@ -163,6 +197,48 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.secretAccessKey).toBe('secret')
       // getAuthConfig is consulted for bedrock credentials.
       expect(getAuthConfigMock).toHaveBeenCalledWith('bedrock')
+    })
+  })
+
+  describe('CherryIn routing (default chat endpoint upgrades to cherryin-chat variant)', () => {
+    it('routes the default cherryin chat endpoint to buildCherryinConfig, not the generic builder (REGRESSION)', async () => {
+      // The resolver upgrades the default OpenAI chat endpoint to the `cherryin-chat` variant,
+      // so the old `id === 'cherryin'` dispatch row never matched and the request fell through
+      // to buildGenericProviderConfig — dropping endpointType + the relay anthropic/gemini URLs.
+      getByProviderIdMock.mockResolvedValue(
+        makeProvider({
+          id: 'cherryin',
+          endpointConfigs: {
+            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://open.cherryin.net' },
+            [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://open.cherryin.net' }
+          }
+        })
+      )
+      const provider = makeProvider({
+        id: 'cherryin',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://open.cherryin.net',
+            adapterFamily: 'cherryin'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'cherryin::gpt-4o',
+        apiModelId: 'gpt-4o',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      // The variant id still flows through as the providerId so the chat transform is selected.
+      expect(config.providerId).toBe('cherryin-chat')
+      // buildCherryinConfig sets endpointType + relay base URLs; the generic builder would not.
+      expect(settings.endpointType).toBe('openai')
+      expect(settings.anthropicBaseURL).toBeDefined()
+      expect(settings.geminiBaseURL).toBeDefined()
     })
   })
 

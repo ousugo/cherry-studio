@@ -98,7 +98,11 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     // too — `buildVertexConfig` branches on `isAnthropic`. Otherwise it falls through to the
     // generic builder, dropping project/location/googleCredentials and the publisher baseURL.
     { match: (_, id) => id === 'google-vertex' || id === 'google-vertex-anthropic', build: buildVertexConfig },
-    { match: (_, id) => id === 'cherryin', build: buildCherryinConfig },
+    // Match on the provider id, not the resolved aiSdkProviderId: the resolver upgrades the
+    // default chat endpoint to the `cherryin-chat` variant, so `id === 'cherryin'` is never true
+    // for the common path and the request would fall through to the generic builder, dropping the
+    // relay-resolved anthropic/gemini baseURLs and the `/v1` segment. (Mirrors `cherryai`/`copilot`.)
+    { match: (p) => p.id === SystemProviderIds.cherryin, build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
     { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
   ]
@@ -242,7 +246,13 @@ async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'g
 
   const modelId = ctx.model.apiModelId ?? ctx.model.id
   const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || modelId.startsWith('claude')
-  const baseURL = ctx.baseConfig.baseURL + (isAnthropic ? '/publishers/anthropic/models' : '/publishers/google')
+  // Standard Vertex providers leave baseURL empty. Appending the publisher suffix to `''`
+  // yields a truthy host-less URL (`/publishers/google`), which the Vertex SDK's `?? ` default
+  // does NOT override — so it must stay `undefined` to let the SDK derive the full aiplatform
+  // host. Only append the suffix when a custom host is actually configured.
+  const baseURL = ctx.baseConfig.baseURL
+    ? ctx.baseConfig.baseURL + (isAnthropic ? '/publishers/anthropic/models' : '/publishers/google')
+    : undefined
 
   const normalizedPrivateKey = normalizeVertexCredentials(googleCredentials).privateKey
   const creds = googleCredentials
