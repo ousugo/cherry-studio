@@ -105,7 +105,7 @@ export const providerListClasses = {
   itemSelected: 'bg-muted',
   itemIdle: 'hover:bg-muted',
   itemContent: 'flex min-w-0 flex-1 items-center gap-2.5',
-  itemTrailingSlot: 'relative -mr-1 ml-1 flex size-5 shrink-0 items-center justify-center',
+  itemTrailingSlot: 'relative -mr-1 ml-1 flex size-2 shrink-0 items-center justify-center',
   itemAvatar: 'shrink-0 rounded-lg border border-border/30',
   itemLabel: 'min-w-0 truncate text-sm leading-[1.35]',
   itemMenuContent: 'w-fit min-w-32 rounded-xl p-1.5',
