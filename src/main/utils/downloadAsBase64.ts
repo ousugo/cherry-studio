@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { sanitizeFileProcessingRemoteUrl } from '@main/services/fileProcessing/utils/url'
+import { MB } from '@shared/config/constant'
 import { net } from 'electron'
 
 const logger = loggerService.withContext('downloadAsBase64')
@@ -18,8 +19,8 @@ export type FileAttachment = {
   size: number // raw byte size (before base64 encoding)
 }
 
-/** Maximum file size we'll download (20 MB). */
-export const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
+/** Maximum file size we'll download (100 MB). */
+export const MAX_FILE_SIZE_BYTES = 100 * MB
 
 /**
  * Download an image URL via Electron's net.fetch (respects system proxy) and
