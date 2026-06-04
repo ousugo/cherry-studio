@@ -80,34 +80,26 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 
   const isHeartbeat = taskName === HEARTBEAT_TASK_NAME && prompt === HEARTBEAT_PROMPT_SENTINEL
 
-  // A disabled heartbeat must skip BEFORE we create a session — `createSession`
-  // also lazily provisions a workspace on first fire, so running it for a fire
-  // we're going to drop accretes a session row (and workspace) every interval.
-  if (isHeartbeat && config.heartbeat_enabled === false) {
-    logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
-    return { sessionId: null, result: 'Skipped (disabled)' }
-  }
-
-  // Always create a fresh session per fire. Scheduled tasks are discrete
-  // invocations; cross-fire session reuse would only carry stale model
-  // context. Persistent state lives in workspace files (heartbeat.md, etc.).
-  const session = await sessionService.createSession({ agentId, name: taskName ?? 'Scheduled task' })
-  const workspacePath = session.workspace?.path
-
   let effectivePrompt = prompt
 
-  // Heartbeat (name='heartbeat' + sentinel prompt) — skip when the workspace is
-  // missing; otherwise compose the periodic prompt from heartbeat.md. The
-  // `heartbeat_enabled === false` case is handled above, before session create.
+  // All heartbeat skip decisions happen BEFORE we create a session — `createSession`
+  // lazily provisions a workspace, so creating one for a fire we're going to drop
+  // accretes a session row (and workspace) every interval. The agent's workspace is
+  // shared across its sessions, so we can read `heartbeat.md` without creating one.
   if (isHeartbeat) {
+    if (config.heartbeat_enabled === false) {
+      logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
+      return { sessionId: null, result: 'Skipped (disabled)' }
+    }
+    const workspacePath = await sessionService.findAgentWorkspacePath(agentId)
     if (!workspacePath) {
       logger.debug('Heartbeat skipped (no workspace)', { agentId, scheduleId })
-      return { sessionId: session.id, result: 'Skipped (disabled)' }
+      return { sessionId: null, result: 'Skipped (no file)' }
     }
     const content = await readHeartbeat(workspacePath)
     if (!content) {
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })
-      return { sessionId: session.id, result: 'Skipped (no file)' }
+      return { sessionId: null, result: 'Skipped (no file)' }
     }
     effectivePrompt = [
       '[Heartbeat]',
@@ -118,6 +110,11 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       content
     ].join('\n')
   }
+
+  // Always create a fresh session per fire. Scheduled tasks are discrete
+  // invocations; cross-fire session reuse would only carry stale model
+  // context. Persistent state lives in workspace files (heartbeat.md, etc.).
+  const session = await sessionService.createSession({ agentId, name: taskName ?? 'Scheduled task' })
 
   const subscribedChannels = scheduleId ? await agentChannelService.getSubscribedChannels(scheduleId) : []
 
