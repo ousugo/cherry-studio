@@ -1052,6 +1052,29 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
     })
 
+    it('clears awaiting-approval when a tool-output chunk resolves the approval before terminal', async () => {
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+
+      // Approval request sets exec.awaitingApproval and flips pending → streaming.
+      mgr.onChunk('t', 'p::m', { type: 'tool-approval-request' } as UIMessageChunk)
+      expect(statusSequence('t')).toEqual(['pending', 'streaming'])
+
+      // The tool output for the same call resolves the approval: exec.awaitingApproval clears.
+      mgr.onChunk('t', 'p::m', { type: 'tool-output-available' } as UIMessageChunk)
+
+      // resolveTerminalStatus no longer finds a paused exec, so the terminal status is `done`,
+      // NOT stuck on `awaiting-approval`.
+      await mgr.onExecutionDone('t', 'p::m')
+      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+      expect(mgr.inspect('t')!.status).toBe('done')
+      expect(mgr.inspect('t')!.status).not.toBe('awaiting-approval')
+    })
+
     it('multi-model: flips on first chunk from any execution and stays pending if an execution errors before any chunks', async () => {
       mgr.send({
         topicId: 't',

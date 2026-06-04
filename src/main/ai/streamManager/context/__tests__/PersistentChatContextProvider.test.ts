@@ -10,6 +10,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startAiTurnTrace } from '../../../observability'
+import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
 import { resolveModels, resolvePersistentSiblingsGroupId } from '../modelResolution'
 
@@ -193,6 +194,17 @@ describe('PersistentChatContextProvider — steer-restart history (#B4)', () => 
     expect(phB?.siblingsGroupId).toBe(42)
     expect(prepared.models[0].request.messageId).toBe(phA?.id)
     expect(prepared.models[1].request.messageId).toBe(phB?.id)
+
+    // One PersistenceListener per placeholder — no missing/extra/duplicate listener for a fan-out.
+    const persistenceListeners = prepared.listeners.filter((l) => l instanceof PersistenceListener)
+    expect(persistenceListeners).toHaveLength(2)
+    // Each listener is keyed (via its sqlite-backed id `persistence:sqlite:<topicId>:<modelId>`) to the
+    // model whose execution carries the matching placeholder messageId — so terminal events route to the
+    // right row. modelId order matches the per-model executions, proving listener[i] ↔ placeholder[i].
+    expect(persistenceListeners.map((l) => l.id)).toEqual([
+      `persistence:sqlite:topic-1:${MODEL_A}`,
+      `persistence:sqlite:topic-1:${MODEL_B}`
+    ])
   })
 })
 

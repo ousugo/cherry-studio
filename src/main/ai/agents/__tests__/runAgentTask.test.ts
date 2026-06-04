@@ -312,4 +312,30 @@ describe('runAgentTask', () => {
     await expect(promise).rejects.toThrow('cancelled by manager')
     expect(mockAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'cancelled by manager')
   })
+
+  // agents-jobs-5: a non-zero `timeoutMinutes` arms a per-task timeout timer in
+  // makeRunSignal. When the stream never settles, the timer must fire, abort the
+  // upstream stream, and reject the handler with the timeout error.
+  it('aborts the upstream stream and rejects when the per-task timeout fires', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
+      vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('daily-summary'))
+      vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent())
+      vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
+
+      const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 1 } }))
+      const assertion = expect(promise).rejects.toThrow('Task timed out after 1 minute(s)')
+
+      // Flush the awaited setup chain (getById/getAgent/createSession/startRun) and
+      // arm the timer, then advance past the 1-minute timeout so it fires. Never
+      // settle the stream — the timeout is the only thing that resolves the run.
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      await assertion
+      expect(mockAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'Task timed out after 1 minute(s)')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
