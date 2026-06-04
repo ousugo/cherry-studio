@@ -185,15 +185,18 @@ describe('runAgentTask', () => {
     await expect(runAgentTask(makeCtx())).rejects.toThrow('Agent not found: a1')
   })
 
-  it('returns "Skipped (disabled)" when heartbeat task is disabled in agent config', async () => {
+  // A disabled heartbeat must short-circuit BEFORE createSession — that call also
+  // lazily provisions a workspace on first fire, so creating a session for a fire
+  // we're going to drop would accrete a session row (and workspace) every interval.
+  it('skips a disabled heartbeat WITHOUT creating a session', async () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('heartbeat'))
     vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: false }))
-    vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession())
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ sessionId: 'sess-new', result: 'Skipped (disabled)' })
+    expect(out).toEqual({ sessionId: null, result: 'Skipped (disabled)' })
+    expect(sessionService.createSession).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
 
@@ -222,11 +225,13 @@ describe('runAgentTask', () => {
     expect(readHeartbeat).toHaveBeenCalledWith('/ws/a')
   })
 
-  it('always calls createSession (fresh session per fire — no reuse)', async () => {
+  it('creates a fresh session per fire for an enabled heartbeat (no reuse)', async () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('heartbeat'))
-    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: false }))
-    vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession())
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
+    // No heartbeat.md → still skips, but only after the session is created.
+    vi.mocked(readHeartbeat).mockResolvedValueOnce(undefined)
 
     await runAgentTask(makeCtx())
 

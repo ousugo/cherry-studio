@@ -33,9 +33,21 @@ export async function downloadImageAsBase64(url: string): Promise<ImageAttachmen
       logger.warn('Failed to download image', { url, status: response.status })
       return null
     }
+
+    const contentLength = response.headers.get('content-length')
+    if (contentLength && parseInt(contentLength, 10) > MAX_FILE_SIZE_BYTES) {
+      logger.warn('Image too large, skipping download', { url, size: contentLength })
+      return null
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer())
+    if (buffer.length > MAX_FILE_SIZE_BYTES) {
+      logger.warn('Image too large after download', { url, size: buffer.length })
+      return null
+    }
+
     const contentType = response.headers.get('content-type') || 'image/png'
     const mediaType = contentType.split(';')[0].trim()
-    const buffer = Buffer.from(await response.arrayBuffer())
     return { data: buffer.toString('base64'), media_type: mediaType }
   } catch (error) {
     logger.warn('Failed to fetch image', {

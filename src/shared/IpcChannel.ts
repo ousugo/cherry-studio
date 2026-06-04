@@ -238,12 +238,6 @@ export enum IpcChannel {
   // PDF
   Pdf_ExtractText = 'pdf:extractText',
 
-  // file service
-  FileService_Upload = 'file-service:upload',
-  FileService_List = 'file-service:list',
-  FileService_Delete = 'file-service:delete',
-  FileService_Retrieve = 'file-service:retrieve',
-
   Export_Word = 'export:word',
 
   // backup

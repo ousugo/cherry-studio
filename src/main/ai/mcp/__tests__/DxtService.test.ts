@@ -1,13 +1,14 @@
 import path from 'path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import {
-  assertZipEntriesWithin,
-  buildResolvedEnv,
-  ensurePathWithin,
-  validateArgs,
-  validateCommand
-} from '../DxtService'
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
+
+const { assertZipEntriesWithin, buildResolvedEnv, ensurePathWithin, validateArgs, validateCommand } = await import(
+  '../DxtService'
+)
 
 describe('ensurePathWithin', () => {
   // Use path.join to construct cross-platform compatible paths
@@ -268,6 +269,24 @@ describe('buildResolvedEnv', () => {
     // Input must not be mutated.
     expect(input.ROOT).toBe('${__dirname}')
     expect(result).not.toBe(input)
+  })
+
+  it('resolves ${HOME}/${DESKTOP}/${DOCUMENTS}/${DOWNLOADS} via central paths', () => {
+    const input = {
+      HOME: '${HOME}',
+      DESKTOP: '${DESKTOP}',
+      DOCUMENTS: '${DOCUMENTS}',
+      DOWNLOADS: '${DOWNLOADS}'
+    }
+    const result = buildResolvedEnv(input, extractDir)
+
+    // The mocked application.getPath returns "/mock/<key>" deterministically.
+    expect(result).toEqual({
+      HOME: '/mock/sys.home',
+      DESKTOP: '/mock/sys.desktop',
+      DOCUMENTS: '/mock/sys.documents',
+      DOWNLOADS: '/mock/sys.downloads'
+    })
   })
 
   it('rejects null bytes in env values', () => {

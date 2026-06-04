@@ -485,6 +485,13 @@ export class McpRuntimeService extends BaseService {
           } else if (server.command) {
             let cmd = server.command
 
+            // Build a local env for the transport instead of mutating `server.env`. getServerKey(server)
+            // serializes server.env, so mutating it here would shift the key after connect — connect-time
+            // logs (emitServerLog) and list-changed cache invalidations would then land under a key that
+            // getServerLogs / the caches (which see the un-mutated server) never query. Keep server.env
+            // untouched so the key stays stable everywhere; see the "deep-copy don't mutate" pattern.
+            const connectEnv: Record<string, string> = { ...server.env }
+
             // Get login shell environment first - needed for command detection and server execution
             // Note: getLoginShellEnvironment() is memoized, so subsequent calls are fast
             const loginShellEnv = await getLoginShellEnvironment()
@@ -496,10 +503,7 @@ export class McpRuntimeService extends BaseService {
                 cmd = resolvedConfig.command
                 args = resolvedConfig.args
                 // Merge resolved environment variables with existing ones
-                server.env = {
-                  ...server.env,
-                  ...resolvedConfig.env
-                }
+                Object.assign(connectEnv, resolvedConfig.env)
                 getServerLogger(server).debug(`Using resolved DXT config`, {
                   command: cmd,
                   args
@@ -550,16 +554,13 @@ export class McpRuntimeService extends BaseService {
               }
 
               if (server.registryUrl) {
-                server.env = {
-                  ...server.env,
-                  NPM_CONFIG_REGISTRY: server.registryUrl
-                }
+                connectEnv.NPM_CONFIG_REGISTRY = server.registryUrl
 
                 // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
                 if (server.name.includes('mcp-auto-install')) {
                   const binPath = await getBinaryPath()
                   makeSureDirExists(binPath)
-                  server.env.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
+                  connectEnv.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
                 }
               }
             } else if (server.command === 'uvx' || server.command === 'uv') {
@@ -593,11 +594,8 @@ export class McpRuntimeService extends BaseService {
               }
 
               if (server.registryUrl) {
-                server.env = {
-                  ...server.env,
-                  UV_DEFAULT_INDEX: server.registryUrl,
-                  PIP_INDEX_URL: server.registryUrl
-                }
+                connectEnv.UV_DEFAULT_INDEX = server.registryUrl
+                connectEnv.PIP_INDEX_URL = server.registryUrl
               }
             }
 
@@ -613,7 +611,7 @@ export class McpRuntimeService extends BaseService {
               args,
               env: {
                 ...loginShellEnv,
-                ...server.env
+                ...connectEnv
               },
               stderr: 'pipe'
             }

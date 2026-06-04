@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AiStreamRequest } from '../../types/requests'
 import type {
   AiStreamManagerConfig,
+  CherryUIMessage,
   StreamDoneResult,
   StreamErrorResult,
   StreamListener,
@@ -873,6 +874,114 @@ describe('AiStreamManager', () => {
       // The same timings land in the terminal result the listener received
       // (snapshot copy, so equal-but-not-same-reference is expected).
       expect(listener.doneResults[0].timings).toEqual(timings)
+    })
+  })
+
+  // ── mid-stream error chunk ──────────────────────────────────────
+  // A provider can emit a terminal `{ type: 'error', errorText }` chunk
+  // instead of throwing. `pipeStreamLoop` captures it as `streamErrorText`,
+  // and `runExecutionLoop` routes it through `onExecutionError` with the
+  // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
+
+  describe('mid-stream error chunk', () => {
+    it('routes a terminal error chunk through onExecutionError with the translated stream error', async () => {
+      // readUIMessageStream's accumulator needs real microtask / timer
+      // scheduling; fake timers starve its reader loop (see live finalMessage
+      // test). The afterEach swaps fake timers back in.
+      vi.useRealTimers()
+
+      const controlled = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => controlled.stream)
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+
+      // Provider surfaces a terminal error chunk rather than throwing.
+      controlled.enqueue({ type: 'error', errorText: 'boom' } as UIMessageChunk)
+      controlled.close()
+
+      // Let the tee → broadcast → terminal chain drain on real timers.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      expect(listener.errorResults).toHaveLength(1)
+      // `errorFromStreamChunk('boom')` → { name: 'StreamError', message: 'boom', stack: null }.
+      expect(listener.errorResults[0].error).toEqual({ name: 'StreamError', message: 'boom', stack: null })
+      expect(listener.errorResults[0].status).toBe('error')
+      expect(mgr.inspect('a')!.status).toBe('error')
+    })
+  })
+
+  // ── continue-conversation accumulator seed ──────────────────────
+  // When the last incoming message is an assistant turn (the tool-approval
+  // continue / continue-conversation resume), `runExecutionLoop` seeds
+  // `readUIMessageStream` with it (AiStreamManager.ts ~803-805). Without the
+  // seed the accumulator's `getToolInvocation` throws on the resumed
+  // tool-part ids and silently halts, so `exec.finalMessage` never lands.
+
+  describe('continue-conversation accumulator seed', () => {
+    it('seeds the accumulator from a trailing assistant message so finalMessage accumulates', async () => {
+      // readUIMessageStream relies on real microtask / timer scheduling.
+      vi.useRealTimers()
+
+      const controlled = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => controlled.stream)
+
+      // The resumed assistant turn carries a tool part still awaiting its
+      // output (input-available). The continuation stream below references
+      // that same toolCallId via `tool-output-available`; only the seed lets
+      // readUIMessageStream's `getToolInvocation` find the part instead of
+      // throwing "No tool invocation found" and halting the accumulator.
+      const resumedAssistant = {
+        id: 'assistant-resume',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-myTool',
+            toolCallId: 'tc-1',
+            state: 'input-available',
+            input: { q: 'x' }
+          }
+        ]
+      } as unknown as CherryUIMessage
+
+      const listener = new FakeListener('l:a')
+      const request = { ...req('a'), messages: [resumedAssistant] }
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request,
+        listeners: [listener]
+      })
+
+      // Continuation: resolve the pre-existing tool call (references the seed's
+      // toolCallId), then append text. Without the seed, the tool-output chunk
+      // throws inside the accumulator and the later text never accumulates.
+      controlled.enqueue({ type: 'start', messageId: 'assistant-resume' } as UIMessageChunk)
+      controlled.enqueue({ type: 'tool-output-available', toolCallId: 'tc-1', output: { ok: true } } as UIMessageChunk)
+      controlled.enqueue({ type: 'text-start', id: 'p1' } as UIMessageChunk)
+      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'continued' } as UIMessageChunk)
+      controlled.enqueue({ type: 'text-end', id: 'p1' } as UIMessageChunk)
+      controlled.enqueue({ type: 'finish' } as UIMessageChunk)
+      controlled.close()
+
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      const snap = mgr.inspect('a')!
+      expect(snap.status).toBe('done')
+      // The accumulator did not halt — finalMessage landed with the appended
+      // text AND the resolved tool output.
+      const parts = (snap.executions[0].finalMessage?.parts ?? []) as Array<{
+        type: string
+        text?: string
+        state?: string
+      }>
+      expect(parts.some((p) => p.type === 'text' && p.text === 'continued')).toBe(true)
+      expect(parts.some((p) => p.type === 'tool-myTool' && p.state === 'output-available')).toBe(true)
     })
   })
 

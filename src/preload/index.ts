@@ -71,14 +71,11 @@ import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type {
-  FileListResponse,
   FileMetadata,
-  FileUploadResponse,
   GetApiServerStatusResult,
   Notification,
   OcrProvider,
   OcrResult,
-  Provider,
   RestartApiServerStatusResult,
   S3Config,
   StartApiServerStatusResult,
@@ -375,14 +372,6 @@ const api = {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.MainWindow_SetMinimumSize, width, height),
     resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.MainWindow_ResetMinimumSize)
-  },
-  fileService: {
-    upload: (provider: Provider, file: FileMetadata): Promise<FileUploadResponse> =>
-      ipcRenderer.invoke(IpcChannel.FileService_Upload, provider, file),
-    list: (provider: Provider): Promise<FileListResponse> => ipcRenderer.invoke(IpcChannel.FileService_List, provider),
-    delete: (provider: Provider, fileId: string) => ipcRenderer.invoke(IpcChannel.FileService_Delete, provider, fileId),
-    retrieve: (provider: Provider, fileId: string): Promise<FileUploadResponse> =>
-      ipcRenderer.invoke(IpcChannel.FileService_Retrieve, provider, fileId)
   },
   selectionMenu: {
     action: (action: string) => ipcRenderer.invoke('selection-menu:action', action)

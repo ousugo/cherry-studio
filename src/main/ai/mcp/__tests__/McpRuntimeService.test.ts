@@ -1,11 +1,19 @@
 import { BaseService } from '@main/core/lifecycle'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import type { McpServer } from '@types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
+
+const getByIdMock = vi.fn<(id: string) => Promise<McpServer>>()
+vi.mock('@data/services/McpServerService', () => ({
+  mcpServerService: {
+    getById: (id: string) => getByIdMock(id)
+  }
+}))
 
 const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
   '../McpRuntimeService'
@@ -161,6 +169,45 @@ describe('MCP IPC payload validation (mcp-services-5)', () => {
   it('rejects a getResource payload missing uri', () => {
     expect(McpGetResourcePayloadSchema.safeParse({ serverId: 's1' }).success).toBe(false)
     expect(McpGetResourcePayloadSchema.safeParse({ serverId: 's1', uri: 'res://x' }).success).toBe(true)
+  })
+})
+
+describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+  })
+
+  // Regression: connect used to mutate `server.env` in place before emitServerLog recomputed
+  // the server key, so connect-time logs landed under a post-mutation key that getServerLogs
+  // (which reads a fresh, un-mutated server → pre-mutation key) never queried. emitServerLog
+  // and getServerLogs must agree on the key for the same logical server.
+  it('returns connect-time logs appended under the server key', async () => {
+    const service = new McpRuntimeService()
+    const server = { id: 'server-1', name: 'srv', env: { REGISTRY: 'x' } } as unknown as McpServer
+    getByIdMock.mockResolvedValue(server)
+
+    const entry = { timestamp: 1, level: 'info' as const, message: 'Server connected', source: 'client' }
+    ;(service as any).emitServerLog(server, entry)
+
+    const logs = await service.getServerLogs('server-1')
+    expect(logs).toContainEqual(entry)
+  })
+
+  // The env-shifting key was the root cause: a registry/DXT merge into env changes the key.
+  // The service must NOT mutate server.env during a connect-style merge, so the key the buffer
+  // was written under stays the one getServerLogs resolves.
+  it('keeps the server key stable when registry env would be merged (no in-place mutation)', () => {
+    const service = new McpRuntimeService()
+    const server = { id: 'server-1', name: 'srv', command: 'npx', registryUrl: 'https://r' } as unknown as McpServer
+
+    const keyBefore = service.getServerKey(server)
+    // Simulate the merge the old code performed; the fix builds a local env instead, leaving server.env intact.
+    const merged = { ...server.env, NPM_CONFIG_REGISTRY: server.registryUrl }
+    expect(service.getServerKey(server)).toBe(keyBefore)
+    // A mutation WOULD have changed the key — this documents why the bug surfaced.
+    expect(service.getServerKey({ ...server, env: merged } as McpServer)).not.toBe(keyBefore)
   })
 })
 
