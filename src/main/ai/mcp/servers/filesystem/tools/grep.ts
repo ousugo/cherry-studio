@@ -80,8 +80,9 @@ export async function handleGrepTool(args: unknown, baseDir: string) {
     }
   }
 
-  rgArgs.push(data.pattern)
-  rgArgs.push(validPath)
+  // `--` ends ripgrep option parsing so a pattern like `--pre=<cmd>` is treated as a
+  // literal search pattern instead of the preprocessor flag (arg-injection → RCE).
+  rgArgs.push('--', data.pattern, validPath)
 
   try {
     // No `g` flag: this regex is reused with `.test(line)` per line, and a global

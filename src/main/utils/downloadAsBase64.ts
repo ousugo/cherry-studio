@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { sanitizeFileProcessingRemoteUrl } from '@main/services/fileProcessing/utils/url'
 import { net } from 'electron'
 
 const logger = loggerService.withContext('downloadAsBase64')
@@ -26,7 +27,8 @@ export const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
  */
 export async function downloadImageAsBase64(url: string): Promise<ImageAttachment | null> {
   try {
-    const response = await net.fetch(url)
+    // Reject non-http(s) schemes and local/private hosts before fetching (SSRF guard).
+    const response = await net.fetch(sanitizeFileProcessingRemoteUrl(url))
     if (!response.ok) {
       logger.warn('Failed to download image', { url, status: response.status })
       return null
@@ -50,7 +52,8 @@ export async function downloadImageAsBase64(url: string): Promise<ImageAttachmen
  */
 export async function downloadFileAsBase64(url: string, filename: string): Promise<FileAttachment | null> {
   try {
-    const response = await net.fetch(url)
+    // Reject non-http(s) schemes and local/private hosts before fetching (SSRF guard).
+    const response = await net.fetch(sanitizeFileProcessingRemoteUrl(url))
     if (!response.ok) {
       logger.warn('Failed to download file', { url, filename, status: response.status })
       return null
