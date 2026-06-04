@@ -35,7 +35,7 @@ describe('isFunctionCallToolNameForServer', () => {
   })
 
   it('matches a minted id whose server segment is itself clipped by the cap', () => {
-    const serverName = 'x'.repeat(80) // `mcp__` + 80 > 63 → server segment clipped to 58 chars
+    const serverName = 'x'.repeat(80) // `mcp__` + 80 > 63 → server segment is clipped
     const id = buildFunctionCallToolName(serverName, 'anything')
     expect(isFunctionCallToolNameForServer(serverName, id)).toBe(true)
   })
@@ -44,14 +44,33 @@ describe('isFunctionCallToolNameForServer', () => {
     const lengths = [3, 10, 54, 55, 56, 57, 58, 59, 60, 70]
     for (const len of lengths) {
       const serverName = 'a'.repeat(len)
-      // Differ at the front so the distinguishing character survives the 63-char
-      // cap even when the server segment is clipped (a tail difference past the
-      // clip is genuinely ambiguous and cannot be recovered from the id alone).
-      const sibling = `b${'a'.repeat(len - 1)}`
+      // Differ only at the tail — past the 63-char clip for long names. The minted
+      // id's server-derived suffix hashes the *full* name, so the sibling is still
+      // rejected even when the literal difference doesn't survive truncation.
+      const sibling = `${'a'.repeat(len - 1)}b`
       const id = buildFunctionCallToolName(serverName, 'tool')
       expect(isFunctionCallToolNameForServer(serverName, id), `len=${len} owns its id`).toBe(true)
       expect(isFunctionCallToolNameForServer(sibling, id), `len=${len} sibling rejects it`).toBe(false)
     }
+  })
+
+  // ── Regression: cross-server over-match for tail-differing long names (tools-mcp-meta-4) ──
+  it('mints distinct ids for distinct servers sharing a long camelCase prefix', () => {
+    const serverA = `${'a'.repeat(60)}Alpha`
+    const serverB = `${'a'.repeat(60)}Bravo`
+    const idA = buildFunctionCallToolName(serverA, 'toolX')
+    const idB = buildFunctionCallToolName(serverB, 'toolY')
+    // Without the server-derived suffix these collapsed to the same truncated id.
+    expect(idA).not.toBe(idB)
+  })
+
+  it('does not over-match a tail-differing sibling whose difference is past the clip', () => {
+    const serverA = `${'a'.repeat(60)}Alpha`
+    const serverB = `${'a'.repeat(60)}Bravo`
+    const idA = buildFunctionCallToolName(serverA, 'toolX')
+
+    expect(isFunctionCallToolNameForServer(serverA, idA)).toBe(true)
+    expect(isFunctionCallToolNameForServer(serverB, idA)).toBe(false)
   })
 
   it('does not match a non-mcp tool id', () => {
