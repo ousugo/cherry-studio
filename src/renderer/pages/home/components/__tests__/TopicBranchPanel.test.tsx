@@ -71,7 +71,9 @@ vi.mock('@renderer/components/chat/messages/flow', () => ({
     const parentById = new Map(
       tree.nodes.map((node: { id: string; parentId: string | null }) => [node.id, node.parentId])
     )
-    const nodeById = new Map(tree.nodes.map((node: { id: string; role?: string }) => [node.id, node]))
+    const nodeById = new Map<string, { id: string; role?: string }>(
+      tree.nodes.map((node: { id: string; role?: string }) => [node.id, node] as const)
+    )
     const childrenById = new Map<string, string[]>()
     for (const node of tree.nodes as Array<{ id: string; parentId: string | null }>) {
       if (!node.parentId) continue

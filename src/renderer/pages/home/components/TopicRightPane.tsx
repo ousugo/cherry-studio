@@ -158,7 +158,6 @@ function TopicRightPaneSurface({
   const { t } = useTranslation()
   const { state, actions } = useTopicRightPane()
   const shellState = useShellState()
-  const shellActions = useShellActions()
   const branchLiveState = useTopicBranchLiveState(topicId)
   const { mode, chrome } = useWindowFrame()
   const isWindow = mode === 'window'
@@ -166,9 +165,9 @@ function TopicRightPaneSurface({
   const canvasLayoutReady = shellState.maximized || !shellState.pdfLayoutPending
   const handleLocateMessage = useCallback(
     (messageId: string) => {
-      shellActions.close(() => onLocateMessage?.(messageId))
+      onLocateMessage?.(messageId)
     },
-    [onLocateMessage, shellActions]
+    [onLocateMessage]
   )
 
   // The TabList absorbs the navbar's right cluster while the pane is open: pin/back-to-main
