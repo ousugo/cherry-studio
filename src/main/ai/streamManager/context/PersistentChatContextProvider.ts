@@ -231,7 +231,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
                     )
                   }
                 : undefined
-            })
+            }),
+            onPersistFailed: (error) =>
+              void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
           })
         )
       }
@@ -311,7 +313,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               name: model.name,
               provider: model.providerId
             }
-          })
+          }),
+          onPersistFailed: (error) =>
+            void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
         }),
         new TraceFlushListener(req.topicId)
       ]

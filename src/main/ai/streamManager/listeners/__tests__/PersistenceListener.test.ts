@@ -377,4 +377,21 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
 
     expect(messageUpdateMock).toHaveBeenCalledTimes(2)
   })
+
+  it('notifies onPersistFailed so the live renderer can be corrected (C1)', async () => {
+    messageUpdateMock.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce({ id: 'assistant-1' })
+    const onPersistFailed = vi.fn()
+    const listener = new PersistenceListener({
+      topicId: 'topic-1',
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
+      onPersistFailed
+    })
+
+    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })
+
+    expect(onPersistFailed).toHaveBeenCalledTimes(1)
+    expect(onPersistFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('write failed') })
+    )
+  })
 })

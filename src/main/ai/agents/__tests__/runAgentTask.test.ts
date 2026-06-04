@@ -45,7 +45,7 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: vi.fn() }
 }))
 vi.mock('@data/services/SessionService', () => ({
-  sessionService: { createSession: vi.fn() }
+  sessionService: { createSession: vi.fn(), findAgentWorkspacePath: vi.fn() }
 }))
 vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn() }
@@ -166,6 +166,7 @@ describe('runAgentTask', () => {
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(agentService.getAgent).mockReset()
     vi.mocked(sessionService.createSession).mockReset()
+    vi.mocked(sessionService.findAgentWorkspacePath).mockReset()
     vi.mocked(readHeartbeat).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockResolvedValue([])
     mockStartRun.mockClear()
@@ -201,41 +202,47 @@ describe('runAgentTask', () => {
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
 
-  it('returns "Skipped (disabled)" when heartbeat task has no workspace', async () => {
+  it('skips an enabled heartbeat with no workspace WITHOUT creating a session', async () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('heartbeat'))
     vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }))
-    vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession(null))
+    vi.mocked(sessionService.findAgentWorkspacePath).mockResolvedValueOnce(null)
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ sessionId: 'sess-new', result: 'Skipped (disabled)' })
+    expect(out).toEqual({ sessionId: null, result: 'Skipped (no file)' })
+    expect(sessionService.createSession).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
 
-  it('returns "Skipped (no file)" when heartbeat.md is missing', async () => {
+  it('skips an enabled heartbeat with no heartbeat.md WITHOUT creating a session', async () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('heartbeat'))
     vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }))
-    vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
+    vi.mocked(sessionService.findAgentWorkspacePath).mockResolvedValueOnce('/ws/a')
     vi.mocked(readHeartbeat).mockResolvedValueOnce(undefined)
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ sessionId: 'sess-new', result: 'Skipped (no file)' })
+    expect(out).toEqual({ sessionId: null, result: 'Skipped (no file)' })
+    expect(sessionService.createSession).not.toHaveBeenCalled()
     expect(readHeartbeat).toHaveBeenCalledWith('/ws/a')
   })
 
-  it('creates a fresh session per fire for an enabled heartbeat (no reuse)', async () => {
+  it('creates a session and runs when an enabled heartbeat has content', async () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('heartbeat'))
     vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(sessionService.findAgentWorkspacePath).mockResolvedValueOnce('/ws/a')
+    vi.mocked(readHeartbeat).mockResolvedValueOnce('check the inbox')
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
-    // No heartbeat.md → still skips, but only after the session is created.
-    vi.mocked(readHeartbeat).mockResolvedValueOnce(undefined)
 
-    await runAgentTask(makeCtx())
+    const promise = runAgentTask(makeCtx())
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    captured.listeners[0].onDone({ status: 'completed' })
+    await promise
 
+    expect(readHeartbeat).toHaveBeenCalledWith('/ws/a')
     expect(sessionService.createSession).toHaveBeenCalledWith({ agentId: 'a1', name: 'heartbeat' })
   })
 

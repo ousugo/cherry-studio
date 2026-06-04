@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
+  broadcastTopicError: vi.fn(),
   spanCacheSetTopicId: vi.fn()
 }))
 
@@ -121,7 +122,8 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'AiStreamManager') {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
-          pauseRuntimeTurn: mocks.pauseRuntimeTurn
+          pauseRuntimeTurn: mocks.pauseRuntimeTurn,
+          broadcastTopicError: mocks.broadcastTopicError
         }
       }
       if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
@@ -910,7 +912,7 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
-  it('re-enqueues the queued message when the next-turn placeholder save rejects (REGRESSION R3)', async () => {
+  it('surfaces the error and settles the turn when the next-turn placeholder save rejects (R3)', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
@@ -920,11 +922,19 @@ describe('AgentSessionRuntimeService', () => {
     const saveError = new Error('db down')
     mocks.saveMessage.mockRejectedValueOnce(saveError)
 
-    // The message is shift()ed off the queue before the save; on rejection it must be unshifted
-    // back so the turn isn't silently lost — the next drain can retry it.
-    await expect((service as any).startNextTurn(entry)).rejects.toThrow(saveError)
+    // The placeholder save failed: re-queuing would just fail again and the idle TTL would
+    // silently clear it, so the message is dropped, the failure is surfaced to the live renderer,
+    // and the turn is settled to `error` (not left silently idle).
+    await expect((service as any).startNextTurn(entry)).resolves.toBeUndefined()
 
-    expect(entry.pendingTurns).toEqual([queued])
+    expect(entry.pendingTurns).toEqual([])
     expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    expect(mocks.broadcastTopicError).toHaveBeenCalledWith(
+      entry.topicId,
+      entry.modelId,
+      expect.objectContaining({ message: expect.stringContaining('db down') })
+    )
+    expect(entry.status).toBe('idle')
+    expect(entry.lastTerminalStatus).toBe('error')
   })
 })

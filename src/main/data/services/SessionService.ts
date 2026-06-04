@@ -160,6 +160,24 @@ export class SessionService {
     return rowToSession(row)
   }
 
+  /**
+   * Resolve an agent's workspace path WITHOUT creating a session. Sessions for the same
+   * agent reuse the most-recent sibling's workspace (see `createSessionTx`), so this returns
+   * that shared path, or null when the agent has no session/workspace yet. Used by heartbeat
+   * scheduling to read `heartbeat.md` before deciding whether a fire warrants a session.
+   */
+  async findAgentWorkspacePath(agentId: string): Promise<string | null> {
+    const db = application.get('DbService').getDb()
+    const [row] = await db
+      .select({ path: workspaceTable.path })
+      .from(sessionsTable)
+      .innerJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
+      .where(eq(sessionsTable.agentId, agentId))
+      .orderBy(desc(sessionsTable.createdAt))
+      .limit(1)
+    return row?.path ?? null
+  }
+
   async listByCursor(query: ListSessionsQuery = {}): Promise<CursorPaginationResponse<AgentSessionEntity>> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)

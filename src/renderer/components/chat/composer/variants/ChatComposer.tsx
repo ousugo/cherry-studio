@@ -831,23 +831,43 @@ const ChatComposerInner = ({
         await handleModelSelect(selectedModelForMissingAssistantDefault)
       }
 
+      // Optimistically clear the draft so the cleared input doubles as the re-entry
+      // guard, but snapshot it first: a pre-stream failure never reaches the streaming
+      // UI, so restore the draft (text + files + knowledge bases; tokens re-derive) and
+      // surface the failure instead of silently discarding what the user typed.
+      const previousText = text
+      const previousFiles = files
+      const previousKnowledgeBases = selectedKnowledgeBases
+
       clearCurrentDraft()
-      await sendQueuedPayload(payload)
+      const sent = await sendQueuedPayload(payload)
+      if (!sent) {
+        setText(previousText)
+        setFiles(previousFiles)
+        setSelectedKnowledgeBases(previousKnowledgeBases)
+        window.toast?.error(t('chat.input.send_failed'))
+      }
     },
     [
       buildQueuedPayload,
       clearCurrentDraft,
+      files,
       handleModelSelect,
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
+      selectedKnowledgeBases,
       selectedModelForMissingAssistantDefault,
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,
-      t
+      setFiles,
+      setSelectedKnowledgeBases,
+      setText,
+      t,
+      text
     ]
   )
 

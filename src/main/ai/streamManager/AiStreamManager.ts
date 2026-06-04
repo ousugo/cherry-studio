@@ -653,6 +653,27 @@ export class AiStreamManager extends BaseService {
     if (isTopicDone) this.runTerminalLifecycle(stream)
   }
 
+  /**
+   * Surface a stream error to a topic's transport subscribers WITHOUT mutating execution
+   * state or re-running persistence. Used when a post-stream persist fails after the renderer
+   * was already told the turn succeeded — the DB row is driven to `error` separately, but the
+   * live bubble must not stay a success. Persistence listeners are skipped (they just failed and
+   * would loop). No-op once the stream has drained.
+   */
+  broadcastTopicError(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return
+    const result: StreamErrorResult = { error, status: 'error', modelId, isTopicDone: true }
+    for (const listener of stream.listeners.values()) {
+      if (listener.id.startsWith('persistence:')) continue
+      try {
+        void listener.onError(result)
+      } catch (err) {
+        logger.warn('broadcastTopicError listener threw', { topicId, err })
+      }
+    }
+  }
+
   /** Chat defers 30 s, prompt evicts immediately. */
   private runTerminalLifecycle(stream: ActiveStream): void {
     stream.lifecycle.onTerminal(stream)

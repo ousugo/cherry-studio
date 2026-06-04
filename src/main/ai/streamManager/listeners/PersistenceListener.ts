@@ -8,7 +8,7 @@
 import { loggerService } from '@logger'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { SerializedError } from '@shared/types/error'
+import { type SerializedError, serializeError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
 import { normalizeAssistantMessageCitations } from '../persistence/normalizeCitations'
@@ -30,6 +30,12 @@ export interface PersistenceListenerOptions {
   /** Multi-model: one listener per execution, filter by modelId. Undefined = single-model "any". */
   modelId?: UniqueModelId
   backend: PersistenceBackend
+  /**
+   * Called when persistence fails after a terminal event. The DB row is already driven to
+   * `error`; this lets the caller also correct the LIVE renderer (which was told the turn
+   * succeeded) so the bubble doesn't stay a frozen success until reload.
+   */
+  onPersistFailed?: (error: SerializedError) => void
 }
 
 export class PersistenceListener implements StreamListener {
@@ -143,6 +149,8 @@ export class PersistenceListener implements StreamListener {
           err: markErr
         })
       }
+      // Correct the live renderer: it was already told this turn succeeded.
+      this.opts.onPersistFailed?.(serializeError(err))
       return
     }
 

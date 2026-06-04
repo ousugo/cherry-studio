@@ -9,6 +9,7 @@ import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/d
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { serializeError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -633,11 +634,14 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       })
     } catch (error) {
-      // The message was shift()ed off the queue before this await; on failure re-enqueue it at the
-      // head so the turn isn't silently lost — the next drain can retry it.
-      entry.pendingTurns.unshift(nextMessage)
+      // The placeholder save failed, so there is no assistant row to drive to `error` and no
+      // point re-queuing the message — the retry would just fail the same way, and a re-queued
+      // message is silently cleared by the idle TTL anyway. Instead surface the failure to the
+      // live renderer and settle the turn so the session doesn't sit idle on a doomed message.
       rootSpan.end()
-      throw error
+      application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
+      this.markTurnTerminal(entry.sessionId, 'error')
+      return
     }
 
     // The DB save above yields the event loop; the session may have been torn down
@@ -740,7 +744,9 @@ export class AgentSessionRuntimeService extends BaseService {
         afterPersist: async (finalMessage) => {
           await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
         }
-      })
+      }),
+      onPersistFailed: (error) =>
+        application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error)
     })
   }
 
