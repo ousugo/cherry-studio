@@ -76,8 +76,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // The fixed bug: these three fields survive instead of being dropped.
       expect(settings.project).toBe('my-project')
       expect(settings.location).toBe('us-central1')
+      // snake_case `client_email` (fixture) is lifted to camelCase `clientEmail`
+      // so the Vertex SDK's JWT carries `iss`. Without this the auth builds a
+      // JWT with iss:undefined and auth fails.
       expect(settings.googleCredentials).toMatchObject({
-        client_email: 'svc@my-project.iam.gserviceaccount.com'
+        clientEmail: 'svc@my-project.iam.gserviceaccount.com'
       })
       // Anthropic publisher baseURL suffix is appended by buildVertexConfig.
       expect(settings.baseURL).toBe('https://us-central1-aiplatform.googleapis.com/v1/publishers/anthropic/models')
@@ -109,6 +112,44 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.project).toBe('my-project')
       expect(settings.location).toBe('us-central1')
       expect(settings.baseURL).toBe('https://us-central1-aiplatform.googleapis.com/v1/publishers/google')
+    })
+
+    it('lifts snake_case-only credentials (private_key/client_email) to camelCase clientEmail (REGRESSION)', async () => {
+      // Service-account JSON stored with snake_case keys must surface as camelCase
+      // `clientEmail` on googleCredentials; otherwise @ai-sdk/google-vertex/edge
+      // builds a JWT with iss:undefined and auth fails.
+      getAuthConfigMock.mockResolvedValue({
+        type: 'iam-gcp',
+        project: 'my-project',
+        location: 'us-central1',
+        credentials: {
+          client_email: 'svc@my-project.iam.gserviceaccount.com',
+          private_key: '-----BEGIN PRIVATE KEY-----\nMIIabc\n-----END PRIVATE KEY-----\n'
+        }
+      })
+      const provider = makeProvider({
+        id: 'vertex',
+        authType: 'iam-gcp',
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: 'https://us-central1-aiplatform.googleapis.com/v1',
+            adapterFamily: 'google-vertex'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'vertex::gemini-2.0-flash',
+        apiModelId: 'gemini-2.0-flash',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(settings.googleCredentials).toMatchObject({
+        clientEmail: 'svc@my-project.iam.gserviceaccount.com'
+      })
     })
 
     it('leaves baseURL undefined when no custom host is configured, so the SDK derives the aiplatform host (REGRESSION)', async () => {
