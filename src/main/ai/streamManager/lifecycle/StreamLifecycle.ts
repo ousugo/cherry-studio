@@ -13,9 +13,6 @@ export interface StreamLifecycle {
   onCreated(stream: ActiveStream): void
   /** Called once on the first `pending → streaming` transition. */
   onPromotedToStreaming(stream: ActiveStream): void
-
-  /** Called when an execution's pending user-message queue changes. */
-  onQueueChanged?(stream: ActiveStream): void
   /** Called once when `isTopicDone` flips; read `stream.status` for the final status. */
   onTerminal(stream: ActiveStream): void
   /** Returning false short-circuits `attach` to `'not-found'`. */
