@@ -55,6 +55,7 @@ import {
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
+import * as z from 'zod'
 
 import type { DxtService } from './DxtService'
 import { CallBackServer } from './oauth/callback'
@@ -67,6 +68,27 @@ type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 type CallToolArgs = { serverId: string; name: string; args: any; callId?: string }
 type RuntimeCallToolArgs = { server: McpServer; name: string; args: any; callId?: string }
 type McpRuntimeState = McpRuntimeStatus['state']
+
+// IPC payload validation for the renderer-facing handlers. The inner `args` are the tool/prompt
+// arguments forwarded to the MCP server (server-trusted by protocol), so only the wrapper fields
+// are validated; this rejects a malformed/typo'd renderer payload before it reaches the runtime.
+const NonEmptyStringSchema = z.string().min(1)
+export const McpCallToolPayloadSchema = z.object({
+  serverId: z.string().min(1),
+  name: z.string().min(1),
+  args: z.unknown().optional(),
+  callId: z.string().optional()
+})
+export const McpGetPromptPayloadSchema = z.object({
+  serverId: z.string().min(1),
+  name: z.string().min(1),
+  args: z.record(z.string(), z.unknown()).optional()
+})
+export const McpGetResourcePayloadSchema = z.object({
+  serverId: z.string().min(1),
+  uri: z.string().min(1)
+})
+export const McpStringArgSchema = NonEmptyStringSchema
 
 const logger = loggerService.withContext('McpRuntimeService')
 const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}` as SharedCacheKey
@@ -81,7 +103,7 @@ export interface McpToolListChangedEvent {
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 
 // Redact potentially sensitive fields in objects (headers, tokens, api keys)
-function redactSensitive(input: any): any {
+export function redactSensitive(input: any): any {
   const SENSITIVE_KEYS = ['authorization', 'Authorization', 'apiKey', 'api_key', 'apikey', 'token', 'access_token']
   const MAX_STRING = 300
 
@@ -198,16 +220,26 @@ export class McpRuntimeService extends BaseService {
     this.ipcHandle(IpcChannel.Mcp_RefreshTools, async (_e, serverId: string) => {
       await application.get('McpCatalogService').refreshTools(serverId)
     })
-    this.ipcHandle(IpcChannel.Mcp_CallTool, (_e, args) => this.callTool(args))
-    this.ipcHandle(IpcChannel.Mcp_ListPrompts, (_e, serverId: string) => this.listPrompts(serverId))
-    this.ipcHandle(IpcChannel.Mcp_GetPrompt, (_e, args) => this.getPrompt(args))
-    this.ipcHandle(IpcChannel.Mcp_ListResources, (_e, serverId: string) => this.listResources(serverId))
-    this.ipcHandle(IpcChannel.Mcp_GetResource, (_e, args) => this.getResource(args))
+    this.ipcHandle(IpcChannel.Mcp_CallTool, (_e, args) =>
+      this.callTool(McpCallToolPayloadSchema.parse(args) as CallToolArgs)
+    )
+    this.ipcHandle(IpcChannel.Mcp_ListPrompts, (_e, serverId) => this.listPrompts(NonEmptyStringSchema.parse(serverId)))
+    this.ipcHandle(IpcChannel.Mcp_GetPrompt, (_e, args) => this.getPrompt(McpGetPromptPayloadSchema.parse(args)))
+    this.ipcHandle(IpcChannel.Mcp_ListResources, (_e, serverId) =>
+      this.listResources(NonEmptyStringSchema.parse(serverId))
+    )
+    this.ipcHandle(IpcChannel.Mcp_GetResource, (_e, args) => this.getResource(McpGetResourcePayloadSchema.parse(args)))
     this.ipcHandle(IpcChannel.Mcp_GetInstallInfo, () => this.getInstallInfo())
-    this.ipcHandle(IpcChannel.Mcp_CheckConnectivity, (_e, serverId: string) => this.checkMcpConnectivity(serverId))
-    this.ipcHandle(IpcChannel.Mcp_AbortTool, (_e, callId) => this.abortTool(callId))
-    this.ipcHandle(IpcChannel.Mcp_GetServerVersion, (_e, serverId: string) => this.getServerVersion(serverId))
-    this.ipcHandle(IpcChannel.Mcp_GetServerLogs, async (_e, serverId: string) => this.getServerLogs(serverId))
+    this.ipcHandle(IpcChannel.Mcp_CheckConnectivity, (_e, serverId) =>
+      this.checkMcpConnectivity(NonEmptyStringSchema.parse(serverId))
+    )
+    this.ipcHandle(IpcChannel.Mcp_AbortTool, (_e, callId) => this.abortTool(NonEmptyStringSchema.parse(callId)))
+    this.ipcHandle(IpcChannel.Mcp_GetServerVersion, (_e, serverId) =>
+      this.getServerVersion(NonEmptyStringSchema.parse(serverId))
+    )
+    this.ipcHandle(IpcChannel.Mcp_GetServerLogs, async (_e, serverId) =>
+      this.getServerLogs(NonEmptyStringSchema.parse(serverId))
+    )
   }
 
   private async getServerById(serverId: string): Promise<McpServer> {

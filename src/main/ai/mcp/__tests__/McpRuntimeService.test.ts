@@ -7,7 +7,9 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { McpRuntimeService } = await import('../McpRuntimeService')
+const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
+  '../McpRuntimeService'
+)
 
 /** Build the JSON server key the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
@@ -142,5 +144,39 @@ describe('McpRuntimeService.closeClientsForServer', () => {
     expect(closeA).toHaveBeenCalledTimes(1)
     expect(closeB).not.toHaveBeenCalled()
     expect((service as any).clients.has(serverKeyFor('server-2'))).toBe(true)
+  })
+})
+
+describe('MCP IPC payload validation (mcp-services-5)', () => {
+  it('rejects a malformed callTool payload (missing serverId/name)', () => {
+    expect(McpCallToolPayloadSchema.safeParse({}).success).toBe(false)
+    expect(McpCallToolPayloadSchema.safeParse({ serverId: 's1', name: '' }).success).toBe(false)
+  })
+
+  it('accepts a well-formed callTool payload (args passthrough)', () => {
+    const parsed = McpCallToolPayloadSchema.safeParse({ serverId: 's1', name: 'tool', args: { q: 1 }, callId: 'c1' })
+    expect(parsed.success).toBe(true)
+  })
+
+  it('rejects a getResource payload missing uri', () => {
+    expect(McpGetResourcePayloadSchema.safeParse({ serverId: 's1' }).success).toBe(false)
+    expect(McpGetResourcePayloadSchema.safeParse({ serverId: 's1', uri: 'res://x' }).success).toBe(true)
+  })
+})
+
+describe('redactSensitive (mcp-services-3)', () => {
+  it('redacts sensitive keys', () => {
+    const out = redactSensitive({ authorization: 'Bearer x', apiKey: 'k', keep: 'ok' })
+    expect(out.authorization).toBe('<redacted>')
+    expect(out.apiKey).toBe('<redacted>')
+    expect(out.keep).toBe('ok')
+  })
+
+  it('does not stack-overflow on a circular enumerable graph', () => {
+    const a: Record<string, unknown> = { name: 'a' }
+    const b: Record<string, unknown> = { name: 'b', a }
+    a.b = b // a -> b -> a cycle
+    expect(() => redactSensitive(a)).not.toThrow()
+    expect(redactSensitive(a)).toMatchObject({ name: 'a', b: { name: 'b', a: '[Circular]' } })
   })
 })
