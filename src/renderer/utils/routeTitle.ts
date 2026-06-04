@@ -7,7 +7,7 @@ const BASE_URL = 'https://www.cherry-ai.com/'
  * Route to i18n key mapping for default tab titles
  */
 const routeTitleKeys: Record<string, string> = {
-  '/app/chat': 'common.chat',
+  '/app/chat': 'agent.session.group.conversation',
   '/app/agents': 'agent.sidebar_title',
   '/app/paintings': 'title.paintings',
   '/app/translate': 'title.translate',
@@ -42,7 +42,7 @@ function getBasePath(pathname: string): string {
  *
  * @example
  * getDefaultRouteTitle('/settings') // '设置'
- * getDefaultRouteTitle('/app/chat/abc123') // '助手'
+ * getDefaultRouteTitle('/app/chat/abc123') // '对话'
  * getDefaultRouteTitle('/unknown') // 'unknown'
  */
 export function getDefaultRouteTitle(url: string): string {
