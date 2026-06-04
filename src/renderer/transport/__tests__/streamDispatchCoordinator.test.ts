@@ -71,14 +71,6 @@ describe('streamDispatchCoordinator', () => {
     expect(window.toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
   })
 
-  it('peek() returns the latest result for late subscribers', async () => {
-    const ack: AiStreamOpenResponse = { mode: 'started', placeholderIds: ['a-1'] }
-    streamOpen.mockResolvedValue(ack)
-    streamDispatchCoordinator.dispatch(TOPIC, req)
-    await flush()
-    expect(streamDispatchCoordinator.peek(TOPIC)).toEqual({ ok: true, topicId: TOPIC, ack })
-  })
-
   it('unsubscribe stops further delivery', async () => {
     streamOpen.mockResolvedValue({ mode: 'started' })
     const seen: unknown[] = []

@@ -10,10 +10,8 @@ export type StreamDispatchResult =
 type Listener = (result: StreamDispatchResult) => void
 
 const listeners = new Map<string, Set<Listener>>()
-const lastAckByTopic = new Map<string, StreamDispatchResult>()
 
 function notify(result: StreamDispatchResult): void {
-  lastAckByTopic.set(result.topicId, result)
   const subs = listeners.get(result.topicId)
   if (!subs) return
   for (const cb of [...subs]) {
@@ -51,16 +49,7 @@ export const streamDispatchCoordinator = {
     subs.add(listener)
     return () => {
       subs.delete(listener)
-      if (subs.size === 0) {
-        listeners.delete(topicId)
-        // Drop the retained ack too, so this map can't grow unbounded across distinct topics.
-        lastAckByTopic.delete(topicId)
-      }
+      if (subs.size === 0) listeners.delete(topicId)
     }
-  },
-
-  /** Most recent dispatch result for late subscribers. */
-  peek(topicId: string): StreamDispatchResult | undefined {
-    return lastAckByTopic.get(topicId)
   }
 }
