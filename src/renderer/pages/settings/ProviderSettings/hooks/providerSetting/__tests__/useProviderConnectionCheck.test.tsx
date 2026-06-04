@@ -10,7 +10,6 @@ const useTimerMock = vi.fn()
 const useAuthenticationApiKeyMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
 const checkApiMock = vi.fn()
-const updateProviderMock = vi.fn()
 const showErrorDetailPopupMock = vi.fn()
 const { loggerErrorMock } = vi.hoisted(() => ({
   loggerErrorMock: vi.fn()
@@ -76,8 +75,7 @@ describe('useProviderConnectionCheck', () => {
     }
 
     useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN', isEnabled: false },
-      updateProvider: updateProviderMock
+      provider: { id: 'cherryin', name: 'CherryIN' }
     })
     useModelsMock.mockReturnValue({
       models: [
@@ -139,36 +137,6 @@ describe('useProviderConnectionCheck', () => {
     )
     expect(result.current.connectionCheckOpen).toBe(false)
     expect(setTimeoutTimer).toHaveBeenCalled()
-  })
-
-  it('enables a disabled provider after a successful model connection check', async () => {
-    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
-
-    await act(async () => {
-      await result.current.startConnectionCheck({
-        model: result.current.checkableModels[0],
-        apiKey: 'sk-a'
-      })
-    })
-
-    expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
-  })
-
-  it('does not patch an already enabled provider after a successful model connection check', async () => {
-    useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN', isEnabled: true },
-      updateProvider: updateProviderMock
-    })
-    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
-
-    await act(async () => {
-      await result.current.startConnectionCheck({
-        model: result.current.checkableModels[0],
-        apiKey: 'sk-a'
-      })
-    })
-
-    expect(updateProviderMock).not.toHaveBeenCalled()
   })
 
   it('logs provider/model context when the connection check fails', async () => {

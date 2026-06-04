@@ -1,17 +1,13 @@
 import { useModels } from '@renderer/hooks/useModel'
-import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
-import { getProviderHostTopology } from '@shared/utils/providerTopology'
+import { useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useEffect, useMemo, useRef } from 'react'
 
 /**
- * Fires `onTrigger` once whenever the provider's enabled API-key fingerprint OR
- * its host (endpoint/baseUrl/authType) changes — but only after the first render
- * and only when local models already exist (first-time bootstrap is owned by
- * `useProviderAutoModelSync`). A pull still requires at least one enabled key, so
- * disabling the only key never fires.
+ * Fires `onTrigger` once whenever the provider's enabled API-key fingerprint
+ * changes — but only after the first render and only when local models already
+ * exist (first-time bootstrap is owned by `useProviderAutoModelSync`).
  */
 export function useAutoPullOnApiKeyChange(providerId: string, onTrigger: () => void | Promise<void>) {
-  const { provider } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const { models } = useModels({ providerId })
 
@@ -25,16 +21,6 @@ export function useAutoPullOnApiKeyChange(providerId: string, onTrigger: () => v
     [apiKeysData]
   )
 
-  const hostSignature = useMemo(() => {
-    if (!provider) return ''
-    const topology = getProviderHostTopology(provider)
-    return [topology.primaryEndpoint, topology.primaryBaseUrl, topology.anthropicBaseUrl, provider.authType ?? ''].join(
-      '|'
-    )
-  }, [provider])
-
-  const changeSignature = `${hostSignature}::${enabledKeySignature}`
-
   const lastSignatureRef = useRef<string | null>(null)
   const onTriggerRef = useRef(onTrigger)
 
@@ -43,21 +29,20 @@ export function useAutoPullOnApiKeyChange(providerId: string, onTrigger: () => v
   }, [onTrigger])
 
   useEffect(() => {
-    // Until provider/api-keys resolve the signature is a cold-cache placeholder;
-    // recording that as the baseline would make the later undefined→loaded
-    // transition look like a user-initiated change and auto-fire the pull.
-    if (!provider || apiKeysData === undefined) return
+    // Until api-keys resolve, the signature is the cold-cache empty string ('');
+    // recording that as the baseline would make the later undefined→keys
+    // transition look like a user-initiated key change and auto-fire the pull.
+    if (apiKeysData === undefined) return
     if (lastSignatureRef.current === null) {
-      lastSignatureRef.current = changeSignature
+      lastSignatureRef.current = enabledKeySignature
       return
     }
-    if (lastSignatureRef.current === changeSignature) {
+    if (lastSignatureRef.current === enabledKeySignature) {
       return
     }
-    lastSignatureRef.current = changeSignature
-    // A pull still needs an enabled key; disabling the only key must not fire.
+    lastSignatureRef.current = enabledKeySignature
     if (!enabledKeySignature) return
     if (models.length === 0) return
     void onTriggerRef.current()
-  }, [apiKeysData, changeSignature, enabledKeySignature, models.length, provider])
+  }, [apiKeysData, enabledKeySignature, models.length])
 }
