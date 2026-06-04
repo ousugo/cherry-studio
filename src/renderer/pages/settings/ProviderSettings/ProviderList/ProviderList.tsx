@@ -36,13 +36,12 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const { applyReorderedList } = useReorder('/providers')
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
-  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'enabled')
+  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
   const [searchText, setSearchText] = useState('')
   const { models: allModels } = useModels(undefined, { fetchEnabled: Boolean(searchText.trim()) })
   const [dragging, setDragging] = useState(false)
   const [contextProviderId, setContextProviderId] = useState<string | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
-  const autoDefaultedFilterRef = useRef(false)
 
   const handleToggleGroup = useCallback((presetProviderId: string) => {
     setExpandedGroups((prev) => ({ ...prev, [presetProviderId]: !prev[presetProviderId] }))
@@ -71,15 +70,6 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
     setFilterMode(filterModeHint)
   }, [filterModeHint])
-
-  useEffect(() => {
-    if (autoDefaultedFilterRef.current) return
-    if (filterModeHint || providers.length === 0) return
-    autoDefaultedFilterRef.current = true
-    if (!providers.some((p) => p.isEnabled)) {
-      setFilterMode('all')
-    }
-  }, [filterModeHint, providers])
 
   useEffect(() => {
     if (!selectedProviderId) return

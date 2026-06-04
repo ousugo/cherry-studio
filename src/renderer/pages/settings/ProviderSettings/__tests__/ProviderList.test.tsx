@@ -93,8 +93,8 @@ describe('ProviderList', () => {
       endpointConfigs: {
         [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' }
       },
-      // The sidebar now defaults to the `enabled` filter, so both fixtures
-      // need `isEnabled: true` for the search / filter-hint tests to see them.
+      // Fixtures are enabled so they appear under every filter mode (the
+      // sidebar defaults to `all`).
       isEnabled: true
     }
   ] as any
