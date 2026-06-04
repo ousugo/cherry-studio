@@ -245,6 +245,12 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
       })
     } catch (error) {
       logger.warn('send failed', { error })
+      // A pre-stream failure never reaches the `pending` broadcast, so restore the
+      // optimistically-cleared input (text + files) and surface the failure rather than
+      // silently discarding what the user typed.
+      setText(text_)
+      setFiles(files)
+      window.toast.error(t('chat.input.send_failed'))
     } finally {
       setIsSending(false)
     }
