@@ -60,10 +60,15 @@ interface ReaderHandle {
 
 function pickSeed(uiMessages: CherryUIMessage[], anchorMessageId?: string): CherryUIMessage | undefined {
   if (!anchorMessageId) return undefined
-  return (
-    uiMessages.find((m) => m.id === anchorMessageId) ??
-    ({ id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage)
-  )
+  const found = uiMessages.find((m) => m.id === anchorMessageId)
+  if (!found) {
+    return { id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage
+  }
+  // readUIMessageStream mutates `message.parts` in place. `found` is the live, render-stable
+  // SWR-derived row whose `parts` array aliases the SWR cache, so seeding the reader with it
+  // would corrupt cached history and race the DB-authoritative refresh(). Clone the parts so
+  // the reader only ever writes to a throwaway. (DB parts are JSON-serializable.)
+  return { ...found, parts: structuredClone(found.parts ?? []) }
 }
 
 export function useExecutionOverlay(
