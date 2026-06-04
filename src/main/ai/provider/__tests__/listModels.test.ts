@@ -1,3 +1,4 @@
+import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,7 +20,7 @@ vi.mock('@main/data/services/ProviderService', () => ({
 }))
 
 vi.mock('@ai-sdk/provider-utils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@ai-sdk/provider-utils')>()
+  const actual = await importOriginal<typeof AiSdkProviderUtils>()
   return {
     ...actual,
     getFromApi: aiSdkGetFromApiMock
