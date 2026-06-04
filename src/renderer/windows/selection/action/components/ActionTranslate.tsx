@@ -1,10 +1,9 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import { Tooltip } from '@cherrystudio/ui'
+import { Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import db from '@renderer/databases'
 import { useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { TranslateLanguage } from '@renderer/types'
@@ -12,12 +11,11 @@ import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
-import { Dropdown } from 'antd'
 import { ArrowRight, ChevronDown, CircleHelp, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled, { createGlobalStyle } from 'styled-components'
+import styled from 'styled-components'
 
 import WindowFooter from './WindowFooter'
 
@@ -32,6 +30,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
 
   const [language] = usePreference('app.language')
+  const [preferredLangCode, setPreferredLangCode] = usePreference('feature.translate.action.preferred_lang')
+  const [alterLangCode, setAlterLangCode] = usePreference('feature.translate.action.alter_lang')
   const { languages, getLanguage } = useLanguages()
   const isLanguagesLoaded = languages !== undefined
   const detectLanguage = useDetectLang()
@@ -83,29 +83,23 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   // It's called only in initialization.
   // It will change target/alter language, so fetchResult will be triggered. Be careful!
-  const updateLanguagePair = useCallback(async () => {
+  const updateLanguagePair = useCallback(() => {
     if (!isLanguagesLoaded) {
       logger.silly('[updateLanguagePair] Languages are not loaded. Skip.')
       return
     }
 
-    const biDirectionLangPair = await db.settings.get({ id: 'translate:bidirectional:pair' })
-
-    if (biDirectionLangPair && biDirectionLangPair.value[0]) {
-      const targetLang = getLanguage(biDirectionLangPair.value[0])
-      if (targetLang) {
-        setTargetLanguage(targetLang)
-        targetLangRef.current = targetLang
-      }
+    const targetLang = getLanguage(preferredLangCode)
+    if (targetLang) {
+      setTargetLanguage(targetLang)
+      targetLangRef.current = targetLang
     }
 
-    if (biDirectionLangPair && biDirectionLangPair.value[1]) {
-      const alterLang = getLanguage(biDirectionLangPair.value[1])
-      if (alterLang) {
-        setAlterLanguage(alterLang)
-      }
+    const alterLang = getLanguage(alterLangCode)
+    if (alterLang) {
+      setAlterLanguage(alterLang)
     }
-  }, [getLanguage, isLanguagesLoaded])
+  }, [getLanguage, isLanguagesLoaded, preferredLangCode, alterLangCode])
 
   const initialize = useCallback(async () => {
     if (initialized) {
@@ -122,7 +116,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     }
     logger.silly('[initialize] Start initialization.')
 
-    await updateLanguagePair()
+    updateLanguagePair()
     logger.silly('[initialize] UpdateLanguagePair completed.')
 
     setInitialized(true)
@@ -194,12 +188,10 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       targetLangRef.current = newTargetLanguage
       setAlterLanguage(newAlterLanguage)
 
-      void db.settings.put({
-        id: 'translate:bidirectional:pair',
-        value: [newTargetLanguage.langCode, newAlterLanguage.langCode]
-      })
+      setPreferredLangCode(newTargetLanguage.langCode)
+      setAlterLangCode(newAlterLanguage.langCode)
     },
-    [initialized]
+    [initialized, setPreferredLangCode, setAlterLangCode]
   )
 
   // Handle direct target language change from the main dropdown
@@ -213,58 +205,48 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       if (newLang.langCode !== targetLanguage.langCode && newLang.langCode !== alterLanguage.langCode) {
         setTargetLanguage(newLang)
         targetLangRef.current = newLang
-        void db.settings.put({ id: 'translate:bidirectional:pair', value: [newLang.langCode, alterLanguage.langCode] })
+        setPreferredLangCode(newLang.langCode)
       }
     },
-    [initialized, getLanguage, targetLanguage.langCode, alterLanguage.langCode]
+    [initialized, getLanguage, targetLanguage.langCode, alterLanguage.langCode, setPreferredLangCode]
   )
 
-  // Settings dropdown menu items
-  const settingsMenuItems = useMemo(
-    () => [
-      {
-        key: 'preferred',
-        label: (
-          <SettingsMenuItem>
-            <SettingsLabel>{t('translate.preferred_target')}</SettingsLabel>
-            <LanguageSelect
-              value={targetLanguage.langCode}
-              style={{ width: '100%' }}
-              listHeight={160}
-              size="small"
-              onClick={(e) => e.stopPropagation()}
-              onChange={(value) => {
-                const next = getLanguage(value)
-                if (next) handleChangeLanguage(next, alterLanguage)
-                setSettingsOpen(false)
-              }}
-              disabled={isTranslating}
-            />
-          </SettingsMenuItem>
-        )
-      },
-      {
-        key: 'alter',
-        label: (
-          <SettingsMenuItem>
-            <SettingsLabel>{t('translate.alter_language')}</SettingsLabel>
-            <LanguageSelect
-              value={alterLanguage.langCode}
-              style={{ width: '100%' }}
-              listHeight={160}
-              size="small"
-              onClick={(e) => e.stopPropagation()}
-              onChange={(value) => {
-                const next = getLanguage(value)
-                if (next) handleChangeLanguage(targetLanguage, next)
-                setSettingsOpen(false)
-              }}
-              disabled={isTranslating}
-            />
-          </SettingsMenuItem>
-        )
-      }
-    ],
+  // Settings popover content
+  const settingsContent = useMemo(
+    () => (
+      <div className="flex flex-col gap-2">
+        <SettingsMenuItem>
+          <SettingsLabel>{t('translate.preferred_target')}</SettingsLabel>
+          <LanguageSelect
+            value={targetLanguage.langCode}
+            style={{ width: '100%' }}
+            listHeight={160}
+            size="small"
+            onChange={(value) => {
+              const next = getLanguage(value)
+              if (next) handleChangeLanguage(next, alterLanguage)
+              setSettingsOpen(false)
+            }}
+            disabled={isTranslating}
+          />
+        </SettingsMenuItem>
+        <SettingsMenuItem>
+          <SettingsLabel>{t('translate.alter_language')}</SettingsLabel>
+          <LanguageSelect
+            value={alterLanguage.langCode}
+            style={{ width: '100%' }}
+            listHeight={160}
+            size="small"
+            onChange={(value) => {
+              const next = getLanguage(value)
+              if (next) handleChangeLanguage(targetLanguage, next)
+              setSettingsOpen(false)
+            }}
+            disabled={isTranslating}
+          />
+        </SettingsMenuItem>
+      </div>
+    ),
     [t, targetLanguage, alterLanguage, isTranslating, getLanguage, handleChangeLanguage]
   )
 
@@ -278,7 +260,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
   return (
     <>
-      <SettingsDropdownStyles />
       <Container>
         <MenuContainer>
           <LeftGroup>
@@ -305,22 +286,18 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               disabled={isTranslating}
             />
 
-            <Dropdown
-              menu={{
-                items: settingsMenuItems,
-                selectable: false,
-                className: 'settings-dropdown-menu'
-              }}
-              trigger={['click']}
-              placement="bottomRight"
-              open={settingsOpen}
-              onOpenChange={setSettingsOpen}>
+            <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
               <Tooltip content={t('translate.language_settings')} placement="bottom">
-                <SettingsButton>
-                  <Settings2 size={14} />
-                </SettingsButton>
+                <PopoverTrigger asChild>
+                  <SettingsButton>
+                    <Settings2 size={14} />
+                  </SettingsButton>
+                </PopoverTrigger>
               </Tooltip>
-            </Dropdown>
+              <PopoverContent align="end" className="w-[220px] p-2">
+                {settingsContent}
+              </PopoverContent>
+            </Popover>
 
             <Tooltip content={t('selection.action.translate.smart_translate_tips')} placement="bottom">
               <HelpIcon size={14} />
@@ -493,17 +470,6 @@ const HelpIcon = styled(CircleHelp)`
   cursor: pointer;
   color: var(--color-text-3);
   flex-shrink: 0;
-`
-
-const SettingsDropdownStyles = createGlobalStyle`
-  .settings-dropdown-menu {
-    .ant-dropdown-menu-item {
-      cursor: default !important;
-      &:hover {
-        background-color: transparent !important;
-      }
-    }
-  }
 `
 
 export default ActionTranslate
