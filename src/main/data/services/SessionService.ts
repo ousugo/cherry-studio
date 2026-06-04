@@ -429,8 +429,7 @@ export class SessionService {
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    const db = application.get('DbService').getDb()
-    await db.transaction(async (tx) => {
+    await application.get('DbService').withWriteTx(async (tx) => {
       const [target] = await tx
         .select({ id: sessionsTable.id })
         .from(sessionsTable)
@@ -444,8 +443,9 @@ export class SessionService {
 
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
-    const db = application.get('DbService').getDb()
-    await db.transaction((tx) => applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id }))
+    await application
+      .get('DbService')
+      .withWriteTx((tx) => applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id }))
   }
 
   async exists(id: string): Promise<boolean> {
