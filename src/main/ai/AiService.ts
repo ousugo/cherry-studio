@@ -231,6 +231,8 @@ export class AiService extends BaseService {
           ...(payload.updatedInput !== undefined && { updatedInput: payload.updatedInput })
         }
 
+        // Apply the decision to a still-live stream's in-memory snapshot so the running
+        // execution reflects it immediately (no-op when no active stream for the topic).
         if (payload.topicId) {
           application.get('AiStreamManager').applyApprovalDecision(payload.topicId, decision)
         }
