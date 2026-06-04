@@ -84,7 +84,7 @@ converted by `src/main/ai/observability/adapters/claudeCode/ClaudeCodeOtlpAdapte
 
 ## Sensitive data capture & redaction
 
-> Cross-referenced from `ClaudeCodeTraceBridgeService.getTelemetryEnv`.
+> Cross-referenced from `ClaudeCodeTraceBridgeService.prepareTrace`.
 
 The Claude Code OTLP bridge runs **only when developer mode is enabled**. When
 it does, it intentionally turns on verbose Claude Code telemetry:
