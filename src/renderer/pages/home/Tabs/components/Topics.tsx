@@ -1336,7 +1336,7 @@ function TopicRow({
                 event.stopPropagation()
                 void onPinTopic(topic)
               }}>
-              <PinIcon size={13} className={cn('!size-[13px]', topic.pinned && '-rotate-45')} />
+              <PinIcon size={13} className={cn('size-3.25!', topic.pinned && '-rotate-45')} />
             </ResourceList.ItemAction>
           </Tooltip>
         )}
@@ -1355,9 +1355,9 @@ function TopicRow({
                 onDeleteClick(topic.id, event)
               }}>
               {isConfirmingDeletion ? (
-                <Trash2 size={14} className="!size-[14px] text-destructive" />
+                <Trash2 size={14} className="size-3.5! text-destructive" />
               ) : (
-                <XIcon size={14} className="!size-[14px]" />
+                <XIcon size={14} className="size-3.5!" />
               )}
             </ResourceList.ItemAction>
           </Tooltip>
@@ -1385,7 +1385,7 @@ function TopicRow({
 
 const TopicStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
   const dotClassName = cn(
-    'size-[5px] rounded-full',
+    'size-1.25 rounded-full',
     isPending ? 'animation-pulse bg-(--color-status-warning)' : 'bg-(--color-status-success)'
   )
 
