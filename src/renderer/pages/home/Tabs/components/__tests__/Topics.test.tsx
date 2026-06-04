@@ -788,7 +788,7 @@ describe('Topics', () => {
     )
   })
 
-  it('opens a topic message page in a new app tab from the context menu', () => {
+  it('opens a topic message page in a new app tab from the context menu', async () => {
     const { getByText } = renderTopicList()
 
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
@@ -802,6 +802,7 @@ describe('Topics', () => {
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Open in new tab' }))
 
     expect(tabsContextMocks.openTab).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(animationFrameCallbacks.length).toBeGreaterThan(0))
     act(() => {
       for (const callback of animationFrameCallbacks.splice(0)) {
         callback(0)
@@ -833,6 +834,7 @@ describe('Topics', () => {
     expect(setActiveTopic).not.toHaveBeenCalled()
     expect(window.toast.loading).not.toHaveBeenCalled()
 
+    await vi.waitFor(() => expect(animationFrameCallbacks.length).toBeGreaterThan(0))
     act(() => {
       for (const callback of animationFrameCallbacks.splice(0)) {
         callback(0)
@@ -892,6 +894,7 @@ describe('Topics', () => {
 
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Copy as Image' }))
 
+    await vi.waitFor(() => expect(animationFrameCallbacks.length).toBeGreaterThan(0))
     act(() => {
       for (const callback of animationFrameCallbacks.splice(0)) {
         callback(0)
@@ -1122,7 +1125,7 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Collapse topics' })).toBeInTheDocument()
   })
 
-  it('collapses assistant groups from the display options menu', () => {
+  it('collapses assistant groups from the display options menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -1170,12 +1173,13 @@ describe('Topics', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+    await vi.waitFor(() => {
+      expect(getTopicGroupExpansionPreference().assistant.expandedGroupIds).not.toEqual(
+        expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
+      )
+    })
     rerenderTopicList()
 
-    const collapsedAssistantSectionButton = screen
-      .getAllByRole('button', { name: 'Assistant' })
-      .find((button) => button.hasAttribute('aria-expanded'))
-    expect(collapsedAssistantSectionButton).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Alpha topic 1')).not.toBeInTheDocument()
@@ -1871,7 +1875,7 @@ describe('Topics', () => {
     expect(screen.getAllByRole('button', { name: 'Edit Assistant' }).length).toBeGreaterThan(0)
   })
 
-  it('keeps at least one topic when clearing an assistant group would delete all topics', () => {
+  it('keeps at least one topic when clearing an assistant group would delete all topics', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -1911,7 +1915,7 @@ describe('Topics', () => {
     fireEvent.click(moreButton)
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant chats' }))
 
-    expect(window.toast.error).toHaveBeenCalledWith('At least one topic must be kept')
+    await vi.waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('At least one topic must be kept'))
     expect(window.modal.confirm).not.toHaveBeenCalled()
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     expect(topicDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()

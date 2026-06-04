@@ -828,7 +828,7 @@ describe('BaseNavigator', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }))
     fireEvent.click(screen.getByRole('button', { name: '删除知识库' }))
 
-    expect(screen.getByText('确认删除知识库')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('确认删除知识库')).toBeInTheDocument())
     expect(screen.getByText('删除后无法恢复')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
@@ -944,7 +944,7 @@ describe('BaseNavigator', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: /Research/ }))
     fireEvent.click(screen.getByRole('button', { name: '删除分组' }))
 
-    expect(screen.getByText('确认删除分组')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('确认删除分组')).toBeInTheDocument())
     expect(screen.getByText('删除后，该分组下的知识库将移至默认分组。')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
@@ -954,7 +954,7 @@ describe('BaseNavigator', () => {
     })
   })
 
-  it('opens create knowledge base with the current group id from the group menu', () => {
+  it('opens create knowledge base with the current group id from the group menu', async () => {
     const onCreateBase = vi.fn()
 
     render(
@@ -978,7 +978,7 @@ describe('BaseNavigator', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: /Research/ }))
     fireEvent.click(screen.getByRole('button', { name: '在此分组新建' }))
 
-    expect(onCreateBase).toHaveBeenCalledWith('group-1')
+    await waitFor(() => expect(onCreateBase).toHaveBeenCalledWith('group-1'))
   })
 
   it('does not render a group menu trigger for the default knowledge group', () => {

@@ -141,7 +141,7 @@ function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
 
 function getListViewportClassName(stage: ScrollbarStage, className?: string) {
   return cn(
-    'min-h-0 flex-1 overflow-auto py-1.5 pt-0 pr-2 -mr-2 [scrollbar-gutter:stable]',
+    '-mr-2 min-h-0 flex-1 overflow-auto py-1.5 pt-0 pr-2 [scrollbar-gutter:stable]',
     '[&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)]',
     '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-150 [&::-webkit-scrollbar-thumb]:ease-out',
     SCROLLBAR_THUMB_CLASS_BY_STAGE[stage],
@@ -162,7 +162,7 @@ function VirtualItemRow({
       data-resource-list-item-row="true"
       className={cn(
         ITEM_ROW_CLASS,
-        !groupHeaderIconVisible && '[&_[data-resource-list-leading-slot=true]]:hidden [&_[role=option]]:!px-2.5'
+        !groupHeaderIconVisible && '[&_[role=option]]:!px-2.5 [&_[data-resource-list-leading-slot=true]]:hidden'
       )}>
       {children}
     </div>
@@ -358,7 +358,7 @@ export function VirtualItems<T extends ResourceListItemBase>({ className, ref, r
       <div>
         <GroupShowMore
           groupId={footer.groupId}
-          className={!getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed) && 'pl-2.5'}
+          className={!getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed) ? 'pl-2.5' : undefined}
         />
       </div>
     ),
@@ -563,7 +563,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
       <div>
         <GroupShowMore
           groupId={footer.groupId}
-          className={!getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed) && 'pl-2.5'}
+          className={!getGroupHeaderIconVisible(meta, footer.group, footer.groupCollapsed) ? 'pl-2.5' : undefined}
         />
       </div>
     ),

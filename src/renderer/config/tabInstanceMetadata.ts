@@ -18,7 +18,7 @@ export function buildTabInstanceMetadata(
   currentMetadata: Tab['metadata'],
   instance: TabInstanceMetadataInput
 ): NonNullable<Tab['metadata']> {
-  const metadata = { ...(currentMetadata ?? {}) } as NonNullable<Tab['metadata']>
+  const metadata = { ...currentMetadata } as NonNullable<Tab['metadata']>
 
   if (instance.appId) {
     metadata[TAB_INSTANCE_METADATA_APP_ID] = instance.appId

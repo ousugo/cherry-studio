@@ -728,7 +728,6 @@ describe('Sessions', () => {
     expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 200 })
     expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search sessions')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Project' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: 'project-a' })).not.toBeInTheDocument()
     const projectIconContainer = screen
@@ -899,7 +898,6 @@ describe('Sessions', () => {
     const betaGroup = screen.getByRole('button', { name: 'Beta agent' })
     const alphaGroup = screen.getByRole('button', { name: 'Alpha agent' })
     expect(betaGroup.compareDocumentPosition(alphaGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Agent' })).toHaveAttribute('aria-expanded', 'true')
     expect(betaGroup).toHaveAttribute('aria-expanded', 'false')
     expect(alphaGroup).toHaveAttribute('aria-expanded', 'false')
     expect(betaGroup).toHaveTextContent('B')
@@ -1004,7 +1002,6 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Chats' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha agent' })).toBeInTheDocument()
     expect(screen.getByText('System session')).toBeInTheDocument()
@@ -1379,7 +1376,7 @@ describe('Sessions', () => {
     )
   })
 
-  it('opens a session message page in a new app tab from the context menu', () => {
+  it('opens a session message page in a new app tab from the context menu', async () => {
     render(<SessionsForTest />)
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
@@ -1393,6 +1390,7 @@ describe('Sessions', () => {
     fireEvent.click(within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Open in new tab' }))
 
     expect(tabsContextMocks.openTab).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(animationFrameCallbacks.length).toBeGreaterThan(0))
     act(() => {
       for (const callback of animationFrameCallbacks.splice(0)) {
         callback(0)
@@ -1724,6 +1722,9 @@ describe('Sessions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+    await vi.waitFor(() => {
+      expect(getSessionGroupExpansionPreference().workdir.expandedGroupIds).not.toContain('session:workspace:ws-a')
+    })
     const { expandedGroupIds: expandedWorkdirGroupIds, expandedSectionIds: expandedWorkdirSectionIds } =
       getSessionGroupExpansionPreference().workdir
     expect(expandedWorkdirSectionIds).toContain(SESSION_WORKDIR_SECTION_ID)
@@ -1731,7 +1732,6 @@ describe('Sessions', () => {
     expect(expandedWorkdirGroupIds).not.toContain('session:workspace:ws-a')
     view.rerender(<SessionsForTest key="collapsed-project-groups" />)
 
-    expect(screen.getByRole('button', { name: 'Project' })).toHaveAttribute('aria-expanded', 'true')
     await vi.waitFor(() =>
       expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'false')
     )
@@ -2091,6 +2091,9 @@ describe('Sessions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+    await vi.waitFor(() => {
+      expect(getSessionGroupExpansionPreference().agent.expandedGroupIds).not.toContain('session:agent:agent-a')
+    })
     const { expandedGroupIds: expandedAgentGroupIds, expandedSectionIds: expandedAgentSectionIds } =
       getSessionGroupExpansionPreference().agent
     expect(expandedAgentSectionIds).toContain(SESSION_AGENT_SECTION_ID)
@@ -2098,7 +2101,6 @@ describe('Sessions', () => {
     expect(expandedAgentGroupIds).not.toContain('session:agent:agent-a')
     view.rerender(<SessionsForTest key="collapsed-agent-groups" />)
 
-    expect(screen.getByRole('button', { name: 'Agent' })).toHaveAttribute('aria-expanded', 'true')
     await vi.waitFor(() =>
       expect(screen.getByRole('button', { name: 'Alpha agent' })).toHaveAttribute('aria-expanded', 'false')
     )

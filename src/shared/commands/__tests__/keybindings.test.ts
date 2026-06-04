@@ -177,8 +177,8 @@ describe('resolveCommandKeybinding', () => {
         command: 'selection.toggle',
         context: { 'feature.selection.enabled': true },
         platform: 'linux'
-      })
-    ).toBeUndefined()
+      })?.binding
+    ).toEqual([])
   })
 })
 

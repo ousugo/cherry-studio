@@ -71,6 +71,32 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   )
 }))
 
+vi.mock('@renderer/components/chat/panes/Shell/Shell', () => ({
+  useShellActions: () => ({
+    close: vi.fn()
+  }),
+  useOptionalShellState: () => ({
+    activeTab: 'files',
+    maximized: false,
+    open: false,
+    pdfLayoutPending: false,
+    pdfLayoutRefreshKey: 0
+  })
+}))
+
+vi.mock('@renderer/components/chat/panes/Shell', () => ({
+  useShellActions: () => ({
+    close: vi.fn()
+  }),
+  useOptionalShellState: () => ({
+    activeTab: 'files',
+    maximized: false,
+    open: false,
+    pdfLayoutPending: false,
+    pdfLayoutRefreshKey: 0
+  })
+}))
+
 vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
