@@ -51,7 +51,11 @@ export const streamDispatchCoordinator = {
     subs.add(listener)
     return () => {
       subs.delete(listener)
-      if (subs.size === 0) listeners.delete(topicId)
+      if (subs.size === 0) {
+        listeners.delete(topicId)
+        // Drop the retained ack too, so this map can't grow unbounded across distinct topics.
+        lastAckByTopic.delete(topicId)
+      }
     }
   },
 
