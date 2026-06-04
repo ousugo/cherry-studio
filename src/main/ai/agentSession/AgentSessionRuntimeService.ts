@@ -505,6 +505,10 @@ export class AgentSessionRuntimeService extends BaseService {
     const turn = entry.currentTurn
     if (turn?.controller && !turn.terminalStatus) {
       turn.controller.error(error)
+      // Mark terminal synchronously: the listener's markTurnTerminal arrives async (after the
+      // stream error propagates), so a trailing `chunk` event in the same connection loop would
+      // otherwise hit enqueueTurnChunk and throw on the now-errored controller.
+      turn.terminalStatus = 'error'
     } else if (isAbortError(error)) {
       // Expected when a turn was interrupted/closed — the connection ending is not a fault.
       logger.warn('Agent runtime connection ended without an active turn', { sessionId: entry.sessionId, error })

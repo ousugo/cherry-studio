@@ -437,6 +437,46 @@ describe('AgentSessionRuntimeService', () => {
     await expect(reader.read()).resolves.toMatchObject({ done: true })
   })
 
+  it('surfaces a runtime error event via controller.error and drops trailing chunks (REGRESSION agent-session-3)', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      interrupt: vi.fn(),
+      close: vi.fn()
+    }
+    const connect = vi.fn().mockResolvedValue(connection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+
+    // A runtime `error` event surfaces through the active turn's controller.
+    events.push({ type: 'error', error: new Error('runtime boom') })
+    await expect(reader.read()).rejects.toThrow('runtime boom')
+
+    // The turn is marked terminal synchronously, so a trailing chunk in the same connection
+    // loop is dropped instead of being enqueued on the now-errored controller (which would throw).
+    await vi.waitFor(() => expect(getEntry(service).currentTurn?.terminalStatus).toBe('error'))
+    events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 't', delta: 'late' } })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(getEntry(service).currentTurn?.terminalStatus).toBe('error')
+  })
+
   it('passes trace context to the runtime driver and closes the connection after trace turns', async () => {
     const events = createAsyncQueue<any>()
     const connection = {
