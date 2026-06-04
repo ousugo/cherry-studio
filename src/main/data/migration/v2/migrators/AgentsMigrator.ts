@@ -439,6 +439,10 @@ export class AgentsMigrator extends BaseMigrator {
     )
 
     const idMap = new Map<string, string>()
+    // (type='agent.task', name) is UNIQUE in job_schedule. Two v1 tasks with the
+    // same name would collide and abort the whole migration, so track used names
+    // and disambiguate within this run.
+    const usedNames = new Set<string>()
     let migratedCount = 0
     let droppedNameCount = 0
 
@@ -457,11 +461,25 @@ export class AgentsMigrator extends BaseMigrator {
       // JobScheduleNameAtomSchema rejects on the application boundary. Sanitize
       // so v2 reads are well-formed end-to-end.
       const rawName = v1.name?.trim() ?? ''
-      const sanitizedName =
+      let sanitizedName =
         rawName && !rawName.startsWith('__') && !this.hasControlChars(rawName)
           ? rawName.slice(0, 200)
           : `task_${v1.id}`.slice(0, 200)
       if (sanitizedName !== rawName) droppedNameCount++
+
+      // Disambiguate on collision: fall back to the already-unique `task_<id>`
+      // form (v1.id is unique), then append a numeric suffix if even that clashes.
+      if (usedNames.has(sanitizedName)) {
+        let candidate = `task_${v1.id}`.slice(0, 200)
+        let suffix = 1
+        while (usedNames.has(candidate)) {
+          candidate = `task_${v1.id}_${suffix}`.slice(0, 200)
+          suffix++
+        }
+        droppedNameCount++
+        sanitizedName = candidate
+      }
+      usedNames.add(sanitizedName)
 
       const inserted = await db
         .insert(jobScheduleTable)
