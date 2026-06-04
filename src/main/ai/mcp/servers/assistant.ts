@@ -12,6 +12,19 @@ import { app } from 'electron'
 const logger = loggerService.withContext('MCPServer:Assistant')
 
 /**
+ * Whether `read_source` must refuse a file as sensitive. Covers every dotenv variant
+ * (`.env`, `.env.local`, `.env.production`, …) except the `.env.example` template,
+ * credential files, SSH private keys, and private-key/cert material. Case-insensitive.
+ */
+export function isBlockedSourceFile(basename: string): boolean {
+  const name = basename.toLowerCase()
+  const isSensitiveEnv = name.startsWith('.env') && name !== '.env.example'
+  const isPrivateKeyOrCert = /\.(pem|key|p12|pfx)$/.test(name)
+  const isExactSensitive = ['credentials.json', 'id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519'].includes(name)
+  return isSensitiveEnv || isPrivateKeyOrCert || isExactSensitive
+}
+
+/**
  * Resolve a path through any symlinks, falling back to the nearest existing ancestor when the
  * target itself does not exist yet. Mirrors the filesystem server's
  * `resolveRealOrNearestExistingPath` so symlink escapes are caught before the containment check.
@@ -694,9 +707,8 @@ class AssistantServer {
       throw new McpError(ErrorCode.InvalidParams, `Access denied: path must be within the app directory`)
     }
 
-    // Block sensitive files
-    const basename = path.basename(resolved).toLowerCase()
-    if (basename === '.env' || basename.endsWith('.env.local') || basename === 'credentials.json') {
+    // Block sensitive files (dotenv variants, credentials, private keys).
+    if (isBlockedSourceFile(path.basename(resolved))) {
       throw new McpError(ErrorCode.InvalidParams, `Access denied: cannot read sensitive files`)
     }
 
