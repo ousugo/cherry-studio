@@ -23,7 +23,7 @@ import {
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
-import { useAssistantsApi } from '@renderer/hooks/useAssistant'
+import { useAssistantsApi, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
@@ -317,6 +317,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     error: assistantsError,
     refetch: refreshAssistants
   } = useAssistantsApi({ enabled: isAssistantDisplayMode })
+  const { assistant: defaultAssistant } = useDefaultAssistant()
   const listRef = useRef<HTMLDivElement>(null)
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
@@ -575,6 +576,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     () =>
       createTopicDisplayGroupResolver<Topic>({
         assistantById,
+        defaultAssistant,
         mode: displayMode,
         labels: {
           pinned: t('selector.common.pinned_title'),
@@ -591,7 +593,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         now: groupNow,
         pinnedAsSection: isAssistantDisplayMode
       }),
-    [assistantById, displayMode, groupNow, isAssistantDisplayMode, t]
+    [assistantById, defaultAssistant, displayMode, groupNow, isAssistantDisplayMode, t]
   )
 
   const topicSectionBy = useMemo(() => {
@@ -852,9 +854,17 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   )
 
   const getGroupHeaderIcon = useCallback(
-    (group: { id: string }) => {
+    (group: { id: string; label: string }) => {
       if (!isAssistantDisplayMode || group.id === TOPIC_PINNED_GROUP_ID) return undefined
-      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return null
+      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) {
+        if (group.label !== defaultAssistant.name) return null
+
+        return defaultAssistant.emoji ? (
+          <EmojiIcon emoji={defaultAssistant.emoji} size={24} fontSize={14} className="mr-0" />
+        ) : (
+          <Bot size={14} />
+        )
+      }
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       const assistant = assistantId ? assistantById.get(assistantId) : undefined
@@ -866,7 +876,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         <Bot size={14} />
       )
     },
-    [assistantById, isAssistantDisplayMode]
+    [assistantById, defaultAssistant.emoji, defaultAssistant.name, isAssistantDisplayMode]
   )
 
   const expandedTopicState = topicGroupExpansion[displayMode]
