@@ -169,6 +169,31 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.isSessionBusy('session-1')).toBe(true)
       expect(getEntry(service).startingNextTurn).toBe(false)
     })
+
+    it('does not resurrect a session torn down during the next-turn placeholder save (REGRESSION agent-session-1)', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+      // Hold the drain's placeholder save so we can tear the session down mid-await.
+      const deferred = createDeferred<any>()
+      mocks.saveMessage.mockImplementationOnce(() => deferred.promise)
+
+      service.markTurnTerminal('session-1', 'success') // schedules the drain → parks on saveMessage
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const startCallsBefore = mocks.startRuntimeTurn.mock.calls.length
+
+      // Session is torn down (shutdown / a fresh beginTurn) while the save is still in flight.
+      service.closeSession('session-1')
+
+      deferred.resolve({ id: 'assistant-2' })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      // The dead entry must NOT be resurrected into a runtime turn.
+      expect(mocks.startRuntimeTurn.mock.calls.length).toBe(startCallsBefore)
+      expect(getEntry(service)).toBeUndefined()
+    })
   })
 
   describe('reconcileStalePendingMessages — boot crash recovery', () => {

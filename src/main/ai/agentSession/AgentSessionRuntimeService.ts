@@ -626,6 +626,16 @@ export class AgentSessionRuntimeService extends BaseService {
       rootSpan.end()
       throw error
     }
+
+    // The DB save above yields the event loop; the session may have been torn down
+    // (shutdown / a fresh beginTurn) in the meantime. Re-check before mutating the entry,
+    // mirroring every other async method here — otherwise a dead entry gets resurrected
+    // into a doomed runtime turn with no backing agent connection.
+    if (!this.isCurrentEntry(entry)) {
+      rootSpan.end()
+      return
+    }
+
     const assistantMessageId = assistantMessage.id
 
     const turnId = crypto.randomUUID()
