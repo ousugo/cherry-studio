@@ -1386,7 +1386,7 @@ function TopicRow({
 const TopicStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
   const dotClassName = cn(
     'size-1.25 rounded-full',
-    isPending ? 'animation-pulse bg-(--color-status-warning)' : 'bg-(--color-status-success)'
+    isPending ? 'animation-pulse bg-(--color-warning)' : 'bg-(--color-success)'
   )
 
   if (isPending) {

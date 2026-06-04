@@ -981,7 +981,7 @@ describe('Topics', () => {
 
     let topicRow = getTopicRow('Gamma topic')
     let indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"] .animation-pulse')
-    expect(indicator).toHaveClass('bg-(--color-status-warning)')
+    expect(indicator).toHaveClass('bg-(--color-warning)')
     expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
 
@@ -992,7 +992,7 @@ describe('Topics', () => {
 
     topicRow = getTopicRow('Gamma topic')
     indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"] span')
-    expect(indicator).toHaveClass('bg-(--color-status-success)')
+    expect(indicator).toHaveClass('bg-(--color-success)')
     expect(indicator).not.toHaveClass('animation-pulse')
     expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
 
