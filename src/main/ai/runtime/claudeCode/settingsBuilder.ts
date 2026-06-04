@@ -114,8 +114,11 @@ async function buildAssistantContext(): Promise<string> {
     probeHost('docs.cherry-ai.com')
   ])
   const networkLines = probeResults.map((r) => {
-    const v = r.status === 'fulfilled' ? r.value : { host: '?', ok: false, ms: 0 }
-    return `- ${v.host}: ${v.ok ? `reachable (${v.ms}ms)` : 'unreachable'}`
+    const v = r.status === 'fulfilled' ? r.value : { host: '?', ok: false }
+    // Don't embed per-probe latency: this string feeds the assistant systemPrompt, which is
+    // part of the warm-query signature. Volatile `(NNNms)` made prewarm and consume signatures
+    // differ every run, so assistant warm queries were never reused. `reachable` is stable.
+    return `- ${v.host}: ${v.ok ? 'reachable' : 'unreachable'}`
   })
 
   return [
@@ -132,16 +135,15 @@ async function buildAssistantContext(): Promise<string> {
   ].join('\n')
 }
 
-async function probeHost(host: string): Promise<{ host: string; ok: boolean; ms: number }> {
-  const start = Date.now()
+async function probeHost(host: string): Promise<{ host: string; ok: boolean }> {
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 2000)
     await fetch(`https://${host}`, { method: 'HEAD', signal: controller.signal })
     clearTimeout(timeout)
-    return { host, ok: true, ms: Date.now() - start }
+    return { host, ok: true }
   } catch {
-    return { host, ok: false, ms: Date.now() - start }
+    return { host, ok: false }
   }
 }
 
