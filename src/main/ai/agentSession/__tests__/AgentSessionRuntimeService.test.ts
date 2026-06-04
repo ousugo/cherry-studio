@@ -372,6 +372,27 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toBeUndefined()
   })
 
+  it('does not throw and logs a warning when the connection close rejects on closeSession (REGRESSION agent-session-5)', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const closeError = new Error('close failed')
+    const connection = { close: vi.fn().mockRejectedValue(closeError), send: vi.fn(), events: [] }
+    const entry = getEntry(service)
+    entry.connection = connection
+    entry.connectionLoop = Promise.resolve()
+
+    expect(() => service.closeSession('session-1')).not.toThrow()
+
+    expect(connection.close).toHaveBeenCalled()
+    expect(service.inspect('session-1')).toBeUndefined()
+    await vi.waitFor(() =>
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Agent runtime connection close failed',
+        expect.objectContaining({ sessionId: 'session-1', error: closeError })
+      )
+    )
+  })
+
   it('persists assistant turns with the latest resume token', async () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })

@@ -1,3 +1,4 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -395,5 +396,42 @@ describe('Agent', () => {
       closeSpy.mockRestore()
       abortSpy.mockRestore()
     }
+  })
+
+  // ── onError returning 'retry' is not implemented: warn (not error) then abort the writer ──
+  it('logs a WARN (not error) and aborts when the composed onError returns "retry" (REGRESSION agent-loop-2)', async () => {
+    const err = new Error('stream blew up')
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(c) {
+              c.error(err)
+            }
+          })
+      })
+    })
+
+    const onError = vi.fn().mockReturnValue('retry')
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      hookParts: [{ onError }]
+    })
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).rejects.toBe(err)
+    // Let the IIFE's catch (invokeOnError → 'retry' branch + settleWriter) run.
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(onError).toHaveBeenCalledTimes(1)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'agentLoop onError returned retry; retry not implemented — aborting',
+      err
+    )
+    // The retry branch must not also log an error for the same outcome.
+    expect(mockMainLoggerService.error).not.toHaveBeenCalledWith('agentLoop error', err)
   })
 })
