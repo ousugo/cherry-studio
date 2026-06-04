@@ -66,7 +66,8 @@ function sanitizeMcpServersForSignature(mcpServers: Options['mcpServers']): unkn
   const sanitized: Record<string, unknown> = {}
   for (const [key, config] of Object.entries(mcpServers)) {
     if (config && typeof config === 'object' && 'instance' in config) {
-      const { instance: _instance, ...rest } = config as Record<string, unknown>
+      const rest = { ...(config as Record<string, unknown>) }
+      delete rest.instance
       sanitized[key] = rest
     } else {
       sanitized[key] = config

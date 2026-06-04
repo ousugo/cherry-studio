@@ -32,8 +32,8 @@ describe('wrapToolsWithExecutionHooks', () => {
 
   it('fires start before execute and end after with the tool result', async () => {
     const order: string[] = []
-    const onToolExecutionStart = vi.fn((_e: ToolExecutionStartEvent) => void order.push('start'))
-    const onToolExecutionEnd = vi.fn((_e: ToolExecutionEndEvent) => void order.push('end'))
+    const onToolExecutionStart = vi.fn<(e: ToolExecutionStartEvent) => void>(() => void order.push('start'))
+    const onToolExecutionEnd = vi.fn<(e: ToolExecutionEndEvent) => void>(() => void order.push('end'))
     const execute = vi.fn(async () => {
       order.push('execute')
       return 'result'
