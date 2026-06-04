@@ -242,6 +242,18 @@ vi.mock('@renderer/hooks/useTabs', () => ({
 // Instance navigation goes through the conversation-nav boundary; route it to the same
 // openTab spy so the existing focus-or-open assertions keep verifying the target url.
 vi.mock('@renderer/hooks/useConversationNavigation', () => ({
+  useConversationNavigator: () => ({
+    focusExistingTab: () => false,
+    openConversationTab: (appId: string, key: string, title?: string) => {
+      const routePrefix = appId === 'agents' ? '/app/agents' : '/app/chat'
+      const instanceAppId = appId === 'agents' ? 'agents' : 'assistants'
+      return mocks.openTab(routePrefix, {
+        forceNew: true,
+        ...(title ? { title } : {}),
+        metadata: { instanceAppId, instanceKey: key }
+      })
+    }
+  }),
   useConversationNavigation: (appId: string) => {
     const routePrefix = appId === 'agents' ? '/app/agents' : '/app/chat'
     const instanceAppId = appId === 'agents' ? 'agents' : 'assistants'
@@ -1710,6 +1722,7 @@ describe('GlobalSearchPanel', () => {
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/chat', {
       forceNew: true,
+      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1' },
       title: 'Chat'
     })
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
@@ -1735,6 +1748,7 @@ describe('GlobalSearchPanel', () => {
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', {
       forceNew: true,
+      metadata: { instanceAppId: 'agents', instanceKey: 'session-1' },
       title: 'Agent'
     })
     expect(mocks.setActiveTab).not.toHaveBeenCalled()

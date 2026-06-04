@@ -105,8 +105,8 @@ describe('buildTopicMessageFlowGraph', () => {
     expect(graph.nodes.map((node) => [node.id, node.parentId, node.data.siblingsGroupId])).toEqual([
       ['assistant-original', 'root-original', undefined],
       ['assistant-edited', 'root-edited', undefined],
-      ['root-original', null, 9],
-      ['root-edited', null, 9]
+      ['root-original', null, undefined],
+      ['root-edited', null, undefined]
     ])
     expect(graph.edges.map((edge) => [edge.source, edge.target])).toEqual([
       ['root-original', 'assistant-original'],
@@ -117,7 +117,7 @@ describe('buildTopicMessageFlowGraph', () => {
     expect(graph.stats.branchCount).toBe(2)
   })
 
-  it('keeps ungrouped same-topic roots as separate trees', () => {
+  it('counts ungrouped same-topic root trees as separate branch paths', () => {
     const tree: TreeResponse = {
       nodes: [
         treeNode({ id: 'root-a', hasChildren: true }),
@@ -144,7 +144,7 @@ describe('buildTopicMessageFlowGraph', () => {
     expect(graph.stats.branchCount).toBe(2)
   })
 
-  it('counts regular same-parent children as branch paths even without a sibling group', () => {
+  it('counts user sibling branches as branch paths without marking them as assistant branch displays', () => {
     const tree: TreeResponse = {
       nodes: [
         treeNode({ id: 'root', hasChildren: true }),
@@ -184,6 +184,24 @@ describe('buildTopicMessageFlowGraph', () => {
       'user-scenes',
       'assistant-scenes'
     ])
+    expect(graph.edges.every((edge) => !edge.data.isSiblingBranch)).toBe(true)
+  })
+
+  it('counts same-parent assistant siblings as message-list branch displays without requiring a sibling group', () => {
+    const tree: TreeResponse = {
+      nodes: [
+        treeNode({ id: 'root', hasChildren: true }),
+        treeNode({ id: 'assistant-a', parentId: 'root', role: 'assistant' }),
+        treeNode({ id: 'assistant-b', parentId: 'root', role: 'assistant' })
+      ],
+      siblingsGroups: [],
+      activeNodeId: 'assistant-a'
+    }
+
+    const graph = buildTopicMessageFlowGraph(tree)
+
+    expect(graph.stats.branchCount).toBe(2)
+    expect(graph.edges.every((edge) => edge.data.isSiblingBranch)).toBe(true)
   })
 
   it('marks the active node and its ancestors as the active path', () => {

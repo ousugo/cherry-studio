@@ -226,7 +226,7 @@ const SessionItem = ({
               aria-label={pinned ? t('chat.topics.unpin') : t('chat.topics.pin')}
               className={cn(pinned && 'text-foreground/70 hover:text-foreground')}
               onClick={handleTogglePinClick}>
-              <PinIcon size={13} className={cn('!size-[13px]', pinned && '-rotate-45')} />
+              <PinIcon size={13} className={cn('size-3.25!', pinned && '-rotate-45')} />
             </ResourceList.ItemAction>
           </Tooltip>
         )}
@@ -239,9 +239,9 @@ const SessionItem = ({
               data-deleting={isConfirmingDeletion}
               onClick={handleDeleteClick}>
               {isConfirmingDeletion ? (
-                <Trash2 size={14} className="!size-[14px] text-destructive" />
+                <Trash2 size={14} className="size-3.5! text-destructive" />
               ) : (
-                <XIcon size={14} className="!size-[14px]" />
+                <XIcon size={14} className="size-3.5!" />
               )}
             </ResourceList.ItemAction>
           </Tooltip>
@@ -267,7 +267,7 @@ const SessionItem = ({
 }
 
 const SessionStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
-  const dotClassName = cn('size-[5px] rounded-full', isPending ? 'animation-pulse bg-warning' : 'bg-success')
+  const dotClassName = cn('size-1.25 rounded-full', isPending ? 'animation-pulse bg-warning' : 'bg-success')
 
   if (!isPending && !isFulfilled) return null
 

@@ -1,12 +1,11 @@
 import { MenuItem, MenuList, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import ModelNotesPopup from '@renderer/pages/settings/ProviderSettings/ModelNotesPopup'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
 import { CopyPlus, Edit, Trash2, UserPen } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -87,34 +86,27 @@ export default function ProviderListItemWithContextMenu({
     onContextOpenChange(false)
   }
 
-  const contextMenuItems = useMemo<readonly CommandContextMenuExtraItem[]>(
-    () =>
-      menuEntries.map((entry) => ({
-        type: 'item' as const,
-        id: entry.id,
-        label: entry.label,
-        icon: entry.icon,
-        destructive: entry.destructive,
-        onSelect: handleEntrySelect(entry)
-      })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [menuEntries, onContextOpenChange]
-  )
+  const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    onContextOpenChange(true)
+  }
 
   return (
     <Popover open={contextOpen} onOpenChange={onContextOpenChange}>
-      <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
-        <div className="w-full" ref={(element) => onSetListItemRef(provider.id, element)}>
-          <ProviderListItem
-            provider={{ ...provider, name: getFancyProviderName(provider) }}
-            selected={selected}
-            dragging={listState.dragging}
-            onClick={onSelect}
-            onOpenMenu={() => onContextOpenChange(true)}
-            renderMenuButton={(button) => <PopoverAnchor asChild>{button}</PopoverAnchor>}
-          />
-        </div>
-      </CommandContextMenu>
+      <div
+        className="w-full"
+        ref={(element) => onSetListItemRef(provider.id, element)}
+        onContextMenu={handleContextMenu}>
+        <ProviderListItem
+          provider={{ ...provider, name: getFancyProviderName(provider) }}
+          selected={selected}
+          dragging={listState.dragging}
+          onClick={onSelect}
+          onOpenMenu={() => onContextOpenChange(true)}
+          renderMenuButton={(button) => <PopoverAnchor asChild>{button}</PopoverAnchor>}
+        />
+      </div>
       <PopoverContent align="end" className={providerListClasses.itemMenuContent}>
         <MenuList className="gap-1">
           {menuEntries.map((entry) => (

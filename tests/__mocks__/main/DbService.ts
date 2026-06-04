@@ -1,3 +1,4 @@
+import { Mutex } from 'async-mutex'
 import { vi } from 'vitest'
 
 /**
@@ -15,6 +16,8 @@ const defaultMockDb = {
   transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(defaultMockDb))
 }
 
+const WRITE_BUSY_RETRY_DELAY_MS = 10
+
 /**
  * Mock DbService class
  */
@@ -22,6 +25,7 @@ export class MockMainDbService {
   private static instance: MockMainDbService
   private db: unknown = defaultMockDb
   private _isReady = true
+  private writeMutex = new Mutex()
 
   private constructor() {}
 
@@ -35,14 +39,32 @@ export class MockMainDbService {
   public getDb = vi.fn(() => this.db)
 
   /**
-   * Serialized write transaction mock. Mirrors `DbService.withWriteTx`:
-   * uses the current db transaction when available so rollback semantics match
-   * production data-service writes. Tests can replace this mock with
-   * `vi.spyOn(...)` to assert call order, simulate BUSY, etc.
+   * Serialized write transaction mock. Mirrors `DbService.withWriteTx` so
+   * main-process tests using a real libsql test DB do not bypass the
+   * production single-writer guard.
    */
   public withWriteTx = vi.fn(async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
+    if (!this._isReady) {
+      throw new Error('Database is not initialized, please call init() first!')
+    }
+
     const db = this.db as { transaction?: (callback: (tx: unknown) => Promise<T>) => Promise<T> }
-    return db.transaction ? db.transaction(fn) : fn(this.db)
+    if (!db.transaction) {
+      return fn(this.db)
+    }
+
+    const release = await this.writeMutex.acquire()
+    try {
+      try {
+        return await db.transaction(fn)
+      } catch (err) {
+        if ((err as { code?: string }).code !== 'SQLITE_BUSY') throw err
+        await new Promise((resolve) => setTimeout(resolve, WRITE_BUSY_RETRY_DELAY_MS))
+        return await db.transaction(fn)
+      }
+    } finally {
+      release()
+    }
   })
 
   public get isReady() {
@@ -82,6 +104,7 @@ export const MockMainDbServiceUtils = {
     // Restore default db
     mockInstance['db'] = defaultMockDb
     mockInstance['_isReady'] = true
+    mockInstance['writeMutex'] = new Mutex()
   },
 
   /**

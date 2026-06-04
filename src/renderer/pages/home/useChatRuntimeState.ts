@@ -46,6 +46,8 @@ interface UseChatRuntimeStateParams {
   activeNodeId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
+  clearBranchDraft?: () => void
+  getBranchDraftAnchorId?: () => string | null
 }
 
 function mergeBranchLiveMessages(...sources: CherryUIMessage[][]): CherryUIMessage[] {
@@ -123,7 +125,9 @@ export function useChatRuntimeState({
   refresh,
   activeNodeId,
   messagesCacheMutate,
-  onBranchLiveStateChange
+  onBranchLiveStateChange,
+  clearBranchDraft,
+  getBranchDraftAnchorId
 }: UseChatRuntimeStateParams) {
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const messages = uiMessages
@@ -211,15 +215,16 @@ export function useChatRuntimeState({
     historyAdapter,
     ensureConversation: async ({ text }) => {
       if (isHistoryLoading) return null
+      const parentAnchorId = getBranchDraftAnchorId?.() ?? activeNodeId ?? null
       if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
         const persisted = await onPersistTemporaryTopic(text)
         if (persisted?.type !== 'assistant') {
           throw new Error('Temporary topic handoff failed before stream open')
         }
         onTemporaryTopicPersisted()
-        return { topicId: persisted.topicId, parentAnchorId: activeNodeId ?? null }
+        return { topicId: persisted.topicId, parentAnchorId }
       }
-      return { topicId: topic.id, parentAnchorId: activeNodeId ?? null }
+      return { topicId: topic.id, parentAnchorId }
     },
     buildStreamRequest: ({ text, options }, conversation) => ({
       trigger: 'submit-message',
@@ -326,13 +331,16 @@ export function useChatRuntimeState({
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        await turnController.send({ text, options })
+        const ack = await turnController.send({ text, options })
+        if (ack?.mode === 'started') {
+          clearBranchDraft?.()
+        }
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [turnController]
+    [clearBranchDraft, turnController]
   )
 
   return {

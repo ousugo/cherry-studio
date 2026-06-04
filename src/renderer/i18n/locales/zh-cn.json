@@ -1485,7 +1485,14 @@
     "message": {
       "flow": {
         "branches": "分支",
+        "copy_topic": {
+          "created": "已复制为新话题",
+          "label": "复制为新话题"
+        },
         "nodes": "节点",
+        "status": {
+          "awaiting_input": "待输入"
+        },
         "title": "分支管理"
       },
       "new": {

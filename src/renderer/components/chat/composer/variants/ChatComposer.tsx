@@ -30,6 +30,7 @@ import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvide
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { AddNewTopicPayload } from '@renderer/pages/home/types'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata, Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
 import { cn, getLeadingEmoji } from '@renderer/utils'
@@ -94,6 +95,7 @@ type ProviderActionHandlers = ComposerSurfaceActions & {
 
 const emptyActions: ProviderActionHandlers = {
   addNewTopic: () => undefined,
+  focus: () => undefined,
   onTextChange: () => undefined,
   toggleExpanded: () => undefined,
   removeToken: () => undefined,
@@ -706,6 +708,14 @@ const ChatComposerInner = ({
     },
     [actionsRef]
   )
+
+  useEffect(() => {
+    return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, (payload) => {
+      const topicId = typeof payload === 'object' && payload ? (payload as { topicId?: string }).topicId : undefined
+      if (topicId !== topic.id) return
+      actionsRef.current.focus()
+    })
+  }, [actionsRef, topic.id])
 
   useEffect(() => {
     Object.assign(actionsRef.current, { addNewTopic })

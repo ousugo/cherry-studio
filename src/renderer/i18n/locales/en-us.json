@@ -1485,7 +1485,14 @@
     "message": {
       "flow": {
         "branches": "branches",
+        "copy_topic": {
+          "created": "Copied to a new topic",
+          "label": "Copy as New Topic"
+        },
         "nodes": "nodes",
+        "status": {
+          "awaiting_input": "Awaiting input"
+        },
         "title": "Branch Management"
       },
       "new": {

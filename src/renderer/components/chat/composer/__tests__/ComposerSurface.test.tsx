@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   setNodeSelection: vi.fn(),
   chainRun: vi.fn(),
   docDescendants: vi.fn(),
+  focus: vi.fn(),
   getJSON: vi.fn(),
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
@@ -84,7 +85,7 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
       isDestroyed: false,
       getJSON: mocks.getJSON,
       commands: {
-        focus: vi.fn(),
+        focus: mocks.focus,
         setContent: mocks.setContent,
         setNodeSelection: mocks.setNodeSelection
       },
@@ -246,6 +247,7 @@ describe('ComposerSurface', () => {
     mocks.setNodeSelection.mockReset()
     mocks.chainRun.mockReset()
     mocks.docDescendants.mockReset()
+    mocks.focus.mockReset()
     mocks.getJSON.mockReset()
     mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
     mocks.dispatch.mockReset()
@@ -386,6 +388,17 @@ describe('ComposerSurface', () => {
       },
       { emitUpdate: false }
     )
+  })
+
+  it('exposes a focus action for external composer targeting', async () => {
+    render(<Harness />)
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    act(() => {
+      mocks.actions?.focus()
+    })
+
+    expect(mocks.focus).toHaveBeenCalled()
   })
 
   it('inserts composer tokens using the same spacing as attachment tokens', async () => {

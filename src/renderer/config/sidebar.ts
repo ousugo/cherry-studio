@@ -55,6 +55,8 @@ export interface SidebarApp {
   routePrefix: string
   /** Url to open when no tab exists yet (defaults to `routePrefix`). */
   resolveUrl?: (ctx: SidebarNavContext) => string
+  /** Focus only the exact base route instead of any sub-route owned by the app. */
+  exactRouteFocus?: boolean
   instanceKey?: SidebarInstanceKey
 }
 
@@ -120,7 +122,8 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
   {
     id: 'mini_app',
     icon: LayoutGrid,
-    routePrefix: '/app/mini-app'
+    routePrefix: '/app/mini-app',
+    exactRouteFocus: true
   },
   {
     id: 'knowledge',
@@ -203,7 +206,7 @@ export function findAppTabToFocus(app: SidebarApp, tabs: Tab[], ctx: SidebarNavC
   const existing = tabs.find(
     (t) =>
       t.type === 'route' &&
-      tabBelongsToApp(app, t.url) &&
+      (app.exactRouteFocus ? t.url === app.routePrefix : tabBelongsToApp(app, t.url)) &&
       (app.instanceKey && key ? getSidebarAppTabInstanceKey(app, t) === key : true)
   )
   return existing?.id

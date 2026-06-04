@@ -172,6 +172,27 @@ describe('TopicMessageFlowNode', () => {
     })
   })
 
+  it('shows input draft status without fetching a real message preview', async () => {
+    renderNode({
+      isInputDraft: true,
+      preview: 'chat.message.flow.status.awaiting_input',
+      role: 'user',
+      status: 'paused'
+    })
+
+    const node = screen
+      .getAllByText('chat.message.flow.status.awaiting_input')[0]
+      .closest('[data-message-id="message-1"]')!
+
+    expect(node).toHaveTextContent('chat.message.flow.status.awaiting_input')
+
+    fireEvent.mouseEnter(node)
+    await advancePreviewDelay()
+
+    expect(mocks.useQuery).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('message-preview-popover')).not.toBeInTheDocument()
+  })
+
   it('cancels the tooltip preview when hover ends before the delay', async () => {
     renderNode()
 

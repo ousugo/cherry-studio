@@ -326,6 +326,48 @@ describe('ChatContent', () => {
     expect(sendMessage).not.toHaveBeenCalled()
   })
 
+  it('uses a branch draft anchor for the next send and clears it after stream open', async () => {
+    const clearBranchDraft = vi.fn()
+    const getBranchDraftAnchorId = vi.fn(() => 'assistant-old')
+
+    render(
+      <ChatContent topic={topic} clearBranchDraft={clearBranchDraft} getBranchDraftAnchorId={getBranchDraftAnchorId} />
+    )
+
+    await act(async () => {
+      await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(window.api.ai.streamOpen).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parentAnchorId: 'assistant-old',
+          topicId: 'topic-1'
+        })
+      )
+    })
+    expect(getBranchDraftAnchorId).toHaveBeenCalled()
+    expect(clearBranchDraft).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a branch draft anchor when stream open fails', async () => {
+    const clearBranchDraft = vi.fn()
+    ;(window.api.ai.streamOpen as any).mockRejectedValueOnce(new Error('open failed'))
+
+    render(
+      <ChatContent topic={topic} clearBranchDraft={clearBranchDraft} getBranchDraftAnchorId={() => 'assistant-old'} />
+    )
+
+    await act(async () => {
+      await expect(
+        capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+      ).rejects.toThrow('open failed')
+    })
+
+    expect(clearBranchDraft).not.toHaveBeenCalled()
+  })
+
   it('refreshes topic metadata after stream open so time-grouped sidebars can reorder', async () => {
     render(<ChatContent topic={topic} />)
 

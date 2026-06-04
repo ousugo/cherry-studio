@@ -21,8 +21,11 @@ const mocks = vi.hoisted(() => ({
   setIsExpanded: vi.fn(),
   updateAssistant: vi.fn(),
   toastError: vi.fn(),
+  focusComposer: vi.fn(),
   insertToken: vi.fn(),
   commandHandlers: new Map<string, () => void>(),
+  eventListeners: new Map<string, (payload: unknown) => void>(),
+  eventOn: vi.fn(),
   mentionedModels: undefined as Model[] | undefined,
   selectedKnowledgeBases: undefined as KnowledgeBase[] | undefined,
   knowledgeBases: [] as KnowledgeBase[],
@@ -94,6 +97,7 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
     useEffect(() => {
       props.onActionsChange?.({
+        focus: mocks.focusComposer,
         onTextChange: (updater) => {
           const nextText = typeof updater === 'function' ? updater(props.text) : updater
           props.onTextChange(nextText)
@@ -117,6 +121,16 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
     default: MockComposerSurface
   }
 })
+
+vi.mock('@renderer/services/EventService', () => ({
+  EVENT_NAMES: {
+    FOCUS_CHAT_COMPOSER: 'FOCUS_CHAT_COMPOSER',
+    SEND_MESSAGE: 'SEND_MESSAGE'
+  },
+  EventEmitter: {
+    on: mocks.eventOn
+  }
+}))
 
 vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
   ComposerToolRuntimeProvider: ({
@@ -464,8 +478,15 @@ describe('ChatComposer', () => {
     mocks.setIsExpanded.mockReset()
     mocks.updateAssistant.mockReset()
     mocks.toastError.mockReset()
+    mocks.focusComposer.mockReset()
     mocks.insertToken.mockReset()
     mocks.commandHandlers.clear()
+    mocks.eventListeners.clear()
+    mocks.eventOn.mockReset()
+    mocks.eventOn.mockImplementation((eventName: string, listener: (payload: unknown) => void) => {
+      mocks.eventListeners.set(eventName, listener)
+      return () => mocks.eventListeners.delete(eventName)
+    })
     mocks.mentionedModels = undefined
     mocks.selectedKnowledgeBases = undefined
     mocks.knowledgeBases = []
@@ -521,6 +542,24 @@ describe('ChatComposer', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(mocks.surfaceProps?.resolveSkillMarker).toBeUndefined()
+  })
+
+  it('focuses only the current topic composer from the focus event', async () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(mocks.eventOn).toHaveBeenCalledWith('FOCUS_CHAT_COMPOSER', expect.any(Function))
+    })
+
+    act(() => {
+      mocks.eventListeners.get('FOCUS_CHAT_COMPOSER')?.({ topicId: 'other-topic' })
+    })
+    expect(mocks.focusComposer).not.toHaveBeenCalled()
+
+    act(() => {
+      mocks.eventListeners.get('FOCUS_CHAT_COMPOSER')?.({ topicId: 'topic-1' })
+    })
+    expect(mocks.focusComposer).toHaveBeenCalledTimes(1)
   })
 
   it('shows only icons in the input bottom toolbar when it is narrow', async () => {

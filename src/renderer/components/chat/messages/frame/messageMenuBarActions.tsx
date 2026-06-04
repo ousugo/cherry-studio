@@ -430,7 +430,8 @@ registerAction({
   group: 'write',
   order: 20,
   surface: 'menu',
-  availability: ({ actions, isLastMessage }) => !!actions.startMessageBranch && !isLastMessage
+  availability: ({ actions, isAssistantMessage, isLastMessage }) =>
+    !!actions.startMessageBranch && isAssistantMessage && !isLastMessage
 })
 
 registerAction({

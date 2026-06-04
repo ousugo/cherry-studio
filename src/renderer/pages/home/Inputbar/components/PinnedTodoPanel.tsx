@@ -86,9 +86,9 @@ export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ messages, partsByMes
 
   return (
     <div className="w-full">
-      <div className="overflow-hidden rounded-[17px] border-(--color-border) border-[0.5px] bg-(--color-background-opacity) [body[theme-mode=dark]_&]:bg-(--color-background-mute)">
+      <div className="overflow-hidden rounded-[17px] border-[0.5px] border-border bg-(--color-background) [body[theme-mode=dark]_&]:bg-(--color-accent)">
         <div
-          className="flex cursor-pointer items-center justify-between px-3 py-2 text-(--color-text-2) text-xs"
+          className="flex cursor-pointer items-center justify-between px-3 py-2 text-(--color-foreground-secondary) text-xs"
           onClick={() => setIsCollapsed(!isCollapsed)}>
           <div className="flex items-center gap-1.5">
             {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
@@ -116,7 +116,7 @@ export const PinnedTodoPanel: FC<PinnedTodoPanelProps> = ({ messages, partsByMes
               style={{ opacity: todo.status === 'completed' ? 0.6 : 1 }}>
               <TodoStatusIcon status={todo.status} />
               <span
-                className="flex-1 text-(--color-text-1)"
+                className="flex-1 text-(--color-foreground)"
                 style={{ textDecoration: todo.status === 'completed' ? 'line-through' : 'none' }}>
                 {todo.status === 'in_progress' ? todo.activeForm : todo.content}
               </span>

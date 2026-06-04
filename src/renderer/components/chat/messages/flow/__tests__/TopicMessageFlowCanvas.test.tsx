@@ -45,6 +45,7 @@ vi.mock('@xyflow/react', async () => {
       nodesDraggable,
       onInit,
       onNodeClick,
+      onNodeContextMenu,
       onlyRenderVisibleElements,
       proOptions
     }: {
@@ -61,6 +62,7 @@ vi.mock('@xyflow/react', async () => {
       nodesDraggable?: boolean
       onInit?: (instance: { setViewport: typeof setViewportMock }) => void
       onNodeClick?: (event: React.MouseEvent, node: TopicMessageFlowNodeModel) => void
+      onNodeContextMenu?: (event: React.MouseEvent, node: TopicMessageFlowNodeModel) => void
       onlyRenderVisibleElements?: boolean
       proOptions?: { hideAttribution?: boolean }
     }) => {
@@ -94,7 +96,8 @@ vi.mock('@xyflow/react', async () => {
             {
               'data-testid': `flow-node-${node.data.messageId}`,
               key: node.id,
-              onClick: (event: React.MouseEvent) => onNodeClick?.(event, node)
+              onClick: (event: React.MouseEvent) => onNodeClick?.(event, node),
+              onContextMenu: (event: React.MouseEvent) => onNodeContextMenu?.(event, node)
             },
             React.createElement(NodeComponent, {
               data: node.data,
@@ -329,6 +332,52 @@ describe('TopicMessageFlowCanvas', () => {
     fireEvent.click(await screen.findByTestId('flow-node-assistant-1'))
 
     expect(onNodeSelect).toHaveBeenCalledWith('assistant-1')
+  })
+
+  it('does not select input draft nodes', async () => {
+    const onNodeSelect = vi.fn()
+
+    render(
+      <TopicMessageFlowCanvas
+        graph={{
+          ...graph,
+          nodes: [
+            ...graph.nodes,
+            {
+              id: 'branch-draft:assistant-1',
+              type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
+              position: { x: 520, y: 240 },
+              data: {
+                createdAt: '2026-01-01T00:02:00.000Z',
+                isActive: false,
+                isInactiveBranch: false,
+                isInputDraft: true,
+                isOnActivePath: false,
+                messageId: 'branch-draft:assistant-1',
+                preview: 'chat.message.flow.status.awaiting_input',
+                role: 'user',
+                status: 'paused'
+              }
+            }
+          ]
+        }}
+        onNodeSelect={onNodeSelect}
+      />
+    )
+
+    fireEvent.click(await screen.findByTestId('flow-node-branch-draft:assistant-1'))
+
+    expect(onNodeSelect).not.toHaveBeenCalled()
+  })
+
+  it('calls onNodeContextMenu with the right-clicked message id', async () => {
+    const onNodeContextMenu = vi.fn()
+
+    render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} onNodeContextMenu={onNodeContextMenu} />)
+
+    fireEvent.contextMenu(await screen.findByTestId('flow-node-user-1'))
+
+    expect(onNodeContextMenu).toHaveBeenCalledWith('user-1')
   })
 
   it('renders active error nodes with the error state marker', async () => {

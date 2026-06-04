@@ -1,8 +1,11 @@
+import { dataApiService } from '@data/DataApiService'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCommandHandler } from '@renderer/commands'
 import { type ChatPanePosition, ConversationShell } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
+import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
@@ -10,6 +13,7 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Citation, Topic } from '@renderer/types'
 import type { FC, ReactNode } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -47,10 +51,13 @@ const ChatInner: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
+  const invalidateCache = useInvalidateCache()
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
   const { openTrace } = useTopicRightPaneActions()
+  const branchDraftAnchorIdRef = useRef<string | null>(null)
+  const branchSendAnchorOverrideIdRef = useRef<string | null>(null)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = useRef<ContentSearchRef>(null)
@@ -58,9 +65,15 @@ const ChatInner: FC<Props> = (props) => {
   const { setTimeoutTimer } = useTimer()
 
   useEffect(() => {
+    branchDraftAnchorIdRef.current = null
+    branchSendAnchorOverrideIdRef.current = null
     setTopicBranchLiveState(props.activeTopic.id, null)
     setBranchLocateMessageId(undefined)
-    return () => setTopicBranchLiveState(props.activeTopic.id, null)
+    return () => {
+      branchDraftAnchorIdRef.current = null
+      branchSendAnchorOverrideIdRef.current = null
+      setTopicBranchLiveState(props.activeTopic.id, null)
+    }
   }, [props.activeTopic.id, setTopicBranchLiveState])
 
   useHotkeys('esc', () => {
@@ -143,6 +156,64 @@ const ChatInner: FC<Props> = (props) => {
     },
     [props.activeTopic.id, setTopicBranchLiveState]
   )
+  const getBranchDraftAnchorId = useCallback(
+    () => branchDraftAnchorIdRef.current ?? branchSendAnchorOverrideIdRef.current,
+    []
+  )
+  const clearBranchDraft = useCallback(() => {
+    branchDraftAnchorIdRef.current = null
+    branchSendAnchorOverrideIdRef.current = null
+  }, [])
+  const handleCancelBranchDraft = useCallback(
+    (nextActiveNodeId?: string | null) => {
+      branchDraftAnchorIdRef.current = null
+      branchSendAnchorOverrideIdRef.current = nextActiveNodeId ?? null
+
+      if (nextActiveNodeId === undefined) {
+        setTopicBranchLiveState(props.activeTopic.id, null)
+        return
+      }
+
+      setTopicBranchLiveState(props.activeTopic.id, {
+        topicId: props.activeTopic.id,
+        activeNodeId: nextActiveNodeId,
+        nodes: []
+      })
+    },
+    [props.activeTopic.id, setTopicBranchLiveState]
+  )
+  const handleStartBranchDraft = useCallback(
+    async (anchorMessageId: string) => {
+      await dataApiService.put(`/topics/${props.activeTopic.id}/active-node`, {
+        body: { nodeId: anchorMessageId }
+      })
+
+      branchDraftAnchorIdRef.current = anchorMessageId
+      branchSendAnchorOverrideIdRef.current = null
+      const draftNodeId = `branch-draft:${anchorMessageId}`
+      const draftState: TopicMessageFlowLiveState = {
+        topicId: props.activeTopic.id,
+        activeNodeId: draftNodeId,
+        nodes: [
+          {
+            id: draftNodeId,
+            parentId: anchorMessageId,
+            role: 'user',
+            preview: t('chat.message.flow.status.awaiting_input'),
+            modelId: null,
+            status: 'paused',
+            createdAt: new Date().toISOString(),
+            isInputDraft: true
+          }
+        ]
+      }
+
+      setTopicBranchLiveState(props.activeTopic.id, draftState)
+      void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: props.activeTopic.id })
+      await invalidateCache(`/topics/${props.activeTopic.id}/messages`)
+    },
+    [invalidateCache, props.activeTopic.id, setTopicBranchLiveState, t]
+  )
   const branchPaneDisabled = !!props.onPersistTemporaryTopic
   const locateMessageId = props.locateMessageId ?? branchLocateMessageId
   const handleLocateMessageHandled = useCallback(() => {
@@ -180,6 +251,8 @@ const ChatInner: FC<Props> = (props) => {
           locateMessageId={locateMessageId}
           onLocateMessageHandled={handleLocateMessageHandled}
           onBranchLiveStateChange={handleBranchLiveStateChange}
+          clearBranchDraft={clearBranchDraft}
+          getBranchDraftAnchorId={getBranchDraftAnchorId}
           onPersistTemporaryTopic={props.onPersistTemporaryTopic}
         />
       }
@@ -199,6 +272,8 @@ const ChatInner: FC<Props> = (props) => {
             topicId={props.activeTopic.id}
             topicName={props.activeTopic.name}
             onLocateMessage={setBranchLocateMessageId}
+            onStartBranchDraft={handleStartBranchDraft}
+            onCancelBranchDraft={handleCancelBranchDraft}
           />
         )
       }
@@ -208,6 +283,8 @@ const ChatInner: FC<Props> = (props) => {
             topicId={props.activeTopic.id}
             topicName={props.activeTopic.name}
             onLocateMessage={setBranchLocateMessageId}
+            onStartBranchDraft={handleStartBranchDraft}
+            onCancelBranchDraft={handleCancelBranchDraft}
           />
         )
       }

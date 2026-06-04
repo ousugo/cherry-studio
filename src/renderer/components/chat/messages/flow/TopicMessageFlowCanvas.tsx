@@ -23,6 +23,7 @@ import { TOPIC_MESSAGE_FLOW_NODE_TYPE } from './types'
 export interface TopicMessageFlowCanvasProps {
   graph: TopicMessageFlowLayout
   onNodeSelect: (messageId: string) => void
+  onNodeContextMenu?: (messageId: string) => void
   className?: string
   focusKey?: string | number
   layoutReady?: boolean
@@ -97,6 +98,7 @@ function getRootFocusViewport(containerWidth: number, centerX: number, positionY
 const TopicMessageFlowCanvas = ({
   className,
   graph,
+  onNodeContextMenu,
   onNodeSelect,
   focusKey,
   layoutReady = true
@@ -135,9 +137,17 @@ const TopicMessageFlowCanvas = ({
 
   const handleNodeClick = useCallback<NodeMouseHandler<TopicMessageFlowNodeModel>>(
     (_event, node) => {
+      if (node.data.isInputDraft) return
       onNodeSelect(node.data.messageId)
     },
     [onNodeSelect]
+  )
+
+  const handleNodeContextMenu = useCallback<NodeMouseHandler<TopicMessageFlowNodeModel>>(
+    (_event, node) => {
+      onNodeContextMenu?.(node.data.messageId)
+    },
+    [onNodeContextMenu]
   )
 
   const rootFocusTarget = useMemo(() => {
@@ -232,6 +242,7 @@ const TopicMessageFlowCanvas = ({
           nodeTypes={nodeTypes}
           onInit={setReactFlowInstance}
           onNodeClick={handleNodeClick}
+          onNodeContextMenu={handleNodeContextMenu}
           onlyRenderVisibleElements
           panOnDrag
           proOptions={proOptions}

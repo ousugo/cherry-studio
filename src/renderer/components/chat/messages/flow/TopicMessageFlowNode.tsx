@@ -57,9 +57,10 @@ function useRoleLabel(role: MessageRole) {
   return t('assistants.tag.system')
 }
 
-function useStatusLabel(status: MessageStatus) {
+function useStatusLabel(status: MessageStatus, isInputDraft?: boolean) {
   const { t } = useTranslation()
 
+  if (isInputDraft) return t('chat.message.flow.status.awaiting_input')
   if (status === 'pending') return t('common.loading')
   if (status === 'success') return t('common.completed')
   if (status === 'error') return t('common.error')
@@ -160,7 +161,7 @@ function TopicMessageFlowNodePreviewCard({
 
 const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNodeModel>) => {
   const roleLabel = useRoleLabel(data.role)
-  const statusLabel = useStatusLabel(data.status)
+  const statusLabel = useStatusLabel(data.status, data.isInputDraft)
   const modelLabel = getModelShortLabel(data.modelId)
   const timeLabel = formatNodeTime(data.createdAt)
   const [open, setOpen] = useState(false)
@@ -225,9 +226,9 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
           data-active={data.isActive ? 'true' : 'false'}
           data-message-id={data.messageId}
           data-on-active-path={data.isOnActivePath ? 'true' : 'false'}
-          onMouseEnter={scheduleOpen}
-          onMouseLeave={scheduleClose}
-          onMouseMove={scheduleOpen}>
+          onMouseEnter={data.isInputDraft ? undefined : scheduleOpen}
+          onMouseLeave={data.isInputDraft ? undefined : scheduleClose}
+          onMouseMove={data.isInputDraft ? undefined : scheduleOpen}>
           <Handle className="opacity-0" isConnectable={false} position={Position.Top} type="target" />
 
           <div className="flex min-w-0 items-center gap-2">
@@ -276,7 +277,7 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
         onOpenAutoFocus={(event) => event.preventDefault()}
         side="right"
         sideOffset={10}>
-        {open ? (
+        {open && !data.isInputDraft ? (
           <TopicMessageFlowNodePreviewCard
             messageId={data.messageId}
             modelLabel={modelLabel}
