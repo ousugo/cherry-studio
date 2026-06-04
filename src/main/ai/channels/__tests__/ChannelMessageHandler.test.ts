@@ -6,6 +6,7 @@ import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { channelMessageHandler } from '../ChannelMessageHandler'
+import { sanitizeChannelOutput } from '../security'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -13,7 +14,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../../security', () => ({
+vi.mock('../security', () => ({
   wrapExternalContent: vi.fn((text: string) => text),
   sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
 }))
@@ -171,6 +172,43 @@ describe('ChannelMessageHandler', () => {
     // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
+  })
+
+  // channels-core-3: the streaming delivery path (real ChannelAdapterListener) must route
+  // output through the OutputSanitizer before sending — otherwise secrets in the model reply
+  // leak to the IM platform. simulateStream drives the real listener, so a redacting sanitizer
+  // must be reflected in what the adapter sends.
+  it('routes channel output through the OutputSanitizer before delivery (REGRESSION channels-core-3)', async () => {
+    const adapter = createMockAdapter()
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      workspace: { path: '/tmp/test-workspace' },
+      configuration: {}
+    }
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
+
+    vi.mocked(sanitizeChannelOutput).mockImplementation((text: string) => ({
+      text: text.replace('sk-SECRET', '<redacted>'),
+      redacted: text.includes('sk-SECRET')
+    }))
+    simulateStream([{ type: 'text-delta', delta: 'the key is sk-SECRET' }])
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Hi'
+    })
+
+    expect(sanitizeChannelOutput).toHaveBeenCalled()
+    // The redacted text — not the raw secret — is what reaches the adapter.
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'the key is <redacted>')
+
+    // Restore the identity default so later tests are unaffected.
+    vi.mocked(sanitizeChannelOutput).mockImplementation((text: string) => ({ text, redacted: false }))
   })
 
   it('skips final send when adapter handles stream completion', async () => {
