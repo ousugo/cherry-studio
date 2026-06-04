@@ -255,6 +255,43 @@ describe('runAgentTask', () => {
     expect(out).toEqual({ sessionId: 'sess-new', result: 'Hello world' })
   })
 
+  // agents-jobs-4: on a non-abort error, a subscribed channel must be notified exactly
+  // once. The channel listener's generic `Error: …` is suppressed for task runs so only
+  // the richer `[Task failed]` summary from notifyTaskError is delivered (no double-send).
+  it('notifies a subscribed channel exactly once on a non-abort run error', async () => {
+    vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot('s1'))
+    vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent())
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentChannelService.getSubscribedChannels).mockResolvedValueOnce([{ id: 'ch1' }] as never)
+
+    const adapter = {
+      channelId: 'ch1',
+      connected: true,
+      notifyChatIds: ['chat-1'],
+      sendMessage: vi.fn<(chatId: string, text: string) => Promise<void>>(async () => {}),
+      onTextUpdate: vi.fn(async () => {}),
+      onStreamComplete: vi.fn(async () => true)
+    }
+    mockGetAdapter.mockReturnValue(adapter as never)
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    // Simulate the stream manager dispatching the error to every listener (sentinel + channel).
+    const errorResult = { error: new Error('boom'), status: 'error' }
+    for (const listener of captured.listeners) {
+      listener.onError?.(errorResult as never)
+    }
+
+    await expect(promise).rejects.toThrow('boom')
+
+    // Exactly one channel message, and it's the task-framed summary — not the bare `Error: …`.
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage.mock.calls[0][1]).toContain('[Task failed]')
+    expect(adapter.sendMessage.mock.calls[0][1]).not.toMatch(/^Error:/)
+  })
+
   // C2 (agents-jobs-1) + agents-jobs-7: aborting the run (JobManager cancel or
   // per-task timeout) must abort the upstream stream AND settle the handler
   // promise — otherwise it leaks until the JobManager force-finalize timeout.

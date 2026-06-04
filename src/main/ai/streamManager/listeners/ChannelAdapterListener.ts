@@ -15,7 +15,13 @@ export class ChannelAdapterListener implements StreamListener {
 
   constructor(
     private readonly adapter: ChannelAdapter,
-    private readonly platformChatId: string
+    private readonly platformChatId: string,
+    /**
+     * Skip the generic `Error: …` channel message on failure. Scheduled-task runs
+     * deliver a richer `[Task failed] …` summary themselves (see `runAgentTask`), so
+     * leaving this on would double-notify every subscribed channel.
+     */
+    private readonly suppressErrorMessage = false
   ) {
     this.id = `channel:${adapter.channelId}:${this.platformChatId}`
   }
@@ -78,6 +84,7 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
+    if (this.suppressErrorMessage) return
     try {
       await this.adapter.sendMessage(this.platformChatId, `Error: ${result.error.message ?? 'Unknown error'}`)
     } catch (err) {
