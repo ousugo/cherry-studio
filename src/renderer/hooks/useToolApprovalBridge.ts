@@ -22,7 +22,7 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
       if (!approvalId) return
 
       try {
-        await window.api.ai.toolApproval.respond({
+        const result = await window.api.ai.toolApproval.respond({
           approvalId,
           approved,
           reason,
@@ -30,6 +30,11 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
           topicId,
           anchorId: match.messageId
         })
+        // Main signals failure via a resolved `{ ok: false }` (e.g. anchor deleted). Surface it as
+        // a rejection so the caller resets the card instead of leaving it stuck "submitting".
+        if (!result?.ok) {
+          throw new Error('Main rejected the tool-approval decision')
+        }
       } catch (error) {
         logger.error('Failed to deliver tool-approval decision to main', {
           approvalId,
@@ -37,6 +42,7 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
           transport: match.transport,
           error: error instanceof Error ? error.message : String(error)
         })
+        throw error instanceof Error ? error : new Error(String(error))
       }
     },
     [topicId]
