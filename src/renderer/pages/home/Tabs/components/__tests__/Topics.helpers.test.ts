@@ -252,6 +252,7 @@ describe('Topics helpers', () => {
         ['assistant-1', { id: 'assistant-1', name: 'Research' }],
         ['assistant-2', { id: 'assistant-2', name: 'Writing' }]
       ]),
+      defaultAssistant: { name: 'Default Assistant' },
       labels: TOPIC_GROUP_LABELS,
       mode: 'assistant'
     })
@@ -262,7 +263,7 @@ describe('Topics helpers', () => {
     })
     expect(groupTopic(createTopic({ id: 'default', assistantId: undefined }))).toEqual({
       id: TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
-      label: 'Unlinked Assistant'
+      label: 'Default Assistant'
     })
     expect(groupTopic(createTopic({ id: 'known', assistantId: 'assistant-2' }))).toEqual({
       id: 'topic:assistant:assistant-2',
