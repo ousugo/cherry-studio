@@ -202,6 +202,28 @@ describe('ClaudeCodeTraceBridgeService', () => {
     await service._doStop()
   })
 
+  it('rejects a gzip payload that decompresses beyond the size cap (gzip bomb)', async () => {
+    const service = new ClaudeCodeTraceBridgeService()
+    await service._doInit()
+    const env = await service.prepareTrace(traceContext)
+
+    // ~11 MiB of repeating bytes gzips to a few KB (well under the 10 MiB input cap), but
+    // decompresses past the 10 MiB output cap — must be rejected without inflating it fully.
+    const response = await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'content-encoding': 'gzip'
+      },
+      body: gzipSync(JSON.stringify({ pad: 'A'.repeat(11 * 1024 * 1024) }))
+    })
+
+    expect(response.status).toBe(400)
+    expect(mocks.spanCacheSaveEntity).not.toHaveBeenCalled()
+
+    await service._doStop()
+  })
+
   it('skips trace preparation when traceparent ids are invalid', async () => {
     const service = new ClaudeCodeTraceBridgeService()
     await service._doInit()

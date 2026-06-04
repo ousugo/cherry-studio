@@ -261,9 +261,15 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   let body = Buffer.concat(chunks)
   const encoding = getHeaderValue(req.headers['content-encoding']).toLowerCase()
   if (encoding === 'gzip') {
-    body = gunzipSync(body)
-    if (body.length > MAX_BODY_BYTES) {
-      throw new Error('OTLP payload too large after gzip decompression')
+    try {
+      // Cap the decompressed output so a gzip bomb can't allocate gigabytes before any size check.
+      body = gunzipSync(body, { maxOutputLength: MAX_BODY_BYTES })
+    } catch (error) {
+      // zlib raises a RangeError (ERR_BUFFER_TOO_LARGE) when maxOutputLength is exceeded.
+      if (error instanceof RangeError) {
+        throw new Error('OTLP payload too large after gzip decompression')
+      }
+      throw error
     }
   } else if (encoding !== '' && encoding !== 'identity') {
     throw new UnsupportedContentEncodingError(`Unsupported OTLP content encoding: ${encoding}`)
