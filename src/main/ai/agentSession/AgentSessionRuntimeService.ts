@@ -349,7 +349,10 @@ export class AgentSessionRuntimeService extends BaseService {
     if (entry.currentTurn) entry.currentTurn.terminalStatus = status
 
     if (this.shouldCloseConnectionAfterTurn(entry)) {
-      void this.closeConnection(entry)?.close()
+      // close() may be async on some drivers; swallow rejection so it can't become unhandled.
+      void Promise.resolve(this.closeConnection(entry)?.close()).catch((error) =>
+        logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
+      )
     }
 
     if (entry.pendingTurns.length > 0) {
@@ -454,7 +457,9 @@ export class AgentSessionRuntimeService extends BaseService {
       trace: entry.currentTurn?.trace
     })
     if (!this.isCurrentEntry(entry)) {
-      void connection.close()
+      void Promise.resolve(connection.close()).catch((error) =>
+        logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
+      )
       return false
     }
 
@@ -769,7 +774,9 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.currentTurn = undefined
     entry.startingNextTurn = false
 
-    void connection?.close()
+    void Promise.resolve(connection?.close()).catch((error) =>
+      logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
+    )
   }
 
   private closeConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {
