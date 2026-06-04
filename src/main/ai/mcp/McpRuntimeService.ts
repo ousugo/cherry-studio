@@ -23,7 +23,6 @@ import {
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
-import { McpError } from '@modelcontextprotocol/sdk/types'
 // Import notification schemas from MCP SDK
 import {
   CancelledNotificationSchema,
@@ -485,6 +484,13 @@ export class McpRuntimeService extends BaseService {
           } else if (server.command) {
             let cmd = server.command
 
+            // Build a local env for the transport instead of mutating `server.env`. getServerKey(server)
+            // serializes server.env, so mutating it here would shift the key after connect — connect-time
+            // logs (emitServerLog) and list-changed cache invalidations would then land under a key that
+            // getServerLogs / the caches (which see the un-mutated server) never query. Keep server.env
+            // untouched so the key stays stable everywhere; see the "deep-copy don't mutate" pattern.
+            const connectEnv: Record<string, string> = { ...server.env }
+
             // Get login shell environment first - needed for command detection and server execution
             // Note: getLoginShellEnvironment() is memoized, so subsequent calls are fast
             const loginShellEnv = await getLoginShellEnvironment()
@@ -496,10 +502,7 @@ export class McpRuntimeService extends BaseService {
                 cmd = resolvedConfig.command
                 args = resolvedConfig.args
                 // Merge resolved environment variables with existing ones
-                server.env = {
-                  ...server.env,
-                  ...resolvedConfig.env
-                }
+                Object.assign(connectEnv, resolvedConfig.env)
                 getServerLogger(server).debug(`Using resolved DXT config`, {
                   command: cmd,
                   args
@@ -550,16 +553,13 @@ export class McpRuntimeService extends BaseService {
               }
 
               if (server.registryUrl) {
-                server.env = {
-                  ...server.env,
-                  NPM_CONFIG_REGISTRY: server.registryUrl
-                }
+                connectEnv.NPM_CONFIG_REGISTRY = server.registryUrl
 
                 // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
                 if (server.name.includes('mcp-auto-install')) {
                   const binPath = await getBinaryPath()
                   makeSureDirExists(binPath)
-                  server.env.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
+                  connectEnv.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
                 }
               }
             } else if (server.command === 'uvx' || server.command === 'uv') {
@@ -593,11 +593,8 @@ export class McpRuntimeService extends BaseService {
               }
 
               if (server.registryUrl) {
-                server.env = {
-                  ...server.env,
-                  UV_DEFAULT_INDEX: server.registryUrl,
-                  PIP_INDEX_URL: server.registryUrl
-                }
+                connectEnv.UV_DEFAULT_INDEX = server.registryUrl
+                connectEnv.PIP_INDEX_URL = server.registryUrl
               }
             }
 
@@ -613,7 +610,7 @@ export class McpRuntimeService extends BaseService {
               args,
               env: {
                 ...loginShellEnv,
-                ...server.env
+                ...connectEnv
               },
               stderr: 'pipe'
             }
@@ -1049,15 +1046,16 @@ export class McpRuntimeService extends BaseService {
           args: redactSensitive(args)
         })
         if (typeof args === 'string') {
-          try {
-            args = JSON.parse(args)
-          } catch (e) {
-            getServerLogger(server, { tool: name, callId: toolCallId }).error('args parse error', e as Error, {
-              args
-            })
-          }
-          if (args === '') {
+          if (args.trim() === '') {
             args = {}
+          } else {
+            try {
+              args = JSON.parse(args)
+            } catch (e) {
+              // Fail fast instead of forwarding malformed JSON as a raw string — the MCP
+              // server expects an object/record, so a bare string yields opaque downstream errors.
+              throw new Error(`Invalid JSON tool arguments for ${name}: ${(e as Error).message}`)
+            }
           }
         }
         const sourcePolicy = await this.getLatestSourcePolicy(server)
@@ -1118,11 +1116,14 @@ export class McpRuntimeService extends BaseService {
         serverName: server.name
       }))
     } catch (error: unknown) {
-      // -32601 is the code for the method not found
-      if (error instanceof McpError && error.code !== -32601) {
-        getServerLogger(server).error(`Failed to list prompts`, error as Error)
+      // -32601 (method not found) means the server has no prompts capability — a stable
+      // empty result that is safe to cache. Any other error is transient; rethrow it so
+      // `withCache` does NOT cache an empty list for the full TTL (the public `listPrompts`
+      // catches it and returns `[]` to callers without poisoning the cache).
+      if ((error as { code?: number })?.code === -32601) {
+        return []
       }
-      return []
+      throw error
     }
   }
 
@@ -1140,7 +1141,12 @@ export class McpRuntimeService extends BaseService {
       60 * 60 * 1000, // 60 minutes TTL
       `[MCP] Prompts from ${server.name}`
     )
-    return cachedListPrompts(server)
+    try {
+      return await cachedListPrompts(server)
+    } catch (error) {
+      getServerLogger(server).error(`Failed to list prompts`, error as Error)
+      return []
+    }
   }
 
   /**
@@ -1194,11 +1200,12 @@ export class McpRuntimeService extends BaseService {
         serverName: server.name
       }))
     } catch (error: any) {
-      // -32601 is the code for the method not found
-      if (error?.code !== -32601) {
-        getServerLogger(server).error(`Failed to list resources`, error as Error)
+      // -32601 (method not found) is a stable empty result safe to cache; rethrow anything
+      // else so a transient failure isn't cached as an empty list for the full TTL.
+      if (error?.code === -32601) {
+        return []
       }
-      return []
+      throw error
     }
   }
 
@@ -1216,7 +1223,12 @@ export class McpRuntimeService extends BaseService {
       60 * 60 * 1000, // 60 minutes TTL
       `[MCP] Resources from ${server.name}`
     )
-    return cachedListResources(server)
+    try {
+      return await cachedListResources(server)
+    } catch (error) {
+      getServerLogger(server).error(`Failed to list resources`, error as Error)
+      return []
+    }
   }
 
   /**

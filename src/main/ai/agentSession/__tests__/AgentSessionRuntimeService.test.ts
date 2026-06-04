@@ -909,4 +909,22 @@ describe('AgentSessionRuntimeService', () => {
       modelName: 'claude-sonnet-4-5'
     })
   })
+
+  it('re-enqueues the queued message when the next-turn placeholder save rejects (REGRESSION R3)', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const queued = userMessage('user-2')
+    entry.pendingTurns.push(queued)
+
+    const saveError = new Error('db down')
+    mocks.saveMessage.mockRejectedValueOnce(saveError)
+
+    // The message is shift()ed off the queue before the save; on rejection it must be unshifted
+    // back so the turn isn't silently lost — the next drain can retry it.
+    await expect((service as any).startNextTurn(entry)).rejects.toThrow(saveError)
+
+    expect(entry.pendingTurns).toEqual([queued])
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+  })
 })

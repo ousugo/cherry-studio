@@ -1,6 +1,6 @@
 // port https://github.com/zcaceres/fetch-mcp/blob/main/src/index.ts
 
-import { sanitizeFileProcessingRemoteUrl } from '@main/services/fileProcessing/utils/url'
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { net } from 'electron'
@@ -22,7 +22,7 @@ export class Fetcher {
       // RFC1918, and link-local (e.g. the 169.254.169.254 metadata endpoint). Reject
       // non-http(s) schemes, credentials, and local/private/reserved hosts before fetching.
       // Reuses the project's ipaddr.js-based guard (single blocklist).
-      const safeUrl = sanitizeFileProcessingRemoteUrl(url)
+      const safeUrl = sanitizeRemoteUrl(url)
       const response = await net.fetch(safeUrl, {
         headers: {
           'User-Agent':

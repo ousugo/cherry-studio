@@ -5,7 +5,6 @@ import { fileStorage } from '@main/services/FileStorage'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
-import * as os from 'os'
 import * as path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -191,19 +190,16 @@ export function performVariableSubstitution(
   result = result.replace(/\$\{__dirname\}/g, extractDir)
 
   // Replace ${HOME} with user's home directory
-  result = result.replace(/\$\{HOME\}/g, os.homedir())
+  result = result.replace(/\$\{HOME\}/g, application.getPath('sys.home'))
 
   // Replace ${DESKTOP} with user's desktop directory
-  const desktopDir = path.join(os.homedir(), 'Desktop')
-  result = result.replace(/\$\{DESKTOP\}/g, desktopDir)
+  result = result.replace(/\$\{DESKTOP\}/g, application.getPath('sys.desktop'))
 
   // Replace ${DOCUMENTS} with user's documents directory
-  const documentsDir = path.join(os.homedir(), 'Documents')
-  result = result.replace(/\$\{DOCUMENTS\}/g, documentsDir)
+  result = result.replace(/\$\{DOCUMENTS\}/g, application.getPath('sys.documents'))
 
   // Replace ${DOWNLOADS} with user's downloads directory
-  const downloadsDir = path.join(os.homedir(), 'Downloads')
-  result = result.replace(/\$\{DOWNLOADS\}/g, downloadsDir)
+  result = result.replace(/\$\{DOWNLOADS\}/g, application.getPath('sys.downloads'))
 
   // Replace ${pathSeparator} or ${/} with the platform-specific path separator
   result = result.replace(/\$\{pathSeparator\}/g, path.sep)

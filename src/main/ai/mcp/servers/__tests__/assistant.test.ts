@@ -16,7 +16,7 @@ describe('isBlockedSourceFile', () => {
   })
 
   it('blocks credentials and SSH private keys', () => {
-    for (const name of ['credentials.json', 'id_rsa', 'id_ed25519', 'id_ecdsa']) {
+    for (const name of ['credentials.json', 'id_rsa', 'id_dsa', 'id_ed25519', 'id_ecdsa']) {
       expect(isBlockedSourceFile(name)).toBe(true)
     }
   })

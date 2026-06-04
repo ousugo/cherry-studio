@@ -51,6 +51,14 @@ export interface PersistenceBackend {
 
   persistAssistant(input: PersistAssistantInput): Promise<void>
 
+  /**
+   * Best-effort recovery when `persistAssistant` throws: drive the backing
+   * placeholder row to a terminal `error` state so a reload shows a terminal
+   * bubble instead of a frozen `pending` one. Only backends that finalize a
+   * pre-existing placeholder (e.g. `MessageServiceBackend`) implement this.
+   */
+  markTerminalError?(): Promise<void>
+
   /** Best-effort post-success hook; failures are swallowed by the listener. */
   afterPersist?(finalMessage: CherryUIMessage): Promise<void>
 }

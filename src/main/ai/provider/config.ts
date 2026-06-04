@@ -254,9 +254,9 @@ async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'g
     ? ctx.baseConfig.baseURL + (isAnthropic ? '/publishers/anthropic/models' : '/publishers/google')
     : undefined
 
-  const normalizedPrivateKey = normalizeVertexCredentials(googleCredentials).privateKey
+  const { privateKey, clientEmail } = normalizeVertexCredentials(googleCredentials)
   const creds = googleCredentials
-    ? { ...googleCredentials, privateKey: formatPrivateKey(normalizedPrivateKey ?? '') }
+    ? { ...googleCredentials, clientEmail, privateKey: formatPrivateKey(privateKey ?? '') }
     : undefined
 
   return {

@@ -131,6 +131,18 @@ export class PersistenceListener implements StreamListener {
         status,
         err
       })
+      // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
+      // shows a frozen loading bubble. Best-effort drive it to a terminal `error` state instead.
+      try {
+        await this.opts.backend.markTerminalError?.()
+      } catch (markErr) {
+        logger.error('Failed to mark assistant message as terminal error after persist failure', {
+          backend: this.opts.backend.kind,
+          topicId: this.opts.topicId,
+          status,
+          err: markErr
+        })
+      }
       return
     }
 

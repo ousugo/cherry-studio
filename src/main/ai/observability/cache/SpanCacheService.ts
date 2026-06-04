@@ -83,6 +83,7 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
     if (!this.isActivated) return
     const spanEntity = convertSpanToSpanEntity(span)
+    spanEntity.isEnd = false
     this.applyTraceMeta(spanEntity)
     this.store.setSpan(spanEntity)
     this.updateModelName(spanEntity)
@@ -102,6 +103,7 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
     spanEntity.events = span.events
     spanEntity.links = span.links
+    spanEntity.isEnd = true
     this.updateModelName(spanEntity)
     this.store.setSpan(spanEntity)
   }
