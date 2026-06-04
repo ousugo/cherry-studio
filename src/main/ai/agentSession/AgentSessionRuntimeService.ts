@@ -632,6 +632,9 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       })
     } catch (error) {
+      // The message was shift()ed off the queue before this await; on failure re-enqueue it at the
+      // head so the turn isn't silently lost — the next drain can retry it.
+      entry.pendingTurns.unshift(nextMessage)
       rootSpan.end()
       throw error
     }
