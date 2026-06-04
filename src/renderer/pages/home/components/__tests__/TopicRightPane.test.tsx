@@ -114,7 +114,7 @@ describe('TopicRightPane', () => {
     expect(screen.getByTestId('branch-pane')).toBeInTheDocument()
   })
 
-  it('forwards branch-node locate requests after the shell closes', async () => {
+  it('forwards branch-node locate requests without closing the shell', async () => {
     const onLocateMessage = vi.fn()
 
     render(
@@ -127,7 +127,7 @@ describe('TopicRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
     fireEvent.click(screen.getByRole('button', { name: 'locate current branch message' }))
 
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
 
     await waitFor(() => {
       expect(onLocateMessage).toHaveBeenCalledWith('message-1')

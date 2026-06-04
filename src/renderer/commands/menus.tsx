@@ -363,7 +363,6 @@ export function CommandContextMenu({
   const context = useCommandContextReader()
   const [shortcutPreferences] = useMultiplePreferences(shortcutPreferenceKeys)
   const [resolvedExtraItems, setResolvedExtraItems] = useState<readonly CommandContextMenuExtraItem[] | null>(null)
-  const [cherryMenuKey, setCherryMenuKey] = useState(0)
   const extraItemsRequestIdRef = useRef(0)
   const runtime = useCommandRuntime()
   const model = useResolvedCommandMenu(location)
@@ -484,7 +483,6 @@ export function CommandContextMenu({
   const handleCherrySelectItem = useCallback(
     (action: () => void) => {
       handleCherryOpenChange(false)
-      setCherryMenuKey((key) => key + 1)
       queueMicrotask(action)
     },
     [handleCherryOpenChange]
@@ -570,7 +568,7 @@ export function CommandContextMenu({
   }
 
   return (
-    <ContextMenu key={cherryMenuKey} onOpenChange={handleCherryOpenChange}>
+    <ContextMenu onOpenChange={handleCherryOpenChange}>
       <ContextMenuTrigger asChild onContextMenu={handleCherryContextMenu}>
         {children}
       </ContextMenuTrigger>

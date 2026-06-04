@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { MouseEvent as ReactMouseEvent, MouseEventHandler, ReactNode } from 'react'
+import { type MouseEvent as ReactMouseEvent, type MouseEventHandler, type ReactNode, useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loggerErrorMock, loggerWarnMock, preferenceValues, showNativePopupMenuMock } = vi.hoisted(() => ({
@@ -376,6 +376,43 @@ describe('CommandContextMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: /Async Tool/ }))
 
     await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
+  })
+
+  it('does not remount trigger children after selecting a cherry extra item', async () => {
+    const onSelect = vi.fn()
+    const mountCount = vi.fn()
+    const unmountCount = vi.fn()
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+
+    function TriggerContent() {
+      useEffect(() => {
+        mountCount()
+        return unmountCount
+      }, [])
+
+      return <button type="button">trigger</button>
+    }
+
+    render(
+      <ContextKeyProvider>
+        <CommandProvider>
+          <CommandContextMenu
+            location="webcontents.context"
+            extraItems={[{ type: 'item', id: 'tool:branch', label: 'Branch', onSelect }]}>
+            <TriggerContent />
+          </CommandContextMenu>
+        </CommandProvider>
+      </ContextKeyProvider>
+    )
+
+    await waitFor(() => expect(mountCount).toHaveBeenCalledOnce())
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
+    fireEvent.click(screen.getByRole('button', { name: /Branch/ }))
+
+    await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
+    expect(unmountCount).not.toHaveBeenCalled()
+    expect(mountCount).toHaveBeenCalledOnce()
   })
 
   it('uses extra items as pending lazy cherry items by default', async () => {
