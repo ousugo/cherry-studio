@@ -1,14 +1,3 @@
-CREATE TABLE `painting` (
-	`id` text PRIMARY KEY NOT NULL,
-	`provider_id` text NOT NULL,
-	`model_id` text,
-	`prompt` text NOT NULL,
-	`order_key` text NOT NULL,
-	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL
-);
---> statement-breakpoint
-CREATE INDEX `painting_order_key_idx` ON `painting` (`order_key`);--> statement-breakpoint
 CREATE TABLE `agent_workspace` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
@@ -20,21 +9,6 @@ CREATE TABLE `agent_workspace` (
 --> statement-breakpoint
 CREATE UNIQUE INDEX `agent_workspace_path_unique_idx` ON `agent_workspace` (`path`);--> statement-breakpoint
 CREATE INDEX `agent_workspace_order_key_idx` ON `agent_workspace` (`order_key`);--> statement-breakpoint
--- MANUAL PATCH: workaround for drizzle-orm/drizzle-kit #3653 — the rebuild-table
--- path drops the leading `ALTER TABLE ADD COLUMN` statements, so the
--- `INSERT ... SELECT` rebuilds below reference columns that don't yet exist on
--- the old tables. Re-add them by hand. https://github.com/drizzle-team/drizzle-orm/issues/3653
-ALTER TABLE `agent_session` ADD COLUMN `workspace_id` text;--> statement-breakpoint
-ALTER TABLE `agent_session` ADD COLUMN `order_key` text NOT NULL DEFAULT '';--> statement-breakpoint
-ALTER TABLE `agent` ADD COLUMN `order_key` text NOT NULL DEFAULT '';--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `data` text NOT NULL DEFAULT '{}';--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `searchable_text` text NOT NULL DEFAULT '';--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `status` text NOT NULL DEFAULT 'success';--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `model_id` text;--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `model_snapshot` text;--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `trace_id` text;--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `stats` text;--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `runtime_resume_token` text;--> statement-breakpoint
 DROP TABLE `agent_task_run_log`;--> statement-breakpoint
 DROP TABLE `agent_task`;--> statement-breakpoint
 PRAGMA foreign_keys=OFF;--> statement-breakpoint
@@ -102,7 +76,7 @@ CREATE TABLE `__new_agent_session_message` (
 	`role` text NOT NULL,
 	`data` text NOT NULL,
 	`searchable_text` text DEFAULT '' NOT NULL,
-	`status` text DEFAULT 'success' NOT NULL,
+	`status` text NOT NULL,
 	`model_id` text,
 	`model_snapshot` text,
 	`trace_id` text,
@@ -120,5 +94,5 @@ INSERT INTO `__new_agent_session_message`("id", "session_id", "role", "data", "s
 DROP TABLE `agent_session_message`;--> statement-breakpoint
 ALTER TABLE `__new_agent_session_message` RENAME TO `agent_session_message`;--> statement-breakpoint
 CREATE INDEX `agent_session_message_session_created_id_idx` ON `agent_session_message` (`session_id`,`created_at`,`id`);--> statement-breakpoint
-ALTER TABLE `assistant` ADD `order_key` text NOT NULL DEFAULT '';--> statement-breakpoint
+ALTER TABLE `assistant` ADD `order_key` text NOT NULL;--> statement-breakpoint
 CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);
