@@ -5,11 +5,14 @@ import path from 'node:path'
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
+import { SpanStatusCode } from '@opentelemetry/api'
+import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SpanCacheService } from '../SpanCacheService'
+import { TraceSpanStore } from '../TraceSpanStore'
 
 function span(overrides: Partial<SpanEntity>): SpanEntity {
   return {
@@ -27,6 +30,22 @@ function span(overrides: Partial<SpanEntity>): SpanEntity {
     links: undefined,
     ...overrides
   }
+}
+
+// Minimal ReadableSpan shaped for the fields convertSpanToSpanEntity / createSpan / endSpan read.
+function readableSpan(overrides: { spanId: string; traceId: string; ended: boolean }): ReadableSpan {
+  return {
+    name: 'otel-span',
+    kind: 0,
+    spanContext: () => ({ spanId: overrides.spanId, traceId: overrides.traceId, traceFlags: 1 }),
+    parentSpanContext: undefined,
+    startTime: [1, 0],
+    endTime: overrides.ended ? [2, 0] : [0, 0],
+    status: { code: SpanStatusCode.OK },
+    attributes: {},
+    events: [],
+    links: []
+  } as unknown as ReadableSpan
 }
 
 describe('SpanCacheService', () => {
@@ -136,5 +155,32 @@ describe('SpanCacheService', () => {
     service.saveEntity(span({ id: 'b', parentId: 'a', traceId: 'trace-cycle', modelName: 'm' }))
 
     expect(() => service.addStreamMessage('a', 'm', 'chunk', { type: 'text' })).not.toThrow()
+  })
+
+  // The OTel createSpan/endSpan path is the live source of cached spans. If endSpan does not
+  // mark the entity ended, TraceSpanStore can never evict the trace and memory grows unbounded
+  // while developer_mode is on. Drive a span through the real pipeline and confirm a fully-ended
+  // trace IS evicted under a small cap. (Pre-fix: isEnd stays undefined → no eviction → fails.)
+  it('marks createSpan/endSpan entities so a fully-ended trace becomes evictable (REGRESSION observability-eviction)', async () => {
+    await service._doInit()
+
+    // 1. In-flight span from createSpan must not be ended.
+    service.createSpan(readableSpan({ spanId: 'live', traceId: 'trace-live', ended: false }))
+    expect(service.getEntity('live')?.isEnd).toBe(false)
+
+    // 2. endSpan must mark the entity ended.
+    service.endSpan(readableSpan({ spanId: 'live', traceId: 'trace-live', ended: true }))
+    expect(service.getEntity('live')?.isEnd).toBe(true)
+
+    // 3. Feed the real pipeline-produced entity into a small-cap store and confirm the
+    //    fully-ended trace is evicted when the cap is exceeded. This is the end-to-end
+    //    assertion that fails pre-fix (isEnd undefined → oldestEndedTraceId() skips it).
+    const endedEntity = service.getEntity('live') as SpanEntity
+    const cappedStore = new TraceSpanStore(1)
+    cappedStore.setSpan({ ...endedEntity })
+    cappedStore.setSpan(span({ id: 'newer', traceId: 'trace-newer' }))
+
+    expect(cappedStore.getSpan('live')).toBeUndefined()
+    expect(cappedStore.getSpan('newer')).toBeDefined()
   })
 })
