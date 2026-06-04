@@ -1,5 +1,5 @@
-import { gzipSync } from 'node:zlib'
 import type * as NodeZlib from 'node:zlib'
+import { gzipSync } from 'node:zlib'
 
 import { BaseService } from '@main/core/lifecycle'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'

@@ -188,8 +188,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       targetLangRef.current = newTargetLanguage
       setAlterLanguage(newAlterLanguage)
 
-      setPreferredLangCode(newTargetLanguage.langCode)
-      setAlterLangCode(newAlterLanguage.langCode)
+      void setPreferredLangCode(newTargetLanguage.langCode)
+      void setAlterLangCode(newAlterLanguage.langCode)
     },
     [initialized, setPreferredLangCode, setAlterLangCode]
   )
@@ -205,7 +205,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       if (newLang.langCode !== targetLanguage.langCode && newLang.langCode !== alterLanguage.langCode) {
         setTargetLanguage(newLang)
         targetLangRef.current = newLang
-        setPreferredLangCode(newLang.langCode)
+        void setPreferredLangCode(newLang.langCode)
       }
     },
     [initialized, getLanguage, targetLanguage.langCode, alterLanguage.langCode, setPreferredLangCode]
