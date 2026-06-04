@@ -64,7 +64,8 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>())
   const scrollerRef = useRef<HTMLDivElement | null>(null)
-  const skipNextAutoScrollRef = useRef(false)
+  const lastProvidersRef = useRef(providers)
+  const lastSelectedProviderIdRef = useRef(selectedProviderId)
 
   useEffect(() => {
     if (!filterModeHint) {
@@ -159,8 +160,18 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       return
     }
 
-    if (skipNextAutoScrollRef.current) {
-      skipNextAutoScrollRef.current = false
+    // Skip the auto-scroll when the providers list reference itself changed
+    // since the last effect run — i.e. a reorder / create / delete / update
+    // landed — BUT the user's selection did not change. In that case, jumping
+    // them back would be an unexpected scroll snap. If the selected item itself
+    // changed (e.g. initial load, new provider created, or manual selection),
+    // we always perform the scroll.
+    const providersChanged = providers !== lastProvidersRef.current
+    const selectionChanged = selectedProviderId !== lastSelectedProviderIdRef.current
+    const wasEmpty = lastProvidersRef.current.length === 0
+    lastProvidersRef.current = providers
+    lastSelectedProviderIdRef.current = selectedProviderId
+    if (providersChanged && !selectionChanged && !wasEmpty) {
       return
     }
 
@@ -193,7 +204,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
     const frameId = window.requestAnimationFrame(scrollSelectedItem)
     return () => window.cancelAnimationFrame(frameId)
-  }, [filteredProviders, selectedProviderId])
+  }, [providers, selectedProviderId])
 
   const handleDragStateChange = useCallback((nextDragging: boolean) => {
     setDragging(nextDragging)
@@ -201,14 +212,6 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       setContextProviderId(null)
     }
   }, [])
-
-  const handleReorder = useCallback(
-    (reorderedProviders: Provider[]) => {
-      skipNextAutoScrollRef.current = true
-      return applyReorderedList(reorderedProviders)
-    },
-    [applyReorderedList]
-  )
 
   const handleReorderError = useCallback(() => {
     window.toast.error(t('settings.provider.reorder_failed'))
@@ -303,7 +306,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         onAddAnotherInGroup={handleAddAnother}
         scrollerRef={setScrollerRef}
         onDragStateChange={handleDragStateChange}
-        onReorder={handleReorder}
+        onReorder={applyReorderedList}
         onReorderError={handleReorderError}
         renderItem={renderProviderItem}
       />
