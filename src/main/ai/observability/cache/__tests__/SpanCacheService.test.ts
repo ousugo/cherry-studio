@@ -105,4 +105,36 @@ describe('SpanCacheService', () => {
     await expect(service.getSpans('topic-a', 'missing-trace')).resolves.toEqual([])
     expect(mockMainLoggerService.error).not.toHaveBeenCalled()
   })
+
+  it('rejects a path-traversal topicId instead of escaping the trace root (REGRESSION observability-1)', async () => {
+    await service._doInit()
+    // A sentinel sibling of the trace root that a `../` traversal would target for deletion.
+    const sentinelDir = await fs.mkdtemp(path.join(os.tmpdir(), 'span-cache-sentinel-'))
+    const sentinelFile = path.join(sentinelDir, 'keep.txt')
+    await fs.writeFile(sentinelFile, 'do not delete')
+
+    const traversal = `..${path.sep}${path.basename(sentinelDir)}`
+    await expect(service.cleanTopic(traversal)).rejects.toThrow(/invalid topicId/)
+    // The traversal target survives — no arbitrary delete happened.
+    await expect(fs.access(sentinelFile)).resolves.toBeUndefined()
+
+    await fs.rm(sentinelDir, { recursive: true, force: true })
+  })
+
+  it('does not infinitely recurse on a self-parent span when accumulating usage (REGRESSION observability-2)', async () => {
+    await service._doInit()
+    service.saveEntity(span({ id: 'x', parentId: 'x', traceId: 'trace-cycle' }))
+
+    const usage = { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 }
+    expect(() => service.updateTokenUsage('x', usage)).not.toThrow()
+  })
+
+  it('does not infinitely recurse on a parent cycle when accumulating outputs (REGRESSION observability-2)', async () => {
+    await service._doInit()
+    // a → b → a forms a cycle in the parent chain.
+    service.saveEntity(span({ id: 'a', parentId: 'b', traceId: 'trace-cycle', modelName: 'm' }))
+    service.saveEntity(span({ id: 'b', parentId: 'a', traceId: 'trace-cycle', modelName: 'm' }))
+
+    expect(() => service.addStreamMessage('a', 'm', 'chunk', { type: 'text' })).not.toThrow()
+  })
 })
