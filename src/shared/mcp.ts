@@ -136,3 +136,20 @@ export function parseFunctionCallToolName(toolName: string): McpFunctionCallTool
     toolPart: rest.slice(delimiterIndex + 2)
   }
 }
+
+/**
+ * Test whether a minted MCP function-call tool id (a `buildFunctionCallToolName`
+ * output) belongs to `serverName`.
+ *
+ * Matching `id.startsWith('mcp__' + camelCase(server) + '__')` is only correct
+ * while the full minted id stays under the 63-char cap. Once the server segment
+ * is long enough that the cap truncates the name, `buildFunctionCallToolName`
+ * strips the trailing `__` delimiter (and may clip the server segment itself),
+ * so the untruncated prefix stops matching. Truncation also collapses every tool
+ * of such a server onto one id, so the truncated case is matched exactly.
+ */
+export function isFunctionCallToolNameForServer(serverName: string, toolId: string): boolean {
+  const serverPart = toCamelCase(serverName)
+  if (toolId.startsWith(`mcp__${serverPart}__`)) return true
+  return toolId === truncateToLength(`mcp__${serverPart}`, 63)
+}

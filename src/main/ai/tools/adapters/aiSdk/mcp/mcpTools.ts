@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import { toCamelCase } from '@shared/mcp'
+import { isFunctionCallToolNameForServer } from '@shared/mcp'
 import type { McpCallToolResponse, McpServer, McpTool } from '@types'
 import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
 
@@ -75,16 +75,15 @@ function toEntry(mcpTool: McpTool, server: McpServer): ToolEntry {
   }
 }
 
-/** Prefix `mcp__<camelCase(serverName)>__<rest>` matches `buildFunctionCallToolName`. */
+/** Keep servers that own at least one selected tool id (see `buildFunctionCallToolName`). */
 function filterServersByToolIds(
   servers: readonly McpServer[],
   selectedToolIds: ReadonlySet<string>
 ): readonly McpServer[] {
   if (!selectedToolIds.size) return []
   return servers.filter((server) => {
-    const prefix = `mcp__${toCamelCase(server.name)}__`
     for (const id of selectedToolIds) {
-      if (id.startsWith(prefix)) return true
+      if (isFunctionCallToolNameForServer(server.name, id)) return true
     }
     return false
   })
