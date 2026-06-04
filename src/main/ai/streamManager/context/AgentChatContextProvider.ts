@@ -51,14 +51,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const uniqueModelId = agent.model
 
-    const userText =
-      req.userMessageParts
-        ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-        .map((p) => p.text)
-        .join('\n') || ''
-
     const userMessageId = uuidv7()
-    const userMessageParts = req.userMessageParts ?? [{ type: 'text', text: userText }]
+    const userMessageParts = req.userMessageParts ?? []
     const createdAt = new Date().toISOString()
 
     const userMessage: AgentSessionMessageEntity = {
