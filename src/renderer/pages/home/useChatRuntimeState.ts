@@ -12,6 +12,7 @@ import {
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
+import { useTopicOverlayHandoffOnTerminal } from '@renderer/hooks/useTopicStreamStatus'
 import type { FileMetadata, Topic } from '@renderer/types'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -176,8 +177,26 @@ export function useChatRuntimeState({
   )
 
   const finishRef = useRef<((executionId: string, event: ExecutionFinishEvent) => void) | undefined>(undefined)
-  const { overlay, liveAssistants, disposeOverlay } = useExecutionOverlay(topic.id, branchActiveExecutions, messages, {
+  const {
+    overlay,
+    liveAssistants,
+    disposeOverlay,
+    reset: resetOverlay
+  } = useExecutionOverlay(topic.id, branchActiveExecutions, messages, {
     onFinish: (executionId, event) => finishRef.current?.(executionId, event)
+  })
+
+  // Deterministic overlay→DB handoff at terminal (see hook docs). The overlay's
+  // `onFinish` is suppressed when an execution leaves `activeExecutions`, so a
+  // torn-down turn's live card would otherwise override the finalized DB row.
+  // Refresh-then-dispose off the status edge; branch-rollback/bookkeeping stays
+  // in `handleExecutionFinish`. Excludes awaiting-approval (card must remain).
+  useTopicOverlayHandoffOnTerminal(topic.id, async () => {
+    try {
+      await refresh()
+    } finally {
+      resetOverlay()
+    }
   })
 
   const partsByMessageId = useStablePartsByMessageId(messages, overlay, translationOverlay)

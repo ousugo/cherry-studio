@@ -9,7 +9,7 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { GetAgentResponse } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
@@ -132,7 +132,11 @@ export function useAgentChatRuntimeState({
   }, [uiMessages])
 
   const finishRef = useRef<((executionId: string, event: ExecutionFinishEvent) => void) | undefined>(undefined)
-  const { overlay, disposeOverlay } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages, {
+  const {
+    overlay,
+    disposeOverlay,
+    reset: resetOverlay
+  } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages, {
     onFinish: (executionId, event) => finishRef.current?.(executionId, event)
   })
 
@@ -151,6 +155,19 @@ export function useAgentChatRuntimeState({
     [disposeOverlay, refresh, sessionId]
   )
   finishRef.current = handleExecutionFinish
+
+  // Deterministic overlay→DB handoff: the overlay's `onFinish` is suppressed when
+  // the execution leaves `activeExecutions` at terminal, so a torn-down turn's
+  // live card would otherwise override the finalized DB row. Refresh then drop the
+  // overlay off the terminal status edge (excludes awaiting-approval, which keeps
+  // its card). `refresh()` before `reset()` avoids flashing the stale base parts.
+  useTopicOverlayHandoffOnTerminal(sessionTopicId, async () => {
+    try {
+      await refresh()
+    } finally {
+      resetOverlay()
+    }
+  })
 
   const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next = { ...basePartsMap }

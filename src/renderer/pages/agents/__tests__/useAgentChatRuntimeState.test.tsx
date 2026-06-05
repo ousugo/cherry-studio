@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   useChatWithHistory: vi.fn(),
   useExecutionOverlay: vi.fn(),
   disposeOverlay: vi.fn(),
+  resetOverlay: vi.fn(),
+  useTopicOverlayHandoffOnTerminal: vi.fn(),
   sendTurn: vi.fn(),
   chatStop: vi.fn(),
   chatSetMessages: vi.fn()
@@ -35,7 +37,8 @@ vi.mock('@renderer/hooks/useConversationTurnController', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false })
+  useTopicStreamStatus: () => ({ isPending: false }),
+  useTopicOverlayHandoffOnTerminal: mocks.useTopicOverlayHandoffOnTerminal
 }))
 
 vi.mock('@renderer/components/chat/composer/useToolApprovalComposerOverrides', () => ({
@@ -94,7 +97,7 @@ describe('useAgentChatRuntimeState', () => {
       },
       liveAssistants: [],
       disposeOverlay: mocks.disposeOverlay,
-      reset: vi.fn()
+      reset: mocks.resetOverlay
     })
   })
 
@@ -132,5 +135,29 @@ describe('useAgentChatRuntimeState', () => {
     await waitFor(() => expect(mocks.refresh).toHaveBeenCalledTimes(1))
     expect(mocks.disposeOverlay).toHaveBeenCalledWith('assistant-1')
     expect(mocks.refresh.mock.invocationCallOrder[0]).toBeLessThan(mocks.disposeOverlay.mock.invocationCallOrder[0])
+  })
+
+  it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
+    renderHook(() =>
+      useAgentChatRuntimeState({
+        session,
+        activeAgent: undefined,
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    // The deterministic handoff (fires off the live→terminal status edge, where
+    // the overlay's onFinish is suppressed) must refresh the DB then drop the overlay.
+    const handoff = mocks.useTopicOverlayHandoffOnTerminal.mock.calls[0]?.[1] as (() => Promise<void>) | undefined
+    expect(handoff).toEqual(expect.any(Function))
+
+    await act(async () => {
+      await handoff?.()
+    })
+
+    expect(mocks.refresh).toHaveBeenCalled()
+    expect(mocks.resetOverlay).toHaveBeenCalled()
+    expect(mocks.refresh.mock.invocationCallOrder[0]).toBeLessThan(mocks.resetOverlay.mock.invocationCallOrder[0])
   })
 })

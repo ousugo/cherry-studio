@@ -229,7 +229,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, applyApprovalDecision: vi.fn() }
+      if (name === 'AiStreamManager') return { dispatch }
       return undefined
     })
     const getById = vi.spyOn(messageService, 'getById')
@@ -274,7 +274,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, applyApprovalDecision: vi.fn() }
+      if (name === 'AiStreamManager') return { dispatch }
       return undefined
     })
 
@@ -315,7 +315,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, applyApprovalDecision: vi.fn() }
+      if (name === 'AiStreamManager') return { dispatch }
       return undefined
     })
 
@@ -352,7 +352,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, applyApprovalDecision: vi.fn() }
+      if (name === 'AiStreamManager') return { dispatch }
       return undefined
     })
 
@@ -381,7 +381,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, applyApprovalDecision: vi.fn() }
+      if (name === 'AiStreamManager') return { dispatch }
       return undefined
     })
 
@@ -409,7 +409,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch, applyApprovalDecision: vi.fn() }
+      if (name === 'AiStreamManager') return { dispatch }
       return undefined
     })
     const getById = vi.spyOn(messageService, 'getById')

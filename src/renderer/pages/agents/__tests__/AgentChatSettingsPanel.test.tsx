@@ -187,7 +187,8 @@ vi.mock('@renderer/hooks/useSettings', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false })
+  useTopicStreamStatus: () => ({ isPending: false }),
+  useTopicOverlayHandoffOnTerminal: () => {}
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({

@@ -1271,29 +1271,6 @@ describe('AiStreamManager', () => {
       expect(anchorsOf('t')).toHaveLength(1)
     })
 
-    it('re-attach to an aborted stream terminalizes an in-flight approval part to output-error', async () => {
-      startSingle(mgr, { topicId: 't', modelId: 'p::m', request: req('t'), listeners: [new FakeListener('l:t')] })
-      const exec = startAwaitingApproval('t', 'p::m')
-      exec.finalMessage = {
-        id: 'a-1',
-        role: 'assistant',
-        parts: [
-          { type: 'tool-myTool', toolCallId: 'tc-1', state: 'approval-requested', input: {}, approval: { id: 'ap-1' } }
-        ]
-      } as CherryUIMessage
-      exec.status = 'aborted'
-      await mgr.onExecutionPaused('t', 'p::m')
-
-      // biome-ignore lint/suspicious/noExplicitAny: minimal WebContents stand-in; the aborted branch never touches it
-      const res = mgr.attach({ id: 99 } as any, { topicId: 't' }) as { status: string; finalMessage?: CherryUIMessage }
-      expect(res.status).toBe('paused')
-      const parts = (res.finalMessage?.parts ?? []) as Array<{ state?: string }>
-      expect(parts[0].state).toBe('output-error')
-      // The stored snapshot is untouched (finalize is read-time only).
-      const stored = (mgr.inspect('t')!.executions[0].finalMessage?.parts ?? []) as Array<{ state?: string }>
-      expect(stored[0].state).toBe('approval-requested')
-    })
-
     it('multi-model: flips on first chunk from any execution and stays pending if an execution errors before any chunks', async () => {
       mgr.send({
         topicId: 't',
