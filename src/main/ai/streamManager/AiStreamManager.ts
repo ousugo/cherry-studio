@@ -30,6 +30,7 @@ import { KeyedMutex } from './KeyedMutex'
 import { createChatStreamLifecycle, promptStreamLifecycle, type StreamLifecycle } from './lifecycle'
 import { WebContentsListener } from './listeners/WebContentsListener'
 import { pipeStreamLoop } from './pipeStreamLoop'
+import { withReasoningTimingMetadata } from './reasoningTimingTransform'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -879,7 +880,9 @@ export class AiStreamManager extends BaseService {
     // upstream AI SDK request is already wired to. Caller override via
     // `requestOptions.timeout`; otherwise `DEFAULT_TIMEOUT`.
     const timeoutMs = request.requestOptions?.timeout ?? DEFAULT_TIMEOUT
-    const stream = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
+    // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
+    // thinkingMs measurement (see reasoningTimingTransform).
+    const stream = withReasoningTimingMetadata(withIdleTimeout(rawStream, exec.abortController, timeoutMs))
 
     // `continue-conversation` chunks reference toolCallIds on the anchor
     // assistant message; without seeding, `readUIMessageStream`'s
