@@ -1,8 +1,8 @@
 import '@renderer/databases'
 
-import { useCommandHandler } from '@renderer/commands'
 import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { useCommandHandler } from '@renderer/features/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils'

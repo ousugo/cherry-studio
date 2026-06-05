@@ -1,7 +1,7 @@
 import { Button, type RenderRowArgs } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Icon } from '@iconify/react'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { ChevronRight } from 'lucide-react'
 import type React from 'react'

@@ -377,7 +377,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({ providers: [{ id: 'provider', name: 'Provider' }] })
 }))
 
-vi.mock('@renderer/commands', () => ({
+vi.mock('@renderer/features/command', () => ({
   useCommandHandler: (command: string, handler: () => void) => {
     mocks.commandHandlers.set(command, handler)
   }

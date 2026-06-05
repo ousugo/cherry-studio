@@ -1,9 +1,9 @@
 import { Button, Checkbox, EmptyState, RowFlex } from '@cherrystudio/ui'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { ActionConfirmDialog } from '@renderer/components/chat/actions/ActionConfirmDialog'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
 import type {
   SessionMenuActionContextOverride,
   SessionMenuPreset

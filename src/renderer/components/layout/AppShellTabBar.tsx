@@ -1,5 +1,4 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { CommandContextMenu, type CommandContextMenuExtraItem, CommandTooltip } from '@renderer/commands'
 import {
   emitResourceListReveal,
   type ResourceListRevealSource
@@ -7,6 +6,7 @@ import {
 import { OpenInNewWindowIcon } from '@renderer/components/Icons'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandTooltip } from '@renderer/features/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import type { Tab } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils'

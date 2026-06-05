@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

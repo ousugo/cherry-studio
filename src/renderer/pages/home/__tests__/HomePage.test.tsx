@@ -1,4 +1,4 @@
-import { useCommandHandler } from '@renderer/commands'
+import { useCommandHandler } from '@renderer/features/command'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -63,7 +63,7 @@ const homeMocks = vi.hoisted(() => ({
   updateTemporaryAssistant: vi.fn()
 }))
 
-vi.mock('@renderer/commands', () => ({
+vi.mock('@renderer/features/command', () => ({
   useCommandHandler: vi.fn()
 }))
 

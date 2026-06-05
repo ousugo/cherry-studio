@@ -94,7 +94,7 @@ vi.mock('@renderer/components/Icons', () => ({
 
 const shortcutHandlers = new Map<string, () => void>()
 
-vi.mock('@renderer/commands', () => ({
+vi.mock('@renderer/features/command', () => ({
   useCommandHandler: (key: string, callback: () => void, options?: { enabled?: boolean }) => {
     if (options?.enabled === false) {
       shortcutHandlers.delete(key)

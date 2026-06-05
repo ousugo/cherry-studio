@@ -1,5 +1,5 @@
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/commands'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { findNode } from '@renderer/services/NotesTreeService'

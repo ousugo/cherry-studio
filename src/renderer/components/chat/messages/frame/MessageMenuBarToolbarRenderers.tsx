@@ -1,6 +1,6 @@
 import { ConfirmDialog, Tooltip } from '@cherrystudio/ui'
-import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/commands'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
+import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/features/command'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'

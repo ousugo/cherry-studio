@@ -1,7 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { CommandContextMenu } from '@renderer/commands'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
@@ -11,6 +10,7 @@ import {
   TopicMessageFlowCanvas
 } from '@renderer/components/chat/messages/flow'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+import { CommandContextMenu } from '@renderer/features/command'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
 import { CopyPlus, GitBranch } from 'lucide-react'

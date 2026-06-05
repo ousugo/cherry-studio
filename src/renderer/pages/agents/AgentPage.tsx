@@ -1,6 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useCommandHandler } from '@renderer/commands'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import {
@@ -12,6 +11,7 @@ import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } fr
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
+import { useCommandHandler } from '@renderer/features/command'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession, useSession } from '@renderer/hooks/agents/useSession'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'

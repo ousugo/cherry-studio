@@ -259,7 +259,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
   })
 }))
 
-vi.mock('@renderer/commands', () => ({
+vi.mock('@renderer/features/command', () => ({
   useCommandHandler: (key: string, handler: () => void, options?: Record<string, unknown>) => {
     mocks.shortcutHandlers.set(key, handler)
     mocks.shortcutOptions.set(key, options)

@@ -8,10 +8,10 @@ architecture, see [README.md](./README.md).
 Import from the barrel only:
 
 ```ts
-import { CommandContextMenu, CommandShortcut, CommandTooltip, useCommandHandler } from '@renderer/commands'
+import { CommandContextMenu, CommandShortcut, CommandTooltip, useCommandHandler } from '@renderer/features/command'
 ```
 
-Do not import subpaths such as `@renderer/commands/presentation` from business
+Do not import subpaths such as `@renderer/features/command/presentation` from business
 code. Keeping a narrow public API lets the runtime change without rewriting call
 sites.
 
