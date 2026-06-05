@@ -798,6 +798,8 @@ export class AiStreamManager extends BaseService {
     // upstream AI SDK request is already wired to. Caller override via
     // `requestOptions.timeout`; otherwise `DEFAULT_TIMEOUT`.
     const timeoutMs = request.requestOptions?.timeout ?? DEFAULT_TIMEOUT
+    // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
+    // thinkingMs measurement (see reasoningTimingTransform).
     const stream = withReasoningTimingMetadata(withIdleTimeout(rawStream, exec.abortController, timeoutMs))
 
     // `continue-conversation` chunks reference toolCallIds on the anchor

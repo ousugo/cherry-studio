@@ -1,7 +1,26 @@
-import type { UIMessageChunk } from 'ai'
+/**
+ * reasoningTimingTransform.ts
+ *
+ * This module stabilizes the reasoning thinking time by calculating it before the stream
+ * is split into broadcast (live renderer) and accumulated branches.
+ *
+ * Load-bearing Invariants:
+ * 1. Must run before pipeStreamLoop's tee() so both broadcast chunks and the AI SDK accumulator
+ *    receive the same performance.now() delta (preventing post-refresh value mismatch).
+ * 2. The transform preserves provider metadata from reasoning-start when writing metadata onto
+ *    reasoning-end. The AI SDK accumulator overwrites (not merges) the reasoning part's metadata
+ *    on end:
+ *      reasoningPart.providerMetadata = chunk.providerMetadata ?? reasoningPart.providerMetadata
+ *    Without this re-merge, start-only metadata (e.g. claude-code.parentToolCallId) is dropped
+ *    from the final persisted message.
+ */
+
+import { loggerService } from '@logger'
+import type { ProviderMetadata, UIMessageChunk } from 'ai'
+
+const logger = loggerService.withContext('reasoningTimingTransform')
 
 type ReasoningEndChunk = Extract<UIMessageChunk, { type: 'reasoning-end' }>
-type ProviderMetadata = Record<string, unknown>
 
 export function withReasoningTimingMetadata(stream: ReadableStream<UIMessageChunk>): ReadableStream<UIMessageChunk> {
   const reasoningById = new Map<string, { startedAt: number; providerMetadata?: ProviderMetadata }>()
@@ -10,6 +29,11 @@ export function withReasoningTimingMetadata(stream: ReadableStream<UIMessageChun
     new TransformStream<UIMessageChunk, UIMessageChunk>({
       transform(chunk, controller) {
         if (chunk.type === 'reasoning-start') {
+          if (reasoningById.has(chunk.id)) {
+            logger.debug('reasoning-start received for an id that was never ended; overwriting timing', {
+              id: chunk.id
+            })
+          }
           reasoningById.set(chunk.id, {
             startedAt: performance.now(),
             providerMetadata: toProviderMetadata(chunk.providerMetadata)
@@ -27,6 +51,7 @@ export function withReasoningTimingMetadata(stream: ReadableStream<UIMessageChun
             )
             return
           }
+          logger.debug('reasoning-end received with no matching reasoning-start; passing through', { id: chunk.id })
         }
 
         controller.enqueue(chunk)
@@ -59,7 +84,7 @@ function withThinkingMs(
 }
 
 function toProviderMetadata(value: unknown): ProviderMetadata | undefined {
-  return isRecord(value) ? value : undefined
+  return isRecord(value) ? (value as ProviderMetadata) : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

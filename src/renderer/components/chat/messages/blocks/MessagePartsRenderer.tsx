@@ -83,15 +83,20 @@ const AnimatedBlockWrapper: React.FC<{
   animation?: 'slide' | 'fade'
 }> = ({ className, children, enableAnimation, animation = 'slide' }) => {
   const wrapperClassName = ['block-wrapper', className].filter(Boolean).join(' ')
-  const [hasAnimated, setHasAnimated] = React.useState(enableAnimation)
+
+  // Latch: Once a block has entered the motion.div branch during streaming (enableAnimation === true),
+  // we keep it there forever (hasEverAnimated === true). Returning to a plain <div> when streaming
+  // ends changes the React element type, triggering a full subtree remount which would destroy
+  // child components' internal state (e.g. ThinkingBlock's timer and fold/unfold state) and cause flicker.
+  const [hasEverAnimated, setHasEverAnimated] = React.useState(enableAnimation)
 
   React.useEffect(() => {
     if (enableAnimation) {
-      setHasAnimated(true)
+      setHasEverAnimated(true)
     }
   }, [enableAnimation])
 
-  if (!hasAnimated) {
+  if (!hasEverAnimated) {
     return (
       <div className={wrapperClassName}>
         <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
