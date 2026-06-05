@@ -214,9 +214,10 @@ export function FileComposerToken(props: ComposerTokenProps) {
       side="top"
       sideOffset={8}
       delayDuration={300}
+      showArrow={false}
       contentProps={{
         className:
-          'w-fit max-w-64 rounded-lg border border-border bg-popover px-3 py-2 text-popover-foreground shadow-lg dark:bg-popover dark:text-popover-foreground [&_svg]:fill-popover dark:[&_svg]:fill-popover'
+          'w-fit max-w-64 rounded-lg border border-border bg-popover px-3 py-2 text-popover-foreground shadow-lg dark:bg-popover dark:text-popover-foreground'
       }}>
       {tokenElement}
     </NormalTooltip>
@@ -239,6 +240,7 @@ export function QuoteComposerToken(props: ComposerTokenProps) {
       side="top"
       sideOffset={6}
       delayDuration={300}
+      showArrow={false}
       contentProps={{ className: QUOTE_TOOLTIP_CONTENT_CLASS_NAME }}>
       {tokenElement}
     </NormalTooltip>

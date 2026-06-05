@@ -22,13 +22,18 @@ vi.mock('@cherrystudio/ui', () => ({
   NormalTooltip: ({
     children,
     content,
-    contentProps
+    contentProps,
+    showArrow
   }: {
     children: ReactNode
     content: ReactNode
     contentProps?: { className?: string }
+    showArrow?: boolean
   }) => (
-    <span data-content-class-name={contentProps?.className} data-testid="composer-token-tooltip">
+    <span
+      data-content-class-name={contentProps?.className}
+      data-show-arrow={String(showArrow)}
+      data-testid="composer-token-tooltip">
       {children}
       <span data-testid="composer-token-tooltip-content">{content}</span>
     </span>
@@ -251,6 +256,27 @@ describe('ComposerToken', () => {
     const tooltipBody = screen.getByTestId('composer-token-tooltip-content').firstElementChild as HTMLElement
     expect(tooltipBody).toHaveClass('whitespace-pre-wrap', 'text-left', 'overflow-hidden')
     expect(tooltipBody.className).toContain('[-webkit-line-clamp:4]')
+  })
+
+  it('disables tooltip arrows for file tokens', () => {
+    render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
+
+    expect(screen.getByTestId('composer-token-tooltip')).toHaveAttribute('data-show-arrow', 'false')
+  })
+
+  it('disables tooltip arrows for quote tokens', () => {
+    render(
+      <ComposerToken
+        token={{
+          id: 'quote:1',
+          kind: 'quote',
+          label: 'Quote',
+          description: 'quoted text'
+        }}
+      />
+    )
+
+    expect(screen.getByTestId('composer-token-tooltip')).toHaveAttribute('data-show-arrow', 'false')
   })
 
   it('unwraps prompt text before showing a quote tooltip fallback', () => {

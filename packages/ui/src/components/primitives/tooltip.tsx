@@ -38,6 +38,7 @@ export type TooltipRootProps = React.ComponentProps<typeof RadixRoot>
 export type TooltipTriggerProps = React.ComponentProps<typeof RadixTrigger>
 export type TooltipContentProps = React.ComponentProps<typeof RadixContent> & {
   portalContainer?: React.ComponentProps<typeof RadixPortal>['container']
+  showArrow?: boolean
 }
 
 function TooltipProvider({ delayDuration = 0, ...props }: TooltipProviderProps) {
@@ -61,7 +62,14 @@ const contentStyles =
 
 const arrowStyles = 'z-[80] fill-neutral-900 dark:fill-neutral-100'
 
-function TooltipContent({ className, sideOffset = 0, children, portalContainer, ...props }: TooltipContentProps) {
+function TooltipContent({
+  className,
+  sideOffset = 0,
+  children,
+  portalContainer,
+  showArrow = true,
+  ...props
+}: TooltipContentProps) {
   const defaultPortalContainer = usePortalContainer()
   return (
     <RadixPortal container={portalContainer ?? defaultPortalContainer ?? undefined}>
@@ -71,7 +79,7 @@ function TooltipContent({ className, sideOffset = 0, children, portalContainer, 
         className={cn(contentStyles, className)}
         {...props}>
         {children}
-        <RadixArrow className={arrowStyles} />
+        {showArrow && <RadixArrow className={arrowStyles} />}
       </RadixContent>
     </RadixPortal>
   )
@@ -166,6 +174,7 @@ interface NormalTooltipProps extends TooltipRootProps {
   asChild?: boolean
   triggerProps?: Omit<TooltipTriggerProps, 'children'>
   contentProps?: TooltipContentProps
+  showArrow?: boolean
 }
 
 const NormalTooltip = ({
@@ -177,6 +186,7 @@ const NormalTooltip = ({
   asChild = true,
   triggerProps,
   contentProps,
+  showArrow = true,
   ...tooltipProps
 }: NormalTooltipProps) => {
   return (
@@ -184,7 +194,7 @@ const NormalTooltip = ({
       <TooltipTrigger asChild={asChild} {...triggerProps}>
         {children}
       </TooltipTrigger>
-      <TooltipContent side={side} align={align} sideOffset={sideOffset} {...contentProps}>
+      <TooltipContent side={side} align={align} sideOffset={sideOffset} showArrow={showArrow} {...contentProps}>
         {content}
       </TooltipContent>
     </TooltipRoot>
