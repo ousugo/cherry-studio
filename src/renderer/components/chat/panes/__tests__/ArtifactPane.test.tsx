@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   fsRead: vi.fn(),
   fsReadText: vi.fn(),
   isTextFile: vi.fn(),
-  getFileSize: vi.fn(),
+  getMetadata: vi.fn(),
   createObjectURL: vi.fn(),
   revokeObjectURL: vi.fn(),
   pdfPreviewPanelProps: [] as Array<{
@@ -390,7 +390,7 @@ describe('ArtifactPane', () => {
     // Default: tests select text files; override per-test for binary cases.
     mocks.isTextFile.mockResolvedValue(true)
     // Default: tests use tiny files; override per-test to exercise the size gate.
-    mocks.getFileSize.mockResolvedValue(1024)
+    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024 })
     mocks.createObjectURL.mockReturnValue('blob:fake-url')
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -398,7 +398,7 @@ describe('ArtifactPane', () => {
         file: {
           openPath: vi.fn(),
           isTextFile: mocks.isTextFile,
-          getFileSize: mocks.getFileSize
+          getMetadata: mocks.getMetadata
         },
         fs: {
           read: mocks.fsRead,
@@ -1097,6 +1097,21 @@ describe('ArtifactPane', () => {
     expect(mocks.fsReadText).not.toHaveBeenCalled()
   })
 
+  it('shows the file-unavailable state when the size sniff fails (missing/moved file)', async () => {
+    mocks.getMetadata.mockRejectedValueOnce(new Error('ENOENT: no such file'))
+    mockWorkspaceTree('/tmp/workspace', ['gone.ts'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-gone.ts')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-gone.ts'))
+
+    await waitFor(() => expect(screen.getByText('agent.preview_pane.unavailable.title')).toBeInTheDocument())
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+  })
+
   it('reads unknown extensions when the sniff says text', async () => {
     mockWorkspaceTree('/tmp/workspace', ['notes.log'])
     mocks.fsReadText.mockResolvedValue('boot at 12:00')
@@ -1113,7 +1128,7 @@ describe('ArtifactPane', () => {
   })
 
   it('skips preview and readText for text files above the 2 MB size cap', async () => {
-    mocks.getFileSize.mockResolvedValueOnce(3 * 1024 * 1024)
+    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 3 * 1024 * 1024 })
     mockWorkspaceTree('/tmp/workspace', ['huge.json'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1128,7 +1143,7 @@ describe('ArtifactPane', () => {
   })
 
   it('still renders PDFs above the 2 MB size cap', async () => {
-    mocks.getFileSize.mockResolvedValueOnce(50 * 1024 * 1024)
+    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 50 * 1024 * 1024 })
     mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1144,7 +1159,7 @@ describe('ArtifactPane', () => {
 
   it('renders Excel files with ExcelPreview and bypasses binary text preview fallbacks', async () => {
     mocks.isTextFile.mockResolvedValueOnce(false)
-    mocks.getFileSize.mockResolvedValueOnce(50 * 1024 * 1024)
+    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 50 * 1024 * 1024 })
     mockWorkspaceTree('/tmp/workspace', ['report.xlsx'])
 
     const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1163,7 +1178,7 @@ describe('ArtifactPane', () => {
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.isTextFile).not.toHaveBeenCalled()
-    expect(mocks.getFileSize).not.toHaveBeenCalled()
+    expect(mocks.getMetadata).not.toHaveBeenCalled()
     expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-hidden')
     expect(mocks.excelPreviewProps.at(-1)).toEqual({
       filePath: '/tmp/workspace/report.xlsx',
@@ -1192,7 +1207,7 @@ describe('ArtifactPane', () => {
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.isTextFile).not.toHaveBeenCalled()
-    expect(mocks.getFileSize).toHaveBeenCalledWith('/tmp/workspace/proposal.docx')
+    expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/workspace/proposal.docx' })
     expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-hidden')
     expect(mocks.wordPreviewPanelProps.at(-1)).toEqual({
       filePath: 'proposal.docx',
@@ -1219,7 +1234,7 @@ describe('ArtifactPane', () => {
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.isTextFile).not.toHaveBeenCalled()
-    expect(mocks.getFileSize).toHaveBeenCalledWith('/tmp/workspace/proposal.docx')
+    expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/workspace/proposal.docx' })
     expect(mocks.wordPreviewPanelProps.at(-1)).toEqual({
       filePath: 'proposal.docx',
       fileName: 'proposal.docx',
@@ -1229,7 +1244,7 @@ describe('ArtifactPane', () => {
   })
 
   it('skips Word preview above the Word size cap', async () => {
-    mocks.getFileSize.mockResolvedValueOnce(26 * 1024 * 1024)
+    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 26 * 1024 * 1024 })
     mockWorkspaceTree('/tmp/workspace', ['oversized.docx'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1245,7 +1260,7 @@ describe('ArtifactPane', () => {
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.isTextFile).not.toHaveBeenCalled()
-    expect(mocks.getFileSize).toHaveBeenCalledWith('/tmp/workspace/oversized.docx')
+    expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/workspace/oversized.docx' })
   })
 
   it('passes refresh clicks to the selected Excel preview without reading text content', async () => {
@@ -1265,7 +1280,7 @@ describe('ArtifactPane', () => {
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(mocks.isTextFile).not.toHaveBeenCalled()
-    expect(mocks.getFileSize).not.toHaveBeenCalled()
+    expect(mocks.getMetadata).not.toHaveBeenCalled()
     expect(mocks.excelPreviewProps.at(-1)).toEqual({
       filePath: '/tmp/workspace/report.xlsm',
       fileName: 'report.xlsm',

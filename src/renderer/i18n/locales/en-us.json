@@ -382,6 +382,10 @@
         "description": "File exceeds the {{limit}} preview limit.",
         "title": "File too large to preview"
       },
+      "unavailable": {
+        "description": "This file couldn't be opened — it may have been moved or deleted.",
+        "title": "File unavailable"
+      },
       "word": {
         "errors": {
           "parse_failed": "Unable to render this Word document.",

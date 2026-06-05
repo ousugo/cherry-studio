@@ -1,4 +1,6 @@
 import { loggerService } from '@logger'
+import type { FilePath } from '@shared/file/types/common'
+import { createFilePathHandle } from '@shared/file/types/handle'
 import { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('useFileSize')
@@ -11,9 +13,9 @@ const joinAbsPath = (base: string, rel: string): string => {
 }
 
 /**
- * Read a file's size via the main-side `file.getFileSize` IPC (thin
- * `fs.stat` wrapper). Used to gate previews above a size threshold before
- * any `readText` is attempted.
+ * Read a file's size via the main-side `file.getMetadata` IPC (a path-handle
+ * `fs.stat`). Used to gate previews above a size threshold before any
+ * `readText` is attempted.
  */
 export function useFileSize(
   workspacePath: string | null | undefined,
@@ -33,8 +35,8 @@ export function useFileSize(
 
     void (async () => {
       try {
-        const size = await window.api.file.getFileSize(absPath)
-        if (!cancelled) setState({ status: 'ok', size })
+        const meta = await window.api.file.getMetadata(createFilePathHandle(absPath as FilePath))
+        if (!cancelled) setState(meta.kind === 'directory' ? { status: 'error' } : { status: 'ok', size: meta.size })
       } catch (err) {
         if (cancelled) return
         const normalized = err instanceof Error ? err : new Error(String(err))

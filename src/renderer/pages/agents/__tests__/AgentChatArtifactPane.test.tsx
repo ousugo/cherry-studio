@@ -539,7 +539,7 @@ describe('AgentChat artifact pane', () => {
         },
         file: {
           isTextFile: vi.fn().mockResolvedValue(true),
-          getFileSize: vi.fn().mockResolvedValue(1024)
+          getMetadata: vi.fn().mockResolvedValue({ kind: 'file', size: 1024 })
         }
       }
     })
@@ -920,7 +920,7 @@ describe('AgentChat artifact pane', () => {
 
   it('opens Excel file paths in a framed file preview tab without text sniffing', () => {
     const isTextFile = vi.mocked(window.api.file.isTextFile)
-    const getFileSize = vi.mocked(window.api.file.getFileSize)
+    const getMetadata = vi.mocked(window.api.file.getMetadata)
 
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
@@ -932,7 +932,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'report.xlsx')
     expect(screen.getByTestId('artifact-file-preview').parentElement).toHaveClass('overflow-hidden')
     expect(isTextFile).not.toHaveBeenCalled()
-    expect(getFileSize).not.toHaveBeenCalled()
+    expect(getMetadata).not.toHaveBeenCalled()
   })
 
   it('opens absolute file paths outside the workspace in a separate file preview tab', () => {

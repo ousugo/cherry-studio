@@ -119,7 +119,8 @@ vi.mock('@main/utils/file/pathStatus', () => ({
 }))
 
 vi.mock('@main/utils/language', () => ({
-  getAppLanguage: mocks.getAppLanguage
+  getAppLanguage: mocks.getAppLanguage,
+  t: vi.fn((key: string) => key)
 }))
 
 vi.mock('@main/utils/process', () => ({

@@ -11,13 +11,7 @@ const mockOpenArtifactFile = vi.fn().mockResolvedValue(undefined)
 const mockShowInFolder = vi.fn().mockResolvedValue(undefined)
 const mockOpenInExternalApp = vi.fn()
 const mockNotifyError = vi.fn()
-const mockGetPathStatus = vi.fn()
 
-vi.stubGlobal('api', {
-  file: {
-    getPathStatus: mockGetPathStatus
-  }
-})
 const externalCodeEditors: ExternalAppInfo[] = [
   { id: 'vscode', name: 'Visual Studio Code', protocol: 'vscode://', tags: ['code-editor'], path: '/app/vscode' },
   { id: 'cursor', name: 'Cursor', protocol: 'cursor://', tags: ['code-editor'], path: '/app/cursor' }
@@ -72,7 +66,6 @@ const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue[
 describe('ClickableFilePath', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetPathStatus.mockResolvedValue({ ok: true, kind: 'file' })
   })
 
   it('should render the path as text', () => {
@@ -89,29 +82,15 @@ describe('ClickableFilePath', () => {
     expect(link).toHaveTextContent('bar.tsx')
   })
 
-  it('should call openArtifactFile on click', async () => {
+  it('should call openArtifactFile on click (no existence preflight)', async () => {
     renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, { openArtifactFile: mockOpenArtifactFile })
     fireEvent.click(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }))
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx')
     })
-    expect(mockGetPathStatus).toHaveBeenCalledWith({ path: '/Users/foo/bar.tsx', expectedKind: 'file' })
   })
 
-  it('should short-circuit with notifyError when an absolute path is missing', async () => {
-    mockGetPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
-    renderWithProvider(<ClickableFilePath path="/Users/foo/missing.tsx" />, {
-      openArtifactFile: mockOpenArtifactFile,
-      notifyError: mockNotifyError
-    })
-    fireEvent.click(screen.getByRole('link', { name: '/Users/foo/missing.tsx' }))
-    await waitFor(() => {
-      expect(mockNotifyError).toHaveBeenCalledWith('File not found: /Users/foo/missing.tsx')
-    })
-    expect(mockOpenArtifactFile).not.toHaveBeenCalled()
-  })
-
-  it('should skip validation for relative paths and still open', async () => {
+  it('should open relative paths directly', async () => {
     renderWithProvider(<ClickableFilePath path="src/renderer/index.tsx" />, {
       openArtifactFile: mockOpenArtifactFile
     })
@@ -119,7 +98,18 @@ describe('ClickableFilePath', () => {
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/index.tsx')
     })
-    expect(mockGetPathStatus).not.toHaveBeenCalled()
+  })
+
+  it('should notify when opening the file fails', async () => {
+    mockOpenArtifactFile.mockRejectedValueOnce(new Error('boom'))
+    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, {
+      openArtifactFile: mockOpenArtifactFile,
+      notifyError: mockNotifyError
+    })
+    fireEvent.click(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }))
+    await waitFor(() => {
+      expect(mockNotifyError).toHaveBeenCalledWith('Failed to open file: /Users/foo/bar.tsx')
+    })
   })
 
   it('should normalize paths wrapped in backticks before opening', async () => {

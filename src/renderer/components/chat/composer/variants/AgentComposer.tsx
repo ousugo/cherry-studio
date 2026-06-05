@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
@@ -43,10 +43,8 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { getFileTypeByExt } from '@shared/file/types'
-import type { PathStatus } from '@shared/file/types/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { TFunction } from 'i18next'
-import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert } from 'lucide-react'
+import { Bot, ChevronDown, CircleSlash, Folder, Sparkles } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -63,52 +61,6 @@ import { useComposerBottomToolbarIconOnly } from './useComposerBottomToolbarIcon
 
 const logger = loggerService.withContext('AgentComposer')
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
-
-function useWorkspacePathStatus(path: string | undefined): PathStatus | null {
-  const [status, setStatus] = useState<PathStatus | null>(null)
-  useEffect(() => {
-    let disposed = false
-    setStatus(null)
-    if (!path) return
-
-    void (async () => {
-      try {
-        const next = await window.api.file.getPathStatus({ path, expectedKind: 'directory' })
-        if (!disposed) setStatus(next)
-      } catch (error) {
-        if (!disposed) {
-          logger.warn('Failed to check workspace path status', {
-            path,
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
-      }
-    })()
-
-    return () => {
-      disposed = true
-    }
-  }, [path])
-  return status
-}
-
-function formatWorkspacePathWarning(
-  t: TFunction,
-  status: PathStatus | null,
-  path: string | undefined
-): string | undefined {
-  if (!status || status.ok) return undefined
-  switch (status.reason) {
-    case 'missing':
-      return t('agent.session.workspace_status.missing', { path })
-    case 'not-directory':
-      return t('agent.session.workspace_status.not_directory', { path })
-    case 'not-file':
-      return t('agent.session.workspace_status.inaccessible', { path })
-    case 'inaccessible':
-      return t('agent.session.workspace_status.inaccessible', { path })
-  }
-}
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
 const COMPOSER_TOOLBAR_CLASS = 'flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden'
@@ -418,7 +370,6 @@ interface AgentComposerWorkspaceControlProps {
   workspace?: AgentSessionEntity['workspace']
   workspaceId?: string | null
   workspaceChanging?: boolean
-  workspaceWarning?: string
   selectWorkspaceLabel: string
   side: 'top' | 'bottom'
   iconOnly?: boolean
@@ -517,14 +468,12 @@ const AgentComposerWorkspaceControl = ({
   workspace,
   workspaceId,
   workspaceChanging,
-  workspaceWarning,
   selectWorkspaceLabel,
   side,
   iconOnly = false,
   onWorkspaceChange
 }: AgentComposerWorkspaceControlProps) => {
   const { t } = useTranslation()
-  const hasWarning = Boolean(workspaceWarning)
   const isSystemWorkspace = workspace?.type === 'system'
   const selectorValue = isSystemWorkspace ? null : workspaceId
   const workspaceLabel = isSystemWorkspace
@@ -542,16 +491,9 @@ const AgentComposerWorkspaceControl = ({
         <Button
           variant="ghost"
           size="sm"
-          className={cn(
-            COMPOSER_SELECTOR_BUTTON_CLASS,
-            iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
-            hasWarning && 'text-warning hover:text-warning'
-          )}
-          disabled={!onWorkspaceChange || workspaceChanging}
-          aria-label={workspaceWarning}>
-          {hasWarning ? (
-            <TriangleAlert size={14} aria-hidden />
-          ) : isSystemWorkspace ? (
+          className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)}
+          disabled={!onWorkspaceChange || workspaceChanging}>
+          {isSystemWorkspace ? (
             <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
           ) : (
             <Folder size={14} aria-hidden className="text-muted-foreground" />
@@ -563,8 +505,7 @@ const AgentComposerWorkspaceControl = ({
     />
   )
 
-  if (!hasWarning) return selector
-  return <Tooltip content={workspaceWarning}>{selector}</Tooltip>
+  return selector
 }
 
 interface AgentComposerToolbarControlsProps extends Omit<AgentComposerContextControlsProps, 'side'> {
@@ -595,7 +536,6 @@ type AgentComposerControlProps = Omit<AgentComposerToolbarControlsProps, 'inputA
   workspace?: AgentSessionEntity['workspace']
   workspaceId?: string | null
   workspaceChanging?: boolean
-  workspaceWarning?: string
   showWorkspaceSelector?: boolean
   selectWorkspaceLabel: string
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
@@ -666,8 +606,6 @@ const AgentComposerInner = ({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
-  const workspacePathStatus = useWorkspacePathStatus(workspace?.path)
-  const workspaceWarning = formatWorkspacePathWarning(t, workspacePathStatus, workspace?.path)
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
@@ -946,10 +884,6 @@ const AgentComposerInner = ({
         window.toast?.error(t('code.model_required'))
         return
       }
-      if (workspaceWarning) {
-        window.toast?.error(workspaceWarning)
-        return
-      }
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
@@ -958,7 +892,7 @@ const AgentComposerInner = ({
         logger.warn('Failed to send message:', error as Error)
       })
     },
-    [buildQueuedPayload, clearCurrentDraft, isStreaming, model, sendDisabled, sendQueuedPayload, t, workspaceWarning]
+    [buildQueuedPayload, clearCurrentDraft, isStreaming, model, sendDisabled, sendQueuedPayload, t]
   )
 
   const resourceSuggestionStateRef = useRef({ accessiblePaths, files, setFiles, t })
@@ -1063,7 +997,6 @@ const AgentComposerInner = ({
     modelFilter,
     workspace,
     workspaceId,
-    workspaceWarning,
     selectAgentLabel: t('chat.alerts.select_agent'),
     selectModelLabel: t('button.select_model'),
     selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
@@ -1171,7 +1104,6 @@ const MissingAgentHomeComposerInner = ({
     modelFilter: undefined,
     workspace: undefined,
     workspaceId: null,
-    workspaceWarning: undefined,
     selectAgentLabel: selectAgentMessage,
     selectModelLabel: t('button.select_model'),
     selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),

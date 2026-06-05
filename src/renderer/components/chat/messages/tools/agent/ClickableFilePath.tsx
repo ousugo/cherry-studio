@@ -17,10 +17,6 @@ interface ClickableFilePathProps {
   displayName?: string
 }
 
-// Workspace-relative paths can't be resolved without workspace context here,
-// so existence validation only runs for absolute paths.
-const isAbsoluteFilePath = (value: string): boolean => value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value)
-
 export const ClickableFilePath = memo(function ClickableFilePath({ path, displayName }: ClickableFilePathProps) {
   const { t } = useTranslation()
   const normalizedPath = useMemo(() => normalizeInlineFilePath(path), [path])
@@ -59,17 +55,11 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
     (e: React.MouseEvent | React.KeyboardEvent) => {
       if (!openArtifactFile) return
       e.stopPropagation()
-      const run = async () => {
-        if (isAbsoluteFilePath(normalizedPath)) {
-          const status = await window.api.file.getPathStatus({ path: normalizedPath, expectedKind: 'file' })
-          if (!status.ok) {
-            notifyError?.(t('chat.input.tools.file_not_found', { path: normalizedPath }))
-            return
-          }
-        }
-        await openArtifactFile(normalizedPath)
-      }
-      run().catch(() => {
+      // Open directly and let the preview pane report a missing / unreadable
+      // file. No check-then-act existence preflight: it was TOCTOU-prone and
+      // put error interpretation in the renderer — the open operation is the
+      // right place to surface its own failure.
+      Promise.resolve(openArtifactFile(normalizedPath)).catch(() => {
         notifyError?.(t('chat.input.tools.open_file_error', { path: normalizedPath }))
       })
     },

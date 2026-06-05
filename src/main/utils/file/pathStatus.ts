@@ -1,7 +1,22 @@
 import type { FilePath } from '@shared/file/types'
-import type { PathStatus, PathStatusKind } from '@shared/file/types/ipc'
 
 import { stat } from './fs'
+
+/**
+ * Path-status types. These are **main-internal**: `getPathStatus` is a single
+ * `fs.stat` consumed inside main (e.g. `settingsBuilder`) and the typed status
+ * never crosses the IPC boundary — error interpretation is a main-side
+ * concern, so the renderer receives finished messages, not this union. See
+ * `assertClaudeCodeWorkspaceDirectory` (settingsBuilder) for how an invalid
+ * workspace surfaces at send time.
+ */
+export type PathStatusKind = 'file' | 'directory'
+
+export type PathStatusReason = 'missing' | 'not-file' | 'not-directory' | 'inaccessible'
+
+export type PathStatus =
+  | { ok: true; kind: PathStatusKind }
+  | { ok: false; reason: PathStatusReason; actualKind?: PathStatusKind; detail?: string }
 
 function errorCode(error: unknown): string | undefined {
   return typeof error === 'object' && error !== null && 'code' in error

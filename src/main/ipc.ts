@@ -422,7 +422,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
-  // File_SelectFolder / File_GetPathStatus / File_ListDirectory / File_GetDirectoryStructure are
+  // File_SelectFolder / File_GetMetadata / File_ListDirectory / File_GetDirectoryStructure are
   // registered by the FileManager lifecycle service so they are ready before
   // the renderer loads.
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))

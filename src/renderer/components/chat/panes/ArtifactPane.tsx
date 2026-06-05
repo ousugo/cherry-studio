@@ -644,7 +644,20 @@ export function ArtifactFilePreview({
   if (isText === 'pending' || fileSize.status === 'pending') {
     return <LoadingState variant="skeleton" rows={4} />
   }
-  if (fileSize.status === 'error' || isText === 'binary') {
+  // A failed size sniff means the file couldn't be stat'd (missing / moved /
+  // inaccessible). This is the report surface for opening a file that no longer
+  // exists — callers just open the file and let this pane explain the failure,
+  // rather than pre-checking existence over IPC.
+  if (fileSize.status === 'error') {
+    return (
+      <EmptyState
+        icon={AlertCircle}
+        title={t('agent.preview_pane.unavailable.title')}
+        description={t('agent.preview_pane.unavailable.description')}
+      />
+    )
+  }
+  if (isText === 'binary') {
     return (
       <EmptyState
         icon={FileText}

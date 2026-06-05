@@ -382,6 +382,10 @@
         "description": "檔案超過 {{limit}} 預覽上限。",
         "title": "檔案太大，無法預覽"
       },
+      "unavailable": {
+        "description": "無法開啟此檔案，它可能已被移動或刪除。",
+        "title": "檔案不可用"
+      },
       "word": {
         "errors": {
           "parse_failed": "無法渲染這個 Word 文件。",

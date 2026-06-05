@@ -137,7 +137,6 @@ import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry
 import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
 import { fileStorage } from '@main/services/FileStorage'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
-import { getPathStatus as readPathStatus } from '@main/utils/file/pathStatus'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
@@ -153,7 +152,6 @@ import type {
 } from '@shared/file/types'
 import type { FileHandle } from '@shared/file/types/handle'
 import { FileHandleSchema } from '@shared/file/types/handle'
-import type { GetPathStatusIpcParams } from '@shared/file/types/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 import mime from 'mime'
 import * as z from 'zod'
@@ -240,10 +238,6 @@ export const FILE_BATCH_DANGLING_MAX_IDS = 500
 export const GetDanglingStateIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 export const BatchGetDanglingStatesIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)
-})
-export const GetPathStatusIpcSchema = z.strictObject({
-  path: z.string(),
-  expectedKind: z.enum(['file', 'directory']).optional()
 })
 
 // Phase 2 schemas — reuse the canonical essential.ts validators so the IPC
@@ -709,10 +703,16 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, async (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
-    this.ipcHandle(IpcChannel.File_GetPathStatus, (_e, params: unknown) =>
-      this.getPathStatus(GetPathStatusIpcSchema.parse(params))
-    )
-    this.ipcHandle(IpcChannel.File_GetFileSize, async (_e, filePath: FilePath) => this.getFileSize(filePath))
+    this.ipcHandle(IpcChannel.File_GetMetadata, async (_e, params: unknown) => {
+      const handle = FileHandleSchema.parse(params) as FileHandle
+      return dispatchHandle(
+        handle,
+        async () => {
+          throw new Error('getMetadata(FileEntryHandle) is not yet wired (@phase 2)')
+        },
+        (path) => this.getMetadataByPath(path)
+      )
+    })
     this.ipcHandle(IpcChannel.File_SelectFolder, fileStorage.selectFolder)
     this.ipcHandle(IpcChannel.File_ListDirectory, async (_e, dirPath: FilePath, options?: DirectoryListOptions) =>
       searchListDirectory(dirPath, options)
@@ -931,16 +931,19 @@ export class FileManager extends BaseService implements IFileManager {
     return pathToFileURL(physicalPath).toString() as FileURLString
   }
 
-  private async getPathStatus(params: GetPathStatusIpcParams) {
-    return readPathStatus(params.path, { expectedKind: params.expectedKind })
-  }
-
-  private async getFileSize(filePath: FilePath): Promise<number> {
-    const s = await fsStat(filePath)
+  private async getMetadataByPath(path: FilePath): Promise<PhysicalFileMetadata> {
+    const s = await fsStat(path)
     if (s.isDirectory) {
-      throw new Error(`Cannot read size: path is a directory (${filePath})`)
+      return { kind: 'directory', size: s.size, createdAt: s.createdAt || s.modifiedAt, modifiedAt: s.modifiedAt }
     }
-    return s.size
+    return {
+      kind: 'file',
+      type: 'other',
+      size: s.size,
+      createdAt: s.createdAt || s.modifiedAt,
+      modifiedAt: s.modifiedAt,
+      mime: mime.getType(path) ?? 'application/octet-stream'
+    }
   }
 
   async getPhysicalPath(id: FileEntryId): Promise<FilePath> {
