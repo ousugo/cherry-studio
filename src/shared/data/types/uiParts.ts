@@ -18,6 +18,7 @@
  * - data-code (code blocks)
  */
 
+import type { FileType } from '@shared/file/types'
 import * as z from 'zod'
 
 import type { SerializedError } from '../../types/error'
@@ -191,6 +192,16 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
 
 export type ComposerMessageTokenKind = 'skill' | 'file' | 'command' | 'knowledge' | 'reference' | 'quote'
 
+export interface ComposerMessageFileTokenPayload {
+  type?: FileType
+  ext?: string
+  name?: string
+  origin_name?: string
+  size?: number
+}
+
+export type ComposerMessageTokenPayload = ComposerMessageFileTokenPayload
+
 export interface ComposerMessageToken {
   id: string
   kind: ComposerMessageTokenKind
@@ -200,6 +211,7 @@ export interface ComposerMessageToken {
   index: number
   textOffset: number
   promptText?: string
+  payload?: ComposerMessageTokenPayload
 }
 
 export interface ComposerMessageSnapshot {

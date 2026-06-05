@@ -51,7 +51,8 @@ vi.mock('@cherrystudio/ui', () => ({
         {children}
       </button>
     )
-  }
+  },
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
@@ -384,7 +385,7 @@ describe('ComposerSurface', () => {
     const editingBar = screen.getByText('chat.input.editing_message').closest('[data-composer-editing-bar]')
 
     expect(editingBar?.closest('[data-composer-inputbar]')).not.toBeNull()
-    expect(editingBar).toHaveClass('border-border-subtle', 'bg-muted/40', 'text-foreground-secondary')
+    expect(editingBar).toHaveClass('border-border', 'bg-muted', 'text-foreground-secondary')
     expect(editingBar).not.toHaveClass('border-info/40', 'bg-[var(--color-info-bg)]', 'text-info', 'mb-2')
 
     const locateButton = screen.getByRole('button', { name: 'chat.input.locate_editing_message' })
@@ -1185,6 +1186,61 @@ describe('ComposerSurface', () => {
               }
             },
             { type: 'text', text: ' hello' }
+          ]
+        }
+      ]
+    })
+  })
+
+  it('preserves serialized file token payload when initializing draft content', async () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        text="Open default-topic.png now"
+        draftTokens={[
+          {
+            id: 'file:image',
+            kind: 'file',
+            label: 'default-topic.png',
+            promptText: 'default-topic.png',
+            payload: {
+              type: 'image',
+              ext: '.png',
+              name: 'default-topic.png',
+              origin_name: 'default-topic.png',
+              size: 2048
+            },
+            index: 0,
+            textOffset: 5
+          }
+        ]}
+      />
+    )
+
+    expect(mocks.editorOptions.content).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Open ' },
+            {
+              type: 'composerToken',
+              attrs: {
+                id: 'file:image',
+                kind: 'file',
+                label: 'default-topic.png',
+                promptText: 'default-topic.png',
+                payload: {
+                  type: 'image',
+                  ext: '.png',
+                  name: 'default-topic.png',
+                  origin_name: 'default-topic.png',
+                  size: 2048
+                }
+              }
+            },
+            { type: 'text', text: ' now' }
           ]
         }
       ]

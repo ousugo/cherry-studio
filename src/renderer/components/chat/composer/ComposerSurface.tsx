@@ -257,7 +257,7 @@ function isRestorableDraftToken(
 function getRestorableDraftTokens(draftTokens: readonly ComposerSerializedToken[] | undefined): ComposerMessageToken[] {
   return (draftTokens ?? [])
     .filter(isRestorableDraftToken)
-    .map(({ id, kind, label, icon, description, index, textOffset, promptText }) => ({
+    .map(({ id, kind, label, icon, description, index, textOffset, promptText, payload }) => ({
       id,
       kind,
       label,
@@ -265,7 +265,8 @@ function getRestorableDraftTokens(draftTokens: readonly ComposerSerializedToken[
       ...(description && { description }),
       index,
       textOffset,
-      ...(promptText && { promptText })
+      ...(promptText && { promptText }),
+      ...(payload !== undefined && { payload })
     }))
 }
 

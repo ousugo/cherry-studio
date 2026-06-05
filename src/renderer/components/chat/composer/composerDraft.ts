@@ -1,5 +1,11 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
+import type {
+  CherryProviderMetadata,
+  ComposerMessageSnapshot,
+  ComposerMessageToken,
+  ComposerMessageTokenPayload
+} from '@shared/data/types/uiParts'
+import { FileTypeSchema } from '@shared/file/types'
 import type { Editor, JSONContent } from '@tiptap/core'
 
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
@@ -21,8 +27,8 @@ type PersistedComposerSerializedToken = ComposerSerializedToken & {
   kind: Exclude<ComposerSerializedToken['kind'], 'promptVariable'>
 }
 type RestoredComposerToken = Omit<ComposerMessageToken, 'index' | 'textOffset'> & {
-  payload?: {
-    restoredTextSuffix: string
+  payload?: ComposerMessageTokenPayload & {
+    restoredTextSuffix?: string
   }
 }
 
@@ -53,6 +59,40 @@ function getRestoredTextSuffix(payload: unknown): string {
   return typeof restoredTextSuffix === 'string' ? restoredTextSuffix : ''
 }
 
+function readPayloadObject(payload: unknown): Record<string, unknown> | undefined {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined
+  return payload as Record<string, unknown>
+}
+
+function readPayloadString(payload: Record<string, unknown>, key: string) {
+  const value = payload[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+function createDisplayFileTokenPayload(token: ComposerSerializedToken): ComposerMessageTokenPayload | undefined {
+  if (token.kind !== 'file') return undefined
+
+  const payload = readPayloadObject(token.payload)
+  if (!payload) return undefined
+
+  const displayPayload: ComposerMessageTokenPayload = {}
+  const type = FileTypeSchema.safeParse(payload.type)
+  if (type.success) displayPayload.type = type.data
+
+  const ext = readPayloadString(payload, 'ext')
+  if (ext) displayPayload.ext = ext
+
+  const name = readPayloadString(payload, 'name')
+  if (name) displayPayload.name = name
+
+  const originName = readPayloadString(payload, 'origin_name')
+  if (originName) displayPayload.origin_name = originName
+
+  if (typeof payload.size === 'number') displayPayload.size = payload.size
+
+  return Object.keys(displayPayload).length > 0 ? displayPayload : undefined
+}
+
 function getRestorableQuoteTextSuffix(text: string, start: number): string {
   if (text.startsWith('\r\n', start)) return '\r\n'
 
@@ -61,6 +101,8 @@ function getRestorableQuoteTextSuffix(text: string, start: number): string {
 }
 
 function createComposerTokenNode(token: ComposerMessageToken, restoredTextSuffix = ''): JSONContent {
+  const basePayload = readPayloadObject(token.payload)
+  const payload = restoredTextSuffix ? { ...basePayload, restoredTextSuffix } : basePayload
   const attrs: RestoredComposerToken = {
     id: token.id,
     kind: token.kind,
@@ -68,7 +110,7 @@ function createComposerTokenNode(token: ComposerMessageToken, restoredTextSuffix
     ...(token.icon && { icon: token.icon }),
     ...(token.description && { description: token.description }),
     ...(token.promptText && { promptText: token.promptText }),
-    ...(restoredTextSuffix && { payload: { restoredTextSuffix } })
+    ...(payload && { payload })
   }
 
   return {
@@ -178,16 +220,22 @@ export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): C
 
   return {
     version: COMPOSER_MESSAGE_SNAPSHOT_VERSION,
-    tokens: visibleTokens.map(({ id, kind, label, icon, description, index, textOffset, promptText }) => ({
-      id,
-      kind,
-      label,
-      ...(icon && { icon }),
-      ...(description && { description }),
-      index,
-      textOffset,
-      ...(promptText && { promptText })
-    }))
+    tokens: visibleTokens.map((token) => {
+      const { id, kind, label, icon, description, index, textOffset, promptText } = token
+      const payload = createDisplayFileTokenPayload(token)
+
+      return {
+        id,
+        kind,
+        label,
+        ...(icon && { icon }),
+        ...(description && { description }),
+        index,
+        textOffset,
+        ...(promptText && { promptText }),
+        ...(payload && { payload })
+      }
+    })
   }
 }
 
