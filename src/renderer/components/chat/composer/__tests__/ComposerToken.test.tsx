@@ -18,27 +18,37 @@ import {
   type PromptVariableComposerInputToken
 } from '../tokens'
 
-vi.mock('@cherrystudio/ui', () => ({
-  NormalTooltip: ({
-    children,
-    content,
-    contentProps,
-    showArrow
-  }: {
-    children: ReactNode
-    content: ReactNode
-    contentProps?: { className?: string }
-    showArrow?: boolean
-  }) => (
-    <span
-      data-content-class-name={contentProps?.className}
-      data-show-arrow={String(showArrow)}
-      data-testid="composer-token-tooltip">
-      {children}
-      <span data-testid="composer-token-tooltip-content">{content}</span>
-    </span>
-  )
-}))
+vi.mock('@cherrystudio/ui', async () => {
+  const React = await import('react')
+
+  return {
+    NormalTooltip: ({
+      children,
+      content,
+      contentProps,
+      showArrow
+    }: {
+      children: ReactNode
+      content: ReactNode
+      contentProps?: { className?: string }
+      showArrow?: boolean
+    }) => {
+      const trigger = React.isValidElement(children)
+        ? React.cloneElement(children, { 'data-tooltip-trigger': 'true' } as Record<string, unknown>)
+        : children
+
+      return (
+        <span
+          data-content-class-name={contentProps?.className}
+          data-show-arrow={String(showArrow)}
+          data-testid="composer-token-tooltip">
+          {trigger}
+          <span data-testid="composer-token-tooltip-content">{content}</span>
+        </span>
+      )
+    }
+  }
+})
 
 const promptVariableToken: PromptVariableComposerInputToken = {
   id: 'prompt-variable:0:city',
@@ -277,6 +287,24 @@ describe('ComposerToken', () => {
     )
 
     expect(screen.getByTestId('composer-token-tooltip')).toHaveAttribute('data-show-arrow', 'false')
+  })
+
+  it('preserves tooltip trigger props for quote tokens', () => {
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'quote:1',
+          kind: 'quote',
+          label: 'Quote',
+          description: 'quoted text'
+        }}
+      />
+    )
+
+    expect(container.querySelector('[data-composer-token-kind="quote"]')).toHaveAttribute(
+      'data-tooltip-trigger',
+      'true'
+    )
   })
 
   it('unwraps prompt text before showing a quote tooltip fallback', () => {

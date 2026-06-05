@@ -51,7 +51,7 @@ interface FileTokenPresentation {
   previewUrl?: string
 }
 
-function ActiveComposerToken({
+function renderActiveComposerTokenElement({
   token,
   selected = false,
   className,
@@ -81,6 +81,10 @@ function ActiveComposerToken({
       {children ?? <span className="min-w-0 truncate">{token.label}</span>}
     </span>
   )
+}
+
+function ActiveComposerToken(props: ActiveComposerTokenProps) {
+  return renderActiveComposerTokenElement(props)
 }
 
 export function SkillComposerToken(props: ComposerTokenProps) {
@@ -230,7 +234,7 @@ export function KnowledgeComposerToken(props: ComposerTokenProps) {
 
 export function QuoteComposerToken(props: ComposerTokenProps) {
   const quoteTooltipContent = getQuoteTooltipContent(props.token.description, props.token.promptText)
-  const tokenElement = <ActiveComposerToken {...props} icon={tokenIconByKind.quote} />
+  const tokenElement = renderActiveComposerTokenElement({ ...props, icon: tokenIconByKind.quote })
 
   if (!quoteTooltipContent) return tokenElement
 

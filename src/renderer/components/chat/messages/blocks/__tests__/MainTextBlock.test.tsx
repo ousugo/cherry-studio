@@ -51,6 +51,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: {
+    type: '3rdParty',
+    init: vi.fn()
+  },
   useTranslation: () => ({
     t: (key: string) => mockTranslations[key as keyof typeof mockTranslations] ?? key
   })
@@ -210,6 +214,30 @@ describe('MainTextBlock', () => {
       expect(markdown).toHaveTextContent('Reply')
       expect(markdown).not.toHaveTextContent('> quoted line')
       expect(markdown.querySelector('[data-composer-token-kind="quote"]')).toBeInTheDocument()
+    })
+
+    it('should keep quote token tooltip content in markdown-rendered user messages', () => {
+      mockRenderConfig.renderInputMessageAsMarkdown = true
+      renderMainTextBlock({
+        content: '<blockquote>\n\nSelected message text\n</blockquote>\n\nReply',
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'quote-1',
+              kind: 'quote',
+              label: 'Quote',
+              index: 0,
+              textOffset: 0,
+              promptText: '<blockquote>\n\nSelected message text\n</blockquote>'
+            }
+          ]
+        }
+      })
+
+      expect(screen.getByTestId('composer-message-token-tooltip-content')).toHaveTextContent('Selected message text')
+      expect(screen.getByTestId('composer-message-token-tooltip-content')).not.toHaveTextContent('<blockquote>')
     })
 
     it('should render stale quote composer metadata as plain text in markdown mode', () => {
