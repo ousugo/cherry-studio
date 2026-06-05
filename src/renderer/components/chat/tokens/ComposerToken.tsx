@@ -12,13 +12,13 @@ import { toSafeFileUrl } from '@shared/file/urlUtil'
 import { Boxes, Braces, File, FileCode2, FileImage, FileText, TextQuote, Zap } from 'lucide-react'
 import type { ComponentType, MouseEventHandler, ReactNode } from 'react'
 
-import type { ActiveComposerInputToken, ActiveComposerInputTokenKind } from './tokens'
+import type { ChatInputTokenKind, ChatTokenView } from './tokenView'
 
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
 const fileTokenIconClassName = 'size-3 shrink-0 text-current'
 const fileTokenContainerClassName = 'border-border bg-background hover:bg-accent'
 
-const tokenIconByKind: Record<ActiveComposerInputTokenKind, ReactNode> = {
+const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   skill: <Zap className={tokenIconClassName} />,
   file: <FileText className={tokenIconClassName} />,
   knowledge: <Boxes className={tokenIconClassName} />,
@@ -27,7 +27,7 @@ const tokenIconByKind: Record<ActiveComposerInputTokenKind, ReactNode> = {
 }
 
 export interface ComposerTokenProps {
-  token: ActiveComposerInputToken
+  token: ChatTokenView
   selected?: boolean
   className?: string
   children?: ReactNode
@@ -261,7 +261,7 @@ export const composerInputTokenComponentByKind = {
   knowledge: KnowledgeComposerToken,
   quote: QuoteComposerToken,
   promptVariable: PromptVariableComposerToken
-} satisfies Record<ActiveComposerInputTokenKind, ComponentType<ComposerTokenProps>>
+} satisfies Record<ChatInputTokenKind, ComponentType<ComposerTokenProps>>
 
 export function ComposerToken(props: ComposerTokenProps) {
   const TokenComponent = composerInputTokenComponentByKind[props.token.kind]

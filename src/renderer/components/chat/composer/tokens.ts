@@ -1,5 +1,7 @@
 import { normalizeQuoteTokenPromptText } from '@renderer/components/chat/utils/quoteToken'
 
+import { CHAT_INPUT_TOKEN_KINDS, type ChatInputTokenKind } from '../tokens/tokenView'
+
 export const COMPOSER_DRAFT_TOKEN_KINDS = [
   'skill',
   'file',
@@ -12,9 +14,9 @@ export const COMPOSER_DRAFT_TOKEN_KINDS = [
 
 export type ComposerDraftTokenKind = (typeof COMPOSER_DRAFT_TOKEN_KINDS)[number]
 
-export const ACTIVE_COMPOSER_INPUT_TOKEN_KINDS = ['skill', 'file', 'knowledge', 'quote', 'promptVariable'] as const
+export const ACTIVE_COMPOSER_INPUT_TOKEN_KINDS = CHAT_INPUT_TOKEN_KINDS
 
-export type ActiveComposerInputTokenKind = (typeof ACTIVE_COMPOSER_INPUT_TOKEN_KINDS)[number]
+export type ActiveComposerInputTokenKind = ChatInputTokenKind
 
 export interface ComposerDraftToken {
   id: string

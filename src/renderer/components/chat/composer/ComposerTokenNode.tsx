@@ -4,7 +4,7 @@ import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { type ReactNode, useCallback, useLayoutEffect, useState } from 'react'
 
-import { ComposerToken } from './ComposerToken'
+import { ComposerToken } from '../tokens'
 import { type PromptVariableCommitReason, PromptVariableToken } from './PromptVariableToken'
 import type { ActiveComposerInputToken, ComposerDraftToken, PromptVariableComposerInputToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'

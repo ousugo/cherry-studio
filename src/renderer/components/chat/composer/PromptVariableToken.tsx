@@ -1,7 +1,7 @@
 import type { CSSProperties, MouseEventHandler } from 'react'
 import { useLayoutEffect, useRef } from 'react'
 
-import { ComposerToken } from './ComposerToken'
+import { ComposerToken } from '../tokens'
 import type { PromptVariableComposerInputToken } from './tokens'
 
 export type PromptVariableCommitReason = 'blur' | 'enter' | 'tab'
