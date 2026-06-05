@@ -886,6 +886,29 @@ describe('ChatComposer', () => {
     expect(onSend).not.toHaveBeenCalled()
   })
 
+  it('keeps the current draft when sending a new message fails', async () => {
+    const onSend = vi.fn().mockRejectedValue(new Error('open failed'))
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('draft message')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('draft message'))
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'draft message', tokens: [] })
+    })
+
+    expect(onSend).toHaveBeenCalledWith(
+      'draft message',
+      expect.objectContaining({
+        userMessageParts: [expect.objectContaining({ type: 'text', text: 'draft message' })]
+      })
+    )
+    expect(mocks.surfaceProps?.text).toBe('draft message')
+  })
+
   it('routes new topic shortcuts through the explicit parent action', () => {
     const onNewTopic = vi.fn()
     render(<ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} />)
